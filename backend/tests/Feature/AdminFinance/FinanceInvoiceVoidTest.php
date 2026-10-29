@@ -5,23 +5,16 @@ namespace Tests\Feature\AdminFinance;
 use App\Enums\PlatformRole;
 use App\Enums\StoreTransactionType;
 use App\Enums\SubscriptionInvoiceStatus;
-use App\Enums\UserRole;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\ListGlobalStores;
-use App\Filament\Superadmin\Resources\SubscriptionInvoices\Pages\ListSubscriptionInvoices;
 use App\Models\AuditLog;
 use App\Models\Store;
 use App\Models\StoreTransaction;
 use App\Models\SubscriptionInvoice;
-use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
  * Review W2: voiding an invoice never moves money on one member's word. A paid or partly paid invoice is not voided
  * (its money would turn into credit); an unpaid one of 1 000 000 so'm or more waits for a second, different member.
- * The legacy superadmin panel (Filament) refuses both, and its manual top-up refuses what reaches the threshold.
  */
 class FinanceInvoiceVoidTest extends TestCase
 {
@@ -108,38 +101,5 @@ class FinanceInvoiceVoidTest extends TestCase
         $this->assertSame([$second->id, $first->id], [$invoice->voided_by, $invoice->void_requested_by]);
         $this->assertSame(['0.00', 1], [$store->fresh()->debt_balance, $this->voidRows($store)]);
         $this->assertSame(1, AuditLog::where('action', 'admin.pos.invoice_voided')->count());
-    }
-
-    public function test_the_legacy_panel_refuses_a_big_or_paid_void_and_a_big_top_up(): void
-    {
-        [$store, $invoice] = $this->bigInvoice();
-        $admin = User::create(['name' => 'Super Admin', 'phone' => '+998907770051', 'role' => UserRole::SUPER_ADMIN->value, 'password' => bcrypt('x')]);
-        Filament::setCurrentPanel('superadmin');
-        $this->actingAs($admin);
-
-        Livewire::test(ListSubscriptionInvoices::class)
-            ->callTableAction('void', $invoice, data: ['reason' => 'Chegirma'])
-            ->assertNotified("1 000 000 so'm va undan katta hisob-fakturani Boshqaruv markazida ikki xodim bekor qiladi.");
-        $this->assertSame(SubscriptionInvoiceStatus::ISSUED, $invoice->fresh()->status);
-        $this->assertSame('1200000.00', $store->fresh()->debt_balance);
-
-        // A top-up that reaches the threshold, at once or in parts within a day
-        Livewire::test(ListGlobalStores::class)
-            ->callTableAction('top_up', $store, data: ['amount' => 1000000, 'notes' => 'Naqd'])
-            ->assertNotified("1 000 000 so'm va undan katta tuzatishni Boshqaruv markazida ikki xodim tasdiqlaydi.");
-        Livewire::test(ListGlobalStores::class)
-            ->callTableAction('top_up', $store, data: ['amount' => 600000, 'notes' => 'Naqd 1'])
-            ->assertHasNoTableActionErrors();
-        Livewire::test(ListGlobalStores::class)
-            ->callTableAction('top_up', $store, data: ['amount' => 400000, 'notes' => 'Naqd 2'])
-            ->assertNotified("1 000 000 so'm va undan katta tuzatishni Boshqaruv markazida ikki xodim tasdiqlaydi.");
-        $this->assertSame('600000.00', $store->fresh()->debt_balance);
-
-        // The 600 000 top-up paid half the invoice: it is not voided
-        Livewire::test(ListSubscriptionInvoices::class)
-            ->callTableAction('void', $invoice, data: ['reason' => 'Chegirma'])
-            ->assertNotified("To'langan yoki qisman to'langan hisob-fakturani bekor qilib bo'lmaydi: pulni qaytarish uchun Moliya → Qo'lda tuzatish.");
-        $this->assertSame(SubscriptionInvoiceStatus::ISSUED, $invoice->fresh()->status);
-        $this->assertSame('600000.00', $store->fresh()->debt_balance);
     }
 }

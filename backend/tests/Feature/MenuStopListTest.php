@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Events\Broadcast\MenuAvailabilityChangedBroadcast;
 use App\Models\AuditLog;
-use App\Models\Order;
 use App\Models\StopListEntry;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -170,26 +169,5 @@ class MenuStopListTest extends TestCase
             'branch_id' => $this->branch->id, 'product_id' => $this->product->id, 'product_variant_id' => $foreignVariant->id, 'is_active' => false,
         ])->assertNotFound();
         $this->assertDatabaseMissing('branch_product_variants', ['variant_id' => $foreignVariant->id]);
-    }
-
-    public function test_the_stop_list_screen_in_the_store_panel(): void
-    {
-        $this->stop('variant', $this->variant->id, ['reason' => 'Muzlatgich buzildi'])->assertCreated();
-
-        $this->panelAs($this->owner, 'stop-list')->assertOk()->assertSee('Muzlatgich buzildi');
-        $this->panelAs($this->manager, 'stop-list')->assertOk()->assertSee('Muzlatgich buzildi');
-        $this->panelAs($this->makeStaff(UserRole::MANAGER, $this->otherBranch), 'stop-list')->assertOk()->assertDontSee('Muzlatgich buzildi');
-
-        \Filament\Facades\Filament::setCurrentPanel('admin');
-        \Filament\Facades\Filament::setTenant($this->store);
-        $this->actingAs($this->owner, 'web');
-        \Livewire\Livewire::test(\App\Filament\Resources\StopList\Pages\ManageStopList::class)
-            ->callAction('add', ['branch_id' => $this->otherBranch->id, 'type' => 'product', 'subject_id' => $this->product->id, 'reason' => 'Panel'])
-            ->assertHasNoActionErrors();
-        $this->assertDatabaseHas('stop_list_entries', ['branch_id' => $this->otherBranch->id, 'subject_type' => 'product', 'reason' => 'Panel']);
-
-        $entry = StopListEntry::where('reason', 'Muzlatgich buzildi')->firstOrFail();
-        \Livewire\Livewire::test(\App\Filament\Resources\StopList\Pages\ManageStopList::class)->callTableAction('remove', $entry);
-        $this->assertModelMissing($entry);
     }
 }

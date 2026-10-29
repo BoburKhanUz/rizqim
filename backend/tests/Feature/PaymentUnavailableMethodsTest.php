@@ -2,20 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
-use App\Filament\Pages\Tenancy\EditStoreProfile;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\CreateGlobalStore;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\EditGlobalStore;
-use App\Models\District;
 use App\Models\Order;
-use App\Models\Region;
-use App\Models\Store;
-use App\Models\User;
-use Filament\Facades\Filament;
-use Filament\Forms\Components\CheckboxList;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -86,8 +74,8 @@ class PaymentUnavailableMethodsTest extends TestCase
     public function test_owner_settings_show_them_unavailable_and_refuse_to_enable_them(): void
     {
         $this->actingAs($this->owner)->getJson('/api/v1/owner/settings')->assertOk()
-            ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false])
-            ->assertJsonPath('data.payment_settings.paynet', ['enabled' => false, 'available' => false])
+            ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
+            ->assertJsonPath('data.payment_settings.paynet', ['enabled' => false, 'available' => false, 'unavailable_reason' => 'not_integrated'])
             ->assertJsonPath('data.payment_settings.payme.enabled', true)
             ->assertJsonPath('data.allowed_methods', ['cash', 'click', 'payme']);
 
@@ -106,79 +94,5 @@ class PaymentUnavailableMethodsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.payment_settings.uzum', ['enabled' => false, 'available' => false]);
         $this->assertSavedSettingsKept();
-    }
-
-    public function test_owner_panel_pages_lock_the_toggles_and_keep_the_saved_values(): void
-    {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-
-        Livewire::test(StoreSettings::class)
-            ->assertFormFieldDisabled('payment_settings.uzum.enabled')
-            ->assertFormFieldDisabled('payment_settings.paynet.enabled')
-            ->assertFormFieldEnabled('payment_settings.payme.enabled')
-            ->assertSet('data.payment_settings.uzum.enabled', false)
-            ->assertSee('Tez orada')
-            ->set('data.name', 'Renamed Cafe')
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertSame('Renamed Cafe', $this->store->fresh()->name);
-        $this->assertSavedSettingsKept();
-
-        Livewire::test(EditStoreProfile::class)
-            ->assertFormFieldDisabled('payment_settings.uzum.enabled')
-            ->assertFormFieldDisabled('payment_settings.paynet.enabled')
-            ->fillForm(['name' => 'Profile Cafe'])
-            ->call('save')
-            ->assertHasNoFormErrors();
-
-        $this->assertSame('Profile Cafe', $this->store->fresh()->name);
-        $this->assertSavedSettingsKept();
-    }
-
-    public function test_superadmin_store_forms_lock_them_and_keep_the_saved_values(): void
-    {
-        $admin = User::create(['name' => 'Super Admin', 'phone' => '+998909990098', 'role' => UserRole::SUPER_ADMIN->value, 'password' => bcrypt('password')]);
-        $this->actingAs($admin);
-        Filament::setCurrentPanel('superadmin');
-
-        Livewire::test(EditGlobalStore::class, ['record' => $this->store->getRouteKey()])
-            ->assertFormFieldExists('active_payment_methods', checkFieldUsing: fn (CheckboxList $field) => $field->isOptionDisabled('uzum', 'Uzum Bank')
-                && $field->isOptionDisabled('paynet', 'Paynet')
-                && !$field->isOptionDisabled('payme', 'Payme'))
-            ->fillForm(['active_payment_methods' => ['cash', 'click']])
-            ->call('save')
-            ->assertHasNoFormErrors();
-
-        $this->assertFalse($this->store->fresh()->payment_settings['payme']['enabled']);
-        $this->assertSavedSettingsKept();
-
-        $region = Region::create(['name_uz' => 'Toshkent', 'is_active' => true]);
-        $district = District::create(['region_id' => $region->id, 'name_uz' => 'Chilonzor', 'is_active' => true]);
-
-        Livewire::test(CreateGlobalStore::class)
-            ->fillForm([
-                'name' => 'New Cafe',
-                'commission_rate' => 10,
-                'payment_account_type' => 'platform_account',
-                'owner_name' => 'New Owner',
-                'owner_phone' => '+998909990097',
-                'owner_password' => 'secret123',
-                'branch_region_id' => $region->id,
-                'branch_district_id' => $district->id,
-                'branch_address' => 'Bunyodkor 1',
-                'branch_radius' => 5,
-                'branch_lat' => 41.3,
-                'branch_lng' => 69.2,
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $settings = Store::where('name', 'New Cafe')->sole()->payment_settings;
-        $this->assertSame(['enabled' => true], $settings['click']);
-        $this->assertSame(['enabled' => false], $settings['uzum']);
-        $this->assertSame(['enabled' => false], $settings['paynet']);
     }
 }

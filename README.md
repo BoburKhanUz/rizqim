@@ -1,10 +1,12 @@
 # Rizqim
 
-O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish platformasi. Mijozlar buyurtmani Telegram Mini App orqali beradi; do'kon egalari, menejerlar va kuryerlar o'sha ilova, Telegram bot hamda Filament panellari orqali ishlaydi. Komissiya, hisob-kitob, yechib olish va qarz hisobi platformaning o'zida yuritiladi.
+O'zbekiston uchun ko'p do'konli (multi-store) ovqat buyurtma va yetkazib berish platformasi. Mijozlar buyurtmani Telegram Mini App orqali beradi; do'kon egalari, menejerlar va kuryerlar o'sha ilova, Telegram bot hamda hamkor veb-paneli (`partner/web`) orqali, RIZQIM jamoasi esa boshqaruv markazi (`platform/admin`) orqali ishlaydi. Komissiya, hisob-kitob, yechib olish va qarz hisobi platformaning o'zida yuritiladi.
 
 | Qism | Texnologiya | Hujjat |
 |---|---|---|
-| `backend/` | Laravel 12, PHP 8.3, PostgreSQL, Redis, Sanctum, Filament (`/admin`, `/superadmin`) | [backend/README.md](backend/README.md) |
+| `backend/` | Laravel 12, PHP 8.3, PostgreSQL, Redis, Sanctum (faqat API, veb-panelsiz) | [backend/README.md](backend/README.md) |
+| `partner/web/` | Next.js: hamkor (ega, menejer, xodim) veb-paneli | [partner/web/README.md](partner/web/README.md) |
+| `platform/admin/` | Next.js: RIZQIM boshqaruv markazi (jamoa, 2FA) | [platform/admin/README.md](platform/admin/README.md) |
 | `customer/miniapp/` | React 19, TypeScript, Vite 8, Tailwind 4, TanStack Query, zustand | [customer/miniapp/README.md](customer/miniapp/README.md) |
 | Deploy | Docker Compose | [docs/DEPLOY.md](docs/DEPLOY.md) |
 
@@ -45,7 +47,7 @@ Telegram (mijoz, xodim)
    |  Mini App
    v
 [frontend: nginx + React] --/api/*, /storage/*--> [backend: nginx + php-fpm, Laravel]
-                                        /api/v1   /admin   /superadmin
+                                        /api/v1 (Mini App, hamkor paneli, boshqaruv markazi, POS)
                                            |          |
                                            v          v
                                     [PostgreSQL]  [Redis: kesh, navbat, sessiya]
@@ -59,21 +61,21 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 
 `queue worker` va `scheduler` backend bilan bir kod bazasidan ishlaydi. Navbat ikki ishchiga bo'lingan: `default` (Telegram xabarlari, listenerlar) va `reports` (og'ir CSV hisobotlar, `SendOrderReport`), shunda hisobot xabarlar ortidan navbat kutib qolmaydi.
 
-`docker-compose.yml` yettita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work --queue=default,broadcasts`), `queue-reports` (`queue:work --queue=reports`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi hamda `/api/` va `/storage/` proksisi; `backend` manzilini Docker DNS orqali har so'rovda aniqlaydi). Admin panellar (`/admin`, `/superadmin`) backend portida (standart 8000), Mini App frontend portida (standart 8080) ochiladi.
+`docker-compose.yml` yettita xizmat ishga tushiradi: `postgres` (17), `redis` (7, AOF), `backend` (migratsiyalarni ham shu bajaradi), `queue` (`queue:work --queue=default,broadcasts`), `queue-reports` (`queue:work --queue=reports`), `scheduler` (`schedule:work`), `frontend` (Mini App statikasi hamda `/api/` va `/storage/` proksisi; `backend` manzilini Docker DNS orqali har so'rovda aniqlaydi). Backend porti (standart 8000) faqat API va `/up` uchun; Mini App frontend portida (standart 8080), hamkor paneli va boshqaruv markazi o'z portlarida ochiladi (`docs/DEPLOY.md`, 4-bo'lim).
 
 ## Rollar
 
 | Rol | Doirasi | Nima qila oladi |
 |---|---|---|
-| `super_admin` | butun platforma | Do'kon yaratadi va moliyaviy sozlaydi (komissiya, kredit limiti, to'lov hisobi turi); to'lov tizimlari, promo-kodlar, SMS, hududlar, kategoriyalarni boshqaradi; yechib olish so'rovlarini hal qiladi; qo'lda balans to'ldiradi; shikoyatlarni ko'radi. Barcha do'konlar buyurtmalarida to'liq huquqli, yetkazilgan buyurtmani qaytara oladigan (`refunded`) yagona rol |
+| `super_admin` / RIZQIM jamoasi (`platform_role`) | butun platforma | Faqat boshqaruv markazi orqali (email, parol, 2FA; Mini App va hamkor paneliga kirmaydi): do'kon yaratadi va moliyaviy sozlaydi (komissiya, kredit limiti, to'lov hisobi turi); to'lov tizimlari, promo-kodlar, SMS, hududlar, kategoriyalarni boshqaradi; payoutlarni tasdiqlaydi; qo'lda tuzatish qiladi; shikoyatlarga javob beradi; yetkazilgan buyurtmani qaytaradi (ikki kishilik tasdiq bilan). Ruxsatlar rol bo'yicha (`docs/API.md` «Admin API») |
 | `owner` | o'z do'koni | Katalog va zaxira, filiallar, xodimlar (taklif havolasi, filialga ko'chirish, o'chirish), barcha buyurtmalar, moliya (balans, yechib olish, top-up), sozlamalar (to'lov usullari, ish vaqti, yetkazish narxi, o'z merchant kalitlari), shikoyatlarga javob, hisobot (CSV Telegram'ga) |
 | `manager` | o'z filiali (filial berilmagan bo'lsa butun do'kon) | Filial buyurtmalarini yuritadi, kuryer biriktiradi, filialda mahsulot mavjudligini yoqadi/o'chiradi, shikoyatlarga javob beradi, hisobot oladi |
 | `courier` | o'ziga biriktirilgan buyurtmalar | Faqat o'z buyurtmasini ko'radi; yo'lga chiqadi va "yetkazildi" deb belgilaydi |
 | `customer` | o'z hisobi | Do'kon va katalog, savat, buyurtma va to'lov, buyurtma kuzatuvi, manzillar (xaritada), shikoyat, do'konga baho, keshbek va referral havolasi |
 
-- Kirish: Mini App Telegram `initData` orqali (HMAC tekshiriladi, `auth_date` 10 daqiqadan eski bo'lmasligi kerak) va Sanctum tokeni oladi; `/admin` (owner, manager, super_admin) hamda `/superadmin` (faqat super_admin) paneli email yoki telefon + parol bilan.
+- Kirish: Mini App Telegram `initData` orqali (HMAC tekshiriladi, `auth_date` 10 daqiqadan eski bo'lmasligi kerak) va Sanctum tokeni oladi; hamkor paneli (ega, menejer, xodimlar) telefon va SMS kod bilan; boshqaruv markazi (RIZQIM jamoasi) email, parol va 2FA bilan (`docs/AUTH.md`).
 - Rol berish: mijoz Mini App'ga birinchi kirishda `customer` bo'ladi; xodimni egasi taklif havolasi (`invite_...`) bilan qo'shadi; istalgan rolni `php artisan user:assign-role` beradi (audit logga yoziladi). Oddiy kirish saqlangan rolni hech qachon o'zgartirmaydi.
-- Do'koni yo'q `owner`/`manager`/`courier` hisoblari API'da 403 oladi (`staff.store` middleware) va panelga kira olmaydi.
+- Do'koni yo'q `owner`/`manager`/`courier` hisoblari API'da 403 oladi (`staff.store` middleware).
 
 ## Buyurtma berish
 
@@ -97,7 +99,7 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 | `keshbek` | `PLATFORM` | Buyurtma yaratilganda `paid`; mijozda `balance > 0` bo'lsagina ko'rsatiladi |
 | `uzum`, `paynet` | — | O'chirilgan: `config/orders.php` dagi `unavailable_payment_methods`; panelda "Tez orada", API `{enabled: false, available: false}` qaytaradi |
 
-**PLATFORM yoki STORE.** Click/Payme buyurtmasi `STORE` bo'ladi faqat `Store::collectsOwnPayments($provider)` rost bo'lsa: do'konning `payment_account_type = own_account` va shu provayder bo'limida barcha merchant ma'lumotlari to'ldirilgan (Click: `service_id`, `merchant_id`, `secret_key`; Payme: `merchant_id`, `secret_key`). Unda to'lov havolasi do'kon merchantiga quriladi va webhook do'konning o'z kaliti bilan tekshiriladi. Aks holda buyurtma `PLATFORM`: havola platforma merchantiga (Superadmin > To'lov Tizimlari, bo'lmasa `CLICK_*`/`PAYME_*` env) quriladi, yetkazilganda to'liq `total_price` do'kon hamyoniga o'tkaziladi. Do'kon kaliti platforma buyurtmasini, platforma kaliti do'kon buyurtmasini tasdiqlay olmaydi. Kalit sozlanmagan bo'lsa webhooklar rad etadi (fail closed). To'lov yetkazishdan keyin kelsa ham do'konga bir marta (idempotent) o'tkaziladi.
+**PLATFORM yoki STORE.** Click/Payme buyurtmasi `STORE` bo'ladi faqat `Store::collectsOwnPayments($provider)` rost bo'lsa: do'konning `payment_account_type = own_account` va shu provayder bo'limida barcha merchant ma'lumotlari to'ldirilgan (Click: `service_id`, `merchant_id`, `secret_key`; Payme: `merchant_id`, `secret_key`). Unda to'lov havolasi do'kon merchantiga quriladi va webhook do'konning o'z kaliti bilan tekshiriladi. Aks holda buyurtma `PLATFORM`: havola platforma merchantiga (boshqaruv markazi: Tizim → To'lov tizimlari, bo'lmasa `CLICK_*`/`PAYME_*` env) quriladi, yetkazilganda to'liq `total_price` do'kon hamyoniga o'tkaziladi. Do'kon kaliti platforma buyurtmasini, platforma kaliti do'kon buyurtmasini tasdiqlay olmaydi. Kalit sozlanmagan bo'lsa webhooklar rad etadi (fail closed). To'lov yetkazishdan keyin kelsa ham do'konga bir marta (idempotent) o'tkaziladi.
 
 ## Buyurtma holatlari
 
@@ -127,15 +129,15 @@ backend      --- geokodlash proksisi ------> Nominatim   (Mini App unga o'zi mur
 - **Bekor qilish (`canceled`, `rejected`):** zaxira qaytariladi (`stock` oshadi), promo-kod ishlatilishi bo'shaydi, keshbek `balance` ga qaytadi (to'lov `refunded`), mijozga Telegram xabari ketadi. Click/Payme (yoki yig'ib olingan naqd) bilan to'langan pulni tizim qaytara olmaydi: to'lov `paid` bo'lib qoladi, `manual_refund_required` belgilanadi, tarix qaydi va ogohlantirish logi yoziladi, panelda "To'lov qaytarilmagan" ko'rsatiladi — mijozga qo'lda qaytariladi.
 - **To'lanmagan onlayn buyurtma:** scheduler har daqiqada `new` holatda turgan, to'lanmagan onlayn buyurtmalarni yaratilganidan `ORDERS_UNPAID_ONLINE_TTL_MINUTES` (standart 30; `0` — o'chirilgan) daqiqa o'tgach avtomatik bekor qiladi (zaxira va promo-kod ishlatilishi qaytadi). Bekor qilingan buyurtmaga keyin kelgan to'lov webhookda rad etiladi.
 - **Naqd + olib ketish taqiqi:** oxirgi `ORDERS_CASH_PICKUP_BAN_WINDOW_DAYS` (standart 30; `0` — muddatsiz) kun ichida kamida `ORDERS_CASH_PICKUP_BAN_THRESHOLD` (standart 1; `0` — o'chirilgan) ta naqd `pickup` buyurtma `canceled` bo'lgan bo'lsa (bekor qilishni buyurtma egasi qilgan yoki buyurtma `new` dan keyingi holatga o'tgan bo'lsa) mijoz uchun naqd to'lov yopiladi: `POST /orders` rad etadi, `GET /stores` naqdni o'chirilgan ko'rsatadi. `rejected` va `new` holatda do'kon bekor qilgan buyurtmalar sanalmaydi.
-- **Yetkazilgan buyurtmani qaytarish:** faqat `super_admin`, do'kon panelidagi (`/admin/<do'kon>`; Superadmin > Restoranlar > "Login as Owner") buyurtmalar ro'yxatida "Qaytarish" tugmasi, sabab majburiy. Komissiya do'konga qaytariladi (qaysi hisobdan olingan bo'lsa shunga); platforma yig'ib o'tkazgan pul hamyondan qaytarib olinadi (hamyonda yetmagan qismi qarzga yoziladi); keshbek mijozga qaytadi; zaxira qaytmaydi; referral mukofoti qoladi. Click/Payme/naqd pulni mijozga qo'lda qaytarish kerak. Payme yetkazilgandan keyin to'lovni o'zi qaytarsa (`CancelTransaction`) buyurtma avtomatik `refunded` bo'ladi.
+- **Yetkazilgan buyurtmani qaytarish:** boshqaruv markazida (Buyurtmalar → buyurtma kartasi → qaytarish so'rovi, ikkinchi xodim tasdiqlaydi; `docs/API.md` «Admin API»), sabab majburiy. Komissiya do'konga qaytariladi (qaysi hisobdan olingan bo'lsa shunga); platforma yig'ib o'tkazgan pul hamyondan qaytarib olinadi (hamyonda yetmagan qismi qarzga yoziladi); keshbek mijozga qaytadi; zaxira qaytmaydi; referral mukofoti qoladi. Click/Payme/naqd pulni mijozga qo'lda qaytarish kerak. Payme yetkazilgandan keyin to'lovni o'zi qaytarsa (`CancelTransaction`) buyurtma avtomatik `refunded` bo'ladi.
 
 ## Moliya
 
 - **Komissiya** har bir `delivered` buyurtma uchun (naqd ham) yechiladi: avval do'kon hamyonidan (`wallet_balance`), yetmagan qismi `debt_balance` (do'kon platformadan qarzi) ga qo'shiladi. Standartlar: `commission_rate` 10%, `credit_limit` -100000, `min_payout_reserve` 100000.
 - **Hisob-kitob (settlement):** `PLATFORM` buyurtma yetkazilganda to'langan summa hamyonga yoziladi. Keshbek buyurtmasida avval do'kon qarzi yopiladi, qoldig'i hamyonga o'tadi.
 - **Bloklash:** komissiyadan keyin `debt_balance > |credit_limit|` bo'lsa `active` do'kon `payment_required` ga o'tadi, yangi buyurtma olmaydi va `/stores` ro'yxatida chiqmaydi, do'kon admin chatiga Telegram ogohlantirishi ketadi. `credit_limit = 0` — qarzga ruxsat yo'q: qarzi yo'q do'kon sotadi, har qanday qarz paydo bo'lsa bloklanadi (qoida `Store::exceedsCreditLimit()`). `finance_hold` ham buyurtmani to'xtatadi, lekin avtomatik o'zgarmaydi.
-- **Top-up:** egasi Click/Payme orqali platformaga to'laydi (`POST /owner/finance/top-up`) yoki super admin qo'lda "To'lov Qabul Qilish" bajaradi; `debt_balance` kamayadi; do'kon `payment_required` holatida bo'lib, qarz limitdan pastga tushsa, yana `active` bo'ladi.
-- **Yechib olish:** egasi `POST /owner/payouts` (16 xonali karta, kamida 1000) yuboradi; summa `wallet_balance` - kutilayotgan so'rovlar - `min_payout_reserve` dan oshmasligi kerak. Super admin (Superadmin > Moliya > Yechib Olish So'rovlari) so'rovni `completed` (hamyondan yechiladi) yoki `rejected` qiladi.
+- **Top-up:** egasi Click/Payme orqali platformaga to'laydi (`POST /owner/finance/top-up`) yoki RIZQIM jamoasi boshqaruv markazida qo'lda tuzatish qiladi (Moliya → Qo'lda tuzatish); `debt_balance` kamayadi; do'kon `payment_required` holatida bo'lib, qarz limitdan pastga tushsa, yana `active` bo'ladi.
+- **Yechib olish:** egasi `POST /owner/payouts` (16 xonali karta, kamida 1000) yuboradi; summa `wallet_balance` - kutilayotgan so'rovlar - `min_payout_reserve` dan oshmasligi kerak. RIZQIM jamoasi (boshqaruv markazi, Moliya → Payoutlar) so'rovni tasdiqlaydi (`completed`, hamyondan yechiladi) yoki rad etadi (`rejected`).
 - **Referral:** taklif qilingan mijozning birinchi yetkazilgan, kamida 50 000 UZS li buyurtmasidan keyin taklif qilganga 5 000 keshbek beriladi; bu summa do'kon qarziga yoziladi.
 - Barcha pul hisoblari `Money` (aniq o'nli arifmetika, 2 xona) va `LedgerService` orqali; har bir o'zgarish `store_transactions` (qarz) yoki `store_wallet_transactions` (hamyon) jurnaliga yoziladi.
 

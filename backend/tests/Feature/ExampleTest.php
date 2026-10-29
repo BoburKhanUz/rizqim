@@ -12,8 +12,10 @@ class ExampleTest extends TestCase
      */
     public function test_the_application_returns_a_successful_response(): void
     {
+        // P4-33: no panel to redirect to; without PARTNER_WEB_URL the root is a plain 404 (WebRootTest)
+        config(['services.partner_web.url' => null]);
         $response = $this->get('/');
 
-        $response->assertStatus(302);
+        $response->assertStatus(404);
     }
 }

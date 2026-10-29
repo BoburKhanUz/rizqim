@@ -8,6 +8,7 @@ import 'payment_settings.dart';
 import 'payment_account_type.dart';
 import 'store_status.dart';
 import 'tax_regime.dart';
+import 'telegram.dart';
 import 'fiscal_settings4.dart';
 
 part 'data108.g.dart';
@@ -35,6 +36,7 @@ class Data108 {
     required this.allowedMethods,
     required this.tin,
     required this.taxRegime,
+    required this.telegram,
     required this.fiscalSettings,
   });
 
@@ -71,6 +73,7 @@ class Data108 {
   final String? tin;
   @JsonKey(name: 'tax_regime')
   final TaxRegime? taxRegime;
+  final Telegram telegram;
   @JsonKey(name: 'fiscal_settings')
   final FiscalSettings4 fiscalSettings;
 

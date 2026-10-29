@@ -2,20 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
-use App\Filament\Pages\Tenancy\EditStoreProfile;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\CreateGlobalStore;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\EditGlobalStore;
 use App\Jobs\SendTelegramRequest;
 use App\Models\District;
 use App\Models\Region;
-use App\Models\Store;
-use App\Models\User;
-use Filament\Facades\Filament;
+use App\Services\Admin\Stores\StoreProvisioner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -27,7 +19,6 @@ class StorePhoneTest extends TestCase
     use RefreshDatabase;
     use OrderLifecycleFixtures;
 
-    private User $admin;
     private Region $region;
     private District $district;
 
@@ -39,70 +30,25 @@ class StorePhoneTest extends TestCase
         Queue::fake([SendTelegramRequest::class]);
 
         $this->setUpLifecycleStore();
-        $this->admin = User::create([
-            'name' => 'Super Admin',
-            'phone' => '+998901110001',
-            'role' => UserRole::SUPER_ADMIN->value,
-            'password' => bcrypt('password'),
-        ]);
         $this->region = Region::create(['name_uz' => 'Toshkent shahri', 'is_active' => true]);
         $this->district = District::create(['region_id' => $this->region->id, 'name_uz' => 'Chilonzor tumani', 'is_active' => true]);
     }
 
-    public function test_a_store_created_with_the_panel_wizard_keeps_its_phone(): void
+    public function test_a_store_created_through_the_provisioner_keeps_its_phone(): void
     {
-        $this->actingAs($this->admin);
-        Filament::setCurrentPanel('superadmin');
+        $store = app(StoreProvisioner::class)->create([
+            'name' => 'Wizard Cafe',
+            'phone' => '+998712003344',
+            'owner_name' => 'Wizard Owner',
+            'owner_phone' => '+998901110002',
+            'branch_region_id' => $this->region->id,
+            'branch_district_id' => $this->district->id,
+            'branch_address' => 'Bunyodkor 1',
+            'branch_lat' => 41.3,
+            'branch_lng' => 69.2,
+        ])['store'];
 
-        Livewire::test(CreateGlobalStore::class)
-            ->fillForm([
-                'name' => 'Wizard Cafe',
-                'phone' => '+998712003344',
-                'commission_rate' => 10,
-                'payment_account_type' => 'platform_account',
-                'owner_name' => 'Wizard Owner',
-                'owner_phone' => '+998901110002',
-                'owner_password' => 'secret123',
-                'branch_region_id' => $this->region->id,
-                'branch_district_id' => $this->district->id,
-                'branch_address' => 'Bunyodkor 1',
-                'branch_radius' => 5,
-                'branch_lat' => 41.3,
-                'branch_lng' => 69.2,
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $this->assertSame('+998712003344', Store::where('name', 'Wizard Cafe')->sole()->phone);
-
-        // The superadmin store form edits it afterwards
-        Livewire::test(EditGlobalStore::class, ['record' => Store::where('name', 'Wizard Cafe')->sole()->getRouteKey()])
-            ->assertSet('data.phone', '+998712003344')
-            ->fillForm(['phone' => '+998712009999', 'active_payment_methods' => ['cash', 'click', 'payme']])
-            ->call('save')
-            ->assertHasNoFormErrors();
-
-        $this->assertSame('+998712009999', Store::where('name', 'Wizard Cafe')->sole()->phone);
-    }
-
-    public function test_the_owner_edits_it_on_the_settings_and_profile_pages(): void
-    {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-
-        Livewire::test(StoreSettings::class)
-            ->set('data.phone', '+998712005566')
-            ->call('save')
-            ->assertHasNoErrors();
-        $this->assertSame('+998712005566', $this->store->fresh()->phone);
-
-        Livewire::test(EditStoreProfile::class)
-            ->assertSet('data.phone', '+998712005566')
-            ->fillForm(['phone' => '+998712007788'])
-            ->call('save')
-            ->assertHasNoFormErrors();
-        $this->assertSame('+998712007788', $this->store->fresh()->phone);
+        $this->assertSame('+998712003344', $store->fresh()->phone);
     }
 
     public function test_the_owner_settings_api_reads_and_updates_it_and_keeps_it_when_left_out(): void

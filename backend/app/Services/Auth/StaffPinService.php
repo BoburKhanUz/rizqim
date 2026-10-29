@@ -153,7 +153,9 @@ class StaffPinService
     }
 
     /**
-     * Staff who can sign in on this terminal: its store, its branch (or store-wide staff), a terminal role, a PIN.
+     * Staff who can sign in on this terminal: its store, its branch (or store-wide staff), a terminal role, a PIN, not
+     * blocked (review W3 S#1: a blocked person's PIN signs in nowhere and approves nothing, and they are not on the
+     * terminal's staff list; to the terminal they look like a wrong PIN, as an unknown person does).
      *
      * @return \Illuminate\Database\Eloquent\Builder<User>
      */
@@ -163,6 +165,7 @@ class StaffPinService
             ->where('store_id', $device->store_id)
             ->whereIn('role', array_map(fn (UserRole $role) => $role->value, UserRole::terminalRoles()))
             ->whereNotNull('pin_hash')
+            ->whereNull('blocked_at')
             ->when($device->branch_id, fn ($query, $branchId) => $query->where(
                 fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')
             ));

@@ -17,6 +17,7 @@ District _$DistrictFromJson(Map<String, dynamic> json) => District(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  sortOrder: (json['sort_order'] as num).toInt(),
   region: json['region'] == null
       ? null
       : Region.fromJson(json['region'] as Map<String, dynamic>),
@@ -29,5 +30,6 @@ Map<String, dynamic> _$DistrictToJson(District instance) => <String, dynamic>{
   'is_active': instance.isActive,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'sort_order': instance.sortOrder,
   'region': instance.region,
 };

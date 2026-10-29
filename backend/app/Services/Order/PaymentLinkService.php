@@ -4,9 +4,14 @@ namespace App\Services\Order;
 
 use App\Models\Order;
 use App\Models\PaymentProvider;
+use App\Services\Payment\PaymentProviderSwitch;
 
 class PaymentLinkService
 {
+    public function __construct(
+        private readonly PaymentProviderSwitch $providers,
+    ) {}
+
     /**
      * The Click/Payme checkout URL for a new online order: null for other payment methods, '' when the store has
      * switched the provider off.
@@ -18,7 +23,8 @@ class PaymentLinkService
         }
 
         $amount = (float) $order->total_price;
-        $returnUrl = url('/admin'); // Redirect back to store after payment
+        // P4-32: back to the Mini App (it used to be the old store panel, /admin)
+        $returnUrl = PaymentProviderSwitch::orderReturnUrl();
 
         $store = $order->store;
         $settings = $store->payment_settings ?? [];
@@ -36,12 +42,7 @@ class PaymentLinkService
             $serviceId = $useStore ? $clickConfig['service_id'] : PaymentProvider::platformCredential('click', 'service_id');
             $merchantId = $useStore ? $clickConfig['merchant_id'] : PaymentProvider::platformCredential('click', 'merchant_id');
 
-            return "https://my.click.uz/services/pay" .
-                   "?service_id={$serviceId}" .
-                   "&merchant_id={$merchantId}" .
-                   "&amount={$amount}" .
-                   "&transaction_param={$order->uuid}" .
-                   "&return_url=" . urlencode($returnUrl);
+            return $this->providers->clickUrl($serviceId, $merchantId, (string) $amount, (string) $order->uuid, $returnUrl);
         }
 
         $paymeConfig = is_array($settings['payme'] ?? null) ? $settings['payme'] : [];
@@ -50,10 +51,9 @@ class PaymentLinkService
         }
 
         $merchantId = $useStore ? $paymeConfig['merchant_id'] : PaymentProvider::platformCredential('payme', 'merchant_id');
-        // Payme expects amount in tiyin (1 UZS = 100 tiyin)
+        // Payme expects amount in tiyin (1 UZS = 100 tiyin); P4-32: the platform account's mode picks the sandbox host
         $tiyinAmount = (int) round($amount * 100);
-        $params = "m={$merchantId};ac.order_id={$order->uuid};a={$tiyinAmount};c=" . urlencode($returnUrl);
 
-        return "https://checkout.paycom.uz/" . base64_encode($params);
+        return $this->providers->paymeUrl($merchantId, $tiyinAmount, (string) $order->uuid, $returnUrl, !$useStore);
     }
 }

@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import { Placeholder } from '@/components/Placeholder';
+import { MarketingView } from '@/components/marketing/MarketingView';
 
 export const metadata: Metadata = { title: 'Marketing' };
 
-// Stage B and later waves replace the placeholder with the real screen (docs/PHASE4_PLAN.md, section 9).
-export default function Page() {
-  return <Placeholder title="nav_marketing" />;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+
+// P4-31: banners and promotions, promo codes, categories. ?tab=banners|codes|categories opens a tab.
+export default async function Page({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  return <MarketingView initialTab={first(params.tab)} />;
 }

@@ -4,17 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
 use App\Enums\SubscriptionInvoiceStatus;
-use App\Enums\UserRole;
-use App\Filament\Superadmin\Pages\RevenueReport;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\SubscriptionInvoice;
 use App\Models\User;
 use App\Services\Finance\RevenueReportService;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -120,20 +116,5 @@ class BillingRevenueReportTest extends TestCase
             array_map(fn (array $row) => [$row['store_name'], $row['commission']->toString(), $row['subscription']->toString(), $row['total']->toString()], $rows)
         );
         $this->assertSame([], app(RevenueReportService::class)->byStore('2025-01'));
-    }
-
-    public function test_the_superadmin_page_shows_the_report(): void
-    {
-        $admin = User::create(['name' => 'Admin', 'phone' => '+998901110005', 'password' => bcrypt('x'), 'role' => UserRole::SUPER_ADMIN->value]);
-        Filament::setCurrentPanel('superadmin');
-        $this->actingAs($admin);
-
-        Livewire::test(RevenueReport::class)
-            ->set('from', '2026-09')
-            ->set('to', '2026-10')
-            ->set('period', '2026-10')
-            ->assertSee('156 401 UZS')
-            ->assertSee('Alpha')
-            ->assertSee('106 000 UZS');
     }
 }

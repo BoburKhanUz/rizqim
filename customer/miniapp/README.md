@@ -60,7 +60,7 @@ Build vaqtida bundle ichiga yoziladi; o'zgartirgandan keyin qayta build qiling. 
 | `types/` | API JSON shakllari (backend controller va modellaridan yozilgan) va `telegram.d.ts` |
 | `test/` | `setup.ts`, `factories.ts`, `httpErrors.ts` |
 
-**Rollar va bosh sahifa** (`lib/roles.ts`): `/` ni ochganda `super_admin` -> `/superadmin/dashboard`, `owner` -> `/admin/analytics`, `manager` -> `/manager`, `courier` -> `/courier`; mijoz katalogda qoladi. Marshrutlar klientda rol bo'yicha to'silmaydi: ruxsatni server tekshiradi (`role:` middleware va policy'lar), ekranlar faqat navigatsiyani rolga moslaydi.
+**Rollar va bosh sahifa** (`lib/roles.ts`): `/` ni ochganda `owner` -> `/admin/analytics` (Mini App'ning o'z ega ekrani), `manager` -> `/manager`, `courier` -> `/courier`; mijoz katalogda qoladi. Superadmin va RIZQIM jamoasi Mini App'ga kirmaydi (boshqaruv markazi, `docs/AUTH.md`). Marshrutlar klientda rol bo'yicha to'silmaydi: ruxsatni server tekshiradi (`role:` middleware va policy'lar), ekranlar faqat navigatsiyani rolga moslaydi.
 
 ## Autentifikatsiya (`hooks/useTelegramAuth.ts`, `services/api.ts`)
 

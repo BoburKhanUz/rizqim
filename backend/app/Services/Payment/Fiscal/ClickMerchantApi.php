@@ -3,7 +3,7 @@
 namespace App\Services\Payment\Fiscal;
 
 use App\Models\Order;
-use App\Models\PaymentProvider;
+use App\Services\Payment\OrderMerchantAccount;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -18,30 +18,18 @@ class ClickMerchantApi
 
     /**
      * The merchant credentials the order's money went to: the store's own Click account (payment_settings.click,
-     * with merchant_user_id from the Click merchant cabinet), else the platform's (services.click / superadmin).
+     * with merchant_user_id from the Click merchant cabinet), else the platform's (services.click / superadmin). Review
+     * C#2: chosen by the order's `payment_owner`, not by the store's current payment account type.
      *
      * @return array{merchant_user_id: string, secret_key: string, service_id: string}|null
      */
     public function credentials(Order $order): ?array
     {
-        if ($order->payment_owner !== 'PLATFORM') {
-            $store = $order->store;
-            if (!$store?->collectsOwnPayments('click')) {
-                return null;
-            }
-            $config = $store->payment_settings['click'];
-            $credentials = [
-                'merchant_user_id' => trim((string) ($config['merchant_user_id'] ?? '')),
-                'secret_key' => trim((string) $config['secret_key']),
-                'service_id' => trim((string) $config['service_id']),
-            ];
-        } else {
-            $credentials = [
-                'merchant_user_id' => (string) PaymentProvider::platformCredential('click', 'merchant_user_id'),
-                'secret_key' => (string) PaymentProvider::platformCredential('click', 'secret_key'),
-                'service_id' => (string) PaymentProvider::platformCredential('click', 'service_id'),
-            ];
-        }
+        $credentials = [
+            'merchant_user_id' => (string) OrderMerchantAccount::credential('click', $order, 'merchant_user_id'),
+            'secret_key' => (string) OrderMerchantAccount::credential('click', $order, 'secret_key'),
+            'service_id' => (string) OrderMerchantAccount::credential('click', $order, 'service_id'),
+        ];
 
         return in_array('', $credentials, true) ? null : $credentials;
     }

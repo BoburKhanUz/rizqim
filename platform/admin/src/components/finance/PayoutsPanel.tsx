@@ -7,6 +7,7 @@ import { idempotencyKey } from '@/lib/api/orders';
 import { PAYOUT_FILTERS, useDecidePayout, usePayout, usePayouts, type PayoutCard, type PayoutFilter, type PayoutRow } from '@/lib/api/finance';
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { PAYOUT_FILTER_LABEL, payoutTone, uzs } from './financeModel';
 import { reasonOk, ReasonFields, Row } from './ReasonDialog';
@@ -36,6 +37,7 @@ export function PayoutsPanel({ enabled, onOpen }: { enabled: boolean; onOpen: (i
             </button>
           );
         })}
+        <ExportButton list="payouts" query={{ status: filter }} className="sm:ml-auto" />
       </div>
       {payouts.isError ? (
         <InlineError title={t('finance_loadError')} message={errorText(payouts.error, t)} retryLabel={t('retry')} retrying={payouts.isFetching} onRetry={() => void payouts.refetch()} />

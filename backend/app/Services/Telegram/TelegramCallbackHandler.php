@@ -228,6 +228,8 @@ class TelegramCallbackHandler
         }
 
         return User::where('telegram_id', (string) $telegramUserId)
+            // P4-31: a blocked staff account no longer moves orders from the Telegram cards
+            ->whereNull('blocked_at')
             ->whereIn('role', [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::COURIER->value, UserRole::SUPER_ADMIN->value])
             ->where(function ($query) use ($order) {
                 $query->where('store_id', $order->store_id)

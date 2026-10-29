@@ -3,27 +3,24 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Filament\Resources\Employees\Pages\ManageEmployees;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\CreateGlobalStore;
-use App\Filament\Superadmin\Resources\GlobalUsers\Pages\ManageGlobalUsers;
 use App\Jobs\SendTelegramRequest;
 use App\Models\AuditLog;
 use App\Models\District;
 use App\Models\Region;
-use App\Models\Store;
 use App\Models\User;
+use App\Services\Admin\Stores\StoreProvisioner;
 use App\Services\Auth\StaffPhoneLoginService;
 use App\Services\Sms\SmsServiceInterface;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
-use Livewire\Livewire;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
  * P1-34 review B: how a staff login phone was established (users.phone_verified_via = sms | vouched) decides what it
- * may do. The employee form vouches only for a phone it changed and never replaces one the person proved by SMS;
+ * may do. The partner panel's staff API (/owner/staff, StaffAccountService; P4-33: before, these ran through the old
+ * store panel's employee form) vouches only for a phone it changed and never replaces one the person proved by SMS;
  * every set, change and clear is audited without the clear number and ends the app sessions of the old number; a
  * vouched phone never signs anybody in to a customer account; a store does not vouch a phone its holder proved on
  * another store's staff account.
@@ -35,8 +32,6 @@ class StaffLoginPhoneSecurityTest extends TestCase
 
     /** @var list<string> */
     private array $codes = [];
-
-    private User $admin;
 
     protected function setUp(): void
     {
@@ -52,7 +47,6 @@ class StaffLoginPhoneSecurityTest extends TestCase
         });
 
         $this->setUpLifecycleStore();
-        $this->admin = User::create(['name' => 'Super Admin', 'role' => UserRole::SUPER_ADMIN->value, 'email' => 'root@example.uz', 'password' => bcrypt('password')]);
     }
 
     private function sendCode(string $phone): string
@@ -74,18 +68,15 @@ class StaffLoginPhoneSecurityTest extends TestCase
         ]);
     }
 
-    private function panel(User $user, ?Store $tenant = null): void
+    /**
+     * A call to the partner panel's staff API as $user (their own store).
+     */
+    private function staffApi(User $user, string $method, string $uri, array $data = []): TestResponse
     {
         $this->app['auth']->forgetGuards();
-        $this->actingAs($user, 'web');
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($tenant ?? $this->store);
-    }
+        $this->flushHeaders();
 
-    private function superadmin(): void
-    {
-        $this->actingAs($this->admin);
-        Filament::setCurrentPanel('superadmin');
+        return $this->actingAs($user, 'sanctum')->json($method, "/api/v1/owner/staff{$uri}", $data);
     }
 
     /** The holder proved the phone with a code (Mini App / app phone verification) */
@@ -124,11 +115,8 @@ class StaffLoginPhoneSecurityTest extends TestCase
     public function test_an_unrelated_edit_does_not_vouch_a_phone_the_employee_typed_themselves(): void
     {
         $this->courier->update(['phone' => '+998907770001']); // their own profile, no code
-        $this->panel($this->owner);
 
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->courier, data: ['name' => 'Renamed Courier'])
-            ->assertHasNoTableActionErrors();
+        $this->staffApi($this->owner, 'PATCH', "/{$this->courier->id}", ['name' => 'Renamed Courier'])->assertOk();
 
         $courier = $this->courier->fresh();
         $this->assertSame('Renamed Courier', $courier->name);
@@ -140,19 +128,14 @@ class StaffLoginPhoneSecurityTest extends TestCase
     public function test_a_manager_cannot_take_over_a_courier_by_replacing_their_sms_proven_phone(): void
     {
         $this->proveBySms($this->courier, '+998907770002');
-        $this->panel($this->manager);
 
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->courier, data: ['phone' => '+998907770099'])
-            ->assertHasTableActionErrors(['phone']);
+        $this->staffApi($this->manager, 'PATCH', "/{$this->courier->id}", ['phone' => '+998907770099'])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
         // Nor clear it (and set their own number in a second step)
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->courier, data: ['phone' => null])
-            ->assertHasTableActionErrors(['phone']);
+        $this->staffApi($this->manager, 'PATCH', "/{$this->courier->id}", ['phone' => null])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
         // The same phone with another change is fine
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->courier, data: ['name' => 'Courier Renamed'])
-            ->assertHasNoTableActionErrors();
+        $this->staffApi($this->manager, 'PATCH', "/{$this->courier->id}", ['name' => 'Courier Renamed', 'phone' => '+998907770002'])->assertOk();
 
         $courier = $this->courier->fresh();
         $this->assertSame('+998907770002', $courier->phone);
@@ -163,20 +146,13 @@ class StaffLoginPhoneSecurityTest extends TestCase
 
     public function test_setting_changing_and_clearing_a_login_phone_is_audited_without_the_number(): void
     {
-        $this->panel($this->owner);
-
-        Livewire::test(ManageEmployees::class)
-            ->callAction('create', data: ['name' => 'App Courier', 'role' => UserRole::COURIER->value, 'branch_id' => $this->branch->id, 'phone' => '+998907770031'])
-            ->assertHasNoActionErrors();
+        $this->staffApi($this->owner, 'POST', '', ['name' => 'App Courier', 'role' => UserRole::COURIER->value, 'branch_id' => $this->branch->id, 'phone' => '+998907770031'])
+            ->assertCreated();
         $courier = User::where('name', 'App Courier')->sole();
         $this->assertSame(User::PHONE_VIA_VOUCHED, $courier->phone_verified_via);
 
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $courier, data: ['phone' => '+998907770032'])
-            ->assertHasNoTableActionErrors();
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $courier->fresh(), data: ['phone' => null])
-            ->assertHasNoTableActionErrors();
+        $this->staffApi($this->owner, 'PATCH', "/{$courier->id}", ['phone' => '+998907770032'])->assertOk();
+        $this->staffApi($this->owner, 'PATCH', "/{$courier->id}", ['phone' => null])->assertOk();
 
         $this->assertSame(['staff.login_phone_set', 'staff.login_phone_changed', 'staff.login_phone_cleared'], $this->auditActions($courier));
         $this->assertNull($courier->fresh()->phone);
@@ -194,9 +170,6 @@ class StaffLoginPhoneSecurityTest extends TestCase
         $json = json_encode($logs->toArray());
         $this->assertStringNotContainsString('907770031', $json);
         $this->assertStringNotContainsString('907770032', $json);
-
-        // The owner's audit panel names them
-        $this->assertSame("Kirish raqami o'zgartirildi", \App\Filament\Resources\AuditLogs\AuditLogResource::actionLabels()['staff.login_phone_changed']);
     }
 
     public function test_changing_or_clearing_a_login_phone_ends_the_app_sessions_of_the_old_number(): void
@@ -210,10 +183,7 @@ class StaffLoginPhoneSecurityTest extends TestCase
             ->assertOk()->json('data.token');
         $miniApp = $this->manager->createToken('telegram-auth')->plainTextToken;
 
-        $this->panel($this->owner);
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->manager, data: ['phone' => null])
-            ->assertHasNoTableActionErrors();
+        $this->staffApi($this->owner, 'PATCH', "/{$this->manager->id}", ['phone' => null])->assertOk();
         $this->assertNull($this->manager->fresh()->phone);
 
         $this->withBearer(null)->postJson('/api/v1/auth/refresh', ['refresh_token' => $session['refresh_token'], 'device_uuid' => $session['device']['uuid']])
@@ -225,10 +195,7 @@ class StaffLoginPhoneSecurityTest extends TestCase
         // A change does the same
         app(StaffPhoneLoginService::class)->vouch($this->courier, '+998907770011');
         $courierSession = $this->staffLogin('+998907770011', 'courier')->assertOk()->json('data');
-        $this->panel($this->owner);
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $this->courier->fresh(), data: ['phone' => '+998907770012'])
-            ->assertHasNoTableActionErrors();
+        $this->staffApi($this->owner, 'PATCH', "/{$this->courier->id}", ['phone' => '+998907770012'])->assertOk();
         $this->bearerJson('GET', '/api/v1/me/permissions', $courierSession['token'])->assertUnauthorized();
         $this->staffLogin('+998907770011', 'courier')->assertForbidden();
         $this->staffLogin('+998907770012', 'courier')->assertOk()->assertJsonPath('data.user.id', $this->courier->id);
@@ -236,19 +203,15 @@ class StaffLoginPhoneSecurityTest extends TestCase
 
     public function test_a_vouched_phone_never_signs_its_holder_in_to_a_customer_account(): void
     {
-        // An owner typed somebody else's number for their courier; the super admin later makes the account a customer
+        // An owner typed somebody else's number for their courier; the account later becomes a customer (User::booted
+        // drops a vouched phone whatever path changes the role)
         app(StaffPhoneLoginService::class)->vouch($this->courier, '+998907770003');
-        $this->superadmin();
-        Livewire::test(ManageGlobalUsers::class)
-            ->callTableAction('edit', $this->courier->fresh(), data: ['role' => UserRole::CUSTOMER->value])
-            ->assertHasNoTableActionErrors();
+        $this->courier->fresh()->update(['role' => UserRole::CUSTOMER->value, 'store_id' => null, 'branch_id' => null]);
 
         $exCourier = $this->courier->fresh();
         $this->assertSame(UserRole::CUSTOMER, $exCourier->role);
         $this->assertNull($exCourier->phone_verified_at);
         $this->assertNull($exCourier->phone_verified_via);
-        $cleared = AuditLog::where('action', 'staff.login_phone_cleared')->sole();
-        $this->assertSame($this->store->id, (int) $cleared->store_id);
 
         // The real holder of the number signs in to the customer app: a new account of their own
         $data = $this->withBearer(null)->postJson('/api/v1/auth/phone/verify', ['phone' => '+998907770003', 'code' => $this->sendCode('+998907770003')])
@@ -279,18 +242,15 @@ class StaffLoginPhoneSecurityTest extends TestCase
         $other = $this->makeStore('Evil');
         $otherBranch = $this->makeBranch($other, 'Evil B');
         $otherOwner = $this->makeStaff(UserRole::OWNER, null, $other);
-        $this->panel($otherOwner, $other);
 
-        Livewire::test(ManageEmployees::class)
-            ->callAction('create', data: ['name' => 'Lifecycle Owner Copy', 'role' => UserRole::MANAGER->value, 'branch_id' => $otherBranch->id, 'phone' => '+998907770006'])
-            ->assertHasActionErrors(['phone']);
+        $this->staffApi($otherOwner, 'POST', '', ['name' => 'Lifecycle Owner Copy', 'role' => UserRole::MANAGER->value, 'branch_id' => $otherBranch->id, 'phone' => '+998907770006'])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
         $this->assertDatabaseMissing('users', ['name' => 'Lifecycle Owner Copy']);
 
         // Nor onto an existing employee
         $theirCourier = $this->makeStaff(UserRole::COURIER, $otherBranch, $other);
-        Livewire::test(ManageEmployees::class)
-            ->callTableAction('edit', $theirCourier, data: ['phone' => '+998907770006'])
-            ->assertHasTableActionErrors(['phone']);
+        $this->staffApi($otherOwner, 'PATCH', "/{$theirCourier->id}", ['phone' => '+998907770006'])
+            ->assertStatus(422)->assertJsonValidationErrors('phone');
 
         // The holder signs in to their own store only
         $this->staffLogin('+998907770006')->assertOk()->assertJsonPath('data.user.id', $this->owner->id);
@@ -302,10 +262,8 @@ class StaffLoginPhoneSecurityTest extends TestCase
         app(StaffPhoneLoginService::class)->vouch($this->manager, '+998907770007');
         $other = $this->makeStore('Ikkinchi Kafe');
         $otherBranch = $this->makeBranch($other, 'Chilonzor');
-        $this->panel($this->makeStaff(UserRole::OWNER, null, $other), $other);
-        Livewire::test(ManageEmployees::class)
-            ->callAction('create', data: ['name' => 'Moonlighter', 'role' => UserRole::COURIER->value, 'branch_id' => $otherBranch->id, 'phone' => '+998907770007'])
-            ->assertHasNoActionErrors();
+        $this->staffApi($this->makeStaff(UserRole::OWNER, null, $other), 'POST', '', ['name' => 'Moonlighter', 'role' => UserRole::COURIER->value, 'branch_id' => $otherBranch->id, 'phone' => '+998907770007'])
+            ->assertCreated();
 
         $accounts = $this->staffLogin('+998907770007')->assertStatus(409)->json('data.accounts');
 
@@ -314,42 +272,28 @@ class StaffLoginPhoneSecurityTest extends TestCase
         $this->assertSame([UserRole::MANAGER->labelUz(), UserRole::COURIER->labelUz()], array_column($accounts, 'role_label'));
     }
 
-    public function test_the_super_admin_paths_audit_the_login_phone_too(): void
+    /**
+     * The platform's paths: creating a store (StoreProvisioner, "convert an application") vouches for the owner's
+     * login phone and audits it with the store; the owner-login-phone action of the control center is in
+     * AdminStoreMoneyAndOwnerTest.
+     */
+    public function test_the_store_creation_path_audits_the_owner_login_phone(): void
     {
-        $this->owner->update(['phone' => '+998907770008']);
-        $this->superadmin();
-        Livewire::test(ManageGlobalUsers::class)->callTableAction('vouchLoginPhone', $this->owner);
-        $this->assertSame(['staff.login_phone_set'], $this->auditActions($this->owner));
-        $this->assertSame($this->admin->id, (int) AuditLog::where('action', 'staff.login_phone_set')->sole()->user_id);
-
-        // Editing the phone there makes it a contact detail: the login phone is cleared, audited
-        Livewire::test(ManageGlobalUsers::class)
-            ->callTableAction('edit', $this->owner->fresh(), data: ['phone' => '+998907770009'])
-            ->assertHasNoTableActionErrors();
-        $this->assertNull($this->owner->fresh()->phone_verified_at);
-        $this->assertSame(['staff.login_phone_set', 'staff.login_phone_cleared'], $this->auditActions($this->owner));
-
-        // The store wizard
         $region = Region::create(['name_uz' => 'Toshkent shahri', 'is_active' => true]);
         $district = District::create(['region_id' => $region->id, 'name_uz' => 'Chilonzor tumani', 'is_active' => true]);
-        Livewire::test(CreateGlobalStore::class)
-            ->fillForm([
-                'name' => 'Wizard Cafe',
-                'commission_rate' => 10,
-                'payment_account_type' => 'platform_account',
-                'owner_name' => 'Wizard Owner',
-                'owner_password' => 'secret123',
-                'owner_phone' => '+998907770013',
-                'branch_region_id' => $region->id,
-                'branch_district_id' => $district->id,
-                'branch_address' => 'Bunyodkor 1',
-                'branch_radius' => 5,
-                'branch_lat' => 41.3,
-                'branch_lng' => 69.2,
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-        $wizardOwner = User::where('name', 'Wizard Owner')->sole();
+
+        $wizardOwner = app(StoreProvisioner::class)->create([
+            'name' => 'Wizard Cafe',
+            'owner_name' => 'Wizard Owner',
+            'owner_phone' => '+998907770013',
+            'branch_region_id' => $region->id,
+            'branch_district_id' => $district->id,
+            'branch_address' => 'Bunyodkor 1',
+            'branch_lat' => 41.3,
+            'branch_lng' => 69.2,
+        ])['owner'];
+
+        $this->assertSame(User::PHONE_VIA_VOUCHED, $wizardOwner->fresh()->phone_verified_via);
         $this->assertSame(['staff.login_phone_set'], $this->auditActions($wizardOwner));
         $this->assertSame($wizardOwner->store_id, (int) AuditLog::where('model_id', $wizardOwner->id)->where('action', 'staff.login_phone_set')->sole()->store_id);
     }

@@ -35,6 +35,7 @@ Data108 _$Data108FromJson(Map<String, dynamic> json) => Data108(
   taxRegime: json['tax_regime'] == null
       ? null
       : TaxRegime.fromJson(json['tax_regime'] as String?),
+  telegram: Telegram.fromJson(json['telegram'] as Map<String, dynamic>),
   fiscalSettings: FiscalSettings4.fromJson(
     json['fiscal_settings'] as Map<String, dynamic>,
   ),
@@ -61,5 +62,6 @@ Map<String, dynamic> _$Data108ToJson(Data108 instance) => <String, dynamic>{
   'allowed_methods': instance.allowedMethods,
   'tin': instance.tin,
   'tax_regime': instance.taxRegime,
+  'telegram': instance.telegram,
   'fiscal_settings': instance.fiscalSettings,
 };

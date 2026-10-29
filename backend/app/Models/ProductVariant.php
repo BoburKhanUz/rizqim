@@ -83,33 +83,6 @@ class ProductVariant extends Model
         return $minimum->isPositive() ? $minimum : $this->quantityStep();
     }
     
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::saved(function ($variant) {
-            $variant->loadMissing('product');
-            $storeId = $variant->product?->store_id;
-            if ($storeId) {
-                \Illuminate\Support\Facades\Cache::forget("ops:inventory_risk:store_{$storeId}_variant_{$variant->id}");
-                \Illuminate\Support\Facades\Cache::forget("ops:low_stock_alerts_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:low_stock_names_string:store_{$storeId}_limit_3");
-                \Illuminate\Support\Facades\Cache::forget("ops:out_of_stock_count:store_{$storeId}");
-            }
-        });
-
-        static::deleted(function ($variant) {
-            $variant->loadMissing('product');
-            $storeId = $variant->product?->store_id;
-            if ($storeId) {
-                \Illuminate\Support\Facades\Cache::forget("ops:inventory_risk:store_{$storeId}_variant_{$variant->id}");
-                \Illuminate\Support\Facades\Cache::forget("ops:low_stock_alerts_count:store_{$storeId}");
-                \Illuminate\Support\Facades\Cache::forget("ops:low_stock_names_string:store_{$storeId}_limit_3");
-                \Illuminate\Support\Facades\Cache::forget("ops:out_of_stock_count:store_{$storeId}");
-            }
-        });
-    }
-
     /**
      * @return BelongsTo<Product, $this>
      */

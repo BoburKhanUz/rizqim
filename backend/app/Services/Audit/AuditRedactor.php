@@ -14,7 +14,10 @@ final class AuditRedactor
     private const SECRET_PARTS = ['pin', 'password', 'passwd', 'secret', 'token', 'otp', 'pan', 'cvv', 'cvc', 'hash',
         'card', 'remember', 'credential', 'credentials', 'initdata', 'init', 'apikey', 'key', 'code', 'signature',
         // P4-11: 2FA (app_authentication_recovery_codes, totp...), challenge and invite tokens
-        'codes', 'recovery', 'totp', 'challenge'];
+        'codes', 'recovery', 'totp', 'challenge',
+        // Review W3 S#5: header-style secrets (same families as App\Support\SentryScrubber): Authorization, Cookie,
+        // X-Auth, X-XSRF-TOKEN, sign / sign_string, Bearer values, session ids
+        'authorization', 'cookie', 'auth', 'sign', 'signstring', 'bearer', 'session', 'sessionid', 'xsrf', 'csrf'];
 
     // ... except these, which only name or number a record (an order's short code, a terminal staff code)
     private const NOT_SECRET = ['short_code', 'staff_code'];
@@ -98,6 +101,21 @@ final class AuditRedactor
 
     private static function text(string $value): string
     {
+        // Review W3 S#5: a secret written inside free text or a URL
+        // Authorization header values and Sanctum personal access tokens (id|40 random chars)
+        $value = (string) preg_replace('/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{8,}/i', '$1 ' . self::REDACTED, $value);
+        $value = (string) preg_replace('/\b\d{1,10}\|[A-Za-z0-9]{30,}/', self::REDACTED, $value);
+        // JWTs, provider keys (sk_live_..., pk_test_...), Telegram bot tokens (id:secret, also inside Bot API URLs)
+        $value = (string) preg_replace('/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/', self::REDACTED, $value);
+        $value = (string) preg_replace('/\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{8,}/', self::REDACTED, $value);
+        $value = (string) preg_replace('/(?<!\d)\d{6,12}:[A-Za-z0-9_-]{30,}/', self::REDACTED, $value);
+        // token=..., access_token=..., signature=... in a URL's query string or a pasted `key=value` list
+        $value = (string) preg_replace(
+            '/(?<![\w.\-])((?:[\w.\-]*?(?:token|secret|password|passwd|signature|apikey|api_key|authorization)|key|sign|auth|code|otp|session|sessionid|hash)=)[^&\s"\'#;]+/i',
+            '$1' . self::REDACTED,
+            $value,
+        );
+
         return (string) preg_replace_callback(self::PHONE_TEXT, fn (array $match) => (string) self::maskPhone($match[0]), $value);
     }
 }

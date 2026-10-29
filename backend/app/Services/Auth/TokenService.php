@@ -239,6 +239,9 @@ class TokenService
      */
     public function createDeviceToken($tokenable, Device $device, string $name, array $abilities, ?Carbon $expiresAt): \Laravel\Sanctum\NewAccessToken
     {
+        // P4-31: a blocked account gets no app session, refresh or staff PIN session (403 account_blocked)
+        AccountBlockedException::guard($tokenable);
+
         $token = $tokenable->createToken($name, $abilities, $expiresAt);
         $token->accessToken->forceFill(['device_id' => $device->id])->save();
 

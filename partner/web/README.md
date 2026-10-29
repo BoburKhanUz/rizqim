@@ -82,8 +82,8 @@ Route handler'lar `Origin`/`Sec-Fetch-Site` ni tekshiradi (boshqa saytdan chaqir
 
 **Xodim hisobi (P1-36).** Login `account: 'staff'` bilan yuboriladi: backend mijoz hisobini emas, shu raqam **kirish raqami**
 bo'lgan do'kon xodimini (ega, menejer va boshqalar) topadi, hech qachon yangi hisob yaratmaydi ([docs/AUTH.md](../../docs/AUTH.md),
-"Xodim sifatida SMS bilan kirish"). Kirish raqami: ega uchun superadmin do'kon yaratganda yozgan raqam, boshqa xodimlar uchun
-do'kon panelidagi Xodimlar formasidagi "Telefon (SMS bilan kirish)". Raqam hech qaysi xodimniki bo'lmasa, backend sababini
+"Xodim sifatida SMS bilan kirish"). Kirish raqami: ega uchun do'kon yaratilganda arizadagi raqam (yangisini boshqaruv markazi
+ovqatxona kartasidagi «Kirish raqami» bilan qo'yadi), boshqa xodimlar uchun shu panelning Xodimlar sahifasidagi telefon. Raqam hech qaysi xodimniki bo'lmasa, backend sababini
 aytadi va forma shuni ko'rsatadi.
 
 **Bir odam ikki do'konda.** Raqam bir nechta xodim hisobida bo'lsa, `/api/session/login` 409 `account_selection_required`

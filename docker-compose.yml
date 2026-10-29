@@ -104,8 +104,7 @@ services:
     environment:
       <<: *backend-environment
       RUN_MIGRATIONS: "true"
-    # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /admin, /superadmin va /up ni shu xostdagi tashqi proksi
-    # oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
+    # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /up (va API) ni shu xostdagi tashqi proksi oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
     # internetga ochiq bo'lsa, Docker userland proksisi orqali kelgan so'rov (masalan IPv6) ichki manzildan kelgandek
     # ko'rinib, soxta IP bilan kirish limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa BACKEND_BIND (va firewall).
     # docs/OPERATIONS.md, 10-bo'lim

@@ -29,6 +29,11 @@ return [
         'ops_chat_id' => env('TELEGRAM_OPS_CHAT_ID'),
     ],
 
+    // P4-32: the partner web panel (partner/web), where a store's top-up payment returns to; APP_URL when unset
+    'partner_web' => [
+        'url' => env('PARTNER_WEB_URL'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],
@@ -58,6 +63,12 @@ return [
     'payme' => [
         'secret_key' => env('PAYME_SECRET_KEY'),
         'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
+    ],
+
+    // Review S#7: Tizim → To'lov tizimlari may put a platform provider in `test` (Payme's sandbox checkout) on
+    // APP_ENV=production only with this set: a live customer would otherwise pay into the sandbox
+    'payments' => [
+        'allow_test_mode' => (bool) env('PAYMENTS_ALLOW_TEST_MODE', false),
     ],
 
     // Address search / reverse geocoding behind /api/v1/geocode/* (see App\Services\Geo). The Mini App never calls a

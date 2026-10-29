@@ -92,8 +92,8 @@ MD,
     'flatten_deep_query_parameters' => true,
 
     /*
-     * Middleware of /docs/api and /docs/api.json. AuthorizeApiDocs opens them in the local and testing environments,
-     * when `access.public` is on, and otherwise only to a signed-in superadmin (the Filament session).
+     * Middleware of /docs/api and /docs/api.json. AuthorizeApiDocs opens them in the local and testing environments
+     * and when `access.public` is on; nowhere else (the same document: packages/api-spec/openapi.json).
      */
     'middleware' => [
         'web',

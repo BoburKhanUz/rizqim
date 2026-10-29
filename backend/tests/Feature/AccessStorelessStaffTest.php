@@ -3,17 +3,13 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Filament\Resources\Employees\EmployeeResource;
-use App\Filament\Superadmin\Resources\GlobalUsers\Pages\ManageGlobalUsers;
 use App\Http\Middleware\EnsureStaffHasStore;
 use App\Models\Branch;
 use App\Models\Store;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class AccessStorelessStaffTest extends TestCase
@@ -91,37 +87,6 @@ class AccessStorelessStaffTest extends TestCase
         }
 
         $this->actingAs($this->customer, 'sanctum')->getJson('/api/v1/user')->assertOk();
-    }
-
-    public function test_storeless_staff_cannot_enter_the_admin_panel_or_list_global_users(): void
-    {
-        $storelessOwner = $this->staff(UserRole::OWNER, null, '5000020');
-
-        $this->assertFalse($storelessOwner->canAccessPanel(Filament::getPanel('admin')));
-
-        $this->actingAs($storelessOwner);
-        $this->assertSame(0, EmployeeResource::getEloquentQuery()->count());
-    }
-
-    public function test_superadmin_user_form_requires_a_store_for_staff_roles(): void
-    {
-        $this->actingAs($this->superAdmin);
-        Filament::setCurrentPanel(Filament::getPanel('superadmin'));
-
-        Livewire::test(ManageGlobalUsers::class)
-            ->callAction('create', data: ['name' => 'No Store Owner', 'role' => UserRole::OWNER->value, 'password' => 'secret-password'])
-            ->assertHasActionErrors(['store_id' => 'required']);
-        $this->assertDatabaseMissing('users', ['name' => 'No Store Owner']);
-
-        Livewire::test(ManageGlobalUsers::class)
-            ->callAction('create', data: ['name' => 'Store Owner', 'role' => UserRole::OWNER->value, 'store_id' => $this->store->id, 'password' => 'secret-password'])
-            ->assertHasNoActionErrors();
-        $this->assertDatabaseHas('users', ['name' => 'Store Owner', 'store_id' => $this->store->id, 'role' => 'owner']);
-
-        Livewire::test(ManageGlobalUsers::class)
-            ->callAction('create', data: ['name' => 'Plain Customer', 'role' => UserRole::CUSTOMER->value, 'store_id' => $this->store->id, 'password' => 'secret-password'])
-            ->assertHasNoActionErrors();
-        $this->assertDatabaseHas('users', ['name' => 'Plain Customer', 'store_id' => null, 'role' => 'customer']);
     }
 
     public function test_production_check_reports_storeless_staff_count(): void

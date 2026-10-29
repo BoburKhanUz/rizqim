@@ -7,7 +7,7 @@ namespace App\Enums;
  * platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions
  * (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything.
  *
- * Only `superadmin` is also users.role = super_admin (the old store-level super admin, the old Filament panels); the
+ * Only `superadmin` is also users.role = super_admin (the old store-level super admin); the
  * other roles are users.role = platform, which holds no store-level permission at all.
  */
 enum PlatformRole: string

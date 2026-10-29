@@ -7,6 +7,7 @@ import { Button, Card, CardSkeletons, cx, EmptyState, Field, fieldClass, formatM
 import { DEFAULT_STORE_FILTERS, HEALTH_LEVELS, useStores, type StoreFilters, type StoreRow } from '@/lib/api/stores';
 import { errorText } from '@/lib/errors';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { RegionSelect } from './StorePicker';
 import { StoresNav } from './StoresNav';
@@ -129,7 +130,7 @@ export function StoresView() {
             )}
           </Field>
         </div>
-        <div>
+        <div className="flex flex-wrap items-start gap-3">
           <Button
             variant="secondary"
             onClick={() => {
@@ -139,6 +140,7 @@ export function StoresView() {
           >
             {t('stores_clear')}
           </Button>
+          <ExportButton list="stores" query={{ q: filters.q, status: filters.status, region_id: filters.region_id, health: filters.health, plan: filters.plan, debt: filters.debt }} />
         </div>
       </section>
 

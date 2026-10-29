@@ -47,8 +47,8 @@ class Store extends Model
     protected $appends = ['logo_url', 'banner_url', 'min_order', 'delivery_fee', 'is_order_locked'];
 
     /**
-     * Internal and financial columns left out of serialized stores (API responses, relations). Not $hidden, because
-     * Filament fills its forms from attributesToArray(), which honours $hidden; owner endpoints list them explicitly.
+     * Internal and financial columns left out of serialized stores (API responses, relations). Not $hidden (a form or
+     * export that reads attributesToArray() still gets them); owner endpoints list them explicitly.
      */
     public const INTERNAL_ATTRIBUTES = [
         'debt_balance', 'wallet_balance', 'credit_limit', 'low_balance_threshold', 'min_payout_reserve',
@@ -175,26 +175,51 @@ class Store extends Model
     {
         $settings = [];
         foreach (self::PAYMENT_PROVIDERS as $provider) {
-            $settings[$provider] = ['enabled' => in_array($provider, $enabledMethods, true) && static::isPaymentMethodAvailable($provider)];
+            // Not isPaymentMethodAvailable(): a provider the team switched off for a while still starts on
+            $settings[$provider] = ['enabled' => in_array($provider, $enabledMethods, true) && static::isPaymentMethodIntegrated($provider)];
         }
 
         return $settings + ['delivery_enabled' => true, 'pickup_enabled' => true];
     }
 
     /**
-     * Payment methods not offered yet (config orders.unavailable_payment_methods): checkout refuses them and clients
-     * see them switched off, whatever a store saved for them (which is kept).
+     * Payment methods not offered now: not integrated yet (config orders.unavailable_payment_methods) or, P4-32, a
+     * platform provider the team switched off (payment_providers.is_active, PaymentProviderSwitch). Checkout refuses
+     * them and clients see them switched off, whatever a store saved for them (which is kept).
      *
      * @return list<string>
      */
     public static function unavailablePaymentMethods(): array
     {
-        return array_values((array) config('orders.unavailable_payment_methods', []));
+        $switch = app(\App\Services\Payment\PaymentProviderSwitch::class);
+        $off = array_filter(self::PAYMENT_PROVIDERS, fn (string $method) => static::isPaymentMethodIntegrated($method) && !$switch->isActive($method));
+
+        return array_values(array_unique([...(array) config('orders.unavailable_payment_methods', []), ...$off]));
     }
 
     public static function isPaymentMethodAvailable(string $method): bool
     {
         return !in_array($method, static::unavailablePaymentMethods(), true);
+    }
+
+    /**
+     * Whether the platform can process the method at all (it has a webhook), whatever the team's switch says.
+     */
+    public static function isPaymentMethodIntegrated(string $method): bool
+    {
+        return !in_array($method, (array) config('orders.unavailable_payment_methods', []), true);
+    }
+
+    /**
+     * Why a method is not offered: `not_integrated`, `switched_off` (the team's switch), null when it is.
+     */
+    public static function paymentMethodUnavailableReason(string $method): ?string
+    {
+        if (!static::isPaymentMethodIntegrated($method)) {
+            return 'not_integrated';
+        }
+
+        return static::isPaymentMethodAvailable($method) ? null : 'switched_off';
     }
 
     /**
@@ -283,6 +308,23 @@ class Store extends Model
         return (float) ($this->payment_settings['delivery_fee'] ?? 0);
     }
 
+    /**
+     * Who changes the status and why, for the StoreStatusLog row the next save writes (see booted()); not an attribute.
+     *
+     * @var array{admin_id: int|null, comment: string}|null
+     */
+    public ?array $statusLogContext = null;
+
+    /**
+     * Name the member and the reason of the status change the next save() makes; without it the change is logged as "system".
+     */
+    public function logStatusChangeAs(?User $member, string $comment): static
+    {
+        $this->statusLogContext = ['admin_id' => $member?->id, 'comment' => mb_substr(trim($comment), 0, 1000)];
+
+        return $this;
+    }
+
     protected static function booted()
     {
         // P1-34: a deleted store's subscription is closed once its ended months are billed (docs/BILLING.md); if this
@@ -294,6 +336,28 @@ class Store extends Model
             } catch (\Throwable $e) {
                 report($e);
             }
+        });
+
+        // Review W3 C#3: every status change is logged here, in one place, whoever makes it (StoreActions, LedgerService,
+        // AdjustmentService, NettingService, PlanMigration...); the Ko'rsatkichlar history (StoreActivity) is rebuilt from
+        // these rows. The member and reason come from logStatusChangeAs(), else the change is "system".
+        static::updated(function (Store $store) {
+            $context = $store->statusLogContext;
+            $store->statusLogContext = null;
+
+            if (!$store->wasChanged('status')) {
+                return;
+            }
+
+            $from = $store->getOriginal('status');
+
+            StoreStatusLog::create([
+                'store_id' => $store->id,
+                'from_status' => $from instanceof \BackedEnum ? $from->value : $from,
+                'to_status' => $store->status->value,
+                'admin_id' => $context['admin_id'] ?? null,
+                'comment' => $context['comment'] ?? 'system',
+            ]);
         });
 
         static::creating(function ($store) {

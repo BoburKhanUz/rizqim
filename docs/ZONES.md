@@ -17,22 +17,22 @@ ishlashi, API va P1-32 buyurtma yaratishga uni qanday ulashi haqida (P1-24).
 
 ## Ega hududni qanday chizadi
 
-Do'kon paneli → **Yetkazib berish hududlari** → **Create** (hamkor web panelida — xuddi shu qoidalar bilan API orqali,
-pastda "API (ega: hududlarni boshqarish)"). Bo'lim faqat egaga ko'rinadi (`zones.manage`; uni boshqa
+Hamkor paneli (`partner/web`) → **Hududlar** (`/zones`): xaritada chiziladi, qoidalarni API tekshiradi (pastda "API
+(ega: hududlarni boshqarish)"). Bo'lim faqat egaga ko'rinadi (`zones.manage`; uni boshqa
 rolga berib bo'lmaydi, `docs/AUTH.md`). Menejer va boshqa xodimlar bu sahifani ochsa, 403 oladi.
 
 1. **Nomi** (masalan, "Markaz"), kerak bo'lsa **Filial** va **Ustuvorlik**.
 2. **Narx va shartlar**: yetkazib berish narxi, minimal buyurtma, bepul yetkazib berish chegarasi, taxminiy vaqt.
-3. **Hudud**: xaritada chap tomondagi asbobdan ko'pburchak (yoki to'rtburchak) tanlang, nuqtalarni bosib chizing va
-   birinchi nuqtani bosib yoping. Shakl chetlarini sudrab to'g'rilash, tahrirlash va o'chirish tugmalari ham shu yerda.
-   Bir nechta shakl chizilsa, ular bitta hududga (MultiPolygon) birlashadi. Qizil nuqtalar — do'konning filiallari.
-4. **GeoJSON** maydoni (xaritaning ostida): tayyor GeoJSON'ni shu yerga qo'yish yoki chizilganini nusxalash mumkin.
+3. **Hudud**: xaritada nuqtalarni bosib ko'pburchak chizing (bir nechta shakl — bitta hudud, MultiPolygon); nuqtalarni
+   sudrab to'g'rilash va shaklni o'chirish ham shu yerda. Filiallar xaritada belgilangan.
+4. **GeoJSON** (xarita ostidagi ochiladigan maydon): tayyor GeoJSON'ni shu yerga qo'yish yoki chizilganini nusxalash mumkin.
    Xarita yuklanmasa (internet yo'q), shu maydon yetarli. `Polygon`, `MultiPolygon`, `Feature` va bitta hududli
    `FeatureCollection` qabul qilinadi. Koordinatalar tartibi **[uzunlik, kenglik]** ([lng, lat]), masalan Toshkent
    markazi `[69.2797, 41.3111]`.
-5. **Save**. Noto'g'ri GeoJSON bo'lsa, sabab o'zbekcha ko'rsatiladi.
+5. **Saqlash**. Noto'g'ri GeoJSON bo'lsa, sabab o'zbekcha ko'rsatiladi.
 
-Xarita Leaflet 1.9.4 va Leaflet.draw 1.0.4 (cdnjs, SRI bilan) orqali ishlaydi, plitkalar OpenStreetMap'dan.
+Xarita Leaflet 1.9.4 bilan ishlaydi (hamkor panelining paketi), plitkalar `PARTNER_MAP_TILE_URL` dan (bo'sh bo'lsa
+OpenStreetMap, faqat sinov uchun; `docs/DEPLOY.md`, 4-bo'lim).
 
 ### Ko'pburchak qoidalari
 
@@ -64,8 +64,7 @@ Hech qaysi hududga tushmasa — `null` (yetkazib berilmaydi).
 
 - Hududda **Filial** tanlangan bo'lsa, buyurtmani faqat o'sha filial qabul qiladi. U yopiq (faol emas, vaqtincha
   yopiq yoki ish vaqtidan tashqarida) bo'lsa, narx so'rovi `branch_closed` bilan rad etiladi.
-- P2-33: hudud bog'langan filialni o'chirib bo'lmaydi (API: 422 `branch_in_use`, `data.zones` — nechta hudud; Filament
-  ham rad etadi). Aks holda hudud filialsiz qolib, istalgan filialdan yetkazadigan bo'lardi. Avval hududni boshqa
+- P2-33: hudud bog'langan filialni o'chirib bo'lmaydi (API: 422 `branch_in_use`, `data.zones` — nechta hudud). Aks holda hudud filialsiz qolib, istalgan filialdan yetkazadigan bo'lardi. Avval hududni boshqa
   filialga biriktiring yoki o'chiring.
 - Bo'sh bo'lsa, `ZoneResolver::nearestOpenBranch($store, $lat, $lng, $at)`: manzilga eng yaqin **ochiq** filial.
   Ochiq filial: holati `active`, `is_active`, koordinatalari bor va ish vaqti `$at` ni qamraydi. Masofa — haversine
@@ -91,8 +90,9 @@ Pul bilan ishlash `App\Support\Money` orqali (tiyingacha aniq), suzuvchi nuqtasi
 
 `users.courier_type`: `own` (restoranning o'z kuryeri, standart) yoki `fleet` (Rizqim kuryeri). Faqat kuryer rolidagi
 xodimlar uchun ma'noga ega. `GET /api/v1/couriers` va `GET /api/v1/owner/employees` javoblarida ko'rinadi; do'kon
-panelidagi xodimlar ro'yxatida "Kuryer turi" ustuni bor. O'zgartirish: Superadmin panelidagi foydalanuvchi formasi
-yoki do'kon panelida superadmin sifatida; ega `fleet` bera olmaydi (Rizqim kuryerlarini platforma biriktiradi).
+ega xodim qo'shganda kuryer har doim `own` bo'ladi: ega `fleet` bera olmaydi (Rizqim kuryerlarini platforma
+biriktiradi). P4-33 dan beri `fleet` ni beradigan ekran yo'q (eski superadmin foydalanuvchi formasi olib tashlandi):
+RIZQIM kuryer tarmog'i bilan keyingi bosqichda qaytadi; hozircha faqat ma'lumotlar bazasi orqali.
 Turga qarab buyurtma tarqatish hozircha yo'q (4-bosqich).
 
 ## API (ochiq, faqat o'qish)
@@ -244,7 +244,7 @@ qayta hisoblanadi.
 | Buyurtmaga ulash (P1-32) | `App\Actions\Order\CreateOrderAction::zoneQuote()`, rad etish `DeliveryUnavailableException` |
 | Model | `App\Models\DeliveryZone` (saqlashda chegara va maydon hisoblanadi) |
 | Tekshiruv qoidasi | `App\Rules\ValidGeoJsonPolygon` |
-| Panel | `App\Filament\Resources\DeliveryZones`, `resources/views/filament/forms/components/zone-map-editor.blade.php` |
+| Panel | hamkor paneli `partner/web`, `/zones` (xarita muharriri) |
 | API | `App\Http\Controllers\Api\V1\Delivery\DeliveryZoneController` (ochiq), `App\Http\Controllers\Api\V1\Management\DeliveryZoneManageController` (ega, P2-12) |
 | Migratsiyalar | `2026_10_22_400000_create_delivery_zones_table`, `2026_10_22_400100_add_courier_type_to_users_table`, `2026_10_23_100000_add_delivery_zone_snapshot_to_orders_table` |
 | Testlar | `DeliveryZoneResolverTest`, `DeliveryQuoteApiTest`, `DeliveryZoneCheckoutTest` (P1-32), `ManagementZonesApiTest`, `ManagementBranchesApiTest` (P2-12) |

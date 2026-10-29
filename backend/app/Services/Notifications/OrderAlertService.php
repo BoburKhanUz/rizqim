@@ -36,9 +36,9 @@ class OrderAlertService
                 return;
             }
 
-            $managers = User::where('store_id', $order->store_id)
+            $managers = $this->router->withoutBlocked(User::where('store_id', $order->store_id)
                 ->where('role', UserRole::MANAGER->value)
-                ->where('branch_id', $order->branch_id)
+                ->where('branch_id', $order->branch_id))
                 ->get();
 
             foreach ($managers as $manager) {

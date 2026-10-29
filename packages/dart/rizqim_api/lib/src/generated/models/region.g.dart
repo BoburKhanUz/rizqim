@@ -12,6 +12,7 @@ Region _$RegionFromJson(Map<String, dynamic> json) => Region(
   isActive: json['is_active'] as bool,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
+  sortOrder: (json['sort_order'] as num).toInt(),
   districts: (json['districts'] as List<dynamic>?)
       ?.map((e) => District.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -23,5 +24,6 @@ Map<String, dynamic> _$RegionToJson(Region instance) => <String, dynamic>{
   'is_active': instance.isActive,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,
+  'sort_order': instance.sortOrder,
   'districts': instance.districts,
 };

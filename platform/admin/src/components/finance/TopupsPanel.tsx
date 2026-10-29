@@ -6,6 +6,7 @@ import { Button, Card, CardSkeletons, cx, EmptyState, Field, fieldClass, InlineE
 import { TOPUP_STATUSES, useTopups, type TopupFilters } from '@/lib/api/finance';
 import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { TOPUP_STATUS_LABEL, uzs } from './financeModel';
 import { CHIP, chipTone } from './PayoutsPanel';
@@ -41,6 +42,9 @@ export function TopupsPanel({ enabled, highlight }: { enabled: boolean; highligh
             </select>
           )}
         </Field>
+        <div className="flex items-end">
+          <ExportButton list="topups" query={{ status: filters.status, provider: filters.provider, stuck: filters.stuck }} />
+        </div>
       </div>
       {topups.isError ? (
         <InlineError title={t('finance_loadError')} message={errorText(topups.error, t)} retryLabel={t('retry')} retrying={topups.isFetching} onRetry={() => void topups.refetch()} />

@@ -25,6 +25,8 @@ export interface Seed {
   manager: { id: number; name: string; phone: string; telegram_id: string }
   cook: { id: number; name: string; phone: string; pin: string }
   customer: { id: number; name: string; phone: string; telegram_id: string }
+  // A second customer with an old delivered order and an open complaint: the control center journey blocks them and resolves the complaint
+  complainer: { id: number; name: string; phone: string; telegram_id: string }
   products: Array<{ name: string; variant_uuid: string; price: string }>
   terminal: { uuid: string; token: string }
 }

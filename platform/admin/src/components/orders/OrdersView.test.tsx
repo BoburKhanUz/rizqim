@@ -1,9 +1,9 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPlatformOps, setPlatformOps } from '@/lib/realtime/platformOps';
 import { FakeEcho } from '@/test/fakeEcho';
-import { json, meBody, mockFetch, ok, refusal, renderPage } from '@/test/helpers';
+import { json, meBody, mockFetch, ok, refusal, renderPage, stubFileSaving, xlsx } from '@/test/helpers';
 import { NOW, page, refundRequest, row } from './fixtures';
 import { ORDERS_EVENT_COALESCE_MS, OrdersView } from './OrdersView';
 
@@ -82,6 +82,25 @@ describe('OrdersView', () => {
     await user.click(save);
     await vi.waitFor(() => expect(callsTo('PUT', '/orders/sla')[0]?.body).toEqual({ accept: 7, prepare: 30, deliver: 45, reason: 'Tushlik vaqti' }));
     expect(await screen.findByText('SLA chegaralari saqlandi.')).toBeInTheDocument();
+  });
+
+  it('exports the list to Excel with the filters on screen, for a member with admin.export only', async () => {
+    const saved = stubFileSaving();
+    const { user, calls } = setup({ 'GET /exports/orders': () => xlsx(2) }, { permissions: [...PERMS, 'admin.export'] });
+    await screen.findByRole('list', { name: "Buyurtmalar ro'yxati" });
+    await user.click(screen.getByRole('button', { name: 'Kechikkan' }));
+    await user.click(screen.getByRole('button', { name: /^Oshxonada/ }));
+    await user.click(screen.getByRole('button', { name: 'Excel yuklab olish' }));
+
+    await waitFor(() => expect(saved).toEqual(['rizqim-test.xlsx']));
+    expect(Object.fromEntries(calls.filter((call) => call.path === '/exports/orders')[0]!.query)).toEqual({ status: 'kitchen', sla: 'late' });
+    expect(await screen.findByText('Fayl tayyor: 2 qator.')).toBeInTheDocument();
+  });
+
+  it('does not offer the Excel export without admin.export', async () => {
+    setup();
+    await screen.findByRole('list', { name: "Buyurtmalar ro'yxati" });
+    expect(screen.queryByRole('button', { name: 'Excel yuklab olish' })).not.toBeInTheDocument();
   });
 
   it('hides what the member may not do', async () => {

@@ -139,6 +139,11 @@ class StorePresenter
                 'rating' => (string) $store->rating,
                 'review_count' => (int) $store->review_count,
                 'created_at' => $this->iso($store->created_at),
+                // P4-32: whether the owner can sign in by SMS code, and who proved the number (sms: the owner, vouched: RIZQIM)
+                'owner_login_phone' => [
+                    'set' => $owner !== null && \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner) !== null,
+                    'via' => $owner !== null && \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner) !== null ? $owner->phone_verified_via : null,
+                ],
                 'telegram' => [
                     'store_chat_linked' => filled($store->telegram_admin_chat_id),
                     'owner_linked' => $owner !== null && StoreActions::telegramChat($owner) !== null,
@@ -196,6 +201,10 @@ class StorePresenter
                 // An owner already on Telegram is never relinked (review F3-1): the action is for an owner still to join
                 'telegram_link' => $canManage && $owner !== null && StoreActions::telegramChat($owner) === null,
                 'message_owner' => $canManage && $owner !== null && StoreActions::telegramChat($owner) !== null,
+                // P4-32
+                // Review S#8: it routes money, so admin.finance.manage too (the route checks both)
+                'payment_account' => $canManage && $this->permissions->has($member, AdminPermission::FINANCE_MANAGE),
+                'owner_login_phone' => $canManage && $owner !== null && $this->permissions->has($member, AdminPermission::STORES_IMPERSONATE),
                 // P4-21's endpoint (admin.subscriptions.manage); the POS va obunalar screens use it in stage B
                 'commission_override' => $this->permissions->has($member, AdminPermission::SUBSCRIPTIONS_MANAGE),
             ],

@@ -17,6 +17,8 @@ export default defineConfig({
   reporter: isCI ? [['list'], ['html', { open: 'never' }]] : 'list',
   outputDir: 'test-results',
   use: {
+    // A click or fill on an element that never shows up fails after this, not after the whole (long) test's timeout
+    actionTimeout: 30_000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     locale: 'en-US',

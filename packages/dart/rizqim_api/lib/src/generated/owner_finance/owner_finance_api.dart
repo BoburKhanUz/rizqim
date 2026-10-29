@@ -24,7 +24,11 @@ abstract class OwnerFinanceApi {
   @GET('/v1/owner/finance')
   Future<GetV1OwnerFinanceResponse> ownerFinanceIndex();
 
-  /// Initiate a store balance top-up payment
+  /// Initiate a store balance top-up payment.
+  ///
+  /// P4-32: 422 with `code` payment_provider_inactive when the RIZQIM team switched the provider off (Tizim → To'lov.
+  /// tizimlari). In test mode Payme opens its sandbox checkout. The payment returns to the partner panel's Moliya page.
+  /// (PARTNER_WEB_URL).
   @POST('/v1/owner/finance/top-up')
   Future<PostV1OwnerFinanceTopUpResponse> ownerFinanceInitiateTopup({
     @Body() required V1OwnerFinanceTopUpRequestBody body,

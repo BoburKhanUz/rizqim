@@ -22,6 +22,7 @@ class AuthenticateTelegramUserAction
      * account, that one signs in; when only the platform account holds it, nothing is created and the call throws.
      *
      * @throws PlatformAccountSignInException
+     * @throws \App\Services\Auth\AccountBlockedException an invite claimed by someone blocked in that store
      */
     public function execute(array $telegramUser, Store $store, ?string $startParam = null, ?Store $botStore = null): ?User
     {
@@ -36,10 +37,23 @@ class AuthenticateTelegramUserAction
                   ->orWhere('telegram_invite_token', $tokenWithoutPrefix);
             })
                 ->whereNotNull('store_id')
+                // Review W3 S#2: a blocked placeholder's invite is no invite
+                ->whereNull('blocked_at')
                 ->when($botStore, fn ($query) => $query->where('store_id', $botStore->id))
                 ->first();
 
             if ($invitedEmployee) {
+                // Someone blocked in this store gets neither a fresh account nor a new role through an invite; the
+                // invite stays for the person it was meant for (403 account_blocked)
+                $blockedHere = User::where('store_id', $invitedEmployee->store_id)
+                    ->where('telegram_id', $telegramId)
+                    ->where('id', '!=', $invitedEmployee->id)
+                    ->whereNotNull('blocked_at')
+                    ->exists();
+                if ($blockedHere) {
+                    throw new \App\Services\Auth\AccountBlockedException();
+                }
+
                 // Unlink this telegram_id from any other user in other stores globally first to prevent conflicts
                 // (never through a store's own bot: it must not touch other stores' accounts)
                 if (!$botStore) {

@@ -196,10 +196,10 @@ Katta bazada `pg_upgrade` (`--link`) tezroq, lekin ikkala versiyaning binarlari 
 
 Yangi imkoniyatni hamma restoranga birdan emas, avval bitta restoranda yoqish uchun. Flaglar bitta joyda e'lon qilinadi: `backend/app/Features/Features.php` (`FLAGS` ro'yxati: nom, tavsif, standart qiymat). Qiymatlar `features` jadvalida (Pennant `database` drayveri), **restoran (Store) bo'yicha**; restoranga alohida qiymat berilmagan bo'lsa flagning standart qiymati ishlaydi.
 
-- **Yoqish/o'chirish:** Superadmin > Sozlamalar > **Feature flaglar** — restoranlar jadvali, har flag uchun tugma; "Standartga qaytarish" restoranning qo'lda qiymatini o'chiradi.
+- **Yoqish/o'chirish:** boshqaruv markazi, Tizim → Tizim sozlamalari → **Funksiyalar** — restoranlar jadvali, har flag uchun tugma (sabab va 6 xonali kod bilan, jurnalga yoziladi); "Standartga qaytarish" restoranning qo'lda qiymatini o'chiradi.
 - **Mijozlar uchun:** `GET /api/v1/features` (kirgan foydalanuvchining restorani bo'yicha) `{"success":true,"data":{"features":{"new-checkout-copy":false}}}` qaytaradi; yo'q flag = o'chiq deb hisoblang.
 - **Kodda:** `Feature::active('nom')` (foydalanuvchining restorani bo'yicha) yoki `Feature::for($store)->active('nom')`. Yangi flag: `Features::FLAGS` ga qator qo'shing. Flag to'liq yoyilgach uni ro'yxatdan va kod tekshiruvlaridan olib tashlang, `php artisan pennant:purge nom` bilan jadvaldagi qiymatlarni tozalang.
-- Pennant qiymatni birinchi tekshiruvda hisoblab jadvalga yozadi: kodda **standart qiymatni** keyin o'zgartirsangiz, allaqachon yozilgan restoranlarga ta'sir qilmaydi (`pennant:purge nom` yoki panelda "Standartga qaytarish").
+- Pennant qiymatni birinchi tekshiruvda hisoblab jadvalga yozadi: kodda **standart qiymatni** keyin o'zgartirsangiz, allaqachon yozilgan restoranlarga ta'sir qilmaydi (`pennant:purge nom` yoki markazda "Standartga qaytarish").
 
 ## 9. Tokenlarni tozalash
 
@@ -224,8 +224,7 @@ yoziladi. `ADMIN_APP_URL` `.env` da admin ilova manzili bo'lishi kerak.
 
 **2FA o'rnatish oynasi.** 2FA'si yo'q a'zo uni faqat **24 soatlik oyna** ichida o'rnatadi: oynani taklifni qabul
 qilish yoki 2FA'ni tiklash ochadi, 2FA yoqilganda yopiladi (`users.two_factor_setup_allowed_until`). Oynadan tashqarida
-to'g'ri parolning o'zi hech narsa ochmaydi: markaz `403 setup_not_allowed` qaytaradi, `/superadmin` panel esa 2FA
-o'rnatish o'rniga shu yo'riqni ko'rsatadi. Sabab: parolni topib olgan odam o'z telefonidagi ilovani hisobga ulab
+to'g'ri parolning o'zi hech narsa ochmaydi: markaz `403 setup_not_allowed` qaytaradi. Sabab: parolni topib olgan odam o'z telefonidagi ilovani hisobga ulab
 olmasin. Oyna o'tib ketsa — taklifni qayta berish yoki 2FA'ni qayta tiklash.
 
 **Mavjud superadmin'lar (eski `super_admin`) va 2FA'siz a'zolar.** Ular jamoaga avtomatik o'tgan, lekin endi faqat
@@ -239,8 +238,7 @@ php artisan rizqim:admin:invite boss@rizqim.uz --reason="2FA ni yoqish"
 Havola (72 soat, bir marta ko'rsatiladi) yangi parol qo'ydiradi, a'zoning barcha sessiyalarini yopadi va 2FA
 o'rnatishga olib boradi (24 soat ichida). Uni egasiga xavfsiz yo'l bilan bering; jurnalga `admin.cli.member_reinvited`
 yoziladi. Boshqa superadmin markazda Tizim → Jamoa → "2FA ni tiklash" ni ham bosishi mumkin: u ham 24 soatlik oynani
-ochadi (a'zo eski paroli bilan kiradi). Shu buyruq unutilgan parol uchun ham (2FA'si bor a'zoda 2FA o'zgarmaydi). Eski
-`/superadmin` panel ham shu 2FA ni so'raydi.
+ochadi (a'zo eski paroli bilan kiradi). Shu buyruq unutilgan parol uchun ham (2FA'si bor a'zoda 2FA o'zgarmaydi).
 
 **Telefon va zaxira kodlari yo'qolgan bo'lsa:** avval boshqa superadmin Tizim → Jamoa → "2FA ni tiklash" qiladi.
 Hech kim qolmagan bo'lsa (yagona superadmin), serverda:
@@ -255,12 +253,12 @@ faqat egasining shaxsini boshqa yo'l bilan (qo'ng'iroq, uchrashuv) tekshirgandan
 
 **Kirishni bloklash.** Bitta hisob + bitta manzil (IPv6 da butun `/64` tarmoq) dan 5 ta noto'g'ri parol yoki kod —
 15 daqiqa; hisob bo'yicha barcha manzillardan jami 15 ta noto'g'ri parol (yoki 15 ta kod) — hisob 15 daqiqaga hamma
-joydan bloklanadi (to'g'ri parol bilan ham). Markaz va eski `/superadmin` panel bitta hisoblagichni ishlatadi. Qo'lda
+joydan bloklanadi (to'g'ri parol bilan ham). Qo'lda
 ochish kerak bo'lsa: kesh (Redis) dagi `admin-login:*` kalitlari. Jamoa a'zosiga tegishli bo'lmagan email bilan
 urinishlar jurnalga emas, ilova logiga yoziladi (daqiqasiga ko'pi bilan 30 qator, emailsiz).
 
 **Backend porti.** `BACKEND_PORT` standart bo'yicha faqat `127.0.0.1` da ochiladi (`BACKEND_BIND`, ildiz `.env`):
-`/admin`, `/superadmin` va `/up` ni shu xostdagi tashqi proksi oladi. Backend ichki tarmoqdan kelgan `X-Forwarded-For`
+`/up` (va kerak bo'lsa `/health`) ni shu xostdagi tashqi proksi oladi; veb-panel backend'da yo'q. Backend ichki tarmoqdan kelgan `X-Forwarded-For`
 ga ishonadi, shuning uchun port internetga ochiq bo'lsa (Docker userland proksisi orqali, masalan IPv6 so'rovlar)
 kishi IP'sini soxtalashtirib bloklashni aylanib o'tardi. Proksi boshqa xostda bo'lsa `BACKEND_BIND` ni o'zgartiring va
 portni firewall bilan yoping.

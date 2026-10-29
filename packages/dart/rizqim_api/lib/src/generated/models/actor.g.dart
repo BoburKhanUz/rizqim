@@ -7,7 +7,7 @@ part of 'actor.dart';
 // **************************************************************************
 
 Actor _$ActorFromJson(Map<String, dynamic> json) => Actor(
-  id: (json['id'] as num).toInt(),
+  id: (json['id'] as num?)?.toInt(),
   name: json['name'] as String,
   role: json['role'] as String,
 );

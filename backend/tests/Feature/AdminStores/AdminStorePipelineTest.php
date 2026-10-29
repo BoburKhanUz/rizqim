@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 /**
  * P4-22: the onboarding pipeline: applications, stages with checklists (ticked or detected), converting to a store
- * through the Filament wizard's path, activation at `faol` (step-up), rejection; permissions and audit.
+ * through StoreProvisioner, activation at `faol` (step-up), rejection; permissions and audit.
  */
 class AdminStorePipelineTest extends TestCase
 {

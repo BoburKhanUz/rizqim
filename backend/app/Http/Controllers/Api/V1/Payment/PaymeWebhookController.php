@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\PaymentProvider;
+use App\Services\Payment\OrderMerchantAccount;
 use App\Models\StoreTopupRequest;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -145,25 +145,13 @@ class PaymeWebhookController extends Controller
 
     /**
      * A store's own key may only confirm money paid into the store's own merchant account;
-     * platform-collected orders and top-ups must be signed with the platform key.
+     * platform-collected orders and top-ups must be signed with the platform key. Review C#2: chosen by the order's
+     * `payment_owner` (fixed at checkout) for every method, CancelTransaction included, never by the store's current
+     * payment account type.
      */
     protected function secretKey(?Order $order): ?string
     {
-        if ($order && $order->payment_owner !== 'PLATFORM') {
-            // A STORE-owned order is paid into the store's own Payme cashbox: only its own key can confirm it.
-            return $this->storeKey($order);
-        }
-
-        return PaymentProvider::platformCredential('payme', 'secret_key');
-    }
-
-    protected function storeKey(?Order $order): ?string
-    {
-        if (!$order || $order->payment_owner === 'PLATFORM' || !$order->store?->collectsOwnPayments('payme')) {
-            return null;
-        }
-
-        return trim((string) $order->store->payment_settings['payme']['secret_key']);
+        return OrderMerchantAccount::secretKey('payme', $order);
     }
 
     /**
@@ -476,7 +464,7 @@ class PaymeWebhookController extends Controller
             )
             ->get()
             // A statement request names no account, so it is the platform cashbox asking: leave out stores' own cashboxes.
-            ->filter(fn (Payment $payment) => $this->storeKey($payment->order) === null)
+            ->filter(fn (Payment $payment) => !OrderMerchantAccount::isStore($payment->order))
             ->sortBy(fn (Payment $payment) => $this->createTime($payment))
             ->values()
             ->map(fn (Payment $payment) => [

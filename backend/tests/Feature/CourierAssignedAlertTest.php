@@ -5,19 +5,16 @@ namespace Tests\Feature;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Events\OrderStatusUpdated;
-use App\Filament\Resources\Orders\Pages\ListOrders;
 use App\Jobs\SendTelegramRequest;
 use App\Models\Order;
 use App\Models\TelegramAction;
 use App\Models\User;
 use App\Services\Order\OrderStatusService;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -145,24 +142,6 @@ class CourierAssignedAlertTest extends TestCase
         }
 
         $this->assertCount(count($paths), $this->assignmentAlerts());
-    }
-
-    public function test_the_admin_panels_send_to_delivery_messages_the_courier_once(): void
-    {
-        Filament::setCurrentPanel('admin');
-        $this->actingAs($this->owner);
-        Filament::setTenant($this->store);
-        $order = $this->makeOrder(OrderStatus::PREPARING);
-
-        Livewire::test(ListOrders::class)
-            ->callTableAction('deliver', $order)
-            ->assertHasNoErrors();
-
-        $this->assertSame(OrderStatus::DELIVERY, $order->fresh()->status);
-        $this->assertSame($this->courier->id, $order->fresh()->courier_id);
-        // Sent straight on its way: the delivery card with its "delivered" button, no assignment message on top
-        $this->assertStringStartsWith("🚚 *Buyurtma yo'lda!*", $this->messagesTo($this->courier)->sole()->params['text']);
-        $this->assertCount(0, $this->assignmentAlerts());
     }
 
     public function test_a_reassigned_order_messages_only_the_new_courier_once(): void

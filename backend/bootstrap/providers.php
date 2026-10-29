@@ -6,8 +6,6 @@ return [
     App\Providers\AccessServiceProvider::class,
     // OpenAPI docs (/docs/api) and the api-spec:export command (P1-11)
     App\Providers\ApiDocsServiceProvider::class,
-    App\Providers\Filament\AdminPanelProvider::class,
-    App\Providers\Filament\SuperadminPanelProvider::class,
     // P3-13: kitchen station routing (KitchenStationResolver)
     App\Domain\Pos\Setup\PosSetupServiceProvider::class,
     // P3-11: fiscal receipts (FiscalIssuer, FiscalLineBuilder, FiscalReadiness)
@@ -32,4 +30,10 @@ return [
     App\Providers\AdminStoresServiceProvider::class,
     // P4-23: Moliya: attention sources (payouts and adjustments waiting for a second approval)
     App\Providers\AdminFinanceServiceProvider::class,
+    // P4-31: Ko'rsatkichlar and Excel exports: the export rate limit
+    App\Providers\AdminMetricsServiceProvider::class,
+    // P4-31: Mijozlar va yordam: the attention source of complaints waiting for the support team
+    App\Providers\AdminCustomersServiceProvider::class,
+    // P4-31: Tizim and Integratsiyalar: the attention source of orders an outside POS has not confirmed
+    App\Providers\AdminSystemServiceProvider::class,
 ];

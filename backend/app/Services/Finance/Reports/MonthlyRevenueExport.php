@@ -10,7 +10,7 @@ use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Writer;
 
 /**
- * P4-23: the monthly revenue report as an Excel workbook (openspout, already in the dependency tree via Filament):
+ * P4-23: the monthly revenue report as an Excel workbook (openspout, a direct dependency since P4-32):
  * "Umumiy" — totals, commission by channel, subscriptions; "Ovqatxonalar" — one row per store with a column per
  * channel. Amounts are numbers (so'm, two decimals) so the sheet sums them. Review W2: every text is written as a
  * string cell (self::row), never through Cell::fromValue, which turns a string starting with "=" into a formula — a

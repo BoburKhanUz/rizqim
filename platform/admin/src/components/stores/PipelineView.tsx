@@ -9,6 +9,7 @@ import { PIPELINE_STAGES, useApplications, useCreateApplication, type Applicatio
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { RegionSelect } from './StorePicker';
 import { StoresNav } from './StoresNav';
@@ -92,6 +93,7 @@ export function PipelineView() {
             </div>
           )}
         </Field>
+        <ExportButton list="applications" query={query} />
       </section>
 
       {applications.isError ? (

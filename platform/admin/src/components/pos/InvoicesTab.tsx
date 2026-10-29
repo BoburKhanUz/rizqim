@@ -17,6 +17,7 @@ import {
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
 import { useCan } from '../AuthProvider';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { day, DUNNING_LABEL, dunningLabel, INVOICE_LABEL, INVOICE_TONE, invoiceLabel, money } from './posModel';
 import { BackButton, Chip, ChipRow, Facts, ListState, Pager, ReasonDialog } from './PosParts';
@@ -79,6 +80,7 @@ function InvoiceList({ onSelect }: { onSelect: (uuid: string) => void }) {
           )}
         </Field>
       </div>
+      <ExportButton list="invoices" query={{ status: filters.status, dunning: filters.dunning, store_id: filters.store_id, period: filters.period, q: filters.q }} />
 
       <ListState
         loading={!page}

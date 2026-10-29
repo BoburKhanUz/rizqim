@@ -1,3 +1,4 @@
+import { audit } from './audit';
 import { billing } from './billing';
 import { bookings } from './bookings';
 import type { SectionMessages } from './define';
@@ -12,7 +13,7 @@ import { reports } from './reports';
 import { shifts } from './shifts';
 
 // Every section of texts. A new area adds its file here (one import, one entry, one line in the type below).
-export const SECTIONS = { orders, menu, management, reports, fiscal, floor, possetup, bookings, shifts, permissions, billing } as const;
+export const SECTIONS = { orders, menu, management, reports, fiscal, floor, possetup, bookings, shifts, permissions, billing, audit } as const;
 
 export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof menu> &
@@ -24,4 +25,5 @@ export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof bookings> &
   SectionMessages<typeof shifts> &
   SectionMessages<typeof permissions> &
-  SectionMessages<typeof billing>;
+  SectionMessages<typeof billing> &
+  SectionMessages<typeof audit>;

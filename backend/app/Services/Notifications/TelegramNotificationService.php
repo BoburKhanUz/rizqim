@@ -45,16 +45,28 @@ class TelegramNotificationService
 
     /**
      * Managers with Telegram whom OrderPolicy lets act on the order: its branch's managers and store-wide managers.
+     * Never a blocked one (review W3 S#3: the card carries the customer's name, phone and address).
      */
     protected function managersForOrder(Order $order): \Illuminate\Support\Collection
     {
-        return \App\Models\User::where('store_id', $order->store_id)
+        return $this->router->withoutBlocked(\App\Models\User::where('store_id', $order->store_id)
             ->where('role', \App\Enums\UserRole::MANAGER->value)
             ->whereNotNull('telegram_id')
             ->where(function ($query) use ($order) {
                 $query->whereNull('branch_id')
                     ->when($order->branch_id, fn ($query) => $query->orWhere('branch_id', $order->branch_id));
-            })
+            }))
+            ->get();
+    }
+
+    /**
+     * The store's owners with Telegram (who stand in when no manager may act), never a blocked one.
+     */
+    protected function ownersForOrder(Order $order): \Illuminate\Support\Collection
+    {
+        return $this->router->withoutBlocked(\App\Models\User::where('store_id', $order->store_id)
+            ->where('role', \App\Enums\UserRole::OWNER->value)
+            ->whereNotNull('telegram_id'))
             ->get();
     }
 
@@ -175,10 +187,12 @@ class TelegramNotificationService
         //    An app-only courier (P1-36, no Telegram) works the order in the courier app: nobody else is told "no courier"
         if ($telegramReady && ($statusValue === 'delivery' || $statusValue === 'on_the_way')) {
             $recipients = [];
-            
-            if ($order->courier && $order->courier->hasTelegram()) {
-                $recipients[] = $order->courier;
-            } elseif ($order->courier) {
+            // A blocked courier gets nothing: the order goes to those who may finish it instead
+            $courier = $order->courier && !$order->courier->isBlocked() ? $order->courier : null;
+
+            if ($courier && $courier->hasTelegram()) {
+                $recipients[] = $courier;
+            } elseif ($courier) {
                 // Nothing to send over Telegram: the courier's app shows the order and its "delivered" action
             } else {
                 // Find managers with telegram_id who may complete this order
@@ -190,11 +204,8 @@ class TelegramNotificationService
                     }
                 } else {
                     // Fallback to owners with telegram_id
-                    $owners = \App\Models\User::where('store_id', $order->store_id)
-                        ->where('role', \App\Enums\UserRole::OWNER->value)
-                        ->whereNotNull('telegram_id')
-                        ->get();
-                        
+                    $owners = $this->ownersForOrder($order);
+
                     foreach ($owners as $owner) {
                         $recipients[] = $owner;
                     }
@@ -211,7 +222,7 @@ class TelegramNotificationService
                 ]);
 
                 foreach ($recipients as $recipient) {
-                    $isFallback = !($order->courier && $order->courier->id === $recipient->id);
+                    $isFallback = !($courier && $courier->id === $recipient->id);
                     $message = "🚚 *Buyurtma yo'lda!* " .
                         ($isFallback ? "_(Kuryer yo'qligi sababli sizga yuborildi)_" : "") . "\n\n";
                     $message .= "🆔 *Buyurtma:* #{$order->short_code}\n";
@@ -477,7 +488,8 @@ class TelegramNotificationService
 
     /**
      * Staff on whom a new order's card lands: the store's order chat, and the managers who may act on it (else its
-     * owners). Telegram chat ids, without repeats.
+     * owners). Telegram chat ids, without repeats. Blocked staff are left out; the store's chat is the store's and
+     * gets the card even when the owner is blocked.
      *
      * @return list<string>
      */
@@ -492,10 +504,7 @@ class TelegramNotificationService
 
         $staff = $this->managersForOrder($order);
         if ($staff->isEmpty()) {
-            $staff = \App\Models\User::where('store_id', $store->id)
-                ->where('role', \App\Enums\UserRole::OWNER->value)
-                ->whereNotNull('telegram_id')
-                ->get();
+            $staff = $this->ownersForOrder($order);
         }
 
         foreach ($staff as $user) {

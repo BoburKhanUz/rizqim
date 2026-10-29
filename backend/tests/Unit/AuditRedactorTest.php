@@ -78,4 +78,59 @@ class AuditRedactorTest extends TestCase
         $this->assertStringContainsString('82e324be-e99c-4e72-88ac-998901234567', $clean['note']);
         $this->assertStringNotContainsString('(901234567)', $clean['note']);
     }
+
+    // Review W3 S#5: integration events show request headers and URLs through the redactor
+    public function test_header_style_secret_names_are_redacted(): void
+    {
+        $clean = AuditRedactor::clean([
+            'headers' => ['Authorization' => 'Bearer ' . 'sk' . '_live_abcdef123456', 'Cookie' => 'session=abc', 'Set-Cookie' => 'a=b', 'X-Auth' => 'zzz', 'X-XSRF-TOKEN' => 'x', 'Content-Type' => 'application/json'],
+            'sign_string' => 'deadbeef',
+            'signString' => 'deadbeef',
+            'sign' => 'cafebabe',
+            'bearer' => 'abc',
+            'session' => 'sess-1',
+            'session_id' => 'sess-2',
+            'xsrf' => 'x',
+            'api_key' => 'k1',
+            'store_id' => 12,
+            'method' => 'POST',
+        ]);
+
+        foreach (['Authorization', 'Cookie', 'Set-Cookie', 'X-Auth', 'X-XSRF-TOKEN'] as $header) {
+            $this->assertSame(AuditRedactor::REDACTED, $clean['headers'][$header], $header);
+        }
+        $this->assertSame('application/json', $clean['headers']['Content-Type']);
+        foreach (['sign_string', 'signString', 'sign', 'bearer', 'session', 'session_id', 'xsrf', 'api_key'] as $key) {
+            $this->assertSame(AuditRedactor::REDACTED, $clean[$key], $key);
+        }
+        $this->assertSame(12, $clean['store_id']);
+        $this->assertSame('POST', $clean['method']);
+    }
+
+    public function test_token_looking_values_and_token_query_strings_are_masked_in_text(): void
+    {
+        $clean = AuditRedactor::clean([
+            'note' => 'Header Authorization: Bearer abcDEF123456789xyz yuborildi',
+            'sanctum' => 'token 12|' . str_repeat('aB3', 14) . ' berildi',
+            'url' => 'https://api.example.uz/hook?order=15&token=abc123SECRET&access_token=zzz999&signature=ff00&page=2',
+            'jwt' => 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiJ9.c2lnbmF0dXJl',
+            // Built at run time so no key-shaped literal sits in the repository (secret scanning)
+            'live' => 'kalit ' . implode('_', ['sk', 'live', 'Fake' . str_repeat('x9Q', 8)]) . ' ishlatildi',
+            'bot' => 'https://api.telegram.org/bot123456789:' . 'AAFake' . str_repeat('k7Pq', 8) . 'w/sendMessage',
+            'plain' => 'Buyurtma 15 qabul qilindi (page=2)',
+        ]);
+
+        $this->assertStringNotContainsString('abcDEF123456789xyz', $clean['note']);
+        $this->assertStringContainsString('yuborildi', $clean['note']);
+        $this->assertStringNotContainsString('aB3aB3aB3', $clean['sanctum']);
+        $this->assertStringNotContainsString('abc123SECRET', $clean['url']);
+        $this->assertStringNotContainsString('zzz999', $clean['url']);
+        $this->assertStringNotContainsString('ff00', $clean['url']);
+        $this->assertStringContainsString('order=15', $clean['url']);
+        $this->assertStringContainsString('page=2', $clean['url']);
+        $this->assertStringNotContainsString('eyJhbGci', $clean['jwt']);
+        $this->assertStringNotContainsString('Fakex9Q', $clean['live']);
+        $this->assertStringNotContainsString('AAFakek7Pq', $clean['bot']);
+        $this->assertSame('Buyurtma 15 qabul qilindi (page=2)', $clean['plain']);
+    }
 }

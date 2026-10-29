@@ -217,6 +217,8 @@ export interface StoreCard {
     rating: string;
     review_count: number;
     created_at: string | null;
+    // P4-32: whether the owner signs in by SMS code, and who proved the number (sms: the owner, vouched: RIZQIM)
+    owner_login_phone?: { set: boolean; via: 'sms' | 'vouched' | null };
     telegram: { store_chat_linked: boolean; owner_linked: boolean; owner_invite_pending: boolean };
   };
   application: ApplicationRow | null;
@@ -288,7 +290,19 @@ export interface StoreCard {
   health: { level: HealthLevel; label: string; score: number; reasons: HealthReason[]; metrics: Record<string, unknown>; computed_at: string };
   crm: Crm;
   audit: AuditEntry[];
-  actions: { manage: boolean; suspend: boolean; activate: boolean; credit_limit: boolean; display: boolean; telegram_link: boolean; message_owner: boolean; commission_override: boolean };
+  actions: {
+    manage: boolean;
+    suspend: boolean;
+    activate: boolean;
+    credit_limit: boolean;
+    display: boolean;
+    telegram_link: boolean;
+    message_owner: boolean;
+    commission_override: boolean;
+    // P4-32: the payment account and payout reserve (stores.manage); the owner's login phone (stores.impersonate)
+    payment_account?: boolean;
+    owner_login_phone?: boolean;
+  };
   links: { orders: string; audit: string; subscription: string };
 }
 
@@ -360,6 +374,10 @@ export const setCreditLimit = (id: number, creditLimit: string, reason: string) 
 export const setDisplay = (id: number, flags: { is_premium?: boolean; is_featured?: boolean }, reason: string) =>
   data<StoreCard>(call('PUT', `/stores/${id}/display`, { body: { ...flags, reason } }));
 export const newTelegramLink = (id: number, reason: string) => data<{ invite_link: string | null; delivered_via: 'sms' | null; owner_linked: boolean }>(call('POST', `/stores/${id}/telegram-link`, { body: { reason } }));
+export type PaymentAccountType = 'platform_account' | 'own_account';
+export const setPaymentAccount = (id: number, change: { payment_account_type?: PaymentAccountType; min_payout_reserve?: string }, reason: string) =>
+  data<StoreCard>(call('PUT', `/stores/${id}/payment-account`, { body: { ...change, reason } }));
+export const setOwnerLoginPhone = (id: number, phone: string, reason: string) => data<StoreCard>(call('PUT', `/stores/${id}/owner-login-phone`, { body: { phone, reason } }));
 export const messageOwner = (id: number, text: string, reason: string) => data<{ recipients: number }>(call('POST', `/stores/${id}/message`, { body: { text, reason } }));
 
 export const addStoreNote = (id: number, body: string) => data<Note>(call('POST', `/stores/${id}/notes`, { body: { body } }));
@@ -443,7 +461,9 @@ export type StoreAction =
   | { kind: 'suspend'; reason: string }
   | { kind: 'activate'; reason: string }
   | { kind: 'credit_limit'; credit_limit: string; reason: string }
-  | { kind: 'display'; is_premium: boolean; is_featured: boolean; reason: string };
+  | { kind: 'display'; is_premium: boolean; is_featured: boolean; reason: string }
+  | { kind: 'payment_account'; payment_account_type?: PaymentAccountType; min_payout_reserve?: string; reason: string }
+  | { kind: 'owner_login_phone'; phone: string; reason: string };
 
 export const useStoreAction = (id: number) =>
   useStoreWrite(
@@ -457,6 +477,10 @@ export const useStoreAction = (id: number) =>
           return setCreditLimit(id, action.credit_limit, action.reason);
         case 'display':
           return setDisplay(id, { is_premium: action.is_premium, is_featured: action.is_featured }, action.reason);
+        case 'payment_account':
+          return setPaymentAccount(id, { payment_account_type: action.payment_account_type, min_payout_reserve: action.min_payout_reserve }, action.reason);
+        case 'owner_login_phone':
+          return setOwnerLoginPhone(id, action.phone, action.reason);
       }
     },
     (client, card) => placeCard(client, card),

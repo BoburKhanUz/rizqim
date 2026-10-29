@@ -75,5 +75,10 @@ Route::prefix('admin')->name('admin.')->middleware('admin.audit')->group(functio
         require __DIR__ . '/api_admin_stores.php';      // P4-22 Ovqatxonalar (stores.*)
         require __DIR__ . '/api_admin_finance.php';     // P4-23 Moliya (finance.*, payouts.approve)
         require __DIR__ . '/api_admin_pos.php';         // P4-24 POS va obunalar (invoices, devices, shifts, fiscal, sync errors)
+        require __DIR__ . '/api_admin_customers.php';   // P4-31 Mijozlar va yordam (users.view, support.*)
+        require __DIR__ . '/api_admin_metrics.php';     // P4-31 Ko'rsatkichlar (MRR, churn, funnel) and Excel exports
+        require __DIR__ . '/api_admin_marketing.php';   // P4-31 Marketing (marketing.*: banners, promo codes, categories)
+        require __DIR__ . '/api_admin_system.php';      // P4-31 Tizim (system.manage: settings, payment providers, regions, feature flags)
+        require __DIR__ . '/api_admin_integrations.php'; // P4-31 Integratsiyalar (integrations.*: connections, journal, stuck orders)
     });
 });

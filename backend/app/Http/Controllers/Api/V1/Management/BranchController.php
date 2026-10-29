@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * P2-12: the store's branches for the partner web panel, as the panel's branch screen edits them (BranchPolicy):
+ * P2-12: the store's branches for the partner web panel, with the rules of the old store panel's branch screen:
  * the owner creates and deletes (settings.manage), owners and managers edit (branches.manage; a branch-bound manager
  * only their own branch), staff who work with orders, the menu, staff or reports list them.
  */

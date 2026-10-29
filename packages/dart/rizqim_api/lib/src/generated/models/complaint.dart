@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'complaint_reply.dart';
 import 'order.dart';
 import 'user.dart';
 
@@ -27,6 +28,8 @@ class Complaint {
     this.order,
     this.user,
     this.resolver,
+    this.assignee,
+    this.replies,
   });
 
   factory Complaint.fromJson(Map<String, Object?> json) =>
@@ -53,6 +56,8 @@ class Complaint {
   final Order? order;
   final User? user;
   final User? resolver;
+  final User? assignee;
+  final List<ComplaintReply>? replies;
 
   Map<String, Object?> toJson() => _$ComplaintToJson(this);
 }

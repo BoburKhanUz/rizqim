@@ -18,6 +18,9 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Sms\SmsServiceInterface::class,
             \App\Services\Sms\EskizSmsService::class
         );
+
+        // P4-32: the payment providers' switches, read once per request or queued job (a store list asks per store)
+        $this->app->scoped(\App\Services\Payment\PaymentProviderSwitch::class);
     }
 
     /**

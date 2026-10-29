@@ -59,7 +59,7 @@ test('the first sign-in with the 2FA setup breaks no policy', async ({ page, api
   await expect(page.getByRole('heading', { name: 'Tiklash kodlaringizni saqlang' })).toBeVisible()
   await page.getByRole('checkbox', { name: "Saqlab qo'ydim" }).check()
   await page.getByRole('button', { name: "Boshqaruv markaziga o'tish" }).click()
-  await expect(page.getByRole('heading', { name: 'Buyurtmalar', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: "Ko'rsatkichlar", level: 1 })).toBeVisible()
 
   expect(violations()).toEqual([])
 })

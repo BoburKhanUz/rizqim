@@ -4,9 +4,12 @@ namespace Database\Seeders;
 
 use App\Enums\BranchStatus;
 use App\Enums\DeviceType;
+use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\Complaint;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
@@ -21,7 +24,8 @@ use RuntimeException;
 
 /**
  * P2-31: the data the cross-app end-to-end test (scripts/e2e-stack.sh, e2e/stack/) runs against: one store with a
- * branch, an owner, a manager, a cook with a PIN, a customer, a stocked product and a KDS terminal that is already
+ * branch, an owner, a manager, a cook with a PIN, a customer, a second customer with a delivered order and a complaint
+ * (for the control center journey), a stocked product and a KDS terminal that is already
  * paired. Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs
  * and phones into a staging or production database. The ids, phones and the terminal's token the test needs are
  * written as JSON to E2E_SEED_FILE (default storage/app/e2e-seed.json).
@@ -34,6 +38,7 @@ class E2EStackSeeder extends Seeder
     public const MANAGER_PHONE = '+998901000002';
     public const COOK_PHONE = '+998901000003';
     public const CUSTOMER_PHONE = '+998901000009';
+    public const COMPLAINER_PHONE = '+998901000010';
     public const COOK_PIN = '4831';
 
     public function run(): void
@@ -79,6 +84,35 @@ class E2EStackSeeder extends Seeder
             'telegram_id' => '910000009',
         ]);
 
+        // The control center journey (e2e/stack/tests/admin-journey.spec.ts) blocks and unblocks this customer and resolves
+        // their complaint; a separate account keeps the order journey's customer untouched. The order is an old, delivered
+        // one (created without model events: no settlement, no notification), so no board or queue in the other journeys
+        // shows it.
+        $complainer = User::create([
+            'name' => 'Komila Shikoyatchi',
+            'phone' => self::COMPLAINER_PHONE,
+            'password' => bcrypt(Str::random(32)),
+            'telegram_id' => '910000010',
+        ]);
+        $pastOrder = Order::withoutEvents(fn () => Order::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'user_id' => $complainer->id,
+            'status' => OrderStatus::DELIVERED,
+            'order_type' => 'pickup',
+            'payment_method' => 'cash',
+            'total_price' => 33000,
+            'commission_amount' => 3300,
+        ]));
+        $pastOrder->forceFill(['created_at' => now()->subDays(3), 'updated_at' => now()->subDays(3)])->saveQuietly();
+        Complaint::create([
+            'user_id' => $complainer->id,
+            'order_id' => $pastOrder->id,
+            'type' => 'QUALITY_ISSUE',
+            'description' => 'Lavash sovuq keldi',
+            'status' => 'pending',
+        ]);
+
         $category = Category::create(['name' => 'Lavash', 'slug' => 'lavash-' . Str::random(5), 'is_active' => true]);
         $variants = [];
         foreach ([['Lavash', 'Standart', 25000], ['Cola', '0.5 l', 8000]] as [$name, $variantName, $price]) {
@@ -112,6 +146,7 @@ class E2EStackSeeder extends Seeder
             'manager' => ['id' => $manager->id, 'name' => $manager->name, 'phone' => self::MANAGER_PHONE, 'telegram_id' => $manager->telegram_id],
             'cook' => ['id' => $cook->id, 'name' => $cook->name, 'phone' => self::COOK_PHONE, 'pin' => self::COOK_PIN],
             'customer' => ['id' => $customer->id, 'name' => $customer->name, 'phone' => self::CUSTOMER_PHONE, 'telegram_id' => $customer->telegram_id],
+            'complainer' => ['id' => $complainer->id, 'name' => $complainer->name, 'phone' => self::COMPLAINER_PHONE, 'telegram_id' => $complainer->telegram_id],
             'products' => collect($variants)->map(fn (ProductVariant $variant, string $name) => [
                 'name' => $name,
                 'variant_uuid' => $variant->uuid,

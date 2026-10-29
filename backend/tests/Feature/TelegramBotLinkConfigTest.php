@@ -2,15 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\EditGlobalStore;
 use App\Models\Setting;
 use App\Models\User;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -41,29 +36,11 @@ class TelegramBotLinkConfigTest extends TestCase
         $response->assertJsonPath('data.invite_link', "https://t.me/rizqim_live_bot?start=invite_{$token}");
     }
 
-    public function test_store_settings_page_links_the_configured_bot(): void
+    public function test_the_owner_settings_link_the_store_group_to_the_configured_bot(): void
     {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store);
-
-        Livewire::test(StoreSettings::class)
-            ->assertSee("https://t.me/rizqim_live_bot?start=store_{$this->store->uuid}", false);
-    }
-
-    public function test_superadmin_store_form_links_the_configured_bot(): void
-    {
-        $admin = User::create([
-            'name' => 'Super Admin',
-            'email' => 'superadmin@example.com',
-            'password' => bcrypt('password'),
-            'role' => UserRole::SUPER_ADMIN->value,
-        ]);
-        $this->actingAs($admin);
-        Filament::setCurrentPanel('superadmin');
-
-        Livewire::test(EditGlobalStore::class, ['record' => $this->store->getRouteKey()])
-            ->assertSee("https://t.me/rizqim_live_bot?start=store_{$this->store->uuid}", false);
+        $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/settings')
+            ->assertOk()
+            ->assertJsonPath('data.telegram.group_link', "https://t.me/rizqim_live_bot?start=store_{$this->store->uuid}");
     }
 
     public function test_setting_falls_back_to_config_and_a_stored_row_wins(): void

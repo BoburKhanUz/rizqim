@@ -3,20 +3,16 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Filament\Pages\StoreSettings;
-use App\Filament\Pages\Tenancy\EditStoreProfile;
-use App\Filament\Superadmin\Resources\GlobalStores\Pages\CreateGlobalStore;
 use App\Jobs\SendTelegramRequest;
 use App\Models\District;
 use App\Models\Region;
 use App\Models\Store;
 use App\Models\User;
-use Filament\Facades\Filament;
+use App\Services\Admin\Stores\StoreProvisioner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -76,44 +72,6 @@ class PaymentSettingsLegacyStoresTest extends TestCase
         $this->assertTrue((bool) $store->accept_payme);
     }
 
-    private function inAdminPanel(): void
-    {
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store->fresh());
-    }
-
-    public function test_saving_the_settings_page_of_a_wizard_store_keeps_every_method_delivery_and_pickup_on(): void
-    {
-        $this->inAdminPanel();
-
-        Livewire::test(StoreSettings::class)
-            ->assertSet('data.payment_settings.cash.enabled', true)
-            ->assertSet('data.payment_settings.click.enabled', true)
-            ->assertSet('data.payment_settings.delivery_enabled', true)
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertEverythingStillOn();
-        // Not offered yet, but what was saved for them stays
-        $this->assertSame(['enabled' => true], $this->store->fresh()->payment_settings['uzum']);
-    }
-
-    public function test_saving_the_profile_page_keeps_them_too_and_its_state_never_holds_a_secret(): void
-    {
-        $this->legacySettings(array_merge(self::WIZARD_SETTINGS, ['click' => ['enabled' => true, 'merchant_id' => 'm-1', 'service_id' => 's-1', 'secret_key' => 'click-SECRET']]));
-        $this->inAdminPanel();
-
-        Livewire::test(EditStoreProfile::class)
-            ->assertSet('data.payment_settings.click.secret_key', null)
-            ->assertSet('data.payment_settings.pickup_enabled', true)
-            ->call('save')
-            ->assertHasNoFormErrors();
-
-        $this->assertEverythingStillOn();
-        $this->assertSame('click-SECRET', $this->store->fresh()->payment_settings['click']['secret_key']);
-    }
-
     public function test_a_partial_save_merges_into_a_legacy_value_instead_of_replacing_it(): void
     {
         $this->store->fresh()->update(['payment_settings' => ['click' => ['merchant_id' => 'm-2']]]);
@@ -164,36 +122,31 @@ class PaymentSettingsLegacyStoresTest extends TestCase
         return [$admin, $region, $district];
     }
 
-    public function test_a_store_created_with_the_panel_wizard_starts_nested_and_its_telegram_notice_is_queued_unchanged(): void
+    public function test_a_store_created_through_the_provisioner_starts_nested_and_its_telegram_notice_is_queued_unchanged(): void
     {
-        [$admin, $region, $district] = $this->creationSetup();
+        [, $region, $district] = $this->creationSetup();
 
-        $this->actingAs($admin);
-        Filament::setCurrentPanel('superadmin');
-        Livewire::test(CreateGlobalStore::class)
-            ->fillForm([
-                'name' => 'Wizard Two',
-                'commission_rate' => 10,
-                'payment_account_type' => 'platform_account',
-                'owner_name' => 'Wizard Owner',
-                'owner_phone' => '+998901110003',
-                'owner_password' => 'secret123',
-                'branch_region_id' => $region->id,
-                'branch_district_id' => $district->id,
-                'branch_address' => 'Bunyodkor 1',
-                'branch_radius' => 5,
-                'branch_lat' => 41.3,
-                'branch_lng' => 69.2,
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
+        app(StoreProvisioner::class)->create([
+            'name' => 'Wizard Two',
+            'commission_rate' => 10,
+            'payment_account_type' => 'platform_account',
+            'owner_name' => 'Wizard Owner',
+            'owner_phone' => '+998901110003',
+            'owner_password' => 'secret123',
+            'branch_region_id' => $region->id,
+            'branch_district_id' => $district->id,
+            'branch_address' => 'Bunyodkor 1',
+            'branch_radius' => 5,
+            'branch_lat' => 41.3,
+            'branch_lng' => 69.2,
+        ]);
 
         $wizardStore = Store::where('name', 'Wizard Two')->sole();
         $this->assertEquals(Store::initialPaymentSettings(['cash', 'click', 'payme']), $wizardStore->payment_settings);
         $token = User::where('store_id', $wizardStore->id)->where('role', UserRole::OWNER->value)->value('telegram_invite_token');
         Queue::assertPushed(SendTelegramRequest::class, fn (SendTelegramRequest $job) => $job->params === [
             'chat_id' => '777001',
-            'text' => "🏢 <b>Yangi do'kon qo'shildi (Filament)!</b>\n\nNomi: <b>Wizard Two</b>\nKomissiya: <b>10%</b>\n"
+            'text' => "🏢 <b>Yangi do'kon qo'shildi!</b>\n\nNomi: <b>Wizard Two</b>\nKomissiya: <b>10%</b>\n"
                 . "Egasi: <b>Wizard Owner</b> (+998901110003)\nFilial: <b>Bunyodkor 1</b>\n\n"
                 . "🔗 <b>Egasi uchun taklifnoma havolasi:</b>\nhttps://t.me/rizqim_test_bot?start=invite_{$token}",
             'parse_mode' => 'HTML',

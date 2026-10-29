@@ -152,8 +152,8 @@ jurnalga yoziladi.
 | Tarif | Oylik | Yillik (12 oy = 10 oy) | Ichida |
 |---|---|---|---|
 | Start | 149 000 so'm | 1 490 000 | zal, xona puli, choy-non, smena, Z, RIZQIM buyurtmalari, 1 kassa |
-| Asosiy | 249 000 so'm | 2 490 000 | + bron va bo'nak, nasiya, KDS, xizmat haqi; 2 terminal |
-| Pro | 449 000 so'm | 4 490 000 | + filiallar hisoboti, keyin Yandex/Uzum buyurtmalari va banket; 3 terminal |
+| Asosiy | 249 000 so'm | 2 490 000 | + bron va bo'nak, nasiya, KDS, xizmat haqi; 1 kassa + 1 oshxona ekrani |
+| Pro | 449 000 so'm | 4 490 000 | + filiallar hisoboti, keyin Yandex/Uzum buyurtmalari va banket; 2 kassa + 1 oshxona ekrani |
 
 - Qo'shimcha kassa 59 000, qo'shimcha oshxona ekrani 29 000 so'm/oy; ofitsiant telefonlari cheklanmagan va bepul.
 - Sinov 14 kun. Tarifda yo'q funksiya kassada va hamkor panelida "Asosiy tarifda bor" deb ko'rsatiladi.
@@ -191,22 +191,149 @@ jurnalga yoziladi.
 
 ## 8. Eski paneldan o'tish
 
-Eski paneldagi har bir imkoniyat yangi markazda o'z joyiga ega bo'lmaguncha eski panel o'chirilmaydi:
+Eski paneldagi har bir imkoniyat yangi markazda o'z joyiga ega bo'lmaguncha eski panel o'chirilmaydi. P4-32 (28.10.2026)
+da `app/Filament/**` kodi qatorma-qator o'qilib tekshirildi. **Holat**: **Bor** — yangi joyi oldindan bor edi;
+**Yangi joyi** — P4-32 da qo'shildi; **Qasddan olib tashlandi** — sababi bilan.
 
-| Eski panel | Yangi markazda |
+| Eski panel | Yangi markazda | Holat |
+|---|---|---|
+| Restoranlar (ro'yxat, yaratish, tahrirlash, filiallar, balans to'ldirish, Telegram havola, egasi sifatida kirish) | Ovqatxonalar | Bor; to'lov hisobi va zaxira, egasining kirish raqami — Yangi joyi; egasi sifatida kirish, o'chirish — Qasddan olib tashlandi |
+| Buyurtmalar (yashirin ro'yxat), do'kon panelidagi qaytarish | Buyurtmalar | Bor |
+| Foydalanuvchilar, E'tirozlar | Mijozlar va yordam | Bor; ixtiyoriy foydalanuvchini yaratish/tahrirlash/o'chirish — Qasddan olib tashlandi |
+| Moliya dashboard, balans to'ldirish tarixi, yechib olish so'rovlari, Rizqim daromadi | Moliya | Bor |
+| Tarif rejalari, do'kon obunalari, hisob-fakturalar | POS va obunalar | Bor; tarif yaratish/o'chirish — Qasddan olib tashlandi |
+| Aksiyalar/bannerlar, promo-kodlar, kategoriyalar | Marketing | Bor |
+| Viloyatlar, to'lov tizimlari, tizim sozlamalari, feature flag'lar, harakatlar jurnali | Tizim | Bor; to'lov tizimini o'chirish va sinov rejimi endi buyurtma oqimida ishlaydi — Yangi joyi |
+| Qurilmalar | POS va obunalar | Bor |
+| Dashboard vidjetlari | Bugun, Ko'rsatkichlar, Moliya | Bor |
+| Ovqatxona egasi paneli `/admin` | Hamkor paneli (`partner/web`) | Bor; harakatlar jurnali, Telegram guruh havolasi, o'z kassa kalitlari, «Mening PIN kodim» — Yangi joyi |
+
+Egasining roziligi (28.10.2026) bilan ikkala Filament panel (`/superadmin` va `/admin`) 3-to'lqinda (P4-33) o'chirildi:
+`app/Filament/**`, panel providerlari, Filament ko'rinishlari va aktivlari (`public/{css,js,fonts}/filament`),
+`filament/filament` paketi (composer.lock'dan 30 paket: Filament, Livewire, Blade Icons va ularning bog'liqliklari),
+faqat Filament ishlatgan policy'lar (`Branch`, `BranchProductVariant`, `Category`, `Product`, `Store`, `User` —
+`OrderPolicy` qoldi), `App\Services\Ops\*` va `App\Domain\Ops\*`, `Order` va `ProductVariant` dagi `ops:*` kesh
+hooklari, `User` dagi `FilamentUser` / `HasTenants` / `canAccessPanel`. 2FA kaliti va zaxira kodlari o'sha ustun va
+cast'larda `User` ning o'z kodi bilan saqlanadi (ilgari o'rnatilgan 2FA ishlayveradi). Backend'ning `/` manzili
+`PARTNER_WEB_URL` ga yo'naltiradi (bo'sh bo'lsa 404). `/docs/api` endi faqat local/testing va `API_DOCS_PUBLIC=true`
+bilan ochiladi (superadmin'ning Filament sessiyasi yo'q). Filament orqali ishlagan testlar o'chirildi yoki API'ga
+ko'chirildi (xodim kirish raqami xavfsizligi, do'kon yaratish yo'li, buyurtma guruhlari, hudud GeoJSON, 2FA saqlanishi).
+
+### 8.1. `/superadmin` — batafsil
+
+Ekranlar boshqaruv markazida (`platform/admin`), API `/api/v1/admin/*` (docs/API.md «Admin API»).
+
+| Filament (klass → amal) | Yangi joyi (ekran · API) | Holat |
+|---|---|---|
+| `GlobalStoreResource` ro'yxat (nom, holat, yuridik nom; qidiruv) | `/stores` · `GET /admin/stores` (holat, viloyat, sog'liq, tarif, qarz filtrlari) | Bor |
+| `CreateGlobalStore` (3 bosqichli ustoz: do'kon, ega, birinchi filial) → `StoreProvisioner` | `/stores/applications` → ariza → «Do'kon yaratish» · `POST /admin/store-applications` + `…/{uuid}/convert` (o'sha `StoreProvisioner`) | Bor |
+| `EditGlobalStore` / `GlobalStoreForm` — holat, `is_active` | `/stores/{id}` «To'xtatish» / «Faollashtirish» · `POST /admin/stores/{id}/suspend|activate` | Bor |
+| — `commission_rate` | `/pos?tab=subscriptions` komissiya · `PUT /admin/billing/stores/{id}/commission` (`flat_rate`, kanal stavkalari) | Bor |
+| — `credit_limit` | `/stores/{id}` «Kredit limiti» · `PUT /admin/stores/{id}/credit-limit` | Bor |
+| — `is_premium`, `is_featured` | `/stores/{id}` «Ko'rsatish sozlamalari» · `PUT /admin/stores/{id}/display` | Bor |
+| — `min_payout_reserve`, `payment_account_type` | `/stores/{id}` «To'lov hisobi» · `PUT /admin/stores/{id}/payment-account` (stores.manage, step-up, sabab; kutilayotgan onlayn to'lov bo'lsa 409 `payments_in_flight`) | Yangi joyi |
+| — `settlement_type` | — | Qasddan olib tashlandi: hech bir kod o'qimaydi |
+| — `payment_settings.delivery_fee`, `active_payment_methods` | Hamkor paneli `/settings` (egasi) · `POST /owner/settings`; platforma bo'yicha o'chirish — `/system?tab=payments` | Bor (egasi o'zi; egasi nomidan kirish yo'q qarori) |
+| — nom, telefon, manzil, tavsif | Hamkor paneli `/settings` | Bor (egasi o'zi) |
+| — Telegram bot havolasi (`start=store_<uuid>`) va qo'lda `telegram_admin_chat_id` | Havola: hamkor paneli `/settings` «Telegram guruhi» · `GET /owner/settings` → `telegram.group_link`; markaz kartasida `telegram.store_chat_linked` | Yangi joyi; qo'lda chat ID — Qasddan olib tashlandi: botdagi egasi/menejer tekshiruvini chetlab o'tardi |
+| Jadval amali «Telegram Link» (egasining taklif tokeni) | `/stores/{id}` «Telegram havola» · `POST /admin/stores/{id}/telegram-link` (egasiga SMS) | Bor |
+| Jadval amali «To'lov qabul qilish (Top Up)» → `LedgerService::reduceDebt`, to'rt ko'z | `/finance?tab=adjustments` «Qo'lda tuzatish» (qarzni kamaytirish, 1 mln dan ikki xodim) · `POST /admin/finance/adjustments` | Bor |
+| Jadval amali «Login as Owner» | — | Qasddan olib tashlandi: egasi qarori (12-bo'lim) |
+| `DeleteAction`, `DeleteBulkAction` | — | Qasddan olib tashlandi: pul tarixi bor do'konni o'chirib bo'lmaydi, «To'xtatish» bor |
+| `BranchesRelationManager` (filial yaratish/tahrirlash/o'chirish, `BranchDeletionGuard`) | Hamkor paneli `/branches` · `/owner/branches` (o'sha `BranchService::referencesRefusal`); markaz kartasi «Filiallar» faqat ko'radi | Bor (egasi o'zi) |
+| `GlobalOrderResource` (bosqichlar tablari, kechikish belgilari, ko'rish) | `/orders`, `/orders/{uuid}` · `GET /admin/orders`, SLA, aralashuvlar | Bor |
+| `GlobalUserResource` ro'yxat, rol filtri, buyurtmalar soni, LTV, oxirgi buyurtmalar | `/customers?tab=users`, `/users/{id}` · `GET /admin/users`, `/users/{id}` | Bor |
+| — yaratish (har qanday rol, kuryer turi), tahrirlash (`saveUser` → `loginPhoneChanged`), o'chirish | Xodimlar: hamkor paneli `/staff` (`StaffAccountService`); egalar: ariza → convert; jamoa: `/team`; mijozlar: o'zlari | Qasddan olib tashlandi: markaz hech kimning profilini tahrirlamaydi; bloklash va sessiyalarni yopish bor |
+| — «SMS bilan kirishni yoqish» (`StaffPhoneLoginService::vouch`) | Ega uchun: `/stores/{id}` «Kirish raqami» · `PUT /admin/stores/{id}/owner-login-phone` (stores.impersonate, step-up, sabab; eski raqam sessiyalari yopiladi); boshqa xodimlar: hamkor paneli `/staff` | Yangi joyi |
+| — `courier_type` = Rizqim kuryeri | Ovqatxona darajasida `delivery_courier` (`PUT /admin/billing/stores/{id}/commission`) | Qasddan olib tashlandi: RIZQIM kuryer tarmog'i keyingi bosqich (11-bo'lim) |
+| — «Telegram invite link» (har qanday foydalanuvchi) | Xodim: hamkor paneli taklif havolasi; ega: «Telegram havola» | Bor |
+| `ComplaintResource` (holat, hal qilish izohi) | `/customers?tab=complaints` · `/admin/complaints*` (javob, tayyor javoblar, hal qilish) | Bor |
+| `CategoryResource` (ota, rasm, tartib, faol, o'chirish) | `/marketing?tab=categories` · `/admin/marketing/categories*` | Bor; o'chirilganini tiklash/butunlay o'chirish — Qasddan olib tashlandi (o'chirish step-up bilan, kerak bo'lsa qayta yaratiladi) |
+| `PromoResource` (banner, ovqatxona/mahsulot, tartib) | `/marketing?tab=banners` · `/admin/marketing/promos*` | Bor |
+| `PromoCodeResource` | `/marketing?tab=codes` · `/admin/marketing/promo-codes*` | Bor |
+| `RegionResource`, `DistrictResource`, `DistrictsRelationManager` | `/system?tab=locations` · `/admin/system/regions*`, `/districts*` | Bor |
+| `SettingResource` (SMS: drayver, Eskiz) | `/system?tab=settings` · `/admin/system/settings*` (maxfiy qiymat faqat oxirgi 4 belgi) | Bor |
+| `PaymentProviderResource` (faol, kalitlar) | `/system?tab=payments` · `/admin/system/payment-providers*` | Bor; P4-32: `is_active` va `mode` buyurtma oqimida ishlaydi (pastda) — Yangi joyi; yaratish/o'chirish/ikonka — Qasddan olib tashlandi (C3: yangi provayder kodsiz ishlamaydi) |
+| `FeatureFlags` sahifasi (ovqatxona × flag, «Standartga qaytarish») | `/system?tab=flags` · `/admin/system/feature-flags*` (`FeatureFlagAdmin`, Pennant) | Bor |
+| `GlobalAuditLogResource` | `/audit` · `GET /admin/audit-logs` | Bor |
+| `GlobalDeviceResource` (filtrlar, «O'chirish» → `DeviceService::revoke`) | `/pos?tab=devices` · `/admin/pos/devices*` | Bor |
+| `PayoutRequestResource` / `EditPayoutRequest` (holat → `PayoutRequest` hook → `PayoutService::complete`) | `/finance?tab=payouts` · `POST /admin/finance/payouts/{id}/approve|reject` | Bor |
+| `StoreTopupResource` | `/finance?tab=topups` · `GET /admin/finance/topups` | Bor |
+| `TariffPlanResource` (tahrirlash) | `/pos?tab=plans` · `PUT /admin/billing/plans/{code}` | Bor; yaratish/o'chirish — Qasddan olib tashlandi: katalog egasi tasdiqlagan (6-bo'lim) |
+| `StoreSubscriptionResource` («Tarif biriktirish», «Tarifni o'zgartirish», «Bekor qilish») | `/pos?tab=subscriptions` · `/admin/billing/stores/{id}/subscription*` | Bor |
+| `SubscriptionInvoiceResource` («To'landi», «Bekor qilish», to'rt ko'z) | `/pos?tab=invoices` · `POST /admin/pos/invoices/{uuid}/paid|void` | Bor |
+| `RevenueReport` sahifasi | `/finance?tab=report` · `GET /admin/finance/reports/monthly` (+ Excel) | Bor |
+| `FinanceDashboard` (`FinanceStats`, `CommissionRevenueChart`, `TopRestaurantsTableWidget`) | `/finance` xulosasi, `/metrics` (GMV va komissiya oylar bo'yicha), oylik hisobotning «Ovqatxonalar» qismi | Bor |
+| `Dashboard` (`PlatformOverviewWidget`, `PlatformOrdersChart`, `GlobalGmvWidget`) | `/today`, `/metrics` | Bor |
+| Kirish: `CustomLogin`, `PlatformAppAuthentication` (TOTP) | `/login` · `/admin/auth/*` (o'sha `TwoFactorService`) | Bor |
+
+### 8.2. Ovqatxona egasi paneli `/admin` — batafsil
+
+Ekranlar hamkor panelida (`partner/web`), API `/api/v1/owner/*`, `/staff/*`, `/pos/*`.
+
+| Filament (klass → amal) | Yangi joyi (ekran · API) | Holat |
+|---|---|---|
+| `Dashboard` (`StoreBalanceWidget`, `WarRoomUrgentZone`, `StatsOverview`, `OrdersChart`, `LiveActivityFeed`, `TopProductsChart`) | `/dashboard` · `/owner/analytics`, `/staff/orders` | Bor |
+| `OrderResource` (qabul, tayyorlash, kuryer bilan yuborish, yakunlash, bekor/rad sabab bilan) | `/orders` (jonli doska) · `/staff/orders/*`, `/orders/{uuid}/assign-courier` | Bor |
+| — «Qaytarish» (faqat superadmin) | Markaz `/orders/{uuid}` → qaytarish so'rovi va tasdiq · `/admin/orders/{uuid}/refund-requests`, `/admin/refund-requests/*` | Bor |
+| — «Mark Cash Collected» (naqd to'lovni `paid` qilish) | — | Qasddan olib tashlandi: do'konga tegishli naqd pulning `payment_status`i hech bir hisob-kitobga ta'sir qilmaydi; kassa (POS) to'lovlari o'z yo'lida |
+| — `EditOrder` o'chirish/tiklash | — | Qasddan olib tashlandi: buyurtma tarixi o'chirilmaydi |
+| `ProductResource` (+ `CreateProduct`/`EditProduct` → `MenuImageService::queueThumbnails`) | `/menu`, `/menu/{id}` · `/owner/products*` (rasm `…/image` o'sha servis bilan) | Bor; o'chirilgan mahsulotni tiklash — Qasddan olib tashlandi |
+| `ModifierGroupResource` (store_id majburiy) | `/menu/groups/*` · `/owner/modifier-groups*` | Bor |
+| `StopListResource` | `/stoplist` · `/owner/stop-list*` | Bor |
+| `MenuBatchResource` (ochish, tuzatish, yopish) | `/stoplist/batches` · `/owner/batches*` | Bor |
+| `BranchResource` (`BranchDeletionGuard`) | `/branches` · `/owner/branches*` | Bor |
+| `DeliveryZoneResource` | `/zones` · `/owner/delivery-zones*` | Bor |
+| `DeviceResource` (nomini o'zgartirish, o'chirish, ulash kodi) | `/settings` «Qurilmalar» · `/owner/devices*` | Bor |
+| `EmployeeResource` (yaratish + taklif, tahrirlash, `setPin`/`resetPin`, `vouchLoginPhone`) | `/staff` · `/owner/staff*` (`StaffAccountService`, `StaffPinService`) | Bor |
+| — `ManageEmployees` «Mening PIN kodim» | `/staff` «Mening PIN kodim» · `PUT /owner/staff/{o'z id}/pin` | Yangi joyi |
+| `AuditLogResource` (harakat nomlari, «O'zgarish» matni, filtrlar) | `/audit` «Harakatlar jurnali» · `GET /owner/audit-logs` (nomlar uz/ru/en hamkor paneli matnlarida) | Yangi joyi |
+| `StaffPermissions` (rol × ruxsat, standartga qaytarish, jurnal) | `/permissions` · `PUT /owner/permissions` | Bor |
+| `StoreSettings` — asosiy ma'lumot, ish vaqti, yetkazish, olib ketish, to'lov usullari | `/settings` · `POST /owner/settings` | Bor |
+| — logo, banner | Mini App «Sozlamalar» (ega) · `POST /owner/settings/upload` | Bor |
+| — Telegram bot havolasi | `/settings` «Telegram guruhi» · `GET /owner/settings` → `telegram` | Yangi joyi |
+| — o'z hisobidagi Click/Payme kalitlari (`own_account`) | `/settings` «… o'z kassangiz kalitlari» (maxfiy kalit faqat yoziladi) · `POST /owner/settings` | Yangi joyi |
+| — `telegram_admin_chat_id` qo'lda | — | Qasddan olib tashlandi (yuqoridagi sabab) |
+| `EditStoreProfile` (tenant profili) | `/settings` | Bor |
+| `StoreFinance` (balans, kartadan to'ldirish, pul yechish) | `/finance` · `/owner/finance*`, `/owner/finance/top-up`, `/owner/payouts` | Bor |
+| `Payments` (`PaymentsStatsWidget`, `PaymentsRecentWidget`) | `/finance` «To'lovlar» · `/owner/payments` | Bor |
+| `SubscriptionBilling` | `/billing` · `/owner/subscription`, `/owner/invoices` | Bor |
+| `Analytics` (`AnalyticsHeroChart`, `AnalyticsStatsWidget`, `RevenueChart`, `DailyOrdersChart`) | `/reports` · `/owner/reports/*` | Bor |
+| `CustomerRetentionWidget` (yangi va qaytgan mijozlar) | — | Qasddan olib tashlandi: faqat ko'rsatkich; kerak bo'lsa `/reports`ga qo'shiladi (ochiq taklif) |
+| `Staff`, `Inventory` sahifalari va vidjetlari (`StaffStats`, `StaffPresence`, `InventoryStats`, `InventoryLowStock`) | — | Qasddan olib tashlandi: menyuda yo'q edi (`shouldRegisterNavigation = false`); ombor 11-bo'limda |
+| `TelegramBindWidget`, `ManagerOrdersOverviewWidget`, `StoreSalesOverviewWidget`, ledger/hamyon vidjetlari | Ega Telegrami: markaz «Telegram havola»; qolganlari `/dashboard`, `/finance` | Bor |
+| Kirish: `CustomLogin` (email + parol) | `/login` (SMS kod) | Bor |
+
+### 8.3. Faqat Filament ichida bo'lgan mantiq va uning yangi joyi (P4-33 da bajarildi)
+
+| Mantiq | Qayerga ko'chdi / holati |
 |---|---|
-| Restoranlar (ro'yxat, yaratish, tahrirlash, filiallar, balans to'ldirish, Telegram havola, egasi sifatida kirish) | Ovqatxonalar |
-| Buyurtmalar (yashirin ro'yxat), do'kon panelidagi qaytarish | Buyurtmalar |
-| Foydalanuvchilar, E'tirozlar | Mijozlar va yordam |
-| Moliya dashboard, balans to'ldirish tarixi, yechib olish so'rovlari, Rizqim daromadi | Moliya |
-| Tarif rejalari, do'kon obunalari, hisob-fakturalar | POS va obunalar |
-| Aksiyalar/bannerlar, promo-kodlar, kategoriyalar | Marketing |
-| Viloyatlar, to'lov tizimlari, tizim sozlamalari, feature flag'lar, harakatlar jurnali | Tizim |
-| Qurilmalar | POS va obunalar |
-| Dashboard vidjetlari | Bugun |
-
-Ovqatxona egalari uchun eski Filament panel (`/admin`) ham bor — hamkor paneli uni to'liq almashtirgani tekshirilib,
-egasi roziligi bilan u ham o'chiriladi.
+| `CreateGlobalStore::handleRecordCreation` | `App\Services\Admin\Stores\StoreProvisioner::create` (P4-22 da ko'chirilgan) |
+| `GlobalStoresTable` «Top Up» to'rt ko'z tekshiruvi | `AdjustmentService::needsSecondApproval` + Moliya «Qo'lda tuzatish» |
+| `GlobalStoresTable` / `GlobalUserResource` Telegram taklif tokeni | `StoreActions::regenerateTelegramLink`; xodimlar `StaffAccountService::create` |
+| `GlobalUserResource::saveUser` (telefon o'zgarsa `loginPhoneChanged`) va «SMS bilan kirishni yoqish» | `StoreActions::setOwnerLoginPhone` → `StaffPhoneLoginService::vouch` (audit + sessiyalarni yopish) |
+| `GlobalStoreForm` `min_payout_reserve`, `payment_account_type` | `StoreActions::setPaymentAccount` |
+| `GlobalStoreForm` / `StoreSettings` Telegram havola matni | `OwnerSettingsController::index` → `telegram.group_link` |
+| `FeatureFlags::table` (Pennant activate/deactivate/forget) | `App\Services\Admin\System\FeatureFlagAdmin` |
+| `RevenueReport` | `RevenueReportService` / `MonthlyRevenueReport` (Moliya hisoboti) |
+| `EditPayoutRequest` (DomainException → Halt) | `PayoutRequest` modeli hooki + `PayoutService` (admin API to'g'ridan-to'g'ri) |
+| `SubscriptionInvoiceResource` void to'rt ko'z | `AdminPosInvoiceController` + `SubscriptionService::voidInvoice` |
+| `StaffPermissions::toggle` (+ `permissions.changed` jurnali) | `StaffAccessController::updatePermission` |
+| `ManageEmployees` «myPin» | `StaffAccessController::setPin` (o'z id bilan) + hamkor paneli |
+| `CreateProduct::afterCreate`, `EditProduct::afterSave` (thumbnail navbati) | Menyu API'si `MenuImageService` orqali |
+| `CreateModifierGroup`/`CreateDeliveryZone` (`store_id` majburlash) | Tegishli `/owner/*` controllerlar |
+| `AuditLogResource::actionLabels()` / `describe()` | Hamkor paneli `src/i18n/sections/audit.ts`, `components/audit/AuditView.tsx`; markaz o'z matnlari bilan |
+| `StoreSettings::unlessUnavailable` | `Store::isPaymentMethodAvailable` / `unavailablePaymentMethods` (API allaqachon shunday) |
+| `OrderResource` «collectCash» | Qasddan olib tashlandi (8.2) |
+| `App\Filament\Support\StorePanelScope` — `App\Services\Ops\OpsContext` undan foydalanadi | `App\Services\Ops\*` (OpsContext, DelayDetection, KitchenLoad, InventoryVelocity, PaymentInsight) faqat egasi paneli vidjetlarida ishlatilardi: P4-33 ularni (`App\Domain\Ops\*` bilan), `Order::boot()` dagi `OpsContext::forgetOrderMetrics` va `ProductVariant::boot()` dagi `ops:*` kesh hooklarini o'chirdi |
+| `MenuPanelAccess`, `BranchDeletionGuard` | Faqat Filament uchun edi (P4-33 da o'chirildi); API `PermissionService` va `BranchService::referencesRefusal` dan foydalanadi |
+| Panel providerlari | Faqat panel sozlamasi va `filament.custom-css` render hooki; jadval (schedule), observer yoki listener ro'yxatga olinmaydi |
+| `url('/admin')` — to'lovdan qaytish manzili (`PaymentLinkService`, `OwnerFinanceController`) | `PaymentProviderSwitch::orderReturnUrl()` (Mini App, `TELEGRAM_WEBAPP_URL`) va `topupReturnUrl()` (hamkor paneli `/finance`, yangi `PARTNER_WEB_URL`) |
+| `routes/web.php` `/` → `/superadmin` yoki `/admin` | P4-33: `/` → `PARTNER_WEB_URL` (bo'sh bo'lsa 404) |
+| `User` — Filament `InteractsWithAppAuthentication(Recovery)` (2FA kaliti, zaxira kodlari) | `User` ning o'z metodlari, o'sha `encrypted` / `encrypted:array` cast'lar va ustunlar; `UserTwoFactorStorageTest` ilgari yozilgan kalit va kod bilan kirishni tekshiradi |
+| `ApiDocsServiceProvider` `viewApiDocs` gate (Filament sessiyasidagi superadmin) | P4-33: olib tashlandi; production'da `/docs/api` faqat `API_DOCS_PUBLIC=true` bilan (spetsifikatsiya `packages/api-spec/openapi.json` da) |
+| `StaffPhoneLoginService::loginPhoneChanged` ning `$storeId` parametri (`GlobalUserResource` rol/telefon tahriri) | Endi chaqiruvchisi yo'q (parametr zarar qilmaydi); rol o'zgarganda vouched raqamni `User::booted` baribir o'chiradi |
+| `openspout/openspout` faqat Filament orqali o'rnatilgan edi (Excel eksportlari unga tayanadi) | `composer.json`ga to'g'ridan-to'g'ri qo'shildi (`^4.32`, lock'dagi o'sha versiya) |
 
 ## 9. To'lqinlar
 
@@ -300,7 +427,8 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 **P4-33 O'tish**
 - Jamoa uchun qo'llanma (`docs/guides/boshqaruv-markazi.md` to'liq).
 - Egasi roziligi bilan ikkala eski Filament panelni o'chirish; Mini App'dagi superadmin ekranlari va eski
-  `/superadmin/*` JSON endpointlari olib tashlanadi (12-bo'lim, 1-band qaroriga ko'ra, ertaroq ham).
+  `/superadmin/*` JSON endpointlari olib tashlanadi (12-bo'lim, 1-band qaroriga ko'ra, ertaroq ham). **Bajarildi**
+  (8-bo'lim).
 
 ## 10. Tekshiruv
 
@@ -336,11 +464,14 @@ Ish tartibi 1-to'lqindagidek: avval backend kelishuvi (endpointlar, ruxsatlar), 
 - Qo'lda tuzatishda ikkinchi xodim tasdig'i 1 000 000 so'mdan boshlab (28.10.2026).
 - Didox — hozircha yo'q (28.10.2026).
 - Ogohlantirishlar — guruh ochilguncha superadmin chatiga (28.10.2026).
+- Tarif ichidagi qurilmalar: Start 1 kassa; Asosiy 1 kassa + 1 oshxona ekrani; Pro 2 kassa + 1 oshxona ekrani
+  (28.10.2026).
+- Hali ishlayotgan mijoz ovqatxona yo'q: eski tariflardan o'tkazish (`billing:migrate-plans`) va eski superadminlarni
+  qayta taklif qilish kerak emas; birinchi deployda superadmin `rizqim:admin:create` bilan ochiladi (28.10.2026).
+- Ikkala eski Filament panelni (`/superadmin` va `/admin`) 3-to'lqinda o'chirishga rozilik berildi (28.10.2026).
 
 **Hali kerak:**
 1. Ogohlantirishlar uchun Telegram guruhi ("RIZQIM navbatchi") ochilsa — uning ID'si (`TELEGRAM_OPS_CHAT_ID`).
 2. Admin manzili (masalan `admin.rizqim.uz`) va server (O'zbekistondagi server tavsiya: soliq API va Marketpleys
    talabi).
-3. Mavjud superadminlar uchun serverda `php artisan rizqim:admin:invite <email>` (birinchi kirish).
-4. Yangi markaz tayyor bo'lgach, ikkala eski Filament panelni (`/superadmin` va `/admin`) o'chirishga rozilik.
-5. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".
+3. Integratsiyalar bo'yicha muzokaralar: [PHASE5_PLAN.md](PHASE5_PLAN.md), "Egasidan kerak".

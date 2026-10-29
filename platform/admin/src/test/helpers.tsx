@@ -77,3 +77,21 @@ export function renderPage(ui: ReactElement) {
     </I18nProvider>,
   );
 }
+
+// P4-31: an Excel export answered by the backend, and the browser's file saving replaced by a list of the names saved
+export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export const xlsx = (rows = 2, truncated = false) =>
+  new Response(new Uint8Array([80, 75, 3, 4]), {
+    status: 200,
+    headers: { 'Content-Type': XLSX_TYPE, 'Content-Disposition': 'attachment; filename=rizqim-test.xlsx', 'X-Export-Rows': String(rows), 'X-Export-Truncated': truncated ? '1' : '0' },
+  });
+
+export function stubFileSaving(): string[] {
+  const saved: string[] = [];
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:test'), revokeObjectURL: vi.fn() }));
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    saved.push(this.download);
+  });
+  return saved;
+}

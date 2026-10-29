@@ -10,6 +10,9 @@ class GenerateAuthTokenAction
 
     public function execute(User $user, string $tokenName = 'mobile-api'): string
     {
+        // P4-31: a blocked account signs in nowhere
+        \App\Services\Auth\AccountBlockedException::guard($user);
+
         $expiration = (int) config('sanctum.expiration');
 
         if ($expiration > 0) {

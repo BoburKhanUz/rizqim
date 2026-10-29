@@ -4,7 +4,7 @@ import { createTranslator } from '@/i18n';
 import { errorText, firstFieldError, reasonOf } from './errors';
 import { parseDecimal, phoneToE164, phoneToInput } from './fields';
 import { hoursText, clock } from './hours';
-import { cashOn, draftFromSettings, inputFromDraft, onlineOn, providerAvailable } from './paymentSettings';
+import { cashOn, draftFromSettings, inputFromDraft, onlineOn, providerAvailable, unavailableReason } from './paymentSettings';
 
 const t = createTranslator('uz');
 
@@ -67,6 +67,22 @@ describe('payment settings', () => {
     expect(onlineOn({ enabled: true })).toBe(true);
     expect(providerAvailable({ enabled: true, available: false })).toBe(false);
     expect(providerAvailable(true)).toBe(true);
+    // P4-32: why it is off
+    expect(unavailableReason({ enabled: false, available: false })).toBe('not_integrated');
+    expect(unavailableReason({ enabled: false, available: false, unavailable_reason: 'switched_off' })).toBe('switched_off');
+    expect(unavailableReason({ enabled: true })).toBeNull();
+  });
+
+  it('sends merchant keys only for a store on its own account, and a secret only when one was typed', () => {
+    const platform = draftFromSettings(settings);
+    expect(inputFromDraft(settings, platform, { minOrder: 0, deliveryFee: 0 }).payment_settings).toMatchObject({ click: { enabled: false }, payme: { enabled: false } });
+    expect(inputFromDraft(settings, platform, { minOrder: 0, deliveryFee: 0 }).payment_settings.click).toEqual({ enabled: false });
+    const own = { ...settings, payment_account_type: 'own_account' as const };
+    const draft = draftFromSettings(own);
+    draft.merchant.payme = { ...draft.merchant.payme, merchant_id: ' m-1 ', secret_key: '' };
+    const input = inputFromDraft(own, draft, { minOrder: 0, deliveryFee: 0 }).payment_settings;
+    expect(input.payme).toEqual({ enabled: false, merchant_id: 'm-1' });
+    expect(input.click).toEqual({ enabled: false, service_id: null, merchant_id: null });
   });
 
   const settings = {
@@ -76,6 +92,7 @@ describe('payment settings', () => {
     payment_account_type: 'platform_account' as const, status: 'active' as const, is_order_locked: false, allowed_methods: [],
     // Fiscal fields (P3-11): the payment form never reads them
     tin: null, tax_regime: null, fiscal_settings: {} as StoreSettings['fiscal_settings'],
+    telegram: { group_link: null, group_linked: false },
   };
 
   it('starts a form from the stored values with the defaults of a store that saved nothing', () => {

@@ -6,6 +6,7 @@ export const uz = {
 
   // Navigatsiya
   nav_today: 'Bugun',
+  nav_metrics: "Ko'rsatkichlar",
   nav_orders: 'Buyurtmalar',
   nav_stores: 'Ovqatxonalar',
   nav_pos: 'POS va obunalar',

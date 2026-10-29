@@ -3,31 +3,23 @@
 namespace Tests\Feature;
 
 use App\Enums\PlatformRole;
-use App\Enums\UserRole;
-use App\Filament\Auth\PlatformAppAuthentication;
-use App\Filament\Pages\Auth\CustomLogin;
 use App\Models\AdminLoginChallenge;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Admin\AdminAuthException;
 use App\Services\Admin\AdminLoginLockout;
 use App\Services\Admin\PlatformTeamService;
-use App\Services\Admin\TwoFactorService;
-use Filament\Facades\Filament;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
  * Review of P4-11 (security F1-F3, F5-F7): the control center's access, attacked. A team.manage holder building a
  * stronger sock-puppet account, password guessing from rotating IPv4 / IPv6 addresses, a guessed password enrolling
- * the guesser's authenticator (API and Filament), the Filament 2FA outside the lockout and the audit, a flood of
- * made-up emails in the audit log, phone probing in the search, and a last-superadmin guard counting accounts nobody
- * can sign in as.
+ * the guesser's authenticator, a flood of made-up emails in the audit log, phone probing in the search, and a
+ * last-superadmin guard counting accounts nobody can sign in as.
  */
 class AdminAccessHardeningTest extends TestCase
 {
@@ -241,122 +233,6 @@ class AdminAccessHardeningTest extends TestCase
         $this->assertTrue($member->refresh()->hasTwoFactorEnabled());
         $this->assertNull($member->getAttribute('two_factor_setup_allowed_until'));
         $this->assertSame('Parol unutildi', AuditLog::where('action', 'admin.cli.member_reinvited')->sole()->payload_json['reason']);
-    }
-
-    // F2 + F3: the Filament channel -------------------------------------------------------------------------------
-
-    public function test_the_filament_set_up_does_not_enroll_outside_the_window(): void
-    {
-        $legacy = User::create([
-            'name' => 'Old SA', 'email' => 'old-sa@rizqim.test', 'password' => Hash::make($this->adminPassword), 'role' => UserRole::SUPER_ADMIN,
-        ]);
-        Filament::setCurrentPanel(Filament::getPanel('superadmin'));
-        $this->actingAs($legacy);
-        /** @var PlatformAppAuthentication $provider */
-        $provider = Filament::getPanel('superadmin')->getMultiFactorAuthenticationProviders()['app'];
-        $twoFactor = app(TwoFactorService::class);
-
-        // Signed in with the password only (2FA required): the set-up page explains instead of offering the set-up
-        $this->get('/superadmin/multi-factor-authentication/set-up')->assertOk()->assertSee('rizqim:admin:invite');
-
-        $secret = $twoFactor->generateSecret();
-        $this->assertFalse($provider->verifyCode($twoFactor->currentCode($secret), $secret));
-        try {
-            $provider->saveSecret($legacy, $secret);
-            $this->fail('The panel enrolled an authenticator outside the set-up window.');
-        } catch (AuthorizationException) {
-        }
-        $this->assertFalse($legacy->refresh()->hasTwoFactorEnabled());
-        $this->assertSame(2, AuditLog::where('action', 'admin.auth.2fa_setup_refused')->count());
-
-        // Inside the window (a reset by another superadmin) the panel's set-up works and closes it
-        app(PlatformTeamService::class)->resetTwoFactor($legacy, null);
-        $this->actingAs($legacy->refresh());
-        $this->assertTrue($provider->verifyCode($twoFactor->currentCode($secret), $secret));
-        $provider->saveSecret($legacy, $secret);
-        $this->assertTrue($legacy->refresh()->hasTwoFactorEnabled());
-        $this->assertNull($legacy->getAttribute('two_factor_setup_allowed_until'));
-
-        // Turning it off in the panel opens the window again (the set-up is required there)
-        $provider->saveSecret($legacy, null);
-        $this->assertTrue(app(TwoFactorService::class)->setupAllowed($legacy->refresh()));
-    }
-
-    public function test_filament_2fa_codes_count_in_the_lockout_and_are_audited(): void
-    {
-        $superadmin = User::create([
-            'name' => 'Old SA', 'email' => 'old-sa@rizqim.test', 'password' => Hash::make($this->adminPassword), 'role' => UserRole::SUPER_ADMIN,
-        ]);
-        $secret = $this->enableTwoFactor($superadmin);
-        Filament::setCurrentPanel(Filament::getPanel('superadmin'));
-        /** @var PlatformAppAuthentication $provider */
-        $provider = Filament::getPanel('superadmin')->getMultiFactorAuthenticationProviders()['app'];
-        $provider->getChallengeFormComponents($superadmin->refresh());
-
-        for ($i = 0; $i < 5; $i++) {
-            $this->assertFalse($provider->verifyCode($this->codeFor($secret, 10 + $i), $secret, true));
-        }
-        $this->assertSame(5, AuditLog::where('action', 'admin.auth.2fa_failed')->where('user_id', $superadmin->id)->count());
-        $this->assertSame('filament', AuditLog::where('action', 'admin.auth.2fa_failed')->first()->payload_json['channel']);
-
-        // Locked: the right code waits, in the panel and in the admin API alike
-        $this->nextStep();
-        $this->assertFalse($provider->verifyCode($this->codeFor($secret), $secret, true));
-        $this->assertFalse($provider->verifyRecoveryCode('AAAAA-BBBBB', $superadmin));
-        $this->assertSame(2, app(TwoFactorService::class)->recoveryCodesLeft($superadmin->refresh()));
-        $challenge = $this->loginChallenge($superadmin);
-        $this->adminJson('POST', '/auth/2fa/verify', null, ['challenge_token' => $challenge, 'code' => $this->codeFor($secret)])
-            ->assertStatus(429)->assertJsonPath('code', 'locked');
-        $this->assertGreaterThanOrEqual(2, AuditLog::where('action', 'admin.auth.locked_out')->count());
-
-        $this->travel(16)->minutes();
-        $this->assertTrue($provider->verifyCode($this->codeFor($secret), $secret, true));
-        $this->assertTrue($provider->verifyRecoveryCode('AAAAA-BBBBB', $superadmin));
-        $this->assertSame(2, AuditLog::where('action', 'admin.auth.2fa_succeeded')->where('user_id', $superadmin->id)->count());
-    }
-
-    public function test_filament_password_guesses_share_the_admin_lockout(): void
-    {
-        $superadmin = User::create([
-            'name' => 'Old SA', 'email' => 'old-sa@rizqim.test', 'password' => Hash::make($this->adminPassword), 'role' => UserRole::SUPER_ADMIN,
-        ]);
-        $this->enableTwoFactor($superadmin);
-        Filament::setCurrentPanel(Filament::getPanel('superadmin'));
-
-        // Five bad passwords in the panel (a minute apart: under Filament's own 5 a minute per address)
-        for ($i = 0; $i < 5; $i++) {
-            Livewire::test(CustomLogin::class)
-                ->fillForm(['email' => $superadmin->email, 'password' => "wrong-password-{$i}"])
-                ->call('authenticate')
-                ->assertHasFormErrors(['email']);
-            $this->travel(61)->seconds();
-        }
-
-        // The admin API sees the same count, and so does the panel itself
-        $this->adminJson('POST', '/auth/login', null, ['email' => $superadmin->email, 'password' => $this->adminPassword])
-            ->assertStatus(429)->assertJsonPath('code', 'locked');
-        $login = Livewire::test(CustomLogin::class)
-            ->fillForm(['email' => $superadmin->email, 'password' => $this->adminPassword])
-            ->call('authenticate')
-            ->assertHasFormErrors(['email']);
-        $this->assertNull($login->get('userUndertakingMultiFactorAuthentication'));
-
-        // Guesses through the API from rotating addresses lock the panel too
-        $this->travel(16)->minutes();
-        for ($i = 1; $i <= 15; $i++) {
-            $this->login($superadmin->email, "guess-{$i}-wrong", "203.0.113.{$i}");
-        }
-        Livewire::test(CustomLogin::class)
-            ->fillForm(['email' => $superadmin->email, 'password' => $this->adminPassword])
-            ->call('authenticate')
-            ->assertHasFormErrors(['email']);
-
-        $this->travel(16)->minutes();
-        $ok = Livewire::test(CustomLogin::class)
-            ->fillForm(['email' => $superadmin->email, 'password' => $this->adminPassword])
-            ->call('authenticate')
-            ->assertHasNoFormErrors();
-        $this->assertNotNull($ok->get('userUndertakingMultiFactorAuthentication'));
     }
 
     // F5 ------------------------------------------------------------------------------------------------------------

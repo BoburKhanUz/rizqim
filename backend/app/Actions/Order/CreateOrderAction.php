@@ -55,8 +55,13 @@ class CreateOrderAction
     public function execute($user, array $items, array $payload): Order
     {
         // Nothing could ever mark such an order paid (no webhook for it yet)
-        if (!\App\Models\Store::isPaymentMethodAvailable((string) ($payload['payment_method'] ?? 'cash'))) {
+        $method = (string) ($payload['payment_method'] ?? 'cash');
+        if (!\App\Models\Store::isPaymentMethodIntegrated($method)) {
             throw ValidationException::withMessages(['payment_method' => "Bu to'lov usuli hozircha mavjud emas"]);
+        }
+        // P4-32: a provider the RIZQIM team switched off (Tizim → To'lov tizimlari): 422 with code payment_provider_inactive
+        if (!\App\Models\Store::isPaymentMethodAvailable($method)) {
+            throw \App\Services\Payment\PaymentProviderSwitch::refusal($method);
         }
 
         return DB::transaction(function () use ($user, $items, $payload) {

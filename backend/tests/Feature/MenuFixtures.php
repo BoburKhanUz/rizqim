@@ -109,17 +109,6 @@ trait MenuFixtures
         ], $overrides), ['Authorization' => "Bearer {$token->plainTextToken}"]);
     }
 
-    /**
-     * GET a store panel page as $user, signed in afresh (AuthenticateSession logs out a session's other user).
-     */
-    protected function panelAs(User $user, string $path): TestResponse
-    {
-        $this->app['auth']->forgetGuards();
-        $this->flushSession();
-
-        return $this->actingAs($user, 'web')->get("/admin/{$this->store->uuid}/{$path}");
-    }
-
     protected function makeCook(?\App\Models\Branch $branch = null): User
     {
         return $this->makeStaff(UserRole::COOK, $branch ?? $this->branch);

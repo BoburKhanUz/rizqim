@@ -14,15 +14,15 @@ use SensitiveParameter;
 
 /**
  * P4-11: TOTP (RFC 6238, Google Authenticator) for the RIZQIM team. One secret per account (users.
- * app_authentication_secret, encrypted at rest), shared by the admin API and the old Filament panels
- * (App\Filament\Auth\PlatformAppAuthentication), so both ask for the same code and the same replay rule holds:
- * a code is accepted once, and never one from the same or an earlier 30 s step than the last accepted code.
+ * app_authentication_secret, encrypted at rest; User keeps the casts the old Filament panels wrote it with, P4-33).
+ * Replay rule: a code is accepted once, and never one from the same or an earlier 30 s step than the last accepted
+ * code.
  *
- * Recovery codes are kept as bcrypt hashes (the format Filament reads); a used one is burnt.
+ * Recovery codes are kept as bcrypt hashes (users.app_authentication_recovery_codes); a used one is burnt.
  *
  * Review F2: a member without 2FA may set it up only inside a set-up window (users.two_factor_setup_allowed_until,
  * 24 hours), opened by accepting an invite or by a 2FA reset and closed when 2FA is turned on. Outside it the right
- * password alone enrolls nothing (admin API: `setup_not_allowed`; the Filament set-up is refused the same way).
+ * password alone enrolls nothing (admin API: `setup_not_allowed`).
  */
 class TwoFactorService
 {

@@ -112,6 +112,17 @@ class ApiDocsSpecTest extends TestCase
         $this->assertArrayNotHasKey('security', $this->doc['paths']['/v1/orders']['get']);
     }
 
+    public function test_every_request_is_documented_without_a_generator_warning(): void
+    {
+        // Scramble writes its failures (with a machine path) into the description: the request goes undocumented and
+        // the file differs between machines
+        foreach ($this->doc['paths'] as $path => $operations) {
+            foreach ($operations as $method => $operation) {
+                $this->assertStringNotContainsString('Cannot generate', (string) ($operation['description'] ?? ''), "{$method} {$path}");
+            }
+        }
+    }
+
     public function test_paths_are_sorted_for_stable_diffs(): void
     {
         $paths = array_keys($this->doc['paths']);

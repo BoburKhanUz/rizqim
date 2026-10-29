@@ -47,6 +47,11 @@ const LABELS: Record<string, string> = {
 
 const KEYS = Object.keys(LABELS)
 
+const AUDIT = [
+  { id: 3, action: 'staff.pin_set', actor: { id: 1, name: 'Aziz Karimov', role: 'owner' }, device: null, subject_type: 'User', subject_id: 12, branch_id: null, before: null, after: null, meta: null, ip: null, created_at: '2026-10-28T09:30:00+05:00' },
+  { id: 2, action: 'order.cancelled', actor: { id: 5, name: 'Dilnoza', role: 'manager' }, device: null, subject_type: 'Order', subject_id: 41, branch_id: 1, before: { status: 'new' }, after: { status: 'canceled' }, meta: { reason: 'out_of_stock' }, ip: null, created_at: '2026-10-28T09:00:00+05:00' },
+]
+
 const DEFAULTS: Record<string, string[]> = {
   owner: KEYS.filter((key) => key !== 'orders.refund'),
   manager: [
@@ -76,6 +81,13 @@ export class FakePermissions {
   }
 
   handle(req: FakeRequest, body: Record<string, unknown> | null): Reply | null {
+    // P4-32: the store's audit log (a fixed page; `action` narrows it as the server's prefix filter does)
+    if (req.method === 'GET' && req.path === '/v1/owner/audit-logs') {
+      if (!this.backend.account.permissions.includes('audit.view')) return fail(403, 'Bu amalga ruxsat yo‘q.')
+      const prefix = typeof req.query.action === 'string' && req.query.action.endsWith('.*') ? req.query.action.slice(0, -1) : ''
+      const rows = AUDIT.filter((row) => prefix === '' || row.action.startsWith(prefix))
+      return ok({ current_page: 1, last_page: 1, per_page: 25, total: rows.length, data: rows })
+    }
     if (req.path !== '/v1/owner/permissions') return null
     if (!this.backend.account.permissions.includes('permissions.manage')) return fail(403, 'Bu amalga ruxsat yo‘q.')
 

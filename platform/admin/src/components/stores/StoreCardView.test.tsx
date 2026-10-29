@@ -113,6 +113,60 @@ describe('StoreCardView', () => {
     expect(await within(dialog).findAllByText('Egasi Telegramga allaqachon ulangan.')).not.toHaveLength(0);
   });
 
+  it('changes the payment account and the payout reserve with a reason', async () => {
+    const base = storeCard();
+    const changed = storeCard({ profile: { ...base.profile, payment_account_type: 'own_account' }, finance: { ...base.finance, min_payout_reserve: '50000.00' }, actions: { ...base.actions, payment_account: true } });
+    const { user, callsTo } = setup({
+      'GET /stores/12': () => ok(storeCard({ actions: { ...base.actions, payment_account: true } })),
+      'PUT /stores/12/payment-account': () => ok(changed),
+    });
+    await user.click(await screen.findByRole('button', { name: "To'lov hisobi" }));
+    const dialog = screen.getByRole('dialog', { name: "To'lov hisobi va zaxira" });
+    const save = within(dialog).getByRole('button', { name: 'Saqlash' });
+    await user.type(within(dialog).getByLabelText('Sabab'), "O'z Payme kassasi");
+    // Nothing changed yet
+    expect(save).toBeDisabled();
+    await user.selectOptions(within(dialog).getByLabelText("To'lov hisobi"), 'own_account');
+    expect(within(dialog).getByText(/Kalitlarni egasi hamkor panelida kiritadi/)).toBeInTheDocument();
+    await user.clear(within(dialog).getByLabelText("Payoutdan keyin hamyonda qoladigan summa (so'm)"));
+    await user.type(within(dialog).getByLabelText("Payoutdan keyin hamyonda qoladigan summa (so'm)"), '50 000');
+    await user.click(save);
+    expect(await screen.findByText("To'lov hisobi sozlamalari saqlandi.")).toBeInTheDocument();
+    expect(callsTo('PUT', '/stores/12/payment-account')[0]?.body).toEqual({ payment_account_type: 'own_account', min_payout_reserve: '50000', reason: "O'z Payme kassasi" });
+  });
+
+  it('shows why the payment account cannot change yet', async () => {
+    const { user } = setup({
+      'GET /stores/12': () => ok(storeCard({ actions: { ...storeCard().actions, payment_account: true } })),
+      'PUT /stores/12/payment-account': () => refusal(409, "Ovqatxonada to'lovi kutilayotgan onlayn buyurtma bor.", { reason: 'payments_in_flight' }),
+    });
+    await user.click(await screen.findByRole('button', { name: "To'lov hisobi" }));
+    const dialog = screen.getByRole('dialog', { name: "To'lov hisobi va zaxira" });
+    await user.selectOptions(within(dialog).getByLabelText("To'lov hisobi"), 'own_account');
+    await user.type(within(dialog).getByLabelText('Sabab'), "O'z Payme kassasi");
+    await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+    expect(await within(dialog).findAllByText("Ovqatxonada to'lovi kutilayotgan onlayn buyurtma bor.")).not.toHaveLength(0);
+  });
+
+  it("sets the owner's login phone only when the backend offers it", async () => {
+    const { user, callsTo } = setup({
+      'GET /stores/12': () => ok(storeCard({ actions: { ...storeCard().actions, owner_login_phone: true } })),
+      'PUT /stores/12/owner-login-phone': () => ok(storeCard()),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Kirish raqami' }));
+    const dialog = screen.getByRole('dialog', { name: 'Egasining kirish raqami' });
+    expect(within(dialog).getByText(/eski raqamdagi barcha sessiyalar yopiladi/)).toBeInTheDocument();
+    const save = within(dialog).getByRole('button', { name: 'Saqlash' });
+    await user.type(within(dialog).getByLabelText('Yangi raqam'), '90 12');
+    await user.type(within(dialog).getByLabelText('Sabab'), "Egasi raqamini yo'qotdi");
+    expect(within(dialog).getByText("Raqam +998 va 9 ta raqam bo'lsin.")).toBeInTheDocument();
+    expect(save).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Yangi raqam'), '3 45 67');
+    await user.click(save);
+    expect(await screen.findByText('Egasining kirish raqami saqlandi.')).toBeInTheDocument();
+    expect(callsTo('PUT', '/stores/12/owner-login-phone')[0]?.body).toEqual({ phone: '+998901234567', reason: "Egasi raqamini yo'qotdi" });
+  });
+
   it('hides the actions from a member who may only look', async () => {
     setup({ 'GET /stores/12': () => ok(storeCard({ actions: { manage: false, suspend: false, activate: false, credit_limit: false, display: false, telegram_link: false, message_owner: false, commission_override: false } })) }, ['admin.stores.view']);
     await screen.findByRole('heading', { name: 'Lazzat Oshxona', level: 1 });

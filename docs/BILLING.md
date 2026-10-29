@@ -2,7 +2,7 @@
 
 Rizqim hamkordan ikki xil daromad oladi: **onlayn buyurtmadan komissiya** va **POS obunasi** (har bir terminal uchun
 oylik to'lov). Qaysi biri va qancha ekanini do'konga biriktirilgan **tarif rejasi** belgilaydi. Tarif har bir hamkor
-uchun superadmin panelida tanlanadi.
+uchun boshqaruv markazida tanlanadi (POS va obunalar → Obunalar).
 
 ## Billing v2 (P4-21, egasi qarorlari 24–28.10.2026)
 
@@ -125,8 +125,8 @@ price_lock = migratsiyadan keyingi birinchi oy eski narxdan qimmat bo'lmasin (fa
   yagona foizi `stores.commission_rate` (bo'sh bo'lmasa); 3) `config/billing.php` → `commission`.
 - `stores.commission_rate` endi bo'sh bo'lishi mumkin: bo'sh — kanal stavkalari; qiymat — barcha onlayn kanallar uchun
   yagona foiz (oldingi tartib). Mavjud do'konlarda u 10 bo'lib turibdi, shuning uchun migratsiyagacha hech narsa
-  o'zgarmaydi. **Do'kon yaratish formalari (Filament) hali 10 ni yozadi** — yangi do'kon kanal stavkalarida bo'lishi uchun
-  foizni bo'sh qoldirish yoki admin API'da `flat_rate: null` qilish kerak.
+  o'zgarmaydi. Yangi do'kon (`StoreProvisioner`, arizadan yaratish) foizsiz yaratiladi — kanal stavkalari ishlaydi;
+  yagona foiz kerak bo'lsa admin API'da `flat_rate` beriladi.
 - `Store::commissionRate()` (eski ekranlar uchun bitta foiz) — `own_delivery` stavkasi.
 
 ### Qarzning ikki qismi (kredit limiti faqat komissiya qarzi)
@@ -178,13 +178,11 @@ RIZQIM ovqatxona uchun yig'gan pul ovqatxonaga yetishidan oldin uning qarzini yo
 5. **Qo'lda to'lov** (hisob raqami, naqd) — Moliya → Qo'lda tuzatish → "To'lov qabul qilindi": xuddi shu tartibda yopadi.
    1 000 000 so'm va undan katta tuzatish yoki payoutni ikki xil xodim tasdiqlaydi. Bo'lib yuborish yordam bermaydi: oxirgi
    24 soatda bitta xodim tasdig'i bilan qo'llangan tuzatishlar (shu xodimniki — istalgan do'konda, shu do'konniki —
-   istalgan xodimdan; eski superadmin panelidagi qo'lda to'ldirishlar ham) yangisi bilan qo'shib sanaladi.
+   istalgan xodimdan) yangisi bilan qo'shib sanaladi.
 6. **Hisob-fakturani bekor qilish** pulni bir xodim so'zi bilan siljitmaydi: to'langan yoki qisman to'langan (yoki
    "To'landi" belgili) hisob-faktura bekor qilinmaydi (422 `invoice_paid`) — aks holda to'langan pul kreditga aylanardi;
    pul qaytarilsa — Qo'lda tuzatish orqali. To'lanmagan 1 000 000 so'm va undan kattasini ikki xil xodim bekor qiladi
-   (birinchisi so'rov, ikkinchisi bekor qiladi). Eski superadmin paneli bunday hisob-fakturani bekor qilmaydi va
-   1 000 000 so'm dan (24 soat ichidagi bo'laklar bilan) qo'lda to'ldirishni rad etadi: "Boshqaruv markazida ikki xodim
-   tasdiqlaydi".
+   (birinchisi so'rov, ikkinchisi bekor qiladi).
 
 API va ekranlar: [API.md](API.md), "Moliya (P4-23)".
 
@@ -250,7 +248,7 @@ Shunday qilib reja **faqat komissiya**, **faqat obuna** (komissiya 0 va oylik to
 
 ### Boshlang'ich tariflar
 
-Migratsiya uchta tarif qo'shadi. **Narxlar vaqtinchalik** — haqiqiy narxlarni ega superadmin panelida qo'yadi.
+Migratsiya uchta tarif qo'shadi. **Narxlar vaqtinchalik** — haqiqiy narxlarni ega boshqaruv markazida qo'yadi (POS va obunalar → Tariflar).
 
 | Kod | Nomi | Komissiya | Asosiy to'lov | Terminal narxi | Kirgan terminal | Sinov |
 |---|---|---|---|---|---|---|
@@ -360,26 +358,27 @@ endi bloklamaydi — kredit limiti faqat komissiya qarzini hisoblaydi ("Qarzning
 
 Qo'lda: `php artisan billing:run`.
 
-## 7. Superadmin paneli ("Tariflar" bo'limi)
+## 7. Boshqaruv markazi ("POS va obunalar" bo'limi)
 
-- **Tarif rejalari** — yaratish va tahrirlash. Narx o'zgarsa, shu tarifdagi barcha do'konlarning **keyingi**
-  hisob-fakturalaridan amal qiladi; komissiya o'zgarsa — yangi buyurtmalardan. Ishlatilgan tarifni o'chirib
-  bo'lmaydi: uni "faol emas" qiling.
-- **Do'kon obunalari** — "Tarif biriktirish" (do'kon, tarif, keyingi oydan yoki darhol), "Tarifni o'zgartirish",
-  "Bekor qilish". Filtr bilan tarixni ham ko'rish mumkin. Har bir o'zgarish harakatlar jurnaliga yoziladi.
-- **Hisob-fakturalar** — barcha do'konlar bo'yicha ro'yxat, "Bekor qilish" (sabab bilan, ledger'da teskari yozuv) va
-  "To'landi".
-- **Rizqim daromadi** — oylar bo'yicha komissiya va obuna daromadi hamda tanlangan oy uchun restoranlar bo'yicha.
-  Komissiya: oyda yetkazilgan va qaytarilmagan buyurtmalarning `commission_amount` yig'indisi (yetkazilgan vaqt —
-  birinchi `delivered` holat yozuvi). Obuna: shu oy uchun chiqqan, bekor qilinmagan hisob-fakturalar.
+Ekranlar va amallar: [guides/boshqaruv-markazi.md](guides/boshqaruv-markazi.md), «POS va obunalar»; API: [API.md](API.md)
+«Admin API» (P4-21, P4-24). Qisqacha:
+
+- **Tariflar** — katalog egasi tasdiqlagan (6-bo'lim, PHASE4_PLAN.md): tarifni tahrirlash (`PUT /admin/billing/plans/{code}`,
+  "Tizim sozlamalari" ruxsati); yangi tarif yaratish va o'chirish yo'q. Narx o'zgarsa, shu tarifdagi barcha
+  do'konlarning **keyingi** hisob-fakturalaridan amal qiladi; komissiya o'zgarsa — yangi buyurtmalardan.
+- **Obunalar** — tarif biriktirish, o'zgartirish, bekor qilish, komissiya stavkalari; har o'zgarish sabab va 6 xonali
+  kod bilan, jurnalga yoziladi.
+- **Hisob-fakturalar** — barcha do'konlar bo'yicha ro'yxat, "To'landi" va "Bekor qilish" (sabab bilan; katta summani
+  ikki xodim, 5-band).
+- **Rizqim daromadi** — Moliya → Oylik hisobot: oylar bo'yicha komissiya va obuna daromadi hamda tanlangan oy uchun
+  restoranlar bo'yicha. Komissiya: oyda yetkazilgan va qaytarilmagan buyurtmalarning `commission_amount` yig'indisi
+  (yetkazilgan vaqt — birinchi `delivered` holat yozuvi). Obuna: shu oy uchun chiqqan, bekor qilinmagan hisob-fakturalar.
 
 ### Narxni qanday o'zgartirish kerak
 
-1. Superadmin panel → Tariflar → Tarif rejalari → kerakli tarifni oching.
-2. Komissiya, asosiy to'lov, terminal narxi, tarifga kirgan terminallar va sinov kunlarini kiriting va saqlang.
+1. Boshqaruv markazi → POS va obunalar → Tariflar → kerakli tarifni oching.
+2. Komissiya, asosiy to'lov, terminal narxi, tarifga kirgan terminallar va sinov kunlarini kiriting, sabab yozing va saqlang.
 3. Yangi narxlar keyingi oy hisob-fakturalaridan, yangi komissiya yangi buyurtmalardan amal qiladi.
-
-Bitta do'konga alohida narx kerak bo'lsa, yangi tarif yarating va faqat o'sha do'konga biriktiring.
 
 ## 8. Ega uchun
 
@@ -389,7 +388,7 @@ Bitta do'konga alohida narx kerak bo'lsa, yangi tarif yarating va faqat o'sha do
 - `GET /api/v1/owner/invoices?status=&period=YYYY-MM&per_page=` — hisob-fakturalar (yangi oy birinchi).
 - Ikkalasi ham `finance.view` ruxsatini talab qiladi (standart bo'yicha faqat ega; ega menejerga ham berishi mumkin),
   terminaldagi xodim PIN sessiyasi bilan ishlamaydi, faqat o'z do'koni ko'rinadi.
-- Do'kon panelida "Tarif va hisob-fakturalar" sahifasi (faqat ko'rish uchun).
+- Hamkor panelida "Tarif va hisob-fakturalar" sahifasi (`/billing`, faqat ko'rish uchun).
 - P2-12 (hamkor web paneli): qarz hisobi va hamyon tarixi sahifalab — `GET /api/v1/owner/finance/ledger?type=&from=&to=`
   (bu yerdagi `subscription` yozuvlari va ularning bekor qilinishi shu ro'yxatda), `GET /api/v1/owner/finance/wallet`,
   pul yechish so'rovlari `GET /api/v1/owner/payouts` (karta raqami niqoblangan) va mijozlarning onlayn to'lovlari

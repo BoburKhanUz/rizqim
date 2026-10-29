@@ -7,7 +7,6 @@ use App\Enums\StoreStatus;
 use App\Enums\UserRole;
 use App\Models\Store;
 use App\Models\StoreApplication;
-use App\Models\StoreStatusLog;
 use App\Models\User;
 use App\Services\Sms\SmsServiceInterface;
 use App\Services\Telegram\TelegramMessenger;
@@ -18,7 +17,7 @@ use Illuminate\Support\Str;
 /**
  * P4-22: what a team member does to a store from its 360° card (admin.stores.manage, a step-up and a `reason` each,
  * audited by the controller with the fields before and after). Every status change writes a StoreStatusLog row with
- * the member and the reason (the card's "Holat tarixi").
+ * the member and the reason (the card's "Holat tarixi"); the Store model's updated hook writes it, setStatus names the member.
  *
  *  - suspend: status suspended and hidden from the marketplace (is_active false): no new Mini App orders, the store
  *    disappears from the catalog. The till keeps working (the POS never checks the store status) — owner decision:
@@ -123,6 +122,90 @@ class StoreActions
 
             return ['before' => $before, 'after' => ['is_premium' => (bool) $store->is_premium, 'is_featured' => (bool) $store->is_featured]];
         });
+    }
+
+    /**
+     * P4-32 (was the old superadmin store form): where the store's online payments go and the reserve a payout must
+     * leave in the wallet.
+     *
+     *  - `payment_account_type`: platform_account (Click/Payme pay the platform, the ledger settles the store's wallet)
+     *    or own_account (the store's own merchant cashbox, once the owner entered its keys in the partner panel). Not
+     *    while the store has an online order still unpaid at any stage (review C#2: not only `new`; one that is not
+     *    cancelled, rejected or refunded may still be paid) — 409 payments_in_flight. The callbacks of an order, and
+     *    the refund of a paid one, are verified with the account it was placed with (`payment_owner`,
+     *    App\Services\Payment\OrderMerchantAccount) whatever this is changed to;
+     *  - `min_payout_reserve`: what stays in the wallet after a payout (LedgerService::availableForPayout).
+     *
+     * @param  array{payment_account_type?: string, min_payout_reserve?: string}  $change
+     * @return array{before: array<string, mixed>, after: array<string, mixed>}
+     *
+     * @throws StoreAdminException
+     */
+    public function setPaymentAccount(Store $store, array $change): array
+    {
+        return DB::transaction(function () use ($store, $change) {
+            $store = $this->lock($store);
+            $before = ['payment_account_type' => (string) $store->payment_account_type, 'min_payout_reserve' => Money::of($store->min_payout_reserve ?? 0)->toString()];
+
+            $fill = [];
+            if (array_key_exists('payment_account_type', $change) && $change['payment_account_type'] !== $before['payment_account_type']) {
+                $waiting = \App\Models\Order::query()
+                    ->where('store_id', $store->id)
+                    ->whereNotIn('status', [\App\Enums\OrderStatus::CANCELED->value, \App\Enums\OrderStatus::REJECTED->value, \App\Enums\OrderStatus::REFUNDED->value])
+                    ->whereIn('payment_method', (array) config('orders.online_payment_methods', []))
+                    ->whereNotIn('payment_status', [\App\Enums\PaymentStatus::PAID->value, \App\Enums\PaymentStatus::REFUNDED->value])
+                    ->exists();
+                if ($waiting) {
+                    throw new StoreAdminException(
+                        "Ovqatxonada to'lovi kutilayotgan onlayn buyurtma bor: to'lov hisobini u yakunlangach (yoki bekor bo'lgach) o'zgartiring.",
+                        'payments_in_flight',
+                        409,
+                    );
+                }
+                $fill['payment_account_type'] = $change['payment_account_type'];
+            }
+            if (array_key_exists('min_payout_reserve', $change)) {
+                $fill['min_payout_reserve'] = Money::of($change['min_payout_reserve'])->toString();
+            }
+            if ($fill !== []) {
+                $store->forceFill($fill)->save();
+            }
+
+            return ['before' => $before, 'after' => ['payment_account_type' => (string) $store->payment_account_type, 'min_payout_reserve' => Money::of($store->min_payout_reserve ?? 0)->toString()]];
+        });
+    }
+
+    /**
+     * P4-32 (was "SMS bilan kirishni yoqish" and the phone field of the old superadmin user form): the owner's login
+     * phone, for an owner who lost the old number. The platform vouches for it (StaffPhoneLoginService::vouch, audited
+     * as staff.login_phone_*), so its holder signs in to the partner panel and the apps by SMS code; every app session
+     * of the old number ends. A phone another staff account already has is refused (409 owner_phone_taken), as when
+     * the store was created. Who may do it: stores.impersonate (it hands the store to whoever holds the number).
+     *
+     * @return array{before: array{phone: string|null}, after: array{phone: string|null}, owner: User}
+     *
+     * @throws StoreAdminException
+     */
+    public function setOwnerLoginPhone(Store $store, string $phone): array
+    {
+        $owner = self::owner($store);
+        if ($owner === null) {
+            throw new StoreAdminException("Ovqatxonaning egasi topilmadi.", 'no_owner');
+        }
+
+        $phone = trim($phone);
+        if (!preg_match(\App\Services\Auth\StaffPhoneLoginService::PHONE_PATTERN, $phone)) {
+            throw new StoreAdminException("Telefon +998XXXXXXXXX ko'rinishida bo'lsin.", 'owner_phone_invalid');
+        }
+        if (StoreProvisioner::phoneTaken($phone, (int) $owner->id)) {
+            throw new StoreAdminException("Bu telefon raqami boshqa xodim hisobida bor.", 'owner_phone_taken', 409);
+        }
+
+        $before = \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner);
+        app(\App\Services\Auth\StaffPhoneLoginService::class)->vouch($owner, $phone);
+        $owner->refresh();
+
+        return ['before' => ['phone' => $before], 'after' => ['phone' => \App\Services\Auth\StaffPhoneLoginService::loginPhone($owner)], 'owner' => $owner];
     }
 
     /**
@@ -247,17 +330,8 @@ class StoreActions
     public function setStatus(Store $store, StoreStatus $to, bool $isActive, ?User $member, string $comment): array
     {
         $before = ['status' => $store->status->value, 'is_active' => (bool) $store->is_active];
-        $store->forceFill(['status' => $to->value, 'is_active' => $isActive])->save();
-
-        if ($before['status'] !== $to->value) {
-            StoreStatusLog::create([
-                'store_id' => $store->id,
-                'from_status' => $before['status'],
-                'to_status' => $to->value,
-                'admin_id' => $member?->id,
-                'comment' => mb_substr(trim($comment), 0, 1000),
-            ]);
-        }
+        // The Store model's updated hook writes the StoreStatusLog row (the member and the reason set here)
+        $store->logStatusChangeAs($member, $comment)->forceFill(['status' => $to->value, 'is_active' => $isActive])->save();
 
         return ['before' => $before, 'after' => ['status' => $to->value, 'is_active' => $isActive]];
     }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { ArrowLeft, Ban, CircleCheck, ExternalLink, Gauge, Link2, MessageSquare, RefreshCw, ShieldAlert, Sparkles, Store } from 'lucide-react';
+import { ArrowLeft, Ban, CircleCheck, ExternalLink, Gauge, Landmark, Link2, MessageSquare, RefreshCw, ShieldAlert, Smartphone, Sparkles, Store } from 'lucide-react';
 import { Button, Card, CardSkeletons, cx, EmptyState, formatMoney, formatOrderCode, IconButton, InlineError, Notice, PageHeader, Pill, Section, StatusBadge, Tabs } from '@rizqim/ui';
 import { ApiError } from '@/lib/api/client';
 import { useStore, type StoreCard } from '@/lib/api/stores';
@@ -84,7 +84,7 @@ export function StoreCardView({ id, initialTab = 'overview' }: { id: number; ini
     setDialog(null);
     setNotice(message);
   };
-  const anyAction = actions.suspend || actions.activate || actions.credit_limit || actions.display || actions.telegram_link || actions.message_owner;
+  const anyAction = actions.suspend || actions.activate || actions.credit_limit || actions.display || actions.telegram_link || actions.message_owner || actions.payment_account || actions.owner_login_phone;
 
   return (
     <>
@@ -143,6 +143,16 @@ export function StoreCardView({ id, initialTab = 'overview' }: { id: number; ini
               {actions.message_owner && (
                 <Button variant="secondary" icon={MessageSquare} onClick={() => setDialog('message_owner')}>
                   {t('stores_messageOwner')}
+                </Button>
+              )}
+              {actions.payment_account && (
+                <Button variant="secondary" icon={Landmark} onClick={() => setDialog('payment_account')}>
+                  {t('stores_account')}
+                </Button>
+              )}
+              {actions.owner_login_phone && (
+                <Button variant="secondary" icon={Smartphone} onClick={() => setDialog('owner_login_phone')}>
+                  {t('stores_loginPhone')}
                 </Button>
               )}
             </div>
@@ -398,7 +408,9 @@ function Finance({ store }: { store: StoreCard }) {
               [t('stores_commissionDebt'), <span key="commission" className={finance.over_limit ? 'font-bold text-danger-soft-fg' : undefined}>{money(finance.commission_debt)}</span>],
               [t('stores_limit'), finance.over_limit ? `${money(finance.credit_limit)} · ${t('stores_overLimitPill')}` : money(finance.credit_limit)],
               [t('stores_wallet'), money(finance.wallet_balance)],
+              [t('stores_reserve'), money(finance.min_payout_reserve)],
               [t('stores_available'), money(finance.available_for_payout)],
+              [t('stores_accountType'), store.profile.payment_account_type === 'own_account' ? t('stores_accountOwn') : t('stores_accountPlatform')],
             ]}
           />
         </Card>

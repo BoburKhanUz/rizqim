@@ -255,6 +255,8 @@ class OrderStatusService
         return User::query()
             ->where('store_id', $storeId)
             ->whereIn('role', [UserRole::COURIER->value, UserRole::MANAGER->value, UserRole::OWNER->value])
+            // P4-31: a blocked account cannot take or work an order
+            ->whereNull('blocked_at')
             ->where(function (Builder $query) {
                 $query->where('role', UserRole::OWNER->value)
                     ->orWhere(fn (Builder $query) => $this->joined($query));
@@ -281,6 +283,7 @@ class OrderStatusService
         $courier = User::query()
             ->where('store_id', $order->store_id)
             ->where('role', UserRole::COURIER->value)
+            ->whereNull('blocked_at')
             ->where(fn (Builder $query) => $this->joined($query))
             ->addSelect(['active_orders' => Order::query()
                 ->selectRaw('count(*)')
@@ -293,6 +296,7 @@ class OrderStatusService
 
         return $courier ?? User::where('store_id', $order->store_id)
             ->where('role', UserRole::OWNER->value)
+            ->whereNull('blocked_at')
             ->orderBy('id')
             ->first();
     }

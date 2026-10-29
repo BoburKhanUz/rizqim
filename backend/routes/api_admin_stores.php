@@ -54,6 +54,14 @@ Route::middleware('admin.can:stores.manage')->group(function () use ($id) {
         Route::put('/stores/{id}/display', [AdminStoreActionController::class, 'display'])->where('id', $id)->name('stores.display_changed');
         Route::post('/stores/{id}/telegram-link', [AdminStoreActionController::class, 'telegramLink'])->where('id', $id)->name('stores.telegram_link_regenerated');
         Route::post('/stores/{id}/message', [AdminStoreActionController::class, 'message'])->where('id', $id)->name('stores.owner_messaged');
+        // P4-32: what the old superadmin store and user forms changed (payment account and payout reserve; owner's login phone).
+        // Review S#8: the payment account and the payout reserve route money, so finance.manage as well as stores.manage
+        Route::put('/stores/{id}/payment-account', [AdminStoreActionController::class, 'paymentAccount'])->where('id', $id)
+            ->middleware('admin.can:finance.manage')
+            ->name('stores.payment_account_changed');
+        Route::put('/stores/{id}/owner-login-phone', [AdminStoreActionController::class, 'ownerLoginPhone'])->where('id', $id)
+            ->middleware('admin.can:stores.impersonate')
+            ->name('stores.owner_login_phone_set');
 
         Route::post('/store-broadcasts', [AdminStoreBroadcastController::class, 'store'])
             ->middleware('throttle:admin-store-broadcast')

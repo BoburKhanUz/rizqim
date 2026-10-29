@@ -45,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Har bir so'rovga X-Request-Id beradi va log kontekstiga qo'shadi (loglarni so'rov bo'yicha topish uchun)
         $middleware->append(\App\Http\Middleware\AssignRequestId::class);
 
-        // [P2-30] API javoblari o'zbekcha: Laravel'ning validatsiya xabarlari lang/uz dan (Filament paneli APP_LOCALE da qoladi)
+        // [P2-30] API javoblari o'zbekcha: Laravel'ning validatsiya xabarlari lang/uz dan (APP_LOCALE qanday bo'lmasin)
         $middleware->api(prepend: [\App\Http\Middleware\SetApiLocale::class]);
 
         $middleware->alias([
@@ -102,6 +102,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (\Illuminate\Validation\ValidationException $e, Request $request) {
             if (!$request->is('api/*')) {
                 return null;
+            }
+
+            // P4-32: a payment provider switched off by the team keeps this shape with its own reason
+            if ($e instanceof \App\Services\Payment\PaymentProviderInactiveException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => $e->reason,
+                    'errors' => $e->errors(),
+                    'data' => ['reason' => $e->reason, 'payment_method' => $e->method, 'errors' => $e->errors()],
+                ], $e->status);
             }
 
             return response()->json([

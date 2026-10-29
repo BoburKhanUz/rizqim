@@ -32,6 +32,12 @@ Complaint _$ComplaintFromJson(Map<String, dynamic> json) => Complaint(
   resolver: json['resolver'] == null
       ? null
       : User.fromJson(json['resolver'] as Map<String, dynamic>),
+  assignee: json['assignee'] == null
+      ? null
+      : User.fromJson(json['assignee'] as Map<String, dynamic>),
+  replies: (json['replies'] as List<dynamic>?)
+      ?.map((e) => ComplaintReply.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$ComplaintToJson(Complaint instance) => <String, dynamic>{
@@ -50,4 +56,6 @@ Map<String, dynamic> _$ComplaintToJson(Complaint instance) => <String, dynamic>{
   'order': instance.order,
   'user': instance.user,
   'resolver': instance.resolver,
+  'assignee': instance.assignee,
+  'replies': instance.replies,
 };

@@ -7,6 +7,7 @@ import { Button, Card, CardSkeletons, cx, Dialog, EmptyState, Field, fieldClass,
 import { BALANCE_FILTERS, useBalances, useLedger, type BalanceFilter, type BalanceRow } from '@/lib/api/finance';
 import { errorText } from '@/lib/errors';
 import { when } from '@/lib/format';
+import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { BALANCE_FILTER_LABEL, ledgerTypeLabel, signed, uzs } from './financeModel';
 import { CHIP, chipTone } from './PayoutsPanel';
@@ -72,6 +73,9 @@ export function BalancesPanel({ enabled }: { enabled: boolean }) {
             </div>
           )}
         </Field>
+        <div className="flex items-end">
+          <ExportButton list="balances" query={{ filter, q }} />
+        </div>
       </div>
       {balances.isError ? (
         <InlineError title={t('finance_loadError')} message={errorText(balances.error, t)} retryLabel={t('retry')} retrying={balances.isFetching} onRetry={() => void balances.refetch()} />

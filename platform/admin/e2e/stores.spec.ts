@@ -57,6 +57,35 @@ test('suspending a store asks for a reason and a fresh 2FA code, and lands in th
   await expect(page.getByRole('list', { name: 'Holat tarixi' })).toContainText('Gigiyena tekshiruvi')
 })
 
+test('review S#8: the payment account needs finance.manage as well as stores.manage', async ({ page, api, signIn }) => {
+  api.addMember({ name: 'Savdo Bekzod', email: 'bekzod@rizqim.uz', platform_role: 'sales', twoFactor: true })
+  await openSignedIn(page, signIn, '/stores/12', 'bekzod@rizqim.uz', { confirmed: true })
+  await expect(page.getByRole('button', { name: "Kredit limiti" })).toBeVisible()
+  await expect(page.getByRole('button', { name: "To'lov hisobi" })).toHaveCount(0)
+})
+
+test("P4-32: the payment account and reserve, and the owner's login phone, each with a reason", async ({ page, api, signIn }) => {
+  await openSignedIn(page, signIn, '/stores/12', 'aziza@rizqim.uz', { confirmed: true })
+  await page.getByRole('button', { name: "To'lov hisobi" }).click()
+  const dialog = page.getByRole('dialog', { name: "To'lov hisobi va zaxira" })
+  await dialog.getByLabel("To'lov hisobi").selectOption('own_account')
+  await dialog.getByLabel("Payoutdan keyin hamyonda qoladigan summa (so'm)").fill('50000')
+  await dialog.getByLabel('Sabab', { exact: true }).fill("O'z Payme kassasi")
+  await dialog.getByRole('button', { name: 'Saqlash' }).click()
+  await expect(page.getByText("To'lov hisobi sozlamalari saqlandi.")).toBeVisible()
+  expect(api.callsTo('PUT', '/stores/12/payment-account').at(-1)?.body).toEqual({ payment_account_type: 'own_account', min_payout_reserve: '50000', reason: "O'z Payme kassasi" })
+  await page.getByRole('tab', { name: 'Moliya' }).click()
+  await expect(page.getByText("Ovqatxonaning o'z hisobi")).toBeVisible()
+
+  await page.getByRole('button', { name: 'Kirish raqami' }).click()
+  const phone = page.getByRole('dialog', { name: 'Egasining kirish raqami' })
+  await phone.getByLabel('Yangi raqam').fill('+998 90 765 43 21')
+  await phone.getByLabel('Sabab', { exact: true }).fill("Egasi raqamini yo'qotdi")
+  await phone.getByRole('button', { name: 'Saqlash' }).click()
+  await expect(page.getByText('Egasining kirish raqami saqlandi.')).toBeVisible()
+  expect(api.stores.stores.find((store) => store.id === 12)?.owner?.phone).toBe('+998907654321')
+})
+
 test('the pipeline: checklist, the next stage, creating the store and its owner link', async ({ page, api, signIn }) => {
   await openSignedIn(page, signIn, '/stores/applications', 'aziza@rizqim.uz', { confirmed: true })
   await expect(page.getByRole('heading', { name: 'Ulash jarayoni', level: 1 })).toBeVisible()

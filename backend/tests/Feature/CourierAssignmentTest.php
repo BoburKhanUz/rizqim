@@ -117,6 +117,28 @@ class CourierAssignmentTest extends TestCase
         $this->assertSame($appInvite->id, $this->dispatchReadyOrder()->courier_id);
     }
 
+    public function test_blocked_staff_never_get_orders(): void
+    {
+        // P4-31: an idle blocked courier loses to a busy one, and cannot be picked by hand either
+        $blocked = $this->makeStaff(UserRole::COURIER, $this->branch);
+        $blocked->forceFill(['blocked_at' => now(), 'blocked_reason' => 'Firibgarlik'])->save();
+        $this->giveOrders($this->courier, 2);
+
+        $this->assertSame($this->courier->id, $this->dispatchReadyOrder()->courier_id);
+        $this->actingAs($this->manager, 'sanctum')
+            ->postJson("/api/v1/orders/{$this->makeOrder(OrderStatus::READY)->uuid}/assign-courier", ['courier_id' => $blocked->id])
+            ->assertStatus(422);
+        $listed = collect($this->actingAs($this->manager, 'sanctum')->getJson('/api/v1/couriers')->json('data'))->pluck('id');
+        $this->assertNotContains($blocked->id, $listed);
+
+        // With the only courier gone and the owner blocked, nobody stands in: the order is not dispatched
+        $this->courier->delete();
+        $this->owner->forceFill(['blocked_at' => now()])->save();
+        $order = $this->makeOrder(OrderStatus::READY);
+        $this->setStatus($order, $this->manager, 'courier_assigned')->assertStatus(422);
+        $this->assertNull($order->fresh()->courier_id);
+    }
+
     public function test_owner_stands_in_when_the_store_has_no_courier(): void
     {
         $this->courier->delete();

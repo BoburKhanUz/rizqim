@@ -8,8 +8,6 @@ use App\Enums\StoreStatus;
 use App\Enums\StoreTransactionType;
 use App\Enums\UserRole;
 use App\Events\StoreBalanceLow;
-use App\Filament\Resources\Orders\Pages\ListOrders;
-use App\Filament\Resources\Orders\Pages\ViewOrder;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\PayoutRequest;
@@ -20,10 +18,8 @@ use App\Services\Finance\LedgerService;
 use App\Services\Order\OrderStatusService;
 use App\Services\Order\OrderTransitionException;
 use App\Support\Money;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class OrderLifecycleRefundTest extends TestCase
@@ -221,55 +217,6 @@ class OrderLifecycleRefundTest extends TestCase
         $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
         $this->assertSame(['5000.00', '0.00'], $this->storeBalances());
         $this->assertSame(['debt' => [], 'wallet' => []], $this->refundRows($order));
-    }
-
-    public function test_panel_refund_action_is_for_super_admins_needs_a_reason_and_archives_the_order(): void
-    {
-        $order = $this->deliver($this->checkout($this->customer, 1));
-        Filament::setCurrentPanel('admin');
-
-        $this->actingAs($this->owner);
-        Filament::setTenant($this->store);
-        Livewire::test(ListOrders::class)
-            ->set('activeTab', 'completed')
-            ->assertTableActionHidden('refund', $order);
-
-        $this->actingAs($this->admin);
-        Livewire::test(ListOrders::class)
-            ->set('activeTab', 'completed')
-            ->assertTableActionVisible('refund', $order)
-            ->callTableAction('refund', $order, data: ['reason' => ''])
-            ->assertHasTableActionErrors(['reason' => 'required']);
-        $this->assertSame(OrderStatus::DELIVERED, $order->fresh()->status);
-
-        Livewire::test(ListOrders::class)
-            ->set('activeTab', 'completed')
-            ->callTableAction('refund', $order, data: ['reason' => 'Mijoz shikoyati'])
-            ->assertHasNoTableActionErrors()
-            ->assertNotified('Buyurtma qaytarildi');
-
-        $this->assertSame(OrderStatus::REFUNDED, $order->fresh()->status);
-        $this->assertSame(['0.00', '0.00'], $this->storeBalances());
-
-        // A refunded order is finished: archived, not back in the active queue
-        Livewire::test(ListOrders::class)
-            ->assertCanNotSeeTableRecords([$order])
-            ->set('activeTab', 'completed')
-            ->assertCanSeeTableRecords([$order])
-            ->assertTableActionHidden('refund', $order);
-    }
-
-    public function test_panel_shows_the_manual_refund_a_refunded_click_order_still_needs(): void
-    {
-        $order = $this->paidPlatformClickOrder();
-        app(OrderStatusService::class)->refund($order, $this->admin, 'Mijoz shikoyati');
-
-        $this->actingAs($this->admin);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store);
-
-        Livewire::test(ViewOrder::class, ['record' => $order->getRouteKey()])
-            ->assertSee("mijozga qo'lda qaytarilishi kerak");
     }
 
     public function test_a_refunded_first_order_keeps_its_referral_reward_and_the_next_order_earns_none(): void

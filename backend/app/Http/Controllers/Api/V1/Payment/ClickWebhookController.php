@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\PaymentProvider;
+use App\Services\Payment\OrderMerchantAccount;
 use App\Models\StoreTopupRequest;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -311,15 +311,11 @@ class ClickWebhookController extends Controller
 
     /**
      * A store's own key may only confirm money paid into the store's own merchant account;
-     * platform-collected orders and top-ups must be signed with the platform key.
+     * platform-collected orders and top-ups must be signed with the platform key. Review C#2: chosen by the order's
+     * `payment_owner` (fixed at checkout), never by the store's current payment account type.
      */
     protected function secretKey(?Order $order): ?string
     {
-        if ($order && $order->payment_owner !== 'PLATFORM') {
-            // A STORE-owned order is paid into the store's own merchant: only its own key can confirm it.
-            return $order->store?->collectsOwnPayments('click') ? (string) $order->store->payment_settings['click']['secret_key'] : null;
-        }
-
-        return PaymentProvider::platformCredential('click', 'secret_key');
+        return OrderMerchantAccount::secretKey('click', $order);
     }
 }

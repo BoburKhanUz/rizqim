@@ -4,14 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\DeviceType;
 use App\Enums\UserRole;
-use App\Filament\Resources\Branches\Pages\EditBranch;
-use App\Filament\Resources\Branches\Pages\ListBranches;
 use App\Models\Branch;
 use App\Models\Device;
-use Filament\Actions\DeleteAction;
-use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -77,30 +72,5 @@ class BranchDeletionReferencesTest extends TestCase
         $this->deleteDoomed()->assertStatus(422)
             ->assertJsonPath('message', "Filialda buyurtmalar bor, uni o'chirib bo'lmaydi. O'rniga uni faol emas qiling.")
             ->assertJsonPath('data.staff', 1);
-    }
-
-    public function test_the_panels_delete_actions_refuse_too(): void
-    {
-        $this->makeStaff(UserRole::COOK, $this->doomed);
-
-        $this->actingAs($this->owner);
-        Filament::setCurrentPanel('admin');
-        Filament::setTenant($this->store);
-
-        Livewire::test(EditBranch::class, ['record' => $this->doomed->getRouteKey()])
-            ->callAction(DeleteAction::class)
-            ->assertNotified("Filialni o'chirib bo'lmaydi");
-        $this->assertNotNull(Branch::find($this->doomed->id));
-
-        Livewire::test(ListBranches::class)
-            ->callTableBulkAction('delete', [$this->doomed])
-            ->assertNotified("Filialni o'chirib bo'lmaydi");
-        $this->assertNotNull(Branch::find($this->doomed->id));
-
-        // Nothing tied to it: the panel deletes it
-        \App\Models\User::where('branch_id', $this->doomed->id)->update(['branch_id' => null]);
-        Livewire::test(EditBranch::class, ['record' => $this->doomed->getRouteKey()])
-            ->callAction(DeleteAction::class);
-        $this->assertNull(Branch::find($this->doomed->id));
     }
 }
