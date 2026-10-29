@@ -4,55 +4,61 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'plan.dart';
-import 'current_period.dart';
-import 'devices.dart';
-import 'notice.dart';
-
 part 'data35.g.dart';
 
 @JsonSerializable()
 class Data35 {
   const Data35({
-    required this.plan,
-    required this.legacy,
-    required this.period,
-    required this.status,
-    required this.trialEndsAt,
-    required this.currentPeriod,
-    required this.termEndsAt,
-    required this.lockedSince,
-    required this.lockAt,
-    required this.settingsLocked,
-    required this.features,
-    required this.requiredPlans,
-    required this.devices,
-    required this.notice,
+    required this.id,
+    required this.uuid,
+    required this.branchId,
+    required this.productId,
+    required this.productName,
+    required this.productVariantId,
+    required this.variantName,
+    required this.unit,
+    required this.label,
+    required this.quantityProduced,
+    required this.quantityLeft,
+    required this.writtenOffQuantity,
+    required this.isOpen,
+    required this.startedAt,
+    required this.soldOutAt,
+    required this.closedAt,
   });
 
   factory Data35.fromJson(Map<String, Object?> json) => _$Data35FromJson(json);
 
-  final Plan? plan;
-  final bool legacy;
-  final String? period;
-  final String status;
-  @JsonKey(name: 'trial_ends_at')
-  final String? trialEndsAt;
-  @JsonKey(name: 'current_period')
-  final CurrentPeriod? currentPeriod;
-  @JsonKey(name: 'term_ends_at')
-  final String? termEndsAt;
-  @JsonKey(name: 'locked_since')
-  final String? lockedSince;
-  @JsonKey(name: 'lock_at')
-  final String? lockAt;
-  @JsonKey(name: 'settings_locked')
-  final bool settingsLocked;
-  final Map<String, bool> features;
-  @JsonKey(name: 'required_plans')
-  final Map<String, String?> requiredPlans;
-  final Devices devices;
-  final Notice? notice;
+  final int id;
+  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'product_name')
+  final String productName;
+  @JsonKey(name: 'product_variant_id')
+  final int? productVariantId;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
+  final String? unit;
+  final String? label;
+  @JsonKey(name: 'quantity_produced')
+  final num? quantityProduced;
+  @JsonKey(name: 'quantity_left')
+  final num? quantityLeft;
+
+  /// P6-15: portions taken off with a reason (menu_batch_writeoffs)
+  @JsonKey(name: 'written_off_quantity')
+  final num? writtenOffQuantity;
+  @JsonKey(name: 'is_open')
+  final bool isOpen;
+  @JsonKey(name: 'started_at')
+  final String? startedAt;
+  @JsonKey(name: 'sold_out_at')
+  final String? soldOutAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
 
   Map<String, Object?> toJson() => _$Data35ToJson(this);
 }

@@ -7,7 +7,9 @@ part of 'order_item.dart';
 // **************************************************************************
 
 OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
-  unit: MenuUnit.fromJson(json['unit'] as String),
+  modifiers: (json['modifiers'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
   orderId: (json['order_id'] as num).toInt(),
   productVariantId: (json['product_variant_id'] as num?)?.toInt(),
   productName: json['product_name'] as String,
@@ -24,10 +26,8 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
+  unit: MenuUnit.fromJson(json['unit'] as String),
   id: (json['id'] as num).toInt(),
-  modifiers: (json['modifiers'] as List<dynamic>?)
-      ?.map((e) => e as Map<String, dynamic>)
-      .toList(),
   modifiersTotal: json['modifiers_total'] as String,
   batchId: (json['batch_id'] as num?)?.toInt(),
   batchQuantity: json['batch_quantity'] as String?,
@@ -40,10 +40,12 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
       ? null
       : FireMode.fromJson(json['fire_mode'] as String?),
   stationId: (json['station_id'] as num?)?.toInt(),
-  priceSource: json['price_source'] as String?,
-  dueAt: json['due_at'] == null
+  sentAt: json['sent_at'] == null
       ? null
-      : DateTime.parse(json['due_at'] as String),
+      : DateTime.parse(json['sent_at'] as String),
+  setParts: (json['set_parts'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
   addedBy: json['added_by'],
   voidedAt: json['voided_at'] == null
       ? null
@@ -53,9 +55,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   seatNo: (json['seat_no'] as num?)?.toInt(),
   note: json['note'] as String?,
   clientLineId: json['client_line_id'] as String?,
-  sentAt: json['sent_at'] == null
+  priceSource: json['price_source'] as String?,
+  dueAt: json['due_at'] == null
       ? null
-      : DateTime.parse(json['sent_at'] as String),
+      : DateTime.parse(json['due_at'] as String),
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -101,6 +104,7 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'note': instance.note,
   'client_line_id': instance.clientLineId,
   'price_source': instance.priceSource,
+  'set_parts': instance.setParts,
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

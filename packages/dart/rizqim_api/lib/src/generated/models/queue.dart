@@ -4,17 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'blocks.dart';
+
 part 'queue.g.dart';
 
 @JsonSerializable()
 class Queue {
-  const Queue({this.size, this.oldestAt});
+  const Queue({
+    required this.numbers,
+    required this.calling,
+    required this.businessDate,
+    required this.blockSize,
+    required this.lowWater,
+    required this.blocks,
+    required this.nextNumber,
+  });
 
   factory Queue.fromJson(Map<String, Object?> json) => _$QueueFromJson(json);
 
-  final int? size;
-  @JsonKey(name: 'oldest_at')
-  final DateTime? oldestAt;
+  final bool numbers;
+  final bool calling;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'block_size')
+  final int blockSize;
+  @JsonKey(name: 'low_water')
+  final int lowWater;
+  final List<Blocks> blocks;
+  @JsonKey(name: 'next_number')
+  final int? nextNumber;
 
   Map<String, Object?> toJson() => _$QueueToJson(this);
 }

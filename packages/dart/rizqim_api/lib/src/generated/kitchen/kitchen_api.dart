@@ -29,6 +29,9 @@ abstract class KitchenApi {
   /// `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a.
   /// display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
   ///
+  /// P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays.
+  /// listed (with `include_ready=1` also while `ready`) until the number is handed over.
+  ///
   /// [branchId] - One branch; omit for every branch the caller works in (a branch terminal: its branch).
   ///
   /// [includeReady] - 1 (or true) to also list orders that are ready but not handed over yet.

@@ -3,6 +3,7 @@
 namespace App\Services\Order;
 
 use App\Domain\Pos\Contracts\KitchenStationResolver;
+use App\Domain\Pos\Contracts\PickupTracker;
 use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
 use App\Enums\OrderStatus;
@@ -113,7 +114,10 @@ class KitchenService
 
             // P2-30: a recall also while the order is ready (not yet with a courier or handed over)
             $recallFromReady = $to !== KitchenItemStatus::READY && $order->status === OrderStatus::READY;
-            if (!$recallFromReady && !in_array($order->status, self::LINE_STATUSES, true)) {
+            // P6-13: a counter order paid first is closed (delivered) while its queue number is still being cooked
+            $tracker = app()->bound(PickupTracker::class) ? app(PickupTracker::class) : null;
+            $closedPickup = $order->status === OrderStatus::DELIVERED && $tracker !== null && $tracker->keepsKitchen($order);
+            if (!$recallFromReady && !$closedPickup && !in_array($order->status, self::LINE_STATUSES, true)) {
                 throw new OrderTransitionException(
                     $to === KitchenItemStatus::READY
                         ? "Bu buyurtma oshxonada emas: uning taomlarini \"tayyor\" deb belgilab bo'lmaydi."
@@ -157,7 +161,7 @@ class KitchenService
             // P3-12: a POS line sent and not ready yet (or not sent yet) is still to cook too
             $pending = $order->items()->whereIn('kitchen_status', KitchenItemStatus::cookingValues())->exists();
             if ($to === KitchenItemStatus::READY && !$pending && $order->order_type !== OrderType::DINE_IN
-                && $order->status !== OrderStatus::COURIER_ASSIGNED) {
+                && $order->status !== OrderStatus::COURIER_ASSIGNED && !$closedPickup) {
                 $result = $this->orderStatus->transition($order, OrderStatus::READY, $actor, [
                     'notes' => "Oshxonada barcha taomlar tayyor: {$actor->name}",
                 ]);
@@ -167,6 +171,9 @@ class KitchenService
                     $statuses[] = OrderStatus::READY;
                 }
             }
+
+            // P6-13: the pickup queue follows the lines (all ready: the number is called; a recall: preparing again)
+            $tracker?->kitchenChanged($order->refresh());
 
             // Queued, after commit (ShouldDispatchAfterCommit), ids and kitchen state only
             event(new KitchenItemStatusChangedBroadcast($order->refresh(), $item));

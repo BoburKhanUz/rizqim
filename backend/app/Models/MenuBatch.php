@@ -29,6 +29,8 @@ class MenuBatch extends Model
         'quantity_left' => 'decimal:3',
         // P3-31: sold offline beyond what was left (quantity_left stays at zero)
         'oversold_quantity' => 'decimal:3',
+        // P6-15: portions taken off with a reason (menu_batch_writeoffs), the running sum
+        'written_off_quantity' => 'decimal:3',
         'started_at' => 'datetime',
         'sold_out_at' => 'datetime',
         'closed_at' => 'datetime',

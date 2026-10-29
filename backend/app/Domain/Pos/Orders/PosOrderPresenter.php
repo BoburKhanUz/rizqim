@@ -89,6 +89,8 @@ class PosOrderPresenter
                     'name' => isset($flag['name']) ? (string) $flag['name'] : null,
                 ], (array) ($order->sync_flags ?? [])),
             ] : null,
+            // P6-13: the queue number and where it is in the pickup queue (preparing, ready, handed); null without one
+            'queue' => PickupQueue::present($order),
             'rounds' => $items->max('round_no') !== null ? (int) $items->max('round_no') : 0,
             'items' => $items->map(fn (OrderItem $item) => $this->item($item))->all(),
         ];
@@ -99,7 +101,7 @@ class PosOrderPresenter
      */
     public function item(OrderItem $item): array
     {
-        return [
+        $data = [
             'id' => (int) $item->id,
             'round_no' => $item->round_no,
             'product_variant_id' => $item->product_variant_id !== null ? (int) $item->product_variant_id : null,
@@ -132,5 +134,12 @@ class PosOrderPresenter
             'voided_by' => $item->voidedBy ? ['id' => (int) $item->voidedBy->id, 'name' => $item->voidedBy->name] : null,
             'void_reason' => $item->void_reason,
         ];
+
+        // P6-15: the parts of a kompleks line (the kitchen prepares these), only on such lines
+        if ($item->set_parts) {
+            $data['set_parts'] = $item->set_parts;
+        }
+
+        return $data;
     }
 }

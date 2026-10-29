@@ -111,6 +111,17 @@ export interface BranchAvailability {
   sold_out: { variants: number[] }; // batch stock ("tugadi")
   stop_list?: Array<{ id: number | null; type: string; subject_id: number; reason: string | null; until: string | null }>;
   batches?: unknown[];
+  // "Keyingi partiya HH:MM" (P6-15): when the branch plans to cook a dish next, earliest first
+  next_batches?: NextBatch[];
+}
+
+export interface NextBatch {
+  product_id: number;
+  // null: the plan serves every variant of the dish
+  product_variant_id: number | null;
+  planned_at: string;
+  // HH:MM in the store's time zone
+  time: string;
 }
 
 // GET /catalog/availability?store_id=...

@@ -1,0 +1,29 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data183.dart';
+
+part 'post_v1_pos_orders_uuid_handed_response.g.dart';
+
+@JsonSerializable()
+class PostV1PosOrdersUuidHandedResponse {
+  const PostV1PosOrdersUuidHandedResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1PosOrdersUuidHandedResponse.fromJson(
+    Map<String, Object?> json,
+  ) => _$PostV1PosOrdersUuidHandedResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data183 data;
+
+  Map<String, Object?> toJson() =>
+      _$PostV1PosOrdersUuidHandedResponseToJson(this);
+}

@@ -16,6 +16,7 @@ class Branches {
     required this.stopped,
     required this.soldOut,
     required this.stopList,
+    required this.nextBatches,
     required this.batches,
   });
 
@@ -29,6 +30,8 @@ class Branches {
   final SoldOut soldOut;
   @JsonKey(name: 'stop_list')
   final List<dynamic> stopList;
+  @JsonKey(name: 'next_batches')
+  final dynamic nextBatches;
   final List<Batches> batches;
 
   Map<String, Object?> toJson() => _$BranchesToJson(this);

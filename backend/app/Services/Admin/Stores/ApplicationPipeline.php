@@ -248,6 +248,8 @@ class ApplicationPipeline
                 'branch_radius' => $data['branch_radius'] ?? 5,
                 'branch_open_time' => $data['branch_open_time'] ?? null,
                 'branch_close_time' => $data['branch_close_time'] ?? null,
+                // P6-11: the application's format picks the branch's POS format profile
+                'format' => $application->format,
             ], "Boshqaruv markazi, ariza #{$application->id}");
 
             $application->forceFill(['store_id' => $created['store']->id, 'converted_at' => PlatformStats::now()])->save();

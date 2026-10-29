@@ -7,13 +7,17 @@ part of 'data121.dart';
 // **************************************************************************
 
 Data121 _$Data121FromJson(Map<String, dynamic> json) => Data121(
-  bill: Bill3.fromJson(json['bill'] as Map<String, dynamic>),
-  copy: json['copy'] as bool,
-  order: Order6.fromJson(json['order'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num).toInt(),
+  weekendDays: (json['weekend_days'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  holidays: (json['holidays'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$Data121ToJson(Data121 instance) => <String, dynamic>{
-  'bill': instance.bill,
-  'copy': instance.copy,
-  'order': instance.order,
+  'branch_id': instance.branchId,
+  'weekend_days': instance.weekendDays,
+  'holidays': instance.holidays,
 };

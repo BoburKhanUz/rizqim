@@ -19,6 +19,8 @@ export interface AvailabilityView {
   isProductStopped: (productId: number) => boolean;
   isVariantStopped: (productId: number, variantId: number) => boolean;
   isModifierStopped: (modifierId: number) => boolean;
+  // "12:30": when the next batch of a dish (or of one variant) is planned, for a dish that is "tugadi"; null when none is
+  nextBatch: (productId: number, variantId?: number) => string | null;
 }
 
 const NOTHING_STOPPED: AvailabilityView = {
@@ -26,6 +28,7 @@ const NOTHING_STOPPED: AvailabilityView = {
   isProductStopped: () => false,
   isVariantStopped: () => false,
   isModifierStopped: () => false,
+  nextBatch: () => null,
 };
 
 // The view of one branch, or (no `branchId`, or one the data does not list) of the whole store.
@@ -46,6 +49,15 @@ export function availabilityView(branches: readonly BranchAvailability[] | null 
           branch.sold_out.variants.includes(variantId),
       ),
     isModifierStopped: (modifierId) => everyBranch((branch) => branch.stopped.modifiers.includes(modifierId)),
+    nextBatch: (productId, variantId) => {
+      // The earliest plan of the branches in view that has not passed (a plan serves the variant it names, or all of them)
+      const now = Date.now();
+      const plans = scope
+        .flatMap((branch) => branch.next_batches ?? [])
+        .filter((plan) => plan.product_id === productId && (plan.product_variant_id === null || variantId === undefined || plan.product_variant_id === variantId) && Date.parse(plan.planned_at) > now)
+        .sort((a, b) => Date.parse(a.planned_at) - Date.parse(b.planned_at));
+      return plans[0]?.time ?? null;
+    },
   };
 }
 

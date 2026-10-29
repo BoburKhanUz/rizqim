@@ -7,19 +7,31 @@ part of 'data183.dart';
 // **************************************************************************
 
 Data183 _$Data183FromJson(Map<String, dynamic> json) => Data183(
-  id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type10.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  orderUuid: json['order_uuid'] as String,
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
+      ? null
+      : PickupStatus.fromJson(json['status'] as String),
+  channel: json['channel'] as String,
+  orderStatus: json['order_status'] as String,
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data183ToJson(Data183 instance) => <String, dynamic>{
-  'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'order_uuid': instance.orderUuid,
+  'number': instance.number,
+  'business_date': instance.businessDate,
+  'status': instance.status,
+  'channel': instance.channel,
+  'order_status': instance.orderStatus,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
+  'opened_at': instance.openedAt,
 };

@@ -354,6 +354,131 @@ Android telefon.
   sotilgan porsiya.
 - Mavjud ega analitikasi (`GET /owner/analytics`) kanal bo'yicha (`by_channel`) POS'ni ham ko'rsatadi.
 
+### 2.14. Buyurtma raqami va chaqiruv (P6-13)
+
+Tez kassa formatlari (osh markazi, lag'monxona, kafe, fast food, qahvaxona...) uchun: mijoz talon oladi, buyurtma
+tayyor bo'lganda raqami ekranda chiqadi va chaqiriladi. Ikki modul (format profili, P6-11): `queue_numbers` (raqam va
+talon) va `queue_calling` (tayyor raqamni chaqirish, "Tayyorlanmoqda / Tayyor" taxtasi). Choyxonada ikkalasi o'chiq:
+uning raqamlash tartibi o'zgarmaydi (P3-18: kun ichida keyingi raqam).
+
+**Raqam qayerdan olinadi (internetsiz ham takrorlanmaydi).**
+
+- Raqamlar filial va biznes kun bo'yicha (2.3): har kuni 1 dan, har filialda alohida. Har bir kassa serverdan
+  **blok** oladi (100 ta raqam: birinchi kassa 1–100, ikkinchisi 101–200, ...; `pos_queue_blocks`). Bloklar filial va
+  kun qulfi ostida ketma-ket kesiladi, hech qachon ustma-ust tushmaydi: server ikki kassaga bitta blokni bermaydi.
+- Kassa raqamni o'z blokidan oladi va talonni darhol chop etadi — onlayn ham (`POST /pos/orders` da `queue_number`),
+  internetsiz ham (`order.open` amalida `queue_number`). Ishlatilgan raqam qurilma jurnaliga yoziladi (`pos_sync`):
+  ilova qayta ochilsa ham, elektr o'chsa ham shu kunda qayta berilmaydi.
+- Server kassa yuborgan raqamni qabul qiladi, agar u shu kassaning bugungi blokida bo'lsa va kunda boshqa buyurtmada
+  bo'lmasa (`orders.queue_number` filial va kun bo'yicha yagona). Aks holda buyurtmaga keyingi raqam beriladi va
+  internetsiz amal "Sinxronlash xatolari"ga `queue_number_taken` bilan tushadi (talondagi raqam boshqacha: mijozga
+  yangisini ayting).
+- Raqam kam qolsa (20 tadan kam), kassa aloqa borida keyingi blokni oladi (`GET /pos/bootstrap` yoki
+  `POST /pos/queue/blocks`). Bloklar tugasa, internetsiz buyurtma raqamsiz ochiladi, raqamni sinxronlashda server beradi.
+- Kassasiz ochilgan buyurtma (ofitsiant telefoni) va Telegram/mobil **olib ketish** buyurtmasi filialning o'z blokidan
+  raqam oladi; onlayn buyurtma raqamni **qabul qilinganda** oladi. Mini App buyurtma kartasida "Raqamingiz: N" ko'rinadi.
+
+**Olib ketish navbati: tayyorlanmoqda → tayyor → berildi** (`orders.pickup_status`).
+
+- Qaysi buyurtmalar: olib ketish (`pos_takeaway`), stolsiz zal buyurtmasi (`pos_hall`, stol yo'q) va onlayn olib
+  ketish buyurtmasi — raqami bor, filialda `queue_calling` yoqilgan.
+- POS buyurtma: taomlar oshxonaga yuborilganda — `preparing`; KDS'da oxirgi taom "tayyor" bosilganda — `ready` (raqam
+  chaqiriladi); taom qaytarilsa (recall) — yana `preparing`; KDS'siz kassada "Tayyor" tugmasi
+  (`POST /pos/orders/{uuid}/ready`); mijoz olganda — `handed` (`.../handed`, taomlar `served`). Schyot va to'lovga
+  tegmaydi.
+- **Avval to'lov, keyin oshxona:** to'langan buyurtma yopiladi (`delivered`), lekin raqami `preparing` bo'lsa
+  oshxonada qoladi: taomlari to'lov bilan "tayyor" bo'lib qolmaydi, KDS uni ko'rsatadi va "tayyor" bosiladi.
+- Onlayn olib ketish buyurtmasi o'z holatiga ergashadi: qabul qilindi / tayyorlanmoqda → `preparing`, `ready` →
+  `ready`, `delivered` → `handed`. Mijozga "Buyurtmangiz tayyor, raqam N" xabari boradi.
+- **Qayta chaqirish** (`POST /pos/orders/{uuid}/call`): tayyor raqam yana e'lon qilinadi (`call_count`), onlayn mijozga
+  xabar qayta boradi. Bekor qilingan buyurtma taxtadan chiqadi.
+- Hodisalar `pos-branch.{id}` kanalida: `queue.preparing`, `queue.ready` (qayta chaqiruvda `called: true`),
+  `queue.handed`, `queue.canceled` — kassa ovozi, KDS va mijoz ekrani (P6-14) uchun; taxta `GET /pos/queue`.
+- **Talon:** chek va schyot javobida `ticket` (raqam, "Olib ketish" / "Zalda", matn) — `queue_numbers` yoqilgan
+  filialdagi kassa buyurtmasida; kassa uni `pos_core` `QueueSlip` shablonida chop etadi.
+
+Hech biri to'lov, schyot, chek, smena yoki qaytarishni to'smaydi (P4-21 qoidasi).
+
+### 2.15. Format profili (P6-11)
+
+Bitta sozlama — filialning **formati** — kassani shu joyning ish tartibiga moslaydi (docs/PHASE6_PLAN.md, 6-bo'lim).
+Profil tayyor to'plam, qulf emas: ega har bir modulni alohida yoqib-o'chira oladi (qonun qulfidan tashqari).
+
+**Saqlanishi.** `branches.pos_settings.profile` (14 ta: `choyxona`, `osh_markazi`, `lagmonxona`, `somsaxona`,
+`tamaddixona`, `stolovaya`, `kafe`, `restoran`, `kabobxona`, `baliqxona`, `fast_food`, `qahvaxona`, `toyxona`,
+`dark_kitchen`) va `pos_settings.modules` — egasining profildan farq qiladigan o'zgarishlari (`{modul: true|false}`,
+faqat farqlari saqlanadi). Mavjud filiallar `choyxona` (migratsiya `2026_11_10_100100`): 3-bosqich oqimi o'zgarmaydi.
+Yangi do'kon ariza formasidagi formatdan (P4-22) profil oladi; do'konning keyingi filiali birinchi filialining profilini
+oladi. Profil va modullarni faqat `PUT /owner/pos/format` yozadi (POS sozlamalari endpointi ularni ko'rsatmaydi va
+qabul qilmaydi, lekin saqlab qoladi).
+
+**Samarali modullar** = profil modullari + ega o'zgarishlari − qonun qulfi − tarifda yo'qlari (P4-21,
+`Entitlements`). Bitta PHP API: `app(PosModules::class)->enabled($branch, PosModule::X)`. `GET /pos/bootstrap` ularni
+`format` da beradi: `{profile, profile_label, mode, first_screen, modules: [...], locks: {service_charge_zero}}`. Kassa,
+ofitsiant, KDS va mijoz ekrani ekran va tugmalarni **faqat shu ro'yxatga qarab** ko'rsatadi (`pos_data`: `PosFormat`,
+`PosModules`, `bootstrap.modules.has(PosModule.queueNumbers)`); eski server (`format` yo'q) — choyxona.
+
+| Modul | Nima | Tarif |
+|---|---|---|
+| `quick_counter` | Tez kassa: menyu panjarasi, "To'lash", "Keyingi mijoz" | hamma |
+| `phone_mode` | Telefon joylashuvi, ega o'zi kassir | hamma |
+| `queue_numbers`, `queue_calling` | Buyurtma raqami va talon; tayyor raqamni chaqirish (2.14) | hamma |
+| `customer_display` | Mijoz ekrani / "Tayyor" raqamlar ekrani (qurilmalar soniga kirmaydi) | hamma |
+| `daily_menu`, `combo_meal` | Bugungi menyu, kompleks (P6-15) | hamma |
+| `batches`, `batch_writeoff` | Partiya va qozon, "keyingi partiya", hisobdan chiqarish va hosil (P6-15) | hamma |
+| `terminal_card_flow` | Bank terminali oqimi, kun oxiri solishtiruvi (P6-16) | hamma |
+| `rooms`, `room_fee`, `guest_items` | Xona va tapchanlar, xona puli, choy-non | hamma |
+| `bookings` | Bron va oldindan buyurtma | Asosiy |
+| `customer_accounts` | Nasiya | Asosiy |
+| `service_charge` | Xizmat haqi | Asosiy |
+| `kds` | Oshxona ekrani | Asosiy |
+
+| Profil | Rejim, birinchi ekran | Yoqilgan modullar (`terminal_card_flow` hammasida) |
+|---|---|---|
+| `choyxona` | `hybrid`, zal xaritasi | quick_counter, batches, rooms, room_fee, guest_items, bookings, customer_accounts, service_charge, kds |
+| `osh_markazi` | `counter`, tez kassa | quick_counter, queue_numbers, queue_calling, batches, batch_writeoff, service_charge |
+| `lagmonxona` | `hybrid`, tez kassa | quick_counter, queue_numbers, queue_calling, service_charge, kds |
+| `somsaxona` | `counter`, tez kassa | quick_counter, phone_mode, batches, batch_writeoff, bookings |
+| `tamaddixona` | `counter`, tez kassa | quick_counter, phone_mode, batches, batch_writeoff |
+| `stolovaya` | `counter`, tez kassa | quick_counter, daily_menu, combo_meal, customer_accounts, customer_display; **xizmat haqi 0%, qulf** |
+| `kafe` | `hybrid`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, service_charge, kds |
+| `restoran` | `table`, zal xaritasi | bookings, service_charge, kds, customer_accounts |
+| `kabobxona` | `table`, zal xaritasi | service_charge, kds, bookings |
+| `baliqxona` | `table`, zal xaritasi | service_charge, kds |
+| `fast_food` | `counter`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, combo_meal, kds |
+| `qahvaxona` | `counter`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, kds |
+| `toyxona` | `table`, tadbirlar taqvimi | bookings, rooms, customer_accounts |
+| `dark_kitchen` | `counter`, buyurtmalar navbati | quick_counter, kds |
+
+**Rejim va birinchi ekran** (`first_screen`: `hall_map`, `quick_counter`, `booking_calendar`, `online_orders`). Yangi
+profil o'z rejimini qo'yadi (`pos_settings.mode`), ega boshqasini tanlashi mumkin: `table` rejimida tez kassa profili
+zal xaritasidan, `counter` rejimida zal profili tez kassadan boshlanadi. `pos_settings.queue_numbers` (P3-13 bayrog'i)
+`queue_numbers` moduliga ergashadi.
+
+**Ariza formati → profil** (P4-22, `FormatProfile::fromStoreFormat`): restaurant → `restoran`, cafe → `kafe`,
+fast_food → `fast_food`, canteen ("Oshxona") → `stolovaya`, coffee_shop → `qahvaxona`, bakery → `somsaxona`,
+teahouse → `choyxona`, catering → `toyxona`, other → `kafe`; format yo'q — `choyxona`.
+
+**Backend tekshiruvi.** Route middleware `pos.module:<key>` (bir nechta kalit — hammasi kerak): avval tarif (403
+`plan_feature_missing`, qaysi tarifda borligi bilan), keyin format (403 `module_disabled`, `data.module`). Filial:
+route'dagi `branch`, so'rovdagi `branch_id`, terminalning yoki xodimning filiali; filial noma'lum bo'lsa (egasining
+do'kon bo'yicha so'rovi) — do'konning kamida bitta filialida yoqilgan bo'lsa o'tadi. Mavjud choyxona endpointlari ham
+modulga qaraydi: yangi xona yoki tapchan (`rooms`), xona tarifi yaratish/o'zgartirish (`room_fee`), choy-non qatori
+(`guest_items`), yangi bron (`bookings`), yangi nasiya hisobi (`customer_accounts`), musbat xizmat haqi
+(`service_charge`), KDS ulash kodi (`kds`). O'qish, o'chirish, mavjud bronning bo'nagi va nasiya to'lovi — hech qachon.
+**Modul hech qachon to'lov, schyot yopish, chek, smena va qaytarishni to'xtatmaydi** — faqat sozlash va yangi oqimlarni.
+
+**Stolovaya qulfi (VM 75).** Xizmat haqi 0% va oshirilmaydi: `service_charge` modulini yoqish — 422
+`service_charge_locked`; filial yoki uning zali uchun musbat xizmat haqi — 422 `service_charge_locked`; do'kon bo'yicha
+(`branch_id` yo'q) xizmat haqi stolovaya filialida 0% bo'lib o'qiladi (`DiningFeeCalculator`; joy narxi qoladi).
+
+**Shablonlar (B10).** `POST /owner/pos/format/template` profilning namunaviy sexlarini filialga va taomlarini
+do'kon menyusiga qo'shadi, **bor narsani hech qachon o'zgartirmaydi**: shu nomdagi sex (yoki osh/mangal/salat bar/choy
+turidagi sex) va shu nomdagi mahsulot o'tkazib yuboriladi; taomlar o'chirilgan va 0 narx bilan qo'shiladi (ega narxini
+kiritib yoqadi), kategoriya nomi bo'yicha topiladi yoki yaratiladi; MXIK bo'sh (fiskal tayyorlik so'raydi). Qayta
+bosilsa hech narsa qo'shilmaydi. Har o'zgarish audit jurnalida: `settings.pos_format_changed` (profil o'zgarishi
+`profile_from` / `profile_to` bilan), `settings.pos_template_applied`.
+
 ## 3. Buyurtma holatlari POS'da
 
 Yangi holat qo'shilmaydi, mavjud `OrderStatus` ishlatiladi. Oshxona bosqichlari **qator darajasida** (yangi maydon,
@@ -548,6 +673,35 @@ kafolatiga tayanadi.
 | T7 | Tanlangan provayder bo'nak va kredit cheklarini API orqali qo'llaydimi | v1 ning asosiy talabi | Provayder (P3-32) |
 | T8 | VM 393 bo'yicha "integratsiya" ta'rifi va provayder orqali ulanish yetarliligi | Butun POS ning qonuniyligi | Provayderning yozma kafolati (egasi rasmiy so'rov yubormaydi) |
 | T9 | Markirovkali ichimliklar ovqatlanishda stolda skanerlanadimi (PF-175) | Suv va ichimlik sotuvi | Provayder, buxgalter |
+
+### 4.10. Fiskal terminal oqimlari (P6-16, D5)
+
+Egasi: joylarda karta va naqdga chek chiqaradigan fiskal terminal bor. 22.10.2026 dan summani unga qayta terish ham
+(VM 393, 14(a)), Rizqim'ni unga chek uchun ulash ham (VM 943 25-band: TXKM reyestrdan chiqariladi) mumkin emas.
+Shuning uchun **chekni doim Rizqim chiqaradi**, terminal faqat kartani oladi yoki Rizqim'ning o'zi smart-kassada
+ishlaydi. Hammasi `terminal_card_flow` moduli ortida (barcha profillarda yoqilgan); to'lov, chek va smena yopilishi
+modulga bog'liq emas.
+
+| Filial rejimi (`card_mode`) | Karta qayerda | Chek | Kassir nima qiladi |
+|---|---|---|---|
+| `terminal_only` | Bankning alohida terminali, TXKM "faqat terminal" rejimiga o'tkazgan | Rizqim (provayder virtual kassasi), to'lov shakli **karta** | Terminal chekidagi tranzaksiya (RRN) raqamini teradi (majburiy), kartaning oxirgi 4 raqamini ham (ixtiyoriy) — ikkalasi Rizqim chekida |
+| `smart_kassa` | Android smart-kassaning o'zi (Sunmi P2/P3) | Provayderning shu qurilmaga bog'langan virtual kassasi (`devices.smart_kassa`, `fiscal_kassa_id`, `fiscal_settings.smart_kassa_driver`) | Hech narsa qo'shimcha: RRN qurilmadan keladi (B bosqichi) |
+| `none` | — | Rizqim | Faqat naqd va QR |
+
+- **O'rnatish ro'yxati** (filial bo'yicha, ega belgilaydi; kim va qachon yoziladi): eski kassa Rizqim sotuvlariga
+  chek chiqarmaydi (4.7); bank terminali rejimi sozlangan; har kassada 2D skaner bor. Ro'yxat to'liq bo'lmasa ham
+  hech narsa bloklanmaydi — panel va kassa "o'rnatish tugallanmagan" deb ko'rsatadi.
+- **Kun oxiri.** Smena yopilayotganda (yoki undan keyin) kassir bank terminalining kunlik jamini kiritadi, terminal
+  hisobotining tranzaksiyalarini import qiladi yoki smart-kassa provayderining o'z jamini oladi. Rizqim tomoni —
+  smenadagi karta to'lovlari, shu kassada kartada olingan bron avanslari va nasiya to'lovlari, karta qaytarishlari
+  ayirilgan. Farq filialning chegarasidan (standart 0) katta bo'lsa egaga ogohlantirish boradi va Z da qator chiqadi;
+  import qilingan tranzaksiyalar RRN bo'yicha juftlanadi, mos kelmaganlari ko'rsatiladi. Bu ikki marta hisoblashni
+  (bank terminali o'zi ham chek chiqarib qo'ygan sotuv) va yo'qolgan karta to'lovini ushlaydi (2-bo'lim, "Fiskal"
+  o'lchovi).
+- **Interfeys tayyor, provayder yo'q.** `SmartKassaGateway` (`kassaStatus`, `cardTotals`) — hozir faqat sandbox;
+  haqiqiy provayder (P3-32) shu interfeysni amalga oshiradi. Ochiq savol (tadqiqot §4): alohida terminalda olingan
+  karta to'lovi virtual kassa chekiga qanday bog'lanadi — provayder javob beradi.
+- API: [API.md](API.md) "Fiskal terminal oqimlari (P6-16)".
 
 ## 5. Internetsiz ishlash: cheklangan rejim
 
@@ -983,8 +1137,9 @@ boshqaruv endpointlari mavjud `/owner/*` prefiksida. Mavjud javob shakllari o'zg
 - Private kanal `pos-branch.{branchId}` 2-bosqichda qo'shilgan (1.1): shu filial terminal tokeni va shu filialda
   `orders.view` huquqi bor xodim sessiyasi.
 - Hodisalar: mavjud `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`,
-  `menu.availability_changed` + 3-bosqichda `order.items_changed` (P3-12) va `shift.changed` (P3-18). Mazmuni
-  avvalgidek faqat id va holat. Boshqa yangi hodisalar bo'lsa — [API.md](API.md), 8-bo'lim.
+  `menu.availability_changed` + 3-bosqichda `order.items_changed` (P3-12) va `shift.changed` (P3-18); P6-13:
+  `queue.preparing`, `queue.ready`, `queue.handed`, `queue.canceled` (2.14). Mazmuni avvalgidek faqat id va holat.
+  Boshqa yangi hodisalar bo'lsa — [API.md](API.md), 8-bo'lim.
 
 ### 12.3. Sinxronlash qoidalari (onlayn rejim)
 
@@ -1078,3 +1233,16 @@ uzilishda (faqat ko'radi), iPad (v1 da yo'q).
 18. **KDS obunada:** hozir KDS ham terminal sifatida to'lanadi ([BILLING.md](BILLING.md)). Shunday qoladimi? Ofitsiant
     telefoni-chi?
 19. **Interfeys tillari:** o'zbek lotin va rus yetarlimi, kirill ham kerakmi? (Fiskal chek matni asosan davlat tilida.)
+
+
+## 15. Bugungi menyu, kompleks va partiya hisobi (P6-15)
+
+Stolovaya, osh markazi, somsaxona va tamaddixona uchun (modullar `daily_menu`, `combo_meal`, `batches`, `batch_writeoff`). Qoidalar,
+jadvallar va endpointlar: [MENU.md](MENU.md) §12, [API.md](API.md) "Bugungi menyu, kompleks va partiya hisobi". Qisqasi:
+
+1. **Menyusi belgilanmagan kun to'xtatmaydi.** Kunlik taom faqat shu kun menyusida bo'lsa sotiladi; menyu qo'yilmagan kunda hamma narsa sotiladi.
+2. **Kompleks — bitta qator.** Narx va fiskal qator mahsulotniki, oshxona esa `set_parts` ni ko'radi; qatorda tarkib sotuv paytidagidek qoladi.
+3. **Keyingi partiya va hisobdan chiqarish.** "Tugadi" yonida "keyingi partiya HH:MM"; hisobdan chiqarish sabab bilan yoziladi va smenaning Z hisobotida chiqadi.
+4. **Hosil hisoboti.** Tayyorlangan − sotilgan − hisobdan chiqarilgan − qolgan = tushuntirilmagan farq; nolga yaqin bo'lishi kerak.
+5. **Kassa uchun (2-bosqich).** Kassir ekrani bootstrapdagi `daily_menu`, `next_batches`, `meal_sets` va katalogdagi `next_batch`/`set_parts`
+   dan chizadi; hisobdan chiqarish `POST /owner/batches/{id}/write-off` (PIN sessiya bilan ishlaydi, Idempotency-Key bilan).

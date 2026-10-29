@@ -4,34 +4,61 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'variants.dart';
-
 part 'data36.g.dart';
 
 @JsonSerializable()
 class Data36 {
   const Data36({
+    required this.id,
+    required this.uuid,
+    required this.branchId,
     required this.productId,
-    required this.name,
-    required this.description,
-    required this.imageUrl,
-    required this.batchTracked,
-    required this.variants,
+    required this.productName,
+    required this.productVariantId,
+    required this.variantName,
+    required this.unit,
+    required this.label,
+    required this.quantityProduced,
+    required this.quantityLeft,
+    required this.writtenOffQuantity,
+    required this.isOpen,
+    required this.startedAt,
+    required this.soldOutAt,
+    required this.closedAt,
   });
 
   factory Data36.fromJson(Map<String, Object?> json) => _$Data36FromJson(json);
 
+  final int id;
+  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   @JsonKey(name: 'product_id')
   final int productId;
-  final String name;
-  final String? description;
-  @JsonKey(name: 'image_url')
-  final String? imageUrl;
+  @JsonKey(name: 'product_name')
+  final String productName;
+  @JsonKey(name: 'product_variant_id')
+  final int? productVariantId;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
+  final String? unit;
+  final String? label;
+  @JsonKey(name: 'quantity_produced')
+  final num? quantityProduced;
+  @JsonKey(name: 'quantity_left')
+  final num? quantityLeft;
 
-  /// P2-30: sold from a batch (kazan): without an open batch on the branch it is sold out (docs/MENU.md §4)
-  @JsonKey(name: 'batch_tracked')
-  final bool batchTracked;
-  final List<Variants> variants;
+  /// P6-15: portions taken off with a reason (menu_batch_writeoffs)
+  @JsonKey(name: 'written_off_quantity')
+  final num? writtenOffQuantity;
+  @JsonKey(name: 'is_open')
+  final bool isOpen;
+  @JsonKey(name: 'started_at')
+  final String? startedAt;
+  @JsonKey(name: 'sold_out_at')
+  final String? soldOutAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
 
   Map<String, Object?> toJson() => _$Data36ToJson(this);
 }

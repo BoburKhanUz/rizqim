@@ -23,6 +23,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $sync_oldest_op_at
  * @property \Illuminate\Support\Carbon|null $sync_reported_at
  * @property int|null $sync_clock_skew_seconds
+ * @property bool $smart_kassa P6-16: an Android smart kassa (receipts through the provider's virtual kassa)
+ * @property string|null $fiscal_kassa_id P6-16: the provider's id of that kassa
  */
 class Device extends Model implements AuthenticatableContract
 {
@@ -64,6 +66,8 @@ class Device extends Model implements AuthenticatableContract
             'sync_oldest_op_at' => 'datetime',
             'sync_reported_at' => 'datetime',
             'sync_clock_skew_seconds' => 'integer',
+            // P6-16 (App\Domain\Pos\TerminalFlow)
+            'smart_kassa' => 'boolean',
         ];
     }
 

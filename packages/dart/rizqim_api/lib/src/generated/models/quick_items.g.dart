@@ -12,7 +12,7 @@ QuickItems _$QuickItemsFromJson(Map<String, dynamic> json) => QuickItems(
   variantUuid: json['variant_uuid'] as String,
   name: json['name'] as String,
   variantName: json['variant_name'] as String?,
-  source: Source2.fromJson(json['source'] as String),
+  source: Source3.fromJson(json['source'] as String),
   hallId: (json['hall_id'] as num?)?.toInt(),
   quantityPerGuest: json['quantity_per_guest'] as String?,
   sortOrder: (json['sort_order'] as num).toInt(),

@@ -13,6 +13,7 @@ Payments30 _$Payments30FromJson(Map<String, dynamic> json) => Payments30(
   credit: json['credit'] as bool,
   cardType: json['card_type'] as String?,
   transactionId: json['transaction_id'] as String?,
+  cardLast4: json['card_last4'] as String?,
 );
 
 Map<String, dynamic> _$Payments30ToJson(Payments30 instance) =>
@@ -23,4 +24,5 @@ Map<String, dynamic> _$Payments30ToJson(Payments30 instance) =>
       'credit': instance.credit,
       'card_type': instance.cardType,
       'transaction_id': instance.transactionId,
+      'card_last4': instance.cardLast4,
     };

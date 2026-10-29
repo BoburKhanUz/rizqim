@@ -22,6 +22,12 @@ class SendCustomerStatusAlert implements ShouldQueue
             return;
         }
 
+        // P6-13: two moves in one transaction (accepted -> preparing -> ready at the till) reach the listener after
+        // the commit, when the order already shows the last one: the customer hears that one once, not twice
+        if ($event->status !== null && $event->order->status->value !== $event->status) {
+            return;
+        }
+
         // P3-12: a POS order has no customer to tell (its user is the staff member who opened it)
         if ($event->order->channel->isPos()) {
             return;

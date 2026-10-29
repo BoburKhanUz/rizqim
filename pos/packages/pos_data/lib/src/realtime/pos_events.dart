@@ -45,6 +45,10 @@ sealed class PosEvent {
           data,
           j,
         ),
+        'queue.preparing' ||
+        'queue.ready' ||
+        'queue.handed' ||
+        'queue.canceled' => PosQueueEvent._(name, data, _order(j), j),
         _ => PosUnknownEvent(name, data),
       };
     } on Object {
@@ -169,6 +173,36 @@ class PosKitchenItemChanged extends PosEvent {
   final String? kitchenStatus;
   final int? itemsTotal;
   final int? itemsReady;
+
+  @override
+  String get orderUuid => order.uuid;
+}
+
+/// P6-13: `queue.preparing`, `queue.ready` (qayta chaqirilganda [called] `true`), `queue.handed`, `queue.canceled` —
+/// navbat raqami taxtada siljidi (mijoz ekrani va kassa ovozi uchun; taxta `GET /pos/queue` dan qayta olinadi).
+class PosQueueEvent extends PosEvent {
+  PosQueueEvent._(super.name, super.data, this.order, PosJson j)
+    : number = j.obj('queue').intOrNull('number'),
+      businessDate = j.obj('queue').strOrNull('business_date'),
+      pickupStatus = j.obj('queue').strOrNull('status'),
+      channel = j.obj('queue').strOrNull('channel'),
+      callCount = j.obj('queue').intOrNull('call_count') ?? 0,
+      called = j.obj('queue').boolean('called');
+
+  final PosEventOrder order;
+  final int? number;
+  final String? businessDate;
+
+  /// `preparing`, `ready`, `handed` yoki `null` (bekor qilingan).
+  final String? pickupStatus;
+  final String? channel;
+  final int callCount;
+
+  /// Kassa raqamni qayta chaqirdi (`POST /pos/orders/{uuid}/call`).
+  final bool called;
+
+  /// Raqamni ovoz bilan e'lon qilish kerak (tayyor bo'ldi yoki qayta chaqirildi).
+  bool get announce => name == 'queue.ready';
 
   @override
   String get orderUuid => order.uuid;

@@ -11,7 +11,7 @@ GetV1OwnerBatchesResponse _$GetV1OwnerBatchesResponseFromJson(
 ) => GetV1OwnerBatchesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data31.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data34.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerBatchesResponseToJson(

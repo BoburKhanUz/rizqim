@@ -7,7 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'stopped.dart';
 import 'sold_out2.dart';
 import 'stop_list.dart';
-import 'batches3.dart';
+import 'batches4.dart';
 
 part 'availability.g.dart';
 
@@ -31,7 +31,7 @@ class Availability {
   final SoldOut2 soldOut;
   @JsonKey(name: 'stop_list')
   final List<StopList> stopList;
-  final List<Batches3> batches;
+  final List<Batches4> batches;
 
   Map<String, Object?> toJson() => _$AvailabilityToJson(this);
 }

@@ -272,6 +272,10 @@ class FakePosState {
   /// `plan_feature_missing` bilan rad etadi; to'lov, schyot, chek, smena va qaytarish hech qachon.
   Map<String, Object?>? entitlements;
 
+  /// P6-11: filial formati (`format` bloki: profile, mode, first_screen, modules, locks). `null` — eski server: bloki
+  /// yo'q, ilova choyxona deb biladi ([PosFormat.legacy]).
+  Map<String, Object?>? format;
+
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
 
@@ -1099,6 +1103,7 @@ class FakePosState {
         'halls': halls,
         'tables': tables,
         'entitlements': ?entitlements,
+        'format': ?format,
         'shift': shift == null
             ? null
             : <String, Object?>{

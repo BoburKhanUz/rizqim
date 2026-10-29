@@ -191,6 +191,7 @@ class PosLineBuilder
                 'total_price' => $line['total']->toString(),
                 'batch_id' => $batch?->id,
                 'batch_quantity' => $batch ? $line['quantity']->times(MenuAvailability::consumptionOf($variant))->toString() : null,
+                'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
                 'kitchen_status' => KitchenItemStatus::PENDING->value,
                 'round_no' => $roundNo,
                 'fire_mode' => $line['fire_mode']->value,
@@ -388,6 +389,7 @@ class PosLineBuilder
                 'total_price' => $line['total']->toString(),
                 'batch_id' => $batch !== null && $taken->isPositive() ? $batch->id : null,
                 'batch_quantity' => $batch !== null && $taken->isPositive() ? $taken->toString() : null,
+                'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
                 'kitchen_status' => KitchenItemStatus::PENDING->value,
                 'round_no' => $roundNo,
                 'fire_mode' => $line['fire_mode']->value,

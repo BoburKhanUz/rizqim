@@ -8,6 +8,8 @@ return [
     App\Providers\ApiDocsServiceProvider::class,
     // P3-13: kitchen station routing (KitchenStationResolver)
     App\Domain\Pos\Setup\PosSetupServiceProvider::class,
+    // P6-15: the daily menu, next batches and kompleks sections of GET /pos/bootstrap
+    App\Domain\Pos\Menu\PosMenuServiceProvider::class,
     // P3-11: fiscal receipts (FiscalIssuer, FiscalLineBuilder, FiscalReadiness)
     App\Providers\FiscalServiceProvider::class,
     // P3-17: bookings, deposits, customer accounts (AdvanceLedger, CustomerAccountLedger)
@@ -18,6 +20,8 @@ return [
     App\Domain\Pos\Billing\PosBillingServiceProvider::class,
     // P3-31: offline limited mode: POST /pos/sync, the bootstrap's offline section
     App\Domain\Pos\Sync\PosSyncServiceProvider::class,
+    // P6-13: order numbers and calling (PickupTracker, the bootstrap's queue section)
+    App\Domain\Pos\Orders\PosQueueServiceProvider::class,
     // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
     App\Providers\AdminMonitoringServiceProvider::class,
     // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh

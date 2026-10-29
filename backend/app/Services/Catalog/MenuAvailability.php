@@ -2,6 +2,9 @@
 
 namespace App\Services\Catalog;
 
+use App\Domain\Pos\Menu\BatchPlans;
+use App\Domain\Pos\Menu\DailyMenuService;
+use App\Domain\Pos\Menu\MealSets;
 use App\Enums\BranchStatus;
 use App\Enums\StopListSubject;
 use App\Models\Branch;
@@ -28,18 +31,21 @@ class MenuAvailability
      */
     public function forStore(int $storeId, ?int $branchId = null): array
     {
-        $branches = Branch::query()
+        $models = Branch::query()
             ->where('store_id', $storeId)
             ->where('status', BranchStatus::ACTIVE->value)
             ->when($branchId !== null, fn ($query) => $query->whereKey($branchId))
             ->orderBy('id')
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+            ->get(['id', 'store_id', 'business_day_starts_at', 'pos_settings'])
+            ->keyBy('id');
+        $branches = $models->keys()->map(fn ($id) => (int) $id)->all();
 
         if ($branches === []) {
             return [];
         }
+
+        // P6-15: "keyingi partiya HH:MM" of the dishes that are sold out
+        $nextBatches = app(BatchPlans::class)->upcoming($branches);
 
         $entries = StopListEntry::query()
             ->whereIn('branch_id', $branches)
@@ -81,6 +87,8 @@ class MenuAvailability
                 $batches->get($id, collect()),
                 $variants,
                 $tracked,
+                $models->get($id),
+                $nextBatches[$id] ?? [],
             );
         }
 
@@ -115,9 +123,10 @@ class MenuAvailability
      * @param  Collection<int, MenuBatch>  $batches
      * @param  Collection<int, ProductVariant>  $variants
      * @param  Collection<int|string, int>  $tracked  batch-tracked product ids (as keys)
+     * @param  list<array<string, mixed>>  $nextBatches  the branch's planned batches still ahead (BatchPlans::upcoming)
      * @return array<string, mixed>
      */
-    private function branchAvailability(int $branchId, Collection $entries, Collection $overrides, Collection $batches, Collection $variants, Collection $tracked): array
+    private function branchAvailability(int $branchId, Collection $entries, Collection $overrides, Collection $batches, Collection $variants, Collection $tracked, ?Branch $branch = null, array $nextBatches = []): array
     {
         $stopped = ['products' => [], 'variants' => [], 'modifiers' => []];
         $list = [];
@@ -149,6 +158,25 @@ class MenuAvailability
             ];
         }
 
+        // P6-15: dishes off today's "Bugungi menyu", and kompleks with a stopped part: stopped like the stop-list
+        if ($branch !== null) {
+            $stoppedProducts = array_fill_keys($stopped['products'], null);
+            foreach (app(DailyMenuService::class)->offMenuProductIds($branch) as $productId) {
+                if (!array_key_exists($productId, $stoppedProducts)) {
+                    $stoppedProducts[$productId] = DailyMenuService::OFF_MENU_REASON;
+                    $stopped['products'][] = $productId;
+                    $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => DailyMenuService::OFF_MENU_REASON, 'until' => null];
+                }
+            }
+            foreach (app(MealSets::class)->closedByParts((int) $branch->store_id, $stoppedProducts, array_fill_keys($stopped['variants'], null)) as $productId => $reason) {
+                if (!array_key_exists($productId, $stoppedProducts)) {
+                    $stoppedProducts[$productId] = $reason;
+                    $stopped['products'][] = $productId;
+                    $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => $reason, 'until' => null];
+                }
+            }
+        }
+
         $soldOut = [];
         foreach ($variants as $variant) {
             $productBatches = $batches->where('product_id', $variant->product_id);
@@ -171,6 +199,8 @@ class MenuAvailability
             'stopped' => array_map(fn (array $ids) => array_values(array_unique($ids)), $stopped),
             'sold_out' => ['variants' => $soldOut],
             'stop_list' => $list,
+            // P6-15: "keyingi partiya HH:MM", earliest first: {id, uuid, product_id, product_variant_id, planned_at, time, quantity, label}
+            'next_batches' => $nextBatches,
             'batches' => $batches->map(fn (MenuBatch $batch) => [
                 'id' => (int) $batch->id,
                 'uuid' => $batch->uuid,

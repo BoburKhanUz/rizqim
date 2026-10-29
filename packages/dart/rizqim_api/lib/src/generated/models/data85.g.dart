@@ -7,29 +7,25 @@ part of 'data85.dart';
 // **************************************************************************
 
 Data85 _$Data85FromJson(Map<String, dynamic> json) => Data85(
-  uuid: json['uuid'] as String,
-  provider: json['provider'] as String,
-  providerTransactionId: json['provider_transaction_id'] as String?,
-  status: json['status'] as String,
-  amount: json['amount'] as String,
-  paidAt: json['paid_at'] as String?,
-  cancelledAt: json['cancelled_at'] as String?,
-  createdAt: json['created_at'] as String,
-  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
-  fiscal: json['fiscal'] == null
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
       ? null
-      : Fiscal.fromJson(json['fiscal'] as Map<String, dynamic>),
+      : ServiceFee2.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data85ToJson(Data85 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'provider': instance.provider,
-  'provider_transaction_id': instance.providerTransactionId,
-  'status': instance.status,
-  'amount': instance.amount,
-  'paid_at': instance.paidAt,
-  'cancelled_at': instance.cancelledAt,
-  'created_at': instance.createdAt,
-  'order': instance.order,
-  'fiscal': instance.fiscal,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'name': instance.name,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

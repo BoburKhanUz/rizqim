@@ -160,6 +160,9 @@ class FakeCashierBackend {
     // nothing else here asks the plan: payments, bills, receipts, shifts and refunds always go through
     final FakeResponse? planRefusal = _planRefusal(m, p);
     if (planRefusal != null) return planRefusal;
+    // P6-11: and the branch's module (`pos.module:<key>`, 403 module_disabled)
+    final FakeResponse? moduleRefusal = _moduleRefusal(m, p);
+    if (moduleRefusal != null) return moduleRefusal;
 
     // Bron
     if (p.startsWith('/v1/pos/bookings')) return _bookings(r);
@@ -174,6 +177,32 @@ class FakeCashierBackend {
       return _staffStatus(x!.group(1)!, r);
     }
     return null;
+  }
+
+  /// Filial formati o'chirgan modulning yangi yozuvi (real backend'dagi `pos.module:<key>` middleware). `format`
+  /// bloki yo'q (eski server) — hech narsa rad etilmaydi.
+  FakeResponse? _moduleRefusal(String m, String p) {
+    if (m != 'POST') return null;
+    final String? module = switch (p) {
+      '/v1/pos/bookings' => 'bookings',
+      '/v1/pos/customer-accounts' => 'customer_accounts',
+      _ => null,
+    };
+    final Map<String, Object?>? format = state.format;
+    if (module == null || format == null) return null;
+    final Object? modules = format['modules'];
+    if (modules is List && modules.contains(module)) return null;
+    return FakeResponse(403, <String, Object?>{
+      'success': false,
+      'message': "Bu modul filialda o'chirilgan.",
+      'code': 'module_disabled',
+      'module': module,
+      'data': <String, Object?>{
+        'reason': 'module_disabled',
+        'module': module,
+        'profile': format['profile'],
+      },
+    });
   }
 
   /// Tarifda yo'q funksiyaning yangi yozuvi (real backend'dagi `plan.feature:<feature>` middleware).

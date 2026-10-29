@@ -4,26 +4,43 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user.dart';
-import 'store.dart';
+import 'fiscal16.dart';
 
 part 'data195.g.dart';
 
 @JsonSerializable()
 class Data195 {
   const Data195({
-    required this.user,
-    required this.store,
-    required this.smsVerificationRequired,
+    required this.uuid,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.amount,
+    required this.method,
+    required this.reason,
+    required this.approvedBy,
+    required this.fiscal,
+    required this.createdAt,
   });
 
   factory Data195.fromJson(Map<String, Object?> json) =>
       _$Data195FromJson(json);
 
-  final User user;
-  final Store? store;
-  @JsonKey(name: 'sms_verification_required')
-  final bool smsVerificationRequired;
+  final String uuid;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  final String amount;
+  final String method;
+  final String reason;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  final Fiscal16 fiscal;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data195ToJson(this);
 }

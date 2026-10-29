@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'event_type.dart';
-import 'source.dart';
+import 'source2.dart';
 
 part 'v1_pos_bookings_request_body.g.dart';
 
@@ -49,7 +49,7 @@ class V1PosBookingsRequestBody {
   final String contactName;
   @JsonKey(name: 'contact_phone')
   final String? contactPhone;
-  final Source? source;
+  final Source2? source;
   @JsonKey(name: 'min_spend')
   final num? minSpend;
   final String? note;

@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'crc32.dart';
 import 'operation.dart';
+import 'queue_numbers.dart';
 import 'storage.dart';
 import 'uuid.dart';
 
@@ -47,6 +48,9 @@ class SyncStore {
 
   int _lastSeq = 0;
   int _nextLocal = 1;
+  // P6-13: the business day of the queue numbers and the last number this till used in it
+  String? _queueDate;
+  int _queueLast = 0;
   int _floorSeq = 0;
   int _journalLines = 0;
   DateTime? _lastContactAt;
@@ -169,6 +173,49 @@ class SyncStore {
     _nextLocal = n + 1;
     return '$prefix-${n.toString().padLeft(3, '0')}';
   }
+
+  /// [businessDate] da kassa ishlatgan oxirgi navbat raqami (boshqa kun — 0).
+  int lastQueueNumber(String businessDate) =>
+      _queueDate == businessDate ? _queueLast : 0;
+
+  /// P6-13: keyingi navbat raqamini oladi (docs/POS_SPEC.md 2.14): [ranges] — kassaning [businessDate] dagi bloklari
+  /// (bootstrap `queue.blocks`). Raqam diskka yozilgach qaytadi va shu kunda boshqa hech qachon berilmaydi (internet
+  /// bo'lmasa ham, ilova qayta ochilsa ham). Bloklar tugagan bo'lsa — `null`: buyurtma raqamsiz ochiladi, raqamni
+  /// server beradi. Raqam `order.open` ning `queue_number` ida (yoki onlayn `POST /pos/orders` da) yuboriladi.
+  Future<int?> takeQueueNumber(String businessDate, List<QueueRange> ranges) =>
+      _locked(() async {
+        final int? n = QueueNumberRule.next(
+          ranges,
+          lastQueueNumber(businessDate),
+        );
+        if (n == null) return null;
+        await _append(<String, Object?>{
+          'k': 'queue',
+          'date': businessDate,
+          'n': n,
+        });
+        _noteQueue(businessDate, n);
+        _emit();
+        return n;
+      });
+
+  /// Server buyurtmaga boshqa raqam bergan bo'lsa (`queue_number_taken`) yoki onlayn javobdagi raqam: u ham
+  /// ishlatilgan hisoblanadi (kassa undan pastga qaytmaydi).
+  Future<void> noteQueueNumber(String businessDate, int number) =>
+      _locked(() async {
+        if (number <= lastQueueNumber(businessDate)) return;
+        await _append(<String, Object?>{
+          'k': 'queue',
+          'date': businessDate,
+          'n': number,
+        });
+        _noteQueue(businessDate, number);
+        _emit();
+      });
+
+  /// [ranges] da [businessDate] uchun qolgan raqamlar soni.
+  int queueNumbersLeft(String businessDate, List<QueueRange> ranges) =>
+      QueueNumberRule.remaining(ranges, lastQueueNumber(businessDate));
 
   /// Server javoblari: navbatdan olinadi, javob saqlanadi, server uuid'lari yoziladi.
   Future<void> applyResults(List<SyncResult> results) async {
@@ -327,6 +374,9 @@ class SyncStore {
           _lastSeq = max(_lastSeq, _int(r['last_seq']));
           _nextLocal = max(_nextLocal, _int(r['next_local'], 1));
           _floorSeq = max(_floorSeq, _int(r['floor_seq']));
+          if (r['queue_date'] is String) {
+            _noteQueue(r['queue_date']! as String, _int(r['queue_last']));
+          }
           for (final MapEntry<String, Object?> e in _mapOf(
             r['aliases'],
           ).entries) {
@@ -350,6 +400,8 @@ class SyncStore {
           _pending.add(op);
           _lastSeq = max(_lastSeq, op.seq);
           _bumpLocal(op.payload);
+        case 'queue':
+          if (r['date'] is String) _noteQueue(r['date']! as String, _int(r['n']));
         case 'ack':
           final String id = r['op_id']! as String;
           final int i = _pending.indexWhere((SyncOperation o) => o.opId == id);
@@ -415,6 +467,16 @@ class SyncStore {
     });
   }
 
+  /// A later business day starts again from 0; within the day the number only grows.
+  void _noteQueue(String date, int n) {
+    if (_queueDate == null || date.compareTo(_queueDate!) > 0) {
+      _queueDate = date;
+      _queueLast = n;
+    } else if (date == _queueDate) {
+      _queueLast = max(_queueLast, n);
+    }
+  }
+
   void _bumpLocal(Map<String, Object?> payload) {
     final Object? local = payload['local_number'];
     if (local is! String) return;
@@ -433,6 +495,8 @@ class SyncStore {
         'last_seq': _lastSeq,
         'next_local': _nextLocal,
         'floor_seq': _floorSeq,
+        'queue_date': _queueDate,
+        'queue_last': _queueLast,
         'aliases': _aliases,
         'answered': <Object?>[
           for (final SyncOperation o in _answered)

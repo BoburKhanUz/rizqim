@@ -20,6 +20,7 @@ class V1PosOrdersRequestBody {
     this.externalId,
     this.note,
     this.send,
+    this.queueNumber,
     this.items,
   });
 
@@ -39,6 +40,10 @@ class V1PosOrdersRequestBody {
   final String? externalId;
   final String? note;
   final bool? send;
+
+  /// P6-13: the number the till took from its block (it prints the talon from it)
+  @JsonKey(name: 'queue_number')
+  final int? queueNumber;
   final List<Items21>? items;
 
   Map<String, Object?> toJson() => _$V1PosOrdersRequestBodyToJson(this);

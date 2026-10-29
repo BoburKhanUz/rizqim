@@ -7,11 +7,15 @@ part of 'data57.dart';
 // **************************************************************************
 
 Data57 _$Data57FromJson(Map<String, dynamic> json) => Data57(
-  employee: User.fromJson(json['employee'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
+  code: json['code'] as String,
+  expiresAt: json['expires_at'] as String,
+  type: json['type'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data57ToJson(Data57 instance) => <String, dynamic>{
-  'employee': instance.employee,
-  'invite_link': instance.inviteLink,
+  'code': instance.code,
+  'expires_at': instance.expiresAt,
+  'type': instance.type,
+  'branch_id': instance.branchId,
 };

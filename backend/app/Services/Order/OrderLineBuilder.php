@@ -2,6 +2,8 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Menu\DailyMenuService;
+use App\Domain\Pos\Menu\MealSets;
 use App\Enums\MenuUnit;
 use App\Enums\StopListSubject;
 use App\Models\Branch;
@@ -115,6 +117,19 @@ class OrderLineBuilder
 
         foreach (StopListEntry::where('branch_id', $branch->id)->active()->get(['subject_type', 'subject_id', 'reason']) as $entry) {
             $stopped[$entry->subject_type->value][(int) $entry->subject_id] = $entry->reason;
+        }
+
+        // P6-15: dishes off today's "Bugungi menyu" count as stopped, and so does a kompleks with a stopped part
+        $products = StopListSubject::PRODUCT->value;
+        foreach (app(DailyMenuService::class)->offMenuProductIds($branch) as $productId) {
+            if (!array_key_exists($productId, $stopped[$products])) {
+                $stopped[$products][$productId] = DailyMenuService::OFF_MENU_REASON;
+            }
+        }
+        foreach (app(MealSets::class)->closedByParts((int) $branch->store_id, $stopped[$products], $stopped[StopListSubject::VARIANT->value]) as $productId => $reason) {
+            if (!array_key_exists($productId, $stopped[$products])) {
+                $stopped[$products][$productId] = $reason;
+            }
         }
 
         return $stopped;

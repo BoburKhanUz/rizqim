@@ -12,7 +12,7 @@ GetV1PosOrdersResponse _$GetV1PosOrdersResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data151.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data170.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

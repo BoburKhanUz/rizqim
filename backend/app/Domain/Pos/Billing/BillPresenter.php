@@ -3,6 +3,7 @@
 namespace App\Domain\Pos\Billing;
 
 use App\Domain\Pos\Contracts\AdvanceLedger;
+use App\Domain\Pos\Orders\PickupQueue;
 use App\Models\Booking;
 use App\Models\Order;
 use App\Models\OrderBill;
@@ -19,13 +20,13 @@ use App\Support\Quantity;
  */
 final class BillPresenter
 {
-    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, created_at: string|null}';
+    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
 
-    public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, reference: string|null, status: string, paid_at: string|null}';
+    public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, status: string, paid_at: string|null}';
 
     public const REFUND = 'array{uuid: string, order_uuid: string|null, bill_uuid: string|null, payment_uuid: string|null, amount: string, method: string, reason: string, approved_by: int|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', created_at: string|null}';
 
-    public const ORDER = 'array{uuid: string, status: string, payment_status: string, version: int, queue_number: int|null, business_date: string|null, bill_locked_at: string|null, closed_at: string|null, total_price: string, billed_amount: string, paid_amount: string, unbilled_amount: string|null, fiscal_pending: bool, bills_out_of_date: bool, booking_uuid: string|null, deposit_available: string}';
+    public const ORDER = 'array{uuid: string, status: string, payment_status: string, version: int, queue_number: int|null, ticket: ' . PickupQueue::TICKET . '|null, business_date: string|null, bill_locked_at: string|null, closed_at: string|null, total_price: string, billed_amount: string, paid_amount: string, unbilled_amount: string|null, fiscal_pending: bool, bills_out_of_date: bool, booking_uuid: string|null, deposit_available: string}';
 
     /**
      * @return array<string, mixed>
@@ -77,6 +78,8 @@ final class BillPresenter
                 ];
             })->values()->all(),
             'payments' => $payments->map(fn (Payment $payment) => $this->payment($payment))->values()->all(),
+            // P6-13: the queue number printed on the receipt and its talon (a counter order with the queue_numbers module)
+            'ticket' => $order !== null ? PickupQueue::ticket($order) : null,
             'created_at' => $bill->created_at?->toIso8601String(),
         ];
     }
@@ -94,6 +97,7 @@ final class BillPresenter
             'change_amount' => $payment->change_amount !== null ? Money::of($payment->change_amount)->toString() : null,
             'card_type' => $payment->getAttribute('card_type'),
             'transaction_id' => $payment->getAttribute('transaction_id'),
+            'card_last4' => $payment->getAttribute('card_last4'),
             'reference' => $payment->getAttribute('reference'),
             'status' => $payment->status->value,
             'paid_at' => $payment->paid_at?->toIso8601String(),
@@ -147,6 +151,7 @@ final class BillPresenter
             'payment_status' => $order->payment_status->value,
             'version' => (int) $order->getAttribute('version'),
             'queue_number' => $order->queue_number,
+            'ticket' => PickupQueue::ticket($order),
             'business_date' => $order->business_date?->toDateString(),
             'bill_locked_at' => $order->bill_locked_at?->toIso8601String(),
             'closed_at' => $order->closed_at?->toIso8601String(),

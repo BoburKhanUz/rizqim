@@ -282,7 +282,8 @@ final class BillFiscalizer
             $tender = PosTender::tryFrom((string) $payment->provider);
             $amount = Money::of($payment->amount);
             $fiscal[] = match ($tender) {
-                PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id')),
+                // P6-16: the bank terminal's transaction (RRN) number and, when typed, the card's last four digits
+                PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id'), cardLast4: $payment->getAttribute('card_last4')),
                 PosTender::QR => new FiscalPayment(FiscalPaymentForm::QR, $amount),
                 PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
                 // Nasiya: the full sale is receipted now, the money comes later with CREDIT receipts (P3-17); the
@@ -326,6 +327,7 @@ final class BillFiscalizer
                 amount: $amount,
                 cardType: $payment->getAttribute('card_type'),
                 transactionId: $payment->getAttribute('transaction_id'),
+                cardLast4: $payment->getAttribute('card_last4'),
             ),
         };
     }

@@ -4,21 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bill3.dart';
-import 'order6.dart';
-
 part 'data121.g.dart';
 
 @JsonSerializable()
 class Data121 {
-  const Data121({required this.bill, required this.copy, required this.order});
+  const Data121({
+    required this.branchId,
+    required this.weekendDays,
+    required this.holidays,
+  });
 
   factory Data121.fromJson(Map<String, Object?> json) =>
       _$Data121FromJson(json);
 
-  final Bill3 bill;
-  final bool copy;
-  final Order6 order;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'weekend_days')
+  final List<int> weekendDays;
+  final List<String> holidays;
 
   Map<String, Object?> toJson() => _$Data121ToJson(this);
 }

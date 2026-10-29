@@ -40,7 +40,16 @@ abstract class PosBootstrapApi {
   /// P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the.
   /// branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and.
   /// availability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the.
-  /// same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice.
+  /// same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice;.
+  /// P6-13: `queue`, order numbers (`numbers`, `calling`: the queue_numbers and queue_calling modules) and this till's.
+  /// number blocks of today (`blocks` start/end/next, `next_number`; a till running low gets its next block here).
+  /// P6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to.
+  /// ask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the.
+  /// terminal_card_flow module.
+  /// P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,.
+  /// quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's.
+  /// switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;.
+  /// `locks.service_charge_zero` for a stolovaya.
   ///
   /// [branchId] - The branch, for a caller who is not tied to one (the owner, a store-wide terminal).
   @GET('/v1/pos/bootstrap')

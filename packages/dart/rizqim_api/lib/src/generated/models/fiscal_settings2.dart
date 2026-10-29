@@ -15,6 +15,7 @@ class FiscalSettings2 {
     required this.enabled,
     required this.driver,
     required this.activeDriver,
+    required this.smartKassaDriver,
     required this.charges,
     required this.sandbox,
     required this.depositRefundReceipt,
@@ -28,6 +29,8 @@ class FiscalSettings2 {
   final String driver;
   @JsonKey(name: 'active_driver')
   final String activeDriver;
+  @JsonKey(name: 'smart_kassa_driver')
+  final String smartKassaDriver;
   final Charges2 charges;
   final Sandbox2 sandbox;
   @JsonKey(name: 'deposit_refund_receipt')

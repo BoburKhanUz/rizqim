@@ -70,6 +70,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string|null $discount_value
  * @property string|null $discount_reason
  * @property int|null $discount_by
+ *
+ * P6-13: the pickup queue of a counter order with a queue number (App\Domain\Pos\Orders\PickupQueue)
+ * @property string|null $pickup_status preparing|ready|handed
+ * @property \Illuminate\Support\Carbon|null $pickup_ready_at
+ * @property \Illuminate\Support\Carbon|null $pickup_called_at
+ * @property int $pickup_call_count
+ * @property \Illuminate\Support\Carbon|null $pickup_handed_at
  */
 class Order extends Model
 {
@@ -152,6 +159,11 @@ class Order extends Model
             // P3-37: the till's discount (kind, the value typed, who gave it); `discount` is its amount
             'discount_value' => 'decimal:2',
             'discount_by' => 'integer',
+            // P6-13: the pickup queue of a counter order with a number (App\Domain\Pos\Orders\PickupQueue)
+            'pickup_ready_at' => 'datetime',
+            'pickup_called_at' => 'datetime',
+            'pickup_call_count' => 'integer',
+            'pickup_handed_at' => 'datetime',
         ];
     }
 

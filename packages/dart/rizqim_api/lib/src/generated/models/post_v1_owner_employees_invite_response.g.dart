@@ -11,7 +11,7 @@ PostV1OwnerEmployeesInviteResponse _$PostV1OwnerEmployeesInviteResponseFromJson(
 ) => PostV1OwnerEmployeesInviteResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data57.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data66.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerEmployeesInviteResponseToJson(

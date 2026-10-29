@@ -15,6 +15,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 /// | [PosRejected] | 422 `data.reason` bilan (`table_occupied`, `nothing_to_send`, `mxik_missing` ...) |
 /// | [PosValidationException] | 422 maydon xatolari (`errors`), sababsiz |
 /// | [PosPlanRefused] | 403 `plan_feature_missing` / `subscription_locked` / `device_limit`: tarif yoki to'lanmagan hisob-faktura yopgan (P4-21) |
+/// | [PosModuleDisabled] | 403 `module_disabled`: filial formati bu modulni o'chirgan (P6-11) |
 /// | [PosForbidden] | boshqa 403 (ruxsat yo'q) |
 /// | [PosNotFound] | 404 |
 /// | [PosNetworkException] | javob kelmadi: tarmoq yo'q (qayta urinishda o'sha [idempotencyKey] bilan yuboring) |
@@ -175,6 +176,22 @@ class PosPlanRefused extends PosForbidden {
   bool get byUnpaidInvoice => reason != PosReasons.planFeatureMissing;
 }
 
+/// P6-11: filial formati (profil va ega sozlamasi) bu modulni o'chirgan (403 `module_disabled`): ekran yoki tugma
+/// [PosModules] ga qarab yashirilishi kerak edi — bootstrap eskirgan bo'lsa, uni qayta yuklang.
+class PosModuleDisabled extends PosForbidden {
+  const PosModuleDisabled({
+    required super.message,
+    super.statusCode,
+    super.reason,
+    super.cause,
+    super.data,
+    super.idempotencyKey,
+  });
+
+  /// Qaysi modul ([PosModule.wire]).
+  String? get module => data['module'] as String?;
+}
+
 /// 404: buyurtma, schyot, smena yoki bron topilmadi (boshqa do'kon yoki filialniki ham).
 class PosNotFound extends PosException {
   const PosNotFound({
@@ -248,6 +265,9 @@ abstract final class PosReasons {
 
   /// P4-21: cheklangan obunada tarifdagidan ortiq qurilma (403).
   static const String deviceLimit = 'device_limit';
+
+  /// P6-11: filial formati modulni o'chirgan (403, [PosModuleDisabled]).
+  static const String moduleDisabled = 'module_disabled';
 
   /// Tarif / to'lanmagan hisob-faktura rad etishlari ([PosPlanRefused]).
   static const Set<String> planRefusals = <String>{
@@ -356,6 +376,7 @@ abstract final class PosReasons {
     accountUnknown:
         "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.",
     planFeatureMissing: "Bu imkoniyat hozirgi tarifingizda yo'q.",
+    moduleDisabled: "Bu modul filialda o'chirilgan. Uni hamkor panelidagi \"Format\" sahifasida yoqish mumkin.",
     subscriptionLocked: "To'lanmagan hisob-faktura sababli yangi sozlamalar yopilgan. To'lov qilinishi bilan darhol ochiladi. Kassa to'lov qabul qilishda davom etadi.",
     deviceLimit: "To'lanmagan hisob-faktura sababli tarifdagidan ortiq qurilma ulab bo'lmaydi. Eskisini o'chirib, o'rniga yangisini ulashingiz mumkin.",
     noChannel:

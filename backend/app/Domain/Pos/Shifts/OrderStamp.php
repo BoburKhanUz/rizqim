@@ -6,7 +6,6 @@ use App\Enums\OrderChannel;
 use App\Models\Branch;
 use App\Models\Order;
 use App\Models\PosShift;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Stamps a new POS order (pos_hall, pos_takeaway) with its business day, its queue number within that day and branch
@@ -14,6 +13,7 @@ use Illuminate\Support\Facades\DB;
  * the Order `creating` event (PosBillingServiceProvider), so whoever opens POS orders (P3-12's PosOrderOpener, a
  * booking's "Keldi") gets it without calling anything. Values already set are kept. The number is taken under a
  * per branch and day advisory lock held until the opening transaction commits, so two terminals never share one.
+ * P6-13: the number itself comes from QueueNumbers (till blocks with the `queue_numbers` module).
  */
 final class OrderStamp
 {
@@ -40,15 +40,9 @@ final class OrderStamp
                 ->value('id'));
         }
 
-        if ($order->getAttribute('queue_number') === null) {
-            if (DB::getDriverName() === 'pgsql') {
-                DB::select('select pg_advisory_xact_lock(?, ?)', [(int) $branch->id % 2147483647, (int) str_replace('-', '', $date)]);
-            }
-
-            $order->setAttribute('queue_number', (int) Order::withTrashed()
-                ->where('branch_id', $branch->id)
-                ->where('business_date', $date)
-                ->max('queue_number') + 1);
-        }
+        // P6-13: blocks per till with the queue_numbers module, the P3-18 numbering without it (QueueNumbers). A number
+        // the till proposes (printed offline, picked online) is kept when it is allowed, else the order gets the next
+        // one (PosSyncApplier flags the difference: `queue_number_taken`)
+        app(QueueNumbers::class)->number($order, $branch, $date);
     }
 }

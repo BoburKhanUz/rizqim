@@ -123,6 +123,13 @@ class StoreDeviceController extends Controller
         // P4-21: a KDS needs the plan's kds; while the subscription is locked only up to the plan's terminals (a
         // broken till is still replaced). 403 plan_feature_missing / device_limit
         app(\App\Services\Finance\Billing\Entitlements::class)->assertCanPair($store, DeviceType::from($data['type']));
+        // P6-11: a KDS needs the branch's kds module (the store's: on for at least one branch); 403 module_disabled
+        if ($data['type'] === DeviceType::KDS->value) {
+            $modules = app(\App\Domain\Pos\Setup\PosModules::class);
+            $branch !== null
+                ? $modules->assertEnabled($branch, \App\Domain\Pos\Setup\PosModule::KDS)
+                : $modules->assertEnabledInStore((int) $store->id, \App\Domain\Pos\Setup\PosModule::KDS);
+        }
 
         try {
             $result = $this->pairing->createCode($store, $branch, DeviceType::from($data['type']), $data['name'] ?? null, $user);

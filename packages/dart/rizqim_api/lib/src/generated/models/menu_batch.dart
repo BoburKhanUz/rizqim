@@ -31,6 +31,7 @@ class MenuBatch {
     required this.createdAt,
     required this.updatedAt,
     required this.oversoldQuantity,
+    required this.writtenOffQuantity,
     required this.isOpen,
     this.store,
     this.branch,
@@ -72,6 +73,8 @@ class MenuBatch {
   final DateTime? updatedAt;
   @JsonKey(name: 'oversold_quantity')
   final String oversoldQuantity;
+  @JsonKey(name: 'written_off_quantity')
+  final String writtenOffQuantity;
   @JsonKey(name: 'is_open')
   final bool isOpen;
   final Store? store;

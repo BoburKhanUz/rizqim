@@ -4,55 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'working_hours3.dart';
+import 'plan.dart';
+import 'current_period.dart';
+import 'devices.dart';
+import 'notice.dart';
 
 part 'data39.g.dart';
 
 @JsonSerializable()
 class Data39 {
   const Data39({
-    required this.id,
-    required this.name,
-    required this.phone,
-    required this.address,
-    required this.regionId,
-    required this.districtId,
-    required this.latitude,
-    required this.longitude,
-    required this.radiusKm,
+    required this.plan,
+    required this.legacy,
+    required this.period,
     required this.status,
-    required this.isActive,
-    required this.workingHours,
-    required this.isOpenNow,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.trialEndsAt,
+    required this.currentPeriod,
+    required this.termEndsAt,
+    required this.lockedSince,
+    required this.lockAt,
+    required this.settingsLocked,
+    required this.features,
+    required this.requiredPlans,
+    required this.devices,
+    required this.notice,
   });
 
   factory Data39.fromJson(Map<String, Object?> json) => _$Data39FromJson(json);
 
-  final int id;
-  final String name;
-  final String? phone;
-  final String? address;
-  @JsonKey(name: 'region_id')
-  final int? regionId;
-  @JsonKey(name: 'district_id')
-  final int? districtId;
-  final num? latitude;
-  final num? longitude;
-  @JsonKey(name: 'radius_km')
-  final num radiusKm;
+  final Plan? plan;
+  final bool legacy;
+  final String? period;
   final String status;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'working_hours')
-  final WorkingHours3 workingHours;
-  @JsonKey(name: 'is_open_now')
-  final bool isOpenNow;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'trial_ends_at')
+  final String? trialEndsAt;
+  @JsonKey(name: 'current_period')
+  final CurrentPeriod? currentPeriod;
+  @JsonKey(name: 'term_ends_at')
+  final String? termEndsAt;
+  @JsonKey(name: 'locked_since')
+  final String? lockedSince;
+  @JsonKey(name: 'lock_at')
+  final String? lockAt;
+  @JsonKey(name: 'settings_locked')
+  final bool settingsLocked;
+  final Map<String, bool> features;
+  @JsonKey(name: 'required_plans')
+  final Map<String, String?> requiredPlans;
+  final Devices devices;
+  final Notice? notice;
 
   Map<String, Object?> toJson() => _$Data39ToJson(this);
 }

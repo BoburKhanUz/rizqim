@@ -12,6 +12,7 @@ import { labelFor } from '../reports/format';
 import { HistoryFilters, SelectFilter, usableDates, type DateFilter } from '../reports/HistoryFilters';
 import { DataTable, Td, Th } from '../reports/ui';
 import { DifferenceFigure, ShiftReportView } from './ShiftReportView';
+import { BankTerminalSummary } from '../fiscal/TerminalFlowPanel';
 
 const STATUSES = ['open', 'closed'] as const;
 const LIMIT = 50;
@@ -160,7 +161,11 @@ function ShiftDetailPage({ uuid, onBack }: { uuid: string; onBack: () => void })
           <Skeleton className="h-64 w-full" />
         </div>
       ) : (
-        <ShiftReportView shift={shift} report={report} branchName={branchName(shift.branch_id)} />
+        <>
+          <ShiftReportView shift={shift} report={report} branchName={branchName(shift.branch_id)} />
+          {/* P6-16: the bank terminal's day total against the shift's card money */}
+          {detail.data?.bank_terminal && <BankTerminalSummary report={detail.data.bank_terminal} />}
+        </>
       )}
     </>
   );

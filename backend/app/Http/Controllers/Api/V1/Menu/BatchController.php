@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Menu;
 
+use App\Domain\Pos\Menu\WriteOffReason;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\Permission;
 use App\Models\MenuBatch;
+use App\Models\PosShift;
 use App\Models\ProductVariant;
 use App\Services\Catalog\BatchService;
 use App\Support\Quantity;
@@ -11,6 +15,7 @@ use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 #[Group('Owner: batches', "Qozon / partiya qoldig'i: ochish, to'ldirish, tuzatish va yopish (P1-21). Oshpaz, menejer, ega.")]
@@ -109,6 +114,55 @@ class BatchController extends MenuStaffController
         return $this->success($this->present($batch->load(['product:id,name', 'variant:id,name,unit'])), 'Partiya yopildi.');
     }
 
+    /**
+     * Write off unsold portions
+     *
+     * P6-15, module `batch_writeoff`: takes `quantity` off what the batch still holds, with a `reason` (unsold, spoiled,
+     * staff_meal, dropped, expired, other; `other` needs a `note`). More than what is left: 422. `close` also closes
+     * the batch (the end-of-day "write off the rest"). Done from a terminal, it belongs to that terminal's open shift
+     * and is listed on its Z report; from the panel it appears in the reports only. Send an Idempotency-Key so a retry
+     * does not write the same portions off twice. Audited (`menu.batch_written_off`).
+     */
+    public function writeOff(Request $request, int $id, BatchService $batches, PosModules $modules): JsonResponse
+    {
+        $data = $request->validate([
+            'quantity' => 'required|numeric|gt:0|max:999999',
+            'reason' => ['required', 'string', Rule::in(WriteOffReason::values())],
+            'note' => 'nullable|string|max:255',
+            'close' => 'nullable|boolean',
+        ]);
+
+        $batch = $this->batch($request, $id);
+        $modules->assertEnabled($batch->branch()->firstOrFail(), PosModule::BATCH_WRITEOFF);
+
+        // A terminal's write-off lands on its open shift (the Z report); a panel one on none
+        $device = $this->permissions->terminalOf($request->user());
+        $shift = $device !== null ? PosShift::where('device_id', $device->id)->where('status', 'open')->first() : null;
+
+        $writeOff = $batches->writeOff(
+            $batch,
+            $this->quantity($data['quantity'], 'quantity'),
+            WriteOffReason::from($data['reason']),
+            $data['note'] ?? null,
+            $shift,
+            $request->user(),
+            (bool) ($data['close'] ?? false),
+        );
+
+        return $this->success([
+            'write_off' => [
+                'uuid' => $writeOff->uuid,
+                'quantity' => Quantity::normalize($writeOff->quantity),
+                'unit' => $writeOff->unit,
+                'reason' => $writeOff->reason,
+                'note' => $writeOff->note,
+                'business_date' => $writeOff->business_date->format('Y-m-d'),
+                'shift_id' => $writeOff->shift_id !== null ? (int) $writeOff->shift_id : null,
+            ],
+            'batch' => $this->present($batch->fresh(['product:id,name', 'variant:id,name,unit']) ?? $batch),
+        ], 'Hisobdan chiqarildi.', 201);
+    }
+
     private function batch(Request $request, int $id): MenuBatch
     {
         $batch = MenuBatch::where('store_id', $this->storeId($request))->find($id);
@@ -148,6 +202,8 @@ class BatchController extends MenuStaffController
             'label' => $batch->label,
             'quantity_produced' => Quantity::normalize($batch->quantity_produced),
             'quantity_left' => Quantity::normalize($batch->quantity_left),
+            // P6-15: portions taken off with a reason (menu_batch_writeoffs)
+            'written_off_quantity' => Quantity::normalize($batch->written_off_quantity ?? 0),
             'is_open' => $batch->closed_at === null,
             'started_at' => $batch->started_at->toJSON(),
             'sold_out_at' => $batch->sold_out_at?->toJSON(),

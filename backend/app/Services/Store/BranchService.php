@@ -3,6 +3,7 @@
 namespace App\Services\Store;
 
 use App\Domain\Delivery\ZoneResolver;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\BranchStatus;
 use App\Models\Branch;
 use App\Models\DeliveryZone;
@@ -80,6 +81,12 @@ class BranchService
     public function create(Store $store, array $data): Branch
     {
         $branch = new Branch(['store_id' => $store->id, 'status' => BranchStatus::ACTIVE, 'is_active' => true, 'radius_km' => 5]);
+        // P6-11: a new branch starts in the store's format (its first branch's profile and that profile's till mode)
+        $first = Branch::query()->where('store_id', $store->id)->orderBy('id')->first(['id', 'pos_settings']);
+        if ($first !== null) {
+            $profile = PosSettings::format($first->pos_settings)['profile'];
+            $branch->pos_settings = ['profile' => $profile->value, 'modules' => [], 'mode' => $profile->defaultMode()];
+        }
         $branch->fill($this->attributes($data))->save();
 
         $this->audit->record('branch.created', $branch, [], $this->snapshot($branch->refresh()), [], ['branch_id' => (int) $branch->id]);

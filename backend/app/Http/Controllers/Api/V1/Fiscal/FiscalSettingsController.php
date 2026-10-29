@@ -24,7 +24,7 @@ class FiscalSettingsController extends ManagementController
 {
     public const CHARGE = 'array{name: string, mxik: string|null, package_code: string|null, unit: string}';
 
-    public const SETTINGS = 'array{tin: string|null, tax_regime: \'vat\'|\'vat_simplified\'|\'turnover\'|null, fiscal_settings: array{enabled: bool, driver: string, active_driver: string, charges: array{room_fee: ' . self::CHARGE . ', place_fee: ' . self::CHARGE . ', min_spend_topup: ' . self::CHARGE . ', service_charge: ' . self::CHARGE . ', deposit: ' . self::CHARGE . ', booking_fee: ' . self::CHARGE . ', credit: ' . self::CHARGE . ', delivery: ' . self::CHARGE . '}, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}, drivers: list<string>, tax_regimes: list<array{value: string, label: string, vat_rate: string}>}';
+    public const SETTINGS = 'array{tin: string|null, tax_regime: \'vat\'|\'vat_simplified\'|\'turnover\'|null, fiscal_settings: array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array{room_fee: ' . self::CHARGE . ', place_fee: ' . self::CHARGE . ', min_spend_topup: ' . self::CHARGE . ', service_charge: ' . self::CHARGE . ', deposit: ' . self::CHARGE . ', booking_fee: ' . self::CHARGE . ', credit: ' . self::CHARGE . ', delivery: ' . self::CHARGE . '}, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}, drivers: list<string>, tax_regimes: list<array{value: string, label: string, vat_rate: string}>}';
 
     private const CHARGE_IN = 'array{name?: string|null, mxik?: string|null, package_code?: string|null, unit?: string|null}';
 
@@ -32,7 +32,8 @@ class FiscalSettingsController extends ManagementController
      * Fiscal settings
      *
      * The store's TIN and tax regime, and its fiscal settings with every default filled in. `active_driver` is where
-     * receipts go now (`null` while fiscal mode is off: receipts are recorded as "fiskal emas").
+     * receipts go now (`null` while fiscal mode is off: receipts are recorded as "fiskal emas"); P6-16:
+     * `smart_kassa_driver` is where a smart kassa's receipts go in fiscal mode.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
     public function show(Request $request): JsonResponse
@@ -47,12 +48,13 @@ class FiscalSettingsController extends ManagementController
      * turnover (no VAT). `fiscal_settings.charges.<charge>` sets the receipt line of a charge (room_fee, place_fee,
      * min_spend_topup, service_charge, deposit, booking_fee, credit, delivery): `mxik` 17 digits, `package_code`
      * digits; a null field goes back to the default. `deposit_refund_receipt` / `retained_deposit_receipt`: whether a
-     * booking deposit given back / kept gets a receipt (null: the default). Turning `enabled` on needs the TIN and
-     * the tax regime.
+     * booking deposit given back / kept gets a receipt (null: the default). P6-16: `smart_kassa_driver` — the driver
+     * of POS terminals flagged smart kassa (the provider's virtual kassa bound to the device; null: `driver`). Turning
+     * `enabled` on needs the TIN and the tax regime.
      */
     #[BodyParameter('tin', description: "STIR: 9 ta raqam (null — o'chirish).", required: false, type: 'string|null')]
     #[BodyParameter('tax_regime', description: "vat | vat_simplified | turnover.", required: false, type: "'vat'|'vat_simplified'|'turnover'|null")]
-    #[BodyParameter('fiscal_settings', description: 'Fiskal sozlamalar (obyekt, qisman).', required: false, infer: false, type: 'array{enabled?: bool, driver?: string|null, charges?: array{room_fee?: ' . self::CHARGE_IN . ', place_fee?: ' . self::CHARGE_IN . ', min_spend_topup?: ' . self::CHARGE_IN . ', service_charge?: ' . self::CHARGE_IN . ', deposit?: ' . self::CHARGE_IN . ', booking_fee?: ' . self::CHARGE_IN . ', credit?: ' . self::CHARGE_IN . ', delivery?: ' . self::CHARGE_IN . '}, sandbox?: array{latency_ms?: int, fail_attempts?: int, failure_rate?: int, reject?: bool}, deposit_refund_receipt?: bool|null, retained_deposit_receipt?: bool|null}')]
+    #[BodyParameter('fiscal_settings', description: 'Fiskal sozlamalar (obyekt, qisman).', required: false, infer: false, type: 'array{enabled?: bool, driver?: string|null, smart_kassa_driver?: string|null, charges?: array{room_fee?: ' . self::CHARGE_IN . ', place_fee?: ' . self::CHARGE_IN . ', min_spend_topup?: ' . self::CHARGE_IN . ', service_charge?: ' . self::CHARGE_IN . ', deposit?: ' . self::CHARGE_IN . ', booking_fee?: ' . self::CHARGE_IN . ', credit?: ' . self::CHARGE_IN . ', delivery?: ' . self::CHARGE_IN . '}, sandbox?: array{latency_ms?: int, fail_attempts?: int, failure_rate?: int, reject?: bool}, deposit_refund_receipt?: bool|null, retained_deposit_receipt?: bool|null}')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::SETTINGS . '}')]
     public function update(Request $request, AuditLogger $audit): JsonResponse
     {

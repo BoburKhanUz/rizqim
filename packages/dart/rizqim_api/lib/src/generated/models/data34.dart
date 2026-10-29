@@ -4,56 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'batches3.dart';
+
 part 'data34.g.dart';
 
 @JsonSerializable()
 class Data34 {
-  const Data34({
-    required this.id,
-    required this.uuid,
-    required this.branchId,
-    required this.productId,
-    required this.productName,
-    required this.productVariantId,
-    required this.variantName,
-    required this.unit,
-    required this.label,
-    required this.quantityProduced,
-    required this.quantityLeft,
-    required this.isOpen,
-    required this.startedAt,
-    required this.soldOutAt,
-    required this.closedAt,
-  });
+  const Data34({required this.branchId, required this.batches});
 
   factory Data34.fromJson(Map<String, Object?> json) => _$Data34FromJson(json);
 
-  final int id;
-  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  @JsonKey(name: 'product_variant_id')
-  final int? productVariantId;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String? unit;
-  final String? label;
-  @JsonKey(name: 'quantity_produced')
-  final num? quantityProduced;
-  @JsonKey(name: 'quantity_left')
-  final num? quantityLeft;
-  @JsonKey(name: 'is_open')
-  final bool isOpen;
-  @JsonKey(name: 'started_at')
-  final String? startedAt;
-  @JsonKey(name: 'sold_out_at')
-  final String? soldOutAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
+  final List<Batches3> batches;
 
   Map<String, Object?> toJson() => _$Data34ToJson(this);
 }

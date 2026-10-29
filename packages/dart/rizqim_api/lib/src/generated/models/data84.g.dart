@@ -8,38 +8,24 @@ part of 'data84.dart';
 
 Data84 _$Data84FromJson(Map<String, dynamic> json) => Data84(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
   name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers3.fromJson(e as Map<String, dynamic>))
+  serviceFee: json['service_fee'] == null
+      ? null
+      : ServiceFee.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules3.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
 );
 
 Map<String, dynamic> _$Data84ToJson(Data84 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
   'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

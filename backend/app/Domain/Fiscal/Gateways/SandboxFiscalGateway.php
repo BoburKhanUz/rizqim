@@ -3,8 +3,12 @@
 namespace App\Domain\Fiscal\Gateways;
 
 use App\Domain\Fiscal\FiscalDocument;
+use App\Domain\Fiscal\FiscalPaymentForm;
+use App\Domain\Fiscal\FiscalReceiptStatus;
 use App\Domain\Fiscal\FiscalReceiptType;
 use App\Domain\Fiscal\FiscalSettings;
+use App\Domain\Fiscal\FiscalSnapshot;
+use App\Models\Device;
 use App\Models\FiscalReceipt;
 use App\Models\Store;
 use App\Support\Money;
@@ -22,8 +26,12 @@ use Illuminate\Support\Facades\Cache;
  * config('fiscal.sandbox.max_latency_ms')); `fail_attempts` N makes the first N attempts of every receipt fail as
  * "unreachable" (retried); `failure_rate` P fails P% of attempts the same way (decided by uuid and attempt number,
  * so it is repeatable); `reject` refuses every receipt (not retried: the receipt becomes `failed`).
+ *
+ * P6-16 (D5 b): it also plays a provider's smart kassas (SmartKassaGateway): a receipt from a POS terminal flagged
+ * `smart_kassa` is answered with that kassa's id (`devices.fiscal_kassa_id`) as its terminal; a kassa is "registered"
+ * once it has an id; its card totals are the card parts of its issued sale receipts less its refund receipts.
  */
-class SandboxFiscalGateway implements FiscalGateway
+class SandboxFiscalGateway implements SmartKassaGateway
 {
     private const CACHE_PREFIX = 'fiscal:sandbox:';
 
@@ -58,12 +66,62 @@ class SandboxFiscalGateway implements FiscalGateway
         return is_array($answer) ? $this->response($answer) : null;
     }
 
+    public function kassaStatus(Device $device, Store $store): SmartKassaStatus
+    {
+        $kassaId = $device->getAttribute('fiscal_kassa_id');
+
+        return filled($kassaId)
+            ? new SmartKassaStatus(true, (string) $kassaId, 'Sinov provayderi: kassa ulangan.')
+            : new SmartKassaStatus(false, null, "Sinov provayderi: kassa raqami kiritilmagan.");
+    }
+
+    public function cardTotals(Device $device, Store $store, CarbonImmutable $from, CarbonImmutable $to): ?TerminalCardTotals
+    {
+        // Only what this provider registered (the driver names this class is configured under)
+        $names = array_keys(array_filter((array) config('fiscal.drivers', []), fn ($class) => $class === static::class));
+        $receipts = FiscalReceipt::query()
+            ->where('store_id', $store->id)
+            ->where('device_id', $device->id)
+            ->whereIn('driver', $names)
+            ->where('status', FiscalReceiptStatus::ISSUED->value)
+            ->whereIn('type', [FiscalReceiptType::SALE->value, FiscalReceiptType::REFUND->value, FiscalReceiptType::ADVANCE->value, FiscalReceiptType::CREDIT->value])
+            ->whereBetween('created_at', [$from, $to])
+            ->orderBy('id')
+            ->get(['type', 'payments']);
+
+        $total = Money::zero();
+        $count = 0;
+        $transactions = [];
+        foreach ($receipts as $receipt) {
+            foreach ((array) $receipt->payments as $row) {
+                $payment = FiscalSnapshot::payment($row);
+                if ($payment->form !== FiscalPaymentForm::CARD || $payment->prepayment || $payment->credit) {
+                    continue;
+                }
+                if ($receipt->type === FiscalReceiptType::REFUND) {
+                    $total = $total->minus($payment->amount);
+                    continue;
+                }
+                $total = $total->plus($payment->amount);
+                $count++;
+                $transactions[] = ['rrn' => $payment->transactionId, 'amount' => $payment->amount->toString()];
+            }
+        }
+
+        return new TerminalCardTotals($total, $count, $transactions);
+    }
+
     /**
      * @return array<string, mixed>
      */
     private function answer(FiscalReceipt $receipt, FiscalDocument $document, Store $store): array
     {
         $terminalId = 'SANDBOX-' . str_pad((string) $store->id, 6, '0', STR_PAD_LEFT);
+        // P6-16: a smart kassa's receipt is registered on its own kassa
+        $device = $receipt->device_id !== null ? Device::find($receipt->device_id) : null;
+        if ($device !== null && (bool) $device->getAttribute('smart_kassa') && filled($device->getAttribute('fiscal_kassa_id'))) {
+            $terminalId = (string) $device->getAttribute('fiscal_kassa_id');
+        }
         $receiptNumber = (string) (hexdec(substr(sha1("receipt:{$receipt->uuid}"), 0, 8)) % 100000000);
         $time = CarbonImmutable::parse($receipt->created_at ?? now())->setTimezone('Asia/Tashkent');
         $fiscal = in_array($document->type, [FiscalReceiptType::SALE, FiscalReceiptType::REFUND], true);

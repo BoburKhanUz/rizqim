@@ -35,7 +35,7 @@ class FiscalReceiptController extends ManagementController
 
     public const LINE = 'array{name: string, mxik_code: string, package_code: string|null, unit: string, quantity: string, unit_price: string, amount: string, vat_rate: string, vat_amount: string, no_vat: bool, commissioner_tin: string|null, marking_code: string|null}';
 
-    public const PAYMENT = 'array{form: \'cash\'|\'card\'|\'qr\', amount: string, prepayment: bool, credit: bool, card_type: string|null, transaction_id: string|null}';
+    public const PAYMENT = 'array{form: \'cash\'|\'card\'|\'qr\', amount: string, prepayment: bool, credit: bool, card_type: string|null, transaction_id: string|null, card_last4: string|null}';
 
     public const RECEIPT = 'array{uuid: string, type: \'sale\'|\'refund\'|\'advance\'|\'credit\', status: \'pending\'|\'issued\'|\'failed\', payment_form: \'cash\'|\'card\'|\'qr\'|\'mixed\', driver: string, provider: string|null, non_fiscal: bool, tax_regime: string|null, total: string, vat_total: string, fiscal_sign: string|null, receipt_number: string|null, qr_url: string|null, terminal_id: string|null, error: string|null, attempts: int, next_attempt_at: string|null, issued_at: string|null, created_at: string, branch_id: int|null, device_id: int|null, subject_type: string|null, subject_id: int|null, original_receipt_uuid: string|null, lines: list<' . self::LINE . '>, payments: list<' . self::PAYMENT . '>}';
 

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * @property int|float $quantity a decimal column (1.5 kg), read as an int when whole
  * @property list<array<string, mixed>>|null $modifiers
+ * @property list<array<string, mixed>>|null $set_parts P6-15: the parts of a "kompleks" line as sold (MealSets::partsFor)
  * @property numeric-string $modifiers_total
  * @property \App\Enums\KitchenItemStatus $kitchen_status P2-11: the kitchen display's per line "ready"
  * @property \Illuminate\Support\Carbon|null $ready_at
@@ -39,6 +40,7 @@ class OrderItem extends Model
     protected $casts = [
         'unit' => \App\Enums\MenuUnit::class,
         'modifiers' => 'array',
+        'set_parts' => 'array',
         'modifiers_total' => 'decimal:2',
         // P2-11: kitchen display bump (docs/API.md)
         'kitchen_status' => \App\Enums\KitchenItemStatus::class,

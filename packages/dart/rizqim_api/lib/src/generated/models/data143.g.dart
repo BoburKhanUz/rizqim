@@ -7,15 +7,23 @@ part of 'data143.dart';
 // **************************************************************************
 
 Data143 _$Data143FromJson(Map<String, dynamic> json) => Data143(
-  totalDebt: json['total_debt'] as String,
-  count: (json['count'] as num).toInt(),
-  accounts: (json['accounts'] as List<dynamic>)
-      .map((e) => Accounts2.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  rooms: (json['rooms'] as List<dynamic>)
+      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unassigned: (json['unassigned'] as List<dynamic>)
+      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data143ToJson(Data143 instance) => <String, dynamic>{
-  'total_debt': instance.totalDebt,
-  'count': instance.count,
-  'accounts': instance.accounts,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'rooms': instance.rooms,
+  'unassigned': instance.unassigned,
 };

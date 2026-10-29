@@ -21,12 +21,14 @@ import '../models/post_v1_pos_refunds_response.dart';
 import '../models/post_v1_pos_shifts_response.dart';
 import '../models/post_v1_pos_shifts_uuid_cash_movements_response.dart';
 import '../models/post_v1_pos_shifts_uuid_close_response.dart';
+import '../models/put_v1_pos_shifts_uuid_bank_report_response.dart';
 import '../models/v1_pos_approvals_request_body.dart';
 import '../models/v1_pos_bills_uuid_payments_request_body.dart';
 import '../models/v1_pos_bills_uuid_print_request_body.dart';
 import '../models/v1_pos_orders_uuid_bills_request_body.dart';
 import '../models/v1_pos_refunds_request_body.dart';
 import '../models/v1_pos_shifts_request_body.dart';
+import '../models/v1_pos_shifts_uuid_bank_report_request_body.dart';
 import '../models/v1_pos_shifts_uuid_cash_movements_request_body.dart';
 import '../models/v1_pos_shifts_uuid_close_request_body.dart';
 
@@ -71,7 +73,9 @@ abstract class PosBillingApi {
   /// One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional.
   /// `tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:.
   /// `card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are.
-  /// required), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once.
+  /// required; P6-16: in "faqat terminal" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's.
+  /// last four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the.
+  /// receipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once.
   /// per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;.
   /// once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
   /// The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is.
@@ -241,6 +245,27 @@ abstract class PosBillingApi {
     @Path('uuid') required String uuid,
   });
 
+  /// Bank terminal's day total of a shift.
+  ///
+  /// The bank terminal's settlement (day) total, compared with the card money Rizqim recorded in the shift: card.
+  /// payments of bills, card booking deposits and nasiya repayments taken on the till, less card refunds and card.
+  /// deposit refunds (`rizqim_total`, `rizqim_breakdown`). `difference` = bank − Rizqim; above the branch's.
+  /// `difference_threshold` (`over_threshold`) the owner is alerted and the Z shows it. `source`: `manual` (default:.
+  /// `bank_total` typed from the slip, optional `bank_count`), `import` (`transactions`: [{rrn, amount}] from the.
+  /// bank's report, up to 2000: the total is their sum and each is matched to Rizqim's card payments by RRN —.
+  /// `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa: the provider's own card total; 409.
+  /// `provider_report_unavailable` when there is none). Works on an open shift (compared again at its close) and.
+  /// after the Z; a new entry replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled`.
+  /// without the terminal_card_flow module.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @PUT('/v1/pos/shifts/{uuid}/bank-report')
+  Future<PutV1PosShiftsUuidBankReportResponse> posBankTerminalUpdate({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() V1PosShiftsUuidBankReportRequestBody? body,
+  });
+
   /// Cash in or out of the drawer.
   ///
   /// `type`: `cash_in`, `cash_out`, `wage` (paid to an employee: `employee_id` required) or `purchase` (bazaar.
@@ -266,8 +291,11 @@ abstract class PosBillingApi {
   /// `shift_has_open_orders`: the ones opened in this shift, or any of the branch when it is the last open shift) or.
   /// a sale's receipt is pending (409 `shift_has_pending_receipts`), unless `force: true` with a `reason` by someone.
   /// with orders.cancel (or a manager's `approval_token` for it): open orders then wait for the next shift. The Z.
-  /// report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs.
-  /// pos.close_shift.
+  /// report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. P6-16: an.
+  /// optional `bank_terminal` {`total` — the bank terminal's day total from its settlement slip, `count`,.
+  /// `terminal_ref`, `note`} is compared with the shift's card money after the Z is written (`bank_terminal` of the.
+  /// answer; a difference above the branch's threshold alerts the owner); it never keeps the shift from closing and is.
+  /// ignored while the branch's format has no terminal_card_flow. Needs pos.close_shift.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/shifts/{uuid}/close')

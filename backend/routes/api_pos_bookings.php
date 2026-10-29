@@ -19,7 +19,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         Route::get('/bookings', [BookingController::class, 'index']);
         // P4-21: a new booking and a new deposit need the plan's bookings / deposits (403 plan_feature_missing); the
         // existing ones go on (confirm, arrive, cancel, refund or retain a deposit) whatever the plan
-        Route::post('/bookings', [BookingController::class, 'store'])->middleware(['plan.feature:bookings', EnsureIdempotency::class]);
+        // P6-11: a new booking needs the branch's bookings module too (403 module_disabled); a deposit on an existing
+        // booking is a payment and never asks it
+        Route::post('/bookings', [BookingController::class, 'store'])->middleware(['plan.feature:bookings', 'pos.module:bookings', EnsureIdempotency::class]);
         Route::get('/bookings/{uuid}', [BookingController::class, 'show'])->whereUuid('uuid');
         Route::patch('/bookings/{uuid}', [BookingController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
         Route::post('/bookings/{uuid}/confirm', [BookingController::class, 'confirm'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
@@ -49,8 +51,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
         // P3-26: opening or changing an account at the till: customer_accounts.manage, or a cashier with a manager's
         // approval token for it (checked in the controller, ApprovalGate)
         // P4-21: opening a nasiya account needs the plan's customer_accounts; repayments and paying a bill to an existing
-        // account never depend on the plan
-        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(['plan.feature:customer_accounts', EnsureIdempotency::class]);
+        // account never depend on the plan; P6-11: opening one needs the branch's customer_accounts module too
+        Route::post('/customer-accounts', [CustomerAccountController::class, 'store'])->middleware(['plan.feature:customer_accounts', 'pos.module:customer_accounts', EnsureIdempotency::class]);
         Route::patch('/customer-accounts/{uuid}', [CustomerAccountController::class, 'update'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
     });
 

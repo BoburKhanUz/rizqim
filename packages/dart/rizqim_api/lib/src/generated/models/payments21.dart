@@ -17,6 +17,7 @@ class Payments21 {
     required this.credit,
     required this.cardType,
     required this.transactionId,
+    required this.cardLast4,
   });
 
   factory Payments21.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,8 @@ class Payments21 {
   final String? cardType;
   @JsonKey(name: 'transaction_id')
   final String? transactionId;
+  @JsonKey(name: 'card_last4')
+  final String? cardLast4;
 
   Map<String, Object?> toJson() => _$Payments21ToJson(this);
 }

@@ -8,20 +8,22 @@ import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { BranchSelect, useBranchChoice } from '../menu/BranchChoice';
 import { BranchSettingsPanel } from './BranchSettingsPanel';
+import { FormatPanel } from './FormatPanel';
 import { PrintersPanel } from './PrintersPanel';
 import { RoutesPanel } from './RoutesPanel';
 import { StationsPanel } from './StationsPanel';
 
-type Tab = 'stations' | 'routes' | 'printers' | 'settings';
-const TABS: Tab[] = ['stations', 'routes', 'printers', 'settings'];
+type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings';
+// P6-11: the branch's format comes first (it decides the till's mode and modules)
+const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings'];
 
-// /pos-setup (settings.manage, the owner): kitchen stations, which dishes go to which station, printers and the branch's POS
+// /pos-setup (settings.manage, the owner): the branch's format (P6-11), kitchen stations, which dishes go to which station, printers and the branch's POS
 // settings. Everything belongs to one branch: the top bar's, or the page's own picker when the top bar says "all".
 export function PosSetupView() {
   const { t } = useI18n();
   const access = useCan();
   const choice = useBranchChoice();
-  const [tab, setTab] = useState<Tab>('stations');
+  const [tab, setTab] = useState<Tab>('format');
 
   if (access.ready && !access.can('settings.manage')) {
     return (
@@ -46,6 +48,7 @@ export function PosSetupView() {
           <BranchSelect branches={choice.branches} value={choice.branchId} onChange={choice.choose} className="sm:max-w-sm" />
           <Tabs idPrefix="pos" label={t('pos_tabs')} value={tab} onChange={setTab} tabs={TABS.map((id) => ({ id, label: t(`pos_tab_${id}`) }))} />
           <div role="tabpanel" id={`pos-panel-${tab}`} aria-labelledby={`pos-tab-${tab}`}>
+            {tab === 'format' && <FormatPanel branchId={choice.branchId} />}
             {tab === 'stations' && <StationsPanel branchId={choice.branchId} />}
             {tab === 'routes' && <RoutesPanel branchId={choice.branchId} />}
             {tab === 'printers' && <PrintersPanel branchId={choice.branchId} />}

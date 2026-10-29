@@ -112,6 +112,10 @@ class TelegramNotificationService
                     'rejected' => $canceledText,
                     'refunded' => $this->refundText($order),
                 ];
+                // P6-13: a pickup order with a queue number is called by it (again on every call from the till)
+                if ($order->queue_number !== null) {
+                    $statusTexts['ready'] = "🔔 *Buyurtmangiz tayyor, raqam {$order->queue_number}!*\n🆔 ID: #{$order->short_code}\n🏪 Kassaga kelib, raqamingizni ayting.";
+                }
             } else {
                 $courier = in_array($statusValue, ['delivery', 'on_the_way'], true) ? $order->courier : null;
                 $onTheWay = "🚚 *Buyurtmangiz yo'lga chiqdi!*\n🆔 ID: #{$order->short_code}\n🚴 Kuryerimiz uni sizga yetkazish uchun tezlikda yo'lga chiqdi."

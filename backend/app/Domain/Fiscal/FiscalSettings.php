@@ -2,6 +2,7 @@
 
 namespace App\Domain\Fiscal;
 
+use App\Models\Device;
 use App\Models\Store;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -13,6 +14,8 @@ use Illuminate\Validation\ValidationException;
  *     {
  *       "enabled": false,                 // fiscal mode: receipts go to `driver`; off: the `null` driver ("fiskal emas")
  *       "driver": "sandbox",              // a key of config('fiscal.drivers'); null: config('fiscal.default_driver')
+ *       "smart_kassa_driver": null,       // P6-16: the driver of POS terminals flagged smart_kassa (the provider's
+ *                                         // virtual kassa bound to the device); null: `driver`
  *       "charges": {                      // receipt lines that are not menu items (FiscalLineBuilder::forCharge)
  *         "room_fee": {"mxik": "1020200…", "package_code": null, "unit": "xizmat", "name": "Xona puli"},
  *         …                               // also place_fee, min_spend_topup, service_charge, deposit, booking_fee,
@@ -79,6 +82,31 @@ final class FiscalSettings
     }
 
     /**
+     * P6-16 (D5 b): the driver chosen for smart kassas (Rizqim on an Android smart kassa: the provider's virtual kassa
+     * bound to the device), the configured one when none is chosen.
+     */
+    public function smartKassaDriver(): string
+    {
+        $driver = $this->raw['smart_kassa_driver'] ?? null;
+        $drivers = array_keys((array) config('fiscal.drivers', []));
+
+        return is_string($driver) && in_array($driver, $drivers, true) ? $driver : $this->configuredDriver();
+    }
+
+    /**
+     * The driver a receipt from $device goes to now: in fiscal mode a smart kassa's receipts go to the smart kassa
+     * driver, every other one to the configured driver; `null` while fiscal mode is off.
+     */
+    public function driverFor(?Device $device): string
+    {
+        if (!$this->enabled()) {
+            return 'null';
+        }
+
+        return $device !== null && (bool) $device->getAttribute('smart_kassa') ? $this->smartKassaDriver() : $this->configuredDriver();
+    }
+
+    /**
      * @return array{name: string, mxik: string|null, package_code: string|null, unit: string}
      */
     public function charge(string $charge): array
@@ -117,7 +145,7 @@ final class FiscalSettings
     /**
      * Everything with its defaults, as the settings endpoints return it.
      *
-     * @return array{enabled: bool, driver: string, active_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}
+     * @return array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}
      */
     public function toArray(): array
     {
@@ -130,6 +158,7 @@ final class FiscalSettings
             'enabled' => $this->enabled(),
             'driver' => $this->configuredDriver(),
             'active_driver' => $this->driver(),
+            'smart_kassa_driver' => $this->smartKassaDriver(),
             'charges' => $charges,
             'sandbox' => $this->sandbox(),
             'deposit_refund_receipt' => $this->flag('deposit_refund_receipt'),
@@ -164,6 +193,7 @@ final class FiscalSettings
             'fiscal_settings' => ['sometimes', 'array'],
             'fiscal_settings.enabled' => ['sometimes', 'boolean'],
             'fiscal_settings.driver' => ['sometimes', 'nullable', 'string', Rule::in(array_keys((array) config('fiscal.drivers', [])))],
+            'fiscal_settings.smart_kassa_driver' => ['sometimes', 'nullable', 'string', Rule::in(array_keys((array) config('fiscal.drivers', [])))],
             'fiscal_settings.charges' => ['sometimes', 'array'],
             'fiscal_settings.charges.*' => ['array'],
             'fiscal_settings.charges.*.name' => ['sometimes', 'nullable', 'string', 'max:128'],
@@ -181,6 +211,7 @@ final class FiscalSettings
             'tin.regex' => "STIR 9 ta raqamdan iborat bo'lishi kerak.",
             'tax_regime.in' => "Soliq rejimi noto'g'ri: vat, vat_simplified yoki turnover.",
             'fiscal_settings.driver.in' => "Fiskal drayver noto'g'ri.",
+            'fiscal_settings.smart_kassa_driver.in' => "Smart-kassa drayveri noto'g'ri.",
             'fiscal_settings.charges.*.mxik.regex' => "MXIK kodi 17 ta raqamdan iborat bo'lishi kerak.",
             'fiscal_settings.charges.*.package_code.regex' => "Qadoq kodi faqat raqamlardan iborat bo'lishi kerak (ko'pi bilan 20 ta).",
         ]), [
@@ -246,6 +277,13 @@ final class FiscalSettings
         }
         if (array_key_exists('driver', $input)) {
             $stored['driver'] = $input['driver'];
+        }
+        if (array_key_exists('smart_kassa_driver', $input)) {
+            if ($input['smart_kassa_driver'] === null) {
+                unset($stored['smart_kassa_driver']);
+            } else {
+                $stored['smart_kassa_driver'] = $input['smart_kassa_driver'];
+            }
         }
 
         foreach ((array) ($input['charges'] ?? []) as $charge => $fields) {

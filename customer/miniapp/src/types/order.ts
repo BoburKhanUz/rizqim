@@ -114,6 +114,9 @@ export interface Order {
   cancel_note: string | null;
   shipping_address: ShippingAddress | null;
   address: string | null; // appended: shipping_address.address
+  // P6-13: the pickup number of the day (a branch with order numbers; null before it is accepted) and where it is
+  queue_number?: number | null;
+  pickup_status?: 'preparing' | 'ready' | 'handed' | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

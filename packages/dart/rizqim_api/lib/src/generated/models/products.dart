@@ -23,7 +23,7 @@ part 'products.g.dart';
 @JsonSerializable()
 class Products {
   const Products({
-    required this.createdAt,
+    required this.hasVariants,
     required this.uuid,
     required this.storeId,
     required this.categoryId,
@@ -34,8 +34,8 @@ class Products {
     required this.sku,
     required this.status,
     required this.sortOrder,
-    required this.hasVariants,
     required this.id,
+    required this.createdAt,
     required this.updatedAt,
     required this.deletedAt,
     required this.image,
@@ -45,6 +45,7 @@ class Products {
     required this.packageCode,
     required this.vatRate,
     required this.quickAdd,
+    required this.dailyRotation,
     required this.stationId,
     required this.imageUrl,
     required this.imageThumbUrls,
@@ -97,6 +98,8 @@ class Products {
   final String? vatRate;
   @JsonKey(name: 'quick_add')
   final bool quickAdd;
+  @JsonKey(name: 'daily_rotation')
+  final bool dailyRotation;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

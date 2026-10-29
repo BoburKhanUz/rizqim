@@ -4,19 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user.dart';
-
 part 'data57.g.dart';
 
 @JsonSerializable()
 class Data57 {
-  const Data57({required this.employee, required this.inviteLink});
+  const Data57({
+    required this.code,
+    required this.expiresAt,
+    required this.type,
+    required this.branchId,
+  });
 
   factory Data57.fromJson(Map<String, Object?> json) => _$Data57FromJson(json);
 
-  final User employee;
-  @JsonKey(name: 'invite_link')
-  final String inviteLink;
+  final String code;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  final String type;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
 
   Map<String, Object?> toJson() => _$Data57ToJson(this);
 }

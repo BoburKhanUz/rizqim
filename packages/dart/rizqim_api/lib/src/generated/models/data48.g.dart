@@ -7,15 +7,25 @@ part of 'data48.dart';
 // **************************************************************************
 
 Data48 _$Data48FromJson(Map<String, dynamic> json) => Data48(
-  code: json['code'] as String,
-  expiresAt: json['expires_at'] as String,
-  type: json['type'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  date: json['date'] as String,
+  businessDate: json['business_date'] as String,
+  enforced: json['enforced'] as bool,
+  setValue: json['set'] as bool,
+  productIds: Map<String, int>.from(json['product_ids'] as Map),
+  previousDate: json['previous_date'] as String?,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data48ToJson(Data48 instance) => <String, dynamic>{
-  'code': instance.code,
-  'expires_at': instance.expiresAt,
-  'type': instance.type,
   'branch_id': instance.branchId,
+  'date': instance.date,
+  'business_date': instance.businessDate,
+  'enforced': instance.enforced,
+  'set': instance.setValue,
+  'product_ids': instance.productIds,
+  'previous_date': instance.previousDate,
+  'products': instance.products,
 };

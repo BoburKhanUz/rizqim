@@ -100,6 +100,9 @@ export class FakeMenu {
   stopList: FakeStopEntry[] = []
   /** ProductChannelPrice rows the owner saved, by product id (the body of PUT /owner/products/{id}/channel-prices). */
   channelPrices = new Map<number, unknown>()
+  /** P6-15: the dishes on today's menu (null: no menu set for the day) and the rotating dishes. */
+  dailyMenu: number[] | null = null
+  rotating = new Set<number>()
   private counter = 500
 
   constructor(private readonly backend: FakeBackend) {
@@ -420,6 +423,49 @@ export class FakeMenu {
     if (req.method === 'GET' && path === '/v1/owner/batches') {
       const branch = this.branchOf(req.query)
       return typeof branch === 'number' ? ok({ branch_id: branch, batches: [] }) : branch
+    }
+
+    // P6-15: batch plans, the daily menu and the yield report
+    if (req.method === 'GET' && path === '/v1/owner/batch-plans') {
+      const branch = this.branchOf(req.query)
+      return typeof branch === 'number' ? ok({ branch_id: branch, modules: { batches: true, batch_writeoff: true }, plans: [] }) : branch
+    }
+    if (path === '/v1/owner/daily-menu' && (req.method === 'GET' || req.method === 'PUT')) {
+      const branch = this.branchOf(req.query, input.branch_id)
+      if (typeof branch !== 'number') return branch
+      if (req.method === 'PUT') {
+        const ids = Array.isArray(input.product_ids) ? input.product_ids.map(Number) : []
+        this.dailyMenu = ids
+        for (const id of ids) this.rotating.add(id)
+      }
+      const date = '2026-11-14'
+      return ok({
+        branch_id: branch,
+        date,
+        business_date: date,
+        enforced: true,
+        set: this.dailyMenu !== null,
+        product_ids: this.dailyMenu ?? [],
+        previous_date: null,
+        products: this.products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          category_id: product.category_id,
+          category_name: product.category?.name ?? null,
+          daily_rotation: this.rotating.has(product.id),
+          on_menu: (this.dailyMenu ?? []).includes(product.id),
+          is_set: false,
+        })),
+      })
+    }
+    if (req.method === 'PUT' && path === '/v1/owner/daily-menu/rotation') {
+      const ids = Array.isArray(input.product_ids) ? input.product_ids.map(Number) : []
+      this.rotating = new Set(ids)
+      return ok({ product_ids: ids })
+    }
+    if (req.method === 'GET' && path === '/v1/owner/batch-yield') {
+      const branch = this.branchOf(req.query)
+      return typeof branch === 'number' ? ok({ branch_id: branch, from: String(req.query.from ?? ''), to: String(req.query.to ?? ''), batches: [], days: [], write_offs: [], in_sets: [] }) : branch
     }
     return null
   }

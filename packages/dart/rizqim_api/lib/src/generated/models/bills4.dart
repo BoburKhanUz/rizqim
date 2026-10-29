@@ -4,9 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal13.dart';
+import 'fiscal14.dart';
 import 'items30.dart';
 import 'payments35.dart';
+import 'ticket12.dart';
 
 part 'bills4.g.dart';
 
@@ -35,6 +36,7 @@ class Bills4 {
     required this.fiscal,
     required this.items,
     required this.payments,
+    required this.ticket,
     required this.createdAt,
   });
 
@@ -72,9 +74,10 @@ class Bills4 {
   final String? printedAt;
   @JsonKey(name: 'paid_at')
   final String? paidAt;
-  final Fiscal13 fiscal;
+  final Fiscal14 fiscal;
   final List<Items30> items;
   final List<Payments35> payments;
+  final Ticket12? ticket;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

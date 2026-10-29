@@ -19,6 +19,8 @@ function routes(extra: Record<string, (request: Request) => Response | Promise<R
     'GET /api/v1/owner/branches': () => ok([branch()]),
     'GET /api/v1/owner/batches': (request: Request) => ok({ branch_id: Number(new URL(request.url).searchParams.get('branch_id')), batches }),
     'GET /api/v1/owner/products': () => json({ success: true, data: [lagman, product()] }),
+    // P6-15: the planned batches and which batch features the branch's format has
+    'GET /api/v1/owner/batch-plans': () => ok({ branch_id: 1, modules: { batches: true, batch_writeoff: false }, plans: [] }),
     ...extra,
   };
 }
@@ -159,5 +161,104 @@ describe('the batches', () => {
     renderPage(<BatchesView />);
     await screen.findAllByText('Osh');
     expect(screen.queryByRole('button', { name: /Qozon ochish|To'ldirish|Yopish/ })).not.toBeInTheDocument();
+  });
+
+  describe('next batch and write-off (P6-15)', () => {
+    const plan = (over: Record<string, unknown> = {}) => ({
+      id: 5,
+      uuid: 'p-5',
+      branch_id: 1,
+      product_id: 7,
+      product_variant_id: null,
+      product_name: 'Osh',
+      variant_name: null,
+      planned_at: '2026-11-14T07:30:00Z',
+      time: '12:30',
+      quantity: 12,
+      label: null,
+      status: 'planned',
+      overdue: false,
+      ...over,
+    });
+    const withPlans = (modules: { batches: boolean; batch_writeoff: boolean }, plans: unknown[] = []) => ({ 'GET /api/v1/owner/batch-plans': () => ok({ branch_id: 1, modules, plans }) });
+
+    it('lists the planned batches and cancels one', async () => {
+      const { calls } = mockFetch(routes({ ...withPlans({ batches: true, batch_writeoff: false }, [plan()]), 'DELETE /api/v1/owner/batch-plans/5': () => ok(null) }));
+      renderPage(<BatchesView />);
+      const user = userEvent.setup();
+      const section = await screen.findByRole('region', { name: 'Keyingi partiya' });
+      expect(await within(section).findByText('12:30')).toBeInTheDocument();
+      expect(section).toHaveTextContent('12 porsiya');
+      await user.click(within(section).getByRole('button', { name: 'Rejani bekor qilish' }));
+      await waitFor(() => expect(calls.some((call) => call.method === 'DELETE' && call.url.endsWith('/batch-plans/5'))).toBe(true));
+    });
+
+    it('plans the next batch of a dish at a time', async () => {
+      const { calls } = mockFetch(routes({ ...withPlans({ batches: true, batch_writeoff: false }), 'POST /api/v1/owner/batch-plans': () => json({ success: true, message: 'ok', data: plan() }, 201) }));
+      renderPage(<BatchesView />);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Keyingi partiya vaqti' }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+      expect((await within(dialog).findAllByText("Maydonni to'ldiring.")).length).toBe(2);
+      await user.selectOptions(within(dialog).getByLabelText('Taom'), "Osh (Qozon bo'yicha)");
+      await user.type(within(dialog).getByLabelText('Soat'), '12:30');
+      await user.type(within(dialog).getByLabelText('Qancha tayyorlanadi (ixtiyoriy)'), '12');
+      await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await calls.find((call) => call.method === 'POST')!.json()).toEqual({ branch_id: 1, product_id: 7, product_variant_id: null, time: '12:30', quantity: 12, label: null });
+    });
+
+    it('writes off unsold portions with a reason, once per attempt', async () => {
+      const { calls } = mockFetch(routes({ ...withPlans({ batches: true, batch_writeoff: true }), 'POST /api/v1/owner/batches/41/write-off': () => json({ success: true, message: 'ok', data: { write_off: { uuid: 'w', quantity: 4, unit: 'piece', reason: 'spoiled' } } }, 201) }));
+      renderPage(<BatchesView />);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: /Hisobdan chiqarish/ }));
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveTextContent('hozir 12 qoldi');
+
+      // more than is left, and "other" without a note, are refused before the request
+      await user.type(within(dialog).getByLabelText('Qancha chiqariladi'), '13');
+      await user.selectOptions(within(dialog).getByLabelText('Sabab'), 'Boshqa sabab');
+      await user.click(within(dialog).getByRole('button', { name: 'Hisobdan chiqarish' }));
+      expect(await within(dialog).findByText('Partiyada faqat 12 qolgan.')).toBeInTheDocument();
+      expect(within(dialog).getByText('«Boshqa sabab» tanlansa, izoh yozing.')).toBeInTheDocument();
+      expect(calls.some((call) => call.method === 'POST')).toBe(false);
+
+      await user.clear(within(dialog).getByLabelText('Qancha chiqariladi'));
+      await user.type(within(dialog).getByLabelText('Qancha chiqariladi'), '4');
+      await user.selectOptions(within(dialog).getByLabelText('Sabab'), 'Buzildi');
+      await user.click(within(dialog).getByRole('button', { name: 'Hisobdan chiqarish' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      const post = calls.find((call) => call.method === 'POST')!;
+      expect(await post.json()).toEqual({ quantity: 4, reason: 'spoiled', note: null, close: false });
+      expect(post.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('writes the rest off and closes the batch in one step', async () => {
+      const { calls } = mockFetch(routes({ ...withPlans({ batches: true, batch_writeoff: true }), 'POST /api/v1/owner/batches/41/write-off': () => json({ success: true, message: 'ok', data: { write_off: { uuid: 'w', quantity: 12, unit: 'piece', reason: 'unsold' } } }, 201) }));
+      renderPage(<BatchesView />);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: /Hisobdan chiqarish/ }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Hammasini chiqarish va yopish' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Hisobdan chiqarish' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await calls.find((call) => call.method === 'POST')!.json()).toEqual({ quantity: 12, reason: 'unsold', note: null, close: true });
+    });
+
+    it('has no write-off button where the format lacks the write-off module', async () => {
+      mockFetch(routes());
+      renderPage(<BatchesView />);
+      await screen.findAllByText('Osh');
+      expect(screen.queryByRole('button', { name: /Hisobdan chiqarish/ })).not.toBeInTheDocument();
+    });
+
+    it('hides the planning where the format has no batches module', async () => {
+      mockFetch(routes({ 'GET /api/v1/owner/batch-plans': () => json({ success: false, message: 'Modul o\'chirilgan', code: 'module_disabled' }, 403) }));
+      renderPage(<BatchesView />);
+      await screen.findAllByText('Osh');
+      expect(screen.queryByRole('region', { name: 'Keyingi partiya' })).not.toBeInTheDocument();
+    });
   });
 });

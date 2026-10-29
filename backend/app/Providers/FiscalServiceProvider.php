@@ -16,7 +16,8 @@ use Illuminate\Support\ServiceProvider;
 /**
  * P3-11: the fiscal layer (App\Domain\Fiscal, config/fiscal.php). The rest of the backend asks for FiscalIssuer,
  * FiscalLineBuilder and FiscalReadiness; drivers come from config('fiscal.drivers'). Pending receipts are swept
- * every minute (fiscal:retry-pending) in case their queued retry was lost.
+ * every minute (fiscal:retry-pending) in case their queued retry was lost. P6-16 adds the till's card flow section of
+ * GET /pos/bootstrap (App\Domain\Pos\TerminalFlow).
  */
 class FiscalServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,9 @@ class FiscalServiceProvider extends ServiceProvider
         $this->app->singleton(FiscalIssuer::class, fn ($app) => $app->make(FiscalService::class));
         $this->app->singleton(FiscalLineBuilder::class, MenuFiscalLineBuilder::class);
         $this->app->singleton(FiscalReadiness::class);
+
+        // P6-16: the till's card flow (bank terminal "faqat terminal" mode, smart kassa) in GET /pos/bootstrap
+        $this->app->tag([\App\Domain\Pos\TerminalFlow\TerminalFlowBootstrapSection::class], \App\Domain\Pos\Setup\PosBootstrap::CONTRIBUTORS);
     }
 
     public function boot(): void

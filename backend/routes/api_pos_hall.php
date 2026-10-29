@@ -43,18 +43,20 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
         });
 
         // P4-21: a locked subscription changes no hall fees, room tariffs or choy-non items (billing.unlocked: writes only)
+        // P6-11: a new or changed room tariff / choy-non item needs the branch's room_fee / guest_items module (403
+        // module_disabled); reading and deleting them never does
         Route::middleware(['permission:settings.manage', 'billing.unlocked'])->group(function () {
             Route::delete('/owner/service-fees/halls/{id}', [HallController::class, 'destroyServiceFee'])->where('id', RowId::ROUTE_PATTERN);
 
             Route::get('/owner/room-tariffs', [RoomTariffController::class, 'index']);
-            Route::post('/owner/room-tariffs', [RoomTariffController::class, 'store']);
+            Route::post('/owner/room-tariffs', [RoomTariffController::class, 'store'])->middleware('pos.module:room_fee');
             Route::put('/owner/room-tariffs/calendar', [RoomTariffController::class, 'calendarUpdate']);
-            Route::patch('/owner/room-tariffs/{id}', [RoomTariffController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
+            Route::patch('/owner/room-tariffs/{id}', [RoomTariffController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware('pos.module:room_fee');
             Route::delete('/owner/room-tariffs/{id}', [RoomTariffController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
 
             Route::get('/owner/auto-guest-items', [AutoGuestItemController::class, 'index']);
-            Route::post('/owner/auto-guest-items', [AutoGuestItemController::class, 'store']);
-            Route::patch('/owner/auto-guest-items/{id}', [AutoGuestItemController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
+            Route::post('/owner/auto-guest-items', [AutoGuestItemController::class, 'store'])->middleware('pos.module:guest_items');
+            Route::patch('/owner/auto-guest-items/{id}', [AutoGuestItemController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware('pos.module:guest_items');
             Route::delete('/owner/auto-guest-items/{id}', [AutoGuestItemController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN);
         });
     });

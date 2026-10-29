@@ -4,8 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'plan2.dart';
-import 'lines4.dart';
+import 'kassa_status.dart';
 
 part 'data75.g.dart';
 
@@ -13,58 +12,28 @@ part 'data75.g.dart';
 class Data75 {
   const Data75({
     required this.uuid,
-    required this.number,
-    required this.period,
-    required this.periodStart,
-    required this.periodEnd,
-    required this.plan,
-    required this.terminalsCount,
-    required this.includedTerminals,
-    required this.baseFee,
-    required this.feePerTerminal,
-    required this.lines,
-    required this.amount,
-    required this.kind,
-    required this.paidAmount,
-    required this.status,
-    required this.dueDate,
-    required this.issuedAt,
-    required this.paidAt,
-    required this.voidedAt,
+    required this.name,
+    required this.branchId,
+    required this.smartKassa,
+    required this.fiscalKassaId,
+    required this.kassaStatus,
+    required this.lastSeenAt,
   });
 
   factory Data75.fromJson(Map<String, Object?> json) => _$Data75FromJson(json);
 
   final String uuid;
-  final String number;
-  final String period;
-  @JsonKey(name: 'period_start')
-  final String periodStart;
-  @JsonKey(name: 'period_end')
-  final String periodEnd;
-  final Plan2? plan;
-  @JsonKey(name: 'terminals_count')
-  final int terminalsCount;
-  @JsonKey(name: 'included_terminals')
-  final int includedTerminals;
-  @JsonKey(name: 'base_fee')
-  final num baseFee;
-  @JsonKey(name: 'fee_per_terminal')
-  final num feePerTerminal;
-  final List<Lines4> lines;
-  final num amount;
-  final String kind;
-  @JsonKey(name: 'paid_amount')
-  final String paidAmount;
-  final String status;
-  @JsonKey(name: 'due_date')
-  final String dueDate;
-  @JsonKey(name: 'issued_at')
-  final String issuedAt;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'voided_at')
-  final String? voidedAt;
+  final String? name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'smart_kassa')
+  final bool smartKassa;
+  @JsonKey(name: 'fiscal_kassa_id')
+  final String? fiscalKassaId;
+  @JsonKey(name: 'kassa_status')
+  final KassaStatus? kassaStatus;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
 
   Map<String, Object?> toJson() => _$Data75ToJson(this);
 }

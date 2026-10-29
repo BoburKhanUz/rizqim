@@ -212,6 +212,21 @@ describe('Orders: the lines of the new menu', () => {
   });
 });
 
+describe('Orders: the pickup number (P6-13)', () => {
+  it('shows the number the counter calls on a pickup order that has one, and nothing on one without', async () => {
+    serveOrders([
+      ordersAt(1, { status: 'ready', order_type: 'pickup', type: 'pickup', queue_number: 57, pickup_status: 'ready' }),
+      ordersAt(2, { status: 'new', order_type: 'pickup', type: 'pickup', queue_number: null }),
+    ]);
+
+    renderOrders();
+    await screen.findByText(`#${codeOf(1)}`);
+
+    expect(within(cardOf(1)).getByTestId('order-queue-number')).toHaveTextContent('Raqamingiz: 57');
+    expect(within(cardOf(2)).queryByTestId('order-queue-number')).not.toBeInTheDocument();
+  });
+});
+
 describe('Orders: open orders and history', () => {
   it('lists the open orders first and the finished ones below, from the two scopes of the API', async () => {
     serveOrders([ordersAt(1, { status: 'delivered' }), ordersAt(2, { status: 'preparing' })]);

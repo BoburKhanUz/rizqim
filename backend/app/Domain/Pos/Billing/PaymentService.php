@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\DB;
  * and per bill, until the bill is covered.
  *
  *  - cash: `amount` is what goes to the bill, `tendered_amount` what the guest handed over; the change is worked out;
- *  - card (a separate bank terminal): card type and the terminal's transaction id are required;
+ *  - card (a separate bank terminal): card type and the terminal's transaction id are required; P6-16 (D5 a): the
+ *    transaction id is the terminal's RRN in "faqat terminal" mode, and the card's last four digits are optional;
  *  - qr: a static or dynamic QR confirmed by the cashier (`reference`: the provider's id, optional);
  *  - prepayment: the booking's deposit (AdvanceLedger::apply), at most what is available, once per bill;
  *  - account (nasiya): the customer account is charged (CustomerAccountLedger::charge), approved by someone holding
@@ -49,7 +50,7 @@ final class PaymentService
     ) {}
 
     /**
-     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, reference?: string|null, account_uuid?: string|null}>  $tenders
+     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null}>  $tenders
      *
      * @throws PosActionException
      */
@@ -136,6 +137,7 @@ final class PaymentService
                     'change_amount' => $tender['change']?->toString(),
                     'card_type' => $tender['card_type'],
                     'transaction_id' => $tender['transaction_id'],
+                    'card_last4' => $tender['card_last4'],
                     'reference' => $tender['reference'],
                     'payload' => $payload,
                     // P3-31: money a till took offline, synced now (the sale receipt keeps when it was taken)
@@ -166,6 +168,7 @@ final class PaymentService
                     'amount' => $payment->amount,
                     'change' => $payment->change_amount,
                     'card_type' => $payment->getAttribute('card_type'),
+                    'card_last4' => $payment->getAttribute('card_last4'),
                 ], fn ($value) => $value !== null), $created),
                 'covered' => $covered,
             ], ['actor' => $user, 'device' => $device]);
@@ -184,7 +187,7 @@ final class PaymentService
 
     /**
      * @param  list<array<string, mixed>>  $tenders
-     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, reference: string|null, account_uuid: string|null}>
+     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, account_uuid: string|null}>
      *
      * @throws PosActionException
      */
@@ -217,6 +220,7 @@ final class PaymentService
 
             $cardType = null;
             $transactionId = null;
+            $last4 = null;
             if ($tender === PosTender::CARD) {
                 $cardType = strtolower(trim((string) ($input['card_type'] ?? '')));
                 $transactionId = trim((string) ($input['transaction_id'] ?? ''));
@@ -225,6 +229,13 @@ final class PaymentService
                 }
                 if ($transactionId === '') {
                     throw PosActionException::invalid('transaction_id_required', "Bank terminali chekidagi tranzaksiya raqamini kiriting.", ['index' => $i]);
+                }
+                // P6-16: optional, exactly the four digits the slip shows
+                $last4 = trim((string) ($input['card_last4'] ?? ''));
+                if ($last4 === '') {
+                    $last4 = null;
+                } elseif (!preg_match('/^\d{4}$/', $last4)) {
+                    throw PosActionException::invalid('card_last4_invalid', "Kartaning oxirgi 4 raqamini kiriting (yoki bo'sh qoldiring).", ['index' => $i]);
                 }
             }
 
@@ -243,6 +254,7 @@ final class PaymentService
                 'change' => $change,
                 'card_type' => $cardType,
                 'transaction_id' => $transactionId,
+                'card_last4' => $last4,
                 'reference' => filled($input['reference'] ?? null) ? mb_substr(trim((string) $input['reference']), 0, 100) : null,
                 'account_uuid' => $account,
             ];

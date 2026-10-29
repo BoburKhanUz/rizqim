@@ -137,7 +137,9 @@ class PosBillController extends PosBillingController
      * One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional
      * `tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:
      * `card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are
-     * required), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
+     * required; P6-16: in "faqat terminal" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's
+     * last four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the
+     * receipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
      * per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;
      * once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
      * The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
@@ -158,6 +160,7 @@ class PosBillController extends PosBillingController
             'tenders.*.tendered_amount' => ['nullable', 'numeric', 'gt:0', 'max:9999999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'tenders.*.card_type' => 'nullable|string|max:16',
             'tenders.*.transaction_id' => 'nullable|string|max:64',
+            'tenders.*.card_last4' => 'nullable|string|max:4',
             'tenders.*.reference' => 'nullable|string|max:100',
             'tenders.*.account_uuid' => 'nullable|uuid',
             'approval_token' => 'nullable|string|max:100',

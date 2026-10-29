@@ -11,6 +11,7 @@
 use App\Http\Controllers\Api\V1\Management\BranchPosSettingsController;
 use App\Http\Controllers\Api\V1\Management\KitchenStationController;
 use App\Http\Controllers\Api\V1\Management\KitchenStationRouteController;
+use App\Http\Controllers\Api\V1\Management\PosFormatController;
 use App\Http\Controllers\Api\V1\Management\PrinterController;
 use App\Http\Controllers\Api\V1\Pos\PosBootstrapController;
 use App\Http\Controllers\Api\V1\Pos\PosCatalogController;
@@ -42,5 +43,11 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
 
         Route::get('/owner/branches/{id}/pos-settings', [BranchPosSettingsController::class, 'show'])->where('id', RowId::ROUTE_PATTERN);
         Route::put('/owner/branches/{id}/pos-settings', [BranchPosSettingsController::class, 'update'])->where('id', RowId::ROUTE_PATTERN);
+
+        // P6-11: the branch's format profile, module switches and sample stations and menu (B10); writes refused while
+        // the subscription is locked (in the controller: subscription_locked)
+        Route::get('/owner/pos/format', [PosFormatController::class, 'show']);
+        Route::put('/owner/pos/format', [PosFormatController::class, 'update']);
+        Route::post('/owner/pos/format/template', [PosFormatController::class, 'applyTemplate']);
     });
 });

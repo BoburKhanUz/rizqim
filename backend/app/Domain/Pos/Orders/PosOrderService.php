@@ -115,9 +115,10 @@ class PosOrderService implements PosOrderOpener
     /**
      * Opens the order. Options: `booking_id` (P3-17's column), `held` (parsed held lines), `items` (parsed first round),
      * `external_id` (the device's own id for the order: a repeat returns the order already opened), `send` (send the
-     * first round's `now` lines at once), `note`.
+     * first round's `now` lines at once), `note`, `queue_number` (P6-13: the number the till took from its block;
+     * kept when allowed, else the order gets the next one, QueueNumbers).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -173,6 +174,8 @@ class PosOrderService implements PosOrderOpener
                 'total_price' => '0.00',
                 'commission_amount' => '0.00',
                 'booking_id' => $options['booking_id'] ?? null,
+                // P6-13: the till's number (OrderStamp checks it on `creating`)
+                'queue_number' => $options['queue_number'] ?? null,
             ], fn ($value) => $value !== null));
 
             OrderStatusHistory::create([
@@ -1133,6 +1136,9 @@ class PosOrderService implements PosOrderOpener
             $order->status = OrderStatus::PREPARING;
             $order->syncOriginalAttribute('status');
         }
+
+        // P6-13: a counter order's queue number is being prepared (the customer display's "Tayyorlanmoqda")
+        app(PickupQueue::class)->linesSent($order);
 
         return $items->pluck('id')->map(fn ($id) => (int) $id)->all();
     }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Menu;
 
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\OrderChannel;
 use App\Enums\PlaceFeeMode;
 use App\Models\Branch;
@@ -40,7 +42,8 @@ class ServiceFeeController extends MenuStaffController
      * For the store (`branch_id` null) or one branch. `service_charge_percent` 0-30; `place_fee_mode` per_person
      * (× guests) or per_table. Channels default to pos_hall; telegram is not accepted. P3-12: with `hall_id`, the
      * hall's own settings (R6: e.g. VIP rooms 15%, a self-service zone 0%); `DELETE /owner/service-fees/halls/{id}`
-     * removes them.
+     * removes them. P6-11: a positive service charge needs the branch's `service_charge` module (403 module_disabled);
+     * a stolovaya branch (or hall) takes none: 422 service_charge_locked.
      */
     public function update(Request $request, AuditLogger $audit): JsonResponse
     {
@@ -78,6 +81,24 @@ class ServiceFeeController extends MenuStaffController
                 throw ValidationException::withMessages(['hall_id' => 'Zal topilmadi.']);
             }
             $branchId = (int) $hall->branch_id;
+        }
+
+        // P6-11: a service charge is the branch's service_charge module; a stolovaya never charges one (VM 75: 422
+        // service_charge_locked). A store-wide row needs the module on at least one branch (a stolovaya reads it as 0%)
+        if (Money::of($data['service_charge_percent'])->isPositive()) {
+            $modules = app(PosModules::class);
+            $branch = $branchId !== null ? Branch::where('store_id', $storeId)->find($branchId) : null;
+            if ($branch instanceof Branch && $modules->profile($branch)->locksServiceCharge()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Stolovayada xizmat haqi qonun bo'yicha olinmaydi: foiz 0 bo'lishi kerak.",
+                    'code' => 'service_charge_locked',
+                    'data' => ['reason' => 'service_charge_locked', 'module' => PosModule::SERVICE_CHARGE->value, 'branch_id' => (int) $branch->id],
+                ], 422);
+            }
+            $branch instanceof Branch
+                ? $modules->assertEnabled($branch, PosModule::SERVICE_CHARGE)
+                : $modules->assertEnabledInStore($storeId, PosModule::SERVICE_CHARGE);
         }
 
         $setting = ServiceFeeSetting::where('store_id', $storeId)

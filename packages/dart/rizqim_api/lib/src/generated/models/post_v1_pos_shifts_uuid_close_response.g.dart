@@ -11,7 +11,7 @@ PostV1PosShiftsUuidCloseResponse _$PostV1PosShiftsUuidCloseResponseFromJson(
 ) => PostV1PosShiftsUuidCloseResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data177.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data202.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosShiftsUuidCloseResponseToJson(

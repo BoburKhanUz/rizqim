@@ -198,6 +198,11 @@ class StaffOrderPresenter
             'ready_at' => $item->ready_at?->toJSON(),
         ];
 
+        // P6-15: the parts of a kompleks line: the kitchen prepares each (docs/POS_SPEC.md "Kompleks")
+        if ($item->set_parts) {
+            $data['set_parts'] = $item->set_parts;
+        }
+
         // P3-12: a POS line also says its round, firing, station, seat, note and void ("O'CHIRILDI"); an online line
         // keeps exactly its P2-11 shape. Review P3-35: and its dish (product, category), so a display routes a line
         // without a station by the branch's station routes

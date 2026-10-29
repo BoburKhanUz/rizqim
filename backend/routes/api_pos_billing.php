@@ -48,4 +48,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     // pos.cash_in_out, or a manager's approval token for it (checked in the service)
     Route::post('/shifts/{uuid}/cash-movements', [PosShiftController::class, 'cashMovement'])->whereUuid('uuid')->middleware(['permission:pos.cash_in_out,pos.open_shift,pos.close_shift', $idempotent('pos.shifts.cash')]);
     Route::post('/shifts/{uuid}/close', [PosShiftController::class, 'close'])->whereUuid('uuid')->middleware(['permission:pos.close_shift', $idempotent('pos.shifts.close')]);
+    // P6-16: the bank terminal's day total of the shift, compared with its card money (never needed to close it)
+    Route::put('/shifts/{uuid}/bank-report', [\App\Http\Controllers\Api\V1\PosBilling\PosBankTerminalController::class, 'update'])->whereUuid('uuid')
+        ->middleware(['permission:pos.close_shift', 'pos.module:terminal_card_flow', $idempotent('pos.shifts.bank_report')]);
 });

@@ -12,7 +12,7 @@ _$PostV1PosCustomerAccountsUuidAdjustmentsResponseFromJson(
 ) => PostV1PosCustomerAccountsUuidAdjustmentsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data146.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data165.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosCustomerAccountsUuidAdjustmentsResponseToJson(

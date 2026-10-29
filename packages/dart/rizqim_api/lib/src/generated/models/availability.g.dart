@@ -14,7 +14,7 @@ Availability _$AvailabilityFromJson(Map<String, dynamic> json) => Availability(
       .map((e) => StopList.fromJson(e as Map<String, dynamic>))
       .toList(),
   batches: (json['batches'] as List<dynamic>)
-      .map((e) => Batches3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Batches4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

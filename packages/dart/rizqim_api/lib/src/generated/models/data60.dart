@@ -4,34 +4,45 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data59.dart';
+import 'layout.dart';
 
 part 'data60.g.dart';
 
 @JsonSerializable()
 class Data60 {
   const Data60({
-    required this.data,
-    required this.currentPage,
-    required this.lastPage,
-    required this.perPage,
-    required this.total,
-    required this.from,
-    required this.to,
+    required this.id,
+    required this.branchId,
+    required this.hallId,
+    required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
+    required this.sortOrder,
+    required this.isActive,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data60.fromJson(Map<String, Object?> json) => _$Data60FromJson(json);
 
-  final List<Data59> data;
-  @JsonKey(name: 'current_page')
-  final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
-  @JsonKey(name: 'per_page')
-  final int perPage;
-  final int total;
-  final int? from;
-  final int? to;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
+  final String name;
+  final String kind;
+  final int? seats;
+  final Layout layout;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data60ToJson(this);
 }

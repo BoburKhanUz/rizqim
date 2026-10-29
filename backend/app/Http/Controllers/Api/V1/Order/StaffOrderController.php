@@ -288,6 +288,9 @@ class StaffOrderController extends Controller
      * reached the kitchen (a line sent, or an online order accepted) are listed too, after the live ones, with their
      * `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a
      * display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
+     *
+     * P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
+     * listed (with `include_ready=1` also while `ready`) until the number is handed over.
      */
     #[Group('Kitchen')]
     #[QueryParameter('branch_id', description: 'One branch; omit for every branch the caller works in (a branch terminal: its branch).', type: 'int')]
@@ -317,6 +320,12 @@ class StaffOrderController extends Controller
         // courier_assigned with lines still pending; it stays on the display until they are bumped
         $query = $this->scope->query($user)->where(function ($query) use ($statuses, $includeReady) {
             $query->whereIn('orders.status', $statuses);
+            // P6-13: a counter order paid first is closed (delivered) while the kitchen still cooks its queue number
+            // (a number never handed over drops off after a day)
+            $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::DELIVERED->value)
+                ->whereIn('orders.channel', [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value])
+                ->whereIn('orders.pickup_status', $includeReady ? ['preparing', 'ready'] : ['preparing'])
+                ->where('orders.closed_at', '>=', now()->subDay()));
             if (!$includeReady) {
                 $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::COURIER_ASSIGNED->value)
                     ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')

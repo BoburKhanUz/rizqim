@@ -182,6 +182,12 @@ export default function Orders() {
             <span className="select-text text-footnote font-bold text-fg-muted">{code}</span>
             <span className="text-body font-bold text-fg">{formatDateTime(order.created_at, language)}</span>
             <span className="text-footnote text-fg-muted">{typeLabel}</span>
+            {/* P6-13: the number the counter calls ("Buyurtmangiz tayyor, raqam N") */}
+            {order.queue_number != null && (
+              <span className="text-footnote font-bold text-fg" data-testid="order-queue-number">
+                {t('queueNumberLabel')}: <span className="text-headline text-brand">{order.queue_number}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-2">

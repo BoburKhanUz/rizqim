@@ -11,7 +11,7 @@ PatchV1OwnerBranchesIdResponse _$PatchV1OwnerBranchesIdResponseFromJson(
 ) => PatchV1OwnerBranchesIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data40.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data45.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerBranchesIdResponseToJson(

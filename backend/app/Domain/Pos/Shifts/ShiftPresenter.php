@@ -18,8 +18,8 @@ final class ShiftPresenter
     /** The Z report as kept at closing (`summary`): the X report then, plus what was left open by a forced close. */
     public const SUMMARY = 'array{' . ShiftReport::REPORT_FIELDS . ', open_orders?: list<string>, pending_receipts?: array{bills: list<string>, refunds: list<string>}}';
 
-    /** A shift with its Z report (`summary`: null while open). */
-    public const DETAIL = 'array{uuid: string, status: string, branch_id: int, device: array{uuid: string, name: string}|null, business_date: string, opened_at: string, opened_by: array{id: int, name: string}|null, opening_cash: string, closed_at: string|null, closed_by: array{id: int, name: string}|null, expected_cash: string|null, counted_cash: string|null, counted_breakdown: array<string, int>|null, difference: string|null, z_number: int|null, force_closed: bool, close_note: string|null, summary: ' . self::SUMMARY . '|null}';
+    /** A shift with its Z report (`summary`: null while open) and, P6-16, its bank terminal report (`bank_terminal`). */
+    public const DETAIL = 'array{uuid: string, status: string, branch_id: int, device: array{uuid: string, name: string}|null, business_date: string, opened_at: string, opened_by: array{id: int, name: string}|null, opening_cash: string, closed_at: string|null, closed_by: array{id: int, name: string}|null, expected_cash: string|null, counted_cash: string|null, counted_breakdown: array<string, int>|null, difference: string|null, z_number: int|null, force_closed: bool, close_note: string|null, summary: ' . self::SUMMARY . '|null, bank_terminal: ' . \App\Domain\Pos\TerminalFlow\BankTerminalPresenter::REPORT . '|null}';
 
     /**
      * @return array<string, mixed>
@@ -52,6 +52,9 @@ final class ShiftPresenter
 
         if ($withSummary) {
             $data['summary'] = $shift->summary;
+            // P6-16: the bank terminal's day total compared with the shift's card money, a row of the Z
+            $bank = \App\Models\BankTerminalReport::where('shift_id', $shift->id)->first();
+            $data['bank_terminal'] = $bank !== null ? \App\Domain\Pos\TerminalFlow\BankTerminalPresenter::present($bank, $shift) : null;
         }
 
         return $data;
