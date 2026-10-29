@@ -3474,8 +3474,7 @@ export interface paths {
         put?: never;
         /**
          * Add a region
-         * @description `name` (2-120, unique), `is_active` (default false), `reason`. It goes to the end of the order.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):
-         *       [NodeRulesEvaluator] Cannot access private constant App\Http\Controllers\Api\V1\Admin\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)
+         * @description `name` (2-120, unique), `is_active` (default false), `reason`. It goes to the end of the order.
          */
         post: operations["admin.system.region_created"];
         delete?: never;
@@ -3539,8 +3538,7 @@ export interface paths {
         put?: never;
         /**
          * Add a district
-         * @description `name` (2-120, unique in the region), `is_active` (default false), `reason`. It goes to the end of the region.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):
-         *       [NodeRulesEvaluator] Cannot access private constant App\Http\Controllers\Api\V1\Admin\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)
+         * @description `name` (2-120, unique in the region), `is_active` (default false), `reason`. It goes to the end of the region.
          */
         post: operations["admin.system.district_created"];
         delete?: never;
@@ -19769,7 +19767,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    is_active?: boolean;
+                    reason: string;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -20013,10 +20019,20 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: number;
+            };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    is_active?: boolean;
+                    reason: string;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {

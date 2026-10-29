@@ -30954,11 +30954,40 @@
             },
             "post": {
                 "operationId": "admin.system.region_created",
-                "description": "`name` (2-120, unique), `is_active` (default false), `reason`. It goes to the end of the order.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):\n  [NodeRulesEvaluator] Cannot access private constant App\\Http\\Controllers\\Api\\V1\\Admin\\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)",
+                "description": "`name` (2-120, unique), `is_active` (default false), `reason`. It goes to the end of the order.",
                 "summary": "Add a region",
                 "tags": [
                     "Admin"
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 120
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "",
@@ -31606,11 +31635,50 @@
         "/v1/admin/system/regions/{id}/districts": {
             "post": {
                 "operationId": "admin.system.district_created",
-                "description": "`name` (2-120, unique in the region), `is_active` (default false), `reason`. It goes to the end of the region.⚠️ Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):\n  [NodeRulesEvaluator] Cannot access private constant App\\Http\\Controllers\\Api\\V1\\Admin\\AdminSystemLocationController::NAME (at /home/user/rizqim/backend/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)",
+                "description": "`name` (2-120, unique in the region), `is_active` (default false), `reason`. It goes to the end of the region.",
                 "summary": "Add a district",
                 "tags": [
                     "Admin"
                 ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 120
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "reason"
+                                ]
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "",

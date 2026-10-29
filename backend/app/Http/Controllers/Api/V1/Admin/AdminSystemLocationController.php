@@ -24,7 +24,7 @@ class AdminSystemLocationController extends AdminController
 {
     private const ERROR = 'array{success: false, message: string, code: string, data: array{reason: string}}';
 
-    private const NAME = ['required', 'string', 'min:2', 'max:120'];
+    public const NAME = ['required', 'string', 'min:2', 'max:120'];
 
     public function __construct(
         private readonly Locations $locations,
