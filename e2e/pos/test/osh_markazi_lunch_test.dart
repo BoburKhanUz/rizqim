@@ -60,7 +60,19 @@ PosMoney tenderAmount(Map<String, Object?> report, String tender) {
 Map<int, int> banknotes(PosMoney amount) {
   final Map<int, int> notes = <int, int>{};
   var rest = amount.tiyin;
-  for (final int note in <int>[200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100]) {
+  for (final int note in <int>[
+    200000,
+    100000,
+    50000,
+    20000,
+    10000,
+    5000,
+    2000,
+    1000,
+    500,
+    200,
+    100,
+  ]) {
     final int count = rest ~/ (note * 100);
     if (count > 0) notes[note] = count;
     rest -= count * note * 100;
@@ -89,7 +101,14 @@ class Cable {
 
 /// One counter sale as the test plans it, and what happened to it.
 class Sale {
-  Sale(this.index, this.dishes, {required this.card, this.cardType, this.rrn, this.last4});
+  Sale(
+    this.index,
+    this.dishes, {
+    required this.card,
+    this.cardType,
+    this.rrn,
+    this.last4,
+  });
 
   final int index;
   final List<Dish> dishes;
@@ -98,7 +117,10 @@ class Sale {
   final String? rrn;
   final String? last4;
 
-  int get osh => <Dish>[for (final Dish d in dishes) if (d.name == oshName) d].fold<int>(0, (int s, Dish d) => s + d.quantity.milli ~/ 1000);
+  int get osh => <Dish>[
+    for (final Dish d in dishes)
+      if (d.name == oshName) d,
+  ].fold<int>(0, (int s, Dish d) => s + d.quantity.milli ~/ 1000);
 
   // Filled in by the till
   late Till till;
@@ -146,23 +168,54 @@ class Till {
       sale.number = number!;
     } else {
       sale.uuid = order.uuid;
-      expect(order.queue, isNotNull, reason: 'a counter order of an osh markazi is numbered');
-      expect(order.queue!.number, number, reason: 'the server keeps the number the till took from its block');
+      expect(
+        order.queue,
+        isNotNull,
+        reason: 'a counter order of an osh markazi is numbered',
+      );
+      expect(
+        order.queue!.number,
+        number,
+        reason: 'the server keeps the number the till took from its block',
+      );
       expect(order.queue!.status, PosPickupStatus.preparing);
       sale.number = order.queue!.number;
       await store.noteQueueNumber(date, sale.number);
     }
 
-    final PosBilling billing = await pos.billing.createBills(order.uuid, version: order.version);
-    final PosBill bill = billing.bills.firstWhere((PosBill b) => !b.isPaid && b.status != 'void');
-    expect(bill.total, sale.total, reason: 'no service charge at the counter: the bill is the dishes');
+    final PosBilling billing = await pos.billing.createBills(
+      order.uuid,
+      version: order.version,
+    );
+    final PosBill bill = billing.bills.firstWhere(
+      (PosBill b) => !b.isPaid && b.status != 'void',
+    );
+    expect(
+      bill.total,
+      sale.total,
+      reason: 'no service charge at the counter: the bill is the dishes',
+    );
     sale.tenders = <PosTenderInput>[
       if (sale.card)
-        PosTenderInput.card(sale.total, cardType: sale.cardType!, transactionId: sale.rrn!, cardLast4: sale.last4)
+        PosTenderInput.card(
+          sale.total,
+          cardType: sale.cardType!,
+          transactionId: sale.rrn!,
+          cardLast4: sale.last4,
+        )
       else
-        PosTenderInput.cash(sale.total, tendered: PosMoney.som((sale.total.tiyin / 100 / 10000).ceil() * 10000)),
+        PosTenderInput.cash(
+          sale.total,
+          tendered: PosMoney.som(
+            (sale.total.tiyin / 100 / 10000).ceil() * 10000,
+          ),
+        ),
     ];
-    final PosBillResult paid = await pos.billing.pay(bill.uuid, tenders: sale.tenders, shiftUuid: shift.uuid);
+    final PosBillResult paid = await pos.billing.pay(
+      bill.uuid,
+      tenders: sale.tenders,
+      shiftUuid: shift.uuid,
+    );
     if (!offline) {
       // Pay first, then the kitchen: the order is closed and paid, its number is still being cooked
       expect(paid.bill.isPaid, isTrue);
@@ -174,7 +227,11 @@ class Till {
       if (sale.card) {
         final PosPayment p = paid.bill.payments.single;
         expect(p.tender, 'card');
-        expect(p.transactionId, sale.rrn, reason: 'the RRN of the bank terminal is on the payment');
+        expect(
+          p.transactionId,
+          sale.rrn,
+          reason: 'the RRN of the bank terminal is on the payment',
+        );
         expect(p.cardLast4, sale.last4);
       }
       sale.bill = paid.bill;
@@ -207,14 +264,30 @@ void main() {
 
   ({int productId, int variantId}) product(String name) => seed.product(name);
 
-  Future<Map<String, Object?>> ownerCall(String method, String path, [Map<String, Object?>? body]) async {
-    final Response<Object?> r = await owner.request<Object?>(path, data: body, options: Options(method: method));
+  Future<Map<String, Object?>> ownerCall(
+    String method,
+    String path, [
+    Map<String, Object?>? body,
+  ]) async {
+    final Response<Object?> r = await owner.request<Object?>(
+      path,
+      data: body,
+      options: Options(method: method),
+    );
     return asMap(asMap(r.data)['data']);
   }
 
   /// The cook's own calls (PIN session on the kitchen display): kazans and plans.
-  Future<Map<String, Object?>> cookCall(String method, String path, [Map<String, Object?>? body]) async {
-    final Response<Object?> r = await kds.client.dio.request<Object?>(path, data: body, options: Options(method: method));
+  Future<Map<String, Object?>> cookCall(
+    String method,
+    String path, [
+    Map<String, Object?>? body,
+  ]) async {
+    final Response<Object?> r = await kds.client.dio.request<Object?>(
+      path,
+      data: body,
+      options: Options(method: method),
+    );
     return asMap(asMap(r.data)['data']);
   }
 
@@ -222,7 +295,8 @@ void main() {
   /// tea; a card (Uzcard or Humo, the terminal's RRN and mostly the last 4 digits) about every third sale.
   Sale plan({int? wantOsh}) {
     made++;
-    final int want = wantOsh ?? <int>[0, 1, 1, 1, 2, 2, 0, 1][random.nextInt(8)];
+    final int want =
+        wantOsh ?? <int>[0, 1, 1, 1, 2, 2, 0, 1][random.nextInt(8)];
     final int osh = min(want, oshLeft);
     oshLeft -= osh;
     final List<Dish> dishes = <Dish>[
@@ -240,7 +314,9 @@ void main() {
       card: card,
       cardType: card ? (random.nextBool() ? 'uzcard' : 'humo') : null,
       rrn: card ? '${600000000000 + random.nextInt(99999999)}' : null,
-      last4: card && random.nextInt(4) > 0 ? '${1000 + random.nextInt(9000)}' : null,
+      last4: card && random.nextInt(4) > 0
+          ? '${1000 + random.nextInt(9000)}'
+          : null,
     );
   }
 
@@ -249,17 +325,32 @@ void main() {
   Future<void> handOver(Iterable<Sale> sales) async {
     for (final Sale s in sales) {
       final HeardEvent ready = await board.waitFor(
-        (PosEvent e) => e is PosQueueEvent && e.number == s.number && e.name == 'queue.ready' && !e.called,
+        (PosEvent e) =>
+            e is PosQueueEvent &&
+            e.number == s.number &&
+            e.name == 'queue.ready' &&
+            !e.called,
         timeout: const Duration(seconds: 60),
         what: 'number ${s.number} ready on the board',
       );
       expect((ready.event as PosQueueEvent).announce, isTrue);
-      final List<HeardEvent> preparing = board.where((PosEvent e) => e is PosQueueEvent && e.number == s.number && e.name == 'queue.preparing');
-      if (preparing.isNotEmpty) boardDelays.add(ready.at.difference(preparing.first.at));
+      final List<HeardEvent> preparing = board.where(
+        (PosEvent e) =>
+            e is PosQueueEvent &&
+            e.number == s.number &&
+            e.name == 'queue.preparing',
+      );
+      if (preparing.isNotEmpty) {
+        boardDelays.add(ready.at.difference(preparing.first.at));
+      }
       if (s.index % 5 == 0) {
         await s.till.queue.call(s.uuid);
         final HeardEvent again = await board.waitFor(
-          (PosEvent e) => e is PosQueueEvent && e.number == s.number && e.name == 'queue.ready' && e.called,
+          (PosEvent e) =>
+              e is PosQueueEvent &&
+              e.number == s.number &&
+              e.name == 'queue.ready' &&
+              e.called,
           what: 'number ${s.number} called again',
         );
         expect((again.event as PosQueueEvent).callCount, 1);
@@ -267,14 +358,21 @@ void main() {
       final PosQueueEntry handed = await s.till.queue.handed(s.uuid);
       expect(handed.status, PosPickupStatus.handed);
       await board.waitFor(
-        (PosEvent e) => e is PosQueueEvent && e.number == s.number && e.name == 'queue.handed',
+        (PosEvent e) =>
+            e is PosQueueEvent &&
+            e.number == s.number &&
+            e.name == 'queue.handed',
         what: 'number ${s.number} handed',
       );
     }
   }
 
   /// Both tills sell their part of [sales] at the same time, each one after the other.
-  Future<void> rush(List<Sale> forTill1, List<Sale> forTill2, {bool till2Offline = false}) async {
+  Future<void> rush(
+    List<Sale> forTill1,
+    List<Sale> forTill2, {
+    bool till2Offline = false,
+  }) async {
     await Future.wait(<Future<void>>[
       () async {
         for (final Sale s in forTill1) {
@@ -297,28 +395,46 @@ void main() {
     owner = Dio(
       BaseOptions(
         baseUrl: config.apiUrl,
-        headers: <String, Object?>{'Authorization': 'Bearer ${seed.ownerToken}', 'Accept': 'application/json'},
+        headers: <String, Object?>{
+          'Authorization': 'Bearer ${seed.ownerToken}',
+          'Accept': 'application/json',
+        },
       ),
     );
 
     // The owner chooses the format in the panel: osh markazi, with the kitchen display, the customer display and the
     // daily menu switched on over the profile
-    final Map<String, Object?> format = await ownerCall('PUT', '/v1/owner/pos/format', <String, Object?>{
-      'branch_id': seed.branchId,
-      'profile': 'osh_markazi',
-      'modules': <String, Object?>{'kds': true, 'customer_display': true, 'daily_menu': true},
-    });
+    final Map<String, Object?> format = await ownerCall(
+      'PUT',
+      '/v1/owner/pos/format',
+      <String, Object?>{
+        'branch_id': seed.branchId,
+        'profile': 'osh_markazi',
+        'modules': <String, Object?>{
+          'kds': true,
+          'customer_display': true,
+          'daily_menu': true,
+        },
+      },
+    );
     expect(format['profile'], 'osh_markazi');
     // Card payments on the bank's own terminal in "faqat terminal" mode; Z asks for the terminal's day total
-    await ownerCall('PUT', '/v1/owner/branches/${seed.branchId}/terminal-flow', <String, Object?>{
-      'card_mode': 'terminal_only',
-      'difference_threshold': threshold.toApiString(),
-      'ask_bank_total': true,
-    });
+    await ownerCall(
+      'PUT',
+      '/v1/owner/branches/${seed.branchId}/terminal-flow',
+      <String, Object?>{
+        'card_mode': 'terminal_only',
+        'difference_threshold': threshold.toApiString(),
+        'ask_bank_total': true,
+      },
+    );
     // Mastava and sho'rva are daily dishes on this branch; today's menu has mastava, not sho'rva
     await ownerCall('PUT', '/v1/owner/daily-menu/rotation', <String, Object?>{
       'branch_id': seed.branchId,
-      'product_ids': <int>[product('Mastava').productId, product("Sho'rva").productId],
+      'product_ids': <int>[
+        product('Mastava').productId,
+        product("Sho'rva").productId,
+      ],
     });
     await ownerCall('PUT', '/v1/owner/daily-menu', <String, Object?>{
       'branch_id': seed.branchId,
@@ -331,8 +447,14 @@ void main() {
       final Terminal t = await Terminal.open(config, key, offlineStore: store);
       t.client.dio.interceptors.add(cable.interceptor);
       await t.signIn(staff);
-      final Till till = Till(t, store, cable)..queue = PosQueueRepository(t.pos.http);
-      till.menu = Menu(await t.pos.catalog.load(PosChannel.takeaway, menuVersion: t.bootstrap.menuVersion));
+      final Till till = Till(t, store, cable)
+        ..queue = PosQueueRepository(t.pos.http);
+      till.menu = Menu(
+        await t.pos.catalog.load(
+          PosChannel.takeaway,
+          menuVersion: t.bootstrap.menuVersion,
+        ),
+      );
       await t.listen();
       return till;
     }
@@ -349,7 +471,12 @@ void main() {
 
   tearDownAll(() async {
     await cook.stop();
-    for (final Terminal t in <Terminal>[till1.terminal, till2.terminal, kds, display]) {
+    for (final Terminal t in <Terminal>[
+      till1.terminal,
+      till2.terminal,
+      kds,
+      display,
+    ]) {
       await t.close();
     }
     owner.close();
@@ -383,7 +510,11 @@ void main() {
           isTrue,
           reason: '${t.label}: ${f.modules.enabled}',
         );
-        expect(f.modules.has(PosModule.rooms), isFalse, reason: 'no rooms in an osh markazi');
+        expect(
+          f.modules.has(PosModule.rooms),
+          isFalse,
+          reason: 'no rooms in an osh markazi',
+        );
         final PosTerminalFlow flow = t.terminal.bootstrap.terminalFlow!;
         expect(flow.cardMode, PosCardMode.terminalOnly);
         expect(flow.askBankTotal, isTrue);
@@ -398,11 +529,23 @@ void main() {
       expect(q2.businessDate, q1.businessDate);
       expect(q1.blocks, isNotEmpty);
       expect(q2.blocks, isNotEmpty);
-      expect(q1.blocks.first.start, 1, reason: 'the day starts from 1 at the first till');
-      expect(q2.blocks.first.start, q1.blockSize + 1, reason: 'the second till gets the next block');
+      expect(
+        q1.blocks.first.start,
+        1,
+        reason: 'the day starts from 1 at the first till',
+      );
+      expect(
+        q2.blocks.first.start,
+        q1.blockSize + 1,
+        reason: 'the second till gets the next block',
+      );
       for (final QueueRange a in q1.blocks) {
         for (final QueueRange b in q2.blocks) {
-          expect(a.end < b.start || b.end < a.start, isTrue, reason: '$a and $b overlap');
+          expect(
+            a.end < b.start || b.end < a.start,
+            isTrue,
+            reason: '$a and $b overlap',
+          );
         }
       }
 
@@ -418,8 +561,20 @@ void main() {
       expect(catalog.isOffMenu(till1.menu.product("Sho'rva")), isTrue);
       expect(catalog.isOffMenu(till1.menu.product('Mastava')), isFalse);
       await expectLater(
-        till1.pos.orders.open(channel: PosChannel.takeaway, items: till1.menu.inputs(<Dish>[Dish.of("Sho'rva", 1)]), send: true),
-        throwsA(isA<PosException>().having((PosException e) => e.statusCode, 'status', 422).having((PosException e) => e.message, 'message', contains("Bugungi menyuda yo'q"))),
+        till1.pos.orders.open(
+          channel: PosChannel.takeaway,
+          items: till1.menu.inputs(<Dish>[Dish.of("Sho'rva", 1)]),
+          send: true,
+        ),
+        throwsA(
+          isA<PosException>()
+              .having((PosException e) => e.statusCode, 'status', 422)
+              .having(
+                (PosException e) => e.message,
+                'message',
+                contains("Bugungi menyuda yo'q"),
+              ),
+        ),
       );
     });
 
@@ -432,27 +587,44 @@ void main() {
         'quantity': '$kazan1',
         'label': '1-qozon',
       });
-      final Map<String, Object?> plan2 = await cookCall('POST', '/v1/owner/batch-plans', <String, Object?>{
-        'product_id': osh.productId,
-        'planned_at': now.add(const Duration(minutes: 50)).toIso8601String(),
-        'quantity': '$kazan2',
-        'label': '2-qozon',
-      });
+      final Map<String, Object?> plan2 = await cookCall(
+        'POST',
+        '/v1/owner/batch-plans',
+        <String, Object?>{
+          'product_id': osh.productId,
+          'planned_at': now.add(const Duration(minutes: 50)).toIso8601String(),
+          'quantity': '$kazan2',
+          'label': '2-qozon',
+        },
+      );
       plan2Time = plan2['time']! as String;
 
-      final Map<String, Object?> first = await cookCall('POST', '/v1/owner/batches', <String, Object?>{
-        'product_id': osh.productId,
-        'quantity': '$kazan1',
-        'label': '1-qozon',
-      });
+      final Map<String, Object?> first = await cookCall(
+        'POST',
+        '/v1/owner/batches',
+        <String, Object?>{
+          'product_id': osh.productId,
+          'quantity': '$kazan1',
+          'label': '1-qozon',
+        },
+      );
       kazan1Id = (first['id']! as num).toInt();
       expect(first['quantity_left'], kazan1);
       // The kazan took the nearest plan: only the second one is still ahead
-      final Map<String, Object?> plans = await cookCall('GET', '/v1/owner/batch-plans');
-      expect(asList(plans['plans']).map((Map<String, Object?> p) => p['label']), <String>['2-qozon']);
+      final Map<String, Object?> plans = await cookCall(
+        'GET',
+        '/v1/owner/batch-plans',
+      );
+      expect(
+        asList(plans['plans']).map((Map<String, Object?> p) => p['label']),
+        <String>['2-qozon'],
+      );
 
       for (final Till t in <Till>[till1, till2]) {
-        t.shift = await t.pos.shifts.open(openingCash: const PosMoney.som(300000), note: 'Tushlik');
+        t.shift = await t.pos.shifts.open(
+          openingCash: const PosMoney.som(300000),
+          note: 'Tushlik',
+        );
         t.pos.session.updateShift(t.shift.toSummary());
       }
     });
@@ -461,13 +633,23 @@ void main() {
       final Sale s = await till1.sell(plan(wantOsh: 2));
       all.add(s);
       // Paid and closed, still cooking: the kitchen display shows it as a normal ticket with its number
-      final KitchenTicket ticket = (await kds.client.kitchen.tickets()).tickets.firstWhere((KitchenTicket t) => t.uuid == s.uuid);
+      final KitchenTicket ticket = (await kds.client.kitchen.tickets()).tickets
+          .firstWhere((KitchenTicket t) => t.uuid == s.uuid);
       expect(ticket.queueNumber, s.number);
       expect(ticket.pickupStatus, 'preparing');
       expect(ticket.lines, isNotEmpty);
-      await board.waitFor((PosEvent e) => e is PosQueueEvent && e.number == s.number && e.name == 'queue.preparing', what: 'queue.preparing');
+      await board.waitFor(
+        (PosEvent e) =>
+            e is PosQueueEvent &&
+            e.number == s.number &&
+            e.name == 'queue.preparing',
+        what: 'queue.preparing',
+      );
       final PosQueueBoard now = await display.pos.display.queue();
-      expect(now.preparing.map((PosQueueEntry e) => e.number), contains(s.number));
+      expect(
+        now.preparing.map((PosQueueEntry e) => e.number),
+        contains(s.number),
+      );
 
       // From here the cook bumps every line that reaches the display
       cook.start();
@@ -477,18 +659,31 @@ void main() {
     test('the rush: both tills at once, then the second till loses the internet, keeps selling and syncs', () async {
       // Both tills online
       final List<Sale> a = <Sale>[for (var i = 0; i < 16; i++) plan()];
-      await rush(<Sale>[for (var i = 0; i < a.length; i += 2) a[i]], <Sale>[for (var i = 1; i < a.length; i += 2) a[i]]);
+      await rush(
+        <Sale>[for (var i = 0; i < a.length; i += 2) a[i]],
+        <Sale>[for (var i = 1; i < a.length; i += 2) a[i]],
+      );
       await handOver(a);
 
       // The cable of the second till is out: its sales go to its journal with numbers from its own block
       till2.cable.cut = true;
-      till2.pos.connectivity.reportFailure(const SocketException('e2e: the cable is out'));
+      till2.pos.connectivity.reportFailure(
+        const SocketException('e2e: the cable is out'),
+      );
       expect(till2.pos.offline!.active, isTrue);
-      final List<Sale> online = <Sale>[for (var i = 0; i < offlineOrders; i++) plan()];
-      final List<Sale> offline = <Sale>[for (var i = 0; i < offlineOrders; i++) plan()];
+      final List<Sale> online = <Sale>[
+        for (var i = 0; i < offlineOrders; i++) plan(),
+      ];
+      final List<Sale> offline = <Sale>[
+        for (var i = 0; i < offlineOrders; i++) plan(),
+      ];
       await rush(online, offline, till2Offline: true);
       expect(till2.store.pendingOrders, offlineOrders);
-      expect(oshLeft, greaterThanOrEqualTo(0), reason: 'the tills never planned more than the kazan has');
+      expect(
+        oshLeft,
+        greaterThanOrEqualTo(0),
+        reason: 'the tills never planned more than the kazan has',
+      );
       await handOver(online);
 
       // The cable is back: the journal goes to the server in order; the server keeps every number
@@ -500,21 +695,43 @@ void main() {
       expect(till2.pos.offline!.active, isFalse);
       final Map<String, SyncOperation> opened = <String, SyncOperation>{
         for (final SyncOperation op in till2.store.answered)
-          if (op.type == SyncOpType.orderOpen) op.payload['order']! as String: op,
+          if (op.type == SyncOpType.orderOpen)
+            op.payload['order']! as String: op,
       };
       for (final Sale s in offline) {
         final SyncOperation op = opened[s.localUuid]!;
-        expect(op.status, SyncOpStatus.applied, reason: '${op.reason} ${op.message}');
-        expect(op.refs['queue_number'], s.number, reason: 'the offline number is kept (it is in the till\'s block)');
+        expect(
+          op.status,
+          SyncOpStatus.applied,
+          reason: '${op.reason} ${op.message}',
+        );
+        expect(
+          op.refs['queue_number'],
+          s.number,
+          reason: 'the offline number is kept (it is in the till\'s block)',
+        );
         s.uuid = till2.store.resolve(s.localUuid!);
         expect(s.uuid, isNot(s.localUuid));
         final PosOrder synced = await till2.pos.orders.get(s.uuid);
-        expect(synced.status, 'delivered', reason: 'paid offline, closed on sync');
+        expect(
+          synced.status,
+          'delivered',
+          reason: 'paid offline, closed on sync',
+        );
         expect(synced.queue!.number, s.number);
-        await till2.store.noteQueueNumber(till2.queueState.businessDate!, s.number);
+        await till2.store.noteQueueNumber(
+          till2.queueState.businessDate!,
+          s.number,
+        );
       }
-      for (final SyncOperation op in till2.store.answered.where((SyncOperation o) => o.type == SyncOpType.billPay)) {
-        expect(op.status, SyncOpStatus.applied, reason: '${op.reason} ${op.message}');
+      for (final SyncOperation op in till2.store.answered.where(
+        (SyncOperation o) => o.type == SyncOpType.billPay,
+      )) {
+        expect(
+          op.status,
+          SyncOpStatus.applied,
+          reason: '${op.reason} ${op.message}',
+        );
       }
       // Synced orders reach the kitchen display like the others and are cooked, called and handed
       await handOver(offline);
@@ -534,69 +751,130 @@ void main() {
       // Every till heard the dish sell out over the branch channel
       final ({int productId, int variantId}) osh = product(oshName);
       await till2.terminal.log!.waitFor(
-        (PosEvent e) => e is PosMenuAvailabilityChanged && e.items.any((i) => i.id == osh.variantId && !i.available),
+        (PosEvent e) =>
+            e is PosMenuAvailabilityChanged &&
+            e.items.any((i) => i.id == osh.variantId && !i.available),
         what: 'the kazan sold out (menu.availability_changed)',
       );
       // One more portion is refused ("tugadi")...
       Object? refused;
       try {
-        await till1.pos.orders.open(channel: PosChannel.takeaway, items: till1.menu.inputs(<Dish>[Dish.of(oshName, 1)]), send: true);
+        await till1.pos.orders.open(
+          channel: PosChannel.takeaway,
+          items: till1.menu.inputs(<Dish>[Dish.of(oshName, 1)]),
+          send: true,
+        );
       } on Object catch (e) {
         refused = e;
       }
-      expect(refused, isA<PosException>().having((PosException e) => e.statusCode, 'status', 422));
+      expect(
+        refused,
+        isA<PosException>().having(
+          (PosException e) => e.statusCode,
+          'status',
+          422,
+        ),
+      );
       expect((refused! as PosException).message, contains('tugadi'));
       // ... and the menu shows when the next one comes
-      await till1.pos.catalog.refreshAvailability(storeId: seed.storeId, branchId: seed.branchId);
+      await till1.pos.catalog.refreshAvailability(
+        storeId: seed.storeId,
+        branchId: seed.branchId,
+      );
       final PosCatalog catalog = till1.pos.catalog.cached(PosChannel.takeaway)!;
-      final PosProduct dish = catalog.products.firstWhere((PosProduct p) => p.name == oshName);
+      final PosProduct dish = catalog.products.firstWhere(
+        (PosProduct p) => p.name == oshName,
+      );
       expect(catalog.isProductAvailable(dish), isFalse);
-      expect(catalog.nextBatchOf(dish)?.time, plan2Time, reason: '"keyingi partiya $plan2Time"');
+      expect(
+        catalog.nextBatchOf(dish)?.time,
+        plan2Time,
+        reason: '"keyingi partiya $plan2Time"',
+      );
 
       // The cook closes the empty kazan and opens the second: the dish is back on both tills
       await cookCall('POST', '/v1/owner/batches/$kazan1Id/close');
-      final Map<String, Object?> second = await cookCall('POST', '/v1/owner/batches', <String, Object?>{
-        'product_id': osh.productId,
-        'quantity': '$kazan2',
-        'label': '2-qozon',
-      });
+      final Map<String, Object?> second = await cookCall(
+        'POST',
+        '/v1/owner/batches',
+        <String, Object?>{
+          'product_id': osh.productId,
+          'quantity': '$kazan2',
+          'label': '2-qozon',
+        },
+      );
       kazan2Id = (second['id']! as num).toInt();
       await till2.terminal.log!.waitFor(
-        (PosEvent e) => e is PosMenuAvailabilityChanged && e.items.any((i) => i.id == osh.variantId && i.available),
+        (PosEvent e) =>
+            e is PosMenuAvailabilityChanged &&
+            e.items.any((i) => i.id == osh.variantId && i.available),
         what: 'the second kazan opened (menu.availability_changed)',
       );
-      final Map<String, Object?> plans = await cookCall('GET', '/v1/owner/batch-plans');
-      expect(asList(plans['plans']), isEmpty, reason: 'the second kazan took the second plan');
-      await till1.pos.catalog.refreshAvailability(storeId: seed.storeId, branchId: seed.branchId);
-      expect(till1.pos.catalog.cached(PosChannel.takeaway)!.isProductAvailable(dish), isTrue);
+      final Map<String, Object?> plans = await cookCall(
+        'GET',
+        '/v1/owner/batch-plans',
+      );
+      expect(
+        asList(plans['plans']),
+        isEmpty,
+        reason: 'the second kazan took the second plan',
+      );
+      await till1.pos.catalog.refreshAvailability(
+        storeId: seed.storeId,
+        branchId: seed.branchId,
+      );
+      expect(
+        till1.pos.catalog.cached(PosChannel.takeaway)!.isProductAvailable(dish),
+        isTrue,
+      );
       oshLeft = kazan2Sold;
     });
 
-    test('the rest of the rush is sold from the second kazan on both tills', () async {
-      final int left = totalOrders - all.length;
-      expect(left, greaterThan(10));
-      final List<Sale> d = <Sale>[for (var i = 0; i < left; i++) plan()];
-      await rush(<Sale>[for (var i = 0; i < d.length; i += 2) d[i]], <Sale>[for (var i = 1; i < d.length; i += 2) d[i]]);
-      await handOver(d);
-      expect(all, hasLength(totalOrders));
+    test(
+      'the rest of the rush is sold from the second kazan on both tills',
+      () async {
+        final int left = totalOrders - all.length;
+        expect(left, greaterThan(10));
+        final List<Sale> d = <Sale>[for (var i = 0; i < left; i++) plan()];
+        await rush(
+          <Sale>[for (var i = 0; i < d.length; i += 2) d[i]],
+          <Sale>[for (var i = 1; i < d.length; i += 2) d[i]],
+        );
+        await handOver(d);
+        expect(all, hasLength(totalOrders));
 
-      // The board is empty again: every number was handed over
-      final PosQueueBoard end = await display.pos.display.queue();
-      expect(end.ready, isEmpty);
-      expect(end.preparing, isEmpty);
-      expect(cook.refused, isEmpty);
-    });
+        // The board is empty again: every number was handed over
+        final PosQueueBoard end = await display.pos.display.queue();
+        expect(end.ready, isEmpty);
+        expect(end.preparing, isEmpty);
+        expect(cook.refused, isEmpty);
+      },
+    );
 
     test('no number twice: each till numbered from its own block, all on today\'s business day', () async {
       final List<int> numbers = <int>[for (final Sale s in all) s.number];
-      expect(numbers.toSet(), hasLength(numbers.length), reason: 'duplicate numbers: $numbers');
+      expect(
+        numbers.toSet(),
+        hasLength(numbers.length),
+        reason: 'duplicate numbers: $numbers',
+      );
       for (final Till t in <Till>[till1, till2]) {
         final List<int> own = <int>[for (final Sale s in t.sales) s.number];
         expect(own, isNotEmpty);
         for (final int n in own) {
-          expect(t.queueState.blocks.any((QueueRange r) => r.start <= n && n <= r.end), isTrue, reason: '${t.label}: $n is outside its blocks');
+          expect(
+            t.queueState.blocks.any(
+              (QueueRange r) => r.start <= n && n <= r.end,
+            ),
+            isTrue,
+            reason: '${t.label}: $n is outside its blocks',
+          );
         }
-        expect(own.first, t.queueState.blocks.first.start, reason: '${t.label} starts the day at its block');
+        expect(
+          own.first,
+          t.queueState.blocks.first.start,
+          reason: '${t.label} starts the day at its block',
+        );
         final List<int> sorted = List<int>.of(own)..sort();
         expect(own, sorted, reason: '${t.label} hands numbers out in order');
       }
@@ -609,12 +887,27 @@ void main() {
       final int sold2 = all.fold<int>(0, (int n, Sale s) => n + s.osh) - kazan1;
       final int leftover = kazan2 - sold2;
       expect(leftover, greaterThanOrEqualTo(kazan2 - kazan2Sold));
-      expect(till1.pos.session.can(PosPermissions.batchesManage), isFalse, reason: 'a cashier has no batches.manage');
+      expect(
+        till1.pos.session.can(PosPermissions.batchesManage),
+        isFalse,
+        reason: 'a cashier has no batches.manage',
+      );
 
       // Without the PIN the server asks for it
       await expectLater(
-        till1.pos.batches.writeOff(kazan2Id, quantity: PosQuantity.whole(leftover), reason: PosWriteOffReason.unsold, close: true),
-        throwsA(isA<PosApprovalRequired>().having((PosApprovalRequired e) => e.permission, 'permission', PosPermissions.batchesManage)),
+        till1.pos.batches.writeOff(
+          kazan2Id,
+          quantity: PosQuantity.whole(leftover),
+          reason: PosWriteOffReason.unsold,
+          close: true,
+        ),
+        throwsA(
+          isA<PosApprovalRequired>().having(
+            (PosApprovalRequired e) => e.permission,
+            'permission',
+            PosPermissions.batchesManage,
+          ),
+        ),
       );
       // The manager types the PIN on the till: written off once, the kazan closed, on the cashier's shift
       var prompts = 0;
@@ -628,7 +921,11 @@ void main() {
         ),
         approve: (String permission, PosException cause) {
           prompts++;
-          return till1.pos.approvals.request(permission: permission, userId: manager.id, pin: manager.pin!);
+          return till1.pos.approvals.request(
+            permission: permission,
+            userId: manager.id,
+            pin: manager.pin!,
+          );
         },
       );
       expect(prompts, 1);
@@ -649,8 +946,16 @@ void main() {
             if (!s.card) s.total,
         ]);
         final PosShiftWithReport x = await t.pos.shifts.xReport(t.shift.uuid);
-        expect(tenderAmount(x.report!.raw, 'card'), card, reason: '${t.label}: card on the X report');
-        expect(tenderAmount(x.report!.raw, 'cash'), cash, reason: '${t.label}: cash on the X report');
+        expect(
+          tenderAmount(x.report!.raw, 'card'),
+          card,
+          reason: '${t.label}: card on the X report',
+        );
+        expect(
+          tenderAmount(x.report!.raw, 'cash'),
+          cash,
+          reason: '${t.label}: cash on the X report',
+        );
         final PosMoney expected = x.report!.expectedCash;
         expect(expected, const PosMoney.som(300000) + cash);
 
@@ -667,15 +972,27 @@ void main() {
           ),
         );
         expect(z.status, 'closed');
-        expect(z.difference, PosMoney.zero, reason: '${t.label}: the drawer is right');
+        expect(
+          z.difference,
+          PosMoney.zero,
+          reason: '${t.label}: the drawer is right',
+        );
         final PosBankTerminalReport report = z.bankTerminal!;
         expect(report.rizqimTotal, card);
         expect(report.bankTotal, bank);
         expect(report.difference, bank - card);
         expect(report.threshold, threshold);
-        expect(report.overThreshold, short, reason: '${t.label}: the difference warning');
+        expect(
+          report.overThreshold,
+          short,
+          reason: '${t.label}: the difference warning',
+        );
         if (t == till1) {
-          expect(z.summary!.batchWriteoffs.count, 1, reason: 'the write-off is on the first till\'s Z');
+          expect(
+            z.summary!.batchWriteoffs.count,
+            1,
+            reason: 'the write-off is on the first till\'s Z',
+          );
         }
         t.pos.session.updateShift(null);
       }
@@ -685,7 +1002,11 @@ void main() {
       final String date = till1.queueState.businessDate!;
       final Response<Object?> r = await owner.get<Object?>(
         '/v1/owner/batch-yield',
-        queryParameters: <String, Object?>{'branch_id': seed.branchId, 'from': date, 'to': date},
+        queryParameters: <String, Object?>{
+          'branch_id': seed.branchId,
+          'from': date,
+          'to': date,
+        },
       );
       final Map<String, Object?> data = asMap(asMap(r.data)['data']);
       final List<Map<String, Object?>> batches = asList(data['batches']);
@@ -693,7 +1014,8 @@ void main() {
       final int sold = all.fold<int>(0, (int n, Sale s) => n + s.osh);
       num n(Object? v) => v! as num;
       final Map<int, Map<String, Object?>> byId = <int, Map<String, Object?>>{
-        for (final Map<String, Object?> b in batches) n(b['batch_id'] ?? b['id']).toInt(): b,
+        for (final Map<String, Object?> b in batches)
+          n(b['batch_id'] ?? b['id']).toInt(): b,
       };
       final Map<String, Object?> first = byId[kazan1Id]!;
       final Map<String, Object?> second = byId[kazan2Id]!;
@@ -708,13 +1030,19 @@ void main() {
       for (final Map<String, Object?> b in batches) {
         expect(n(b['variance']), 0, reason: 'variance of $b');
         expect(n(b['oversold']), 0);
-        expect(n(b['produced']), n(b['sold']) + n(b['written_off']) + n(b['left']) + n(b['variance']));
+        expect(
+          n(b['produced']),
+          n(b['sold']) + n(b['written_off']) + n(b['left']) + n(b['variance']),
+        );
       }
       final List<Map<String, Object?>> days = asList(data['days']);
       final Map<String, Object?> day = days.single;
       expect(n(day['produced']), kazan1 + kazan2);
       expect(n(day['sold']), sold);
-      expect(n(day['written_off']) + n(day['sold']) + n(day['left']), kazan1 + kazan2);
+      expect(
+        n(day['written_off']) + n(day['sold']) + n(day['left']),
+        kazan1 + kazan2,
+      );
       expect(n(day['variance']), 0);
     });
   });

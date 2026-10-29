@@ -11,33 +11,34 @@ void main() {
 
   const String day = '2026-10-22';
   const List<QueueRange> tillA = <QueueRange>[QueueRange(start: 1, end: 100)];
-  const List<QueueRange> tillB = <QueueRange>[
-    QueueRange(start: 101, end: 200),
-  ];
+  const List<QueueRange> tillB = <QueueRange>[QueueRange(start: 101, end: 200)];
 
-  test('the rule takes the next free number of the blocks above the last one used', () {
-    expect(QueueNumberRule.next(tillA, 0), 1);
-    expect(QueueNumberRule.next(tillA, 41), 42);
-    // The server already saw 1..9 used (next 10): the till does not go below
-    expect(
-      QueueNumberRule.next(<QueueRange>[
-        const QueueRange(start: 1, end: 100, next: 10),
-      ], 3),
-      10,
-    );
-    // A block used up: the next block
-    const List<QueueRange> two = <QueueRange>[
-      QueueRange(start: 201, end: 300),
-      QueueRange(start: 1, end: 100),
-    ];
-    expect(QueueNumberRule.next(two, 100), 201);
-    expect(QueueNumberRule.next(two, 300), isNull);
-    expect(QueueNumberRule.remaining(two, 90), 110);
-    expect(
-      QueueRange.fromJson(<String, Object?>{'start': 5, 'end': 9}).next,
-      5,
-    );
-  });
+  test(
+    'the rule takes the next free number of the blocks above the last one used',
+    () {
+      expect(QueueNumberRule.next(tillA, 0), 1);
+      expect(QueueNumberRule.next(tillA, 41), 42);
+      // The server already saw 1..9 used (next 10): the till does not go below
+      expect(
+        QueueNumberRule.next(<QueueRange>[
+          const QueueRange(start: 1, end: 100, next: 10),
+        ], 3),
+        10,
+      );
+      // A block used up: the next block
+      const List<QueueRange> two = <QueueRange>[
+        QueueRange(start: 201, end: 300),
+        QueueRange(start: 1, end: 100),
+      ];
+      expect(QueueNumberRule.next(two, 100), 201);
+      expect(QueueNumberRule.next(two, 300), isNull);
+      expect(QueueNumberRule.remaining(two, 90), 110);
+      expect(
+        QueueRange.fromJson(<String, Object?>{'start': 5, 'end': 9}).next,
+        5,
+      );
+    },
+  );
 
   test('two tills offline never print the same number, and a restart never reuses one', () async {
     final MemorySyncStorage diskA = MemorySyncStorage();

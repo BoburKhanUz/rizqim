@@ -305,9 +305,7 @@ class KitchenTicket {
   /// Oshxonada hali pishirilayotgan (server `accepted` yoki `preparing` deb yuborgan) chipta. P6-14: avval to'langan
   /// kassa buyurtmasi yopilgan (`delivered`), lekin raqami hali `preparing` — u ham pishirilayotgan chipta.
   bool get isCooking =>
-      status == 'accepted' ||
-      status == 'preparing' ||
-      isClosedPickupCooking;
+      status == 'accepted' || status == 'preparing' || isClosedPickupCooking;
 
   /// Avval to'langan kassa buyurtmasi: schyot yopilgan (`delivered`), raqami hali oshxonada (`preparing`).
   bool get isClosedPickupCooking =>
@@ -331,29 +329,28 @@ class KitchenTicket {
     String? status,
     int? queueNumber,
     String? pickupStatus,
-  }) =>
-      KitchenTicket(
-        uuid: uuid,
-        shortCode: shortCode,
-        status: status ?? this.status,
-        type: type,
-        channel: channel,
-        branchId: branchId,
-        hallRef: hallRef,
-        tableRef: tableRef,
-        guestsCount: guestsCount,
-        notes: notes,
-        lines: lines ?? this.lines,
-        createdAt: createdAt,
-        acceptedAt: acceptedAt,
-        preparingAt: preparingAt,
-        readyAt: readyAt,
-        canceledAt: canceledAt,
-        queueNumber: queueNumber ?? this.queueNumber,
-        pickupStatus: pickupStatus ?? this.pickupStatus,
-        waitingSeconds: waitingSeconds,
-        receivedAt: receivedAt,
-      );
+  }) => KitchenTicket(
+    uuid: uuid,
+    shortCode: shortCode,
+    status: status ?? this.status,
+    type: type,
+    channel: channel,
+    branchId: branchId,
+    hallRef: hallRef,
+    tableRef: tableRef,
+    guestsCount: guestsCount,
+    notes: notes,
+    lines: lines ?? this.lines,
+    createdAt: createdAt,
+    acceptedAt: acceptedAt,
+    preparingAt: preparingAt,
+    readyAt: readyAt,
+    canceledAt: canceledAt,
+    queueNumber: queueNumber ?? this.queueNumber,
+    pickupStatus: pickupStatus ?? this.pickupStatus,
+    waitingSeconds: waitingSeconds,
+    receivedAt: receivedAt,
+  );
 }
 
 /// `GET /staff/kitchen/tickets` natijasi: eskisidan yangisiga, ko'pi bilan 200 ta.

@@ -191,7 +191,10 @@ class KitchenService {
   /// pishayotgan qatorlar tayyor deb belgilanadi, raqam e'lon qilinadi (`queue.ready`). Avval to'langan (yopilgan)
   /// buyurtmada `POST /staff/orders/{uuid}/status` ishlamaydi, shu uchun alohida yo'l. Har amalga yangi `Idempotency-Key`;
   /// 2xx javob o'qilmasa ham amal bajarilgan.
-  Future<void> markQueueReady(String orderUuid, {String? idempotencyKey}) async {
+  Future<void> markQueueReady(
+    String orderUuid, {
+    String? idempotencyKey,
+  }) async {
     try {
       await _dio.post<Object?>(
         '/v1/pos/orders/$orderUuid/ready',

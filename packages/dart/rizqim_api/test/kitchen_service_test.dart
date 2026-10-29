@@ -225,23 +225,31 @@ void main() {
     expect(list.tickets.last.queueNumber, isNull);
     expect(list.tickets.last.isQueueOrder, isFalse);
     // A delivered order without a cooking number is not a kitchen ticket
-    expect(
-      paid.copyWith(pickupStatus: 'handed').isCooking,
-      isFalse,
-    );
+    expect(paid.copyWith(pickupStatus: 'handed').isCooking, isFalse);
   });
 
   test('P6-14: the expo bump posts /pos/orders/{uuid}/ready with an Idempotency-Key', () async {
-    adapter.handler = (RequestOptions o) => ok(<String, Object?>{'status': 'ready'});
+    adapter.handler = (RequestOptions o) =>
+        ok(<String, Object?>{'status': 'ready'});
     await client.kitchen.markQueueReady('aaaaaaaa-0000-4000-8000-000000000001');
     await client.kitchen.markQueueReady('aaaaaaaa-0000-4000-8000-000000000001');
 
     final RequestOptions first = adapter.requests.first;
     expect(first.method, 'POST');
-    expect(first.uri.path, '/api/v1/pos/orders/aaaaaaaa-0000-4000-8000-000000000001/ready');
+    expect(
+      first.uri.path,
+      '/api/v1/pos/orders/aaaaaaaa-0000-4000-8000-000000000001/ready',
+    );
     expect(bearer(first), 'Bearer staff-token');
     final String key = first.headers['Idempotency-Key']! as String;
-    expect(key, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+    expect(
+      key,
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ),
+      ),
+    );
     expect(adapter.requests.last.headers['Idempotency-Key'], isNot(key));
   });
 

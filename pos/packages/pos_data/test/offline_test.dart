@@ -243,8 +243,8 @@ void main() {
     expect((await h.offline.syncNow()).drained, isTrue);
     final Map<String, Object?> sent =
         ((sync.received.first['payload']! as Map<String, Object?>)['tenders']!
-                as List<Object?>)
-            .single!
+                    as List<Object?>)
+                .single!
             as Map<String, Object?>;
     expect(sent['transaction_id'], '123456789012');
     expect(sent['card_last4'], '4321');

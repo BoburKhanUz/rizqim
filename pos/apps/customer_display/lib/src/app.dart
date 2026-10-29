@@ -66,9 +66,8 @@ class DisplayApp extends StatelessWidget {
         darkTheme: RzTheme.dark(),
         themeMode: s.dark ? ThemeMode.dark : ThemeMode.light,
         builder: (BuildContext context, Widget? child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(s.fontScale),
-          ),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(s.fontScale)),
           child: child ?? const SizedBox.shrink(),
         ),
         home: AuthGate(services: services),
@@ -124,7 +123,11 @@ class _AuthGateState extends State<AuthGate> {
 
 /// Ulangan terminal: real-time va ma'lumot shu yerda yashaydi.
 class TerminalHome extends StatefulWidget {
-  const TerminalHome({super.key, required this.services, required this.terminal});
+  const TerminalHome({
+    super.key,
+    required this.services,
+    required this.terminal,
+  });
 
   final DisplayServices services;
   final PairedTerminal terminal;

@@ -58,58 +58,62 @@ void main() {
       expect(const PosQueueState().runningLow(store), isFalse);
     });
 
-    test('an order carries its number and pickup state; the bill its talon', () {
-      final PosOrder order = PosOrder.fromJson(
-        PosJson.of(<String, Object?>{
-          'uuid': 'u',
-          'status': 'delivered',
-          'channel': 'pos_takeaway',
-          'version': 4,
-          'items': <Object?>[],
-          'queue': <String, Object?>{
-            'number': 57,
-            'business_date': '2026-10-22',
-            'status': 'ready',
-            'ready_at': '2026-10-22T13:05:00Z',
-            'called_at': null,
-            'call_count': 0,
-            'handed_at': null,
-          },
-        }),
-      );
-      expect(order.queue?.number, 57);
-      expect(order.queue?.status, PosPickupStatus.ready);
-      expect(order.queue?.status?.label, 'Tayyor');
-      expect(order.queue?.readyAt, DateTime.utc(2026, 10, 22, 13, 5));
+    test(
+      'an order carries its number and pickup state; the bill its talon',
+      () {
+        final PosOrder order = PosOrder.fromJson(
+          PosJson.of(<String, Object?>{
+            'uuid': 'u',
+            'status': 'delivered',
+            'channel': 'pos_takeaway',
+            'version': 4,
+            'items': <Object?>[],
+            'queue': <String, Object?>{
+              'number': 57,
+              'business_date': '2026-10-22',
+              'status': 'ready',
+              'ready_at': '2026-10-22T13:05:00Z',
+              'called_at': null,
+              'call_count': 0,
+              'handed_at': null,
+            },
+          }),
+        );
+        expect(order.queue?.number, 57);
+        expect(order.queue?.status, PosPickupStatus.ready);
+        expect(order.queue?.status?.label, 'Tayyor');
+        expect(order.queue?.readyAt, DateTime.utc(2026, 10, 22, 13, 5));
 
-      final Map<String, Object?> bill =
-          ((fixtureData('bills_create')! as Map<Object?, Object?>)['bills']!
-                      as List<Object?>)
-                  .first! as Map<String, Object?>;
-      final PosBill plain = PosBill.fromJson(PosJson(bill));
-      expect(plain.ticket, isNull);
-      final PosBill withTicket = PosBill.fromJson(
-        PosJson(<String, Object?>{
-          ...bill,
-          'ticket': <String, Object?>{
-            'number': 57,
-            'business_date': '2026-10-22',
-            'order_label': 'Olib ketish',
-            'message': "Buyurtmangiz tayyor bo'lganda raqamingiz ekranda chiqadi va chaqiriladi.",
-          },
-        }),
-      );
-      final PosQueueTicket t = withTicket.ticket!;
-      expect(t.number, 57);
-      final QueueSlip slip = t.slip(
-        header: const ReceiptHeader(storeName: 'Osh markazi'),
-        createdAt: DateTime.utc(2026, 10, 22, 13),
-        items: const <String>['2 x Osh'],
-      );
-      expect(slip.number, '57');
-      expect(slip.orderLabel, 'Olib ketish');
-      expect(slip.items, <String>['2 x Osh']);
-    });
+        final Map<String, Object?> bill =
+            ((fixtureData('bills_create')! as Map<Object?, Object?>)['bills']!
+                        as List<Object?>)
+                    .first!
+                as Map<String, Object?>;
+        final PosBill plain = PosBill.fromJson(PosJson(bill));
+        expect(plain.ticket, isNull);
+        final PosBill withTicket = PosBill.fromJson(
+          PosJson(<String, Object?>{
+            ...bill,
+            'ticket': <String, Object?>{
+              'number': 57,
+              'business_date': '2026-10-22',
+              'order_label': 'Olib ketish',
+              'message': "Buyurtmangiz tayyor bo'lganda raqamingiz ekranda chiqadi va chaqiriladi.",
+            },
+          }),
+        );
+        final PosQueueTicket t = withTicket.ticket!;
+        expect(t.number, 57);
+        final QueueSlip slip = t.slip(
+          header: const ReceiptHeader(storeName: 'Osh markazi'),
+          createdAt: DateTime.utc(2026, 10, 22, 13),
+          items: const <String>['2 x Osh'],
+        );
+        expect(slip.number, '57');
+        expect(slip.orderLabel, 'Olib ketish');
+        expect(slip.items, <String>['2 x Osh']);
+      },
+    );
 
     test('queue events: ready, called again, handed, canceled', () {
       Map<String, Object?> data(String? status, {bool called = false}) =>
@@ -130,9 +134,10 @@ void main() {
       expect(ready.number, 57);
       expect(ready.announce, isTrue);
       expect(ready.called, isFalse);
-      final PosQueueEvent again =
-          PosEvent.fromWire('queue.ready', data('ready', called: true))
-              as PosQueueEvent;
+      final PosQueueEvent again = PosEvent.fromWire(
+        'queue.ready',
+        data('ready', called: true),
+      ) as PosQueueEvent;
       expect(again.called, isTrue);
       expect(again.callCount, 2);
       final PosQueueEvent handed =

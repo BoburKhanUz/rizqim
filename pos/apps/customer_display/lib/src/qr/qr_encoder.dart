@@ -34,7 +34,9 @@ class QrCode {
   /// [mask] berilsa (0-7) shu niqob, aks holda eng kam jarimali.
   factory QrCode.encode(String text, {QrEcc? ecc, int? mask}) {
     final Uint8List bytes = Uint8List.fromList(utf8.encode(text));
-    final List<QrEcc> levels = ecc != null ? <QrEcc>[ecc] : QrEcc.values.reversed.toList();
+    final List<QrEcc> levels = ecc != null
+        ? <QrEcc>[ecc]
+        : QrEcc.values.reversed.toList();
     // QrEcc.values = [low, medium]; reversed = [medium, low]: avval M
     for (final QrEcc level in levels) {
       for (var v = 1; v <= _maxVersion; v++) {
@@ -66,7 +68,10 @@ class QrCode {
   // --- jadvallar ------------------------------------------------------------------------------------------------
 
   /// (bloklar soni, blokdagi ma'lumot baytlari) guruhlari va blokdagi tuzatish baytlari, versiya 1-10.
-  static const Map<QrEcc, List<(int ecPerBlock, List<(int blocks, int data)> groups)>>
+  static const Map<
+    QrEcc,
+    List<(int ecPerBlock, List<(int blocks, int data)> groups)>
+  >
   _blocks = <QrEcc, List<(int, List<(int, int)>)>>{
     QrEcc.medium: <(int, List<(int, int)>)>[
       (10, <(int, int)>[(1, 16)]),
@@ -123,11 +128,26 @@ class QrCode {
 
   // --- qurish ---------------------------------------------------------------------------------------------------
 
-  static QrCode _build(Uint8List data, int version, QrEcc level, int? forcedMask) {
-    final List<int> codewords = _interleave(_dataBits(data, version, level), version, level);
+  static QrCode _build(
+    Uint8List data,
+    int version,
+    QrEcc level,
+    int? forcedMask,
+  ) {
+    final List<int> codewords = _interleave(
+      _dataBits(data, version, level),
+      version,
+      level,
+    );
     final int size = 17 + 4 * version;
-    final List<List<bool>> function = List<List<bool>>.generate(size, (_) => List<bool>.filled(size, false));
-    final List<List<bool>> base = List<List<bool>>.generate(size, (_) => List<bool>.filled(size, false));
+    final List<List<bool>> function = List<List<bool>>.generate(
+      size,
+      (_) => List<bool>.filled(size, false),
+    );
+    final List<List<bool>> base = List<List<bool>>.generate(
+      size,
+      (_) => List<bool>.filled(size, false),
+    );
 
     void set(int r, int c, bool dark) {
       base[r][c] = dark;
@@ -135,14 +155,26 @@ class QrCode {
     }
 
     // Qidiruv naqshlari + ajratgichlar
-    for (final (int, int) o in <(int, int)>[(0, 0), (0, size - 7), (size - 7, 0)]) {
+    for (final (int, int) o in <(int, int)>[
+      (0, 0),
+      (0, size - 7),
+      (size - 7, 0),
+    ]) {
       for (var dr = -1; dr <= 7; dr++) {
         for (var dc = -1; dc <= 7; dc++) {
           final int r = o.$1 + dr;
           final int c = o.$2 + dc;
           if (r < 0 || r >= size || c < 0 || c >= size) continue;
-          final bool ring = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6 &&
-              (dr == 0 || dr == 6 || dc == 0 || dc == 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+          final bool ring =
+              dr >= 0 &&
+              dr <= 6 &&
+              dc >= 0 &&
+              dc <= 6 &&
+              (dr == 0 ||
+                  dr == 6 ||
+                  dc == 0 ||
+                  dc == 6 ||
+                  (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
           set(r, c, ring);
         }
       }
@@ -156,11 +188,18 @@ class QrCode {
     final List<int> pos = _alignment[version - 1];
     for (final int r in pos) {
       for (final int c in pos) {
-        final bool onFinder = (r == 6 && c == 6) || (r == 6 && c == pos.last && pos.length > 1) || (c == 6 && r == pos.last && pos.length > 1);
+        final bool onFinder =
+            (r == 6 && c == 6) ||
+            (r == 6 && c == pos.last && pos.length > 1) ||
+            (c == 6 && r == pos.last && pos.length > 1);
         if (onFinder) continue;
         for (var dr = -2; dr <= 2; dr++) {
           for (var dc = -2; dc <= 2; dc++) {
-            set(r + dr, c + dc, dr.abs() == 2 || dc.abs() == 2 || (dr == 0 && dc == 0));
+            set(
+              r + dr,
+              c + dc,
+              dr.abs() == 2 || dc.abs() == 2 || (dr == 0 && dc == 0),
+            );
           }
         }
       }
@@ -185,7 +224,10 @@ class QrCode {
     }
 
     // Ma'lumot modullari: o'ngdan chapga ikki ustunli ilon yo'li
-    final List<List<bool>> raw = List<List<bool>>.generate(size, (int r) => List<bool>.of(base[r]));
+    final List<List<bool>> raw = List<List<bool>>.generate(
+      size,
+      (int r) => List<bool>.of(base[r]),
+    );
     var bit = 0;
     final int totalBits = codewords.length * 8;
     for (var right = size - 1; right >= 1; right -= 2) {
@@ -212,7 +254,13 @@ class QrCode {
     } else {
       var bestPenalty = 1 << 30;
       for (var m = 0; m < 8; m++) {
-        final List<List<bool>> candidate = _masked(raw, function, m, version, level);
+        final List<List<bool>> candidate = _masked(
+          raw,
+          function,
+          m,
+          version,
+          level,
+        );
         final int penalty = _penalty(candidate);
         if (penalty < bestPenalty) {
           bestPenalty = penalty;
@@ -224,9 +272,18 @@ class QrCode {
     return QrCode._(version, level, bestMask, best!);
   }
 
-  static List<List<bool>> _masked(List<List<bool>> raw, List<List<bool>> function, int mask, int version, QrEcc level) {
+  static List<List<bool>> _masked(
+    List<List<bool>> raw,
+    List<List<bool>> function,
+    int mask,
+    int version,
+    QrEcc level,
+  ) {
     final int size = raw.length;
-    final List<List<bool>> out = List<List<bool>>.generate(size, (int r) => List<bool>.of(raw[r]));
+    final List<List<bool>> out = List<List<bool>>.generate(
+      size,
+      (int r) => List<bool>.of(raw[r]),
+    );
     for (var r = 0; r < size; r++) {
       for (var c = 0; c < size; c++) {
         if (function[r][c]) continue;
@@ -299,7 +356,9 @@ class QrCode {
       for (var i = 0; i < size; i++) {
         var run = 1;
         for (var j = 1; j < size; j++) {
-          final bool same = pass == 0 ? m[i][j] == m[i][j - 1] : m[j][i] == m[j - 1][i];
+          final bool same = pass == 0
+              ? m[i][j] == m[i][j - 1]
+              : m[j][i] == m[j - 1][i];
           if (same) {
             run++;
             if (run == 5) {
@@ -317,11 +376,21 @@ class QrCode {
     for (var r = 0; r < size - 1; r++) {
       for (var c = 0; c < size - 1; c++) {
         final bool v = m[r][c];
-        if (v == m[r][c + 1] && v == m[r + 1][c] && v == m[r + 1][c + 1]) result += 3;
+        if (v == m[r][c + 1] && v == m[r + 1][c] && v == m[r + 1][c + 1]) {
+          result += 3;
+        }
       }
     }
     // N3: 1:1:3:1:1 naqsh (oldida yoki orqasida 4 ta och modul)
-    const List<bool> pattern = <bool>[true, false, true, true, true, false, true];
+    const List<bool> pattern = <bool>[
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+    ];
     for (var pass = 0; pass < 2; pass++) {
       for (var i = 0; i < size; i++) {
         for (var j = 0; j <= size - 7; j++) {
@@ -335,8 +404,11 @@ class QrCode {
             if (idx < 0 || idx >= size) return true;
             return !(pass == 0 ? m[i][idx] : m[idx][i]);
           }
-          final bool before = light(j - 1) && light(j - 2) && light(j - 3) && light(j - 4);
-          final bool after = light(j + 7) && light(j + 8) && light(j + 9) && light(j + 10);
+
+          final bool before =
+              light(j - 1) && light(j - 2) && light(j - 3) && light(j - 4);
+          final bool after =
+              light(j + 7) && light(j + 8) && light(j + 9) && light(j + 10);
           if (before) result += 40;
           if (after) result += 40;
         }
@@ -385,7 +457,8 @@ class QrCode {
   }
 
   static List<int> _interleave(List<int> data, int version, QrEcc level) {
-    final (int ecPerBlock, List<(int, int)> groups) spec = _blocks[level]![version - 1];
+    final (int ecPerBlock, List<(int, int)> groups) spec =
+        _blocks[level]![version - 1];
     final List<List<int>> dataBlocks = <List<int>>[];
     var offset = 0;
     for (final (int blocks, int size) in spec.$2) {
@@ -399,7 +472,9 @@ class QrCode {
       for (final List<int> block in dataBlocks) _rsRemainder(block, divisor),
     ];
     final List<int> out = <int>[];
-    final int maxData = dataBlocks.map((List<int> b) => b.length).reduce((int a, int b) => a > b ? a : b);
+    final int maxData = dataBlocks
+        .map((List<int> b) => b.length)
+        .reduce((int a, int b) => a > b ? a : b);
     for (var i = 0; i < maxData; i++) {
       for (final List<int> block in dataBlocks) {
         if (i < block.length) out.add(block[i]);
@@ -437,7 +512,11 @@ class QrCode {
   }
 
   static List<int> _rsRemainder(List<int> data, List<int> divisor) {
-    final List<int> result = List<int>.filled(divisor.length, 0, growable: true);
+    final List<int> result = List<int>.filled(
+      divisor.length,
+      0,
+      growable: true,
+    );
     for (final int b in data) {
       final int factor = b ^ result.removeAt(0);
       result.add(0);

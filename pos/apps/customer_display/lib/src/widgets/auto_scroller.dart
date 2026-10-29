@@ -54,7 +54,8 @@ class _AutoScrollerState extends State<AutoScroller> {
       _paused = widget.pause;
       return;
     }
-    final double next = p.pixels + widget.pixelsPerSecond * _step.inMilliseconds / 1000;
+    final double next =
+        p.pixels + widget.pixelsPerSecond * _step.inMilliseconds / 1000;
     if (next >= max) {
       _controller.jumpTo(max);
       _wrapping = true;

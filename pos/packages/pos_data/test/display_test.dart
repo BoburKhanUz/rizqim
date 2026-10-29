@@ -64,7 +64,10 @@ Map<String, Object?> stateJson({Object? cart}) => <String, Object?>{
       'name': 'Ikkinchi ekran',
     },
     'till_uuid': 'till-1',
-    'modules': <String, Object?>{'customer_display': true, 'queue_calling': false},
+    'modules': <String, Object?>{
+      'customer_display': true,
+      'queue_calling': false,
+    },
     'server_time': '2026-10-22T13:00:30.000000Z',
     'cart': cart,
   },
@@ -106,12 +109,20 @@ void main() {
 
     test('the body sent to the server carries decimal strings and no null clutter that the API refuses', () {
       final PosDisplayCart cart = PosDisplayCart.fromJson(PosJson(cartJson()));
-      final Map<String, Object?> body = cart.copyWith(seq: 9, session: 's').toJson();
+      final Map<String, Object?> body = cart
+          .copyWith(seq: 9, session: 's')
+          .toJson();
       expect(body['seq'], 9);
       expect(body['session'], 's');
       expect(body['total'], '69000.00');
-      expect((body['lines']! as List<Object?>).last, containsPair('qty', '0.750'));
-      expect((body['payment']! as Map<Object?, Object?>)['qr'], containsPair('label', 'Click'));
+      expect(
+        (body['lines']! as List<Object?>).last,
+        containsPair('qty', '0.750'),
+      );
+      expect(
+        (body['payment']! as Map<Object?, Object?>)['qr'],
+        containsPair('label', 'Click'),
+      );
     });
   });
 
@@ -159,11 +170,12 @@ void main() {
     });
 
     test('publishing posts the cart as JSON without an Idempotency-Key and says whether the server kept it', () async {
-      h.adapter.respond = (RequestOptions o) => const FakeResponse(200, <String, Object?>{
-        'success': true,
-        'message': '',
-        'data': <String, Object?>{'stored': false},
-      });
+      h.adapter.respond = (RequestOptions o) =>
+          const FakeResponse(200, <String, Object?>{
+            'success': true,
+            'message': '',
+            'data': <String, Object?>{'stored': false},
+          });
       final bool stored = await h.pos.display.publish(
         PosDisplayCart.fromJson(PosJson(cartJson())),
       );
@@ -175,14 +187,21 @@ void main() {
     });
 
     test('a switched-off module is the usual module_disabled error', () async {
-      h.adapter.respond = (RequestOptions o) => const FakeResponse(403, <String, Object?>{
-        'success': false,
-        'message': 'Mijoz ekrani moduli bu filialda o\'chirilgan.',
-        'code': 'module_disabled',
-        'module': 'customer_display',
-        'data': <String, Object?>{'reason': 'module_disabled', 'module': 'customer_display'},
-      });
-      await expectLater(h.pos.display.state(), throwsA(isA<PosModuleDisabled>()));
+      h.adapter.respond = (RequestOptions o) =>
+          const FakeResponse(403, <String, Object?>{
+            'success': false,
+            'message': 'Mijoz ekrani moduli bu filialda o\'chirilgan.',
+            'code': 'module_disabled',
+            'module': 'customer_display',
+            'data': <String, Object?>{
+              'reason': 'module_disabled',
+              'module': 'customer_display',
+            },
+          });
+      await expectLater(
+        h.pos.display.state(),
+        throwsA(isA<PosModuleDisabled>()),
+      );
     });
   });
 
@@ -204,23 +223,29 @@ void main() {
       };
     });
 
-    PosDisplayCart cart(String total, {PosDisplayScreen state = PosDisplayScreen.cart}) =>
-        PosDisplayCart(
-          state: state,
-          lines: <PosDisplayLine>[
-            PosDisplayLine(
-              name: 'Osh',
-              quantity: PosQuantity.one,
-              price: PosMoney.parse(total),
-              total: PosMoney.parse(total),
-            ),
-          ],
-          subtotal: PosMoney.parse(total),
+    PosDisplayCart cart(
+      String total, {
+      PosDisplayScreen state = PosDisplayScreen.cart,
+    }) => PosDisplayCart(
+      state: state,
+      lines: <PosDisplayLine>[
+        PosDisplayLine(
+          name: 'Osh',
+          quantity: PosQuantity.one,
+          price: PosMoney.parse(total),
           total: PosMoney.parse(total),
-        );
+        ),
+      ],
+      subtotal: PosMoney.parse(total),
+      total: PosMoney.parse(total),
+    );
 
     test('taps in quick succession become one publish with the last cart; seq grows, the session stays', () async {
-      final DisplayFeed feed = DisplayFeed(h.pos.display, debounce: const Duration(milliseconds: 20), session: 'run-9');
+      final DisplayFeed feed = DisplayFeed(
+        h.pos.display,
+        debounce: const Duration(milliseconds: 20),
+        session: 'run-9',
+      );
       feed.publish(cart('1000'));
       feed.publish(cart('2000'));
       feed.publish(cart('3000'));
@@ -237,7 +262,10 @@ void main() {
     });
 
     test('payment, paid and idle go at once, a repeated identical cart is not sent again', () async {
-      final DisplayFeed feed = DisplayFeed(h.pos.display, debounce: const Duration(hours: 1));
+      final DisplayFeed feed = DisplayFeed(
+        h.pos.display,
+        debounce: const Duration(hours: 1),
+      );
       feed.publish(cart('5000', state: PosDisplayScreen.payment));
       await feed.flush();
       feed.publish(cart('5000', state: PosDisplayScreen.payment));
@@ -247,7 +275,11 @@ void main() {
       feed.publish(cart('5000', state: PosDisplayScreen.paid));
       feed.idle();
       await feed.flush();
-      expect(posted.map((Map<String, Object?> b) => b['state']), <Object?>['payment', 'paid', 'idle']);
+      expect(posted.map((Map<String, Object?> b) => b['state']), <Object?>[
+        'payment',
+        'paid',
+        'idle',
+      ]);
     });
 
     test('a refused or unreachable display never throws into the till; the next change is tried again', () async {
@@ -259,8 +291,15 @@ void main() {
               'code': 'module_disabled',
               'data': <String, Object?>{'reason': 'module_disabled'},
             })
-          : const FakeResponse(200, <String, Object?>{'success': true, 'message': '', 'data': <String, Object?>{'stored': true}});
-      final DisplayFeed feed = DisplayFeed(h.pos.display, debounce: Duration.zero);
+          : const FakeResponse(200, <String, Object?>{
+              'success': true,
+              'message': '',
+              'data': <String, Object?>{'stored': true},
+            });
+      final DisplayFeed feed = DisplayFeed(
+        h.pos.display,
+        debounce: Duration.zero,
+      );
       feed.publish(cart('1000'));
       await feed.flush();
       expect(feed.lastError, isA<PosModuleDisabled>());
@@ -274,28 +313,39 @@ void main() {
     });
 
     test('a disabled feed (module off) sends nothing', () async {
-      final DisplayFeed feed = DisplayFeed(h.pos.display, debounce: Duration.zero)..enabled = false;
+      final DisplayFeed feed = DisplayFeed(
+        h.pos.display,
+        debounce: Duration.zero,
+      )..enabled = false;
       feed.publish(cart('1000'));
       feed.idle();
       await feed.flush();
-      expect(h.adapter.requests.where((RequestOptions r) => r.uri.path.contains('display')), isEmpty);
+      expect(
+        h.adapter.requests.where(
+          (RequestOptions r) => r.uri.path.contains('display'),
+        ),
+        isEmpty,
+      );
     });
   });
 
   group('event', () {
-    test('display.cart is a hint with the till, the sequence and the screen state', () {
-      final PosEvent e = PosEvent.fromWire('display.cart', <String, Object?>{
-        'terminal': 'till-1',
-        'seq': 12,
-        'state': 'payment',
-        'branch_id': 3,
-        'store_id': 1,
-      });
-      expect(e, isA<PosDisplayCartChanged>());
-      e as PosDisplayCartChanged;
-      expect(e.terminal, 'till-1');
-      expect(e.seq, 12);
-      expect(e.state, 'payment');
-    });
+    test(
+      'display.cart is a hint with the till, the sequence and the screen state',
+      () {
+        final PosEvent e = PosEvent.fromWire('display.cart', <String, Object?>{
+          'terminal': 'till-1',
+          'seq': 12,
+          'state': 'payment',
+          'branch_id': 3,
+          'store_id': 1,
+        });
+        expect(e, isA<PosDisplayCartChanged>());
+        e as PosDisplayCartChanged;
+        expect(e.terminal, 'till-1');
+        expect(e.seq, 12);
+        expect(e.state, 'payment');
+      },
+    );
   });
 }

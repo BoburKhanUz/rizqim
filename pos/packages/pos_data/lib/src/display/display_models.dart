@@ -207,7 +207,10 @@ class PosDisplayCart {
 
 /// Ekran qaysi rejimlarni ko'rsata oladi (formatdagi modullar, [PosModule]).
 class PosDisplayModules {
-  const PosDisplayModules({this.customerDisplay = false, this.queueCalling = false});
+  const PosDisplayModules({
+    this.customerDisplay = false,
+    this.queueCalling = false,
+  });
 
   factory PosDisplayModules.fromJson(PosJson j) => PosDisplayModules(
     customerDisplay: j.boolean('customer_display'),

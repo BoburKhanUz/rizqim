@@ -54,8 +54,7 @@ class TicketCard extends StatelessWidget {
     final String? notes = ticket.notes?.trim();
     final bool anyBumpable = ticket.lines.any(canBump);
     // P6-14: navbat raqamli kassa buyurtmasi hali oshxonada: "Raqam N tayyor" (yig'ish) tugmasi
-    final bool expo =
-        ticket.isQueueOrder && ticket.pickupStatus == 'preparing';
+    final bool expo = ticket.isQueueOrder && ticket.pickupStatus == 'preparing';
     final bool nothingLeft = ticket.lines.every(
       (KitchenLine l) => l.isDone || l.isVoid,
     );

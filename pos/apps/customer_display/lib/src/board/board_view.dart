@@ -20,7 +20,9 @@ class BoardView extends StatelessWidget {
     final PosQueueBoard board =
         controller.board ?? const PosQueueBoard(businessDate: '');
     final List<ReadyAnnouncement> highlighted = controller.highlighted;
-    final Set<int> hot = <int>{for (final ReadyAnnouncement a in highlighted) a.number};
+    final Set<int> hot = <int>{
+      for (final ReadyAnnouncement a in highlighted) a.number,
+    };
     final ReadyAnnouncement? latest = controller.latestAnnouncement;
 
     // Tayyor: eng yangisi birinchi (mijoz hozir chaqirilganini ko'radi); tayyorlanmoqda: raqam bo'yicha
@@ -33,8 +35,9 @@ class BoardView extends StatelessWidget {
         if (tb == null) return -1;
         return tb.compareTo(ta);
       });
-    final List<PosQueueEntry> preparing = <PosQueueEntry>[...board.preparing]
-      ..sort((PosQueueEntry a, PosQueueEntry b) => a.number.compareTo(b.number));
+    final List<PosQueueEntry> preparing = <PosQueueEntry>[
+      ...board.preparing,
+    ]..sort((PosQueueEntry a, PosQueueEntry b) => a.number.compareTo(b.number));
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -42,7 +45,8 @@ class BoardView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           _Header(
-            title: controller.storeName ?? controller.branchName ?? 'Buyurtmalar',
+            title:
+                controller.storeName ?? controller.branchName ?? 'Buyurtmalar',
             latest: latest,
           ),
           const SizedBox(height: 16),
@@ -58,7 +62,9 @@ class BoardView extends StatelessWidget {
                   background: c.surface,
                   foreground: c.fg,
                   accent: c.warning,
-                  numbers: <int>[for (final PosQueueEntry e in preparing) e.number],
+                  numbers: <int>[
+                    for (final PosQueueEntry e in preparing) e.number,
+                  ],
                   hot: const <int>{},
                   digit: 52,
                   chip: const Size(128, 84),
@@ -125,11 +131,16 @@ class _Header extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: DisplayType.greeting.copyWith(fontSize: 44, color: c.fg),
+                  style: DisplayType.greeting.copyWith(
+                    fontSize: 44,
+                    color: c.fg,
+                  ),
                 ),
               )
             : DecoratedBox(
-                key: ValueKey<String>('announce-${latest!.number}-${latest!.at.microsecondsSinceEpoch}'),
+                key: ValueKey<String>(
+                  'announce-${latest!.number}-${latest!.at.microsecondsSinceEpoch}',
+                ),
                 decoration: BoxDecoration(
                   color: c.success,
                   borderRadius: BorderRadius.circular(RzRadius.sheet),
@@ -140,7 +151,11 @@ class _Header extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Icon(Icons.campaign_rounded, color: c.onSuccess, size: 48),
+                        Icon(
+                          Icons.campaign_rounded,
+                          color: c.onSuccess,
+                          size: 48,
+                        ),
                         const SizedBox(width: 16),
                         Flexible(
                           child: FittedBox(
@@ -150,7 +165,9 @@ class _Header extends StatelessWidget {
                                   ? '${latest!.number} raqam, buyurtmangizni oling!'
                                   : '${latest!.number} raqam tayyor!',
                               maxLines: 1,
-                              style: DisplayType.banner.copyWith(color: c.onSuccess),
+                              style: DisplayType.banner.copyWith(
+                                color: c.onSuccess,
+                              ),
                             ),
                           ),
                         ),
@@ -213,12 +230,17 @@ class _Panel extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: DisplayType.heading.copyWith(fontSize: 36, color: foreground),
+                    style: DisplayType.heading.copyWith(
+                      fontSize: 36,
+                      color: foreground,
+                    ),
                   ),
                 ),
                 Text(
                   '$count',
-                  style: DisplayType.heading.copyWith(color: foreground.withValues(alpha: 0.7)),
+                  style: DisplayType.heading.copyWith(
+                    color: foreground.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
@@ -239,7 +261,9 @@ class _Panel extends StatelessWidget {
                 : LayoutBuilder(
                     builder: (BuildContext context, BoxConstraints box) {
                       // Katta ekranda (televizor) raqamlar kattalashadi: uzoqdan o'qiladi
-                      final double scale = (box.maxWidth / 620).clamp(1.0, 2.1).toDouble();
+                      final double scale = (box.maxWidth / 620)
+                          .clamp(1.0, 2.1)
+                          .toDouble();
                       return AutoScroller(
                         padding: const EdgeInsets.all(20),
                         child: Wrap(
@@ -249,7 +273,10 @@ class _Panel extends StatelessWidget {
                             for (final int n in numbers)
                               _NumberChip(
                                 number: n,
-                                size: Size(chip.width * scale, chip.height * scale),
+                                size: Size(
+                                  chip.width * scale,
+                                  chip.height * scale,
+                                ),
                                 digit: digit * scale,
                                 hot: hot.contains(n),
                                 accent: accent,
@@ -307,15 +334,19 @@ class _NumberChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(RzRadius.card),
             border: Border.all(color: accent, width: hot ? 4 : 2),
             boxShadow: hot
-                ? <BoxShadow>[BoxShadow(color: accent.withValues(alpha: 0.5), blurRadius: 24)]
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.5),
+                      blurRadius: 24,
+                    ),
+                  ]
                 : null,
           ),
           child: Text(
             '$number',
             maxLines: 1,
-            style: DisplayType.number(digit).copyWith(
-              color: hot ? c.onSuccess : foreground,
-            ),
+            style: DisplayType.number(digit)
+                .copyWith(color: hot ? c.onSuccess : foreground),
           ),
         ),
       ),

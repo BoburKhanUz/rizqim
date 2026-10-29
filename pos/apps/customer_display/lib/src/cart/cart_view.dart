@@ -30,8 +30,10 @@ class CartView extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints box) {
-        final bool wide = box.maxWidth >= 760 && box.maxWidth > box.maxHeight * 0.9;
-        final bool showsQr = cart.state == PosDisplayScreen.payment && cart.payment?.qr != null;
+        final bool wide =
+            box.maxWidth >= 760 && box.maxWidth > box.maxHeight * 0.9;
+        final bool showsQr =
+            cart.state == PosDisplayScreen.payment && cart.payment?.qr != null;
         final Widget lines = _LinesPanel(cart: cart, storeName: storeName);
         final Widget summary = _SummaryPanel(cart: cart);
         return Padding(
@@ -140,10 +142,15 @@ class _LinesPanelState extends State<_LinesPanel> {
                       borderRadius: BorderRadius.circular(RzRadius.control),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 6,
+                      ),
                       child: Text(
                         'Raqam ${cart.queueNumber}',
-                        style: DisplayType.heading.copyWith(color: c.brandSoftFg),
+                        style: DisplayType.heading.copyWith(
+                          color: c.brandSoftFg,
+                        ),
                       ),
                     ),
                   ),
@@ -161,9 +168,13 @@ class _LinesPanelState extends State<_LinesPanel> {
                   )
                 : ListView.separated(
                     controller: _scroll,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 8,
+                    ),
                     itemCount: cart.lines.length,
-                    separatorBuilder: (_, _) => Divider(height: 1, color: c.line),
+                    separatorBuilder: (_, _) =>
+                        Divider(height: 1, color: c.line),
                     itemBuilder: (BuildContext context, int i) =>
                         _LineRow(line: cart.lines[i]),
                   ),
@@ -195,15 +206,20 @@ class _LineRow extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints box) {
         // Telefon kengligida (tor ekran) shrift va ustun kichraytiriladi
         final bool narrow = box.maxWidth < 520;
-        final TextStyle name = (narrow ? DisplayType.modifier : DisplayType.line).copyWith(color: c.fg);
-        final TextStyle amount = (narrow ? DisplayType.modifier : DisplayType.lineAmount).copyWith(
-          fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-          fontWeight: FontWeight.w700,
-          color: c.fg,
-        );
+        final TextStyle name =
+            (narrow ? DisplayType.modifier : DisplayType.line).copyWith(
+              color: c.fg,
+            );
+        final TextStyle amount =
+            (narrow ? DisplayType.modifier : DisplayType.lineAmount).copyWith(
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w700,
+              color: c.fg,
+            );
         return Semantics(
           container: true,
-          label: '${line.name}, ${_quantity.replaceAll('×', 'dona')}, ${line.total.format()}',
+          label:
+              '${line.name}, ${_quantity.replaceAll('×', 'dona')}, ${line.total.format()}',
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: narrow ? 10 : 14),
             child: Row(
@@ -223,7 +239,13 @@ class _LineRow extends StatelessWidget {
                     children: <Widget>[
                       Text(line.name, style: name),
                       for (final String m in line.modifiers)
-                        Text('+ $m', style: DisplayType.modifier.copyWith(color: c.fgMuted, fontSize: narrow ? 16 : null)),
+                        Text(
+                          '+ $m',
+                          style: DisplayType.modifier.copyWith(
+                            color: c.fgMuted,
+                            fontSize: narrow ? 16 : null,
+                          ),
+                        ),
                       if (line.note != null && line.note!.isNotEmpty)
                         Text(
                           line.note!,
@@ -271,7 +293,10 @@ class _SummaryPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: paying ? c.brandSoft : c.surface,
         borderRadius: BorderRadius.circular(RzRadius.sheet),
-        border: Border.all(color: paying ? c.brand : c.line, width: paying ? 2 : 1),
+        border: Border.all(
+          color: paying ? c.brand : c.line,
+          width: paying ? 2 : 1,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -279,7 +304,11 @@ class _SummaryPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             if (cart.discount.isPositive) ...<Widget>[
-              _Row(label: 'Jami', value: cart.subtotal.format(), color: c.fgMuted),
+              _Row(
+                label: 'Jami',
+                value: cart.subtotal.format(),
+                color: c.fgMuted,
+              ),
               const SizedBox(height: 6),
               _Row(
                 label: 'Chegirma',
@@ -290,7 +319,9 @@ class _SummaryPanel extends StatelessWidget {
             ],
             Text(
               paying ? "To'lash kerak" : 'Jami',
-              style: DisplayType.label.copyWith(color: paying ? c.brandSoftFg : c.fgMuted),
+              style: DisplayType.label.copyWith(
+                color: paying ? c.brandSoftFg : c.fgMuted,
+              ),
             ),
             const SizedBox(height: 4),
             FittedBox(
@@ -307,19 +338,36 @@ class _SummaryPanel extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: <Widget>[
-                  Icon(_methodIcon(payment?.method), color: c.brandSoftFg, size: 30),
+                  Icon(
+                    _methodIcon(payment?.method),
+                    color: c.brandSoftFg,
+                    size: 30,
+                  ),
                   const SizedBox(width: 10),
-                  Text(method, style: DisplayType.label.copyWith(color: c.brandSoftFg)),
+                  Text(
+                    method,
+                    style: DisplayType.label.copyWith(color: c.brandSoftFg),
+                  ),
                 ],
               ),
             ],
             if (paying && payment?.tendered != null) ...<Widget>[
               const SizedBox(height: 12),
-              _Row(label: 'Berildi', value: payment!.tendered!.format(), color: c.fgMuted),
+              _Row(
+                label: 'Berildi',
+                value: payment!.tendered!.format(),
+                color: c.fgMuted,
+              ),
             ],
-            if (paying && payment?.change != null && payment!.change!.isPositive) ...<Widget>[
+            if (paying &&
+                payment?.change != null &&
+                payment!.change!.isPositive) ...<Widget>[
               const SizedBox(height: 6),
-              _Row(label: 'Qaytim', value: payment.change!.format(), color: c.fg),
+              _Row(
+                label: 'Qaytim',
+                value: payment.change!.format(),
+                color: c.fg,
+              ),
             ],
             if (qr != null)
               Expanded(
@@ -329,11 +377,12 @@ class _SummaryPanel extends StatelessWidget {
                     builder: (BuildContext context, BoxConstraints box) {
                       // QR eng katta kvadrat: yozuv uchun joy qoldirib, bor kenglik va balandlikka sig'adi
                       const double captionHeight = 72;
-                      final double side = (box.maxHeight - captionHeight < box.maxWidth
-                              ? box.maxHeight - captionHeight
-                              : box.maxWidth)
-                          .clamp(96, 440)
-                          .toDouble();
+                      final double side =
+                          (box.maxHeight - captionHeight < box.maxWidth
+                                  ? box.maxHeight - captionHeight
+                                  : box.maxWidth)
+                              .clamp(96, 440)
+                              .toDouble();
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
@@ -346,7 +395,9 @@ class _SummaryPanel extends StatelessWidget {
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: DisplayType.modifier.copyWith(color: c.brandSoftFg),
+                            style: DisplayType.modifier.copyWith(
+                              color: c.brandSoftFg,
+                            ),
                           ),
                         ],
                       );
@@ -385,7 +436,9 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: <Widget>[
-      Expanded(child: Text(label, style: DisplayType.label.copyWith(color: color))),
+      Expanded(
+        child: Text(label, style: DisplayType.label.copyWith(color: color)),
+      ),
       Text(value, style: DisplayType.lineAmount.copyWith(color: color)),
     ],
   );
@@ -408,10 +461,17 @@ class PaidView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             DecoratedBox(
-              decoration: BoxDecoration(color: c.successSoft, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: c.successSoft,
+                shape: BoxShape.circle,
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(28),
-                child: Icon(Icons.check_rounded, size: 96, color: c.successSoftFg),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 96,
+                  color: c.successSoftFg,
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -444,7 +504,10 @@ class PaidView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(RzRadius.sheet),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
@@ -454,11 +517,14 @@ class PaidView extends StatelessWidget {
                       ),
                       Text(
                         '${cart.queueNumber}',
-                        style: DisplayType.number(96).copyWith(color: c.brandSoftFg),
+                        style: DisplayType.number(96)
+                            .copyWith(color: c.brandSoftFg),
                       ),
                       Text(
                         'Raqamingiz ekranda chiqqach oling',
-                        style: DisplayType.modifier.copyWith(color: c.brandSoftFg),
+                        style: DisplayType.modifier.copyWith(
+                          color: c.brandSoftFg,
+                        ),
                       ),
                     ],
                   ),

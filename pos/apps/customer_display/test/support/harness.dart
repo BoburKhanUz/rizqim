@@ -38,11 +38,14 @@ class FakeDisplayBackend {
 
   FakeResponse? handle(RequestOptions o) {
     final String path = o.uri.path;
-    if (path != '/api/v1/pos/display/state' && path != '/api/v1/pos/display/queue') {
+    if (path != '/api/v1/pos/display/state' &&
+        path != '/api/v1/pos/display/queue') {
       return null;
     }
     if (o.headers['Authorization'] != 'Bearer ${FakePosState.terminalToken}') {
-      return const FakeResponse(401, <String, Object?>{'message': 'Unauthenticated.'});
+      return const FakeResponse(401, <String, Object?>{
+        'message': 'Unauthenticated.',
+      });
     }
     if (refusal != null) return refusal;
     if (path.endsWith('/state')) {
@@ -53,7 +56,11 @@ class FakeDisplayBackend {
         'data': <String, Object?>{
           'branch': <String, Object?>{'id': 1, 'name': 'Chilonzor'},
           'store': <String, Object?>{'id': 1, 'name': storeName},
-          'device': <String, Object?>{'uuid': 'd1', 'type': 'display', 'name': 'Mijoz ekrani'},
+          'device': <String, Object?>{
+            'uuid': 'd1',
+            'type': 'display',
+            'name': 'Mijoz ekrani',
+          },
           'till_uuid': tillUuid,
           'modules': <String, Object?>{
             'customer_display': customerDisplay,
@@ -71,7 +78,10 @@ class FakeDisplayBackend {
         'message': 'Raqamni chaqirish moduli o\'chirilgan.',
         'code': 'module_disabled',
         'module': 'queue_calling',
-        'data': <String, Object?>{'reason': 'module_disabled', 'module': 'queue_calling'},
+        'data': <String, Object?>{
+          'reason': 'module_disabled',
+          'module': 'queue_calling',
+        },
       });
     }
     return FakeResponse(200, <String, Object?>{
@@ -159,28 +169,32 @@ class FakeDisplayBackend {
     'opened_at': null,
   };
 
-  Map<String, Object?> _queueEvent(int number, String status, {bool called = false, int calls = 0}) =>
-      <String, Object?>{
-        'order': <String, Object?>{
-          'uuid': 'o$number',
-          'status': 'delivered',
-          'store_id': 1,
-          'branch_id': 1,
-          'courier_id': null,
-          'updated_at': now().toUtc().toIso8601String(),
-        },
-        'queue': <String, Object?>{
-          'number': number,
-          'business_date': '2026-10-22',
-          'status': status,
-          'channel': 'pos_takeaway',
-          'ready_at': now().toUtc().toIso8601String(),
-          'called_at': called ? now().toUtc().toIso8601String() : null,
-          'call_count': calls,
-          'handed_at': null,
-          'called': called,
-        },
-      };
+  Map<String, Object?> _queueEvent(
+    int number,
+    String status, {
+    bool called = false,
+    int calls = 0,
+  }) => <String, Object?>{
+    'order': <String, Object?>{
+      'uuid': 'o$number',
+      'status': 'delivered',
+      'store_id': 1,
+      'branch_id': 1,
+      'courier_id': null,
+      'updated_at': now().toUtc().toIso8601String(),
+    },
+    'queue': <String, Object?>{
+      'number': number,
+      'business_date': '2026-10-22',
+      'status': status,
+      'channel': 'pos_takeaway',
+      'ready_at': now().toUtc().toIso8601String(),
+      'called_at': called ? now().toUtc().toIso8601String() : null,
+      'call_count': calls,
+      'handed_at': null,
+      'called': called,
+    },
+  };
 
   /// Yangi raqam oshxonaga tushdi.
   void addPreparing(int number) {
@@ -198,10 +212,15 @@ class FakeDisplayBackend {
 
   /// Kassa raqamni qayta chaqirdi.
   void callAgain(int number) {
-    final Map<String, Object?> e = ready.firstWhere((Map<String, Object?> e) => e['number'] == number);
+    final Map<String, Object?> e = ready.firstWhere(
+      (Map<String, Object?> e) => e['number'] == number,
+    );
     final int calls = (e['call_count']! as int) + 1;
     e['call_count'] = calls;
-    hub.broadcast('queue.ready', _queueEvent(number, 'ready', called: true, calls: calls));
+    hub.broadcast(
+      'queue.ready',
+      _queueEvent(number, 'ready', called: true, calls: calls),
+    );
   }
 
   /// Mijoz oldi: raqam taxtadan ketdi.
@@ -291,7 +310,11 @@ class DisplayHarness {
   }
 
   /// Soatni [d] ga suradi (qadam-qadam: taymerlar ishlaydi).
-  Future<void> advance(WidgetTester tester, Duration d, {Duration step = const Duration(milliseconds: 100)}) async {
+  Future<void> advance(
+    WidgetTester tester,
+    Duration d, {
+    Duration step = const Duration(milliseconds: 100),
+  }) async {
     var left = d;
     while (left > Duration.zero) {
       final Duration s = left > step ? step : left;

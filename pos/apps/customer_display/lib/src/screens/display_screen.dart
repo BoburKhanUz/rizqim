@@ -35,13 +35,17 @@ class DisplayScreen extends StatelessWidget {
                       key: ValueKey<DisplayView>(view),
                       child: switch (view) {
                         DisplayView.loading => const _Loading(),
-                        DisplayView.welcome => _Welcome(name: controller.storeName),
+                        DisplayView.welcome => _Welcome(
+                          name: controller.storeName,
+                        ),
                         DisplayView.cart => CartView(
                           cart: controller.cart,
                           storeName: controller.storeName,
                         ),
                         DisplayView.board => BoardView(controller: controller),
-                        DisplayView.notEnabled => _NotEnabled(controller: controller),
+                        DisplayView.notEnabled => _NotEnabled(
+                          controller: controller,
+                        ),
                       },
                     ),
                   ),
@@ -71,7 +75,8 @@ class _Loading extends StatelessWidget {
   const _Loading();
 
   @override
-  Widget build(BuildContext context) => const Center(child: CircularProgressIndicator());
+  Widget build(BuildContext context) =>
+      const Center(child: CircularProgressIndicator());
 }
 
 class _Welcome extends StatelessWidget {
@@ -120,14 +125,18 @@ class _NotEnabled extends StatelessWidget {
     final DisplayMode mode = controller.settings.value.mode;
     final String reason = switch (mode) {
       DisplayMode.cart => 'Filial formatida «Mijoz ekrani» moduli yoqilmagan.',
-      DisplayMode.board => 'Filial formatida «Raqamni chaqirish» moduli yoqilmagan.',
-      DisplayMode.auto =>
-        'Filial formatida «Mijoz ekrani» ham, «Raqamni chaqirish» ham yoqilmagan.',
+      DisplayMode.board =>
+        'Filial formatida «Raqamni chaqirish» moduli yoqilmagan.',
+      DisplayMode.auto => 'Filial formatida «Mijoz ekrani» ham, «Raqamni chaqirish» ham yoqilmagan.',
     };
     return EmptyState(
       icon: Icons.visibility_off_outlined,
-      title: error != null ? 'Ekran sozlanmagan' : "Bu ekran hozircha o'chirilgan",
-      message: error ?? "$reason Egasi hamkor panelida Sozlamalar → Format sahifasidan yoqadi.",
+      title: error != null
+          ? 'Ekran sozlanmagan'
+          : "Bu ekran hozircha o'chirilgan",
+      message:
+          error ??
+          "$reason Egasi hamkor panelida Sozlamalar → Format sahifasidan yoqadi.",
     );
   }
 }
@@ -158,7 +167,10 @@ class _LinkChip extends StatelessWidget {
             children: <Widget>[
               Icon(Icons.wifi_off_rounded, color: c.onDanger, size: 22),
               const SizedBox(width: 8),
-              Text("Aloqa yo'q", style: RzType.headline.copyWith(color: c.onDanger)),
+              Text(
+                "Aloqa yo'q",
+                style: RzType.headline.copyWith(color: c.onDanger),
+              ),
             ],
           ),
         ),

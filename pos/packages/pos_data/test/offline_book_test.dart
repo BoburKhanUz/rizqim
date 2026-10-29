@@ -249,34 +249,37 @@ void main() {
     expect(billing().bills.single.dueAmount, const PosMoney.som(200000));
   });
 
-  test('P6-16: an offline card payment keeps the RRN and the last four digits', () async {
-    await copies(
-      items: <Map<String, Object?>>[line(11, '1.000', '100000.00')],
-      total: '100000.00',
-      bills: <Map<String, Object?>>[
-        billOf(
-          'b1',
-          1,
-          total: '100000.00',
-          paid: '0.00',
-          items: <Map<String, Object?>>[share(11, '1.000', '100000.00')],
-        ),
-      ],
-    );
-    await store.enqueue(SyncOpType.billPay, <String, Object?>{
-      'order': 'o1',
-      'bill': 'b1',
-      'tenders': <Object?>[
-        const PosTenderInput.card(
-          PosMoney.som(100000),
-          cardType: 'humo',
-          transactionId: '123456789012',
-          cardLast4: '4321',
-        ).toJson(),
-      ],
-    }, staffId: 1);
-    final PosPayment p = billing().bills.single.payments.single;
-    expect(p.transactionId, '123456789012');
-    expect(p.cardLast4, '4321');
-  });
+  test(
+    'P6-16: an offline card payment keeps the RRN and the last four digits',
+    () async {
+      await copies(
+        items: <Map<String, Object?>>[line(11, '1.000', '100000.00')],
+        total: '100000.00',
+        bills: <Map<String, Object?>>[
+          billOf(
+            'b1',
+            1,
+            total: '100000.00',
+            paid: '0.00',
+            items: <Map<String, Object?>>[share(11, '1.000', '100000.00')],
+          ),
+        ],
+      );
+      await store.enqueue(SyncOpType.billPay, <String, Object?>{
+        'order': 'o1',
+        'bill': 'b1',
+        'tenders': <Object?>[
+          const PosTenderInput.card(
+            PosMoney.som(100000),
+            cardType: 'humo',
+            transactionId: '123456789012',
+            cardLast4: '4321',
+          ).toJson(),
+        ],
+      }, staffId: 1);
+      final PosPayment p = billing().bills.single.payments.single;
+      expect(p.transactionId, '123456789012');
+      expect(p.cardLast4, '4321');
+    },
+  );
 }

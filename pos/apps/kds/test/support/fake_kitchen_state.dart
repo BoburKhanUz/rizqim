@@ -674,9 +674,8 @@ class FakeKitchenState {
       return _setup(method, p, data, query);
     }
 
-    final RegExpMatch? queueReady = RegExp(
-      r'^/v1/pos/orders/([^/]+)/ready$',
-    ).firstMatch(p);
+    final RegExpMatch? queueReady = RegExp(r'^/v1/pos/orders/([^/]+)/ready$')
+        .firstMatch(p);
     if (method == 'POST' && queueReady != null) {
       if (bearer == null || bearer != _staffToken) return _unauthenticated();
       return _queueReady(queueReady[1]!);
@@ -979,7 +978,8 @@ class FakeKitchenState {
     if (order['queue_number'] == null || order['pickup_status'] == null) {
       return const FakeResponse(422, <String, Object?>{
         'success': false,
-        'message': 'Bu buyurtma navbat raqami bilan olib ketish navbatida emas.',
+        'message':
+            'Bu buyurtma navbat raqami bilan olib ketish navbatida emas.',
         'data': <String, Object?>{'reason': 'not_in_queue'},
       });
     }

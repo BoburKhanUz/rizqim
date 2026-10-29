@@ -401,7 +401,9 @@ class SyncStore {
           _lastSeq = max(_lastSeq, op.seq);
           _bumpLocal(op.payload);
         case 'queue':
-          if (r['date'] is String) _noteQueue(r['date']! as String, _int(r['n']));
+          if (r['date'] is String) {
+            _noteQueue(r['date']! as String, _int(r['n']));
+          }
         case 'ack':
           final String id = r['op_id']! as String;
           final int i = _pending.indexWhere((SyncOperation o) => o.opId == id);

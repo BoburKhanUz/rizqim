@@ -87,7 +87,9 @@ void main() {
       expect(externalIds[1], externalIds[0]);
       expect(keys[1], keys[0]);
       expect(p.state.orders, hasLength(1));
-      final List<Map<String, Object?>> lines = items(p.state.orders.values.single);
+      final List<Map<String, Object?>> lines = items(
+        p.state.orders.values.single,
+      );
       expect(lines, hasLength(1));
       expect(lines.single['product_name'], 'Osh porsiya');
     },
@@ -157,8 +159,13 @@ void main() {
       expect(find.byType(PaymentPage), findsOneWidget);
       expect(externalIds, hasLength(2));
       expect(externalIds[1], isNot(externalIds[0]));
-      final List<Map<String, Object?>> lines = items(p.state.orders.values.single);
-      expect(lines.map((Map<String, Object?> l) => l['product_name']).toSet(), <Object?>{'Osh porsiya', 'Somsa'});
+      final List<Map<String, Object?>> lines = items(
+        p.state.orders.values.single,
+      );
+      expect(
+        lines.map((Map<String, Object?> l) => l['product_name']).toSet(),
+        <Object?>{'Osh porsiya', 'Somsa'},
+      );
     },
   );
 }

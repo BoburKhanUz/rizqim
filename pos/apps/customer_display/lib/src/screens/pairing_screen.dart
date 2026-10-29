@@ -81,7 +81,11 @@ class _PairingScreenState extends State<PairingScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Icon(Icons.desktop_windows_outlined, size: 56, color: c.brand),
+                  Icon(
+                    Icons.desktop_windows_outlined,
+                    size: 56,
+                    color: c.brand,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Mijoz ekranini ulash',
@@ -114,7 +118,10 @@ class _PairingScreenState extends State<PairingScreen> {
                     inputFormatters: const <TextInputFormatter>[
                       PairingCodeFormatter(),
                     ],
-                    style: RzType.display.copyWith(color: c.fg, letterSpacing: 4),
+                    style: RzType.display.copyWith(
+                      color: c.fg,
+                      letterSpacing: 4,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'ABCD-EFGH',
                       labelText: 'Ulash kodi',

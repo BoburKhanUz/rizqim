@@ -188,7 +188,9 @@ class DisplayController extends ChangeNotifier {
   DisplayView get view {
     final PosDisplayState? s = _state;
     // Hech narsa yuklanmagan, lekin server sababini aytdi (masalan, filialsiz ulangan): bo'sh aylana emas, tushuntirish
-    if (s == null) return _error != null ? DisplayView.notEnabled : DisplayView.loading;
+    if (s == null) {
+      return _error != null ? DisplayView.notEnabled : DisplayView.loading;
+    }
     final bool cd = s.modules.customerDisplay;
     final bool qc = s.modules.queueCalling && _board != null;
     final bool active = !cart.isIdle;
@@ -197,7 +199,9 @@ class DisplayController extends ChangeNotifier {
         if (!cd) return DisplayView.notEnabled;
         return active ? DisplayView.cart : DisplayView.welcome;
       case DisplayMode.board:
-        return s.modules.queueCalling ? DisplayView.board : DisplayView.notEnabled;
+        return s.modules.queueCalling
+            ? DisplayView.board
+            : DisplayView.notEnabled;
       case DisplayMode.auto:
         if (cd && active) return DisplayView.cart;
         if (s.modules.queueCalling) return DisplayView.board;
@@ -342,7 +346,9 @@ class DisplayController extends ChangeNotifier {
       _announce(e.number, callCount: e.callCount, again: e.callCount > 0);
     }
     // Qaytib "tayyorlanmoqda"ga tushgan raqam keyin yana tayyor bo'lsa, yangidan e'lon qilinadi
-    final Set<int> preparing = <int>{for (final PosQueueEntry e in b.preparing) e.number};
+    final Set<int> preparing = <int>{
+      for (final PosQueueEntry e in b.preparing) e.number,
+    };
     _announced.removeWhere(
       (String key, DateTime at) =>
           preparing.contains(int.tryParse(key.split(':').first)),
@@ -394,10 +400,7 @@ class DisplayController extends ChangeNotifier {
       }
     }
     if (wait == null) return;
-    _tick = Timer(
-      wait.isNegative ? Duration.zero : wait + _slack,
-      _notify,
-    );
+    _tick = Timer(wait.isNegative ? Duration.zero : wait + _slack, _notify);
   }
 
   // --- so'rov jadvali ------------------------------------------------------------------------------------------

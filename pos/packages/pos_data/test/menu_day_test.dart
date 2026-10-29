@@ -300,9 +300,15 @@ void main() {
         error = e;
       }
       expect(error, isA<PosApprovalRequired>());
-      expect((error! as PosApprovalRequired).permission, PosPermissions.batchesManage);
+      expect(
+        (error! as PosApprovalRequired).permission,
+        PosPermissions.batchesManage,
+      );
       expect(PosPermissions.approvable, contains(PosPermissions.batchesManage));
-      expect(PosPermissions.label(PosPermissions.batchesManage), 'Taomni hisobdan chiqarish');
+      expect(
+        PosPermissions.label(PosPermissions.batchesManage),
+        'Taomni hisobdan chiqarish',
+      );
       expect(backend.batchWriteOffs, isEmpty);
 
       // The manager types the PIN on the till; the action goes again with the token (runWithApproval)
@@ -313,8 +319,8 @@ void main() {
           reason: PosWriteOffReason.unsold,
           approvalToken: token,
         ),
-        approve: (String permission, PosException cause) =>
-            h.pos.approvals.request(permission: permission, userId: 2, pin: h.state.pins[2]!),
+        approve: (String permission, PosException cause) => h.pos.approvals
+            .request(permission: permission, userId: 2, pin: h.state.pins[2]!),
       );
       expect(Harness.bodyOf(h.last)['approval_token'], isNotNull);
       expect(done.approvedBy, 2);
