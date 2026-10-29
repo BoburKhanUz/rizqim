@@ -361,6 +361,12 @@ tayyor bo'lganda raqami ekranda chiqadi va chaqiriladi. Ikki modul (format profi
 talon) va `queue_calling` (tayyor raqamni chaqirish, "Tayyorlanmoqda / Tayyor" taxtasi). Choyxonada ikkalasi o'chiq:
 uning raqamlash tartibi o'zgarmaydi (P3-18: kun ichida keyingi raqam).
 
+**Tez kassada ochish xatosi va savat.** "To'lash" buyurtmani bitta `external_id` va `Idempotency-Key` bilan ochadi. Server rad
+etsa (4xx) hech narsa ochilmagan: keyingi urinish yangi `external_id` va kalit bilan ketadi, savatni o'zgartirish mumkin. Javob
+kelmasa (tarmoq, 5xx) buyurtma serverda shu savat bilan ochilgan bo'lishi mumkin: savat **qulflanadi** (taom qo'shib/olib bo'lmaydi),
+«To'lash» aynan o'sha so'rovni takrorlaydi va server mavjud buyurtmani qaytaradi — kassir hech qachon ekrandagi savatdan boshqa
+savat uchun pul olmaydi. «Tozalash» qulfni olib yangi sotuvni boshlaydi (ochiq buyurtmalar ro'yxatini tekshirish eslatiladi).
+
 **Raqam qayerdan olinadi (internetsiz ham takrorlanmaydi).**
 
 - Raqamlar filial va biznes kun bo'yicha (2.3): har kuni 1 dan, har filialda alohida. Har bir kassa serverdan
@@ -372,7 +378,14 @@ uning raqamlash tartibi o'zgarmaydi (P3-18: kun ichida keyingi raqam).
 - Server kassa yuborgan raqamni qabul qiladi, agar u shu kassaning bugungi blokida bo'lsa va kunda boshqa buyurtmada
   bo'lmasa (`orders.queue_number` filial va kun bo'yicha yagona). Aks holda buyurtmaga keyingi raqam beriladi va
   internetsiz amal "Sinxronlash xatolari"ga `queue_number_taken` bilan tushadi (talondagi raqam boshqacha: mijozga
-  yangisini ayting).
+  yangisini ayting). `queue_numbers` o'chiq filialda kassa taklif qilgan raqam e'tiborga olinmaydi: buyurtma kunning
+  keyingi raqamini oladi (blok ham, talon ham yo'q).
+- Internetsiz ochilgan buyurtma **olingan biznes kunida** qoladi: `order.open` amalining `occurred_at` vaqti bo'yicha
+  kun (2.3) belgilanadi va raqam o'sha kunning bloklari bilan tekshiriladi. 04:30 da (kun 05:00 da boshlanadi)
+  sotilib, 06:00 da sinxronlangan buyurtma kechagi kunda va talondagi raqami bilan qoladi.
+- `orders.queue_number` yagona indeksi yaratilishidan oldin (migratsiya `2026_11_10_200200`) kunda takrorlangan
+  raqamlar qayta raqamlanadi: eng eski buyurtma raqamini saqlaydi, keyingilariga o'sha kunning navbatdagi raqami
+  beriladi (logga yoziladi).
 - Raqam kam qolsa (20 tadan kam), kassa aloqa borida keyingi blokni oladi (`GET /pos/bootstrap` yoki
   `POST /pos/queue/blocks`). Bloklar tugasa, internetsiz buyurtma raqamsiz ochiladi, raqamni sinxronlashda server beradi.
 - Kassasiz ochilgan buyurtma (ofitsiant telefoni) va Telegram/mobil **olib ketish** buyurtmasi filialning o'z blokidan
@@ -381,17 +394,37 @@ uning raqamlash tartibi o'zgarmaydi (P3-18: kun ichida keyingi raqam).
 **Olib ketish navbati: tayyorlanmoqda → tayyor → berildi** (`orders.pickup_status`).
 
 - Qaysi buyurtmalar: olib ketish (`pos_takeaway`), stolsiz zal buyurtmasi (`pos_hall`, stol yo'q) va onlayn olib
-  ketish buyurtmasi — raqami bor, filialda `queue_calling` yoqilgan.
+  ketish buyurtmasi. **POS kassa buyurtmasining holati har qanday formatda yuritiladi** (taomlari oshxonaga
+  yuborilgandan boshlab; dark kitchen, chaqiruvsiz kafe, choyxonaning kassa buyurtmasi ham): avval to'langan buyurtma
+  oshxonadan yo'qolmasin. Onlayn buyurtma — faqat raqami bor va filialda `queue_calling` yoqilgan bo'lsa.
+  `queue_calling` faqat mijoz ko'radigan va eshitadigan qismni boshqaradi: taxta (`GET /pos/queue`, mijoz ekrani),
+  `queue.*` hodisalari (kassa ovozi), qayta chaqirish va mijozga xabar. Modul o'chiq filialda raqam chaqirilmaydi:
+  yopilgan (to'langan) buyurtmaning oshxonasi tugashi bilan u darhol `handed` bo'ladi (taomni oshxona o'zi beradi),
+  tayyor bo'lgan ochiq buyurtma to'langanda ham `handed`. Choyxonaning stol/xona buyurtmalari bu navbatda emas
+  (o'zgarmagan).
 - POS buyurtma: taomlar oshxonaga yuborilganda — `preparing`; KDS'da oxirgi taom "tayyor" bosilganda — `ready` (raqam
   chaqiriladi); taom qaytarilsa (recall) — yana `preparing`; KDS'siz kassada "Tayyor" tugmasi
   (`POST /pos/orders/{uuid}/ready`); mijoz olganda — `handed` (`.../handed`, taomlar `served`). Schyot va to'lovga
   tegmaydi.
 - **Avval to'lov, keyin oshxona:** to'langan buyurtma yopiladi (`delivered`), lekin raqami `preparing` bo'lsa
   oshxonada qoladi: taomlari to'lov bilan "tayyor" bo'lib qolmaydi, KDS uni ko'rsatadi va "tayyor" bosiladi.
+  P6-19: to'lov va oshpazning "tayyor"i bir buyurtmaga bir vaqtda kelishi odatiy (to'lov paytida oshxona allaqachon
+  pishiradi). Pul yozuvlari (to'lov, qaytarish, kirim-chiqim, Z) smena qatorini `FOR NO KEY UPDATE` bilan qulflaydi
+  (`PosShift::lockForMoney`): ular bir-birini kutadi, lekin buyurtma yangilanishining tashqi kalit tekshiruvi
+  (`FOR KEY SHARE`) to'xtamaydi — `FOR UPDATE` bilan ikki kassa va oshpaz yuklamasida deadlock bo'lardi (e2e "osh
+  markazi tushligi").
 - Onlayn olib ketish buyurtmasi o'z holatiga ergashadi: qabul qilindi / tayyorlanmoqda → `preparing`, `ready` →
   `ready`, `delivered` → `handed`. Mijozga "Buyurtmangiz tayyor, raqam N" xabari boradi.
 - **Qayta chaqirish** (`POST /pos/orders/{uuid}/call`): tayyor raqam yana e'lon qilinadi (`call_count`), onlayn mijozga
-  xabar qayta boradi. Bekor qilingan buyurtma taxtadan chiqadi.
+  xabar faqat dastlabki 3 chaqiruvda qayta boradi (keyingilari faqat taxtada). Oxirgi chaqiruvdan 15 soniya o'tmasdan
+  qayta chaqirib bo'lmaydi: 422 `call_too_soon`, `data.retry_in` (soniya). Bekor qilingan buyurtma (to'liq qaytarilib
+  bekor qilingani ham) taxtadan chiqadi (`queue.canceled`), oshxonada qolgan taomlari o'chiriladi ("O'CHIRILDI").
+- `ready` va `handed` navbatdagi raqamni **`queue_calling` keyin o'chirilgan bo'lsa ham** yakunlaydi; navbatda bo'lmagan
+  buyurtma uchun modul o'chiq bo'lsa 403 `module_disabled`. `call` va taxta modulsiz ishlamaydi. Tayyor va berildi
+  amallari onlayn buyurtmada ham audit qilinadi (`pos.queue_ready`, `pos.queue_handed`).
+- Mijozning holat xabari (Telegram) navbat ishchisi kechiksa ham tushib qolmaydi va e'lon qilingan bosqich matni bilan
+  boradi; bitta tranzaksiyadagi ikki o'tishdan (masalan, kassada qabul qilindi → tayyorlanmoqda → tayyor) faqat
+  oxirgisi yuboriladi.
 - Hodisalar `pos-branch.{id}` kanalida: `queue.preparing`, `queue.ready` (qayta chaqiruvda `called: true`),
   `queue.handed`, `queue.canceled` — kassa ovozi, KDS va mijoz ekrani (P6-14) uchun; taxta `GET /pos/queue`.
 - **Talon:** chek va schyot javobida `ticket` (raqam, "Olib ketish" / "Zalda", matn) — `queue_numbers` yoqilgan
@@ -513,9 +546,13 @@ fast_food → `fast_food`, canteen ("Oshxona") → `stolovaya`, coffee_shop → 
 teahouse → `choyxona`, catering → `toyxona`, other → `kafe`; format yo'q — `choyxona`.
 
 **Backend tekshiruvi.** Route middleware `pos.module:<key>` (bir nechta kalit — hammasi kerak): avval tarif (403
-`plan_feature_missing`, qaysi tarifda borligi bilan), keyin format (403 `module_disabled`, `data.module`). Filial:
-route'dagi `branch`, so'rovdagi `branch_id`, terminalning yoki xodimning filiali; filial noma'lum bo'lsa (egasining
-do'kon bo'yicha so'rovi) — do'konning kamida bitta filialida yoqilgan bo'lsa o'tadi. Mavjud choyxona endpointlari ham
+`plan_feature_missing`, qaysi tarifda borligi bilan), keyin format (403 `module_disabled`, `data.module`). Filial
+(review P6 S#2): bitta filialda ishlovchi chaqiruvchi — terminalning o'z tokeni, filialga bog'langan xodim, PIN
+sessiya — doim o'z filiali bo'yicha tekshiriladi, boshqa filialni nomlasa (route'dagi `branch`, so'rovdagi
+`branch_id`) — 403 `branch_forbidden`; do'kon bo'yicha ishlovchi (ega) nomlagan filial bo'yicha: `branch_id` musbat son
+bo'lmasa 422, boshqa do'konniki yoki yo'q bo'lsa 404. Hech qaysi filial nomlanmasa va chaqiruvchi do'kon bo'yicha
+ishlasa — do'konning kamida bitta filialida yoqilgan bo'lsa o'tadi (yozuv id bo'yicha bo'lsa, kerak joyda controller
+yozuvning filialini tekshiradi). Mavjud choyxona endpointlari ham
 modulga qaraydi: yangi xona yoki tapchan (`rooms`), xona tarifi yaratish/o'zgartirish (`room_fee`), choy-non qatori
 (`guest_items`), yangi bron (`bookings`), yangi nasiya hisobi (`customer_accounts`), musbat xizmat haqi
 (`service_charge`), KDS ulash kodi (`kds`). O'qish, o'chirish, mavjud bronning bo'nagi va nasiya to'lovi — hech qachon.
@@ -739,6 +776,14 @@ modulga bog'liq emas.
 |---|---|---|---|
 | `terminal_only` | Bankning alohida terminali, TXKM "faqat terminal" rejimiga o'tkazgan | Rizqim (provayder virtual kassasi), to'lov shakli **karta** | Terminal chekidagi tranzaksiya (RRN) raqamini teradi (majburiy), kartaning oxirgi 4 raqamini ham (ixtiyoriy) — ikkalasi Rizqim chekida |
 | `smart_kassa` | Android smart-kassaning o'zi (Sunmi P2/P3) | Provayderning shu qurilmaga bog'langan virtual kassasi (`devices.smart_kassa`, `fiscal_kassa_id`, `fiscal_settings.smart_kassa_driver`) | Hech narsa qo'shimcha: RRN qurilmadan keladi (B bosqichi) |
+
+- **Smart-kassa raqami (review P6 S#4).** `fiscal_kassa_id` — 6–32 belgi (lotin harflari, raqamlar, `-`; katta harf
+  bilan saqlanadi), do'konning boshqa faol qurilmasida va istalgan do'konning faol smart-kassasida takrorlanmaydi
+  (bazada qisman unique indekslar). Saqlashdan oldin va har bir chek yoki karta jamini yo'naltirishdan oldin provayder
+  so'raladi: `SmartKassaGateway::kassaBelongsTo(kassa, STIR)` — kassa do'kon STIRiga tegishlimi (`SmartKassaRouting`).
+  Tegishli bo'lmasa chek oddiy kassa kabi `driver` ga ketadi, provayder jami so'ralmaydi. Sandbox qoidasi (sodda):
+  kassa raqami do'kon STIRi bilan boshlansa yoki platformaning `config('fiscal.sandbox.kassas')` jadvali (kassa →
+  STIR; ega qo'sha olmaydi) uni shu STIR ostida bilsa — tegishli.
 | `none` | — | Rizqim | Faqat naqd va QR |
 
 - **O'rnatish ro'yxati** (filial bo'yicha, ega belgilaydi; kim va qachon yoziladi): eski kassa Rizqim sotuvlariga
@@ -748,10 +793,23 @@ modulga bog'liq emas.
   hisobotining tranzaksiyalarini import qiladi yoki smart-kassa provayderining o'z jamini oladi. Rizqim tomoni —
   smenadagi karta to'lovlari, shu kassada kartada olingan bron avanslari va nasiya to'lovlari, karta qaytarishlari
   ayirilgan. Farq filialning chegarasidan (standart 0) katta bo'lsa egaga ogohlantirish boradi va Z da qator chiqadi;
-  import qilingan tranzaksiyalar RRN bo'yicha juftlanadi, mos kelmaganlari ko'rsatiladi. Bu ikki marta hisoblashni
+  import qilingan tranzaksiyalar RRN bo'yicha juftlanadi, mos kelmaganlari ko'rsatiladi.
+- **Umumiy bank terminali (review P6 C#M2).** Standartda bitta hisobot — bitta smena (har kassaning o'z terminali,
+  har Z da yopiladi). Filial sozlamasi `shared_terminal` (kassalar bitta terminalni bo'lishadi yoki kassada kuniga
+  bir necha smena): terminal kuniga bir marta yopiladi deb olinadi — filial va biznes kun bo'yicha **bitta** hisobot
+  (`shared`), uning Rizqim tomoni shu kunning o'z hisoboti yo'q barcha smenalarining karta puli yig'indisi (`shifts`).
+  Kunlik jamni istalgan Z kiritishi mumkin, oxirgi kiritilgani (odatda kunning oxirgi Z i) kunniki. Bir filialda bir
+  necha bank terminali, ba'zi kassalar umumiy — modellanmagan (u yerda har smena o'z hisoboti bilan).
+- **Qachon hisoblanadi (review P6 S#5).** Hisobot qamragan smenalardan biri ochiq ekan solishtirish dastlabki:
+  ogohlantirish yo'q, finance.manage'siz chaqiruvchiga (kassa, kassir, menejer) Rizqim tomoni, chegara va farq
+  ko'rsatilmaydi (`final` = false, maydonlar `null`) — jami chekdan teriladi, Rizqim raqamiga moslanmaydi; chegara
+  kassaga bootstrap'da ham yuborilmaydi. Hammasi yopilgach (`final`) farq chegaradan katta bo'lsa egaga bir marta
+  xabar boradi (shu farq uchun qayta emas). Ogohlantirish yopishqoq: `over_threshold` qaytib `false` bo'lmaydi,
+  tuzatish oldingi yozuvni `history` ga (va audit jurnaliga) qo'shadi. Smena Z idan keyin hisobotni faqat
+  `finance.manage` tuzatadi (403 `bank_report_locked`); smenani yopish so'rovi o'zi uni hali kiritishi mumkin. Bu ikki marta hisoblashni
   (bank terminali o'zi ham chek chiqarib qo'ygan sotuv) va yo'qolgan karta to'lovini ushlaydi (2-bo'lim, "Fiskal"
   o'lchovi).
-- **Interfeys tayyor, provayder yo'q.** `SmartKassaGateway` (`kassaStatus`, `cardTotals`) — hozir faqat sandbox;
+- **Interfeys tayyor, provayder yo'q.** `SmartKassaGateway` (`kassaBelongsTo`, `kassaStatus`, `cardTotals`) — hozir faqat sandbox;
   haqiqiy provayder (P3-32) shu interfeysni amalga oshiradi. Ochiq savol (tadqiqot §4): alohida terminalda olingan
   karta to'lovi virtual kassa chekiga qanday bog'lanadi — provayder javob beradi.
 - API: [API.md](API.md) "Fiskal terminal oqimlari (P6-16)".
@@ -1299,3 +1357,9 @@ jadvallar va endpointlar: [MENU.md](MENU.md) §12, [API.md](API.md) "Bugungi men
 4. **Hosil hisoboti.** Tayyorlangan − sotilgan − hisobdan chiqarilgan − qolgan = tushuntirilmagan farq; nolga yaqin bo'lishi kerak.
 5. **Kassa uchun (2-bosqich).** Kassir ekrani bootstrapdagi `daily_menu`, `next_batches`, `meal_sets` va katalogdagi `next_batch`/`set_parts`
    dan chizadi; hisobdan chiqarish `POST /owner/batches/{id}/write-off` (PIN sessiya bilan ishlaydi, Idempotency-Key bilan).
+6. **Menejer PIN'i bilan hisobdan chiqarish (P6-19, egasi tavsiyani tanladi).** `batches.manage` menejer tasdig'i bilan
+   beriladigan ruxsatlar qatorida (2.2): kassirda u yo'q bo'lsa, kassadagi "Hisobdan chiqarish" oynasi taom, miqdor va
+   sababni oladi, server 403 `approval_required` deydi va kassa o'sha joyda menejer PIN oynasini ochadi; menejer PIN'ini
+   teradi va chiqarish bir martalik token bilan yoziladi (kassirning smenasiga, Z hisobotida; jurnalda `approved_by`).
+   Token bir marta, 60 soniya, faqat shu terminal va shu filial partiyasi uchun; qoldiqdan ko'p kabi rad etilgan
+   chiqarish tokenni sarflamaydi. Panelda (terminalsiz) tasdiq yo'q: ruxsatning o'zi kerak.

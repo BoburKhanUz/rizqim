@@ -6,6 +6,7 @@ use App\Domain\Fiscal\FiscalSettings;
 use App\Domain\Fiscal\Gateways\FiscalGatewayException;
 use App\Domain\Fiscal\Gateways\FiscalGatewayManager;
 use App\Domain\Fiscal\Gateways\SmartKassaGateway;
+use App\Domain\Fiscal\Gateways\SmartKassaRouting;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\TerminalFlow\BankTerminalPresenter;
@@ -29,6 +30,7 @@ use Dedoc\Scramble\Attributes\BodyParameter;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -106,12 +108,15 @@ class TerminalFlowController extends ManagementController
      * {old_kassa_unused, bank_terminal_mode, scanner_2d: bool} (ticking records who and when, unticking clears it),
      * `difference_threshold` (so'm, 0–100000000: a bank terminal total further than this from the Z's card total
      * alerts the owner; 0: any difference), `ask_bank_total` (the till asks for the bank terminal's day total at the
-     * Z). Audited. settings.manage; 403 `module_disabled` without the terminal_card_flow module.
+     * Z), `shared_terminal` (the branch's tills share one bank terminal, or a till runs several shifts a day, settled
+     * once per business day: one bank report covers every shift of that day — enter the day's total at the last Z).
+     * Audited. settings.manage; 403 `module_disabled` without the terminal_card_flow module.
      */
     #[BodyParameter('card_mode', required: false, type: "'terminal_only'|'smart_kassa'|'none'|null")]
     #[BodyParameter('checklist', required: false, infer: false, type: 'array{old_kassa_unused?: bool, bank_terminal_mode?: bool, scanner_2d?: bool}')]
     #[BodyParameter('difference_threshold', required: false, type: 'string')]
     #[BodyParameter('ask_bank_total', required: false, type: 'bool')]
+    #[BodyParameter('shared_terminal', required: false, type: 'bool')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . TerminalSetup::VIEW . '}')]
     public function update(Request $request, TerminalSetup $setup, int $branch): JsonResponse
     {
@@ -125,6 +130,7 @@ class TerminalFlowController extends ManagementController
             'checklist.*' => ['boolean'],
             'difference_threshold' => ['sometimes', 'required', 'numeric', 'min:0', 'max:100000000', 'decimal:0,2'],
             'ask_bank_total' => ['sometimes', 'boolean'],
+            'shared_terminal' => ['sometimes', 'boolean'],
         ], UzValidation::messages([
             'card_mode.in' => "Karta rejimi noto'g'ri: terminal_only, smart_kassa yoki none.",
         ]), [
@@ -132,6 +138,7 @@ class TerminalFlowController extends ManagementController
             'checklist' => "O'rnatish ro'yxati",
             'difference_threshold' => 'Farq chegarasi',
             'ask_bank_total' => "Z da bank terminali summasini so'rash",
+            'shared_terminal' => 'Umumiy bank terminali',
         ]);
         foreach (array_keys((array) ($data['checklist'] ?? [])) as $key) {
             if (!in_array($key, TerminalChecklist::keys(), true)) {
@@ -152,6 +159,9 @@ class TerminalFlowController extends ManagementController
         if (array_key_exists('ask_bank_total', $data)) {
             $input['ask_bank_total'] = (bool) $data['ask_bank_total'];
         }
+        if (array_key_exists('shared_terminal', $data)) {
+            $input['shared_terminal'] = (bool) $data['shared_terminal'];
+        }
 
         return $this->success($setup->update($model, $input, $user), 'Saqlandi.');
     }
@@ -161,21 +171,26 @@ class TerminalFlowController extends ManagementController
      *
      * `smart_kassa`: this POS terminal is an Android smart kassa (Sunmi P2/P3...): in fiscal mode its receipts go to
      * the store's `smart_kassa_driver` (the provider's virtual kassa bound to it); `fiscal_kassa_id`: the id the
-     * provider knows that kassa by (null clears it). `kassa_status`: what the provider says about it (null when the
-     * driver cannot say). Audited. settings.manage; a terminal of another branch the caller does not manage: 404;
+     * provider knows that kassa by (null clears it): 6–32 latin letters, digits and dashes (stored upper case), used
+     * by no other active device of the store and no active smart kassa anywhere, and — on a smart kassa — a kassa of
+     * the store's STIR at the provider (422 `fiscal_kassa_id` otherwise; the store needs its STIR first).
+     * `kassa_status`: what the provider says about it (null when the driver cannot say). Audited. settings.manage; a terminal of another branch the caller does not manage: 404;
      * 403 `module_disabled` without the terminal_card_flow module on the till's branch.
      */
     #[BodyParameter('smart_kassa', required: false, type: 'bool')]
     #[BodyParameter('fiscal_kassa_id', required: false, type: 'string|null')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::DEVICE . '}')]
-    public function updateDevice(Request $request, PosModules $modules, AuditLogger $audit, string $uuid): JsonResponse
+    public function updateDevice(Request $request, PosModules $modules, AuditLogger $audit, SmartKassaRouting $routing, string $uuid): JsonResponse
     {
         $store = $this->currentStore($request);
+        if (is_string($request->input('fiscal_kassa_id'))) {
+            $request->merge(['fiscal_kassa_id' => SmartKassaRouting::normalize($request->input('fiscal_kassa_id'))]);
+        }
         $data = $request->validate([
             'smart_kassa' => ['sometimes', 'boolean'],
-            'fiscal_kassa_id' => ['sometimes', 'nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._:\-]+$/'],
+            'fiscal_kassa_id' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z0-9][A-Z0-9-]{5,31}$/'],
         ], UzValidation::messages([
-            'fiscal_kassa_id.regex' => "Kassa raqamida faqat lotin harflari, raqamlar va . _ : - bo'ladi.",
+            'fiscal_kassa_id.regex' => "Kassa raqami 6–32 belgi: lotin harflari, raqamlar va \"-\".",
         ]), ['smart_kassa' => 'Smart-kassa', 'fiscal_kassa_id' => 'Provayder kassa raqami']);
 
         $device = Str::isUuid($uuid) ? Device::where('store_id', $store->id)->where('uuid', $uuid)
@@ -192,10 +207,15 @@ class TerminalFlowController extends ManagementController
             $device->forceFill(['smart_kassa' => (bool) $data['smart_kassa']]);
         }
         if (array_key_exists('fiscal_kassa_id', $data)) {
-            $device->forceFill(['fiscal_kassa_id' => filled($data['fiscal_kassa_id']) ? trim((string) $data['fiscal_kassa_id']) : null]);
+            $device->forceFill(['fiscal_kassa_id' => SmartKassaRouting::normalize($data['fiscal_kassa_id'] ?? null)]);
         }
         if ($device->isDirty()) {
-            $device->save();
+            $this->assertKassaIdFree($device, $store, $routing);
+            try {
+                $device->save();
+            } catch (UniqueConstraintViolationException) {
+                throw ValidationException::withMessages(['fiscal_kassa_id' => self::KASSA_TAKEN]);
+            }
             $audit->record('devices.smart_kassa_changed', $device, $before, [
                 'smart_kassa' => (bool) $device->getAttribute('smart_kassa'),
                 'fiscal_kassa_id' => $device->getAttribute('fiscal_kassa_id'),
@@ -210,7 +230,9 @@ class TerminalFlowController extends ManagementController
      *
      * The bank terminal day totals entered at the Z (or after it), newest business day first: the branches the caller
      * sees (`branch_id` narrows to one), a business day range (`from`, `to`, YYYY-MM-DD), `over_threshold=1` for the
-     * mismatches only; at most `limit` (50, up to 200). finance.view or reports.view.
+     * mismatches only (an alerted report stays one after a correction); at most `limit` (50, up to 200). A shared
+     * terminal's report covers several shifts (`shared`, `shifts`; `final` once all are closed). finance.view or
+     * reports.view.
      */
     #[QueryParameter('branch_id', description: 'Filial.', type: 'int', required: false)]
     #[QueryParameter('from', description: 'Business day from (YYYY-MM-DD)', type: 'string', required: false)]
@@ -252,8 +274,10 @@ class TerminalFlowController extends ManagementController
      * Enter or correct a shift's bank terminal report
      *
      * As the till's PUT /pos/shifts/{uuid}/bank-report (same body), from the panel: for a shift whose Z went without
-     * it, or to correct it. Audited; a difference above the threshold alerts the owner. finance.manage or
-     * pos.close_shift; 403 `module_disabled` without the terminal_card_flow module on the shift's branch.
+     * it, or to correct it. Audited (the replaced entry stays in `history`); a final difference above the threshold
+     * alerts the owner, and a correction never clears an alert. An open shift: finance.manage or pos.close_shift (the
+     * latter sees the comparison only once final); a closed one: finance.manage only (403 `bank_report_locked`).
+     * 403 `module_disabled` without the terminal_card_flow module on the shift's branch.
      */
     #[BodyParameter('source', description: 'manual | import | provider (manual by default).', required: false, type: "'manual'|'import'|'provider'")]
     #[BodyParameter('bank_total', description: "manual: the bank terminal's day total (decimal string).", required: false, type: 'string')]
@@ -273,16 +297,63 @@ class TerminalFlowController extends ManagementController
         }
         /** @var User $user */
         $user = $request->user();
-        $permission = $this->permissions->allows($user, Permission::FINANCE_MANAGE) ? Permission::FINANCE_MANAGE : Permission::POS_CLOSE_SHIFT;
-        $this->authorizeFor($request, $permission, $branch);
+        $finance = $this->permissions->allows($user, Permission::FINANCE_MANAGE);
+        $this->authorizeFor($request, $finance ? Permission::FINANCE_MANAGE : Permission::POS_CLOSE_SHIFT, $branch);
         $modules->assertEnabled($branch, PosModule::TERMINAL_CARD_FLOW);
+        PosBankTerminalController::assertMayCorrect($this->permissions, $user, $shift);
 
         $report = $reconciler->record($shift, PosBankTerminalController::input($data), $user);
 
         return $this->success(
-            BankTerminalPresenter::present($report, $shift),
+            // Review P6 S#5: without finance.manage, the comparison only once final (as the till sees it)
+            BankTerminalPresenter::present($report, $shift, hideUntilFinal: !$finance),
             $report->over_threshold ? "Saqlandi. Bank terminali va Z mos emas: egasiga xabar yuborildi." : 'Saqlandi.',
         );
+    }
+
+    private const KASSA_TAKEN = "Bu kassa raqami boshqa qurilmaga biriktirilgan.";
+
+    /**
+     * Review P6 S#4: a smart kassa's provider id belongs to one till: not used by another active device of the store,
+     * nor by an active smart kassa of any store (the database's partial unique indexes back both); and a smart
+     * kassa's id must be a kassa of the store's STIR at its provider (SmartKassaRouting::belongs). 422 otherwise.
+     *
+     * @throws ValidationException
+     */
+    private function assertKassaIdFree(Device $device, Store $store, SmartKassaRouting $routing): void
+    {
+        $kassaId = $device->getAttribute('fiscal_kassa_id');
+        if (blank($kassaId)) {
+            return;
+        }
+        $smart = (bool) $device->getAttribute('smart_kassa');
+
+        $taken = Device::query()
+            ->whereKeyNot($device->id)
+            ->whereNull('revoked_at')
+            ->where('fiscal_kassa_id', $kassaId)
+            ->where(fn ($query) => $smart
+                ? $query->where('store_id', $store->id)->orWhere('smart_kassa', true)
+                : $query->where('store_id', $store->id))
+            ->exists();
+        if ($taken) {
+            throw ValidationException::withMessages(['fiscal_kassa_id' => self::KASSA_TAKEN]);
+        }
+
+        if (!$smart || !$device->isDirty(['smart_kassa', 'fiscal_kassa_id'])) {
+            return;
+        }
+        if (blank($store->tin)) {
+            throw ValidationException::withMessages(['fiscal_kassa_id' => "Avval do'konning STIRini kiriting: kassa raqami STIR bo'yicha tekshiriladi."]);
+        }
+        try {
+            $belongs = $routing->belongs((string) $kassaId, $store);
+        } catch (FiscalGatewayException $e) {
+            throw ValidationException::withMessages(['fiscal_kassa_id' => "Fiskal provayder kassani tekshira olmadi: {$e->getMessage()}"]);
+        }
+        if (!$belongs) {
+            throw ValidationException::withMessages(['fiscal_kassa_id' => "Bu kassa do'kon STIRiga tegishli emas (provayderda boshqa soliq to'lovchiga ro'yxatdan o'tgan yoki topilmadi)."]);
+        }
     }
 
     /**

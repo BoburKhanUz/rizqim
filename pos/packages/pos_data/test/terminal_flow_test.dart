@@ -12,13 +12,13 @@ void main() {
     String? cardMode = 'terminal_only',
     bool smartKassa = false,
     bool askBankTotal = true,
-    String threshold = '5000.00',
+    bool sharedTerminal = false,
   }) => <String, Object?>{
     'card_mode': cardMode,
     'smart_kassa': smartKassa,
     'fiscal_kassa_id': smartKassa ? 'KASSA-7' : null,
     'ask_bank_total': askBankTotal,
-    'difference_threshold': threshold,
+    'shared_terminal': sharedTerminal,
     'checklist_complete': false,
   };
 
@@ -41,8 +41,14 @@ void main() {
       expect(f.asksCardReference, isTrue);
       expect(f.providerTotals, isFalse);
       expect(f.askBankTotal, isTrue);
-      expect(f.differenceThreshold, const PosMoney.som(5000));
+      expect(f.sharedTerminal, isFalse);
       expect(f.checklistComplete, isFalse);
+
+      h.state.bootstrapExtras['terminal_flow'] = flow(sharedTerminal: true);
+      expect(
+        (await h.pos.session.loadBootstrap()).terminalFlow!.sharedTerminal,
+        isTrue,
+      );
 
       h.state.bootstrapExtras['terminal_flow'] = flow(
         cardMode: 'smart_kassa',
@@ -206,6 +212,9 @@ void main() {
       expect(bank.difference, const PosMoney.som(20000));
       expect(bank.hasDifference, isTrue);
       expect(bank.overThreshold, isTrue);
+      expect(bank.isFinal, isTrue);
+      expect(bank.shared, isFalse);
+      expect(bank.shiftCount, 1);
       expect(bank.source, PosBankReportSource.manual);
     });
 
@@ -249,6 +258,12 @@ void main() {
       expect(h.last.method, 'PUT');
       expect(h.last.uri.path, '/api/v1/pos/shifts/$shiftUuid/bank-report');
       expect(h.last.headers['Idempotency-Key'], matches(uuidV4));
+      // Review P6 S#5: before the Z the till gets what it typed only
+      expect(manual.isFinal, isFalse);
+      expect(manual.bankTotal, card);
+      expect(manual.rizqimTotal, isNull);
+      expect(manual.difference, isNull);
+      expect(manual.threshold, isNull);
       expect(manual.hasDifference, isFalse);
       expect(manual.overThreshold, isFalse);
 
@@ -278,7 +293,30 @@ void main() {
       );
       expect(provider.source, PosBankReportSource.provider);
       expect(Harness.bodyOf(h.last)['source'], 'provider');
-      expect(provider.difference.isNegative, isTrue);
+      expect(provider.bankTotal, card - const PosMoney.som(3000));
+      expect(provider.difference, isNull);
+
+      // At the Z the earlier entry is compared with the whole shift
+      final PosShift closed = await h.pos.shifts.close(
+        shiftUuid,
+        countedBreakdown: const <int, int>{},
+      );
+      expect(closed.bankTerminal!.isFinal, isTrue);
+      expect(closed.bankTerminal!.difference, const PosMoney.som(-3000));
+    });
+
+    test('a report of an older server (no `final`) reads as final', () {
+      final PosBankTerminalReport r = PosBankTerminalReport.fromJson(
+        const PosJson(<String, Object?>{
+          'bank_total': '100.00',
+          'rizqim_total': '100.00',
+          'difference': '0.00',
+          'threshold': '0.00',
+        }),
+      );
+      expect(r.isFinal, isTrue);
+      expect(r.shiftCount, 1);
+      expect(r.hasDifference, isFalse);
     });
   });
 }

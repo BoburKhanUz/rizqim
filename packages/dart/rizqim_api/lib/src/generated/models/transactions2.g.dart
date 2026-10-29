@@ -10,7 +10,7 @@ Transactions2 _$Transactions2FromJson(Map<String, dynamic> json) =>
     Transactions2(
       rrn: json['rrn'] as String?,
       amount: json['amount'] as String,
-      matched: json['matched'] as bool,
+      matched: json['matched'] as bool?,
     );
 
 Map<String, dynamic> _$Transactions2ToJson(Transactions2 instance) =>

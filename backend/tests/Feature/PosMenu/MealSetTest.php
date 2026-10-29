@@ -221,13 +221,40 @@ class MealSetTest extends TestCase
         $this->openPos($this->waiter, $this->table, 2, ['items' => [$this->line($this->complexVariant)]])->assertCreated();
 
         // A dish of the rotation that is off today's menu closes it too
-        $this->soup->forceFill(['daily_rotation' => true])->save();
+        $this->rotate($this->soup);
         $menu = DailyMenu::create(['store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'menu_date' => app(\App\Domain\Pos\Menu\DailyMenuService::class)->today($this->branch)]);
         DailyMenuItem::create(['daily_menu_id' => $menu->id, 'product_id' => $this->complex->id]);
         $this->order([['variant_id' => $this->complexVariant->uuid, 'quantity' => 1]])->assertStatus(422);
-        $this->complex->forceFill(['daily_rotation' => true])->save();
+        $this->rotate($this->complex);
         $this->order([['variant_id' => $this->complexVariant->uuid, 'quantity' => 1]])->assertStatus(422);
         DailyMenuItem::create(['daily_menu_id' => $menu->id, 'product_id' => $this->soup->id]);
+        $this->order([['variant_id' => $this->complexVariant->uuid, 'quantity' => 1]])->assertCreated();
+    }
+
+    public function test_a_kompleks_closes_while_a_batch_tracked_part_is_sold_out(): void
+    {
+        $this->makeSet()->assertCreated();
+        $this->openPos($this->waiter, $this->room, 2, ['items' => [$this->line($this->complexVariant)]])->assertCreated();
+
+        // The soup is cooked in batches and the branch has none open: the soup is "tugadi", and so is the kompleks
+        $this->soup->forceFill(['batch_tracked' => true])->save();
+        $availability = fn () => collect($this->actingAs($this->owner, 'sanctum')->getJson("/api/v1/catalog/availability?store_id={$this->store->id}")->json('data.branches'))->firstWhere('branch_id', $this->branch->id);
+        $this->assertContains($this->soup->variants->first()->id, $availability()['sold_out']['variants']);
+        $this->assertContains($this->complex->id, $availability()['stopped']['products']);
+        $reason = collect($availability()['stop_list'])->firstWhere('subject_id', $this->complex->id)['reason'];
+        $this->assertStringContainsString('Mastava', $reason);
+
+        $refused = $this->openPos($this->waiter, $this->table, 2, ['items' => [$this->line($this->complexVariant)]]);
+        $refused->assertStatus(422);
+        $this->assertStringContainsString('Mastava', json_encode($refused->json(), JSON_UNESCAPED_UNICODE));
+        $this->order([['variant_id' => $this->complexVariant->uuid, 'quantity' => 1]])->assertStatus(422);
+        $catalog = collect($this->actingAs($this->waiter, 'sanctum')->getJson('/api/v1/pos/catalog?channel=pos_hall&branch_id=' . $this->branch->id)->assertOk()->json('data.products'))->keyBy('name');
+        $this->assertFalse($catalog['Kompleks 1']['is_available']);
+
+        // The cook opens a batch of soup: the kompleks is on sale again
+        $this->actingAs($this->owner, 'sanctum')->postJson('/api/v1/owner/batches', ['branch_id' => $this->branch->id, 'product_id' => $this->soup->id, 'quantity' => '10'])->assertCreated();
+        $this->assertNotContains($this->complex->id, $availability()['stopped']['products']);
+        $this->openPos($this->waiter, $this->table, 2, ['items' => [$this->line($this->complexVariant)]])->assertCreated();
         $this->order([['variant_id' => $this->complexVariant->uuid, 'quantity' => 1]])->assertCreated();
     }
 }

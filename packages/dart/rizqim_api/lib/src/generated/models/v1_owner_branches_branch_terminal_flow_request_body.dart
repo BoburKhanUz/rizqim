@@ -16,6 +16,7 @@ class V1OwnerBranchesBranchTerminalFlowRequestBody {
     this.cardMode,
     this.differenceThreshold,
     this.askBankTotal,
+    this.sharedTerminal,
   });
 
   factory V1OwnerBranchesBranchTerminalFlowRequestBody.fromJson(
@@ -29,6 +30,8 @@ class V1OwnerBranchesBranchTerminalFlowRequestBody {
   final String? differenceThreshold;
   @JsonKey(name: 'ask_bank_total')
   final bool? askBankTotal;
+  @JsonKey(name: 'shared_terminal')
+  final bool? sharedTerminal;
 
   Map<String, Object?> toJson() =>
       _$V1OwnerBranchesBranchTerminalFlowRequestBodyToJson(this);

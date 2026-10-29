@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
  * for any dish); this class only keeps its composition and snapshots it onto the sold line (`order_items.set_parts`,
  * like modifiers: later edits never rewrite a sold line).
  *
- * A set is closed while one of its parts is on the stop-list or off today's menu (closedByParts), so the till never sells
+ * A set is closed while one of its parts is on the stop-list, off today's menu or sold out (closedByParts), so the till never sells
  * a complex whose soup is gone. The parts' own batch counts and stock are NOT reduced by selling a set (open item for
  * the next wave); the yield report lists the portions sold inside sets next to the batches.
  */
@@ -32,6 +32,14 @@ class MealSets
     public function __construct(
         protected AuditLogger $audit,
     ) {}
+
+    /**
+     * Whether the store has any active kompleks (checkout skips the part checks when it has none).
+     */
+    public function hasSets(int $storeId): bool
+    {
+        return DailySet::query()->where('store_id', $storeId)->where('is_active', true)->exists();
+    }
 
     /**
      * The parts of a sold set line, for `order_items.set_parts`: null when the variant's product is not an active set.
@@ -91,11 +99,11 @@ class MealSets
     }
 
     /**
-     * Product ids of the store's active sets that cannot be sold now because a part is stopped or off today's menu,
-     * with the reason shown.
+     * Product ids of the store's active sets that cannot be sold now because a part is stopped, off today's menu or
+     * sold out (batch stock), with the reason shown.
      *
      * @param  array<int, ?string>  $stoppedProducts  product id => reason (stop-list and off-menu dishes)
-     * @param  array<int, ?string>  $stoppedVariants  variant id => reason
+     * @param  array<int, ?string>  $stoppedVariants  variant id => reason (stop-list, switched off on the branch, sold out)
      * @return array<int, string> set product id => reason
      */
     public function closedByParts(int $storeId, array $stoppedProducts, array $stoppedVariants): array

@@ -19,7 +19,7 @@ class Transactions {
 
   final String? rrn;
   final String amount;
-  final bool matched;
+  final bool? matched;
 
   Map<String, Object?> toJson() => _$TransactionsToJson(this);
 }

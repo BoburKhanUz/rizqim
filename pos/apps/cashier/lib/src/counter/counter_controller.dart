@@ -88,6 +88,10 @@ class CounterController extends ChangeNotifier {
 
   // The sale being paid: one key and external id for the whole checkout, so a retry never opens a second order
   String? _externalId;
+
+  // The open request went out and its answer never came (no reply, 5xx): the order may exist on the server with THIS
+  // cart. The cart is locked until the same request is repeated (same key and external id) and answered.
+  bool _openUnknown = false;
   int? _number;
   bool _numberTaken = false;
   PosOrder? _order;
@@ -121,8 +125,14 @@ class CounterController extends ChangeNotifier {
       ? CounterStage.done
       : (_order != null ? CounterStage.awaitingPayment : CounterStage.cart);
 
-  /// Savatni o'zgartirish mumkin (buyurtma hali ochilmagan).
-  bool get editable => _order == null && _receipt == null && !_busy;
+  /// Savatni o'zgartirish mumkin (buyurtma hali ochilmagan va ochish so'rovining natijasi noma'lum emas).
+  bool get editable =>
+      _order == null && _receipt == null && !_busy && !_openUnknown;
+
+  /// Ochish so'rovi yuborildi-yu, javobi kelmadi: buyurtma serverda shu savat bilan ochilgan bo'lishi mumkin, shuning
+  /// uchun savat qulflangan; «To'lash» o'sha so'rovni takrorlaydi. [clear] qulfni oladi (eski buyurtma ochiq
+  /// buyurtmalarda qolishi mumkin).
+  bool get openUnknown => _openUnknown && _order == null;
 
   /// Savatdagi taomlar soni (dona bo'yicha; kg qator — bitta).
   int get count => _lines.fold(
@@ -299,6 +309,15 @@ class CounterController extends ChangeNotifier {
   }
 
   void clear() {
+    if (_openUnknown && _order == null && _receipt == null && !_busy) {
+      // The cashier gives the cart up knowing the earlier request may have opened an order: a new sale starts clean
+      _emit(
+        "Oldingi buyurtma serverda ochilgan bo'lishi mumkin: ochiq buyurtmalar ro'yxatini tekshiring.",
+        error: true,
+      );
+      _reset();
+      return;
+    }
     if (!editable) return;
     _lines.clear();
     _multiplier = 1;
@@ -372,18 +391,29 @@ class CounterController extends ChangeNotifier {
     final List<PosLineInput> items = <PosLineInput>[
       for (final DraftLine l in _lines) l.toInput(),
     ];
-    final PosOrder created = await approve<PosOrder>(
-      (String? token) => data.orders.open(
-        channel: _channel,
-        guestsCount: _channel == PosChannel.hall ? 1 : null,
-        externalId: _externalId,
-        items: items,
-        send: true,
-        queueNumber: _number,
-        approvalToken: token,
-        idempotencyKey: token == null ? _key('open:$_revision') : null,
-      ),
-    );
+    final PosOrder created;
+    try {
+      created = await approve<PosOrder>(
+        (String? token) => data.orders.open(
+          channel: _channel,
+          guestsCount: _channel == PosChannel.hall ? 1 : null,
+          externalId: _externalId,
+          items: items,
+          send: true,
+          queueNumber: _number,
+          approvalToken: token,
+          idempotencyKey: token == null ? _key('open:$_revision') : null,
+        ),
+      );
+    } on PosApprovalCancelled {
+      // The server asked for the approval and refused: nothing was opened
+      _openFailed(definite: true);
+      rethrow;
+    } on PosException catch (e) {
+      _openFailed(definite: _isDefiniteRefusal(e));
+      rethrow;
+    }
+    _openUnknown = false;
     _order = created;
     await queue.note(created.queue?.number);
     unawaited(tickets.printSent(null, created));
@@ -391,6 +421,28 @@ class CounterController extends ChangeNotifier {
       frequent.record(l.product.id);
     }
     return created;
+  }
+
+  /// The server answered and said no (4xx): no order exists, so the next try is a new request with its own external id
+  /// and key (a changed cart can never be answered with the earlier order). No answer, 5xx or an unreadable answer: the
+  /// order may exist — keep the id and key and lock the cart so the retry is the very same request.
+  static bool _isDefiniteRefusal(PosException e) {
+    final int? status = e.statusCode;
+    return status != null && status >= 400 && status < 500;
+  }
+
+  void _openFailed({required bool definite}) {
+    if (definite) {
+      _openUnknown = false;
+      _externalId = null;
+      _keys.removeWhere((String k, _) => k.startsWith('open:'));
+      return;
+    }
+    _openUnknown = true;
+    _emit(
+      "Buyurtma ochildimi, noma'lum: savat qulflandi. «To'lash» ni qayta bosing (bir xil so'rov takrorlanadi).",
+      error: true,
+    );
   }
 
   /// To'lov sahifasi qaytdi: schyot to'landimi. To'langan bo'lsa sotuv yakunlanadi ([receipt]).
@@ -505,6 +557,7 @@ class CounterController extends ChangeNotifier {
     _number = null;
     _numberTaken = false;
     _externalId = null;
+    _openUnknown = false;
     _resetKeys();
     _touch();
   }

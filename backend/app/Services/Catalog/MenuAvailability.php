@@ -118,6 +118,59 @@ class MenuAvailability
     }
 
     /**
+     * The variants a batch decides that cannot give one more unit now: the open batch has less left than one unit
+     * takes, or the product is batch-tracked and there is no open batch.
+     *
+     * @param  Collection<int, MenuBatch>  $batches  the branch's open batches
+     * @param  Collection<int, ProductVariant>  $variants
+     * @param  Collection<int|string, int>  $tracked  batch-tracked product ids (as keys)
+     * @return list<int>
+     */
+    private static function soldOutIn(Collection $batches, Collection $variants, Collection $tracked): array
+    {
+        $soldOut = [];
+        foreach ($variants as $variant) {
+            $batch = self::batchFor($variant, $batches->where('product_id', $variant->product_id));
+
+            if ($batch === null) {
+                if ($tracked->has($variant->product_id)) {
+                    $soldOut[] = (int) $variant->id;
+                }
+                continue;
+            }
+
+            if ($batch->left()->isLessThan(self::consumptionOf($variant))) {
+                $soldOut[] = (int) $variant->id;
+            }
+        }
+
+        return $soldOut;
+    }
+
+    /**
+     * Ids of the variants that are sold out ("tugadi") on one branch right now (batch stock, see soldOutIn). Checkout uses
+     * it to close a kompleks whose batch-tracked part is gone; the batch rows themselves are locked and rechecked later.
+     *
+     * @return list<int>
+     */
+    public function soldOutVariantIds(Branch $branch): array
+    {
+        $batches = MenuBatch::query()->where('branch_id', $branch->id)->open()->get();
+        $productIds = Product::query()->where('store_id', $branch->store_id)->where('batch_tracked', true)->pluck('id')
+            ->merge($batches->pluck('product_id'))
+            ->unique()
+            ->values()
+            ->all();
+        if ($productIds === []) {
+            return [];
+        }
+        $variants = ProductVariant::query()->whereIn('product_id', $productIds)->get(['id', 'product_id', 'batch_consumption']);
+        $tracked = Product::query()->whereIn('id', $productIds)->where('batch_tracked', true)->pluck('id')->flip();
+
+        return self::soldOutIn($batches, $variants, $tracked);
+    }
+
+    /**
      * @param  Collection<int, StopListEntry>  $entries
      * @param  Collection<int, BranchProductVariant>  $overrides
      * @param  Collection<int, MenuBatch>  $batches
@@ -158,7 +211,9 @@ class MenuAvailability
             ];
         }
 
-        // P6-15: dishes off today's "Bugungi menyu", and kompleks with a stopped part: stopped like the stop-list
+        $soldOut = self::soldOutIn($batches, $variants, $tracked);
+
+        // P6-15: dishes off today's "Bugungi menyu", and kompleks with a stopped or sold-out part: stopped like the stop-list
         if ($branch !== null) {
             $stoppedProducts = array_fill_keys($stopped['products'], null);
             foreach (app(DailyMenuService::class)->offMenuProductIds($branch) as $productId) {
@@ -168,29 +223,12 @@ class MenuAvailability
                     $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => DailyMenuService::OFF_MENU_REASON, 'until' => null];
                 }
             }
-            foreach (app(MealSets::class)->closedByParts((int) $branch->store_id, $stoppedProducts, array_fill_keys($stopped['variants'], null)) as $productId => $reason) {
+            foreach (app(MealSets::class)->closedByParts((int) $branch->store_id, $stoppedProducts, array_fill_keys(array_merge($stopped['variants'], $soldOut), null)) as $productId => $reason) {
                 if (!array_key_exists($productId, $stoppedProducts)) {
                     $stoppedProducts[$productId] = $reason;
                     $stopped['products'][] = $productId;
                     $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => $reason, 'until' => null];
                 }
-            }
-        }
-
-        $soldOut = [];
-        foreach ($variants as $variant) {
-            $productBatches = $batches->where('product_id', $variant->product_id);
-            $batch = self::batchFor($variant, $productBatches);
-
-            if ($batch === null) {
-                if ($tracked->has($variant->product_id)) {
-                    $soldOut[] = (int) $variant->id;
-                }
-                continue;
-            }
-
-            if ($batch->left()->isLessThan(self::consumptionOf($variant))) {
-                $soldOut[] = (int) $variant->id;
             }
         }
 

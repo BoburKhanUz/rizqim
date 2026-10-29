@@ -82,6 +82,10 @@ boshqalar (14 ta format). Format kassa qaysi ekrandan boshlanishini (zal xaritas
    sex yoki taom qo'shilmaydi. Taomlar **o'chirilgan va narxsiz** qo'shiladi — **Menyu**da har biriga narx va MXIK
    kiriting, keyin yoqing.
 
+Osh markazi, somsaxona va stolovayani qadamma-qadam sozlash, kassirning tez kassadagi ishi —
+[tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash). Devordagi raqamlar taxtasi va kassaning ikkinchi
+ekrani — [mijoz-ekrani.md](mijoz-ekrani.md).
+
 Yangi do'kon ariza formasida tanlangan formatdan boshlaydi (masalan, "Qahvaxona" — qahvaxona formati). Avvaldan
 ishlayotgan filiallar — choyxona: ular uchun hech narsa o'zgarmaydi. Format o'zgarishlari harakatlar jurnalida yoziladi.
 
@@ -246,18 +250,26 @@ Cheklar tushmay qolgan kassa — bu "**Fiskal kutmoqda**" ([kassa qo'llanmasi](k
      **oxirgi 4 raqamini** ham. Ikkalasi Rizqim chekida chiqadi.
    - **Rizqim smart-kassada** (Sunmi P2/P3 va shunga o'xshash) — karta qurilmaning o'zida qabul qilinadi, chek provayder virtual kassasi
      orqali chiqadi. Pastdagi **Kassalar** ro'yxatida shu kassaga **Smart-kassa** belgisini qo'ying va provayder bergan **kassa raqamini**
-     yozing.
+     yozing (6–32 belgi: lotin harflari, raqamlar va "-"). Rizqim provayderdan bu kassa sizning STIRingizga tegishli ekanini so'raydi:
+     avval **Fiskal** → **Sozlamalar**da STIRni kiriting. Bitta kassa raqami faqat bitta kassada bo'ladi.
    - **Karta qabul qilinmaydi** — faqat naqd va QR.
 2. **O'rnatish ro'yxati:** eski kassa sotuvda ishlatilmaydi; bank terminali rejimi sozlangan; har kassada 2D skaner bor. Har bandni
    bajarganingizda belgilang (kim va qachon belgilagani yoziladi). Hammasi belgilansa — **O'rnatish tayyor**.
 3. **Farq chegarasi** va **Z da bank terminali summasini so'rash.** Kassir smenani yopayotganda bank terminalining kunlik jamini
    kiritadi (majburiy emas — smena baribir yopiladi). Rizqim uni shu smenadagi karta to'lovlari bilan solishtiradi (kartadagi bron
    avansi va nasiya to'lovi ham, qaytarishlar ayiriladi). Farq chegaradan katta bo'lsa sizga Telegram'da xabar boradi, Z hisobotda
-   **Bank terminali** qatori chiqadi.
+   **Bank terminali** qatori chiqadi. Kassir chegarani ham, farqni ham Z dan oldin ko'rmaydi: jamini terminal chekidan yozadi, farqni
+   Rizqim Z dan keyin ko'rsatadi.
+4. **Umumiy bank terminali** — filialning bir nechta kassasi bitta bank terminalidan foydalansa yoki kassada kuniga bir necha smena
+   bo'lsa, belgilang. Shunda terminal kuniga bir marta yopiladi deb olinadi: kunlik jamni kunning **oxirgi** smenasini yopayotgan
+   kassir kiritadi, Rizqim uni shu kunning barcha smenalaridagi karta pul bilan solishtiradi. Kunning hamma smenalari yopilguncha
+   xabar yuborilmaydi.
 
-Pastdagi **Bank terminali va Z** jadvalida har smena: bank jami, Rizqim (karta), farq va **Mos** / **Mos emas** belgisi. Kassir
-kiritmagan yoki xato kiritgan bo'lsa, shu yerda yopilgan smenani tanlab jamini kiriting yoki terminal hisobotidagi tranzaksiyalarni
-qatorma-qator ("RRN;summa") joylang: Rizqim ularni RRN bo'yicha o'zidagi to'lovlar bilan juftlaydi va mos kelmaganlarini sanaydi.
+Pastdagi **Bank terminali va Z** jadvalida har smena (umumiy terminalda — har kun): bank jami, Rizqim (karta), farq va **Mos** /
+**Mos emas** / **Kutilmoqda** belgisi. Kassir kiritmagan yoki xato kiritgan bo'lsa, shu yerda yopilgan smenani tanlab jamini kiriting
+yoki terminal hisobotidagi tranzaksiyalarni qatorma-qator ("RRN;summa") joylang: Rizqim ularni RRN bo'yicha o'zidagi to'lovlar bilan
+juftlaydi va mos kelmaganlarini sanaydi. Z dan keyin buni faqat **moliya huquqi** (finance.manage) bor xodim qiladi. Tuzatish
+ogohlantirishni o'chirmaydi: qator **Mos emas** bo'lib qoladi, oldingi yozuv **Tuzatilgan** bo'lib saqlanadi.
 
 Hozir fiskal ulanish sinov rejimida: smart-kassa ham sinov drayveri orqali ishlaydi, haqiqiy provayder ulanguncha cheklar soliq
 tizimiga yuborilmaydi.

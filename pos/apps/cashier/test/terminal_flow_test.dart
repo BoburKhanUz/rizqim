@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_cashier/src/features/billing/payment_page.dart';
 import 'package:rizqim_cashier/src/features/shift/z_close_page.dart';
+import 'package:rizqim_cashier/src/terminal/bank_terminal_view.dart';
 
 import 'support/harness.dart';
 import 'support/p22.dart';
@@ -30,14 +32,14 @@ Map<String, Object?> _flow({
   String? cardMode = 'terminal_only',
   bool smartKassa = false,
   bool askBankTotal = true,
-  String threshold = '5000.00',
+  bool sharedTerminal = false,
   bool checklist = false,
 }) => <String, Object?>{
   'card_mode': cardMode,
   'smart_kassa': smartKassa,
   'fiscal_kassa_id': smartKassa ? 'KASSA-7' : null,
   'ask_bank_total': askBankTotal,
-  'difference_threshold': threshold,
+  'shared_terminal': sharedTerminal,
   'checklist_complete': checklist,
 };
 
@@ -153,10 +155,12 @@ void main() {
   );
 
   testWidgets(
-    'Z close: the bank total is asked, the difference and the warning show, and the shift closes anyway; the summary stays on the shift page',
+    'Z close: the bank total is asked, the server shows the difference after the Z, and the shift closes anyway; the summary stays on the shift page',
     (WidgetTester tester) async {
       final P22 p = P22();
       _enable(p, _flow());
+      p.backend.bankThreshold =
+          500000; // 5 000 so'm (tiyin): the server's, never the till's
       p.state.openShift();
       final String uuid = p.state.seedOrder(tableId: 1, guests: 3);
       await pumpHome(tester, p.h);
@@ -183,20 +187,16 @@ void main() {
         find.byKey(const ValueKey<String>('bank-checklist')),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey<String>('bank-warning')), findsNothing);
+      expect(find.byKey(const ValueKey<String>('bank-shared')), findsNothing);
 
-      // 509 000 on the card; the terminal says 500 000: a 9 000 difference, above the 5 000 threshold
+      // 509 000 on the card; the terminal says 500 000. Review P6 S#5: no estimate, no threshold before the Z
       await enter(tester, 'bank-total', '500000');
       expect(
-        tester
-            .widget<Text>(find.byKey(const ValueKey<String>('bank-difference')))
-            .data,
-        '−${uzs(9000)}',
+        find.byKey(const ValueKey<String>('bank-difference')),
+        findsNothing,
       );
-      expect(
-        find.byKey(const ValueKey<String>('bank-warning')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey<String>('bank-warning')), findsNothing);
+      expect(find.textContaining('taxminan'), findsNothing);
       await enter(tester, 'bank-count', '1');
 
       await tapKey(tester, 'z-close');
@@ -218,6 +218,53 @@ void main() {
         find.byKey(const ValueKey<String>('bank-terminal-alert')),
         findsOneWidget,
       );
+      expect(find.textContaining('−${uzs(9000)}'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'shared terminal: the Z says to enter the day total at the last Z; a report still open shows the total only',
+    (WidgetTester tester) async {
+      final P22 p = P22();
+      _enable(p, _flow(sharedTerminal: true));
+      p.state.openShift();
+      await pumpHome(tester, p.h);
+      await openSection(tester, 'Smena');
+      await tapKey(tester, 'z-open');
+      expect(find.byKey(const ValueKey<String>('bank-shared')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a report that is not final yet shows the bank total and waits for the other shifts',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BankTerminalSummary(
+              report: PosBankTerminalReport.fromJson(
+                const PosJson(<String, Object?>{
+                  'bank_total': '150000.00',
+                  'rizqim_total': null,
+                  'difference': null,
+                  'final': false,
+                  'shared': true,
+                  'shifts': <Object?>[
+                    <String, Object?>{'uuid': 'a'},
+                    <String, Object?>{'uuid': 'b'},
+                  ],
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey<String>('bank-terminal-pending')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('2 ta smena'), findsOneWidget);
+      expect(find.text('Farq (bank − Rizqim)'), findsNothing);
     },
   );
 
@@ -262,7 +309,7 @@ void main() {
   );
 
   testWidgets(
-    'smart kassa: the provider total fills the field (sandbox) and shows the server difference',
+    'smart kassa: the provider total fills the field (sandbox); the difference waits for the Z',
     (WidgetTester tester) async {
       final P22 p = P22();
       _enable(
@@ -286,6 +333,11 @@ void main() {
       expect(p.backend.closedShifts, isEmpty);
       expect(
         find.byKey(const ValueKey<String>('bank-difference')),
+        findsNothing,
+      );
+      await tapKey(tester, 'z-close');
+      expect(
+        find.byKey(const ValueKey<String>('bank-terminal-summary')),
         findsOneWidget,
       );
       expect(find.text('Rizqim (karta)'), findsWidgets);

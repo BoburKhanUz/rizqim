@@ -14,7 +14,7 @@ Data201 _$Data201FromJson(Map<String, dynamic> json) => Data201(
       ? null
       : Report.fromJson(json['report'] as Map<String, dynamic>),
   shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts.fromJson(e as Map<String, dynamic>))
+      .map((e) => Shifts3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

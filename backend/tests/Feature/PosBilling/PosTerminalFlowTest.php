@@ -8,6 +8,7 @@ use App\Enums\DeviceType;
 use App\Models\AuditLog;
 use App\Models\BankTerminalReport;
 use App\Models\Branch;
+use App\Models\Device;
 use App\Models\Payment;
 use App\Models\PosShift;
 use App\Models\User;
@@ -71,20 +72,20 @@ class PosTerminalFlowTest extends TestCase
      *
      * @param  list<array{0: string, 1: string}>  $cards  [amount, rrn]
      */
-    private function cardSale(array $cards): string
+    private function cardSale(array $cards, ?string $token = null, ?Device $device = null): string
     {
         $total = $this->sumOf(array_column($cards, 0));
-        $order = $this->posOrder([['Osh', '1', $total]]);
-        $bill = (string) $this->bill($order)->assertCreated()->json('data.bills.0.uuid');
-        $this->pay($bill, array_map(fn (array $card) => ['tender' => 'card', 'amount' => $card[0], 'card_type' => 'humo', 'transaction_id' => $card[1]], $cards))
+        $order = $this->posOrder([['Osh', '1', $total]], $device !== null ? ['device_id' => $device->id] : []);
+        $bill = (string) $this->bill($order, token: $token)->assertCreated()->json('data.bills.0.uuid');
+        $this->pay($bill, array_map(fn (array $card) => ['tender' => 'card', 'amount' => $card[0], 'card_type' => 'humo', 'transaction_id' => $card[1]], $cards), token: $token)
             ->assertOk()->assertJsonPath('data.bill.status', 'paid');
 
         return $bill;
     }
 
-    private function close(PosShift $shift, array $extra = []): TestResponse
+    private function close(PosShift $shift, array $extra = [], ?string $token = null): TestResponse
     {
-        return $this->pos('POST', "/shifts/{$shift->uuid}/close", ['counted_breakdown' => []] + $extra);
+        return $this->pos('POST', "/shifts/{$shift->uuid}/close", ['counted_breakdown' => []] + $extra, $token);
     }
 
     public function test_a_card_payment_keeps_the_rrn_and_the_optional_last_four_digits(): void
@@ -143,25 +144,43 @@ class PosTerminalFlowTest extends TestCase
         $shift = $this->openShift();
         $this->cardSale([['100000', '7']]);
 
-        // Within the threshold: no alert
+        // Review P6 S#5: before the Z the comparison is provisional: the till sees what it typed only, nobody is alerted
         $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '100500'])->assertOk()
-            ->assertJsonPath('data.difference', '500.00')
-            ->assertJsonPath('data.over_threshold', false)
-            ->assertJsonPath('data.threshold', '1000.00');
-        $this->assertSame([], $this->alerts->sent);
-
+            ->assertJsonPath('data.final', false)
+            ->assertJsonPath('data.bank_total', '100500.00')
+            ->assertJsonPath('data.difference', null)
+            ->assertJsonPath('data.rizqim_total', null)
+            ->assertJsonPath('data.over_threshold', null)
+            ->assertJsonPath('data.threshold', null);
         $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '95000', 'note' => 'Terminal cheki'])->assertOk()
-            ->assertJsonPath('data.difference', '-5000.00')
-            ->assertJsonPath('data.over_threshold', true);
+            ->assertJsonPath('data.difference', null);
+        $this->assertSame([], $this->alerts->sent);
+        $this->assertSame('-5000.00', (string) BankTerminalReport::sole()->difference); // worked out, not shown
+
+        // At the Z: final, over the threshold, the owner told once
+        $this->close($shift)->assertOk()
+            ->assertJsonPath('data.bank_terminal.final', true)
+            ->assertJsonPath('data.bank_terminal.difference', '-5000.00')
+            ->assertJsonPath('data.bank_terminal.threshold', '1000.00')
+            ->assertJsonPath('data.bank_terminal.over_threshold', true)
+            ->assertJsonPath('data.bank_terminal.history.0.bank_total', '100500.00');
         $this->assertCount(1, $this->alerts->sent);
         $this->assertStringContainsString("farq -5 000 so'm", $this->alerts->sent[0]);
         $this->assertStringContainsString("Bank terminali: 95 000 so'm, Rizqim (karta): 100 000 so'm", $this->alerts->sent[0]);
+        $this->assertSame(2, AuditLog::where('action', 'pos.bank_terminal_report')->count());
 
-        // The same difference again is not a new alert; the close does not repeat it either
-        $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '95000'])->assertOk();
-        $this->close($shift)->assertOk()->assertJsonPath('data.bank_terminal.over_threshold', true);
+        // The till cannot rewrite it after its Z (S#5); the owner (finance.manage) corrects it, and the alert stays
+        $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '100000'])->assertForbidden()->assertJsonPath('data.reason', 'bank_report_locked');
+        $this->posAs($this->manager, 'PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '100000'])->assertForbidden()->assertJsonPath('data.reason', 'bank_report_locked');
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '100000'], $this->manager)->assertForbidden()->assertJsonPath('data.reason', 'bank_report_locked');
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '100000', 'note' => 'Chek qayta sanaldi'])->assertOk()
+            ->assertJsonPath('data.difference', '0.00')
+            ->assertJsonPath('data.over_threshold', true)
+            ->assertJsonPath('data.history.1.bank_total', '95000.00')
+            ->assertJsonPath('data.history.1.over_threshold', true);
+        $this->assertNotNull(BankTerminalReport::sole()->alerted_at);
+        $this->owner('GET', '/owner/fiscal/bank-reports?over_threshold=1')->assertOk()->assertJsonCount(1, 'data');
         $this->assertCount(1, $this->alerts->sent);
-        $this->assertSame(3, AuditLog::where('action', 'pos.bank_terminal_report')->count());
     }
 
     public function test_an_entry_before_the_close_is_worked_out_again_with_the_whole_shift(): void
@@ -169,16 +188,17 @@ class PosTerminalFlowTest extends TestCase
         $shift = $this->openShift();
         $this->cardSale([['50000', '1']]);
         $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '80000'])->assertOk()
-            ->assertJsonPath('data.over_threshold', true);
-        $this->assertCount(1, $this->alerts->sent);
+            ->assertJsonPath('data.final', false);
+        $this->assertTrue((bool) BankTerminalReport::sole()->over_threshold); // provisional: nobody is told
+        $this->assertSame([], $this->alerts->sent);
 
-        // A later card payment closes the gap: at the Z the report agrees again
+        // A later card payment closes the gap: at the Z the report agrees, and there never was an alert
         $this->cardSale([['30000', '2']]);
         $this->close($shift)->assertOk()
             ->assertJsonPath('data.bank_terminal.rizqim_total', '80000.00')
             ->assertJsonPath('data.bank_terminal.difference', '0.00')
             ->assertJsonPath('data.bank_terminal.over_threshold', false);
-        $this->assertCount(1, $this->alerts->sent);
+        $this->assertSame([], $this->alerts->sent);
     }
 
     public function test_an_imported_bank_report_is_matched_by_rrn(): void
@@ -193,12 +213,17 @@ class PosTerminalFlowTest extends TestCase
             ->assertJsonPath('data.source', 'import')
             ->assertJsonPath('data.bank_total', '105000.00')
             ->assertJsonPath('data.bank_count', 2)
-            ->assertJsonPath('data.difference', '5000.00')
-            ->assertJsonPath('data.transactions.0.matched', true)
-            ->assertJsonPath('data.transactions.1.matched', false)
-            ->assertJsonPath('data.unmatched.bank.0.rrn', '999')
-            ->assertJsonPath('data.unmatched.rizqim.0.rrn', '456')
-            ->assertJsonPath('data.unmatched.rizqim.0.kind', 'payment');
+            ->assertJsonPath('data.transactions.0.matched', null) // the till: once final
+            ->assertJsonPath('data.unmatched', null);
+        // The panel (finance.view) sees the matching at once
+        $this->owner('GET', '/owner/fiscal/bank-reports')->assertOk()
+            ->assertJsonPath('data.0.final', false)
+            ->assertJsonPath('data.0.difference', '5000.00')
+            ->assertJsonPath('data.0.transactions.0.matched', true)
+            ->assertJsonPath('data.0.transactions.1.matched', false)
+            ->assertJsonPath('data.0.unmatched.bank.0.rrn', '999')
+            ->assertJsonPath('data.0.unmatched.rizqim.0.rrn', '456')
+            ->assertJsonPath('data.0.unmatched.rizqim.0.kind', 'payment');
 
         $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['source' => 'import', 'transactions' => []])
             ->assertStatus(422)->assertJsonPath('data.reason', 'bank_transactions_required');
@@ -216,10 +241,11 @@ class PosTerminalFlowTest extends TestCase
         $payment = Payment::firstOrFail();
         $this->posAs($this->manager, 'POST', '/refunds', ['payment_uuid' => $payment->uuid, 'amount' => '20000', 'reason' => 'Xato', 'shift_uuid' => $shift->uuid])->assertCreated();
 
-        $this->posAs($this->manager, 'PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '70000'])->assertOk()
-            ->assertJsonPath('data.rizqim_total', '70000.00')
-            ->assertJsonPath('data.rizqim_breakdown.refunds', '20000.00')
-            ->assertJsonPath('data.difference', '0.00');
+        $this->posAs($this->manager, 'PUT', "/shifts/{$shift->uuid}/bank-report", ['bank_total' => '70000'])->assertOk();
+        $this->close($shift)->assertOk()
+            ->assertJsonPath('data.bank_terminal.rizqim_total', '70000.00')
+            ->assertJsonPath('data.bank_terminal.rizqim_breakdown.refunds', '20000.00')
+            ->assertJsonPath('data.bank_terminal.difference', '0.00');
     }
 
     public function test_without_the_module_nothing_is_asked_and_nothing_stops_a_payment_or_the_close(): void
@@ -279,8 +305,9 @@ class PosTerminalFlowTest extends TestCase
         $this->bearerJson('GET', '/api/v1/pos/bootstrap', $this->cashierToken)->assertOk()
             ->assertJsonPath('data.terminal_flow.card_mode', 'terminal_only')
             ->assertJsonPath('data.terminal_flow.ask_bank_total', false)
-            ->assertJsonPath('data.terminal_flow.difference_threshold', '2000.00')
-            ->assertJsonPath('data.terminal_flow.smart_kassa', false);
+            ->assertJsonPath('data.terminal_flow.shared_terminal', false)
+            ->assertJsonPath('data.terminal_flow.smart_kassa', false)
+            ->assertJsonMissingPath('data.terminal_flow.difference_threshold'); // review P6 S#5: never sent to the till
 
         // A manager (no settings.manage) and a terminal PIN session cannot change it; another store's branch is not found
         $this->owner('PUT', "/owner/branches/{$this->branch->id}/terminal-flow", ['card_mode' => 'none'], $this->manager)->assertForbidden();
@@ -292,17 +319,18 @@ class PosTerminalFlowTest extends TestCase
     public function test_the_owner_marks_a_till_as_a_smart_kassa(): void
     {
         $device = $this->till['device'];
-        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => 'RHMT-0042'])->assertOk()
+        $this->store->forceFill(['tin' => '301234567'])->save();
+        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => ' 301234567-0042 '])->assertOk()
             ->assertJsonPath('data.smart_kassa', true)
-            ->assertJsonPath('data.fiscal_kassa_id', 'RHMT-0042')
+            ->assertJsonPath('data.fiscal_kassa_id', '301234567-0042')
             ->assertJsonPath('data.kassa_status.registered', true)
-            ->assertJsonPath('data.kassa_status.kassa_id', 'RHMT-0042');
+            ->assertJsonPath('data.kassa_status.kassa_id', '301234567-0042');
         $this->assertTrue((bool) $device->refresh()->smart_kassa);
         $this->assertSame(1, AuditLog::where('action', 'devices.smart_kassa_changed')->count());
 
         $this->bearerJson('GET', '/api/v1/pos/bootstrap', $this->cashierToken)->assertOk()
             ->assertJsonPath('data.terminal_flow.smart_kassa', true)
-            ->assertJsonPath('data.terminal_flow.fiscal_kassa_id', 'RHMT-0042');
+            ->assertJsonPath('data.terminal_flow.fiscal_kassa_id', '301234567-0042');
 
         $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['fiscal_kassa_id' => 'bad id!'])->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
         $kds = $this->pairTerminal($this->owner, $this->branch, DeviceType::KDS)['device'];
@@ -312,27 +340,169 @@ class PosTerminalFlowTest extends TestCase
         $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => false])->assertForbidden()->assertJsonPath('data.reason', 'module_disabled');
     }
 
+    public function test_a_smart_kassa_id_is_the_store_s_and_belongs_to_one_till(): void
+    {
+        // Review P6 S#4
+        $device = $this->till['device'];
+        $second = $this->pairTerminal($this->owner, $this->branch)['device'];
+
+        // No STIR yet: the id cannot be checked
+        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => '301234567-0042'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        $this->store->forceFill(['tin' => '301234567'])->save();
+
+        // Another taxpayer's kassa: refused, and the sandbox says so
+        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => '309999999-0001'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => 'RHMT-0042'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        // ...unless the platform's sandbox table lists it under the store's STIR
+        config(['fiscal.sandbox.kassas' => ['RHMT-0042' => '301234567']]);
+        $this->owner('PUT', "/owner/fiscal/devices/{$device->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => 'rhmt-0042'])->assertOk()
+            ->assertJsonPath('data.fiscal_kassa_id', 'RHMT-0042');
+
+        // Format: 6–32 latin letters, digits and dashes
+        foreach (['ab12', str_repeat('A', 33), '-30123456', '3012:3456', '301234567_1'] as $bad) {
+            $this->owner('PUT', "/owner/fiscal/devices/{$second->uuid}", ['fiscal_kassa_id' => $bad])->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        }
+
+        // One till per id: in the store, and among the active smart kassas of every store
+        $this->owner('PUT', "/owner/fiscal/devices/{$second->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => 'RHMT-0042'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        $this->owner('PUT', "/owner/fiscal/devices/{$second->uuid}", ['fiscal_kassa_id' => 'RHMT-0042'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        $otherStore = $this->makeStore('Boshqa');
+        $foreign = $this->pairTerminal($this->makeStaff(\App\Enums\UserRole::OWNER, null, $otherStore), $this->makeBranch($otherStore, 'Boshqa filial'))['device'];
+        $foreign->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => '301234567-0099'])->save();
+        $this->owner('PUT', "/owner/fiscal/devices/{$second->uuid}", ['smart_kassa' => true, 'fiscal_kassa_id' => '301234567-0099'])
+            ->assertStatus(422)->assertJsonValidationErrors('fiscal_kassa_id');
+        // The database backs it
+        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $second->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => $foreign->fiscal_kassa_id])->save();
+    }
+
+    public function test_the_migration_keeps_the_oldest_of_duplicate_kassa_ids(): void
+    {
+        $migration = require database_path('migrations/2026_11_11_200100_add_unique_fiscal_kassa_id_to_devices_table.php');
+        $migration->down();
+        $first = $this->till['device'];
+        $second = $this->pairTerminal($this->owner, $this->branch)['device'];
+        $first->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => ' rhmt-1 '])->save();
+        $second->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => 'RHMT-1'])->save();
+
+        $migration->up();
+        $this->assertSame('RHMT-1', $first->refresh()->fiscal_kassa_id);
+        $this->assertNull($second->refresh()->fiscal_kassa_id);
+    }
+
+    public function test_a_shared_terminal_compares_the_day_total_with_every_shift_of_the_day(): void
+    {
+        // Review P6 C#M2: two tills on one bank terminal, settled once at the end of the day
+        $this->owner('PUT', "/owner/branches/{$this->branch->id}/terminal-flow", ['shared_terminal' => true, 'difference_threshold' => '1000'])->assertOk()
+            ->assertJsonPath('data.shared_terminal', true);
+        $this->bearerJson('GET', '/api/v1/pos/bootstrap', $this->cashierToken)->assertOk()->assertJsonPath('data.terminal_flow.shared_terminal', true);
+
+        $till2 = $this->pairTerminal($this->owner, $this->branch);
+        $cashier2 = $this->makeStaff(\App\Enums\UserRole::CASHIER, $this->branch);
+        $token2 = $this->pinSession($till2, $cashier2, '6402');
+        $first = $this->openShift('0');
+        $second = $this->openShift('0', $till2['device'], $cashier2);
+        $this->cardSale([['70000', '11']]);
+        $this->cardSale([['50000', '21']], $token2, $till2['device']);
+
+        // The first Z: the terminal shows the whole day so far. Before, this alerted (bank 120 000 vs the shift's 70 000)
+        $this->close($first, ['bank_terminal' => ['total' => '120000']])->assertOk()
+            ->assertJsonPath('data.bank_terminal.shared', true)
+            ->assertJsonPath('data.bank_terminal.final', false)
+            ->assertJsonPath('data.bank_terminal.difference', null)
+            ->assertJsonCount(2, 'data.bank_terminal.shifts');
+        $this->assertSame([], $this->alerts->sent);
+
+        // More cards on the second till; its Z enters the day's final total: one report for both shifts
+        $this->cardSale([['30000', '22']], $token2, $till2['device']);
+        $this->close($second, ['bank_terminal' => ['total' => '150000']], $token2)->assertOk()
+            ->assertJsonPath('data.bank_terminal.final', true)
+            ->assertJsonPath('data.bank_terminal.bank_total', '150000.00')
+            ->assertJsonPath('data.bank_terminal.rizqim_total', '150000.00')
+            ->assertJsonPath('data.bank_terminal.rizqim_count', 3)
+            ->assertJsonPath('data.bank_terminal.difference', '0.00')
+            ->assertJsonPath('data.bank_terminal.over_threshold', false)
+            ->assertJsonPath('data.bank_terminal.shifts.0.uuid', $first->uuid)
+            ->assertJsonPath('data.bank_terminal.shifts.1.uuid', $second->uuid);
+        $this->assertSame(1, BankTerminalReport::count());
+        $this->assertSame([], $this->alerts->sent);
+        // Both Z reports show the same day's report
+        $this->pos('GET', "/shifts/{$first->uuid}")->assertOk()->assertJsonPath('data.bank_terminal.difference', '0.00');
+
+        // A short day total, corrected by the owner: compared with every shift, one alert
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$first->uuid}", ['bank_total' => '140000'])->assertOk()
+            ->assertJsonPath('data.difference', '-10000.00')
+            ->assertJsonPath('data.over_threshold', true);
+        $this->assertCount(1, $this->alerts->sent);
+        $this->assertStringContainsString('Umumiy terminal (2 ta smena): Z #1, Z #2', $this->alerts->sent[0]);
+
+        // A third shift the same day reopens the comparison: the cashier sees no figures, the owner (finance.manage) does
+        $third = $this->openShift('0');
+        $this->pos('GET', "/shifts/{$third->uuid}")->assertOk()
+            ->assertJsonPath('data.bank_terminal.final', false)
+            ->assertJsonPath('data.bank_terminal.difference', null);
+        $this->posAs($this->owner, 'GET', "/shifts/{$third->uuid}")->assertOk()
+            ->assertJsonPath('data.bank_terminal.difference', '-10000.00')
+            ->assertJsonPath('data.bank_terminal.over_threshold', true)
+            ->assertJsonCount(3, 'data.bank_terminal.shifts');
+    }
+
+    public function test_without_a_shared_terminal_each_shift_has_its_own_report(): void
+    {
+        $till2 = $this->pairTerminal($this->owner, $this->branch);
+        $cashier2 = $this->makeStaff(\App\Enums\UserRole::CASHIER, $this->branch);
+        $token2 = $this->pinSession($till2, $cashier2, '6402');
+        $first = $this->openShift('0');
+        $second = $this->openShift('0', $till2['device'], $cashier2);
+        $this->cardSale([['70000', '11']]);
+        $this->cardSale([['50000', '21']], $token2, $till2['device']);
+
+        $this->close($first, ['bank_terminal' => ['total' => '70000']])->assertOk()
+            ->assertJsonPath('data.bank_terminal.shared', false)
+            ->assertJsonPath('data.bank_terminal.final', true)
+            ->assertJsonPath('data.bank_terminal.difference', '0.00')
+            ->assertJsonCount(1, 'data.bank_terminal.shifts');
+        $this->close($second, ['bank_terminal' => ['total' => '50000']], $token2)->assertOk()
+            ->assertJsonPath('data.bank_terminal.rizqim_total', '50000.00');
+        $this->assertSame(2, BankTerminalReport::count());
+    }
+
     public function test_the_panel_lists_the_reports_and_corrects_one_after_the_z(): void
     {
         $shift = $this->openShift();
         $this->cardSale([['100000', '9']]);
         $this->close($shift)->assertOk()->assertJsonPath('data.bank_terminal', null);
 
-        $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '90000'], $this->manager)->assertOk()
+        // After the Z only finance.manage enters or corrects it (review P6 S#5)
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '90000'], $this->manager)->assertForbidden()
+            ->assertJsonPath('data.reason', 'bank_report_locked');
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '90000'])->assertOk()
             ->assertJsonPath('data.z_number', 1)
+            ->assertJsonPath('data.final', true)
             ->assertJsonPath('data.over_threshold', true)
-            ->assertJsonPath('data.entered_by.id', $this->manager->id);
+            ->assertJsonPath('data.entered_by.id', $this->owner->id);
         $this->assertCount(1, $this->alerts->sent);
+        // A correction keeps the alert and the earlier entry
         $this->owner('PUT', "/owner/fiscal/bank-reports/{$shift->uuid}", ['bank_total' => '100000'])->assertOk()
-            ->assertJsonPath('data.over_threshold', false);
+            ->assertJsonPath('data.difference', '0.00')
+            ->assertJsonPath('data.over_threshold', true)
+            ->assertJsonPath('data.history.0.bank_total', '90000.00');
 
+        // An open shift: a manager (pos.close_shift) may enter it, and sees no comparison yet
         $other = $this->openShift('0', $this->pairTerminal($this->owner, $this->branch)['device']);
-        $this->owner('PUT', "/owner/fiscal/bank-reports/{$other->uuid}", ['bank_total' => '5000'])->assertOk()->assertJsonPath('data.over_threshold', true);
+        $this->owner('PUT', "/owner/fiscal/bank-reports/{$other->uuid}", ['bank_total' => '5000'], $this->manager)->assertOk()
+            ->assertJsonPath('data.final', false)
+            ->assertJsonPath('data.difference', null);
+        $this->assertCount(1, $this->alerts->sent);
 
-        $this->owner('GET', '/owner/fiscal/bank-reports')->assertOk()->assertJsonCount(2, 'data');
-        $this->owner('GET', '/owner/fiscal/bank-reports?over_threshold=1')->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.shift_uuid', $other->uuid);
+        $this->owner('GET', '/owner/fiscal/bank-reports')->assertOk()->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.difference', '5000.00');
+        $this->owner('GET', '/owner/fiscal/bank-reports?over_threshold=1')->assertOk()->assertJsonCount(2, 'data');
         $this->owner('GET', '/owner/fiscal/bank-reports', [], $this->cashier)->assertForbidden();
         $this->owner('PUT', '/owner/fiscal/bank-reports/' . \Illuminate\Support\Str::uuid(), ['bank_total' => '1'])->assertNotFound();
     }

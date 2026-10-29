@@ -19,6 +19,12 @@ class OrderStatusUpdated implements ShouldDispatchAfterCommit
     public ?string $status;
 
     /**
+     * Review P6 C#L5: the order's status-history row of this move (its latest when the event is made, inside the
+     * move's transaction): SendCustomerStatusAlert skips the alert only when the same transaction moved it again.
+     */
+    public ?int $historyId;
+
+    /**
      * @param  bool  $quiet  P2-33: a kitchen correction (a line recalled from a ready order, and the order becoming
      *                       ready again after it): the customer is not told again (SendCustomerStatusAlert)
      */
@@ -27,6 +33,10 @@ class OrderStatusUpdated implements ShouldDispatchAfterCommit
         public bool $quiet = false,
     ) {
         $this->status = $order->status->value;
+        $id = $order->getKey() !== null
+            ? \App\Models\OrderStatusHistory::where('order_id', $order->getKey())->max('id')
+            : null;
+        $this->historyId = $id !== null ? (int) $id : null;
     }
 
     /**

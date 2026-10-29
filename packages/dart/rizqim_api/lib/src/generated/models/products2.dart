@@ -28,7 +28,7 @@ class Products2 {
   @JsonKey(name: 'category_name')
   final String categoryName;
   @JsonKey(name: 'daily_rotation')
-  final bool dailyRotation;
+  final String dailyRotation;
   @JsonKey(name: 'on_menu')
   final String onMenu;
   @JsonKey(name: 'is_set')

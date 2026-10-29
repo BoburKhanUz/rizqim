@@ -6,11 +6,16 @@ use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\TerminalFlow\BankTerminalPresenter;
 use App\Domain\Pos\TerminalFlow\BankTerminalReconciler;
+use App\Enums\Permission;
 use App\Models\Branch;
+use App\Models\PosShift;
+use App\Models\User;
+use App\Services\Auth\PermissionService;
 use Dedoc\Scramble\Attributes\BodyParameter;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\HeaderParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,10 +37,15 @@ class PosBankTerminalController extends PosBillingController
      * `difference_threshold` (`over_threshold`) the owner is alerted and the Z shows it. `source`: `manual` (default:
      * `bank_total` typed from the slip, optional `bank_count`), `import` (`transactions`: [{rrn, amount}] from the
      * bank's report, up to 2000: the total is their sum and each is matched to Rizqim's card payments by RRN —
-     * `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa: the provider's own card total; 409
-     * `provider_report_unavailable` when there is none). Works on an open shift (compared again at its close) and
-     * after the Z; a new entry replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled`
-     * without the terminal_card_flow module.
+     * `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa whose kassa is the store's: the provider's own
+     * card total; 409 `provider_report_unavailable` when there is none, or on a shared terminal). A branch with
+     * `shared_terminal` keeps one report per business day covering every shift of that day (`shared`, `shifts`):
+     * enter the day's total at the last Z. While a covered shift is still open the comparison is provisional and the
+     * till gets Rizqim's side, the threshold and the difference as null (`final`: false); the owner is alerted only
+     * once all are closed, and an alert is never cleared by a correction (`history`). Works on an open shift (compared
+     * again at its close); after the shift's Z only finance.manage corrects it (403 `bank_report_locked`); a new entry
+     * replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled` without the
+     * terminal_card_flow module.
      */
     #[BodyParameter('source', description: 'manual | import | provider (manual by default).', required: false, type: "'manual'|'import'|'provider'")]
     #[BodyParameter('bank_total', description: "manual: the bank terminal's day total (decimal string).", required: false, type: 'string')]
@@ -53,13 +63,29 @@ class PosBankTerminalController extends PosBillingController
 
         // The middleware checked the caller's branch; a manager's sign-in may name another branch's shift
         $modules->assertEnabled(Branch::findOrFail($shift->branch_id), PosModule::TERMINAL_CARD_FLOW);
+        self::assertMayCorrect($this->permissions, $user, $shift);
 
         $report = $reconciler->record($shift, self::input($data), $user, $this->terminal($user), $this->applied($request));
 
         return $this->success(
-            BankTerminalPresenter::present($report, $shift),
+            BankTerminalPresenter::present($report, $shift, hideUntilFinal: !$this->permissions->allows($user, Permission::FINANCE_MANAGE, $shift)),
             $report->over_threshold ? "Saqlandi. Bank terminali va Z mos emas: egasiga xabar yuborildi." : 'Saqlandi.',
         );
+    }
+
+    /**
+     * Review P6 S#5: before a shift's Z its bank report is the till's (pos.close_shift); after it only finance.manage
+     * corrects it (403 `bank_report_locked`). The close itself may still enter it.
+     */
+    public static function assertMayCorrect(PermissionService $permissions, User $user, PosShift $shift): void
+    {
+        if (!$shift->isOpen() && !$permissions->allows($user, Permission::FINANCE_MANAGE, $shift)) {
+            throw new HttpResponseException(response()->json([
+                'success' => false,
+                'message' => "Z yopilgan: bank terminali hisobotini endi faqat moliya huquqi bor xodim (finance.manage) tuzatadi.",
+                'data' => ['reason' => 'bank_report_locked'],
+            ], 403));
+        }
     }
 
     /**

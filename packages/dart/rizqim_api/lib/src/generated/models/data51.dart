@@ -8,10 +8,12 @@ part 'data51.g.dart';
 
 @JsonSerializable()
 class Data51 {
-  const Data51({required this.productIds});
+  const Data51({required this.branchId, required this.productIds});
 
   factory Data51.fromJson(Map<String, Object?> json) => _$Data51FromJson(json);
 
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   @JsonKey(name: 'product_ids')
   final List<dynamic> productIds;
 

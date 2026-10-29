@@ -11,8 +11,9 @@ import '../shell/approval_dialog.dart';
 import '../shell/pos_scope.dart';
 import 'menu_day.dart';
 
-/// Ruxsat: partiyani hisobdan chiqarish (`batches.manage`: menejer, oshpaz, ega; kassirda odatda yo'q).
-const String batchesManagePermission = 'batches.manage';
+/// Ruxsat: partiyani hisobdan chiqarish (`batches.manage`: menejer, oshpaz, ega; kassirda odatda yo'q — P6-19: menejer
+/// shu kassada PIN'ini teradi).
+const String batchesManagePermission = PosPermissions.batchesManage;
 
 /// Bitta ochiq qozon yoki partiya: nomi va qoldig'i bilan.
 class BatchChoice {
@@ -87,7 +88,9 @@ class BatchWriteOffButton extends StatelessWidget {
 }
 
 /// Sotilmay qolgan yoki buzilgan porsiyalarni sabab bilan hisobdan chiqarish (P6-15). Kassirda `batches.manage` yo'q
-/// bo'lsa oyna "menejer yoki oshpaz PIN bilan kirsin" deydi (ekranni qulflash tugmasi bilan).
+/// bo'lsa (P6-19) kassir taom, miqdor va sababni o'zi tanlaydi; "Hisobdan chiqarish" bosilganda server menejer
+/// tasdig'ini so'raydi va shu yerda menejer PIN oynasi ochiladi ([withApproval]): menejer PIN'ini teradi, chiqarish
+/// bir martalik token bilan kassirning smenasiga yoziladi.
 Future<PosBatchWriteOff?> showBatchWriteOffDialog(BuildContext context) =>
     showScopedDialog<PosBatchWriteOff>(
       context,
@@ -241,6 +244,16 @@ class _WriteOffDialogState extends State<_WriteOffDialog> {
           _error = e.message;
         });
       }
+    } on PosApprovalCancelled {
+      // The manager's PIN pad was closed: nothing was written, the form stays as it was
+      if (mounted) setState(() => _busy = false);
+    } on PosApprovalRejected catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e.message;
+        });
+      }
     } on PosForbidden {
       if (mounted) {
         setState(() {
@@ -259,53 +272,9 @@ class _WriteOffDialogState extends State<_WriteOffDialog> {
     }
   }
 
-  Future<void> _lockForManager() async {
-    final NavigatorState nav = Navigator.of(context);
-    final PosSession session = _scope.session;
-    nav.pop();
-    await session.lock(reason: 'writeoff');
-  }
-
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
-    if (!_scope.session.can(batchesManagePermission)) {
-      return AlertDialog(
-        title: const Text('Hisobdan chiqarish'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const NoticeBanner(
-                key: ValueKey<String>('writeoff-needs-manager'),
-                message: "Taomni hisobdan chiqarish uchun menejer yoki oshpaz o'z PIN'i bilan kirishi kerak.",
-                icon: Icons.lock_outline_rounded,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Ekranni qulflang: menejer PIN'ini terib kiradi, shu smenada hisobdan chiqaradi va ekranni qaytarib qulflaydi.",
-                style: RzType.body.copyWith(color: c.fgMuted),
-              ),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          RzButton(
-            label: 'Yopish',
-            variant: RzButtonVariant.ghost,
-            onPressed: () => Navigator.pop(context),
-          ),
-          RzButton(
-            key: const ValueKey<String>('writeoff-lock'),
-            label: 'Ekranni qulflash',
-            icon: Icons.lock_rounded,
-            onPressed: _lockForManager,
-          ),
-        ],
-      );
-    }
     final List<BatchChoice>? choices = _choices;
     return AlertDialog(
       title: const Text('Hisobdan chiqarish'),
@@ -343,6 +312,14 @@ class _WriteOffDialogState extends State<_WriteOffDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (_scope.session.needsApproval(batchesManagePermission)) ...<Widget>[
+          const NoticeBanner(
+            key: ValueKey<String>('writeoff-needs-manager'),
+            message: "Hisobdan chiqarishni menejer tasdiqlaydi: «Hisobdan chiqarish» bosilganda menejer shu yerda PIN'ini teradi.",
+            icon: Icons.lock_outline_rounded,
+          ),
+          const SizedBox(height: 12),
+        ],
         Text('Qozon', style: RzType.footnote.copyWith(color: c.fgMuted)),
         const SizedBox(height: 6),
         ChoiceRow<BatchChoice>(

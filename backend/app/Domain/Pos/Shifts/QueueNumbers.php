@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\DB;
  * the order gets the next number and the caller flags it (`queue_number_taken`).
  *
  * Without the module (the choyxona default) every POS order keeps the P3-18 numbering: the next number of the branch
- * and day (above any block of that day, should the module have been on earlier), nothing reserved.
+ * and day (above any block of that day, should the module have been on earlier), nothing reserved; a number the
+ * client proposes is ignored.
  *
  * Every number is taken under one advisory lock per branch and business day held until the transaction commits, and
  * orders.queue_number is unique per branch and business day.
@@ -49,8 +50,9 @@ final class QueueNumbers
 
     /**
      * Numbers an order of $date (an order being created, OrderStamp; an online order entering the queue). A number
-     * already set on it is the one its till proposes (printed offline or picked online): kept when allowed. Returns
-     * the proposed number when it was refused (the order got another), else null. Call inside a transaction.
+     * already set on it is the one its till proposes (printed offline or picked online): kept when allowed (with the
+     * module; without it, ignored). Returns the proposed number when it was refused (the order got another), else
+     * null. Call inside a transaction.
      */
     public function number(Order $order, Branch $branch, string $date): ?int
     {
@@ -61,12 +63,11 @@ final class QueueNumbers
         $device = $this->tillOf($order, $branch);
 
         if (!self::numbersOn($branch)) {
-            if ($proposed !== null && $proposed > 0 && !$this->used($branch, $date, $proposed)) {
-                return null;
-            }
+            // Review P6 C#L4: no blocks, no talon: a number the client proposes is ignored (it could push the day's
+            // numbering anywhere), the order gets the next one of the day
             $order->setAttribute('queue_number', $this->top($branch, $date) + 1);
 
-            return $proposed;
+            return null;
         }
 
         if ($proposed !== null && $this->take($branch, $date, $device, $proposed)) {

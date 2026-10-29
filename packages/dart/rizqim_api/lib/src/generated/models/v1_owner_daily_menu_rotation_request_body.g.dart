@@ -12,8 +12,12 @@ _$V1OwnerDailyMenuRotationRequestBodyFromJson(Map<String, dynamic> json) =>
       productIds: (json['product_ids'] as List<dynamic>)
           .map((e) => (e as num).toInt())
           .toList(),
+      branchId: (json['branch_id'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$V1OwnerDailyMenuRotationRequestBodyToJson(
   V1OwnerDailyMenuRotationRequestBody instance,
-) => <String, dynamic>{'product_ids': instance.productIds};
+) => <String, dynamic>{
+  'branch_id': instance.branchId,
+  'product_ids': instance.productIds,
+};

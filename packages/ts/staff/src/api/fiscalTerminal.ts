@@ -18,9 +18,12 @@ export const BANK_REPORT_SOURCES = ['manual', 'import', 'provider'] as const;
 export type BankReportSource = (typeof BANK_REPORT_SOURCES)[number];
 
 // GET /owner/fiscal/terminal-flow (settings.manage): every branch with its module state, setup and POS tills
-export type TerminalFlowOverview = OkData<'terminalFlow.index'>;
-export type TerminalFlowBranch = TerminalFlowOverview['branches'][number];
-export type TerminalSetupView = TerminalFlowBranch['setup'];
+// Review P6 (C#M2): `shared_terminal` — the branch's tills share one bank terminal settled once per business day (one
+// bank report covers every shift of the day). Spelled out until the regenerated spec carries it; harmless after.
+type GeneratedBranch = OkData<'terminalFlow.index'>['branches'][number];
+export type TerminalSetupView = GeneratedBranch['setup'] & { shared_terminal?: boolean };
+export type TerminalFlowBranch = Omit<GeneratedBranch, 'setup'> & { setup: TerminalSetupView };
+export type TerminalFlowOverview = Omit<OkData<'terminalFlow.index'>, 'branches'> & { branches: TerminalFlowBranch[] };
 export type TerminalFlowDevice = TerminalFlowBranch['devices'][number];
 
 export async function fetchTerminalFlow(api: StaffApi, branchId?: number): Promise<TerminalFlowOverview> {
@@ -29,7 +32,7 @@ export async function fetchTerminalFlow(api: StaffApi, branchId?: number): Promi
 }
 
 // PUT /owner/branches/{branch}/terminal-flow: partial (what is not sent stays); ticking an item records who and when
-export type TerminalSetupPatch = JsonRequest<'terminalFlow.update'>;
+export type TerminalSetupPatch = JsonRequest<'terminalFlow.update'> & { shared_terminal?: boolean };
 
 export async function saveTerminalSetup(api: StaffApi, branchId: number, patch: TerminalSetupPatch): Promise<TerminalSetupView> {
   return unwrap(await api.client.PUT('/v1/owner/branches/{branch}/terminal-flow', { params: { path: { branch: branchId } }, body: patch })).data;
@@ -42,8 +45,33 @@ export async function saveSmartKassa(api: StaffApi, uuid: string, patch: SmartKa
   return unwrap(await api.client.PUT('/v1/owner/fiscal/devices/{uuid}', { params: { path: { uuid } }, body: patch })).data;
 }
 
-// GET /owner/fiscal/bank-reports (finance.view or reports.view): newest business day first
-export type BankTerminalReport = OkData<'terminalFlow.reports'>[number];
+// GET /owner/fiscal/bank-reports (finance.view or reports.view): newest business day first. Review P6 (C#M2, S#5): a
+// `shared` report covers several shifts (`shifts`); it is `final` once all are closed. Without finance.manage an entry's
+// answer (and a shift's Z) carries Rizqim's side, the threshold and the difference as null until then; an alert stays
+// (`over_threshold`) after a correction, whose earlier entry is kept in `history`. Spelled out until the regenerated
+// spec carries it; harmless after.
+export interface BankReportHistoryEntry {
+  source: string;
+  bank_total: string;
+  bank_count: number | null;
+  difference: string;
+  over_threshold: boolean;
+  entered_by: number | null;
+  entered_at: string | null;
+}
+
+interface BankReportReviewFields {
+  shared?: boolean;
+  final?: boolean;
+  shifts?: { uuid: string; z_number: number | null; status: string }[];
+  rizqim_total: string | null;
+  difference: string | null;
+  threshold: string | null;
+  over_threshold: boolean | null;
+  history?: BankReportHistoryEntry[];
+}
+
+export type BankTerminalReport = Omit<OkData<'terminalFlow.reports'>[number], keyof BankReportReviewFields> & BankReportReviewFields;
 
 export interface BankReportsQuery {
   branch_id?: number;
@@ -60,9 +88,9 @@ export async function fetchBankReports(api: StaffApi, query: BankReportsQuery = 
   return unwrap(await api.client.GET('/v1/owner/fiscal/bank-reports', { params: { query: params } })).data ?? [];
 }
 
-// PUT /owner/fiscal/bank-reports/{shift uuid} (finance.manage or pos.close_shift): enter or correct a shift's bank terminal
-// day total. 422 `data.reason` bank_total_required, bank_transactions_required, bank_transaction_invalid; 409
-// provider_report_unavailable.
+// PUT /owner/fiscal/bank-reports/{shift uuid}: enter or correct a shift's bank terminal day total — an open shift with
+// finance.manage or pos.close_shift, a closed one (after its Z) with finance.manage only (403 `bank_report_locked`). 422
+// `data.reason` bank_total_required, bank_transactions_required, bank_transaction_invalid; 409 provider_report_unavailable.
 export type BankReportInput = JsonRequest<'terminalFlow.enter'>;
 
 export async function enterBankReport(api: StaffApi, shiftUuid: string, input: BankReportInput): Promise<BankTerminalReport> {

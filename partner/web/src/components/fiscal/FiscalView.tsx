@@ -40,7 +40,8 @@ export function FiscalView() {
             {tab === 'readiness' && <ReadinessPanel canEditMenu={access.can('menu.manage')} canOpenSettings={access.can('settings.manage')} onOpenSettings={() => setChosen('settings')} />}
             {tab === 'settings' && <FiscalSettingsPanel />}
             {tab === 'receipts' && <ReceiptsPanel canRetry={access.can('settings.manage')} />}
-            {tab === 'terminal' && <TerminalFlowPanel canSetup={access.can('settings.manage')} canReadReports={readsBankReports} canEnter={access.can('finance.manage') || access.can('pos.close_shift')} />}
+            {/* Review P6 S#5: the panel enters bank totals of closed shifts, which only finance.manage may correct */}
+            {tab === 'terminal' && <TerminalFlowPanel canSetup={access.can('settings.manage')} canReadReports={readsBankReports} canEnter={access.can('finance.manage')} />}
           </div>
         </>
       )}

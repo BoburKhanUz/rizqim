@@ -18,6 +18,7 @@ Data43 _$Data43FromJson(Map<String, dynamic> json) => Data43(
   checklistComplete: json['checklist_complete'] as bool,
   differenceThreshold: json['difference_threshold'] as String,
   askBankTotal: json['ask_bank_total'] as bool,
+  sharedTerminal: json['shared_terminal'] as bool,
   updatedAt: json['updated_at'] as String?,
 );
 
@@ -29,5 +30,6 @@ Map<String, dynamic> _$Data43ToJson(Data43 instance) => <String, dynamic>{
   'checklist_complete': instance.checklistComplete,
   'difference_threshold': instance.differenceThreshold,
   'ask_bank_total': instance.askBankTotal,
+  'shared_terminal': instance.sharedTerminal,
   'updated_at': instance.updatedAt,
 };

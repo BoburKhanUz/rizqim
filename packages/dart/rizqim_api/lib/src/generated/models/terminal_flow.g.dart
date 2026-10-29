@@ -13,7 +13,7 @@ TerminalFlow _$TerminalFlowFromJson(Map<String, dynamic> json) => TerminalFlow(
   smartKassa: json['smart_kassa'] as bool,
   fiscalKassaId: json['fiscal_kassa_id'] as String?,
   askBankTotal: json['ask_bank_total'] as bool,
-  differenceThreshold: json['difference_threshold'] as String,
+  sharedTerminal: json['shared_terminal'] as bool,
   checklistComplete: json['checklist_complete'] as bool,
 );
 
@@ -23,6 +23,6 @@ Map<String, dynamic> _$TerminalFlowToJson(TerminalFlow instance) =>
       'smart_kassa': instance.smartKassa,
       'fiscal_kassa_id': instance.fiscalKassaId,
       'ask_bank_total': instance.askBankTotal,
-      'difference_threshold': instance.differenceThreshold,
+      'shared_terminal': instance.sharedTerminal,
       'checklist_complete': instance.checklistComplete,
     };

@@ -72,6 +72,9 @@ class FakeCashierBackend {
   /// P6-16: smart-kassada provayderning o'z karta jami (`source: provider`); `null` — Rizqim'dagi karta pulning o'zi.
   int? providerCardTotal;
 
+  /// P6-16: filialning farq chegarasi (so'm). Server uni kassaga yubormaydi (review P6 S#5): faqat yakuniy hisobotda.
+  int bankThreshold = 0;
+
   final Map<String, Map<String, Object?>> _writeOffByKey =
       <String, Map<String, Object?>>{};
   int _writeOffSeq = 0;
@@ -2120,6 +2123,18 @@ class FakeCashierBackend {
           note: bank['note'] as String?,
         );
       }
+    } else if (shift['bank_terminal'] is Map) {
+      // An entry made before the close, worked out again with the whole shift
+      final Map<String, Object?> earlier = (shift['bank_terminal']! as Map)
+          .cast<String, Object?>();
+      shift['bank_terminal'] = _bankReport(
+        shift,
+        source: '${earlier['source'] ?? 'manual'}',
+        bankTotal: _t(earlier['bank_total']),
+        bankCount: (earlier['bank_count'] as num?)?.toInt(),
+        terminalRef: earlier['terminal_ref'] as String?,
+        note: earlier['note'] as String?,
+      );
     }
     _shiftEvent(shift, 'closed');
     return _ok(shift, message: 'Smena yopildi.');
@@ -2144,11 +2159,11 @@ class FakeCashierBackend {
     String? terminalRef,
     String? note,
   }) {
-    final Map<String, Object?>? flow =
-        state.bootstrapExtras['terminal_flow'] as Map<String, Object?>?;
-    final int threshold = _t(flow?['difference_threshold'] ?? '0');
+    final int threshold = bankThreshold;
     final int rizqim = _cardMoney(shift);
     final int diff = bankTotal - rizqim;
+    // Review P6 S#5: while the shift is open the till gets what it typed only
+    final bool done = shift['status'] != 'open';
     return <String, Object?>{
       'uuid': _uuid('bt'),
       'shift_uuid': shift['uuid'],
@@ -2157,16 +2172,28 @@ class FakeCashierBackend {
       'business_date': shift['business_date'],
       'source': source,
       'terminal_ref': terminalRef,
+      'shared': false,
+      'final': done,
+      'shifts': <Map<String, Object?>>[
+        <String, Object?>{
+          'uuid': shift['uuid'],
+          'z_number': shift['z_number'],
+          'status': shift['status'],
+        },
+      ],
       'bank_total': _m(bankTotal),
       'bank_count': bankCount,
-      'rizqim_total': _m(rizqim),
-      'rizqim_count': _shiftPayments(
-        '${shift['uuid']}',
-      ).where((Map<String, Object?> p) => p['tender'] == 'card').length,
+      'rizqim_total': done ? _m(rizqim) : null,
+      'rizqim_count': done
+          ? _shiftPayments('${shift['uuid']}')
+                .where((Map<String, Object?> p) => p['tender'] == 'card')
+                .length
+          : null,
       'rizqim_breakdown': null,
-      'difference': _m(diff),
-      'threshold': _m(threshold),
-      'over_threshold': diff.abs() > threshold,
+      'difference': done ? _m(diff) : null,
+      'threshold': done ? _m(threshold) : null,
+      'over_threshold': done ? diff.abs() > threshold : null,
+      'history': <Object?>[],
       'transactions': null,
       'unmatched': null,
       'note': note,
@@ -2241,9 +2268,6 @@ class FakeCashierBackend {
         });
       }
     }
-    if (!state.permissionsOf(r.member).contains('batches.manage')) {
-      return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
-    }
     final String? key = r.idempotencyKey;
     if (key != null && _writeOffByKey.containsKey(key)) {
       return _ok(_writeOffByKey[key]!, status: 201);
@@ -2268,6 +2292,19 @@ class FakeCashierBackend {
     if (reason == 'other' && '${r.data['note'] ?? ''}'.trim().isEmpty) {
       return _validation('note', 'Boshqa sabab uchun izoh yozing.');
     }
+    // P6-19: batches.manage, or a manager's approval on the till (after the checks: a refused one keeps the token)
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'batches.manage',
+      r.data['approval_token'],
+    );
+    if (denied != null) return denied;
+    final int? approvedBy = r.data['approval_token'] == null
+        ? null
+        : state.staff
+              .where((Map<String, Object?> m) => m['role'] == 'manager')
+              .map((Map<String, Object?> m) => m['id']! as int)
+              .firstOrNull;
     final bool close = r.data['close'] == true;
     batch['quantity_left'] = close ? 0 : left - quantity;
     final int shiftId = state.shift == null ? 0 : 1;
@@ -2286,6 +2323,7 @@ class FakeCashierBackend {
         'note': r.data['note'],
         'business_date': _localDate(state.now()),
         'shift_id': shiftId == 0 ? null : shiftId,
+        'approved_by': ?approvedBy,
       },
       'batch': <String, Object?>{
         'id': batchId,

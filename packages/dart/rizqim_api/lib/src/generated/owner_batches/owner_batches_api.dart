@@ -143,7 +143,10 @@ abstract class OwnerBatchesApi {
   /// staff_meal, dropped, expired, other; `other` needs a `note`). More than what is left: 422. `close` also closes.
   /// the batch (the end-of-day "write off the rest"). Done from a terminal, it belongs to that terminal's open shift.
   /// and is listed on its Z report; from the panel it appears in the reports only. Send an Idempotency-Key so a retry.
-  /// does not write the same portions off twice. Audited (`menu.batch_written_off`).
+  /// does not write the same portions off twice. Audited (`menu.batch_written_off`, with `approved_by` when a manager.
+  /// approved it). Needs batches.manage; P6-19: on a terminal (staff PIN session) a cashier without it sends a manager's.
+  /// `approval_token` for batches.manage (`POST /pos/approvals`; one use, 60 seconds, this terminal only), else 403.
+  /// `approval_required` (`data.permission`). A refused write-off (422) does not use the token up.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/owner/batches/{id}/write-off')

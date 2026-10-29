@@ -4843,7 +4843,10 @@ export interface paths {
          *     staff_meal, dropped, expired, other; `other` needs a `note`). More than what is left: 422. `close` also closes
          *     the batch (the end-of-day "write off the rest"). Done from a terminal, it belongs to that terminal's open shift
          *     and is listed on its Z report; from the panel it appears in the reports only. Send an Idempotency-Key so a retry
-         *     does not write the same portions off twice. Audited (`menu.batch_written_off`).
+         *     does not write the same portions off twice. Audited (`menu.batch_written_off`, with `approved_by` when a manager
+         *     approved it). Needs batches.manage; P6-19: on a terminal (staff PIN session) a cashier without it sends a manager's
+         *     `approval_token` for batches.manage (`POST /pos/approvals`; one use, 60 seconds, this terminal only), else 403
+         *     `approval_required` (`data.permission`). A refused write-off (422) does not use the token up.
          */
         post: operations["batch.writeOff"];
         delete?: never;
@@ -4943,7 +4946,9 @@ export interface paths {
          *     {old_kassa_unused, bank_terminal_mode, scanner_2d: bool} (ticking records who and when, unticking clears it),
          *     `difference_threshold` (so'm, 0–100000000: a bank terminal total further than this from the Z's card total
          *     alerts the owner; 0: any difference), `ask_bank_total` (the till asks for the bank terminal's day total at the
-         *     Z). Audited. settings.manage; 403 `module_disabled` without the terminal_card_flow module.
+         *     Z), `shared_terminal` (the branch's tills share one bank terminal, or a till runs several shifts a day, settled
+         *     once per business day: one bank report covers every shift of that day — enter the day's total at the last Z).
+         *     Audited. settings.manage; 403 `module_disabled` without the terminal_card_flow module.
          */
         put: operations["terminalFlow.update"];
         post?: never;
@@ -5051,7 +5056,7 @@ export interface paths {
          * A branch's menu for a day
          * @description P6-15, module `daily_menu`: the dishes on the branch's menu for `date` (YYYY-MM-DD, default today's business
          *     day), `set` false when none was made for that day (then every dish is on sale), and every active dish of the store
-         *     with `daily_rotation` (it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest
+         *     with `daily_rotation` (on THIS branch it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest
          *     earlier day with a menu, for "kechagisini nusxalash". menu.view or menu.manage.
          */
         get: operations["dailyMenu.show"];
@@ -5100,10 +5105,11 @@ export interface paths {
         };
         get?: never;
         /**
-         * Which dishes rotate
-         * @description P6-15, module `daily_menu`, store-wide: exactly these dishes (`product_ids`) are sold only while on the day's
-         *     menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating by themselves; this is
-         *     how an owner makes one permanent again. Audited (`menu.daily_rotation_saved`).
+         * Which dishes rotate on a branch
+         * @description P6-15, module `daily_menu`, per branch like the menu: exactly these dishes (`product_ids`) are sold on the branch
+         *     only while on the day's menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating
+         *     on that branch by themselves; this is how an owner makes one permanent again. Other branches are never touched.
+         *     menu.manage (any branch), or stoplist.manage for the manager of that branch only. Audited (`menu.daily_rotation_saved`).
          */
         put: operations["dailyMenu.rotation"];
         post?: never;
@@ -5478,7 +5484,9 @@ export interface paths {
          * Bank terminal reports
          * @description The bank terminal day totals entered at the Z (or after it), newest business day first: the branches the caller
          *     sees (`branch_id` narrows to one), a business day range (`from`, `to`, YYYY-MM-DD), `over_threshold=1` for the
-         *     mismatches only; at most `limit` (50, up to 200). finance.view or reports.view.
+         *     mismatches only (an alerted report stays one after a correction); at most `limit` (50, up to 200). A shared
+         *     terminal's report covers several shifts (`shared`, `shifts`; `final` once all are closed). finance.view or
+         *     reports.view.
          */
         get: operations["terminalFlow.reports"];
         put?: never;
@@ -5500,8 +5508,10 @@ export interface paths {
         /**
          * Enter or correct a shift's bank terminal report
          * @description As the till's PUT /pos/shifts/{uuid}/bank-report (same body), from the panel: for a shift whose Z went without
-         *     it, or to correct it. Audited; a difference above the threshold alerts the owner. finance.manage or
-         *     pos.close_shift; 403 `module_disabled` without the terminal_card_flow module on the shift's branch.
+         *     it, or to correct it. Audited (the replaced entry stays in `history`); a final difference above the threshold
+         *     alerts the owner, and a correction never clears an alert. An open shift: finance.manage or pos.close_shift (the
+         *     latter sees the comparison only once final); a closed one: finance.manage only (403 `bank_report_locked`).
+         *     403 `module_disabled` without the terminal_card_flow module on the shift's branch.
          */
         put: operations["terminalFlow.enter"];
         post?: never;
@@ -5523,8 +5533,10 @@ export interface paths {
          * Mark a till as a smart kassa
          * @description `smart_kassa`: this POS terminal is an Android smart kassa (Sunmi P2/P3...): in fiscal mode its receipts go to
          *     the store's `smart_kassa_driver` (the provider's virtual kassa bound to it); `fiscal_kassa_id`: the id the
-         *     provider knows that kassa by (null clears it). `kassa_status`: what the provider says about it (null when the
-         *     driver cannot say). Audited. settings.manage; a terminal of another branch the caller does not manage: 404;
+         *     provider knows that kassa by (null clears it): 6–32 latin letters, digits and dashes (stored upper case), used
+         *     by no other active device of the store and no active smart kassa anywhere, and — on a smart kassa — a kassa of
+         *     the store's STIR at the provider (422 `fiscal_kassa_id` otherwise; the store needs its STIR first).
+         *     `kassa_status`: what the provider says about it (null when the driver cannot say). Audited. settings.manage; a terminal of another branch the caller does not manage: 404;
          *     403 `module_disabled` without the terminal_card_flow module on the till's branch.
          */
         put: operations["terminalFlow.updateDevice"];
@@ -7634,8 +7646,10 @@ export interface paths {
         /**
          * Call a ready number again
          * @description Re-announces a ready number: `queue.ready` with `called: true` (the customer display and the till's speaker
-         *     call it again), `call_count` + 1, `called_at`; an online customer gets the message again. 422 `not_ready` unless
-         *     it is ready, `not_in_queue`. Needs orders.manage or kitchen.manage.
+         *     call it again), `call_count` + 1, `called_at`; an online customer gets the message again for the first 3 calls
+         *     (later calls are announced on the board only). 422 `call_too_soon` with `data.retry_in` (seconds) within 15 s
+         *     of the last call, `not_ready` unless it is ready, `not_in_queue`. Needs the `queue_calling` module and
+         *     orders.manage or kitchen.manage.
          */
         post: operations["posQueue.call"];
         delete?: never;
@@ -7802,8 +7816,9 @@ export interface paths {
         /**
          * Mark a number handed over
          * @description The customer took the order: `queue.handed`, the number leaves the board; a POS order's lines are served (its
-         *     bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. 422
-         *     `not_in_queue`. Needs orders.manage or kitchen.manage.
+         *     bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. Works for
+         *     an order already in the queue after `queue_calling` was switched off; one not in it: 403 `module_disabled`
+         *     without the module, else 422 `not_in_queue`. Needs orders.manage or kitchen.manage.
          */
         post: operations["posQueue.handed"];
         delete?: never;
@@ -7916,8 +7931,10 @@ export interface paths {
          * Mark a number ready
          * @description The order is ready for the customer (a counter without a kitchen display, or the cashier overriding it):
          *     `queue.ready` on `pos-branch.{id}`, an online pickup order becomes `ready` and its customer is told "Buyurtmangiz
-         *          * tayyor, raqam N". Already ready: unchanged. 422 `not_in_queue` (no number, not a counter order, or calling
-         *     off), `already_handed`. Needs orders.manage or kitchen.manage.
+         *          * tayyor, raqam N". Already ready: unchanged. A paid order of a branch that calls no numbers is handed at once
+         *     (`handed`). An order already in the queue is finished even after `queue_calling` was switched off; one not in it:
+         *     403 `module_disabled` without the module, else 422 `not_in_queue` (no number, not a counter order);
+         *     422 `already_handed`. Needs orders.manage or kitchen.manage.
          */
         post: operations["posQueue.ready"];
         delete?: never;
@@ -8183,10 +8200,15 @@ export interface paths {
          *     `difference_threshold` (`over_threshold`) the owner is alerted and the Z shows it. `source`: `manual` (default:
          *     `bank_total` typed from the slip, optional `bank_count`), `import` (`transactions`: [{rrn, amount}] from the
          *     bank's report, up to 2000: the total is their sum and each is matched to Rizqim's card payments by RRN —
-         *     `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa: the provider's own card total; 409
-         *     `provider_report_unavailable` when there is none). Works on an open shift (compared again at its close) and
-         *     after the Z; a new entry replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled`
-         *     without the terminal_card_flow module.
+         *     `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa whose kassa is the store's: the provider's own
+         *     card total; 409 `provider_report_unavailable` when there is none, or on a shared terminal). A branch with
+         *     `shared_terminal` keeps one report per business day covering every shift of that day (`shared`, `shifts`):
+         *     enter the day's total at the last Z. While a covered shift is still open the comparison is provisional and the
+         *     till gets Rizqim's side, the threshold and the difference as null (`final`: false); the owner is alerted only
+         *     once all are closed, and an alert is never cleared by a correction (`history`). Works on an open shift (compared
+         *     again at its close); after the shift's Z only finance.manage corrects it (403 `bank_report_locked`); a new entry
+         *     replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled` without the
+         *     terminal_card_flow module.
          */
         put: operations["posBankTerminal.update"];
         post?: never;
@@ -9868,7 +9890,7 @@ export interface components {
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
         /**
          * PickupStatus
-         * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a branch without `queue_calling`).
+         * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a POS counter order before its lines went to the kitchen, an online pickup order of a branch without `queue_calling`). A POS counter order is tracked in every format (its kitchen lines outlive a payment taken first); only where `queue_calling` is on is it shown on the board and announced.
          * @enum {string}
          */
         PickupStatus: "preparing" | "ready" | "handed";
@@ -9950,7 +9972,6 @@ export interface components {
             package_code: string | null;
             vat_rate: string | null;
             quick_add: boolean;
-            daily_rotation: boolean;
             is_active: boolean;
             image_url: string | null;
             image_thumb_urls: {
@@ -24511,6 +24532,7 @@ export interface operations {
                     reason: "unsold" | "spoiled" | "staff_meal" | "dropped" | "expired" | "other";
                     note?: string | null;
                     close?: boolean | null;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -24532,6 +24554,8 @@ export interface operations {
                                 note: string | null;
                                 business_date: string;
                                 shift_id: number | null;
+                                /** @description P6-19: the manager whose PIN approved it on the terminal (null: the caller's own permission) */
+                                approved_by: null;
                             };
                             batch: {
                                 id: number;
@@ -24909,6 +24933,7 @@ export interface operations {
                     card_mode?: "terminal_only" | "smart_kassa" | "none" | null;
                     difference_threshold?: string;
                     ask_bank_total?: boolean;
+                    shared_terminal?: boolean;
                 };
             };
         };
@@ -24940,6 +24965,7 @@ export interface operations {
                             checklist_complete: boolean;
                             difference_threshold: string;
                             ask_bank_total: boolean;
+                            shared_terminal: boolean;
                             updated_at: string | null;
                         };
                     };
@@ -25330,7 +25356,7 @@ export interface operations {
                                 name: string;
                                 category_id: number;
                                 category_name: string;
-                                daily_rotation: boolean;
+                                daily_rotation: string;
                                 on_menu: string;
                                 is_set: boolean;
                             }[];
@@ -25383,7 +25409,7 @@ export interface operations {
                                 name: string;
                                 category_id: number;
                                 category_name: string;
-                                daily_rotation: boolean;
+                                daily_rotation: string;
                                 on_menu: string;
                                 is_set: boolean;
                             }[];
@@ -25437,7 +25463,7 @@ export interface operations {
                                 name: string;
                                 category_id: number;
                                 category_name: string;
-                                daily_rotation: boolean;
+                                daily_rotation: string;
                                 on_menu: string;
                                 is_set: boolean;
                             }[];
@@ -25459,6 +25485,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    branch_id?: number | null;
                     product_ids: number[];
                 };
             };
@@ -25473,6 +25500,7 @@ export interface operations {
                         success: boolean;
                         message: string;
                         data: {
+                            branch_id: number;
                             product_ids: unknown[];
                         };
                     };
@@ -26702,10 +26730,17 @@ export interface operations {
                             /** @enum {string} */
                             source: "manual" | "import" | "provider";
                             terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
                             bank_total: string;
                             bank_count: number | null;
-                            rizqim_total: string;
-                            rizqim_count: number;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
                             rizqim_breakdown: {
                                 payments: string;
                                 deposits: string;
@@ -26713,13 +26748,13 @@ export interface operations {
                                 refunds: string;
                                 deposit_refunds: string;
                             } | null;
-                            difference: string;
-                            threshold: string;
-                            over_threshold: boolean;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
                             transactions: {
                                 rrn: string | null;
                                 amount: string;
-                                matched: boolean;
+                                matched: boolean | null;
                             }[] | null;
                             unmatched: {
                                 bank: {
@@ -26732,6 +26767,15 @@ export interface operations {
                                     kind: string;
                                 }[];
                             } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
                             note: string | null;
                             entered_by: {
                                 id: number;
@@ -26798,10 +26842,17 @@ export interface operations {
                             /** @enum {string} */
                             source: "manual" | "import" | "provider";
                             terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
                             bank_total: string;
                             bank_count: number | null;
-                            rizqim_total: string;
-                            rizqim_count: number;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
                             rizqim_breakdown: {
                                 payments: string;
                                 deposits: string;
@@ -26809,13 +26860,13 @@ export interface operations {
                                 refunds: string;
                                 deposit_refunds: string;
                             } | null;
-                            difference: string;
-                            threshold: string;
-                            over_threshold: boolean;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
                             transactions: {
                                 rrn: string | null;
                                 amount: string;
-                                matched: boolean;
+                                matched: boolean | null;
                             }[] | null;
                             unmatched: {
                                 bank: {
@@ -26828,6 +26879,15 @@ export interface operations {
                                     kind: string;
                                 }[];
                             } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
                             note: string | null;
                             entered_by: {
                                 id: number;
@@ -27546,6 +27606,7 @@ export interface operations {
                                     checklist_complete: boolean;
                                     difference_threshold: string;
                                     ask_bank_total: boolean;
+                                    shared_terminal: boolean;
                                     updated_at: string | null;
                                 };
                                 devices: {
@@ -31436,7 +31497,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage";
+                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage" | "batches.manage";
                     user_id?: number | null;
                     staff_code?: string | null;
                     pin: string;
@@ -34130,7 +34191,7 @@ export interface operations {
                                 smart_kassa: boolean;
                                 fiscal_kassa_id: string | null;
                                 ask_bank_total: boolean;
-                                difference_threshold: string;
+                                shared_terminal: boolean;
                                 checklist_complete: boolean;
                             } | null;
                             format: {
@@ -39957,10 +40018,17 @@ export interface operations {
                                 /** @enum {string} */
                                 source: "manual" | "import" | "provider";
                                 terminal_ref: string | null;
+                                shared: boolean;
+                                final: boolean;
+                                shifts: {
+                                    uuid: string;
+                                    z_number: number | null;
+                                    status: string;
+                                }[];
                                 bank_total: string;
                                 bank_count: number | null;
-                                rizqim_total: string;
-                                rizqim_count: number;
+                                rizqim_total: string | null;
+                                rizqim_count: number | null;
                                 rizqim_breakdown: {
                                     payments: string;
                                     deposits: string;
@@ -39968,13 +40036,13 @@ export interface operations {
                                     refunds: string;
                                     deposit_refunds: string;
                                 } | null;
-                                difference: string;
-                                threshold: string;
-                                over_threshold: boolean;
+                                difference: string | null;
+                                threshold: string | null;
+                                over_threshold: boolean | null;
                                 transactions: {
                                     rrn: string | null;
                                     amount: string;
-                                    matched: boolean;
+                                    matched: boolean | null;
                                 }[] | null;
                                 unmatched: {
                                     bank: {
@@ -39987,6 +40055,15 @@ export interface operations {
                                         kind: string;
                                     }[];
                                 } | null;
+                                history: {
+                                    source: string;
+                                    bank_total: string;
+                                    bank_count: number | null;
+                                    difference: string;
+                                    over_threshold: boolean;
+                                    entered_by: number | null;
+                                    entered_at: string | null;
+                                }[];
                                 note: string | null;
                                 entered_by: {
                                     id: number;
@@ -40056,10 +40133,17 @@ export interface operations {
                             /** @enum {string} */
                             source: "manual" | "import" | "provider";
                             terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
                             bank_total: string;
                             bank_count: number | null;
-                            rizqim_total: string;
-                            rizqim_count: number;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
                             rizqim_breakdown: {
                                 payments: string;
                                 deposits: string;
@@ -40067,13 +40151,13 @@ export interface operations {
                                 refunds: string;
                                 deposit_refunds: string;
                             } | null;
-                            difference: string;
-                            threshold: string;
-                            over_threshold: boolean;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
                             transactions: {
                                 rrn: string | null;
                                 amount: string;
-                                matched: boolean;
+                                matched: boolean | null;
                             }[] | null;
                             unmatched: {
                                 bank: {
@@ -40086,6 +40170,15 @@ export interface operations {
                                     kind: string;
                                 }[];
                             } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
                             note: string | null;
                             entered_by: {
                                 id: number;
@@ -40412,10 +40505,17 @@ export interface operations {
                                 /** @enum {string} */
                                 source: "manual" | "import" | "provider";
                                 terminal_ref: string | null;
+                                shared: boolean;
+                                final: boolean;
+                                shifts: {
+                                    uuid: string;
+                                    z_number: number | null;
+                                    status: string;
+                                }[];
                                 bank_total: string;
                                 bank_count: number | null;
-                                rizqim_total: string;
-                                rizqim_count: number;
+                                rizqim_total: string | null;
+                                rizqim_count: number | null;
                                 rizqim_breakdown: {
                                     payments: string;
                                     deposits: string;
@@ -40423,13 +40523,13 @@ export interface operations {
                                     refunds: string;
                                     deposit_refunds: string;
                                 } | null;
-                                difference: string;
-                                threshold: string;
-                                over_threshold: boolean;
+                                difference: string | null;
+                                threshold: string | null;
+                                over_threshold: boolean | null;
                                 transactions: {
                                     rrn: string | null;
                                     amount: string;
-                                    matched: boolean;
+                                    matched: boolean | null;
                                 }[] | null;
                                 unmatched: {
                                     bank: {
@@ -40442,6 +40542,15 @@ export interface operations {
                                         kind: string;
                                     }[];
                                 } | null;
+                                history: {
+                                    source: string;
+                                    bank_total: string;
+                                    bank_count: number | null;
+                                    difference: string;
+                                    over_threshold: boolean;
+                                    entered_by: number | null;
+                                    entered_at: string | null;
+                                }[];
                                 note: string | null;
                                 entered_by: {
                                     id: number;

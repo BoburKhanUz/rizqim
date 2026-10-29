@@ -93,7 +93,7 @@ describe('Bugungi menyu', () => {
   });
 
   it('turns a permanent dish into a daily one and saves the rotation first', async () => {
-    const { calls } = mockFetch(routes({ 'PUT /api/v1/owner/daily-menu/rotation': () => ok({ product_ids: [1, 2, 3] }), 'PUT /api/v1/owner/daily-menu': () => ok(menu()) }));
+    const { calls } = mockFetch(routes({ 'PUT /api/v1/owner/daily-menu/rotation': () => ok({ branch_id: 1, product_ids: [1, 2, 3] }), 'PUT /api/v1/owner/daily-menu': () => ok(menu()) }));
     renderPage(<DailyMenuView />);
     const user = userEvent.setup();
 
@@ -104,7 +104,7 @@ describe('Bugungi menyu', () => {
     await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(2));
     const puts = calls.filter((call) => call.method === 'PUT');
     expect(new URL(puts[0]!.url).pathname).toBe('/api/v1/owner/daily-menu/rotation');
-    expect(await puts[0]!.json()).toEqual({ product_ids: [1, 2, 3] });
+    expect(await puts[0]!.json()).toEqual({ branch_id: 1, product_ids: [1, 2, 3] });
     expect(await puts[1]!.json()).toEqual({ branch_id: 1, date: '2026-11-14', product_ids: [1, 3] });
   });
 

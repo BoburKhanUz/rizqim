@@ -20,6 +20,9 @@ abstract final class PosPermissions {
   static const String refund = 'pos.refund';
   static const String bookingsManage = 'bookings.manage';
   static const String customerAccountsManage = 'customer_accounts.manage';
+
+  /// P6-15/P6-19: qozon yoki partiyani hisobdan chiqarish (kassirda yo'q — menejer PIN'i bilan).
+  static const String batchesManage = 'batches.manage';
   static const String devicesManage = 'devices.manage';
   static const String menuView = 'menu.view';
   static const String reportsView = 'reports.view';
@@ -39,6 +42,7 @@ abstract final class PosPermissions {
     refund,
     bookingsManage,
     customerAccountsManage,
+    batchesManage,
   };
 
   /// Ruxsatning o'zbekcha nomi (tasdiq oynasi sarlavhasi uchun).
@@ -56,6 +60,7 @@ abstract final class PosPermissions {
     refund => 'Pul qaytarish',
     bookingsManage => 'Bronni boshqarish',
     customerAccountsManage => 'Nasiya hisobi',
+    batchesManage => 'Taomni hisobdan chiqarish',
     _ => permission,
   };
 }

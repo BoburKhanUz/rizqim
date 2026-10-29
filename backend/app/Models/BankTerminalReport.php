@@ -7,8 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * P6-16: a shift's bank terminal day total compared with the card money Rizqim recorded in it
- * (App\Domain\Pos\TerminalFlow\BankTerminalReconciler).
+ * (App\Domain\Pos\TerminalFlow\BankTerminalReconciler). Review P6 C#M2: a `shared` report (a branch whose tills
+ * share one bank terminal) covers every shift of its branch and business day without a report of its own
+ * (coveredShifts); `shift_id` is the shift it was first entered on.
  *
+ * @property bool $shared
+ * @property numeric-string|null $alerted_difference the difference the owner was told about
+ * @property list<array{source: string, bank_total: string, bank_count: int|null, difference: string, over_threshold: bool, entered_by: int|null, entered_at: string|null}>|null $history
  * @property \Illuminate\Support\Carbon $business_date
  * @property string $source manual|import|provider
  * @property numeric-string $bank_total
@@ -44,7 +49,41 @@ class BankTerminalReport extends Model
             'over_threshold' => 'boolean',
             'unmatched' => 'array',
             'alerted_at' => 'datetime',
+            'shared' => 'boolean',
+            'alerted_difference' => 'decimal:2',
+            'history' => 'array',
         ];
+    }
+
+    /**
+     * The shifts this report compares: its own shift, or — shared — every shift of the branch's business day that has
+     * no per-shift report of its own (oldest first).
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PosShift>
+     */
+    public function coveredShifts(): \Illuminate\Database\Eloquent\Collection
+    {
+        if (!$this->shared) {
+            return PosShift::whereKey($this->shift_id)->get();
+        }
+
+        return PosShift::query()
+            ->where('branch_id', $this->branch_id)
+            ->whereDate('business_date', $this->business_date->toDateString())
+            ->whereNotIn('id', self::query()->where('branch_id', $this->branch_id)->where('shared', false)->select('shift_id'))
+            ->orderBy('opened_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * The report a shift is compared in: its own, else (a shared terminal) its branch and business day's.
+     */
+    public static function forShift(PosShift $shift): ?self
+    {
+        return self::where('shift_id', $shift->id)->first()
+            ?? self::query()->where('shared', true)->where('branch_id', $shift->branch_id)
+                ->whereDate('business_date', $shift->business_date->toDateString())->first();
     }
 
     /**

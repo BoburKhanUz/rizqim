@@ -1,5 +1,5 @@
 name: e2e_pos
-description: Rizqim POS stack end-to-end test - the real Laravel API and Reverb driven through pos_data (choyxona evening, Telegram order, real-time, conflicts).
+description: Rizqim POS stack end-to-end test - the real Laravel API and Reverb driven through pos_data (choyxona evening, Telegram order, real-time, conflicts, customer display, osh markazi lunch rush).
 version: 0.1.0
 publish_to: none
 resolution: workspace

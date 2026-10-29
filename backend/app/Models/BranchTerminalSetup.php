@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<string, array{done: bool, done_at: string|null, done_by: int|null}>|null $checklist
  * @property numeric-string $difference_threshold
  * @property bool $ask_bank_total
+ * @property bool $shared_terminal review P6 C#M2: the tills share one bank terminal settled once per business day
  */
 class BranchTerminalSetup extends Model
 {
@@ -26,6 +27,7 @@ class BranchTerminalSetup extends Model
             'checklist' => 'array',
             'difference_threshold' => 'decimal:2',
             'ask_bank_total' => 'boolean',
+            'shared_terminal' => 'boolean',
         ];
     }
 

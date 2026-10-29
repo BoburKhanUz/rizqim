@@ -312,7 +312,6 @@ class _ZClosePageState extends State<ZClosePage> {
           BankTotalSection(
             flow: bankFlow,
             shiftUuid: widget.shift.uuid,
-            rizqimCard: widget.report.byTender['card'] ?? PosMoney.zero,
             controller: _bank,
           ),
         ],

@@ -11,7 +11,7 @@ Products3 _$Products3FromJson(Map<String, dynamic> json) => Products3(
   name: json['name'] as String,
   categoryId: (json['category_id'] as num).toInt(),
   categoryName: json['category_name'] as String,
-  dailyRotation: json['daily_rotation'] as bool,
+  dailyRotation: json['daily_rotation'] as String,
   onMenu: json['on_menu'] as String,
   isSet: json['is_set'] as bool,
 );

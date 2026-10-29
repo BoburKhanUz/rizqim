@@ -74,6 +74,37 @@ final class ShiftCardTotals
     }
 
     /**
+     * Review P6 C#M2: the card money of several shifts together (the shifts on one shared bank terminal): totals,
+     * counts and the breakdown summed, the transactions of all of them.
+     *
+     * @param  iterable<PosShift>  $shifts
+     * @return array{total: Money, count: int, breakdown: array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string}, transactions: list<array{rrn: string|null, amount: string, kind: string}>}
+     */
+    public function ofShifts(iterable $shifts): array
+    {
+        $total = Money::zero();
+        $count = 0;
+        $breakdown = ['payments' => Money::zero(), 'deposits' => Money::zero(), 'repayments' => Money::zero(), 'refunds' => Money::zero(), 'deposit_refunds' => Money::zero()];
+        $transactions = [];
+        foreach ($shifts as $shift) {
+            $one = $this->of($shift);
+            $total = $total->plus($one['total']);
+            $count += $one['count'];
+            foreach ($one['breakdown'] as $key => $amount) {
+                $breakdown[$key] = $breakdown[$key]->plus($amount);
+            }
+            array_push($transactions, ...$one['transactions']);
+        }
+
+        return [
+            'total' => $total,
+            'count' => $count,
+            'breakdown' => array_map(fn (Money $amount) => $amount->toString(), $breakdown),
+            'transactions' => $transactions,
+        ];
+    }
+
+    /**
      * A transaction number as matched: trimmed, without leading zeros (a slip prints "000123456789", a cashier may
      * type "123456789"); "offline" (a payment synced without one) and empty are none.
      */

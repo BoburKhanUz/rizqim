@@ -44,7 +44,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
 
     // P6-15: unsold portions written off with a reason (module batch_writeoff; send an Idempotency-Key), the branch's
     // write-offs, "keyingi partiya HH:MM" plans and the yield report (module batches)
-    Route::post('/owner/batches/{id}/write-off', [BatchController::class, 'writeOff'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:batches.manage', 'pos.module:batch_writeoff', EnsureIdempotency::class . ':owner.batches.write_off,optional']);
+    // batches.manage, or on a terminal a manager's approval_token for it (P6-19: checked in the controller)
+    Route::post('/owner/batches/{id}/write-off', [BatchController::class, 'writeOff'])->where('id', RowId::ROUTE_PATTERN)->middleware(['pos.module:batch_writeoff', EnsureIdempotency::class . ':owner.batches.write_off,optional']);
     Route::get('/owner/batch-writeoffs', [BatchWriteOffController::class, 'index'])->middleware(['permission:batches.manage,reports.view', 'pos.module:batch_writeoff']);
     Route::get('/owner/batch-plans', [BatchPlanController::class, 'index'])->middleware(['permission:batches.manage,menu.view', 'pos.module:batches']);
     Route::post('/owner/batch-plans', [BatchPlanController::class, 'store'])->middleware(['permission:batches.manage', 'pos.module:batches']);

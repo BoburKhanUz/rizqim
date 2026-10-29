@@ -9,7 +9,7 @@ part of 'transactions.dart';
 Transactions _$TransactionsFromJson(Map<String, dynamic> json) => Transactions(
   rrn: json['rrn'] as String?,
   amount: json['amount'] as String,
-  matched: json['matched'] as bool,
+  matched: json['matched'] as bool?,
 );
 
 Map<String, dynamic> _$TransactionsToJson(Transactions instance) =>

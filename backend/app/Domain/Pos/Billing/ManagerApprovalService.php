@@ -30,11 +30,14 @@ final class ManagerApprovalService implements ManagerApprovals
 {
     public const TTL_SECONDS = 60;
 
-    /** What a manager's PIN can approve on a terminal: the floor and till actions, never settings, staff or money out of the platform. */
+    /**
+     * What a manager's PIN can approve on a terminal: the floor and till actions, never settings, staff or money out of
+     * the platform. P6-19: `batches.manage` for the till's write-off of unsold portions (POST /owner/batches/{id}/write-off).
+     */
     public const APPROVABLE = [
         'orders.manage', 'orders.cancel', 'orders.discount', 'orders.void_item', 'tables.manage',
         'pos.open_shift', 'pos.close_shift', 'pos.cash_in_out', 'pos.take_payment', 'pos.reprint_bill', 'pos.refund',
-        'bookings.manage', 'customer_accounts.manage',
+        'bookings.manage', 'customer_accounts.manage', 'batches.manage',
     ];
 
     public function __construct(

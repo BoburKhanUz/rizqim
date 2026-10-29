@@ -5,6 +5,7 @@ namespace Tests\Feature\PosMenu;
 use App\Domain\Pos\Setup\FormatProfile;
 use App\Events\Broadcast\MenuAvailabilityChangedBroadcast;
 use App\Models\AuditLog;
+use App\Models\BranchProductRotation;
 use App\Models\DailyMenu;
 use App\Models\DailyMenuItem;
 use App\Models\Product;
@@ -97,7 +98,7 @@ class DailyMenuTest extends TestCase
 
         // A dish put on a menu rotates from then on
         $this->save([$this->lagman->id, $this->blackTea->id])->assertOk();
-        $this->assertTrue($this->blackTea->fresh()->daily_rotation);
+        $this->assertTrue(BranchProductRotation::where(['branch_id' => $this->branch->id, 'product_id' => $this->blackTea->id])->exists());
         $this->assertSame([$this->lagman->id, $this->blackTea->id], DailyMenuItem::orderBy('sort_order')->pluck('product_id')->all());
 
         $log = AuditLog::where('action', 'menu.daily_menu_saved')->orderBy('id')->get();
@@ -238,13 +239,13 @@ class DailyMenuTest extends TestCase
         $this->assertEqualsCanonicalizing([$this->lagman->id, $this->mastava->id], $stopped);
 
         // The owner makes Mastava a permanent dish again
-        $this->actingAs($this->owner, 'sanctum')->putJson('/api/v1/owner/daily-menu/rotation', ['product_ids' => [$this->lagman->id]])
+        $this->actingAs($this->owner, 'sanctum')->putJson('/api/v1/owner/daily-menu/rotation', ['branch_id' => $this->branch->id, 'product_ids' => [$this->lagman->id]])
             ->assertOk()->assertJsonPath('data.product_ids', [$this->lagman->id]);
-        $this->assertFalse($this->mastava->fresh()->daily_rotation);
+        $this->assertFalse(BranchProductRotation::where(['branch_id' => $this->branch->id, 'product_id' => $this->mastava->id])->exists());
         $this->assertSame([$this->lagman->id], $this->availability()['stopped']['products']);
         $this->assertTrue(AuditLog::where('action', 'menu.daily_rotation_saved')->exists());
 
-        $this->actingAs($this->owner, 'sanctum')->putJson('/api/v1/owner/daily-menu/rotation', ['product_ids' => [999999]])->assertStatus(422);
+        $this->actingAs($this->owner, 'sanctum')->putJson('/api/v1/owner/daily-menu/rotation', ['branch_id' => $this->branch->id, 'product_ids' => [999999]])->assertStatus(422);
     }
 
     public function test_access_is_by_permission_and_branch(): void

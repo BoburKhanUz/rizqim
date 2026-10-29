@@ -5,6 +5,7 @@ namespace Tests\Feature\PosMenu;
 use App\Domain\Pos\Setup\FormatProfile;
 use App\Domain\Pos\Setup\PosSettings;
 use App\Models\Branch;
+use App\Models\BranchProductRotation;
 use App\Models\Product;
 use Tests\Feature\MenuFixtures;
 
@@ -23,13 +24,24 @@ trait PosMenuModules
     }
 
     /**
-     * A new dish with one variant, optionally already rotating.
+     * A new dish with one variant, optionally already rotating in the test's `branch`.
      */
     protected function dish(string $name, string $price = '30000', bool $rotating = false, array $variant = []): Product
     {
-        $product = $this->makeProduct($name, ['daily_rotation' => $rotating]);
+        $product = $this->makeProduct($name);
         $this->makeVariant($product, $price, $variant + ['name' => $name . ' porsiya', 'stock' => 1000]);
+        if ($rotating) {
+            $this->rotate($product);
+        }
 
         return $product;
+    }
+
+    /**
+     * Puts a dish in the daily rotation of one branch (default: the test's `branch`). Rotation is per branch.
+     */
+    protected function rotate(Product $product, ?Branch $branch = null): void
+    {
+        BranchProductRotation::query()->firstOrCreate(['branch_id' => ($branch ?? $this->branch)->id, 'product_id' => $product->id]);
     }
 }

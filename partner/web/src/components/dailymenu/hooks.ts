@@ -46,7 +46,7 @@ export function useSaveDailyMenu({ onSuccess }: Done = {}) {
   return useMutation({
     mutationFn: (input: { branchId: number; date: string; productIds: number[]; rotation?: number[] }) =>
       // The rotation first (which dishes the menu rules), then the day's dishes
-      (input.rotation ? saveRotation(api, input.rotation) : Promise.resolve(null)).then(() => saveDailyMenu(api, input)),
+      (input.rotation ? saveRotation(api, input.branchId, input.rotation) : Promise.resolve(null)).then(() => saveDailyMenu(api, input)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: dailyKeys.menus });
       onSuccess?.();

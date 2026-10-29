@@ -20,8 +20,10 @@ abstract class PosQueueNumbersApi {
   /// Call a ready number again.
   ///
   /// Re-announces a ready number: `queue.ready` with `called: true` (the customer display and the till's speaker.
-  /// call it again), `call_count` + 1, `called_at`; an online customer gets the message again. 422 `not_ready` unless.
-  /// it is ready, `not_in_queue`. Needs orders.manage or kitchen.manage.
+  /// call it again), `call_count` + 1, `called_at`; an online customer gets the message again for the first 3 calls.
+  /// (later calls are announced on the board only). 422 `call_too_soon` with `data.retry_in` (seconds) within 15 s.
+  /// of the last call, `not_ready` unless it is ready, `not_in_queue`. Needs the `queue_calling` module and.
+  /// orders.manage or kitchen.manage.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/call')
@@ -33,8 +35,9 @@ abstract class PosQueueNumbersApi {
   /// Mark a number handed over.
   ///
   /// The customer took the order: `queue.handed`, the number leaves the board; a POS order's lines are served (its.
-  /// bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. 422.
-  /// `not_in_queue`. Needs orders.manage or kitchen.manage.
+  /// bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. Works for.
+  /// an order already in the queue after `queue_calling` was switched off; one not in it: 403 `module_disabled`.
+  /// without the module, else 422 `not_in_queue`. Needs orders.manage or kitchen.manage.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/handed')
@@ -47,8 +50,10 @@ abstract class PosQueueNumbersApi {
   ///
   /// The order is ready for the customer (a counter without a kitchen display, or the cashier overriding it):.
   /// `queue.ready` on `pos-branch.{id}`, an online pickup order becomes `ready` and its customer is told "Buyurtmangiz.
-  ///      * tayyor, raqam N". Already ready: unchanged. 422 `not_in_queue` (no number, not a counter order, or calling.
-  /// off), `already_handed`. Needs orders.manage or kitchen.manage.
+  ///      * tayyor, raqam N". Already ready: unchanged. A paid order of a branch that calls no numbers is handed at once.
+  /// (`handed`). An order already in the queue is finished even after `queue_calling` was switched off; one not in it:.
+  /// 403 `module_disabled` without the module, else 422 `not_in_queue` (no number, not a counter order);.
+  /// 422 `already_handed`. Needs orders.manage or kitchen.manage.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/ready')

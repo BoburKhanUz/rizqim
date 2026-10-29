@@ -692,8 +692,11 @@ Yozuvlar to'lanmagan hisob-faktura qulfida — 403 `subscription_locked`. Har o'
 
 **Modul tekshiruvi.** Yopiq modulning endpointi 403 `{success: false, message, code: "module_disabled", module,
 data: {reason: "module_disabled", module, module_label, profile}}` qaytaradi (tarifda yo'q bo'lsa avval
-`plan_feature_missing`). Route middleware `pos.module:<key>` (`App\Http\Middleware\EnsurePosModule`); filial — route,
-`branch_id`, terminal yoki xodimning filiali, bo'lmasa do'konning biror filialida yoqilgani yetadi. Mavjud endpointlarda:
+`plan_feature_missing`). Route middleware `pos.module:<key>` (`App\Http\Middleware\EnsurePosModule`). Filial (review P6
+S#2): terminal tokeni, filialga bog'langan xodim va PIN sessiya — doim o'z filiali (boshqa filialni route `branch` yoki
+`branch_id` da nomlasa 403 `{data: {reason: "branch_forbidden"}}`); do'kon bo'yicha ishlovchi (ega) — nomlagan filiali:
+`branch_id` musbat son emas — 422 (`errors.branch_id`), boshqa do'konniki yoki yo'q — 404 `branch_not_found`; hech
+narsa nomlamasa — do'konning biror filialida yoqilgani yetadi. Mavjud endpointlarda:
 `POST /pos/bookings` (`bookings`), `POST /pos/customer-accounts` (`customer_accounts`), `POST`/`PATCH
 /owner/room-tariffs` (`room_fee`), `POST`/`PATCH /owner/auto-guest-items` (`guest_items`), `POST`/`PATCH
 /owner/dining-tables` xona yoki tapchan (`rooms`), `PUT /owner/service-fees` musbat foiz (`service_charge`; stolovaya
@@ -1157,7 +1160,7 @@ shu terminalda o'z PIN'ini teradi. Javob: bir martalik `token` — faqat shu `pe
 xil (noto'g'ri — 422 `pin_invalid`, bloklangan — 429 `pin_locked`); menejerda ruxsat bo'lmasa 403
 `approver_not_allowed`; terminal sessiyasidan tashqari — 422 `terminal_required`. Tasdiqlanadigan ruxsatlar:
 `orders.manage`, `orders.cancel`, `orders.discount`, `orders.void_item`, `tables.manage`, `pos.*`, `bookings.manage`,
-`customer_accounts.manage`. Token yo'q bo'lsa amal 403 `approval_required` (`data.permission`), muddati o'tgan,
+`customer_accounts.manage`, `batches.manage` (P6-19: kassada qozonni hisobdan chiqarish). Token yo'q bo'lsa amal 403 `approval_required` (`data.permission`), muddati o'tgan,
 ishlatilgan, boshqa terminal yoki boshqa ruxsat uchun bo'lsa 403 `approval_expired` / `approval_used` /
 `approval_wrong_device` / `approval_wrong_permission`. Jurnalda ikkalasi: `pos.approval_granted` (kim tasdiqladi,
 kim so'radi), `pos.approval_used`.
@@ -1303,12 +1306,12 @@ smenani yopish **hech qachon** to'xtamaydi: modul faqat sozlash va yangi oqimlar
 
 | Endpoint | Ruxsat | Nima qiladi |
 |---|---|---|
-| `GET /owner/fiscal/terminal-flow?branch_id` | `settings.manage` | filiallar: `module_enabled`, `setup` (`card_mode`, `checklist`, `checklist_complete`, `difference_threshold`, `ask_bank_total`), POS kassalari (`smart_kassa`, `fiscal_kassa_id`); `fiscal` (`enabled`, `active_driver`, `smart_kassa_driver`) |
-| `PUT /owner/branches/{branch}/terminal-flow {card_mode?, checklist?, difference_threshold?, ask_bank_total?}` | `settings.manage` | filial sozlamasi; `checklist` — `{old_kassa_unused, bank_terminal_mode, scanner_2d: bool}` (belgilaganda kim va qachon yoziladi, olib tashlaganda tozalanadi; noma'lum band — 422). Jurnal: `settings.terminal_flow_changed` |
-| `PUT /owner/fiscal/devices/{uuid} {smart_kassa?, fiscal_kassa_id?}` | `settings.manage` | POS kassasi smart-kassa; `fiscal_kassa_id` — provayderdagi kassa raqami (lotin, raqam, `. _ : -`). Javobda `kassa_status` (drayver aytsa). KDS va boshqa qurilma — 404. Jurnal: `devices.smart_kassa_changed` |
+| `GET /owner/fiscal/terminal-flow?branch_id` | `settings.manage` | filiallar: `module_enabled`, `setup` (`card_mode`, `checklist`, `checklist_complete`, `difference_threshold`, `ask_bank_total`, `shared_terminal`), POS kassalari (`smart_kassa`, `fiscal_kassa_id`); `fiscal` (`enabled`, `active_driver`, `smart_kassa_driver`) |
+| `PUT /owner/branches/{branch}/terminal-flow {card_mode?, checklist?, difference_threshold?, ask_bank_total?, shared_terminal?}` | `settings.manage` | filial sozlamasi; `checklist` — `{old_kassa_unused, bank_terminal_mode, scanner_2d: bool}` (belgilaganda kim va qachon yoziladi, olib tashlaganda tozalanadi; noma'lum band — 422); `shared_terminal` — kassalar bitta bank terminalini bo'lishadi, kuniga bir marta yopiladi (pastda). Jurnal: `settings.terminal_flow_changed` |
+| `PUT /owner/fiscal/devices/{uuid} {smart_kassa?, fiscal_kassa_id?}` | `settings.manage` | POS kassasi smart-kassa; `fiscal_kassa_id` — provayderdagi kassa raqami: 6–32 belgi (lotin harf, raqam, `-`; katta harf bilan saqlanadi), do'konning boshqa faol qurilmasida va istalgan do'konning faol smart-kassasida band bo'lmasin; smart-kassada provayder uni do'kon STIRiga tegishli desin (`kassaBelongsTo`; STIR kiritilmagan bo'lsa ham 422) — aks holda 422 `errors.fiscal_kassa_id`. Javobda `kassa_status` (drayver aytsa). KDS va boshqa qurilma — 404. Jurnal: `devices.smart_kassa_changed` |
 | `PUT /pos/shifts/{uuid}/bank-report` | `pos.close_shift` + `Idempotency-Key` | kassada bank terminali kunlik jami (pastda) |
 | `GET /owner/fiscal/bank-reports?branch_id&from&to&over_threshold&limit` | `finance.view` yoki `reports.view` | hisobotlar, yangi biznes kun birinchi; `over_threshold=1` — faqat farqlilar |
-| `PUT /owner/fiscal/bank-reports/{shift uuid}` | `finance.manage` yoki `pos.close_shift` | paneldan kiritish yoki tuzatish (Z dan keyin ham), tana kassadagidek |
+| `PUT /owner/fiscal/bank-reports/{shift uuid}` | ochiq smena: `finance.manage` yoki `pos.close_shift`; yopilgan: faqat `finance.manage` | paneldan kiritish yoki tuzatish, tana kassadagidek; Z dan keyin `finance.manage` siz — 403 `bank_report_locked` |
 
 Hammasi terminal PIN sessiyasidan emas (`not-staff-session`), kassadagi `bank-report` dan tashqari.
 
@@ -1324,8 +1327,11 @@ yuboriladi, pul rad etilmaydi.
 `stores.fiscal_settings.smart_kassa_driver` (`PUT /owner/fiscal/settings`; `null` — `driver` bilan bir xil): fiskal
 rejimda `smart_kassa: true` kassaning cheklari shu drayverga ketadi, qolganlari `driver` ga (`FiscalSettings::driverFor`).
 Drayver `App\Domain\Fiscal\Gateways\SmartKassaGateway` ni amalga oshirsa: `kassaStatus` (provayder kassani biladimi) va
-`cardTotals` (shu kassaning davr bo'yicha karta summasi — kun oxiri solishtiruvi uchun). Hozir faqat sandbox:
-smart-kassa cheki `terminal_id` sifatida kassaning `fiscal_kassa_id` sini oladi; `cardTotals` — shu kassaning sandbox
+`cardTotals` (shu kassaning davr bo'yicha karta summasi — kun oxiri solishtiruvi uchun), `kassaBelongsTo(kassa, STIR)`
+(review P6 S#4: kassa do'kon STIRiga tegishlimi — saqlashda va har yo'naltirishdan oldin so'raladi; tegishli bo'lmasa
+chek `driver` ga ketadi, provayder jami so'ralmaydi — 409 `provider_report_unavailable`). Hozir faqat sandbox: kassa
+raqami do'kon STIRi bilan boshlansa yoki `config('fiscal.sandbox.kassas')` (platforma jadvali, kassa → STIR) uni shu
+STIR ostida bilsa — tegishli; smart-kassa cheki `terminal_id` sifatida kassaning `fiscal_kassa_id` sini oladi; `cardTotals` — shu kassaning sandbox
 orqali chiqqan sotuv, avans va kredit cheklaridagi karta qismlari, qaytarishlar ayirilgan.
 
 ### Kun oxiri: bank terminali va Z
@@ -1336,15 +1342,28 @@ orqali chiqqan sotuv, avans va kredit cheklaridagi karta qismlari, qaytarishlar 
 |---|---|
 | `manual` (standart) | `bank_total` — terminalning kunlik (settlement) jami, `bank_count?` (yo'q — 422 `bank_total_required`) |
 | `import` | `transactions: [{rrn?, amount}]` (2000 tagacha): jami — yig'indi; har biri Rizqim karta to'lovlari bilan RRN bo'yicha juftlanadi (boshidagi nollar e'tiborga olinmaydi). Bo'sh — 422 `bank_transactions_required`, noto'g'ri summa — 422 `bank_transaction_invalid` |
-| `provider` | smart-kassa: provayderning o'z karta jami (`SmartKassaGateway::cardTotals`); smart-kassa emas yoki provayder bermasa — 409 `provider_report_unavailable` |
+| `provider` | smart-kassa: provayderning o'z karta jami (`SmartKassaGateway::cardTotals`); smart-kassa emas, kassa do'konniki emas, umumiy terminal yoki provayder bermasa — 409 `provider_report_unavailable` |
 
 Rizqim tomoni (`rizqim_total`, `rizqim_breakdown`): smenadagi schyotlarning karta to'lovlari + shu kassada smena
 davomida kartada olingan bron avanslari va nasiya to'lovlari − smenadagi karta qaytarishlari − kartadagi avans
 qaytarishlari. `difference` = bank − Rizqim; `|difference|` filialning `difference_threshold` (standart 0 — har
 qanday farq) dan katta bo'lsa `over_threshold: true`, egaga ogohlantirish (`PosOwnerAlerts`, Telegram va push, bir xil
 farq uchun bir marta). `unmatched.bank` / `unmatched.rizqim` — RRN bo'yicha juftlanmaganlar (`import` va `provider`).
-Ochiq smenada ham kiritiladi va Z da qayta hisoblanadi; Z dan keyin ham kiritiladi yoki tuzatiladi (har biri jurnalda
-`pos.bank_terminal_report`). Bir smenaga bitta hisobot, yangisi almashtiradi.
+Ochiq smenada ham kiritiladi va Z da qayta hisoblanadi; Z dan keyin faqat `finance.manage` kiritadi yoki tuzatadi (aks
+holda 403 `bank_report_locked`; yopish so'rovidagi `bank_terminal` bundan mustasno). Har biri jurnalda
+`pos.bank_terminal_report`; yangisi almashtiradi, oldingisi `history: [{source, bank_total, bank_count, difference,
+over_threshold, entered_by, entered_at}]` da qoladi.
+
+Review P6 (C#M2, S#5) qo'shimchalari: `shared`, `final`, `shifts: [{uuid, z_number, status}]`, `history`.
+- **Qamrov.** Standartda hisobot — bitta smena. Filialda `shared_terminal` yoqilgan bo'lsa filial va biznes kun bo'yicha
+  bitta hisobot (`shared: true`) shu kunning o'z hisoboti yo'q barcha smenalarini qamraydi: Rizqim tomoni — ularning
+  karta puli yig'indisi. Istalgan Z kiritishi mumkin, oxirgi kiritilgani kunniki (kunlik jamni oxirgi Z da kiriting).
+- **Yakun.** `final` — qamralgan barcha smenalar yopilgan. Ungacha ogohlantirish yo'q va `finance.manage` siz
+  chaqiruvchiga (kassa, `GET /pos/shifts/{uuid}`, paneldan `pos.close_shift` bilan kiritish) `rizqim_total`,
+  `rizqim_count`, `rizqim_breakdown`, `difference`, `threshold`, `over_threshold`, `unmatched`, `alerted_at` va
+  `transactions[].matched` — `null`. Hisobotlar ro'yxati (`finance.view` / `reports.view`) hammasini ko'radi.
+- **Ogohlantirish.** Faqat `final` da, chegaradan katta farq uchun, bir xil farq uchun bir marta; keyin
+  `over_threshold` qaytib `false` bo'lmaydi (tuzatish farqni o'zgartiradi, ogohlantirish qoladi).
 
 `POST /pos/shifts/{uuid}/close` ixtiyoriy `bank_terminal: {total, count?, terminal_ref?, note?}` oladi: Z yozilgandan
 keyin solishtiriladi, smena yopilishini **hech qachon** to'xtatmaydi (modul o'chiq bo'lsa e'tiborga olinmaydi).
@@ -1352,7 +1371,8 @@ keyin solishtiriladi, smena yopilishini **hech qachon** to'xtatmaydi (modul o'ch
 "Bank terminali: ..., Rizqim (karta): ..., farq ..." qatori.
 
 **Bootstrap:** `GET /pos/bootstrap` → `terminal_flow` (`null` — modul o'chiq): `card_mode`, `smart_kassa` (shu kassa),
-`fiscal_kassa_id`, `ask_bank_total`, `difference_threshold`, `checklist_complete`.
+`fiscal_kassa_id`, `ask_bank_total`, `shared_terminal`, `checklist_complete`. Review P6 S#5: `difference_threshold`
+endi kassaga yuborilmaydi (farqni server Z dan keyin ko'rsatadi).
 
 ## Zal va xona hisobi (P3-12)
 
@@ -2843,8 +2863,11 @@ qulfi, `locked_at`), `100300` (hisob-faktura: `kind`, `sequence`, `paid_amount`)
 ## Buyurtma raqami va chaqiruv (P6-13)
 
 Tez kassa formatlari uchun navbat raqami, talon va chaqiruv ([POS_SPEC.md](POS_SPEC.md) 2.14). Format modullari
-(P6-11, `pos.module`): `queue_numbers` — bloklar (o'chiq bo'lsa 403 `module_disabled`), `queue_calling` — taxta va
-raqam harakatlari. Xodim sessiyasi yoki terminaldagi PIN sessiyasi; boshqa do'kon yoki filial buyurtmasi — 404. Har
+(P6-11, `pos.module`): `queue_numbers` — bloklar (o'chiq bo'lsa 403 `module_disabled`), `queue_calling` — taxta,
+qayta chaqirish va navbatga yangi kirish (`ready`/`handed` navbatdagi raqamni modul keyin o'chirilgan bo'lsa ham
+yakunlaydi; navbatda bo'lmagan buyurtmaga modulsiz 403 `module_disabled`). POS kassa buyurtmasining `pickup_status`i
+har qanday formatda yuritiladi (avval to'langan buyurtma KDS'da qoladi); modulsiz filialda `queue.*` hodisalari
+yuborilmaydi va yopilgan buyurtma oshxonasi tugashi bilan `handed` bo'ladi. Xodim sessiyasi yoki terminaldagi PIN sessiyasi; boshqa do'kon yoki filial buyurtmasi — 404. Har
 o'zgartiruvchi so'rovda `Idempotency-Key` majburiy (428). Hech biri to'lov, schyot, chek, smena yoki qaytarishni
 to'smaydi.
 
@@ -2852,9 +2875,9 @@ to'smaydi.
 |---|---|---|
 | `GET /pos/queue` | `orders.view` | bugungi (biznes kun) taxta: `preparing` (eskisi birinchi) va `ready` (eng uzoq kutgan birinchi), har biri ko'pi bilan 200 |
 | `POST /pos/queue/blocks` | `orders.manage`, terminal PIN sessiyasi (`terminal_required` 422) | kassada 20 tadan kam raqam qolsa keyingi blok; yetarli bo'lsa o'zgarmaydi; javob — bootstrap'dagi `queue` |
-| `POST /pos/orders/{uuid}/ready` | `orders.manage` yoki `kitchen.manage` | raqam tayyor (KDS'siz kassa): olib ketish buyurtmasi `ready`, onlayn mijozga "Buyurtmangiz tayyor, raqam N"; 422 `not_in_queue`, `already_handed` |
-| `POST /pos/orders/{uuid}/call` | xuddi shu | tayyor raqamni qayta chaqirish: `call_count` + 1, `queue.ready` `called: true`, onlayn mijozga xabar qayta; 422 `not_ready` |
-| `POST /pos/orders/{uuid}/handed` | xuddi shu | mijoz oldi: `handed`, POS taomlari `served` (schyot va to'lovga tegmaydi), onlayn buyurtma `delivered` |
+| `POST /pos/orders/{uuid}/ready` | `orders.manage` yoki `kitchen.manage` | raqam tayyor (KDS'siz kassa): olib ketish buyurtmasi `ready`, onlayn mijozga "Buyurtmangiz tayyor, raqam N"; modulsiz filialda yopilgan buyurtma `handed`; 403 `module_disabled` (navbatda emas, modul o'chiq), 422 `not_in_queue`, `already_handed`; audit `pos.queue_ready` |
+| `POST /pos/orders/{uuid}/call` | xuddi shu | tayyor raqamni qayta chaqirish: `call_count` + 1, `queue.ready` `called: true`, onlayn mijozga xabar qayta (faqat dastlabki 3 chaqiruvda); `queue_calling` kerak; 422 `call_too_soon` (oxirgi chaqiruvdan 15 soniya o'tmagan, `data.retry_in` soniya), `not_ready` |
+| `POST /pos/orders/{uuid}/handed` | xuddi shu | mijoz oldi: `handed`, POS taomlari `served` (schyot va to'lovga tegmaydi), onlayn buyurtma `delivered`; audit `pos.queue_handed` |
 
 Javob (taxta qatori va harakatlar): `{order_uuid, number, business_date, status: preparing|ready|handed|null, channel,
 order_status, ready_at, called_at, call_count, handed_at, opened_at}`.
@@ -2870,7 +2893,9 @@ ichida takrorlanmaydi) va yuboradi:
   (`sync_flags`: `queue_number`, `assigned`).
 
 Modul o'chiq filialda (choyxona) raqamlar avvalgidek: kun ichida keyingi raqam, blok yo'q, bootstrap'da
-`numbers: false`, `blocks: []`.
+`numbers: false`, `blocks: []`; kassa yuborgan `queue_number` e'tiborga olinmaydi (flag ham yo'q). Internetsiz
+`order.open` buyurtmasi `occurred_at` bo'yicha biznes kunini oladi (kun boshlanishidan oldin sotilib keyin
+sinxronlangani ham o'sha kunda, o'sha kunning bloklari bilan).
 
 **Buyurtmadagi maydonlar.** POS buyurtma (`GET /pos/orders/{uuid}` va ro'yxat qatorlari) — `queue: {number,
 business_date, status, ready_at, called_at, call_count, handed_at}` yoki `null`. Schyot (`bill`) va schyot
@@ -3645,10 +3670,10 @@ modul yoqilmagan bo'lsa 403 `{code: "module_disabled", data: {module}}` beradi.
 | `GET /owner/daily-menu` | `daily_menu` | `menu.view` yoki `menu.manage` | `branch_id`, `date` → `{date, business_date, enforced, set, product_ids, previous_date, products[]}` |
 | `PUT /owner/daily-menu` | `daily_menu` | `menu.manage` yoki `stoplist.manage` | `{branch_id, date?, product_ids[]}` — kunning menyusi |
 | `POST /owner/daily-menu/copy` | `daily_menu` | shu | `{branch_id, date?, from_date?}` — kechagisini nusxalash |
-| `PUT /owner/daily-menu/rotation` | `daily_menu` | shu | `{product_ids[]}` — qaysi taomlar kunlik |
+| `PUT /owner/daily-menu/rotation` | `daily_menu` | `menu.manage` (istalgan filial) yoki `stoplist.manage` (faqat o'z filiali; boshqa filial 403) | `{branch_id, product_ids[]}` — shu filialda qaysi taomlar kunlik (filial bo'yicha, boshqa filialga tegmaydi; javob `{branch_id, product_ids}`) |
 | `GET/POST /owner/meal-sets`, `PUT/DELETE /owner/meal-sets/{id}` | `combo_meal` | o'qish `menu.view`, yozish `menu.manage` | kompleks: `{product_id, parts[{variant_id, quantity?, label?}], is_active?}` |
 | `GET/POST /owner/batch-plans`, `DELETE /owner/batch-plans/{id}` | `batches` | `batches.manage` | keyingi partiya: `{branch_id?, product_id, product_variant_id?, time (HH:MM) \| planned_at, quantity?, label?}`; GET javobida `modules` |
-| `POST /owner/batches/{id}/write-off` | `batch_writeoff` | `batches.manage` | `{quantity, reason, note?, close?}`, `Idempotency-Key` |
+| `POST /owner/batches/{id}/write-off` | `batch_writeoff` | `batches.manage`; P6-19: terminalda kassir menejerning `approval_token` i bilan (tasdiqsiz — 403 `approval_required`, `data.permission: batches.manage`; bir marta, 60 soniya, shu terminal va uning filiali; 422 bilan rad etilgan chiqarish tokenni sarflamaydi) | `{quantity, reason, note?, close?, approval_token?}`, `Idempotency-Key`; javobda `write_off.approved_by` (tasdiqlagan menejer yoki `null`) |
 | `GET /owner/batch-writeoffs` | `batch_writeoff` | `batches.manage` yoki `reports.view` | `branch_id`, `from`, `to` |
 | `GET /owner/batch-yield` | `batches` | `reports.view` yoki `batches.manage` | `branch_id`, `from`, `to` (93 kungacha) |
 

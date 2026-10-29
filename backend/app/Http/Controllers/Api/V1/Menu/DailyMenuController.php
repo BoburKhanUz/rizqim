@@ -26,7 +26,7 @@ class DailyMenuController extends MenuStaffController
      *
      * P6-15, module `daily_menu`: the dishes on the branch's menu for `date` (YYYY-MM-DD, default today's business
      * day), `set` false when none was made for that day (then every dish is on sale), and every active dish of the store
-     * with `daily_rotation` (it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest
+     * with `daily_rotation` (on THIS branch it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest
      * earlier day with a menu, for "kechagisini nusxalash". menu.view or menu.manage.
      */
     #[QueryParameter('branch_id', description: 'Required unless the caller is bound to a branch.', type: 'int')]
@@ -89,23 +89,25 @@ class DailyMenuController extends MenuStaffController
     }
 
     /**
-     * Which dishes rotate
+     * Which dishes rotate on a branch
      *
-     * P6-15, module `daily_menu`, store-wide: exactly these dishes (`product_ids`) are sold only while on the day's
-     * menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating by themselves; this is
-     * how an owner makes one permanent again. Audited (`menu.daily_rotation_saved`).
+     * P6-15, module `daily_menu`, per branch like the menu: exactly these dishes (`product_ids`) are sold on the branch
+     * only while on the day's menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating
+     * on that branch by themselves; this is how an owner makes one permanent again. Other branches are never touched.
+     * menu.manage (any branch), or stoplist.manage for the manager of that branch only. Audited (`menu.daily_rotation_saved`).
      */
     public function rotation(Request $request, DailyMenuService $menus): JsonResponse
     {
         $data = $request->validate([
+            'branch_id' => 'nullable|integer',
             'product_ids' => 'present|array|max:1000',
             'product_ids.*' => 'integer|distinct',
         ]);
-        $storeId = $this->storeId($request);
+        $branch = $this->branch($request, $this->writePermission($request));
 
-        $ids = $menus->setRotation($storeId, array_map('intval', $data['product_ids']), $request->user());
+        $ids = $menus->setRotation($branch, array_map('intval', $data['product_ids']), $request->user());
 
-        return $this->success(['product_ids' => $ids], 'Saqlandi.');
+        return $this->success(['branch_id' => (int) $branch->id, 'product_ids' => $ids], 'Saqlandi.');
     }
 
     /**
@@ -137,6 +139,7 @@ class DailyMenuController extends MenuStaffController
         $onMenu = $menu !== null ? array_flip($menus->productIds($menu)) : [];
         $sets = DailySet::where('store_id', $branch->store_id)->pluck('product_id')->flip();
 
+        $rotating = array_flip($menus->rotatingIds($branch));
         $products = Product::query()
             ->with('category:id,name')
             ->where('store_id', $branch->store_id)
@@ -144,7 +147,7 @@ class DailyMenuController extends MenuStaffController
             ->orderBy('category_id')
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get(['id', 'name', 'category_id', 'daily_rotation', 'sort_order']);
+            ->get(['id', 'name', 'category_id', 'sort_order']);
 
         $previous = DailyMenu::where('branch_id', $branch->id)->whereDate('menu_date', '<', $date)->orderByDesc('menu_date')->first();
 
@@ -161,7 +164,7 @@ class DailyMenuController extends MenuStaffController
                 'name' => $product->name,
                 'category_id' => (int) $product->category_id,
                 'category_name' => $product->category?->name,
-                'daily_rotation' => (bool) $product->daily_rotation,
+                'daily_rotation' => isset($rotating[(int) $product->id]),
                 'on_menu' => isset($onMenu[(int) $product->id]),
                 'is_set' => $sets->has($product->id),
             ])->values(),

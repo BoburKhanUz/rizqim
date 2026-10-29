@@ -7,6 +7,7 @@ use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Shifts\BusinessDay;
 use App\Events\Broadcast\MenuAvailabilityChangedBroadcast;
 use App\Models\Branch;
+use App\Models\BranchProductRotation;
 use App\Models\DailyMenu;
 use App\Models\DailyMenuItem;
 use App\Models\Product;
@@ -16,8 +17,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * "Bugungi menyu" (P6-15, stolovaya): the dishes a branch cooks on a business day. A dish marked `daily_rotation` is on
- * sale only while it is on the day's menu; the dishes that do not rotate (bread, tea) are always on sale. A business day
+ * "Bugungi menyu" (P6-15, stolovaya): the dishes a branch cooks on a business day. A dish that rotates ON THE BRANCH
+ * (branch_product_rotation) is on sale there only while it is on the day's menu; the dishes that do not rotate (bread, tea)
+ * are always on sale. The rotation is per branch like the menu: nothing one branch does changes another branch. A business day
  * with no menu sells everything (the owner is warned in the panel and the bootstrap says `set: false`): a forgotten menu
  * must never stop the till. The rule is in force only while the branch's format has the `daily_menu` module.
  *
@@ -66,7 +68,17 @@ class DailyMenuService
     }
 
     /**
-     * Rotating dishes of the branch's store that are NOT on today's menu: what checkout and the menus treat as stopped.
+     * The dishes that rotate on the branch (sold only while on the day's menu).
+     *
+     * @return list<int>
+     */
+    public function rotatingIds(Branch $branch): array
+    {
+        return BranchProductRotation::query()->where('branch_id', $branch->id)->orderBy('product_id')->pluck('product_id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * Rotating dishes of the branch that are NOT on today's menu: what checkout and the menus treat as stopped.
      * Empty without the module or without a menu for the day.
      *
      * @return list<int>
@@ -82,11 +94,11 @@ class DailyMenuService
             return [];
         }
 
-        return Product::query()
-            ->where('store_id', $branch->store_id)
-            ->where('daily_rotation', true)
-            ->whereNotIn('id', DailyMenuItem::query()->where('daily_menu_id', $menu->id)->select('product_id'))
-            ->pluck('id')
+        return BranchProductRotation::query()
+            ->where('branch_id', $branch->id)
+            ->whereNotIn('product_id', DailyMenuItem::query()->where('daily_menu_id', $menu->id)->select('product_id'))
+            ->orderBy('product_id')
+            ->pluck('product_id')
             ->map(fn ($id) => (int) $id)
             ->all();
     }
@@ -111,7 +123,7 @@ class DailyMenuService
 
     /**
      * Saves the day's menu: exactly these dishes (an empty list is a menu with nothing on it). Every dish on it becomes a
-     * rotating one. Audited; the menus are told when the change is for the current business day.
+     * rotating one on THIS branch (never on another). Audited; the menus are told when the change is for the current business day.
      *
      * @param  list<int>  $productIds
      */
@@ -142,8 +154,13 @@ class DailyMenuService
                 }
             }
 
-            // A dish on a daily menu is a rotating one from now on
-            Product::query()->whereIn('id', $productIds)->where('daily_rotation', false)->update(['daily_rotation' => true]);
+            // A dish on a daily menu is a rotating one on this branch from now on
+            $rotating = array_flip($this->rotatingIds($branch));
+            foreach ($productIds as $productId) {
+                if (!isset($rotating[$productId])) {
+                    BranchProductRotation::create(['branch_id' => $branch->id, 'product_id' => $productId]);
+                }
+            }
 
             $changed = array_values(array_unique(array_merge(array_diff($before, $productIds), array_diff($productIds, $before))));
             $this->audit->record('menu.daily_menu_saved', $menu, ['product_ids' => $before], ['product_ids' => $productIds], [
@@ -183,32 +200,36 @@ class DailyMenuService
     }
 
     /**
-     * Which dishes rotate (the store's choice, whatever day it is): exactly these. A dish taken off keeps its place on
-     * old menus but is on sale every day again.
+     * Which dishes rotate on the branch: exactly these. A dish taken off keeps its place on old menus but is on sale
+     * every day again. Other branches are never touched.
      *
      * @param  list<int>  $productIds
      * @return list<int>
      */
-    public function setRotation(int $storeId, array $productIds, ?User $actor): array
+    public function setRotation(Branch $branch, array $productIds, ?User $actor): array
     {
         $productIds = array_values(array_unique(array_map('intval', $productIds)));
-        $valid = Product::query()->where('store_id', $storeId)->whereIn('id', $productIds)->pluck('id')->map(fn ($id) => (int) $id)->all();
-        if (count($valid) !== count($productIds)) {
-            throw ValidationException::withMessages(['product_ids' => 'Mahsulot bu do\'konga tegishli emas.']);
-        }
+        $this->assertProducts($branch, $productIds);
 
-        $before = Product::query()->where('store_id', $storeId)->where('daily_rotation', true)->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
-        DB::transaction(function () use ($storeId, $productIds) {
-            Product::query()->where('store_id', $storeId)->where('daily_rotation', true)->whereNotIn('id', $productIds)->update(['daily_rotation' => false]);
-            Product::query()->where('store_id', $storeId)->whereIn('id', $productIds)->where('daily_rotation', false)->update(['daily_rotation' => true]);
+        $before = $this->rotatingIds($branch);
+        DB::transaction(function () use ($branch, $productIds, $before) {
+            BranchProductRotation::query()->where('branch_id', $branch->id)->whereNotIn('product_id', $productIds)->delete();
+            $existing = array_flip($before);
+            foreach ($productIds as $productId) {
+                if (!isset($existing[$productId])) {
+                    BranchProductRotation::create(['branch_id' => $branch->id, 'product_id' => $productId]);
+                }
+            }
         });
 
         $after = collect($productIds)->sort()->values()->all();
-        $this->audit->record('menu.daily_rotation_saved', null, ['product_ids' => $before], ['product_ids' => $after], [], ['actor' => $actor, 'store_id' => $storeId]);
+        $this->audit->record('menu.daily_rotation_saved', null, ['product_ids' => $before], ['product_ids' => $after], ['branch' => $branch->name], [
+            'actor' => $actor,
+            'store_id' => (int) $branch->store_id,
+            'branch_id' => (int) $branch->id,
+        ]);
 
-        foreach (Branch::query()->where('store_id', $storeId)->get(['id', 'store_id', 'business_day_starts_at', 'pos_settings']) as $branch) {
-            $this->announce($branch, $this->today($branch), array_values(array_unique(array_merge(array_diff($before, $after), array_diff($after, $before)))));
-        }
+        $this->announce($branch, $this->today($branch), array_values(array_unique(array_merge(array_diff($before, $after), array_diff($after, $before)))));
 
         return $after;
     }

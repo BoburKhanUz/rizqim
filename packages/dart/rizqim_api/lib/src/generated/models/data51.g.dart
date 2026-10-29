@@ -6,9 +6,12 @@ part of 'data51.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data51 _$Data51FromJson(Map<String, dynamic> json) =>
-    Data51(productIds: json['product_ids'] as List<dynamic>);
+Data51 _$Data51FromJson(Map<String, dynamic> json) => Data51(
+  branchId: (json['branch_id'] as num).toInt(),
+  productIds: json['product_ids'] as List<dynamic>,
+);
 
 Map<String, dynamic> _$Data51ToJson(Data51 instance) => <String, dynamic>{
+  'branch_id': instance.branchId,
   'product_ids': instance.productIds,
 };

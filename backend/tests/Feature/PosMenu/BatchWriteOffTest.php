@@ -178,6 +178,77 @@ class BatchWriteOffTest extends TestCase
         $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold'])->assertCreated();
     }
 
+    public function test_a_cashier_writes_off_on_the_till_with_a_managers_pin(): void
+    {
+        $batch = $this->openBatch('6');
+        $shift = $this->openShift();
+        // The cashier signs in on the till (the manager's session of setUp ends: one person per terminal)
+        $this->cashierToken = $this->pinSession($this->till, $this->cashier);
+
+        // P6-19: no batches.manage and no approval: the till asks for a manager's PIN
+        $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold'], $this->cashierToken)->assertForbidden()
+            ->assertJsonPath('data.reason', 'approval_required')
+            ->assertJsonPath('data.permission', 'batches.manage');
+        $this->assertSame(0, MenuBatchWriteOff::count());
+
+        // The manager types their PIN on the till: one token for batches.manage on this terminal
+        $token = $this->approval('batches.manage');
+        $this->writeOff($batch, ['quantity' => '2', 'reason' => 'unsold', 'approval_token' => $token], $this->cashierToken)->assertCreated()
+            ->assertJsonPath('data.write_off.shift_id', $shift->id)
+            ->assertJsonPath('data.write_off.approved_by', $this->manager->id)
+            ->assertJsonPath('data.batch.quantity_left', 4);
+        $row = MenuBatchWriteOff::firstOrFail();
+        $this->assertSame($this->cashier->id, (int) $row->written_off_by);
+        $this->assertSame($this->manager->id, AuditLog::where('action', 'menu.batch_written_off')->firstOrFail()->payload_json['approved_by']);
+        $used = AuditLog::where('action', 'pos.approval_used')->firstOrFail();
+        $this->assertSame('batches.manage', $used->payload_json['permission']);
+        $this->assertSame($this->cashier->id, (int) $used->user_id);
+
+        // One use only, and only for this permission
+        $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold', 'approval_token' => $token], $this->cashierToken)->assertForbidden()
+            ->assertJsonPath('data.reason', 'approval_used');
+        $other = $this->approval('orders.cancel');
+        $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold', 'approval_token' => $other], $this->cashierToken)->assertForbidden()
+            ->assertJsonPath('data.reason', 'approval_wrong_permission');
+        $this->assertSame(1, MenuBatchWriteOff::count());
+
+        // A write-off the batch refuses does not use the approval up: the same token works for the corrected amount
+        $token = $this->approval('batches.manage');
+        $this->writeOff($batch, ['quantity' => '5', 'reason' => 'unsold', 'approval_token' => $token], $this->cashierToken)->assertStatus(422)
+            ->assertJsonValidationErrors('quantity');
+        $this->writeOff($batch, ['quantity' => '4', 'reason' => 'spoiled', 'close' => true, 'approval_token' => $token], $this->cashierToken)->assertCreated()
+            ->assertJsonPath('data.batch.is_open', false);
+        $this->assertSame(2, MenuBatchWriteOff::where('shift_id', $shift->id)->count());
+
+        // The X report lists both, whoever approved them
+        $x = $this->pos('GET', "/shifts/{$shift->uuid}/x-report", [], $this->cashierToken)->assertOk()->json('data.report.batch_writeoffs');
+        $this->assertSame(2, $x['count']);
+    }
+
+    public function test_the_approval_is_for_the_terminal_and_its_branch_and_staff_with_the_permission_need_none(): void
+    {
+        $batch = $this->openBatch('6');
+
+        // The manager on the till: their own permission, no token
+        $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold'], $this->managerToken)->assertCreated()
+            ->assertJsonPath('data.write_off.approved_by', null);
+
+        // Out of a terminal (a cashier signed in elsewhere) there is no approval: the permission is needed
+        $this->cashierToken = $this->pinSession($this->till, $this->cashier);
+        $this->writeOff($batch, ['quantity' => '1', 'reason' => 'unsold', 'approval_token' => $this->approval('batches.manage')], $this->cashier->createToken('web')->plainTextToken)
+            ->assertForbidden()->assertJsonMissingPath('data.reason');
+
+        // A batch of another branch of the store is out of the till's reach, even with an approval
+        $this->enableModules($this->otherBranch);
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($this->owner, 'sanctum')->postJson('/api/v1/owner/batches', [
+            'branch_id' => $this->otherBranch->id, 'product_id' => $this->osh->id, 'quantity' => '3',
+        ])->assertCreated();
+        $elsewhere = MenuBatch::latest('id')->firstOrFail();
+        $this->writeOff($elsewhere, ['quantity' => '1', 'reason' => 'unsold', 'approval_token' => $this->approval('batches.manage')], $this->cashierToken)->assertForbidden();
+        $this->assertSame(1, MenuBatchWriteOff::count());
+    }
+
     public function test_a_terminal_write_off_belongs_to_its_shift_and_is_on_the_z_report(): void
     {
         $batch = $this->openBatch('8');

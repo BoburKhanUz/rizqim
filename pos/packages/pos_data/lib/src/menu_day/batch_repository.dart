@@ -5,7 +5,7 @@ import 'menu_day_models.dart';
 
 /// P6-15: qozon/partiya hisobdan chiqarish (docs/API.md "Bugungi menyu, kompleks va partiya hisobi"). Yo'llar `owner`
 /// guruhida: terminalning xodim PIN sessiyasi bilan ishlaydi, ruxsat `batches.manage` (menejer, oshpaz, ega; kassirda
-/// odatda yo'q — menejer o'z PIN'i bilan kirib bajaradi). Modul (`batch_writeoff`) o'chiq bo'lsa — 403
+/// odatda yo'q — P6-19: menejer shu kassada PIN'ini teradi, `PosPermissions.batchesManage` tasdig'i). Modul (`batch_writeoff`) o'chiq bo'lsa — 403
 /// `module_disabled` ([PosModuleDisabled]).
 class PosBatchRepository {
   PosBatchRepository(this._http);
@@ -23,8 +23,8 @@ class PosBatchRepository {
   /// `POST /owner/batches/{id}/write-off {quantity, reason, note?, close?}` `Idempotency-Key` bilan: partiya
   /// qoldig'idan sabab bilan ayiradi (qoldiqdan ko'p — 422; `other` izohsiz bo'lmaydi). [close] — qolganini ham
   /// chiqarib partiyani yopadi. Terminaldan qilinsa terminalning ochiq smenasiga bog'lanadi (X/Z da ko'rinadi).
-  /// [approvalToken] — menejer tasdig'i (server `batches.manage` ni tasdiqlanadigan qilsa; hozircha menejer o'zi
-  /// kiradi). Tarmoq uzilganda aynan shu amalni qayta yuborishda o'sha [idempotencyKey].
+  /// [approvalToken] — menejer tasdig'i (`batches.manage`; tokensiz kassirga server 403 `approval_required` deydi —
+  /// `PosApprovalRequired`, `withApproval` / `runWithApproval` oynani ochadi). Tarmoq uzilganda aynan shu amalni qayta yuborishda o'sha [idempotencyKey].
   Future<PosBatchWriteOff> writeOff(
     int batchId, {
     required PosQuantity quantity,

@@ -243,6 +243,7 @@ class PosBatchWriteOff {
     this.note,
     this.businessDate,
     this.shiftId,
+    this.approvedBy,
     this.batch,
   });
 
@@ -256,6 +257,7 @@ class PosBatchWriteOff {
       note: w.strOrNull('note'),
       businessDate: w.strOrNull('business_date'),
       shiftId: w.intOrNull('shift_id'),
+      approvedBy: w.intOrNull('approved_by'),
       batch: j.objOrNull('batch') == null
           ? null
           : PosBatchInfo.fromJson(j.obj('batch')),
@@ -271,6 +273,9 @@ class PosBatchWriteOff {
 
   /// Terminalning ochiq smenasiga bog'langan (X/Z da ko'rinadi); `null` — smena yo'q.
   final int? shiftId;
+
+  /// P6-19: kassirning chiqarishini PIN'i bilan tasdiqlagan menejer (`null` — xodimning o'z ruxsati).
+  final int? approvedBy;
   final PosBatchInfo? batch;
 }
 

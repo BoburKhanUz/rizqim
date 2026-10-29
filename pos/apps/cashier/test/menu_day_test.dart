@@ -249,7 +249,7 @@ void main() {
   );
 
   testWidgets(
-    'a cashier cannot write off: the dialog asks a manager or cook to sign in and locks the screen on request',
+    'a cashier writes off with a manager\'s PIN on the spot: the PIN pad opens on submit, cancel keeps the form',
     (WidgetTester tester) async {
       final P22 p = P22();
       p.state.format = _format(<String>['batches', 'batch_writeoff']);
@@ -257,18 +257,43 @@ void main() {
       await pumpHome(tester, p.h);
       await openSection(tester, 'Smena');
       await tapKey(tester, 'batch-writeoff');
+      // The cashier fills the form; the banner says the manager approves
       expect(
         find.byKey(const ValueKey<String>('writeoff-needs-manager')),
         findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey<String>('writeoff-quantity')),
-        findsNothing,
+        findsOneWidget,
+      );
+      await enter(tester, 'writeoff-quantity', '3');
+      await tapKey(tester, 'writeoff-submit');
+
+      // The server asks for the approval: the manager's PIN pad opens over the dialog
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      expect(find.text('Taomni hisobdan chiqarish'), findsOneWidget);
+      await tester.tap(buttonLabeled('Bekor qilish').last);
+      await tester.pumpAndSettle();
+      expect(find.text("Menejer tasdig'i"), findsNothing);
+      expect(p.backend.batchWriteOffs, isEmpty);
+      expect(
+        find.byKey(const ValueKey<String>('writeoff-quantity')),
+        findsOneWidget,
+        reason: 'the form is still there',
       );
 
-      await tapKey(tester, 'writeoff-lock');
-      expect(find.byType(StaffSignInScreen), findsOneWidget);
-      expect(p.backend.batchWriteOffs, isEmpty);
+      // Again, and the manager types the PIN: written off once, on the cashier's shift
+      await tapKey(tester, 'writeoff-submit');
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      await typePin(tester, '0000');
+      expect(find.text("PIN noto'g'ri. Qayta urinib ko'ring."), findsOneWidget);
+      await typePin(tester, '5926');
+      await tester.pumpAndSettle();
+      expect(p.backend.batchWriteOffs, hasLength(1));
+      expect(p.backend.batchWriteOffs.single['quantity'], 3);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(StaffSignInScreen), findsNothing);
+      expect(find.text('Hisobdan chiqarilgan taomlar'), findsOneWidget);
     },
   );
 

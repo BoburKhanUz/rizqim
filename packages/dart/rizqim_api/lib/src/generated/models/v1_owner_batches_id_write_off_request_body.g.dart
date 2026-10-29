@@ -13,6 +13,7 @@ _$V1OwnerBatchesIdWriteOffRequestBodyFromJson(Map<String, dynamic> json) =>
       reason: Reason3.fromJson(json['reason'] as String),
       note: json['note'] as String?,
       close: json['close'] as bool?,
+      approvalToken: json['approval_token'] as String?,
     );
 
 Map<String, dynamic> _$V1OwnerBatchesIdWriteOffRequestBodyToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$V1OwnerBatchesIdWriteOffRequestBodyToJson(
   'reason': instance.reason,
   'note': instance.note,
   'close': instance.close,
+  'approval_token': instance.approvalToken,
 };

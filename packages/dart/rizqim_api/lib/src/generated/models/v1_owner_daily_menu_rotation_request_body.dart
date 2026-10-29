@@ -8,12 +8,17 @@ part 'v1_owner_daily_menu_rotation_request_body.g.dart';
 
 @JsonSerializable()
 class V1OwnerDailyMenuRotationRequestBody {
-  const V1OwnerDailyMenuRotationRequestBody({required this.productIds});
+  const V1OwnerDailyMenuRotationRequestBody({
+    required this.productIds,
+    this.branchId,
+  });
 
   factory V1OwnerDailyMenuRotationRequestBody.fromJson(
     Map<String, Object?> json,
   ) => _$V1OwnerDailyMenuRotationRequestBodyFromJson(json);
 
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
   @JsonKey(name: 'product_ids')
   final List<int> productIds;
 

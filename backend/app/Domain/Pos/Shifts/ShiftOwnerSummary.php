@@ -116,12 +116,13 @@ final class ShiftOwnerSummary
         $difference = Money::of($shift->difference);
         $lines[] = 'Farq: ' . ($difference->isNegative() ? '-' : ($difference->isPositive() ? '+' : '')) . $uzs($difference->abs()->toString());
         // P6-16: the bank terminal's day total against the card money of the shift
-        $bank = \App\Models\BankTerminalReport::where('shift_id', $shift->id)->first();
+        $bank = \App\Models\BankTerminalReport::forShift($shift);
         if ($bank !== null) {
             $bankDifference = Money::of($bank->difference);
             $lines[] = 'Bank terminali: ' . $uzs($bank->bank_total) . ', Rizqim (karta): ' . $uzs($bank->rizqim_total)
                 . ', farq ' . ($bankDifference->isNegative() ? '-' : ($bankDifference->isPositive() ? '+' : '')) . $uzs($bankDifference->abs()->toString())
-                . ($bank->over_threshold ? ' (!)' : '');
+                . ($bank->over_threshold ? ' (!)' : '')
+                . ($bank->shared ? ' (umumiy terminal, kunlik)' : '');
         }
         if ($shift->force_closed && filled($shift->close_note)) {
             $lines[] = 'Sabab: ' . $shift->close_note;

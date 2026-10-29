@@ -53,8 +53,12 @@ final class ShiftPresenter
         if ($withSummary) {
             $data['summary'] = $shift->summary;
             // P6-16: the bank terminal's day total compared with the shift's card money, a row of the Z
-            $bank = \App\Models\BankTerminalReport::where('shift_id', $shift->id)->first();
-            $data['bank_terminal'] = $bank !== null ? \App\Domain\Pos\TerminalFlow\BankTerminalPresenter::present($bank, $shift) : null;
+            // (its own report or its shared terminal's day; review P6 S#5: without finance.manage the comparison shows
+            // once final)
+            $bank = \App\Models\BankTerminalReport::forShift($shift);
+            $viewer = request()->user();
+            $reveal = $viewer instanceof User && app(\App\Services\Auth\PermissionService::class)->allows($viewer, \App\Enums\Permission::FINANCE_MANAGE, $shift);
+            $data['bank_terminal'] = $bank !== null ? \App\Domain\Pos\TerminalFlow\BankTerminalPresenter::present($bank, $shift, hideUntilFinal: !$reveal) : null;
         }
 
         return $data;

@@ -192,7 +192,7 @@ final class ShiftService
         }
 
         $movement = DB::transaction(function () use ($user, $shift, $type, $category, $amount, $note, $employee, $approvalToken, $device, $applied) {
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
             }
@@ -353,7 +353,7 @@ final class ShiftService
         }
 
         $shift = DB::transaction(function () use ($user, $shift, $normalized, $counted, $force, $reason, $approvalToken, $device, $openOrders, $pending, $applied) {
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena allaqachon yopilgan.');
             }

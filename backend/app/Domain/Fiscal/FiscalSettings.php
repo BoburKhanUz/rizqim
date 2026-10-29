@@ -2,6 +2,7 @@
 
 namespace App\Domain\Fiscal;
 
+use App\Domain\Fiscal\Gateways\SmartKassaRouting;
 use App\Models\Device;
 use App\Models\Store;
 use Illuminate\Support\Facades\Validator;
@@ -94,16 +95,17 @@ final class FiscalSettings
     }
 
     /**
-     * The driver a receipt from $device goes to now: in fiscal mode a smart kassa's receipts go to the smart kassa
-     * driver, every other one to the configured driver; `null` while fiscal mode is off.
+     * The driver a receipt from $device of $store goes to now: in fiscal mode a smart kassa's receipts go to the smart
+     * kassa driver once its provider confirms the kassa is the store's (review P6 S#4, SmartKassaRouting::kassaFor),
+     * every other one to the configured driver; `null` while fiscal mode is off.
      */
-    public function driverFor(?Device $device): string
+    public function driverFor(?Device $device, Store $store): string
     {
         if (!$this->enabled()) {
             return 'null';
         }
 
-        return $device !== null && (bool) $device->getAttribute('smart_kassa') ? $this->smartKassaDriver() : $this->configuredDriver();
+        return app(SmartKassaRouting::class)->kassaFor($device, $store) !== null ? $this->smartKassaDriver() : $this->configuredDriver();
     }
 
     /**

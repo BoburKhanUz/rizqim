@@ -101,6 +101,19 @@ describe('Karta terminali: the card flow of each branch', () => {
     expect(within(branch).getByText(/Ega Aziz/)).toBeInTheDocument();
   });
 
+  it('marks the branch as sharing one bank terminal (review P6 C#M2)', async () => {
+    const { calls } = base({ 'PUT /api/v1/owner/branches/1/terminal-flow': () => ok(setup({ shared_terminal: true })) });
+    const typing = await openTab();
+    const branch = await screen.findByRole('form', { name: 'Chilonzor' });
+    const shared = within(branch).getByRole('checkbox', { name: /Umumiy bank terminali/ });
+    expect(shared).not.toBeChecked();
+    await typing.click(shared);
+    await typing.click(within(branch).getByRole('button', { name: 'Saqlash' }));
+    expect(await within(branch).findByText('Saqlandi.')).toBeInTheDocument();
+    expect(await calls.find((call) => call.method === 'PUT')!.json()).toEqual({ shared_terminal: true });
+    expect(within(branch).getByRole('checkbox', { name: /Umumiy bank terminali/ })).toBeChecked();
+  });
+
   it('refuses a threshold that is not an amount before anything is sent', async () => {
     const { calls } = base();
     const typing = await openTab();
@@ -143,6 +156,38 @@ describe('Karta terminali: the bank terminal against the Z', () => {
     await vi.waitFor(() => expect(calls.some((call) => call.url.includes('over_threshold=1'))).toBe(true));
   });
 
+  it("shows a shared terminal's day report as pending until every shift closes, and a corrected alert as an alert", async () => {
+    base({
+      'GET /api/v1/owner/fiscal/bank-reports': () =>
+        ok([
+          bankReport({
+            uuid: 'b-2',
+            shared: true,
+            final: false,
+            shifts: [
+              { uuid: 's-a', z_number: 12, status: 'closed' },
+              { uuid: 's-b', z_number: null, status: 'open' },
+            ],
+            rizqim_total: null,
+            difference: null,
+            threshold: null,
+            over_threshold: null,
+            alerted_at: null,
+          }),
+          bankReport({ uuid: 'b-1', final: true, difference: '0.00', over_threshold: true, history: [{ source: 'manual', bank_total: '1200000.00', bank_count: null, difference: '-50000.00', over_threshold: true, entered_by: 1, entered_at: null }] }),
+        ]),
+    });
+    await openTab();
+    const table = await screen.findByRole('table', { name: 'Bank terminali va Z' });
+    const [, pending, corrected] = within(table).getAllByRole('row');
+    expect(within(pending!).getByText('Umumiy terminal: 2 ta smena')).toBeInTheDocument();
+    expect(within(pending!).getByText('Z #12, Ochiq smena')).toBeInTheDocument();
+    expect(within(pending!).getByText('Kutilmoqda')).toBeInTheDocument();
+    expect(within(pending!).getAllByText('—')).toHaveLength(2);
+    expect(within(corrected!).getByText('Mos emas')).toBeInTheDocument();
+    expect(within(corrected!).getByText('Tuzatilgan (1)')).toBeInTheDocument();
+  });
+
   it('enters the pasted transactions of a closed shift and shows the answer', async () => {
     const { calls } = base({ 'PUT /api/v1/owner/fiscal/bank-reports/s0000000-0000-4000-8000-000000000001': () => ok(bankReport({ source: 'import', over_threshold: false, difference: '0.00' })) });
     const typing = await openTab();
@@ -173,6 +218,13 @@ describe('Karta terminali: the bank terminal against the Z', () => {
     await typing.click(within(form).getByRole('button', { name: 'Solishtirish' }));
     // The form starts again after the save; the message stays
     expect(await screen.findByText(/^Saqlandi\. Farq: /)).toBeInTheDocument();
+  });
+
+  it('has no entry form for pos.close_shift alone: after the Z only finance.manage corrects (review P6 S#5)', async () => {
+    base({}, ['reports.view', 'pos.close_shift']);
+    await openTab();
+    expect(await screen.findByRole('table', { name: 'Bank terminali va Z' })).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: 'Bank terminali summasini kiritish' })).not.toBeInTheDocument();
   });
 
   it('is read-only for someone who reads reports but cannot enter them, and has no setup without settings.manage', async () => {

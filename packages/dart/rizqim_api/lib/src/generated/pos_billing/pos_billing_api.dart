@@ -253,10 +253,15 @@ abstract class PosBillingApi {
   /// `difference_threshold` (`over_threshold`) the owner is alerted and the Z shows it. `source`: `manual` (default:.
   /// `bank_total` typed from the slip, optional `bank_count`), `import` (`transactions`: [{rrn, amount}] from the.
   /// bank's report, up to 2000: the total is their sum and each is matched to Rizqim's card payments by RRN —.
-  /// `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa: the provider's own card total; 409.
-  /// `provider_report_unavailable` when there is none). Works on an open shift (compared again at its close) and.
-  /// after the Z; a new entry replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled`.
-  /// without the terminal_card_flow module.
+  /// `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa whose kassa is the store's: the provider's own.
+  /// card total; 409 `provider_report_unavailable` when there is none, or on a shared terminal). A branch with.
+  /// `shared_terminal` keeps one report per business day covering every shift of that day (`shared`, `shifts`):.
+  /// enter the day's total at the last Z. While a covered shift is still open the comparison is provisional and the.
+  /// till gets Rizqim's side, the threshold and the difference as null (`final`: false); the owner is alerted only.
+  /// once all are closed, and an alert is never cleared by a correction (`history`). Works on an open shift (compared.
+  /// again at its close); after the shift's Z only finance.manage corrects it (403 `bank_report_locked`); a new entry.
+  /// replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled` without the.
+  /// terminal_card_flow module.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @PUT('/v1/pos/shifts/{uuid}/bank-report')

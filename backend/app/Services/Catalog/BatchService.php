@@ -172,7 +172,7 @@ class BatchService
      * is kept as its own record (and as the batch's running `written_off_quantity`) for the Z report and the yield report.
      * `$close` also closes the batch (the end-of-day "write off the rest and close"). The unit is the batch's own.
      */
-    public function writeOff(MenuBatch $batch, Quantity $quantity, WriteOffReason $reason, ?string $note, ?PosShift $shift, ?User $actor, bool $close = false): MenuBatchWriteOff
+    public function writeOff(MenuBatch $batch, Quantity $quantity, WriteOffReason $reason, ?string $note, ?PosShift $shift, ?User $actor, bool $close = false, ?int $approvedBy = null): MenuBatchWriteOff
     {
         if (!$quantity->isPositive()) {
             throw ValidationException::withMessages(['quantity' => "Miqdor noldan katta bo'lishi kerak."]);
@@ -182,7 +182,7 @@ class BatchService
             throw ValidationException::withMessages(['note' => '"Boshqa sabab" tanlansa, izoh yozing.']);
         }
 
-        return DB::transaction(function () use ($batch, $quantity, $reason, $note, $shift, $actor, $close) {
+        return DB::transaction(function () use ($batch, $quantity, $reason, $note, $shift, $actor, $close, $approvedBy) {
             /** @var MenuBatch $batch */
             $batch = MenuBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
             if ($batch->closed_at !== null) {
@@ -231,6 +231,8 @@ class BatchService
                 'note' => $note,
                 'shift_id' => $shift?->id,
                 'closed' => $close ?: null,
+                // P6-19: the manager who approved a cashier's write-off with their PIN on the terminal
+                'approved_by' => $approvedBy,
             ]), ['actor' => $actor, 'store_id' => (int) $batch->store_id, 'branch_id' => (int) $batch->branch_id]);
 
             if ($close) {

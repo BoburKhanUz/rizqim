@@ -14,24 +14,32 @@ Data74 _$Data74FromJson(Map<String, dynamic> json) => Data74(
   businessDate: json['business_date'] as String,
   source: Source.fromJson(json['source'] as String),
   terminalRef: json['terminal_ref'] as String?,
+  shared: json['shared'] as bool,
+  finalValue: json['final'] as bool,
+  shifts: (json['shifts'] as List<dynamic>)
+      .map((e) => Shifts2.fromJson(e as Map<String, dynamic>))
+      .toList(),
   bankTotal: json['bank_total'] as String,
   bankCount: (json['bank_count'] as num?)?.toInt(),
-  rizqimTotal: json['rizqim_total'] as String,
-  rizqimCount: (json['rizqim_count'] as num).toInt(),
+  rizqimTotal: json['rizqim_total'] as String?,
+  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
   rizqimBreakdown: json['rizqim_breakdown'] == null
       ? null
       : RizqimBreakdown2.fromJson(
           json['rizqim_breakdown'] as Map<String, dynamic>,
         ),
-  difference: json['difference'] as String,
-  threshold: json['threshold'] as String,
-  overThreshold: json['over_threshold'] as bool,
+  difference: json['difference'] as String?,
+  threshold: json['threshold'] as String?,
+  overThreshold: json['over_threshold'] as bool?,
   transactions: (json['transactions'] as List<dynamic>?)
       ?.map((e) => Transactions2.fromJson(e as Map<String, dynamic>))
       .toList(),
   unmatched: json['unmatched'] == null
       ? null
       : Unmatched2.fromJson(json['unmatched'] as Map<String, dynamic>),
+  history: (json['history'] as List<dynamic>)
+      .map((e) => History2.fromJson(e as Map<String, dynamic>))
+      .toList(),
   note: json['note'] as String?,
   enteredBy: json['entered_by'] == null
       ? null
@@ -49,6 +57,9 @@ Map<String, dynamic> _$Data74ToJson(Data74 instance) => <String, dynamic>{
   'business_date': instance.businessDate,
   'source': instance.source,
   'terminal_ref': instance.terminalRef,
+  'shared': instance.shared,
+  'final': instance.finalValue,
+  'shifts': instance.shifts,
   'bank_total': instance.bankTotal,
   'bank_count': instance.bankCount,
   'rizqim_total': instance.rizqimTotal,
@@ -59,6 +70,7 @@ Map<String, dynamic> _$Data74ToJson(Data74 instance) => <String, dynamic>{
   'over_threshold': instance.overThreshold,
   'transactions': instance.transactions,
   'unmatched': instance.unmatched,
+  'history': instance.history,
   'note': instance.note,
   'entered_by': instance.enteredBy,
   'alerted_at': instance.alertedAt,

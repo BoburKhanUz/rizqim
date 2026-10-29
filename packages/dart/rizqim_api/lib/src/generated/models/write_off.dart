@@ -16,6 +16,7 @@ class WriteOff {
     required this.note,
     required this.businessDate,
     required this.shiftId,
+    required this.approvedBy,
   });
 
   factory WriteOff.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,10 @@ class WriteOff {
   final String businessDate;
   @JsonKey(name: 'shift_id')
   final int? shiftId;
+
+  /// P6-19: the manager whose PIN approved it on the terminal (null: the caller's own permission)
+  @JsonKey(name: 'approved_by')
+  final dynamic approvedBy;
 
   Map<String, Object?> toJson() => _$WriteOffToJson(this);
 }

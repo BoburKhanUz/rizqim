@@ -15,7 +15,7 @@ class TerminalFlow {
     required this.smartKassa,
     required this.fiscalKassaId,
     required this.askBankTotal,
-    required this.differenceThreshold,
+    required this.sharedTerminal,
     required this.checklistComplete,
   });
 
@@ -30,8 +30,8 @@ class TerminalFlow {
   final String? fiscalKassaId;
   @JsonKey(name: 'ask_bank_total')
   final bool askBankTotal;
-  @JsonKey(name: 'difference_threshold')
-  final String differenceThreshold;
+  @JsonKey(name: 'shared_terminal')
+  final bool sharedTerminal;
   @JsonKey(name: 'checklist_complete')
   final bool checklistComplete;
 

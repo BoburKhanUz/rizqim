@@ -4,6 +4,7 @@ namespace App\Domain\Pos\TerminalFlow;
 
 use App\Domain\Fiscal\Gateways\FiscalGatewayManager;
 use App\Domain\Fiscal\Gateways\SmartKassaGateway;
+use App\Domain\Fiscal\Gateways\SmartKassaRouting;
 use App\Domain\Fiscal\FiscalSettings;
 use App\Domain\Pos\Accounts\PosOwnerAlerts;
 use App\Domain\Pos\Billing\PosActionException;
@@ -18,15 +19,28 @@ use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 
 /**
- * End of day with a bank terminal (P6-16, D5 d): the bank terminal's day total of a shift — typed from its
- * settlement slip (`manual`), imported as its transactions (`import`), or asked from the smart kassa's provider
- * (`provider`, SmartKassaGateway::cardTotals) — is compared with the card money Rizqim recorded in the shift
- * (ShiftCardTotals). The difference (bank − Rizqim) above the branch's threshold (branch_terminal_setups) alerts the
- * owner (PosOwnerAlerts) and shows on the Z. Imported transactions are matched to Rizqim's by their RRN.
+ * End of day with a bank terminal (P6-16, D5 d): the bank terminal's day total — typed from its settlement slip
+ * (`manual`), imported as its transactions (`import`), or asked from the smart kassa's provider (`provider`,
+ * SmartKassaGateway::cardTotals) — is compared with the card money Rizqim recorded (ShiftCardTotals). The difference
+ * (bank − Rizqim) above the branch's threshold (branch_terminal_setups) alerts the owner (PosOwnerAlerts) and shows on
+ * the Z. Imported transactions are matched to Rizqim's by their RRN.
  *
- * It never blocks anything: a shift closes with or without it, and it can be entered or corrected after the Z. One
- * report per shift; a new entry replaces it (audited). A closed shift's report is worked out again at the close
- * (refresh) so an early entry compares with the whole shift.
+ * What a report covers (review P6 C#M2): by default one shift (a bank terminal per till, settled at each Z). A branch
+ * whose tills share one bank terminal, or whose till runs several shifts a day (TerminalSetup::sharedTerminal), settles
+ * it once per business day: its report is `shared` — one per branch and business day — and compares the bank total
+ * with the card money of every shift of that day that has no report of its own (BankTerminalReport::coveredShifts);
+ * any Z of the day may enter the total, and the last entry (normally at the last Z) is the day's. Several bank
+ * terminals in one branch with some tills shared is not modelled: use per-shift reports there.
+ *
+ * When it counts (review P6 S#5): while a covered shift is still open the comparison is provisional — no alert, and
+ * the till is not shown Rizqim's side, the threshold or the difference (BankTerminalPresenter, `final`). Once every
+ * covered shift is closed the comparison is final and, over the threshold, alerts the owner once per difference
+ * (`alerted_difference`). An alert is sticky: `over_threshold` never goes back to false after it, and a correction
+ * keeps the earlier entry in `history` (and the audit log). After a shift's Z only finance.manage corrects its report
+ * (the controllers); the close itself may still enter it.
+ *
+ * It never blocks anything: a shift closes with or without it. A closed shift's report is worked out again at each
+ * covered shift's close (refresh) so an early entry compares with the whole period.
  */
 final class BankTerminalReconciler
 {
@@ -34,21 +48,27 @@ final class BankTerminalReconciler
 
     public const MAX_TRANSACTIONS = 2000;
 
+    public const MAX_HISTORY = 50;
+
     public function __construct(
         private readonly ShiftCardTotals $cards,
         private readonly TerminalSetup $setup,
         private readonly PosOwnerAlerts $alerts,
         private readonly AuditLogger $audit,
         private readonly FiscalGatewayManager $gateways,
+        private readonly SmartKassaRouting $routing,
     ) {}
 
+    /**
+     * The report the shift is compared in (its own, or its shared terminal's day), if any.
+     */
     public function forShift(PosShift $shift): ?BankTerminalReport
     {
-        return BankTerminalReport::where('shift_id', $shift->id)->first();
+        return BankTerminalReport::forShift($shift);
     }
 
     /**
-     * Records (or replaces) the shift's bank terminal report.
+     * Records (or replaces) the bank terminal report the shift is compared in.
      *
      * @param  array{source?: string, bank_total?: string|null, bank_count?: int|null, terminal_ref?: string|null, transactions?: list<array{rrn?: string|null, amount: string}>|null, note?: string|null}  $input
      *
@@ -60,6 +80,10 @@ final class BankTerminalReconciler
         if (!in_array($source, self::SOURCES, true)) {
             throw PosActionException::invalid('bank_source_invalid', "Manba noto'g'ri: manual, import yoki provider.");
         }
+
+        $branch = Branch::find($shift->branch_id);
+        $existingReport = $this->forShift($shift);
+        $shared = $existingReport !== null ? (bool) $existingReport->shared : ($branch !== null && $this->setup->sharedTerminal($branch));
 
         $count = isset($input['bank_count']) ? (int) $input['bank_count'] : null;
         $transactions = null;
@@ -76,21 +100,39 @@ final class BankTerminalReconciler
             $total = Money::sum(...array_column($transactions, 'amount'));
             $count = count($transactions);
         } else {
+            if ($shared) {
+                throw PosActionException::conflict('provider_report_unavailable', "Umumiy bank terminalining hisobotini provayder bermaydi: uni qo'lda kiriting.");
+            }
             [$total, $count, $transactions] = $this->fromProvider($shift);
         }
 
-        $report = DB::transaction(function () use ($shift, $source, $total, $count, $transactions, $input, $actor, $device, $applied) {
-            PosShift::whereKey($shift->id)->lockForUpdate()->first();
-            $existing = BankTerminalReport::where('shift_id', $shift->id)->first();
+        $report = DB::transaction(function () use ($shift, $shared, $source, $total, $count, $transactions, $input, $actor, $device, $applied) {
+            // One writer per branch: two tills creating the day's shared report at once
+            Branch::whereKey($shift->branch_id)->lockForUpdate()->first();
+            $existing = BankTerminalReport::forShift($shift);
             $before = $existing !== null ? $this->auditView($existing) : [];
 
             $report = $existing ?? new BankTerminalReport([
                 'store_id' => $shift->store_id,
                 'branch_id' => $shift->branch_id,
                 'shift_id' => $shift->id,
-            ]);
-            $report->forceFill([
                 'business_date' => $shift->business_date,
+                'shared' => $shared,
+            ]);
+            if ($existing !== null) {
+                $history = is_array($existing->history) ? $existing->history : [];
+                $history[] = [
+                    'source' => (string) $existing->source,
+                    'bank_total' => Money::of($existing->bank_total)->toString(),
+                    'bank_count' => $existing->bank_count,
+                    'difference' => Money::of($existing->difference)->toString(),
+                    'over_threshold' => (bool) $existing->over_threshold,
+                    'entered_by' => $existing->getAttribute('entered_by') !== null ? (int) $existing->getAttribute('entered_by') : null,
+                    'entered_at' => $existing->updated_at?->toIso8601String(),
+                ];
+                $report->history = array_slice($history, -self::MAX_HISTORY);
+            }
+            $report->forceFill([
                 'source' => $source,
                 'terminal_ref' => filled($input['terminal_ref'] ?? null) ? mb_substr(trim((string) $input['terminal_ref']), 0, 64) : null,
                 'bank_total' => $total->toString(),
@@ -100,7 +142,7 @@ final class BankTerminalReconciler
                 'entered_by' => $actor->id,
                 'device_id' => $device?->id,
             ]);
-            $alert = $this->compare($report, $shift);
+            $alert = $this->compare($report);
             $report->save();
 
             $this->audit->record('pos.bank_terminal_report', $shift, $before, $this->auditView($report), [], [
@@ -111,7 +153,7 @@ final class BankTerminalReconciler
             ]);
 
             if ($alert) {
-                $this->alert($report, $shift, $actor);
+                $this->alert($report, $actor);
             }
             if ($applied !== null) {
                 $applied();
@@ -125,19 +167,20 @@ final class BankTerminalReconciler
 
     /**
      * The shift's report worked out again (its card money may have changed since it was entered: a later card
-     * payment, a refund, the close). Alerts when it newly goes over the threshold. Null when the shift has none.
+     * payment, a refund, a close). Alerts when, final, it newly goes over the threshold. Null when there is none.
      */
     public function refresh(PosShift $shift): ?BankTerminalReport
     {
         return DB::transaction(function () use ($shift) {
-            $report = BankTerminalReport::where('shift_id', $shift->id)->lockForUpdate()->first();
+            $found = BankTerminalReport::forShift($shift);
+            $report = $found !== null ? BankTerminalReport::whereKey($found->id)->lockForUpdate()->first() : null;
             if ($report === null) {
                 return null;
             }
-            $alert = $this->compare($report, $shift);
+            $alert = $this->compare($report);
             $report->save();
             if ($alert) {
-                $this->alert($report, $shift, null);
+                $this->alert($report, null);
             }
 
             return $report;
@@ -146,17 +189,18 @@ final class BankTerminalReconciler
 
     /**
      * Fills Rizqim's side, the difference, the threshold and the RRN matching in; true when the owner is to be told
-     * (over the threshold now, and not already told about this very difference).
+     * (final, over the threshold, and not already told about this very difference). An alert is sticky.
      */
-    private function compare(BankTerminalReport $report, PosShift $shift): bool
+    private function compare(BankTerminalReport $report): bool
     {
-        $cards = $this->cards->of($shift);
-        $branch = Branch::find($shift->branch_id);
+        $shifts = $report->coveredShifts();
+        $cards = $this->cards->ofShifts($shifts);
+        $branch = Branch::find($report->branch_id);
         $threshold = $branch !== null ? $this->setup->threshold($branch) : Money::zero();
         $difference = Money::of($report->bank_total)->minus($cards['total']);
         $over = $difference->abs()->isGreaterThan($threshold);
-
-        $previous = $report->exists && $report->alerted_at !== null ? Money::of($report->getOriginal('difference') ?? '0') : null;
+        $final = $shifts->isNotEmpty() && $shifts->every(fn (PosShift $shift) => !$shift->isOpen());
+        $alerted = $report->alerted_at !== null;
 
         $report->forceFill([
             'rizqim_total' => $cards['total']->toString(),
@@ -164,13 +208,15 @@ final class BankTerminalReconciler
             'rizqim_breakdown' => $cards['breakdown'],
             'difference' => $difference->toString(),
             'threshold' => $threshold->toString(),
-            'over_threshold' => $over,
+            'over_threshold' => $over || $alerted,
             'unmatched' => is_array($report->transactions) ? $this->match($report, $cards['transactions']) : null,
         ]);
 
-        $alert = $over && ($previous === null || !$previous->equals($difference));
+        $told = $report->alerted_difference !== null ? Money::of($report->alerted_difference) : null;
+        $alert = $final && $over && ($told === null || !$told->equals($difference));
         if ($alert) {
             $report->alerted_at = now();
+            $report->alerted_difference = $difference->toString();
         }
 
         return $alert;
@@ -258,6 +304,10 @@ final class BankTerminalReconciler
         if ($device === null || $store === null || !$device->getAttribute('smart_kassa')) {
             throw PosActionException::conflict('provider_report_unavailable', "Bu kassa smart-kassa emas: bank terminali hisobotini qo'lda kiriting.");
         }
+        // Review P6 S#4: only the store's own kassa is asked
+        if ($this->routing->kassaFor($device, $store) === null) {
+            throw PosActionException::conflict('provider_report_unavailable', "Smart-kassa raqami do'kon STIRiga tegishli emas yoki kiritilmagan: hisobotni qo'lda kiriting.");
+        }
 
         $gateway = $this->gateways->driver(FiscalSettings::of($store)->smartKassaDriver());
         $totals = $gateway instanceof SmartKassaGateway
@@ -274,16 +324,18 @@ final class BankTerminalReconciler
         ];
     }
 
-    private function alert(BankTerminalReport $report, PosShift $shift, ?User $actor): void
+    private function alert(BankTerminalReport $report, ?User $actor): void
     {
-        $branch = Branch::find($shift->branch_id);
+        $branch = Branch::find($report->branch_id);
         $difference = Money::of($report->difference);
         $sign = $difference->isNegative() ? '-' : '+';
+        $shifts = $report->coveredShifts();
+        $zs = $shifts->map(fn (PosShift $shift) => $shift->z_number !== null ? "Z #{$shift->z_number}" : 'smena (ochiq)')->implode(', ');
 
-        $this->alerts->send((int) $shift->store_id, implode("\n", array_filter([
+        $this->alerts->send((int) $report->store_id, implode("\n", array_filter([
             "🏦 Bank terminali va Z mos emas: farq {$sign}" . PosOwnerAlerts::sum($difference->abs()),
             $branch?->name ? "Filial: {$branch->name}" : null,
-            ($shift->z_number !== null ? "Z #{$shift->z_number}" : 'Smena (ochiq)') . ', biznes kun ' . $shift->business_date->format('d.m.Y'),
+            ($report->shared ? "Umumiy terminal ({$shifts->count()} ta smena): " : '') . $zs . ', biznes kun ' . $report->business_date->format('d.m.Y'),
             'Bank terminali: ' . PosOwnerAlerts::sum($report->bank_total) . ', Rizqim (karta): ' . PosOwnerAlerts::sum($report->rizqim_total),
             'Chegara: ' . PosOwnerAlerts::sum($report->threshold),
             $actor !== null ? "Kiritdi: {$actor->name}" : null,
@@ -303,6 +355,7 @@ final class BankTerminalReconciler
             'rizqim_total' => Money::of($report->rizqim_total)->toString(),
             'difference' => Money::of($report->difference)->toString(),
             'over_threshold' => (bool) $report->over_threshold,
+            'shared' => (bool) $report->shared,
             'note' => $report->note,
         ];
     }

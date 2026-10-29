@@ -14,7 +14,9 @@ use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOrderException;
 use App\Domain\Pos\Orders\PosOrderService;
+use App\Domain\Pos\Shifts\BusinessDay;
 use App\Domain\Pos\Shifts\OrderStamp;
+use App\Domain\Pos\Shifts\QueueNumbers;
 use App\Domain\Pos\Shifts\ShiftService;
 use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
@@ -315,10 +317,16 @@ final class PosSyncApplier
         $guests = max($channel === OrderChannel::POS_HALL ? 1 : 0, (int) ($payload['guests_count'] ?? 0));
         $waiterId = isset($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
         $options = ['external_id' => $clientId, 'note' => $this->text($payload['note'] ?? null, 500)];
-        // P6-13: the queue number the till printed from its block (QueueNumbers keeps it when it is allowed)
+        // P6-13: the queue number the till printed from its block (QueueNumbers keeps it when it is allowed); without
+        // the queue_numbers module there are no blocks and no talon: a proposed number is ignored (review P6 C#L4)
         $queueNumber = isset($payload['queue_number']) && is_int($payload['queue_number']) && $payload['queue_number'] > 0 && $payload['queue_number'] <= 999999
-            ? $payload['queue_number'] : null;
+            && QueueNumbers::numbersOn($branch) ? $payload['queue_number'] : null;
         $options['queue_number'] = $queueNumber;
+        // Review P6 C#M1: the business day the order was taken on (an order taken before the day's start and synced
+        // after it stays in that day, numbered from that day's blocks), not the day it reached the server
+        if ($occurredAt !== null) {
+            $options['business_date'] = BusinessDay::of($branch, $occurredAt);
+        }
 
         try {
             $order = $this->orders->openOrder($branch, $channel, $table, $guests, $waiterId, (int) $device->id, $staff, $options);
@@ -579,7 +587,7 @@ final class PosSyncApplier
         return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message) {
             // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
-            $shift = $shift !== null ? PosShift::whereKey($shift->id)->lockForUpdate()->first() : null;
+            $shift = $shift !== null ? PosShift::lockForMoney((int) $shift->id) : null;
             if ($shift !== null && !$shift->isOpen()) {
                 $shift = null;
             }

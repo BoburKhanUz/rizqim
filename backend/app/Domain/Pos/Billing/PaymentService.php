@@ -68,7 +68,7 @@ final class PaymentService
         [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt) {
             // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
             // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
             }

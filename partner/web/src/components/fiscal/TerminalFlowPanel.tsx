@@ -73,11 +73,12 @@ interface SetupDraft {
   checklist: Record<TerminalChecklistKey, boolean>;
   threshold: string;
   ask: boolean;
+  shared: boolean;
 }
 
 function draftOf(branch: TerminalFlowBranch): SetupDraft {
   const done = Object.fromEntries(TERMINAL_CHECKLIST.map((key) => [key, branch.setup.checklist.find((item) => item.key === key)?.done ?? false])) as Record<TerminalChecklistKey, boolean>;
-  return { mode: (branch.setup.card_mode ?? '') as CardMode | '', checklist: done, threshold: branch.setup.difference_threshold, ask: branch.setup.ask_bank_total };
+  return { mode: (branch.setup.card_mode ?? '') as CardMode | '', checklist: done, threshold: branch.setup.difference_threshold, ask: branch.setup.ask_bank_total, shared: branch.setup.shared_terminal ?? false };
 }
 
 function BranchCard({ branch }: { branch: TerminalFlowBranch }) {
@@ -123,6 +124,7 @@ function BranchCard({ branch }: { branch: TerminalFlowBranch }) {
     if (changed.length > 0) body.checklist = Object.fromEntries(changed.map((key) => [key, draft.checklist[key]]));
     if (threshold !== clean(initial.threshold)) body.difference_threshold = threshold;
     if (draft.ask !== initial.ask) body.ask_bank_total = draft.ask;
+    if (draft.shared !== initial.shared) body.shared_terminal = draft.shared;
     save.mutate(
       { branchId: branch.branch.id, patch: body },
       {
@@ -166,6 +168,7 @@ function BranchCard({ branch }: { branch: TerminalFlowBranch }) {
           </Field>
         </div>
         <Check checked={draft.ask} onChange={(ask) => patch({ ask })} label={t('fterm_ask')} hint={t('fterm_askHint')} />
+        <Check checked={draft.shared} onChange={(shared) => patch({ shared })} label={t('fterm_shared')} hint={t('fterm_sharedHint')} />
         <fieldset className="flex flex-col gap-1 rounded-card border border-line p-3">
           <legend className="px-1 text-body font-bold text-fg">{t('fterm_checklist')}</legend>
           {TERMINAL_CHECKLIST.map((key) => {
@@ -290,22 +293,36 @@ function ReportsSection({ canEnter }: { canEnter: boolean }) {
 function ReportRow({ report, canEnter, language, onEdit }: { report: BankTerminalReport; canEnter: boolean; language: Parameters<typeof formatMoney>[1]; onEdit: () => void }) {
   const { t } = useI18n();
   const unmatched = (report.unmatched?.bank.length ?? 0) + (report.unmatched?.rizqim.length ?? 0);
+  const shifts = report.shifts ?? [];
+  const corrections = report.history?.length ?? 0;
   return (
     <tr>
       <Td className="whitespace-nowrap">{formatDate(report.business_date, language)}</Td>
-      <Td>{report.z_number !== null ? `Z #${report.z_number}` : t('fterm_open')}</Td>
+      <Td>
+        {report.shared ? (
+          <>
+            {t('fterm_sharedShifts', { count: shifts.length })}
+            <span className="block text-footnote text-fg-muted">{shifts.map((one) => (one.z_number !== null ? `Z #${one.z_number}` : t('fterm_open'))).join(', ')}</span>
+          </>
+        ) : report.z_number !== null ? (
+          `Z #${report.z_number}`
+        ) : (
+          t('fterm_open')
+        )}
+      </Td>
       <Td numeric className="whitespace-nowrap">
         {formatMoney(report.bank_total, language)}
       </Td>
       <Td numeric className="whitespace-nowrap">
-        {formatMoney(report.rizqim_total, language)}
+        {report.rizqim_total !== null ? formatMoney(report.rizqim_total, language) : '—'}
       </Td>
       <Td numeric className="whitespace-nowrap font-bold">
         <span className="flex flex-wrap items-center justify-end gap-1.5">
-          {formatMoney(report.difference, language)}
-          {report.over_threshold ? <Pill tone="danger">{t('fterm_mismatch')}</Pill> : <Pill tone="success">{t('fterm_match')}</Pill>}
+          <DifferenceValue report={report} language={language} />
         </span>
+        {report.final === false && <span className="block text-footnote font-normal text-fg-muted">{t('fterm_pendingHint')}</span>}
         {unmatched > 0 && <span className="block text-footnote font-normal text-fg-muted">{t('fterm_unmatched', { count: unmatched })}</span>}
+        {corrections > 0 && <span className="block text-footnote font-normal text-fg-muted">{t('fterm_corrected', { count: corrections })}</span>}
       </Td>
       <Td muted>{t(`fterm_source_${report.source}`)}</Td>
       {canEnter && (
@@ -316,6 +333,24 @@ function ReportRow({ report, canEnter, language, onEdit }: { report: BankTermina
         </Td>
       )}
     </tr>
+  );
+}
+
+// The difference with its verdict: pending while a covered shift is open (and hidden without finance.manage), the alert
+// once told (it stays after a correction), a match otherwise
+function DifferenceValue({ report, language }: { report: BankTerminalReport; language: Parameters<typeof formatMoney>[1] }) {
+  const { t } = useI18n();
+  return (
+    <>
+      {report.difference !== null ? formatMoney(report.difference, language) : '—'}
+      {report.final === false ? (
+        <Pill tone="warning">{t('fterm_pending')}</Pill>
+      ) : report.over_threshold ? (
+        <Pill tone="danger">{t('fterm_mismatch')}</Pill>
+      ) : (
+        <Pill tone="success">{t('fterm_match')}</Pill>
+      )}
+    </>
   );
 }
 
@@ -412,9 +447,11 @@ function EntryForm({ shiftUuid, result, onResult, onDone }: { shiftUuid: string 
       {result && (
         <Notice
           message={
-            result.over_threshold
-              ? t('fterm_resultMismatch', { difference: formatMoney(result.difference, language) })
-              : t('fterm_resultMatch', { difference: formatMoney(result.difference, language) })
+            result.difference === null || result.final === false
+              ? t('fterm_resultPending')
+              : result.over_threshold
+                ? t('fterm_resultMismatch', { difference: formatMoney(result.difference, language) })
+                : t('fterm_resultMatch', { difference: formatMoney(result.difference, language) })
           }
         />
       )}
@@ -437,11 +474,13 @@ export function BankTerminalSummary({ report }: { report: BankTerminalReport }) 
         <dt className="text-fg-muted">{t('fterm_colBank')}</dt>
         <dd className="font-bold text-fg">{formatMoney(report.bank_total, language)}</dd>
         <dt className="text-fg-muted">{t('fterm_colRizqim')}</dt>
-        <dd className="font-bold text-fg">{formatMoney(report.rizqim_total, language)}</dd>
+        <dd className="font-bold text-fg">
+          {report.rizqim_total !== null ? formatMoney(report.rizqim_total, language) : '—'}
+          {report.shared && <span className="block text-footnote font-normal text-fg-muted">{t('fterm_sharedShifts', { count: report.shifts?.length ?? 0 })}</span>}
+        </dd>
         <dt className="text-fg-muted">{t('fterm_colDifference')}</dt>
         <dd className="flex flex-wrap items-center gap-2 font-bold text-fg">
-          {formatMoney(report.difference, language)}
-          {report.over_threshold ? <Pill tone="danger">{t('fterm_mismatch')}</Pill> : <Pill tone="success">{t('fterm_match')}</Pill>}
+          <DifferenceValue report={report} language={language} />
         </dd>
         <dt className="text-fg-muted">{t('fterm_colSource')}</dt>
         <dd className="text-fg">{t(`fterm_source_${report.source}`)}</dd>

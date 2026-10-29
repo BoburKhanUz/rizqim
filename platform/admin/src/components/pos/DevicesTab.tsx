@@ -11,6 +11,7 @@ import { ExportButton } from '../ExportButton';
 import { useT } from '../I18nProvider';
 import { DEVICE_LABEL, DEVICE_TONE, minutesSince } from './posModel';
 import { BackButton, Chip, ChipRow, Facts, ListState, Pager, ReasonDialog } from './PosParts';
+import { deviceTypeLabel } from './deviceLabels';
 
 // Qurilmalar (P4-24): every store's devices, online or offline by the last contact (10 minutes), the app version and the
 // versions older than the newest in use. Revoking (stores.manage) asks for a reason and the step-up.
@@ -60,7 +61,7 @@ function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
           {counts ? t('pos_countLabel', { label: t('pos_dev_outdated'), count: counts.outdated }) : t('pos_dev_outdated')}
         </Chip>
       </ChipRow>
-      {latest.length > 0 && <p className="text-footnote text-fg-muted">{t('pos_dev_latest', { versions: latest.map(([type, version]) => `${type} ${version}`).join(', ') })}</p>}
+      {latest.length > 0 && <p className="text-footnote text-fg-muted">{t('pos_dev_latest', { versions: latest.map(([type, version]) => `${deviceTypeLabel(type, t)} ${version}`).join(', ') })}</p>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field label={t('pos_search')}>
           {(control) => (
@@ -76,10 +77,10 @@ function DeviceList({ onSelect }: { onSelect: (uuid: string) => void }) {
               <option value="">{t('pos_all')}</option>
               {Object.keys(counts?.by_type ?? {}).map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {deviceTypeLabel(type, t)}
                 </option>
               ))}
-              {filters.type && !(filters.type in (counts?.by_type ?? {})) && <option value={filters.type}>{filters.type}</option>}
+              {filters.type && !(filters.type in (counts?.by_type ?? {})) && <option value={filters.type}>{deviceTypeLabel(filters.type, t)}</option>}
             </select>
           )}
         </Field>

@@ -18,6 +18,7 @@ _$V1OwnerBranchesBranchTerminalFlowRequestBodyFromJson(
       : CardMode.fromJson(json['card_mode'] as String?),
   differenceThreshold: json['difference_threshold'] as String?,
   askBankTotal: json['ask_bank_total'] as bool?,
+  sharedTerminal: json['shared_terminal'] as bool?,
 );
 
 Map<String, dynamic> _$V1OwnerBranchesBranchTerminalFlowRequestBodyToJson(
@@ -27,4 +28,5 @@ Map<String, dynamic> _$V1OwnerBranchesBranchTerminalFlowRequestBodyToJson(
   'card_mode': instance.cardMode,
   'difference_threshold': instance.differenceThreshold,
   'ask_bank_total': instance.askBankTotal,
+  'shared_terminal': instance.sharedTerminal,
 };

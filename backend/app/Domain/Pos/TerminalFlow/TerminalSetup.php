@@ -12,13 +12,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * A branch's card flow and installation checklist (P6-16, D5 c), read with the defaults: no card mode chosen, nothing
  * ticked, a difference threshold of 0 (any difference between the bank terminal and the Z alerts the owner), the till
- * asking for the bank terminal's day total at the Z. Changes are the owner's (settings.manage) and audited.
+ * asking for the bank terminal's day total at the Z, a bank terminal per till (not shared). Changes are the owner's (settings.manage) and audited.
  */
 final class TerminalSetup
 {
     public const ITEM = 'array{key: string, label: string, hint: string, done: bool, done_at: string|null, done_by: array{id: int, name: string|null}|null}';
 
-    public const VIEW = 'array{branch_id: int, card_mode: \'terminal_only\'|\'smart_kassa\'|\'none\'|null, card_mode_label: string|null, checklist: list<' . self::ITEM . '>, checklist_complete: bool, difference_threshold: string, ask_bank_total: bool, updated_at: string|null}';
+    public const VIEW = 'array{branch_id: int, card_mode: \'terminal_only\'|\'smart_kassa\'|\'none\'|null, card_mode_label: string|null, checklist: list<' . self::ITEM . '>, checklist_complete: bool, difference_threshold: string, ask_bank_total: bool, shared_terminal: bool, updated_at: string|null}';
 
     public function __construct(private readonly AuditLogger $audit) {}
 
@@ -32,6 +32,15 @@ final class TerminalSetup
         $row = $this->row($branch);
 
         return Money::of($row !== null ? $row->difference_threshold : '0');
+    }
+
+    /**
+     * Review P6 C#M2: the branch's tills share one bank terminal (or a till runs several shifts a day) settled once
+     * per business day: its bank report covers the whole day (BankTerminalReconciler).
+     */
+    public function sharedTerminal(Branch $branch): bool
+    {
+        return (bool) $this->row($branch)?->shared_terminal;
     }
 
     public function cardMode(Branch $branch): ?CardMode
@@ -70,15 +79,16 @@ final class TerminalSetup
             'checklist_complete' => array_reduce($items, fn (bool $all, array $item) => $all && $item['done'], true),
             'difference_threshold' => Money::of($row !== null ? $row->difference_threshold : '0')->toString(),
             'ask_bank_total' => $row !== null ? (bool) $row->ask_bank_total : true,
+            'shared_terminal' => (bool) $row?->shared_terminal,
             'updated_at' => $row?->updated_at?->toIso8601String(),
         ];
     }
 
     /**
      * Applies a validated change: `card_mode` (null: not chosen), `checklist` (item => done; ticking stamps who and
-     * when, unticking clears it), `difference_threshold`, `ask_bank_total`. Keys left out are kept.
+     * when, unticking clears it), `difference_threshold`, `ask_bank_total`, `shared_terminal`. Keys left out are kept.
      *
-     * @param  array{card_mode?: string|null, checklist?: array<string, bool>, difference_threshold?: string, ask_bank_total?: bool}  $input
+     * @param  array{card_mode?: string|null, checklist?: array<string, bool>, difference_threshold?: string, ask_bank_total?: bool, shared_terminal?: bool}  $input
      * @return array<string, mixed> the setup as present() shows it
      */
     public function update(Branch $branch, array $input, User $actor): array
@@ -96,6 +106,9 @@ final class TerminalSetup
             }
             if (array_key_exists('ask_bank_total', $input)) {
                 $row->ask_bank_total = (bool) $input['ask_bank_total'];
+            }
+            if (array_key_exists('shared_terminal', $input)) {
+                $row->shared_terminal = (bool) $input['shared_terminal'];
             }
             if (isset($input['checklist'])) {
                 $checklist = is_array($row->checklist) ? $row->checklist : [];

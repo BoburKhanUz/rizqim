@@ -159,8 +159,9 @@ class PosQueueNumbersTest extends TestCase
         $this->assertNull($state['next_number']);
         $this->tillAs('POST', '/pos/queue/blocks', [])->assertForbidden()->assertJsonPath('code', 'module_disabled');
 
-        // P3-18 numbering: the next number of the day, nothing reserved; a till's proposal is kept only when free
-        $this->openTakeaway()->assertCreated()->assertJsonPath('data.queue.number', 1)->assertJsonPath('data.queue.status', null);
+        // P3-18 numbering: the next number of the day, nothing reserved; a till's proposal is ignored (review P6 C#L4).
+        // The takeaway's pickup state is kept for the kitchen (review P6 C#H1), never shown on a board here
+        $this->openTakeaway()->assertCreated()->assertJsonPath('data.queue.number', 1)->assertJsonPath('data.queue.status', 'preparing');
         $this->openTakeaway($this->cashier2Token)->assertCreated()->assertJsonPath('data.queue.number', 2);
         $this->openTakeaway(null, 2)->assertCreated()->assertJsonPath('data.queue.number', 3);
         $this->assertSame(0, PosQueueBlock::count());

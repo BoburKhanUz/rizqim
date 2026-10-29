@@ -65,8 +65,9 @@ export const saveDailyMenu = (api: StaffApi, input: { branchId: number; date: st
 export const copyDailyMenu = (api: StaffApi, input: { branchId: number; date: string; fromDate?: string }) =>
   data<DailyMenu>(door(api).POST('/v1/owner/daily-menu/copy', { body: { branch_id: input.branchId, date: input.date, ...(input.fromDate ? { from_date: input.fromDate } : {}) } }));
 
-export const saveRotation = (api: StaffApi, productIds: number[]) =>
-  data<{ product_ids: number[] }>(door(api).PUT('/v1/owner/daily-menu/rotation', { body: { product_ids: productIds } }));
+// The rotation is per branch, like the menu: it never touches the store's other branches
+export const saveRotation = (api: StaffApi, branchId: number, productIds: number[]) =>
+  data<{ branch_id: number; product_ids: number[] }>(door(api).PUT('/v1/owner/daily-menu/rotation', { body: { branch_id: branchId, product_ids: productIds } }));
 
 // --- Kompleks -----------------------------------------------------------------------------------------------------------
 

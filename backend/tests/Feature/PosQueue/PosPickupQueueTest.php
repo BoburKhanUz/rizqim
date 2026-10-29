@@ -15,7 +15,8 @@ use Tests\TestCase;
 /**
  * P6-13 (A2): the pickup queue of counter orders with a number — preparing → ready → handed — from the kitchen
  * display and the till, announced on pos-branch (queue.*), with a re-announce; a counter order paid first stays in the
- * kitchen until its number is ready; a Telegram pickup order is called by its number; gated by queue_calling.
+ * kitchen until its number is ready; a Telegram pickup order is called by its number; the board and new calls gated
+ * by queue_calling.
  */
 class PosPickupQueueTest extends TestCase
 {
@@ -59,8 +60,10 @@ class PosPickupQueueTest extends TestCase
         Event::assertDispatched(QueueNumberBroadcast::class, fn (QueueNumberBroadcast $event) => $event->broadcastAs() === 'queue.ready' && !$event->called);
         $this->tillAs('GET', '/pos/queue')->assertOk()->assertJsonCount(0, 'data.preparing')->assertJsonPath('data.ready.0.number', 1);
 
-        // The till calls it again, twice
+        // The till calls it again, twice (not within 15 s of the last call)
         $this->tillAs('POST', "/pos/orders/{$uuid}/call")->assertOk()->assertJsonPath('data.call_count', 1)->assertJsonPath('data.status', 'ready');
+        $this->tillAs('POST', "/pos/orders/{$uuid}/call")->assertStatus(422)->assertJsonPath('data.reason', 'call_too_soon');
+        \Illuminate\Support\Carbon::setTestNow(now()->addSeconds(15));
         $this->tillAs('POST', "/pos/orders/{$uuid}/call")->assertOk()->assertJsonPath('data.call_count', 2);
         Event::assertDispatchedTimes(QueueNumberBroadcast::class, 4);
         Event::assertDispatched(QueueNumberBroadcast::class, fn (QueueNumberBroadcast $event) => $event->broadcastAs() === 'queue.ready' && $event->called
@@ -183,12 +186,14 @@ class PosPickupQueueTest extends TestCase
         $this->useProfile($this->branch, 'choyxona');
 
         $this->tillAs('GET', '/pos/queue')->assertForbidden()->assertJsonPath('code', 'module_disabled')->assertJsonPath('module', 'queue_calling');
-        foreach (['ready', 'call', 'handed'] as $action) {
-            $this->tillAs('POST', "/pos/orders/{$uuid}/{$action}")->assertForbidden()->assertJsonPath('code', 'module_disabled');
-        }
+        // A new call is the module's; a number already in the queue is still finished (review P6 C#L6)
+        $this->tillAs('POST', "/pos/orders/{$uuid}/call")->assertForbidden()->assertJsonPath('code', 'module_disabled');
+        $this->tillAs('POST', "/pos/orders/{$uuid}/ready")->assertOk()->assertJsonPath('data.status', 'ready');
+        $this->tillAs('POST', "/pos/orders/{$uuid}/handed")->assertOk()->assertJsonPath('data.status', 'handed');
 
-        // A new takeaway of the choyxona is numbered on (above the day's blocks: a till may still print from its block)
-        // but is not in the pickup queue
-        $this->openTakeaway()->assertCreated()->assertJsonPath('data.queue.number', 101)->assertJsonPath('data.queue.status', null);
+        // A new takeaway of the choyxona is numbered on (above the day's blocks: a till may still print from its block);
+        // its pickup state is kept for the kitchen (review P6 C#H1) but it is not on the board
+        $this->openTakeaway()->assertCreated()->assertJsonPath('data.queue.number', 101)->assertJsonPath('data.queue.status', 'preparing');
+        $this->tillAs('GET', '/pos/queue')->assertForbidden();
     }
 }

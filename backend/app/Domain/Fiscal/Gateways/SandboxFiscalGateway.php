@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\Cache;
  *
  * P6-16 (D5 b): it also plays a provider's smart kassas (SmartKassaGateway): a receipt from a POS terminal flagged
  * `smart_kassa` is answered with that kassa's id (`devices.fiscal_kassa_id`) as its terminal; a kassa is "registered"
- * once it has an id; its card totals are the card parts of its issued sale receipts less its refund receipts.
+ * once it has an id that is the store's (kassaBelongsTo: the id starts with the store's STIR, or the platform's
+ * config('fiscal.sandbox.kassas') lists it under that STIR); its card totals are the card parts of its issued sale receipts less its refund receipts.
  */
 class SandboxFiscalGateway implements SmartKassaGateway
 {
@@ -66,13 +67,33 @@ class SandboxFiscalGateway implements SmartKassaGateway
         return is_array($answer) ? $this->response($answer) : null;
     }
 
+    /**
+     * Review P6 S#4, kept simple: a sandbox kassa is the taxpayer's when its id starts with the STIR (a provider's
+     * kassa ids usually carry it), or when config('fiscal.sandbox.kassas') — the platform's table of sandbox kassas,
+     * kassa id => STIR — lists it under that STIR. The owner cannot add to that table.
+     */
+    public function kassaBelongsTo(string $kassaId, string $tin): bool
+    {
+        $kassaId = strtoupper(trim($kassaId));
+        $tin = trim($tin);
+        if ($kassaId === '' || $tin === '') {
+            return false;
+        }
+        $table = array_change_key_case((array) config('fiscal.sandbox.kassas', []), CASE_UPPER);
+
+        return str_starts_with($kassaId, $tin) || (string) ($table[$kassaId] ?? '') === $tin;
+    }
+
     public function kassaStatus(Device $device, Store $store): SmartKassaStatus
     {
         $kassaId = $device->getAttribute('fiscal_kassa_id');
+        if (blank($kassaId)) {
+            return new SmartKassaStatus(false, null, "Sinov provayderi: kassa raqami kiritilmagan.");
+        }
 
-        return filled($kassaId)
+        return filled($store->tin) && $this->kassaBelongsTo((string) $kassaId, (string) $store->tin)
             ? new SmartKassaStatus(true, (string) $kassaId, 'Sinov provayderi: kassa ulangan.')
-            : new SmartKassaStatus(false, null, "Sinov provayderi: kassa raqami kiritilmagan.");
+            : new SmartKassaStatus(false, (string) $kassaId, "Sinov provayderi: bu kassa do'kon STIRiga tegishli emas.");
     }
 
     public function cardTotals(Device $device, Store $store, CarbonImmutable $from, CarbonImmutable $to): ?TerminalCardTotals
@@ -119,7 +140,8 @@ class SandboxFiscalGateway implements SmartKassaGateway
         $terminalId = 'SANDBOX-' . str_pad((string) $store->id, 6, '0', STR_PAD_LEFT);
         // P6-16: a smart kassa's receipt is registered on its own kassa
         $device = $receipt->device_id !== null ? Device::find($receipt->device_id) : null;
-        if ($device !== null && (bool) $device->getAttribute('smart_kassa') && filled($device->getAttribute('fiscal_kassa_id'))) {
+        if ($device !== null && (bool) $device->getAttribute('smart_kassa') && filled($device->getAttribute('fiscal_kassa_id'))
+            && filled($store->tin) && $this->kassaBelongsTo((string) $device->getAttribute('fiscal_kassa_id'), (string) $store->tin)) {
             $terminalId = (string) $device->getAttribute('fiscal_kassa_id');
         }
         $receiptNumber = (string) (hexdec(substr(sha1("receipt:{$receipt->uuid}"), 0, 8)) % 100000000);

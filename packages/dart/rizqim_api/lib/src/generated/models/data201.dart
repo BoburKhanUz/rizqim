@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'shift2.dart';
 import 'report.dart';
-import 'shifts.dart';
+import 'shifts3.dart';
 
 part 'data201.g.dart';
 
@@ -23,7 +23,7 @@ class Data201 {
 
   final Shift2? shift;
   final Report? report;
-  final List<Shifts> shifts;
+  final List<Shifts3> shifts;
 
   Map<String, Object?> toJson() => _$Data201ToJson(this);
 }

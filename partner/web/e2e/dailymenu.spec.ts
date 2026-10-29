@@ -18,7 +18,7 @@ test('the dishes of the day are ticked and saved for the branch', async ({ page,
 
   await expect(page.getByText('Menyu saqlandi.')).toBeVisible()
   const osh = api.menu.products.find((product) => product.name === 'Osh')!
-  expect(api.callsTo('PUT', '/v1/owner/daily-menu/rotation')[0].body).toEqual({ product_ids: [osh.id] })
+  expect(api.callsTo('PUT', '/v1/owner/daily-menu/rotation')[0].body).toEqual({ branch_id: 1, product_ids: [osh.id] })
   expect(api.callsTo('PUT', '/v1/owner/daily-menu')[0].body).toMatchObject({ branch_id: 1, product_ids: [osh.id] })
   await expect(page.getByText(/menyu belgilanmagan/)).toHaveCount(0)
 })

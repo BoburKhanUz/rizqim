@@ -3,6 +3,8 @@
 namespace App\Domain\Pos\Orders;
 
 use App\Domain\Pos\Contracts\PickupTracker;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Shifts\BusinessDay;
 use App\Domain\Pos\Shifts\QueueNumbers;
 use App\Enums\KitchenItemStatus;
@@ -26,7 +28,12 @@ use Illuminate\Support\Facades\DB;
  * display and the customer display ("Tayyorlanmoqda / Tayyor").
  *
  * Which orders: a takeaway (`pos_takeaway`), a hall order without a table (`pos_hall`, eaten at the counter's tables)
- * and an online pickup order (Telegram, mobile), with a queue number, in a branch with the `queue_calling` module.
+ * and an online pickup order (Telegram, mobile). A POS counter order is tracked in every format once its lines go to
+ * the kitchen (review P6 C#H1: a counter order paid first keeps its kitchen lines whether or not the branch calls
+ * numbers); an online pickup order only with a number in a branch with the `queue_calling` module. The module gates
+ * what the customer sees and hears — the board, the `queue.*` events (the till's speaker announces `queue.ready`), the
+ * re-call and the customer's message — not the tracking. Without it nobody calls a number: a closed order whose
+ * kitchen is done is `handed` at once (the kitchen's pass is the hand-over).
  *
  * How they move:
  *  - POS: its lines sent to the kitchen → `preparing`; the last sent line bumped ready on the kitchen display (or the
@@ -37,8 +44,10 @@ use Illuminate\Support\Facades\DB;
  *    preparing → `preparing`, ready → `ready`, delivered → `handed`); POST .../ready and .../handed move its status;
  *    the customer is told "Buyurtmangiz tayyor, raqam N" with the status alert and again on every call;
  *  - a cancelled or rejected order leaves the queue (`queue.canceled`).
- * POST .../call re-announces a ready number (`queue.ready` with `called: true`, the call counted). None of this ever
- * blocks a payment, a bill or a close.
+ * POST .../call re-announces a ready number (`queue.ready` with `called: true`, the call counted; not again within
+ * CALL_COOLDOWN seconds, the online customer messaged for the first CALL_MESSAGES calls only). POST .../ready and
+ * .../handed finish an order already in the queue even after the module was switched off. None of this ever blocks a
+ * payment, a bill or a close.
  */
 final class PickupQueue implements PickupTracker
 {
@@ -50,6 +59,12 @@ final class PickupQueue implements PickupTracker
 
     /** The talon's line under the number (pos_core QueueSlip). */
     public const TICKET_MESSAGE = "Buyurtmangiz tayyor bo'lganda raqamingiz ekranda chiqadi va chaqiriladi.";
+
+    /** Review P6 S#3: seconds before a number may be called again. */
+    public const CALL_COOLDOWN = 15;
+
+    /** Review P6 S#3: the calls that message an online customer again; later calls are announced on the board only. */
+    public const CALL_MESSAGES = 3;
 
     public function __construct(
         private readonly QueueNumbers $numbers,
@@ -69,16 +84,25 @@ final class PickupQueue implements PickupTracker
     }
 
     /**
-     * Whether the order takes part in the pickup queue (a counter order with a number, `queue_calling` on).
+     * Whether the order takes part in the pickup queue as the customer sees it (a counter order with a number,
+     * `queue_calling` on): its number is on the board, announced and called.
      */
     public function applies(Order $order): bool
     {
-        if ($order->queue_number === null || $order->branch_id === null || !self::isCounterOrder($order)) {
+        return $order->queue_number !== null && $order->branch_id !== null && self::isCounterOrder($order) && $this->calling($order);
+    }
+
+    /**
+     * Whether the order's pickup state is kept (review P6 C#H1): a POS counter order in every format (its kitchen
+     * lines outlive a payment taken first), an online pickup order only when it applies().
+     */
+    public function tracks(Order $order): bool
+    {
+        if ($order->branch_id === null || !self::isCounterOrder($order)) {
             return false;
         }
-        $branch = Branch::find($order->branch_id);
 
-        return $branch !== null && QueueNumbers::callingOn($branch);
+        return $order->channel->isPos() || $this->applies($order);
     }
 
     /**
@@ -143,7 +167,7 @@ final class PickupQueue implements PickupTracker
      */
     public function linesSent(Order $order): void
     {
-        if (self::statusOf($order) === PickupStatus::PREPARING || !$this->applies($order)) {
+        if (self::statusOf($order) === PickupStatus::PREPARING || !$this->tracks($order)) {
             return;
         }
         $this->move($order, PickupStatus::PREPARING);
@@ -158,7 +182,7 @@ final class PickupQueue implements PickupTracker
 
         $cooking = $this->cooking($order);
         if ($status === PickupStatus::PREPARING && !$cooking && $this->hasKitchenLines($order)) {
-            $this->move($order, PickupStatus::READY);
+            $this->move($order, $this->readyStep($order));
         } elseif ($status === PickupStatus::READY && $cooking) {
             $this->move($order, PickupStatus::PREPARING);
         }
@@ -170,7 +194,9 @@ final class PickupQueue implements PickupTracker
         if ($to->isCancellation()) {
             if ($status !== null) {
                 $order->forceFill(['pickup_status' => null])->save();
-                event(new QueueNumberBroadcast($order, 'queue.canceled'));
+                if ($this->calling($order)) {
+                    event(new QueueNumberBroadcast($order, 'queue.canceled'));
+                }
             }
 
             return;
@@ -178,9 +204,12 @@ final class PickupQueue implements PickupTracker
 
         if ($order->channel->isPos()) {
             // The till and the kitchen move a POS number; the takeaway's own `ready` (every line bumped) is the
-            // kitchen's ready too. Its `delivered` is the payment, not the hand-over
+            // kitchen's ready too. Its `delivered` is the payment, not the hand-over — unless nobody calls numbers
+            // here: a ready order paid is gone with its customer
             if ($to === OrderStatus::READY && $status === PickupStatus::PREPARING) {
                 $this->move($order, PickupStatus::READY);
+            } elseif ($to === OrderStatus::DELIVERED && $status === PickupStatus::READY && !$this->calling($order)) {
+                $this->move($order, PickupStatus::HANDED);
             }
 
             return;
@@ -233,8 +262,10 @@ final class PickupQueue implements PickupTracker
                     $this->transition($order, OrderStatus::PREPARING, $actor, "Navbat: tayyorlanmoqda ({$actor->name})");
                 }
                 $this->transition($order->refresh(), OrderStatus::READY, $actor, "Navbat: tayyor ({$actor->name})");
+                $order->refresh();
+                $this->record('pos.queue_ready', $order, $actor);
 
-                return $order->refresh();
+                return $order;
             }
 
             if ($order->status === OrderStatus::PREPARING && $order->closed_at === null && $order->order_type !== OrderType::DINE_IN) {
@@ -242,11 +273,11 @@ final class PickupQueue implements PickupTracker
                 $this->transition($order, OrderStatus::READY, $actor, "Navbat: tayyor ({$actor->name})");
                 $order->refresh();
             }
-            if (self::statusOf($order) !== PickupStatus::READY) {
+            if (!in_array(self::statusOf($order), [PickupStatus::READY, PickupStatus::HANDED], true)) {
                 OrderItem::where('order_id', $order->id)->whereNotNull('sent_at')
                     ->whereIn('kitchen_status', KitchenItemStatus::cookingValues())
                     ->update(['kitchen_status' => KitchenItemStatus::READY->value, 'ready_at' => now()]);
-                $this->move($order, PickupStatus::READY);
+                $this->move($order, $this->readyStep($order));
             }
             $this->record('pos.queue_ready', $order, $actor);
 
@@ -256,22 +287,40 @@ final class PickupQueue implements PickupTracker
 
     /**
      * POST /pos/orders/{uuid}/call: announce a ready number again (the customer display and the till's speaker; an
-     * online customer gets the message again). 422 `not_ready` unless it is ready.
+     * online customer gets the message again for the first CALL_MESSAGES calls). 422 `not_ready` unless it is ready,
+     * `call_too_soon` (data.retry_in seconds) within CALL_COOLDOWN seconds of the last call. A new announcement: only
+     * with `queue_calling` on (assertInQueue; the route's gate too).
      */
     public function call(Order $order, User $actor): Order
     {
         return $this->locked($order, function (Order $order) use ($actor) {
-            $this->assertInQueue($order);
+            if (!$this->applies($order)) {
+                $this->refuseOutOfQueue($order);
+            }
             if (self::statusOf($order) !== PickupStatus::READY) {
                 throw new PosOrderException("Raqam hali tayyor emas: faqat tayyor raqam chaqiriladi.", 422, 'not_ready');
             }
+            $last = $order->pickup_called_at;
+            $since = $last !== null ? (int) floor($last->diffInSeconds(now(), false)) : null;
+            if ($since !== null && $since < self::CALL_COOLDOWN) {
+                $retryIn = self::CALL_COOLDOWN - max(0, $since);
+                throw new PosOrderException(
+                    "Raqam hozirgina chaqirildi: {$retryIn} soniyadan keyin qayta chaqirish mumkin.",
+                    422,
+                    'call_too_soon',
+                    ['retry_in' => $retryIn],
+                );
+            }
 
+            $calls = (int) $order->getAttribute('pickup_call_count') + 1;
             $order->forceFill([
                 'pickup_called_at' => now(),
-                'pickup_call_count' => (int) $order->getAttribute('pickup_call_count') + 1,
+                'pickup_call_count' => $calls,
             ])->save();
             event(new QueueNumberBroadcast($order, 'queue.ready', true));
-            $this->notifyCustomer($order);
+            if ($calls <= self::CALL_MESSAGES) {
+                $this->notifyCustomer($order);
+            }
             $this->record('pos.queue_called', $order, $actor);
 
             return $order;
@@ -292,8 +341,10 @@ final class PickupQueue implements PickupTracker
 
             if (!$order->channel->isPos()) {
                 $this->transition($order, OrderStatus::DELIVERED, $actor, "Navbat: mijozga berildi ({$actor->name})");
+                $order->refresh();
+                $this->record('pos.queue_handed', $order, $actor);
 
-                return $order->refresh();
+                return $order;
             }
 
             OrderItem::where('order_id', $order->id)->whereNotNull('sent_at')
@@ -327,6 +378,27 @@ final class PickupQueue implements PickupTracker
         $order->save();
     }
 
+    /**
+     * Where a number goes when its kitchen is done: `ready` (to be called and handed), or straight to `handed` for a
+     * closed order in a branch that calls no numbers (paid and gone: nobody calls it, the kitchen hands it out).
+     */
+    private function readyStep(Order $order): PickupStatus
+    {
+        $closed = $order->getAttribute('closed_at') !== null || $order->status === OrderStatus::DELIVERED;
+
+        return $closed && !$this->calling($order) ? PickupStatus::HANDED : PickupStatus::READY;
+    }
+
+    /**
+     * Whether the order's branch calls numbers (`queue_calling`).
+     */
+    private function calling(Order $order): bool
+    {
+        $branch = $order->branch_id !== null ? Branch::find($order->branch_id) : null;
+
+        return $branch !== null && QueueNumbers::callingOn($branch);
+    }
+
     private function move(Order $order, PickupStatus $to): void
     {
         $order->forceFill(match ($to) {
@@ -335,6 +407,10 @@ final class PickupQueue implements PickupTracker
             PickupStatus::HANDED => ['pickup_status' => $to->value, 'pickup_handed_at' => now()],
         })->save();
 
+        // The board's events (the till's speaker announces `queue.ready`): only where numbers are called
+        if (!$this->calling($order)) {
+            return;
+        }
         event(new QueueNumberBroadcast($order, match ($to) {
             PickupStatus::PREPARING => 'queue.preparing',
             PickupStatus::READY => 'queue.ready',
@@ -355,15 +431,35 @@ final class PickupQueue implements PickupTracker
         return OrderItem::where('order_id', $order->id)->whereIn('kitchen_status', KitchenItemStatus::doneValues())->exists();
     }
 
+    /**
+     * Ready and handed finish a number already in the queue (it has a pickup state), even after `queue_calling` was
+     * switched off (review P6 C#L6); an order not in it enters only where numbers are called.
+     */
     private function assertInQueue(Order $order): void
     {
-        if (!$this->applies($order)) {
-            throw new PosOrderException(
-                "Bu buyurtma navbat raqami bilan olib ketish navbatida emas.",
-                422,
-                'not_in_queue',
-            );
+        if (self::statusOf($order) !== null && $order->queue_number !== null && self::isCounterOrder($order)) {
+            return;
         }
+        if (!$this->applies($order)) {
+            $this->refuseOutOfQueue($order);
+        }
+    }
+
+    /**
+     * 403 `module_disabled` (queue_calling) where numbers are not called, else 422 `not_in_queue`.
+     */
+    private function refuseOutOfQueue(Order $order): never
+    {
+        $branch = $order->branch_id !== null ? Branch::find($order->branch_id) : null;
+        if ($branch !== null && !QueueNumbers::callingOn($branch)) {
+            app(PosModules::class)->assertEnabled($branch, PosModule::QUEUE_CALLING);
+        }
+
+        throw new PosOrderException(
+            "Bu buyurtma navbat raqami bilan olib ketish navbatida emas.",
+            422,
+            'not_in_queue',
+        );
     }
 
     private function transition(Order $order, OrderStatus $to, User $actor, string $notes): void

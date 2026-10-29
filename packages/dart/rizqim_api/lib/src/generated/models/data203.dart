@@ -5,9 +5,11 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'source.dart';
+import 'shifts5.dart';
 import 'rizqim_breakdown4.dart';
 import 'transactions5.dart';
 import 'unmatched4.dart';
+import 'history4.dart';
 import 'entered_by4.dart';
 
 part 'data203.g.dart';
@@ -22,6 +24,9 @@ class Data203 {
     required this.businessDate,
     required this.source,
     required this.terminalRef,
+    required this.shared,
+    required this.finalValue,
+    required this.shifts,
     required this.bankTotal,
     required this.bankCount,
     required this.rizqimTotal,
@@ -32,6 +37,7 @@ class Data203 {
     required this.overThreshold,
     required this.transactions,
     required this.unmatched,
+    required this.history,
     required this.note,
     required this.enteredBy,
     required this.alertedAt,
@@ -54,22 +60,29 @@ class Data203 {
   final Source source;
   @JsonKey(name: 'terminal_ref')
   final String? terminalRef;
+  final bool shared;
+
+  /// The name has been replaced because it contains a keyword. Original name: `final`.
+  @JsonKey(name: 'final')
+  final bool finalValue;
+  final List<Shifts5> shifts;
   @JsonKey(name: 'bank_total')
   final String bankTotal;
   @JsonKey(name: 'bank_count')
   final int? bankCount;
   @JsonKey(name: 'rizqim_total')
-  final String rizqimTotal;
+  final String? rizqimTotal;
   @JsonKey(name: 'rizqim_count')
-  final int rizqimCount;
+  final int? rizqimCount;
   @JsonKey(name: 'rizqim_breakdown')
   final RizqimBreakdown4? rizqimBreakdown;
-  final String difference;
-  final String threshold;
+  final String? difference;
+  final String? threshold;
   @JsonKey(name: 'over_threshold')
-  final bool overThreshold;
+  final bool? overThreshold;
   final List<Transactions5>? transactions;
   final Unmatched4? unmatched;
+  final List<History4> history;
   final String? note;
   @JsonKey(name: 'entered_by')
   final EnteredBy4? enteredBy;

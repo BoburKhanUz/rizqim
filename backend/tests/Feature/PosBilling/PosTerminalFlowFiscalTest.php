@@ -106,22 +106,46 @@ class PosTerminalFlowFiscalTest extends TestCase
         $this->payByCard('150000', '501');
         $this->assertSame('null', FiscalReceipt::latest('id')->firstOrFail()->driver);
 
-        $this->till['device']->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => 'RHMT-0042'])->save();
+        $this->till['device']->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => '301234567-0042'])->save();
         $this->payByCard('100000', '502');
         $this->payByCard('60000', '503');
         $receipt = FiscalReceipt::latest('id')->firstOrFail();
         $this->assertSame('sandbox', $receipt->driver);
-        $this->assertSame('RHMT-0042', $receipt->terminal_id);
+        $this->assertSame('301234567-0042', $receipt->terminal_id);
 
         // The provider's own card total of that kassa is the bank side (the first sale went through no kassa of it)
         $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['source' => 'provider'])->assertOk()
             ->assertJsonPath('data.source', 'provider')
             ->assertJsonPath('data.bank_total', '160000.00')
             ->assertJsonPath('data.bank_count', 2)
-            ->assertJsonPath('data.rizqim_total', '310000.00')
-            ->assertJsonPath('data.difference', '-150000.00')
-            ->assertJsonPath('data.unmatched.bank', [])
-            ->assertJsonPath('data.unmatched.rizqim.0.rrn', '501');
+            ->assertJsonPath('data.rizqim_total', null); // review P6 S#5: the till sees the comparison at the Z
+        $this->pos('POST', "/shifts/{$shift->uuid}/close", ['counted_breakdown' => []])->assertOk()
+            ->assertJsonPath('data.bank_terminal.rizqim_total', '310000.00')
+            ->assertJsonPath('data.bank_terminal.difference', '-150000.00')
+            ->assertJsonPath('data.bank_terminal.unmatched.bank', [])
+            ->assertJsonPath('data.bank_terminal.unmatched.rizqim.0.rrn', '501');
+    }
+
+    public function test_a_kassa_id_that_is_not_the_store_s_gets_no_receipts_and_no_totals(): void
+    {
+        // Review P6 S#4: an id written past the panel's check (another taxpayer's kassa) is checked again at routing
+        $this->store->forceFill(['fiscal_settings' => ['enabled' => true, 'driver' => 'null', 'smart_kassa_driver' => 'sandbox']])->save();
+        $this->till['device']->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => '309999999-0001'])->save();
+
+        $shift = $this->openShift('0');
+        $this->payByCard('100000', '601');
+        $receipt = FiscalReceipt::latest('id')->firstOrFail();
+        $this->assertSame('null', $receipt->driver);
+        $this->assertNotSame('309999999-0001', $receipt->terminal_id);
+
+        $this->pos('PUT', "/shifts/{$shift->uuid}/bank-report", ['source' => 'provider'])
+            ->assertStatus(409)->assertJsonPath('data.reason', 'provider_report_unavailable');
+
+        $sandbox = app(\App\Domain\Fiscal\Gateways\SandboxFiscalGateway::class);
+        $this->assertFalse($sandbox->kassaStatus($this->till['device'], $this->store)->registered);
+        $this->assertTrue($sandbox->kassaBelongsTo('301234567-7', '301234567'));
+        $this->assertFalse($sandbox->kassaBelongsTo('309999999-0001', '301234567'));
+        $this->assertFalse($sandbox->kassaBelongsTo('301234567-7', ''));
     }
 
     public function test_the_smart_kassa_driver_setting_is_validated_and_defaults_to_the_driver(): void

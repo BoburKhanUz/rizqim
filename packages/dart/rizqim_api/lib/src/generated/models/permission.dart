@@ -58,6 +58,10 @@ enum Permission {
   @JsonValue('customer_accounts.manage')
   undefined12('customer_accounts.manage'),
 
+  /// Incorrect name has been replaced. Original name: `batches.manage`.
+  @JsonValue('batches.manage')
+  undefined13('batches.manage'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

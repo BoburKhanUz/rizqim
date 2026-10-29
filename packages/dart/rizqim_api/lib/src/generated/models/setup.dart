@@ -19,6 +19,7 @@ class Setup {
     required this.checklistComplete,
     required this.differenceThreshold,
     required this.askBankTotal,
+    required this.sharedTerminal,
     required this.updatedAt,
   });
 
@@ -37,6 +38,8 @@ class Setup {
   final String differenceThreshold;
   @JsonKey(name: 'ask_bank_total')
   final bool askBankTotal;
+  @JsonKey(name: 'shared_terminal')
+  final bool sharedTerminal;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

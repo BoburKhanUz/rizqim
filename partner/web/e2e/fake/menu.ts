@@ -504,7 +504,7 @@ export class FakeMenu {
     if (req.method === 'PUT' && path === '/v1/owner/daily-menu/rotation') {
       const ids = Array.isArray(input.product_ids) ? input.product_ids.map(Number) : []
       this.rotating = new Set(ids)
-      return ok({ product_ids: ids })
+      return ok({ branch_id: Number(input.branch_id), product_ids: ids })
     }
     if (req.method === 'GET' && path === '/v1/owner/batch-yield') {
       const branch = this.branchOf(req.query)

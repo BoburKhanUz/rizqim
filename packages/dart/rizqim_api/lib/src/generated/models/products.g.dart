@@ -7,7 +7,9 @@ part of 'products.dart';
 // **************************************************************************
 
 Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
-  hasVariants: json['has_variants'] as bool,
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -18,10 +20,8 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   sku: json['sku'] as String?,
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
+  hasVariants: json['has_variants'] as bool,
   id: (json['id'] as num).toInt(),
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
@@ -35,7 +35,6 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
-  dailyRotation: json['daily_rotation'] as bool,
   stationId: (json['station_id'] as num?)?.toInt(),
   imageUrl: json['image_url'] as String?,
   imageThumbUrls: ImageThumbUrls2.fromJson(
@@ -94,7 +93,6 @@ Map<String, dynamic> _$ProductsToJson(Products instance) => <String, dynamic>{
   'package_code': instance.packageCode,
   'vat_rate': instance.vatRate,
   'quick_add': instance.quickAdd,
-  'daily_rotation': instance.dailyRotation,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

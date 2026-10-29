@@ -41,7 +41,6 @@ class Product {
     required this.packageCode,
     required this.vatRate,
     required this.quickAdd,
-    required this.dailyRotation,
     required this.isActive,
     required this.imageUrl,
     required this.imageThumbUrls,
@@ -91,8 +90,6 @@ class Product {
   final String? vatRate;
   @JsonKey(name: 'quick_add')
   final bool quickAdd;
-  @JsonKey(name: 'daily_rotation')
-  final bool dailyRotation;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

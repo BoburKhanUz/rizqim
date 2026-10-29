@@ -704,7 +704,7 @@ class _CounterPageState extends State<CounterPage> {
               if (!waiting && !ctl.isEmpty)
                 TextButton.icon(
                   key: const ValueKey<String>('counter-clear'),
-                  onPressed: ctl.editable ? ctl.clear : null,
+                  onPressed: ctl.editable || ctl.openUnknown ? ctl.clear : null,
                   icon: const Icon(Icons.delete_sweep_outlined),
                   label: const Text('Tozalash'),
                 ),

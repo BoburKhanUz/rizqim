@@ -15,6 +15,7 @@ class V1OwnerBatchesIdWriteOffRequestBody {
     required this.reason,
     this.note,
     this.close,
+    this.approvalToken,
   });
 
   factory V1OwnerBatchesIdWriteOffRequestBody.fromJson(
@@ -25,6 +26,8 @@ class V1OwnerBatchesIdWriteOffRequestBody {
   final Reason3 reason;
   final String? note;
   final bool? close;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1OwnerBatchesIdWriteOffRequestBodyToJson(this);

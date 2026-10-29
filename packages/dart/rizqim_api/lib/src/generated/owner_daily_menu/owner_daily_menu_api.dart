@@ -27,7 +27,7 @@ abstract class OwnerDailyMenuApi {
   ///
   /// P6-15, module `daily_menu`: the dishes on the branch's menu for `date` (YYYY-MM-DD, default today's business.
   /// day), `set` false when none was made for that day (then every dish is on sale), and every active dish of the store.
-  /// with `daily_rotation` (it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest.
+  /// with `daily_rotation` (on THIS branch it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest.
   /// earlier day with a menu, for "kechagisini nusxalash". menu.view or menu.manage.
   ///
   /// [branchId] - Required unless the caller is bound to a branch.
@@ -59,11 +59,12 @@ abstract class OwnerDailyMenuApi {
     @Body() V1OwnerDailyMenuCopyRequestBody? body,
   });
 
-  /// Which dishes rotate.
+  /// Which dishes rotate on a branch.
   ///
-  /// P6-15, module `daily_menu`, store-wide: exactly these dishes (`product_ids`) are sold only while on the day's.
-  /// menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating by themselves; this is.
-  /// how an owner makes one permanent again. Audited (`menu.daily_rotation_saved`).
+  /// P6-15, module `daily_menu`, per branch like the menu: exactly these dishes (`product_ids`) are sold on the branch.
+  /// only while on the day's menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating.
+  /// on that branch by themselves; this is how an owner makes one permanent again. Other branches are never touched.
+  /// menu.manage (any branch), or stoplist.manage for the manager of that branch only. Audited (`menu.daily_rotation_saved`).
   @PUT('/v1/owner/daily-menu/rotation')
   Future<PutV1OwnerDailyMenuRotationResponse> dailyMenuRotation({
     @Body() required V1OwnerDailyMenuRotationRequestBody body,

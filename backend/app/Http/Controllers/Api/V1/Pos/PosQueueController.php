@@ -30,7 +30,8 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
  * customer display: the pickup board of today, the till's number blocks, and the number's moves — ready, call again,
  * handed. A normal staff sign-in or a staff PIN session on a paired terminal; the branch is the caller's (a PIN
  * session: its terminal's), another store's or branch's order is a 404. Gated by the `queue_numbers` (blocks) and
- * `queue_calling` (board, ready, call, handed) modules; none of it ever blocks a payment, a bill or a close.
+ * `queue_calling` (board, call; ready and handed for an order not yet in the queue — one already in it is finished
+ * after the module was switched off) modules; none of it ever blocks a payment, a bill or a close.
  */
 #[Group('POS: queue numbers', "Buyurtma raqami va chaqiruv: kassa oralig'lari, \"Tayyorlanmoqda / Tayyor\" taxtasi, tayyor, qayta chaqirish, berildi (P6-13).")]
 class PosQueueController extends PosHallController
@@ -132,8 +133,10 @@ class PosQueueController extends PosHallController
      *
      * The order is ready for the customer (a counter without a kitchen display, or the cashier overriding it):
      * `queue.ready` on `pos-branch.{id}`, an online pickup order becomes `ready` and its customer is told "Buyurtmangiz
-     * tayyor, raqam N". Already ready: unchanged. 422 `not_in_queue` (no number, not a counter order, or calling
-     * off), `already_handed`. Needs orders.manage or kitchen.manage.
+     * tayyor, raqam N". Already ready: unchanged. A paid order of a branch that calls no numbers is handed at once
+     * (`handed`). An order already in the queue is finished even after `queue_calling` was switched off; one not in it:
+     * 403 `module_disabled` without the module, else 422 `not_in_queue` (no number, not a counter order);
+     * 422 `already_handed`. Needs orders.manage or kitchen.manage.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ENTRY . '}')]
@@ -146,8 +149,10 @@ class PosQueueController extends PosHallController
      * Call a ready number again
      *
      * Re-announces a ready number: `queue.ready` with `called: true` (the customer display and the till's speaker
-     * call it again), `call_count` + 1, `called_at`; an online customer gets the message again. 422 `not_ready` unless
-     * it is ready, `not_in_queue`. Needs orders.manage or kitchen.manage.
+     * call it again), `call_count` + 1, `called_at`; an online customer gets the message again for the first 3 calls
+     * (later calls are announced on the board only). 422 `call_too_soon` with `data.retry_in` (seconds) within 15 s
+     * of the last call, `not_ready` unless it is ready, `not_in_queue`. Needs the `queue_calling` module and
+     * orders.manage or kitchen.manage.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ENTRY . '}')]
@@ -160,8 +165,9 @@ class PosQueueController extends PosHallController
      * Mark a number handed over
      *
      * The customer took the order: `queue.handed`, the number leaves the board; a POS order's lines are served (its
-     * bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. 422
-     * `not_in_queue`. Needs orders.manage or kitchen.manage.
+     * bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. Works for
+     * an order already in the queue after `queue_calling` was switched off; one not in it: 403 `module_disabled`
+     * without the module, else 422 `not_in_queue`. Needs orders.manage or kitchen.manage.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ENTRY . '}')]

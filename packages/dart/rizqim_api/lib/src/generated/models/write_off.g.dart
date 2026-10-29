@@ -14,6 +14,7 @@ WriteOff _$WriteOffFromJson(Map<String, dynamic> json) => WriteOff(
   note: json['note'] as String?,
   businessDate: json['business_date'] as String,
   shiftId: (json['shift_id'] as num?)?.toInt(),
+  approvedBy: json['approved_by'],
 );
 
 Map<String, dynamic> _$WriteOffToJson(WriteOff instance) => <String, dynamic>{
@@ -24,4 +25,5 @@ Map<String, dynamic> _$WriteOffToJson(WriteOff instance) => <String, dynamic>{
   'note': instance.note,
   'business_date': instance.businessDate,
   'shift_id': instance.shiftId,
+  'approved_by': instance.approvedBy,
 };

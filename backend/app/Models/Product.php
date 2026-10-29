@@ -18,7 +18,6 @@ use App\Traits\HasMenuImage;
  *
  * P3-11: what a fiscal receipt line needs (App\Domain\Fiscal)
  * @property \App\Enums\ProductKind $kind dish | service
- * @property bool $daily_rotation P6-15: sold only while on the branch's "Bugungi menyu" (App\Domain\Pos\Menu\DailyMenuService)
  * @property bool $quick_add a one-tap button at the till and on the waiter phone (P3-26, GET /pos/bootstrap quick_items)
  * @property string|null $mxik_code 17 digits; a fiscal store sells nothing without it (FiscalReadiness)
  * @property string|null $package_code
@@ -38,7 +37,6 @@ class Product extends Model
     protected $casts = [
         'batch_tracked' => 'boolean',
         'quick_add' => 'boolean', // P3-26
-        'daily_rotation' => 'boolean', // P6-15
         // P3-11: fiscal fields
         'kind' => \App\Enums\ProductKind::class,
         'vat_rate' => 'decimal:2',
@@ -47,7 +45,6 @@ class Product extends Model
     protected $attributes = [
         'batch_tracked' => false,
         'quick_add' => false, // P3-26
-        'daily_rotation' => false, // P6-15
         'kind' => 'dish', // P3-11
     ];
 

@@ -34,7 +34,7 @@ class PosTerminalFlow {
     this.smartKassa = false,
     this.fiscalKassaId,
     this.askBankTotal = false,
-    this.differenceThreshold = PosMoney.zero,
+    this.sharedTerminal = false,
     this.checklistComplete = false,
   });
 
@@ -43,7 +43,7 @@ class PosTerminalFlow {
     smartKassa: j.boolean('smart_kassa'),
     fiscalKassaId: j.strOrNull('fiscal_kassa_id'),
     askBankTotal: j.boolean('ask_bank_total'),
-    differenceThreshold: j.money('difference_threshold'),
+    sharedTerminal: j.boolean('shared_terminal'),
     checklistComplete: j.boolean('checklist_complete'),
   );
 
@@ -57,8 +57,10 @@ class PosTerminalFlow {
   /// Smenani yopishda bank terminalining kunlik jamini so'rash.
   final bool askBankTotal;
 
-  /// Shu farqdan katta bo'lsa egaga ogohlantirish boradi (so'm; 0 — har qanday farq).
-  final PosMoney differenceThreshold;
+  /// Filialning kassalari bitta bank terminalini bo'lishadi (yoki kassada kuniga bir necha smena): terminal kuniga
+  /// bir marta yopiladi, kunlik jamni kunning oxirgi Z ida kiriting. Ogohlantirish chegarasi kassaga yuborilmaydi —
+  /// farqni server Z dan keyin hisoblab ko'rsatadi.
+  final bool sharedTerminal;
 
   /// O'rnatish ro'yxati to'liq (to'liq bo'lmasa ham hech narsa bloklanmaydi: faqat eslatma).
   final bool checklistComplete;
@@ -137,13 +139,16 @@ class PosBankTerminalInput {
 class PosBankTerminalReport {
   const PosBankTerminalReport({
     required this.bankTotal,
-    required this.rizqimTotal,
-    required this.difference,
+    this.rizqimTotal,
+    this.difference,
+    this.isFinal = true,
+    this.shared = false,
+    this.shiftCount = 1,
     this.uuid,
     this.source = PosBankReportSource.manual,
     this.bankCount,
     this.rizqimCount = 0,
-    this.threshold = PosMoney.zero,
+    this.threshold,
     this.overThreshold = false,
     this.terminalRef,
     this.note,
@@ -161,10 +166,13 @@ class PosBankTerminalReport {
       terminalRef: j.strOrNull('terminal_ref'),
       bankTotal: j.money('bank_total'),
       bankCount: j.intOrNull('bank_count'),
-      rizqimTotal: j.money('rizqim_total'),
+      rizqimTotal: j.moneyOrNull('rizqim_total'),
       rizqimCount: j.intOrNull('rizqim_count') ?? 0,
-      difference: j.money('difference'),
-      threshold: j.money('threshold'),
+      difference: j.moneyOrNull('difference'),
+      threshold: j.moneyOrNull('threshold'),
+      isFinal: j.boolean('final', fallback: true),
+      shared: j.boolean('shared'),
+      shiftCount: j.list('shifts').isEmpty ? 1 : j.list('shifts').length,
       overThreshold: j.boolean('over_threshold'),
       note: j.strOrNull('note'),
       unmatchedBank: unmatched?.list('bank').length ?? 0,
@@ -191,13 +199,21 @@ class PosBankTerminalReport {
   final PosMoney bankTotal;
   final int? bankCount;
 
-  /// Rizqim'dagi karta pul (smena to'lovlari + avanslar + nasiya − qaytarishlar).
-  final PosMoney rizqimTotal;
+  /// Rizqim'dagi karta pul (smena to'lovlari + avanslar + nasiya − qaytarishlar); solishtirish yakunlanmaguncha
+  /// (`final` = false) kassaga yuborilmaydi — `null`.
+  final PosMoney? rizqimTotal;
   final int rizqimCount;
 
-  /// Bank − Rizqim.
-  final PosMoney difference;
-  final PosMoney threshold;
+  /// Bank − Rizqim (yakunlanmaguncha `null`).
+  final PosMoney? difference;
+  final PosMoney? threshold;
+
+  /// Hisobot qamragan barcha smenalar yopilgan: farq aniq (server hisoblagan).
+  final bool isFinal;
+
+  /// Umumiy bank terminali: hisobot filialning shu biznes kunidagi barcha smenalarini qamraydi.
+  final bool shared;
+  final int shiftCount;
 
   /// |farq| chegaradan katta: egaga ogohlantirish ketdi.
   final bool overThreshold;
@@ -207,5 +223,5 @@ class PosBankTerminalReport {
   final int unmatchedBank;
   final int unmatchedRizqim;
 
-  bool get hasDifference => !difference.isZero;
+  bool get hasDifference => !(difference?.isZero ?? true);
 }
