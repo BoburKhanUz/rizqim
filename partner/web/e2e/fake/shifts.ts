@@ -72,7 +72,6 @@ export class FakeShifts {
   constructor(private readonly backend: FakeBackend) {}
 
   handle(req: FakeRequest): Reply | null {
-    void this.backend
     const path = req.path
     let match: RegExpExecArray | null
     if (req.method === 'GET' && path === '/v1/pos/shifts') {
@@ -84,7 +83,8 @@ export class FakeShifts {
       if (!shift) return fail(404, 'Smena topilmadi.')
       const report = shiftReport(shift.uuid, shift.expected_cash ?? '900000.00')
       if (match[2]) return ok({ shift, report })
-      return ok({ ...shift, summary: shift.status === 'closed' ? report : null })
+      // P6-16: the bank terminal row of the Z (null until a day total is entered)
+      return ok({ ...shift, summary: shift.status === 'closed' ? report : null, bank_terminal: this.backend.terminal.reportOf(shift.uuid) })
     }
     return null
   }

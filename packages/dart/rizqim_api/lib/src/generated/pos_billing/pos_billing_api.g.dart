@@ -438,6 +438,40 @@ class _PosBillingApi implements PosBillingApi {
   }
 
   @override
+  Future<PutV1PosShiftsUuidBankReportResponse> posBankTerminalUpdate({
+    required String uuid,
+    required String idempotencyKey,
+    V1PosShiftsUuidBankReportRequestBody? body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
+    final _options = _setStreamType<PutV1PosShiftsUuidBankReportResponse>(
+      Options(method: 'PUT', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/shifts/${uuid}/bank-report',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PutV1PosShiftsUuidBankReportResponse _value;
+    try {
+      _value = PutV1PosShiftsUuidBankReportResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1PosShiftsUuidCashMovementsResponse> posShiftCashMovement({
     required String uuid,
     required String idempotencyKey,

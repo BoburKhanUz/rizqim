@@ -3,6 +3,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../menu_day/menu_day.dart';
 import 'order_format.dart';
 
 /// Kategoriya rangi (tugma chetidagi chiziq): kategoriyalar tartibi bo'yicha.
@@ -26,6 +27,7 @@ class MenuPanel extends StatefulWidget {
     required this.onLongPress,
     this.frequent = const <PosProduct>[],
     this.enabled = true,
+    this.columns,
   });
 
   final PosCatalog catalog;
@@ -35,6 +37,9 @@ class MenuPanel extends StatefulWidget {
   final ValueChanged<PosProduct> onLongPress;
   final List<PosProduct> frequent;
   final bool enabled;
+
+  /// P6-12 telefon rejimi: ustunlar soni (1 — bir ustunli panjara, katta tugmalar); `null` — eni bo'yicha.
+  final int? columns;
 
   @override
   State<MenuPanel> createState() => _MenuPanelState();
@@ -83,6 +88,7 @@ class _MenuPanelState extends State<MenuPanel> {
 
   Widget _tile(PosProduct p) {
     final PosCatalog cat = widget.catalog;
+    final MenuDayItem day = menuDayItem(cat, p, menuModulesOf(context));
     final bool available = cat.isProductAvailable(p);
     PosUnavailableReason? reason;
     if (!available) {
@@ -92,14 +98,17 @@ class _MenuPanelState extends State<MenuPanel> {
                 ? null
                 : cat.unavailableReasonOf(p.variants.first));
     }
+    // P6-15: a sold-out dish with a planned batch says when it comes back instead of its price
+    final PosNextBatch? next = available ? null : day.nextBatch;
     return PosTileButton(
       key: ValueKey<String>('menu-${p.id}'),
       label: p.name,
-      subtitle: _subtitle(p),
+      subtitle: next?.text ?? _subtitle(p),
+      detail: day.partsLine,
       badge: _badge(p),
       accent: _accentOf(p.categoryId),
       unavailable: !available,
-      unavailableLabel: reason?.label ?? 'Tugadi',
+      unavailableLabel: day.unavailableLabel(reason?.label ?? 'Tugadi'),
       onTap: widget.enabled ? () => widget.onTap(p) : null,
       onLongPress: widget.enabled ? () => widget.onLongPress(p) : null,
     );
@@ -110,9 +119,22 @@ class _MenuPanelState extends State<MenuPanel> {
     final RzColors c = context.rz;
     final PosCatalog cat = widget.catalog;
     final String query = _search.text.trim();
-    final List<PosProduct> products = query.isNotEmpty
-        ? cat.search(query)
-        : (_category == null ? cat.products : cat.productsIn(_category!));
+    final PosModules modules = menuModulesOf(context);
+    // P6-15: the dishes off today's menu are hidden (a search still finds them, greyed)
+    final List<PosProduct> products = visibleProducts(
+      query.isNotEmpty
+          ? cat.search(query)
+          : (_category == null ? cat.products : cat.productsIn(_category!)),
+      cat,
+      modules,
+      searching: query.isNotEmpty,
+    );
+    final List<PosProduct> frequent = visibleProducts(
+      widget.frequent,
+      cat,
+      modules,
+      searching: false,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -135,7 +157,8 @@ class _MenuPanelState extends State<MenuPanel> {
             ),
           ),
         ),
-        if (widget.frequent.isNotEmpty && query.isEmpty)
+        const DailyMenuMissingBanner(compact: true),
+        if (frequent.isNotEmpty && query.isEmpty)
           SizedBox(
             height: 64,
             child: ListView(
@@ -149,7 +172,7 @@ class _MenuPanelState extends State<MenuPanel> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                for (final PosProduct p in widget.frequent)
+                for (final PosProduct p in frequent)
                   Padding(
                     padding: const EdgeInsets.only(right: 8, bottom: 6),
                     child: _FrequentButton(
@@ -196,12 +219,19 @@ class _MenuPanelState extends State<MenuPanel> {
                 )
               : GridView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 190,
-                    mainAxisExtent: 132,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
+                  gridDelegate: widget.columns == null
+                      ? const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 190,
+                          mainAxisExtent: 132,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        )
+                      : SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: widget.columns!,
+                          mainAxisExtent: 96,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
                   itemCount: products.length,
                   itemBuilder: (BuildContext context, int i) =>
                       _tile(products[i]),

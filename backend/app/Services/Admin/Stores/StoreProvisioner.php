@@ -2,7 +2,9 @@
 
 namespace App\Services\Admin\Stores;
 
+use App\Domain\Pos\Setup\FormatProfile;
 use App\Enums\PaymentAccountType;
+use App\Enums\StoreFormat;
 use App\Enums\StoreStatus;
 use App\Enums\UserRole;
 use App\Models\Branch;
@@ -26,7 +28,9 @@ use Illuminate\Support\Str;
  *  - Owner: role owner, a one-time Telegram invite token (the owner opens the bot link and the account binds to their
  *    Telegram), an optional password, and the phone vouched as the SMS login phone of the
  *    partner panel (docs/AUTH.md). Another staff account may not hold that phone; the owner's own customer account may.
- *  - Branch "Asosiy filial": region, district, address, coordinates, delivery radius, opening hours.
+ *  - Branch "Asosiy filial": region, district, address, coordinates, delivery radius, opening hours. P6-11: its POS
+ *    format profile from the application's `format` (FormatProfile::fromStoreFormat; none given: choyxona), with the
+ *    profile's own till mode.
  * The superadmins with Telegram hear about it, with the owner's invite link (as before).
  */
 class StoreProvisioner
@@ -37,7 +41,7 @@ class StoreProvisioner
     ) {}
 
     /**
-     * @param  array{name: string, phone?: string|null, commission_rate?: numeric|null, payment_account_type?: string|null, payment_methods?: list<string>|null, status?: StoreStatus|string|null, is_active?: bool|null, tin?: string|null, legal_name?: string|null, owner_name: string, owner_phone: string, owner_password?: string|null, branch_region_id: int, branch_district_id: int, branch_address: string, branch_phone?: string|null, branch_lat: numeric, branch_lng: numeric, branch_radius?: numeric|null, branch_open_time?: string|null, branch_close_time?: string|null}  $data
+     * @param  array{name: string, phone?: string|null, commission_rate?: numeric|null, payment_account_type?: string|null, payment_methods?: list<string>|null, status?: StoreStatus|string|null, is_active?: bool|null, tin?: string|null, legal_name?: string|null, owner_name: string, owner_phone: string, owner_password?: string|null, branch_region_id: int, branch_district_id: int, branch_address: string, branch_phone?: string|null, branch_lat: numeric, branch_lng: numeric, branch_radius?: numeric|null, branch_open_time?: string|null, branch_close_time?: string|null, format?: StoreFormat|string|null}  $data
      * @return array{store: Store, owner: User, branch: Branch, invite_link: string}
      *
      * @throws StoreAdminException owner_phone_invalid, owner_phone_taken
@@ -94,6 +98,7 @@ class StoreProvisioner
                 'open_time' => $data['branch_open_time'] ?? null,
                 'close_time' => $data['branch_close_time'] ?? null,
                 'is_active' => true,
+                'pos_settings' => self::posSettingsFor($data['format'] ?? null),
             ]);
 
             return ['store' => $store, 'owner' => $owner->refresh(), 'branch' => $branch];
@@ -103,6 +108,22 @@ class StoreProvisioner
         $this->announce($result['store'], $result['owner'], $result['branch'], $link, $channel);
 
         return [...$result, 'invite_link' => $link];
+    }
+
+    /**
+     * P6-11: the main branch's POS settings for the application's format: the profile and its mode (null without a
+     * format: the branch reads as a choyxona).
+     *
+     * @return array{profile: string, modules: array<string, bool>, mode: string}|null
+     */
+    public static function posSettingsFor(StoreFormat|string|null $format): ?array
+    {
+        if ($format === null || $format === '') {
+            return null;
+        }
+        $profile = FormatProfile::fromStoreFormat($format);
+
+        return ['profile' => $profile->value, 'modules' => [], 'mode' => $profile->defaultMode()];
     }
 
     /**

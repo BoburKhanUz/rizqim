@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers3.dart';
-import 'product_rules3.dart';
+import 'service_fee.dart';
+import 'tables2.dart';
 
 part 'data84.g.dart';
 
@@ -13,41 +13,27 @@ part 'data84.g.dart';
 class Data84 {
   const Data84({
     required this.id,
-    required this.uuid,
+    required this.branchId,
     required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
     required this.sortOrder,
     required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.serviceFee,
+    required this.tables,
   });
 
   factory Data84.fromJson(Map<String, Object?> json) => _$Data84FromJson(json);
 
   final int id;
-  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  final List<Modifiers3> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules3 productRules;
+  @JsonKey(name: 'service_fee')
+  final ServiceFee? serviceFee;
+  final List<Tables2> tables;
 
   Map<String, Object?> toJson() => _$Data84ToJson(this);
 }

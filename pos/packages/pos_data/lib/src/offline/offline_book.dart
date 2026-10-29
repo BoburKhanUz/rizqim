@@ -733,6 +733,7 @@ class OfflineOrderState {
             : (tendered - amount).toApiString(),
         'card_type': t['card_type'],
         'transaction_id': t['transaction_id'],
+        'card_last4': t['card_last4'],
         'reference': null,
         'status': 'paid',
         'paid_at': op.occurredAt.toUtc().toIso8601String(),

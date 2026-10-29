@@ -4,31 +4,45 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'products_missing_mxik.dart';
+import 'layout6.dart';
 
 part 'data64.g.dart';
 
 @JsonSerializable()
 class Data64 {
   const Data64({
-    required this.enabled,
-    required this.tinSet,
-    required this.taxRegime,
-    required this.productsMissingMxik,
-    required this.chargesMissingMxik,
+    required this.id,
+    required this.branchId,
+    required this.hallId,
+    required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
+    required this.sortOrder,
+    required this.isActive,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data64.fromJson(Map<String, Object?> json) => _$Data64FromJson(json);
 
-  final bool enabled;
-  @JsonKey(name: 'tin_set')
-  final bool tinSet;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  @JsonKey(name: 'products_missing_mxik')
-  final List<ProductsMissingMxik> productsMissingMxik;
-  @JsonKey(name: 'charges_missing_mxik')
-  final List<String> chargesMissingMxik;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
+  final String name;
+  final String kind;
+  final int? seats;
+  final Layout6 layout;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data64ToJson(this);
 }

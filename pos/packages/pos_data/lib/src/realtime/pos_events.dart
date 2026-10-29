@@ -45,6 +45,11 @@ sealed class PosEvent {
           data,
           j,
         ),
+        'display.cart' => PosDisplayCartChanged._(name, data, j),
+        'queue.preparing' ||
+        'queue.ready' ||
+        'queue.handed' ||
+        'queue.canceled' => PosQueueEvent._(name, data, _order(j), j),
         _ => PosUnknownEvent(name, data),
       };
     } on Object {
@@ -172,6 +177,52 @@ class PosKitchenItemChanged extends PosEvent {
 
   @override
   String get orderUuid => order.uuid;
+}
+
+/// P6-13: `queue.preparing`, `queue.ready` (qayta chaqirilganda [called] `true`), `queue.handed`, `queue.canceled` —
+/// navbat raqami taxtada siljidi (mijoz ekrani va kassa ovozi uchun; taxta `GET /pos/queue` dan qayta olinadi).
+class PosQueueEvent extends PosEvent {
+  PosQueueEvent._(super.name, super.data, this.order, PosJson j)
+    : number = j.obj('queue').intOrNull('number'),
+      businessDate = j.obj('queue').strOrNull('business_date'),
+      pickupStatus = j.obj('queue').strOrNull('status'),
+      channel = j.obj('queue').strOrNull('channel'),
+      callCount = j.obj('queue').intOrNull('call_count') ?? 0,
+      called = j.obj('queue').boolean('called');
+
+  final PosEventOrder order;
+  final int? number;
+  final String? businessDate;
+
+  /// `preparing`, `ready`, `handed` yoki `null` (bekor qilingan).
+  final String? pickupStatus;
+  final String? channel;
+  final int callCount;
+
+  /// Kassa raqamni qayta chaqirdi (`POST /pos/orders/{uuid}/call`).
+  final bool called;
+
+  /// Raqamni ovoz bilan e'lon qilish kerak (tayyor bo'ldi yoki qayta chaqirildi).
+  bool get announce => name == 'queue.ready';
+
+  @override
+  String get orderUuid => order.uuid;
+}
+
+/// P6-14: `display.cart` — kassa mijoz ekranidagi chekni o'zgartirdi. Hodisada faqat kassa uuid'si, tartib raqami va
+/// ekran holati bor (taom nomi, narx yo'q): ekran `GET /pos/display/state` ni qayta o'qiydi.
+class PosDisplayCartChanged extends PosEvent {
+  PosDisplayCartChanged._(super.name, super.data, PosJson j)
+    : terminal = j.strOrNull('terminal'),
+      seq = j.intOrNull('seq') ?? 0,
+      state = j.strOrNull('state');
+
+  /// Qaysi kassa (qurilma uuid).
+  final String? terminal;
+  final int seq;
+
+  /// `idle`, `cart`, `payment`, `paid`.
+  final String? state;
 }
 
 /// `shift.changed`: smena ochildi, kassa harakati, yopildi.

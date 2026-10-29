@@ -12,6 +12,9 @@ Order4 _$Order4FromJson(Map<String, dynamic> json) => Order4(
   paymentStatus: json['payment_status'] as String,
   version: (json['version'] as num).toInt(),
   queueNumber: (json['queue_number'] as num?)?.toInt(),
+  ticket: json['ticket'] == null
+      ? null
+      : Ticket2.fromJson(json['ticket'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String?,
   billLockedAt: json['bill_locked_at'] as String?,
   closedAt: json['closed_at'] as String?,
@@ -31,6 +34,7 @@ Map<String, dynamic> _$Order4ToJson(Order4 instance) => <String, dynamic>{
   'payment_status': instance.paymentStatus,
   'version': instance.version,
   'queue_number': instance.queueNumber,
+  'ticket': instance.ticket,
   'business_date': instance.businessDate,
   'bill_locked_at': instance.billLockedAt,
   'closed_at': instance.closedAt,

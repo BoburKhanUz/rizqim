@@ -46,6 +46,20 @@ class PosShift extends Model
         ];
     }
 
+    /**
+     * P6-19: the shift's row locked for a money write (payment, refund, cash in/out, Z), FOR NO KEY UPDATE: those writers
+     * still wait for each other, but a change to one of the shift's orders meanwhile is not held up — its foreign-key
+     * check takes FOR KEY SHARE on this row, which FOR UPDATE refused. With FOR UPDATE a payment (shift, then order)
+     * deadlocked against the kitchen display bumping the last line of the same pay-first order (order, then the shift's
+     * key), found by the e2e "osh markazi tushligi". Other databases: a plain FOR UPDATE.
+     */
+    public static function lockForMoney(int $id): self
+    {
+        $query = self::whereKey($id);
+
+        return ($query->getModel()->getConnection()->getDriverName() === 'pgsql' ? $query->lock('for no key update') : $query->lockForUpdate())->firstOrFail();
+    }
+
     public function isOpen(): bool
     {
         return $this->status === ShiftStatus::OPEN;

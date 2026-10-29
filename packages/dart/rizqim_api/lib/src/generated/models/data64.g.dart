@@ -7,21 +7,29 @@ part of 'data64.dart';
 // **************************************************************************
 
 Data64 _$Data64FromJson(Map<String, dynamic> json) => Data64(
-  enabled: json['enabled'] as bool,
-  tinSet: json['tin_set'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
-      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout6.fromJson(json['layout'] as Map<String, dynamic>),
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data64ToJson(Data64 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'tin_set': instance.tinSet,
-  'tax_regime': instance.taxRegime,
-  'products_missing_mxik': instance.productsMissingMxik,
-  'charges_missing_mxik': instance.chargesMissingMxik,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

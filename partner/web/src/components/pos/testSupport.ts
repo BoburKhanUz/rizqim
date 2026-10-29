@@ -188,6 +188,7 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
   by_waiter: [{ waiter_id: 9, name: 'Ofitsiant Vali', orders: 12, bills: 12, amount: '3000000.00', service_charge: '270000.00' }],
   discounts: { count: 2, amount: '100000.00' },
   voids: { count: 1, amount: '35000.00' },
+  batch_writeoffs: { count: 0, items: [] },
   refunds: { count: 1, amount: '50000.00', by_method: [{ method: 'cash', count: 1, amount: '50000.00' }] },
   deposits: {
     taken: { count: 2, amount: '400000.00', cash: '150000.00' },

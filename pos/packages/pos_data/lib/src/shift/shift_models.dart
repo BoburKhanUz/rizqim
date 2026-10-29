@@ -2,6 +2,8 @@ import 'package:pos_core/pos_core.dart';
 
 import '../bootstrap/bootstrap_models.dart';
 import '../json.dart';
+import '../menu_day/menu_day_models.dart';
+import '../terminal/terminal_flow_models.dart';
 
 /// Kassa smenasi (`/pos/shifts*`).
 class PosShift {
@@ -25,6 +27,7 @@ class PosShift {
     this.forceClosed = false,
     this.closeNote,
     this.summary,
+    this.bankTerminal,
     this.raw = const <String, Object?>{},
   });
 
@@ -59,6 +62,7 @@ class PosShift {
       summary: j.objOrNull('summary') == null
           ? null
           : PosShiftReport.fromJson(j.obj('summary')),
+      bankTerminal: PosBankTerminalReport.maybe(j['bank_terminal']),
       raw: j.map,
     );
   }
@@ -88,6 +92,9 @@ class PosShift {
 
   /// Yopilgan smenaning Z hisoboti (yopish javobida va `GET /pos/shifts/{uuid}` da).
   final PosShiftReport? summary;
+
+  /// P6-16: bank terminalining kunlik jami Rizqim'dagi karta pul bilan solishtirilgan (kiritilmagan — `null`).
+  final PosBankTerminalReport? bankTerminal;
   final Map<String, Object?> raw;
 
   bool get isOpen => status == 'open';
@@ -131,6 +138,7 @@ class PosShiftReport {
     this.cash = const PosShiftCash(),
     this.expectedCash = PosMoney.zero,
     this.movements = const <PosCashMovement>[],
+    this.batchWriteoffs = const PosShiftWriteOffs(),
     this.raw = const <String, Object?>{},
   });
 
@@ -174,6 +182,9 @@ class PosShiftReport {
       cash: PosShiftCash.fromJson(cash),
       expectedCash: cash.money('expected'),
       movements: j.objects('movements', PosCashMovement.fromJson),
+      batchWriteoffs: j.objOrNull('batch_writeoffs') == null
+          ? const PosShiftWriteOffs()
+          : PosShiftWriteOffs.fromJson(j.obj('batch_writeoffs')),
       raw: j.map,
     );
   }
@@ -218,6 +229,9 @@ class PosShiftReport {
   /// Kutilgan naqd (boshlang'ich + naqd sotuv + kirim − chiqim ...) — [cash] dagi `expected`.
   final PosMoney expectedCash;
   final List<PosCashMovement> movements;
+
+  /// P6-15: shu smenada terminaldan hisobdan chiqarilgan porsiyalar (modul o'chiq yoki eski server — bo'sh).
+  final PosShiftWriteOffs batchWriteoffs;
   final Map<String, Object?> raw;
 }
 

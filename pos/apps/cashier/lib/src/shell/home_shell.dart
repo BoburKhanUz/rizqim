@@ -33,20 +33,23 @@ class HomeShell extends StatefulWidget {
     required this.services,
     required this.terminal,
     this.realtime,
-    this.initial = CashierDestination.floor,
+    this.initial,
   });
 
   final CashierServices services;
   final PairedTerminal terminal;
   final PosRealtime? realtime;
-  final CashierDestination initial;
+
+  /// `null` — filial formatining birinchi ekrani (P6-12: tez kassa yoki zal xaritasi).
+  final CashierDestination? initial;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  late CashierDestination _current = widget.initial;
+  late CashierDestination _current =
+      widget.initial ?? CashierDestination.firstFor(widget.services.session);
   final Set<CashierDestination> _visited = <CashierDestination>{};
   final List<StreamSubscription<Object?>> _subs =
       <StreamSubscription<Object?>>[];
@@ -168,6 +171,12 @@ class _HomeShellState extends State<HomeShell> {
   final List<PosSyncPriceNotice> _priceNotices = <PosSyncPriceNotice>[];
 
   void _go(CashierDestination d) {
+    // P6-12: no hall map in the counter mode — "back to the hall" is back to the counter
+    if (d == CashierDestination.floor &&
+        !d.visibleFor(_session) &&
+        CashierDestination.counter.visibleFor(_session)) {
+      d = CashierDestination.counter;
+    }
     if (!d.visibleFor(_session)) return;
     setState(() {
       _current = d;

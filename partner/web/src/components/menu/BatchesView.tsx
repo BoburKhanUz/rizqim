@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CookingPot, Minus, Plus, Power } from 'lucide-react';
+import { CookingPot, Minus, Plus, Power, Trash2 } from 'lucide-react';
 import { Button, Card, CardSkeletons, Dialog, EmptyState, Field, fieldClass, formatDateTime, InlineError, PageHeader, Switch } from '@rizqim/ui';
 import {
   formatQuantity,
@@ -16,6 +16,9 @@ import {
 } from '@rizqim/staff';
 import { cx } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
+import { useBatchPlans } from '../dailymenu/hooks';
+import { NextBatchPanel } from '../dailymenu/NextBatchPanel';
+import { WriteOffDialog } from '../dailymenu/WriteOffDialog';
 import { useMenuAccess } from './access';
 import { BranchSelect, useBranchChoice } from './BranchChoice';
 import { ErrorBanner } from './ErrorBanner';
@@ -96,12 +99,14 @@ function BranchOverview({ branches, current, onChoose }: { branches: Array<{ id:
   );
 }
 
-type Action = { kind: 'add' | 'set'; batch: Batch } | { kind: 'close'; batch: Batch } | { kind: 'open' };
+type Action = { kind: 'add' | 'set'; batch: Batch } | { kind: 'close'; batch: Batch } | { kind: 'writeoff'; batch: Batch } | { kind: 'open' };
 
 function BatchBranch({ branches, branchId, onChoose, canManage }: { branches: Array<{ id: number; name: string }>; branchId: number; onChoose: (id: number) => void; canManage: boolean }) {
   const { t, language } = useI18n();
   const [includeClosed, setIncludeClosed] = useState(false);
   const query = useBatches({ branchId, includeClosed, refetchInterval: REFRESH_MS });
+  // P6-15: "keyingi partiya" and the write-off button, only where the branch's format has them (a 403 hides them)
+  const plans = useBatchPlans(branchId);
   const [action, setAction] = useState<Action | null>(null);
   const done = () => setAction(null);
 
@@ -181,6 +186,12 @@ function BatchBranch({ branches, branchId, onChoose, canManage }: { branches: Ar
                         {t('menu_batch_correct')}
                         <span className="sr-only"> {batch.product_name}</span>
                       </Button>
+                      {plans.data?.modules.batch_writeoff && left > 0 && (
+                        <Button variant="secondary" icon={Trash2} onClick={() => setAction({ kind: 'writeoff', batch })}>
+                          {t('dm_writeOffButton')}
+                          <span className="sr-only"> {batch.product_name}</span>
+                        </Button>
+                      )}
                       <Button variant="ghost" icon={Power} onClick={() => setAction({ kind: 'close', batch })}>
                         {t('menu_batch_close')}
                         <span className="sr-only"> {batch.product_name}</span>
@@ -194,7 +205,10 @@ function BatchBranch({ branches, branchId, onChoose, canManage }: { branches: Ar
         </ul>
       )}
 
+      {plans.data?.modules.batches && <NextBatchPanel branchId={branchId} plans={plans.data} canManage={canManage} />}
+
       {action?.kind === 'open' && <OpenBatchDialog branchId={branchId} onClose={done} />}
+      {action?.kind === 'writeoff' && <WriteOffDialog batch={action.batch} onClose={done} />}
       {(action?.kind === 'add' || action?.kind === 'set') && <AdjustDialog mode={action.kind} batch={action.batch} onClose={done} />}
       {action?.kind === 'close' && <CloseDialog batch={action.batch} onClose={done} />}
     </div>

@@ -7,25 +7,23 @@ part of 'data72.dart';
 // **************************************************************************
 
 Data72 _$Data72FromJson(Map<String, dynamic> json) => Data72(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  serviceFee: json['service_fee'] == null
-      ? null
-      : ServiceFee2.fromJson(json['service_fee'] as Map<String, dynamic>),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables3.fromJson(e as Map<String, dynamic>))
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data71.fromJson(e as Map<String, dynamic>))
       .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data72ToJson(Data72 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'service_fee': instance.serviceFee,
-  'tables': instance.tables,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

@@ -28,7 +28,7 @@ class TerminalCounter
 
         $devices = Device::query()
             ->where('store_id', $storeId)
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::billable()))
             ->where('created_at', '<', $to)
             ->where(fn ($query) => $query->whereNull('revoked_at')->orWhere('revoked_at', '>', $from))
             ->get(['id', 'created_at', 'revoked_at']);
@@ -72,7 +72,7 @@ class TerminalCounter
     {
         return Device::query()
             ->where('store_id', $storeId)
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, $types ?? DeviceType::billable()))
             ->whereNull('revoked_at')
             ->count();
     }

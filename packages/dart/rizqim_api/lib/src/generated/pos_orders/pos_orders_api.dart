@@ -102,6 +102,10 @@ abstract class PosOrdersApi {
   /// `external_id`: the device's own id for the order; a repeat returns the same order. A room with an open order is.
   /// 422 `table_occupied`; a closed zone or inactive place 422 `table_inactive`. Needs orders.manage.
   ///
+  /// P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block.
+  /// (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise.
+  /// the order gets the next number; the answer's `queue.number` is the one to print.
+  ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders')
   Future<PostV1PosOrdersResponse> posOrderStore({

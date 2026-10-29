@@ -4,89 +4,117 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall4.dart';
-import 'table4.dart';
-import 'waiter7.dart';
-import 'online2.dart';
+import 'items15.dart';
+import 'payments22.dart';
 
 part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
   const Data154({
-    required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.channel,
-    required this.type,
+    required this.sourceLabel,
     required this.branchId,
-    required this.version,
-    required this.hall,
-    required this.table,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
-    required this.waiter,
+    required this.diningTableId,
+    required this.tableIds,
+    required this.startsAt,
+    required this.endsAt,
+    required this.guestsPlanned,
+    required this.eventType,
+    required this.eventTypeLabel,
+    required this.contactName,
+    required this.contactPhone,
+    required this.source,
+    required this.uuid,
+    required this.status,
+    required this.statusLabel,
+    required this.minSpend,
+    required this.note,
+    required this.orderUuid,
+    required this.depositTotal,
+    required this.depositAvailable,
+    required this.depositUnsettled,
     required this.itemsCount,
-    required this.subtotal,
-    required this.totalPrice,
-    required this.paymentStatus,
-    required this.billLocked,
-    required this.billRequested,
-    required this.fiscalPending,
-    required this.bookingId,
-    required this.businessDate,
-    required this.openedAt,
-    required this.closedAt,
+    required this.payments,
+    required this.version,
+    required this.createdBy,
+    required this.confirmedAt,
+    required this.arrivedAt,
+    required this.completedAt,
+    required this.canceledAt,
+    required this.confirmationSentAt,
+    required this.confirmationChannel,
+    required this.createdAt,
     required this.updatedAt,
-    required this.online,
+    required this.items,
+    required this.cancelReason,
   });
 
   factory Data154.fromJson(Map<String, Object?> json) =>
       _$Data154FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String channel;
-  final String type;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final int version;
-  final Hall4? hall;
-  final Table4? table;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final Waiter7? waiter;
+  @JsonKey(name: 'dining_table_id')
+  final int? diningTableId;
+  @JsonKey(name: 'table_ids')
+  final List<int> tableIds;
+  @JsonKey(name: 'starts_at')
+  final String startsAt;
+  @JsonKey(name: 'ends_at')
+  final String endsAt;
+  @JsonKey(name: 'guests_planned')
+  final int guestsPlanned;
+  @JsonKey(name: 'event_type')
+  final String eventType;
+  @JsonKey(name: 'event_type_label')
+  final String eventTypeLabel;
+  @JsonKey(name: 'contact_name')
+  final String contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
+  final String source;
+  @JsonKey(name: 'source_label')
+  final String sourceLabel;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  final String? note;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'deposit_total')
+  final String depositTotal;
+  @JsonKey(name: 'deposit_available')
+  final String depositAvailable;
+  @JsonKey(name: 'deposit_unsettled')
+  final bool depositUnsettled;
   @JsonKey(name: 'items_count')
   final int itemsCount;
-  final String subtotal;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  @JsonKey(name: 'bill_locked')
-  final bool billLocked;
-  @JsonKey(name: 'bill_requested')
-  final bool billRequested;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
+  @JsonKey(name: 'cancel_reason')
+  final String? cancelReason;
+  final int version;
+  @JsonKey(name: 'created_by')
+  final int? createdBy;
+  @JsonKey(name: 'confirmed_at')
+  final String? confirmedAt;
+  @JsonKey(name: 'arrived_at')
+  final String? arrivedAt;
+  @JsonKey(name: 'completed_at')
+  final String? completedAt;
+  @JsonKey(name: 'canceled_at')
+  final String? canceledAt;
+  @JsonKey(name: 'confirmation_sent_at')
+  final String? confirmationSentAt;
+  @JsonKey(name: 'confirmation_channel')
+  final String? confirmationChannel;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final Online2? online;
+  final List<Items15> items;
+  final List<Payments22> payments;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

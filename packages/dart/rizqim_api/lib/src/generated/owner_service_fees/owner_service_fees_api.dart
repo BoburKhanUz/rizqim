@@ -30,7 +30,8 @@ abstract class OwnerServiceFeesApi {
   /// For the store (`branch_id` null) or one branch. `service_charge_percent` 0-30; `place_fee_mode` per_person.
   /// (× guests) or per_table. Channels default to pos_hall; telegram is not accepted. P3-12: with `hall_id`, the.
   /// hall's own settings (R6: e.g. VIP rooms 15%, a self-service zone 0%); `DELETE /owner/service-fees/halls/{id}`.
-  /// removes them.
+  /// removes them. P6-11: a positive service charge needs the branch's `service_charge` module (403 module_disabled);.
+  /// a stolovaya branch (or hall) takes none: 422 service_charge_locked.
   @PUT('/v1/owner/service-fees')
   Future<PutV1OwnerServiceFeesResponse> serviceFeeUpdate({
     @Body() required V1OwnerServiceFeesRequestBody body,

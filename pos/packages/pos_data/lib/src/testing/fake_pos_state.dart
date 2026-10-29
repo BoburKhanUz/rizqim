@@ -135,6 +135,7 @@ class FakePosState {
       'customer_accounts.manage',
       'pos.refund',
       'reports.view',
+      'batches.manage',
     ],
   };
 
@@ -271,6 +272,14 @@ class FakePosState {
   /// server: bloki yo'q, hamma narsa ochiq. [FakeCashierBackend] yopiq funksiyaning yangi yozuvini 403
   /// `plan_feature_missing` bilan rad etadi; to'lov, schyot, chek, smena va qaytarish hech qachon.
   Map<String, Object?>? entitlements;
+
+  /// P6-11: filial formati (`format` bloki: profile, mode, first_screen, modules, locks). `null` — eski server: bloki
+  /// yo'q, ilova choyxona deb biladi ([PosFormat.legacy]).
+  Map<String, Object?>? format;
+
+  /// Qo'shimcha bootstrap bloklari (P6-15 `daily_menu`, `next_batches`, `meal_sets`; P6-16 `terminal_flow`): kalit →
+  /// qiymat, javobga o'zgartirilmay qo'shiladi. Bo'sh — eski server.
+  final Map<String, Object?> bootstrapExtras = <String, Object?>{};
 
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
@@ -453,6 +462,23 @@ class FakePosState {
     ],
     'modifier_groups': modifierGroups,
   };
+
+  /// Menyuga qo'shish uchun yangi taom (bitta variantli; `variantId` yo'q bo'lsa — taom id'si): P6-15 kassa testlari
+  /// `next_batch`, `set_parts` kabi maydonlarni o'zi qo'shadi.
+  Map<String, Object?> sampleProduct(
+    int id,
+    int categoryId,
+    String name,
+    String price, {
+    int? variantId,
+  }) => _product(
+    id,
+    categoryId,
+    name,
+    'Porsiya',
+    price,
+    variantId: variantId ?? id,
+  );
 
   Map<String, Object?>? _variant(String uuid) {
     for (final Map<String, Object?> p in products) {
@@ -1099,6 +1125,8 @@ class FakePosState {
         'halls': halls,
         'tables': tables,
         'entitlements': ?entitlements,
+        'format': ?format,
+        ...bootstrapExtras,
         'shift': shift == null
             ? null
             : <String, Object?>{

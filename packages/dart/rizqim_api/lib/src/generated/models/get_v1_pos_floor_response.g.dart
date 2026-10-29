@@ -11,7 +11,7 @@ GetV1PosFloorResponse _$GetV1PosFloorResponseFromJson(
 ) => GetV1PosFloorResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data150.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data172.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosFloorResponseToJson(

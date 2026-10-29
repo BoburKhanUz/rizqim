@@ -5,12 +5,14 @@ import { FakeBilling } from './billing'
 import { FakeBookings } from './bookings'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
+import { FakeFormat } from './format'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
 import { FakePermissions } from './permissions'
 import { FakeReports } from './reports'
 import { FakeShifts } from './shifts'
 import { FakeTeam } from './team'
+import { FakeTerminal } from './terminal'
 import { FakeZones } from './zones'
 import { fail, ok, unauthenticated, type FakeRequest, type RecordedCall, type Reply } from './types'
 
@@ -21,7 +23,7 @@ export const OWNER_PERMISSIONS = [
   'orders.view', 'orders.manage', 'orders.cancel', 'orders.assign_courier', 'kitchen.manage',
   'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage',
   'staff.view', 'staff.manage', 'staff.pin', 'branches.manage', 'settings.manage', 'zones.manage', 'devices.view', 'devices.manage',
-  'reports.view', 'finance.view',
+  'reports.view', 'finance.view', 'finance.manage',
   // P3-37: the "Huquqlar" page
   'permissions.manage',
   // P4-32: the store's audit log
@@ -98,6 +100,8 @@ export class FakeBackend {
   bookings: FakeBookings
   permissions: FakePermissions
   billing: FakeBilling
+  format: FakeFormat
+  terminal: FakeTerminal
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -111,6 +115,8 @@ export class FakeBackend {
     this.bookings = new FakeBookings(this)
     this.permissions = new FakePermissions(this)
     this.billing = new FakeBilling(this)
+    this.format = new FakeFormat(this)
+    this.terminal = new FakeTerminal(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -272,7 +278,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions]) {
+    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.terminal]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

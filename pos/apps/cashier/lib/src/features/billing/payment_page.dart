@@ -11,6 +11,7 @@ import '../../shell/destinations.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/plan_gate.dart';
 import '../../shell/pos_scope.dart';
+import '../../counter/counter_format.dart';
 import '../accounts/account_form.dart';
 import 'billing_page.dart';
 import 'cashier_ui.dart';
@@ -157,7 +158,7 @@ class _PaymentPageState extends State<PaymentPage> {
         }
         final String label = switch (_tab) {
           PosTender.card =>
-            'Karta (${cardTypes[_draft.cardType] ?? _draft.cardType}) · ${_draft.transactionId.trim()}',
+            'Karta (${cardTypes[_draft.cardType] ?? _draft.cardType}) · ${_draft.transactionId.trim()}${_draft.cardLast4.trim().isEmpty ? '' : ' · ••••${_draft.cardLast4.trim()}'}',
           PosTender.cash when _draft.tendered != null =>
             'Naqd · berildi ${_draft.tendered!.formatAmount()}, qaytim ${_draft.change.formatAmount()}',
           _ => _tab.label,
@@ -644,7 +645,11 @@ class _PaymentPageState extends State<PaymentPage> {
               if (!limited) PosTender.qr: 'QR',
               if (!limited && _depositAvailable.isPositive)
                 PosTender.prepayment: 'Avans',
-              if (!limited) PosTender.account: 'Nasiya',
+              // P6-11: nasiya only where the format has customer accounts
+              if (!limited &&
+                  PosScope.of(context).session
+                      .hasModule(PosModule.customerAccounts))
+                PosTender.account: 'Nasiya',
             },
             selected: _tab,
             onSelected: _selectTab,

@@ -5,9 +5,11 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../menu_day/write_off_dialog.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
 import '../../shell/pos_scope.dart';
+import '../../terminal/bank_total_section.dart';
 import '../billing/cashier_ui.dart';
 import '../billing/receipts.dart';
 import 'shift_report_mapping.dart';
@@ -32,8 +34,12 @@ class _ZClosePageState extends State<ZClosePage> {
   bool _busy = false;
   PosConflict? _refusal;
 
+  /// P6-16: bank terminalining kunlik jami (ixtiyoriy; smena yopilishiga hech qachon to'sqinlik qilmaydi).
+  final BankTotalController _bank = BankTotalController();
+
   @override
   void dispose() {
+    _bank.dispose();
     for (final TextEditingController t in _counts.values) {
       t.dispose();
     }
@@ -91,6 +97,7 @@ class _ZClosePageState extends State<ZClosePage> {
           force: force,
           reason: reason,
           approvalToken: token,
+          bankTerminal: _bank.input,
         ),
       );
       scope.session.updateShift(null);
@@ -239,6 +246,7 @@ class _ZClosePageState extends State<ZClosePage> {
     final int openOrders = (data['open_orders'] as List<Object?>?)?.length ?? 0;
     final int pending = (data['pending_bills'] as List<Object?>?)?.length ?? 0;
     final PosSession session = PosScope.of(context).session;
+    final PosTerminalFlow? bankFlow = bankTotalFlowOf(context);
     final bool canForce =
         session.can(PosPermissions.ordersCancel) ||
         session.needsApproval(PosPermissions.ordersCancel);
@@ -260,13 +268,22 @@ class _ZClosePageState extends State<ZClosePage> {
               Row(
                 children: <Widget>[
                   TonePill(label: label, tone: tone),
-                  const Spacer(),
-                  Text(
-                    diff.isNegative ? '−${diff.abs().format()}' : diff.format(),
-                    key: const ValueKey<String>('z-difference'),
-                    style: RzType.display.copyWith(
-                      color: toneColors(c, tone).$2,
-                      fontWeight: FontWeight.w800,
+                  const SizedBox(width: 8),
+                  // P6-12: fits a phone (the phone mode closes the shift here too)
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        diff.isNegative
+                            ? '−${diff.abs().format()}'
+                            : diff.format(),
+                        key: const ValueKey<String>('z-difference'),
+                        style: RzType.display.copyWith(
+                          color: toneColors(c, tone).$2,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -283,6 +300,21 @@ class _ZClosePageState extends State<ZClosePage> {
             ],
           ),
         ),
+        if (widget.report.batchWriteoffs.items.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          PosCard(
+            title: 'Hisobdan chiqarilgan taomlar',
+            child: ShiftWriteOffsList(writeOffs: widget.report.batchWriteoffs),
+          ),
+        ],
+        if (bankFlow != null) ...<Widget>[
+          const SizedBox(height: 16),
+          BankTotalSection(
+            flow: bankFlow,
+            shiftUuid: widget.shift.uuid,
+            controller: _bank,
+          ),
+        ],
         if (refusal != null) ...<Widget>[
           const SizedBox(height: 16),
           PosCard(

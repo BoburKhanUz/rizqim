@@ -129,12 +129,18 @@ export * from './api/floor';
 export * from './hooks/floor';
 export * from './api/posSetup';
 export * from './hooks/posSetup';
+// P6-11: the branch's format profile, module switches and sample stations and menu
+export * from './api/posFormat';
+export * from './hooks/posFormat';
 export * from './api/bookings';
 export * from './hooks/bookings';
 export * from './api/accounts';
 export * from './hooks/accounts';
 export * from './api/shifts';
 export * from './hooks/shifts';
+// P6-16: fiscal terminal flows (card mode, installation checklist, smart kassa tills, bank terminal vs Z)
+export * from './api/fiscalTerminal';
+export * from './hooks/fiscalTerminal';
 
 // P3-37: the role permission table of the partner web's "Huquqlar" page (GET/PUT /owner/permissions)
 export * from './api/permissions';

@@ -41,7 +41,7 @@ class TerminalBusinessHours
         return $devices
             ->whereNull('revoked_at')
             ->whereNotNull('store_id')
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::billable()))
             ->whereHas('store', fn ($store) => $store->where('status', StoreStatus::ACTIVE->value)->where('is_open', true))
             ->with(['store:' . self::STORE_COLUMNS, 'branch:' . self::BRANCH_COLUMNS]);
     }

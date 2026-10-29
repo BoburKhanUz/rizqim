@@ -90,6 +90,11 @@ class Entitlements
      */
     public function assertCanPair(Store|int $store, DeviceType $type): void
     {
+        // P6-14: a customer display is free and never counts toward the plan's devices
+        if (!in_array($type, DeviceType::billable(), true)) {
+            return;
+        }
+
         if ($type === DeviceType::KDS) {
             $this->assertFeature($store, PlanFeature::KDS);
         }
@@ -177,7 +182,7 @@ class Entitlements
     /**
      * Terminals by type: included in the plan (null: no limit, a store not on a v2 plan), active now, over the plan
      * (billed as extras), the price of one extra, and whether one more may be paired now. Waiter phones are personal
-     * apps: unlimited and free.
+     * apps and customer displays are not billed: unlimited and free.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -204,6 +209,8 @@ class Entitlements
         }
 
         $rows['waiter'] = ['included' => null, 'unlimited' => true, 'extra_price' => '0.00', 'can_add' => true];
+        // P6-14: customer displays / "ready numbers" boards are free too
+        $rows['display'] = ['included' => null, 'unlimited' => true, 'extra_price' => '0.00', 'can_add' => true];
 
         return $rows;
     }

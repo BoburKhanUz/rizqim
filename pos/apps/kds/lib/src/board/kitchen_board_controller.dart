@@ -664,7 +664,12 @@ class KitchenBoardController extends ChangeNotifier {
     _hidden.add(ticket.uuid);
     _notify();
     try {
-      await service.markOrderReady(ticket.uuid);
+      // P6-14: navbat raqamli kassa buyurtmasi (avval to'langan, yopilgan bo'lishi mumkin): raqam tayyor, e'lon qilinadi
+      if (ticket.isQueueOrder) {
+        await service.markQueueReady(ticket.uuid);
+      } else {
+        await service.markOrderReady(ticket.uuid);
+      }
       // Yangilangan ro'yxat kelguncha yashirin turadi
     } on ApiException catch (e) {
       _hidden.remove(ticket.uuid);
@@ -715,6 +720,9 @@ class KitchenBoardController extends ChangeNotifier {
       for (final KitchenLine l in _server[i].lines) l.id: l,
     };
     final KitchenTicket merged = updated.copyWith(
+      // P6-14: amal javobi (yaratilgan model) navbat raqamini bermasligi mumkin: eskisidan olinadi
+      queueNumber: _server[i].queueNumber,
+      pickupStatus: updated.pickupStatus ?? _server[i].pickupStatus,
       lines: <KitchenLine>[
         for (final KitchenLine l in updated.lines)
           if (was[l.id] case final KitchenLine old

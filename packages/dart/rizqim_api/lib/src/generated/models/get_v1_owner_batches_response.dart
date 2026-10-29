@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data31.dart';
+import 'data34.dart';
 
 part 'get_v1_owner_batches_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1OwnerBatchesResponse {
 
   final bool success;
   final String message;
-  final Data31 data;
+  final Data34 data;
 
   Map<String, Object?> toJson() => _$GetV1OwnerBatchesResponseToJson(this);
 }

@@ -4,6 +4,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../menu_day/write_off_dialog.dart';
 import '../../shell/pos_scope.dart';
 import '../billing/cashier_ui.dart';
 import '../billing/receipts.dart';
@@ -120,6 +121,10 @@ class ShiftReportBody extends StatelessWidget {
               amount: w.amount,
               trailing: 'xizmat ${w.service.formatAmount()}',
             ),
+        ],
+        if (v.report.batchWriteoffs.items.isNotEmpty) ...<Widget>[
+          title('Hisobdan chiqarilgan taomlar'),
+          ShiftWriteOffsList(writeOffs: v.report.batchWriteoffs),
         ],
         title('Kassa (naqd)'),
         AmountRow(label: "Boshlang'ich", amount: v.openingCash),

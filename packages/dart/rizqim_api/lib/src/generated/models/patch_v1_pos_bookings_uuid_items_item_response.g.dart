@@ -11,7 +11,7 @@ _$PatchV1PosBookingsUuidItemsItemResponseFromJson(Map<String, dynamic> json) =>
     PatchV1PosBookingsUuidItemsItemResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data137.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data156.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PatchV1PosBookingsUuidItemsItemResponseToJson(

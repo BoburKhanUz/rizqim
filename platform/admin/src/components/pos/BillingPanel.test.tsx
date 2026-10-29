@@ -84,6 +84,20 @@ describe('StoreBillingPanel', () => {
     expect(screen.getByRole('link', { name: 'Ovqatxona kartasi' })).toHaveAttribute('href', '/stores/12');
   });
 
+  it('names every device row of the plan, the free customer display included (P6-14)', async () => {
+    const devices = {
+      pos: { included: 2, active: 1, extra: 0, extra_price: '59000.00', can_add: true },
+      kds: { included: 1, active: 1, extra: 0, extra_price: '29000.00', can_add: true },
+      display: { included: null, active: 2, unlimited: true, extra_price: '0.00', can_add: true },
+      waiter: { included: null, unlimited: true, extra_price: '0.00', can_add: true },
+    };
+    setup(['subscriptions.manage'], storeBilling({ entitlements: entitlements({ devices }) }));
+    const list = await screen.findByRole('list', { name: 'Qurilmalar' });
+    const rows = within(list).getAllByRole('listitem').map((row) => row.querySelector('.font-bold')?.textContent);
+    expect(rows).toEqual(['Kassa', 'Oshxona ekrani (KDS)', 'Mijoz ekrani', 'Ofitsiant telefonlari']);
+    expect(within(list).getAllByText('Cheksiz va bepul')).toHaveLength(2);
+  });
+
   it('hides the actions from a member who only reads', async () => {
     setup(['finance.view']);
     await screen.findByRole('heading', { name: 'Lazzat Oshxona' });

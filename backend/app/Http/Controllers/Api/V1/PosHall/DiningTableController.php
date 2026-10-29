@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api\V1\PosHall;
 
 use App\Domain\Pos\Hall\HallLayout;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\DiningTableKind;
 use App\Enums\MinSpendMode;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\Management\ManagementController;
+use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Models\Hall;
 use App\Services\Audit\AuditLogger;
@@ -64,7 +67,8 @@ class DiningTableController extends ManagementController
     /**
      * Add a table, room or tapchan
      *
-     * In a hall (its branch is the hall's). `kind`: table, room or tapchan. `min_spend` (optional): the least the party
+     * In a hall (its branch is the hall's). `kind`: table, room or tapchan (P6-11: a room or tapchan needs the branch's
+     * `rooms` module, 403 module_disabled). `min_spend` (optional): the least the party
      * spends on food, per room (`per_table`) or per guest (`per_person`); the difference is a separate bill line.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::TABLE . '}')]
@@ -216,7 +220,15 @@ class DiningTableController extends ManagementController
             $table->name = trim($data['name']);
         }
         if (isset($data['kind'])) {
-            $table->kind = DiningTableKind::from($data['kind']);
+            $kind = DiningTableKind::from($data['kind']);
+            // P6-11: a new room or tapchan is the branch's rooms module (403 module_disabled); an existing one stays
+            if ($kind !== DiningTableKind::TABLE && (!$table->exists || $table->kind !== $kind)) {
+                $branch = Branch::query()->whereKey($table->branch_id)->first();
+                if ($branch !== null) {
+                    app(PosModules::class)->assertEnabled($branch, PosModule::ROOMS);
+                }
+            }
+            $table->kind = $kind;
         }
         if (array_key_exists('is_active', $data) && $data['is_active'] !== null) {
             $table->is_active = (bool) $data['is_active'];

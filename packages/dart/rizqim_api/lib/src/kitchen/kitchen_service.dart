@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -76,7 +77,10 @@ class KitchenService {
             });
         tickets.add(
           KitchenTicket.fromJson(
-            _withRawItemFields(_plain(one.data.single), raw),
+            _withRawTicketFields(
+              _withRawItemFields(_plain(one.data.single), raw),
+              raw,
+            ),
             receivedAt: now,
           ),
         );
@@ -98,6 +102,23 @@ class KitchenService {
       serverTime: parseHttpDate(response.headers.value('date')),
       receivedAt: now,
     );
+  }
+
+  /// Chiptaning spetsifikatsiyada (hali) yo'q maydonlari (P6-14: navbat raqami va olib ketish holati) xom javobdan.
+  static const List<String> _rawTicketFields = <String>[
+    'queue_number',
+    'pickup_status',
+  ];
+
+  static Map<String, Object?> _withRawTicketFields(
+    Map<String, Object?> plain,
+    Object? raw,
+  ) {
+    if (raw is! Map) return plain;
+    for (final String key in _rawTicketFields) {
+      if (plain[key] == null && raw[key] != null) plain[key] = raw[key];
+    }
+    return plain;
   }
 
   /// Qatorlarning spetsifikatsiyada (hali) yo'q maydonlari xom javobdan: yaratilgan model ularni tushirib yuboradi.
@@ -165,6 +186,41 @@ class KitchenService {
       body: const V1StaffOrdersUuidStatusRequestBody(status: Status6.ready),
     );
   });
+
+  /// P6-14, "yig'ish" (expo) tugmasi: `POST /pos/orders/{uuid}/ready` — kassa buyurtmasining navbat raqami tayyor, qolgan
+  /// pishayotgan qatorlar tayyor deb belgilanadi, raqam e'lon qilinadi (`queue.ready`). Avval to'langan (yopilgan)
+  /// buyurtmada `POST /staff/orders/{uuid}/status` ishlamaydi, shu uchun alohida yo'l. Har amalga yangi `Idempotency-Key`;
+  /// 2xx javob o'qilmasa ham amal bajarilgan.
+  Future<void> markQueueReady(
+    String orderUuid, {
+    String? idempotencyKey,
+  }) async {
+    try {
+      await _dio.post<Object?>(
+        '/v1/pos/orders/$orderUuid/ready',
+        data: const <String, Object?>{},
+        options: Options(
+          headers: <String, Object?>{
+            'Idempotency-Key': idempotencyKey ?? _newKey(),
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  static final Random _random = Random.secure();
+
+  static String _newKey() {
+    final List<int> b = List<int>.generate(16, (_) => _random.nextInt(256));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    String hex(int from, int to) => <String>[
+      for (var i = from; i < to; i++) b[i].toRadixString(16).padLeft(2, '0'),
+    ].join();
+    return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
+  }
 
   static ApiException _unexpected(int? statusCode, Object? cause) =>
       ApiException(

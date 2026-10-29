@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'store_format.dart';
-import 'source3.dart';
+import 'source4.dart';
 
 part 'v1_store_applications_request_body.g.dart';
 
@@ -37,7 +37,7 @@ class V1StoreApplicationsRequestBody {
   final String phone;
   final String? tin;
   final String? comment;
-  final Source3? source;
+  final Source4? source;
   final String? website;
 
   Map<String, Object?> toJson() => _$V1StoreApplicationsRequestBodyToJson(this);

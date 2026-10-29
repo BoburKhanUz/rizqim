@@ -3,6 +3,7 @@ import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../terminal/card_reference_fields.dart';
 import 'cashier_ui.dart';
 
 /// Bitta to'lov turi bo'yicha kiritilgan qiymatlar (naqd, karta yoki QR): to'lov sahifasi, bron avansi va qarz to'lovi
@@ -14,6 +15,7 @@ class TenderDraft {
     this.tendered,
     this.cardType,
     this.transactionId = '',
+    this.cardLast4 = '',
     this.reference = '',
   });
 
@@ -24,6 +26,9 @@ class TenderDraft {
   PosMoney? tendered;
   String? cardType;
   String transactionId;
+
+  /// P6-16: kartaning oxirgi 4 raqami (ixtiyoriy).
+  String cardLast4;
   String reference;
 
   /// Naqd qaytim.
@@ -49,6 +54,8 @@ class TenderDraft {
         if (transactionId.trim().isEmpty) {
           return 'Terminal chekidagi tranzaksiya raqamini kiriting.';
         }
+        final String? last4 = cardLast4Error(cardLast4);
+        if (last4 != null) return last4;
       default:
         break;
     }
@@ -61,6 +68,7 @@ class TenderDraft {
       amount!,
       cardType: cardType!,
       transactionId: transactionId.trim(),
+      cardLast4: cardLast4.trim().isEmpty ? null : cardLast4.trim(),
     ),
     PosTender.qr => PosTenderInput.qr(
       amount!,
@@ -120,6 +128,9 @@ class _TenderFormState extends State<TenderForm> {
   late final TextEditingController _txn = TextEditingController(
     text: widget.draft.transactionId,
   );
+  late final TextEditingController _last4 = TextEditingController(
+    text: widget.draft.cardLast4,
+  );
   late final TextEditingController _ref = TextEditingController(
     text: widget.draft.reference,
   );
@@ -143,6 +154,7 @@ class _TenderFormState extends State<TenderForm> {
     _amount.dispose();
     _tendered.dispose();
     _txn.dispose();
+    _last4.dispose();
     _ref.dispose();
     super.dispose();
   }
@@ -155,6 +167,7 @@ class _TenderFormState extends State<TenderForm> {
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
+    final PosTerminalFlow? flow = cardFlowOf(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -228,6 +241,10 @@ class _TenderFormState extends State<TenderForm> {
           ),
         ],
         if (d.tender == PosTender.card) ...<Widget>[
+          if (flow?.providerTotals ?? false) ...<Widget>[
+            const SmartKassaCardHint(),
+            const SizedBox(height: 12),
+          ],
           Text('Karta turi', style: RzType.footnote.copyWith(color: c.fgMuted)),
           const SizedBox(height: 6),
           ChoiceRow<String>(
@@ -242,14 +259,23 @@ class _TenderFormState extends State<TenderForm> {
           TextField(
             key: const ValueKey<String>('tender-txn'),
             controller: _txn,
-            decoration: const InputDecoration(
-              labelText: 'Tranzaksiya raqami (terminal chekidan)',
-            ),
+            decoration: InputDecoration(labelText: cardReferenceLabel(flow)),
             onChanged: (String t) {
               d.transactionId = t;
               _changed();
             },
           ),
+          // P6-16: the bank terminal is separate ("faqat terminal"): the last four digits go on the receipt too
+          if (flow?.asksCardReference ?? false) ...<Widget>[
+            const SizedBox(height: 12),
+            CardLast4Field(
+              controller: _last4,
+              onChanged: (String t) {
+                d.cardLast4 = t;
+                _changed();
+              },
+            ),
+          ],
         ],
         if (d.tender == PosTender.qr)
           TextField(

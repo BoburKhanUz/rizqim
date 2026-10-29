@@ -4,55 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch3.dart';
-import 'polygon.dart';
-import 'bbox.dart';
+import 'card_mode.dart';
+import 'checklist.dart';
 
 part 'data43.g.dart';
 
 @JsonSerializable()
 class Data43 {
   const Data43({
-    required this.id,
-    required this.name,
     required this.branchId,
-    required this.branch,
-    required this.polygon,
-    required this.bbox,
-    required this.areaKm2,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-    required this.active,
-    required this.createdAt,
+    required this.cardMode,
+    required this.cardModeLabel,
+    required this.checklist,
+    required this.checklistComplete,
+    required this.differenceThreshold,
+    required this.askBankTotal,
+    required this.sharedTerminal,
     required this.updatedAt,
   });
 
   factory Data43.fromJson(Map<String, Object?> json) => _$Data43FromJson(json);
 
-  final int id;
-  final String name;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Branch3? branch;
-  final Polygon polygon;
-  final Bbox bbox;
-  @JsonKey(name: 'area_km2')
-  final String areaKm2;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
-  final bool active;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final int branchId;
+  @JsonKey(name: 'card_mode')
+  final CardMode? cardMode;
+  @JsonKey(name: 'card_mode_label')
+  final String? cardModeLabel;
+  final List<Checklist> checklist;
+  @JsonKey(name: 'checklist_complete')
+  final bool checklistComplete;
+  @JsonKey(name: 'difference_threshold')
+  final String differenceThreshold;
+  @JsonKey(name: 'ask_bank_total')
+  final bool askBankTotal;
+  @JsonKey(name: 'shared_terminal')
+  final bool sharedTerminal;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

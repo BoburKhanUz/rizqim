@@ -38,6 +38,7 @@ Qoidalar, haqiqiy provayder ulangandan keyin:
 
 ## Mundarija
 
+0. [Filial formati](#filial-formati-birinchi-qadam)
 1. [Boshlash tartibi](#1-boshlash-tartibi)
 2. [Zal xaritasi](#2-zal-xaritasi)
 3. [Fiskal sozlamalar](#3-fiskal-sozlamalar)
@@ -53,12 +54,48 @@ Qoidalar, haqiqiy provayder ulangandan keyin:
 13. [Nasiya va qarzdorlar](#13-nasiya-va-qarzdorlar)
 14. [Muammolar va yechimlar](#14-muammolar-va-yechimlar)
 
+## Filial formati (birinchi qadam)
+
+Rizqim kassasi har xil joyga moslashadi: choyxona, osh markazi, somsaxona, stolovaya, kafe, restoran, fast food va
+boshqalar (14 ta format). Format kassa qaysi ekrandan boshlanishini (zal xaritasi yoki tez kassa), rejimini va qaysi
+**modullar** yoqilishini belgilaydi. Avval formatni tanlang — qolgan sozlamalar shunga qarab kerak bo'ladi.
+
+**Qayerda:** **Kassa sozlamalari** → **Format** (birinchi bo'lim). Filialni sahifaning yuqorisida tanlang.
+
+1. **Formatni tanlang.** Har bir format kartasida u qanday ishlashi oddiy so'zlar bilan yozilgan va qaysi tarif tavsiya
+   etilishi ko'rsatilgan. Yangi formatni bossangiz, Rizqim so'raydi: format o'zgarsa kassa rejimi va modullar shu
+   formatnikiga qaytadi. Ochiq buyurtmalar, schyotlar va smena o'zgarmaydi.
+2. **Kassa rejimi.** Format o'z rejimini qo'yadi (masalan, osh markazi — tez kassa, restoran — stol va xona). Kerak
+   bo'lsa boshqasini tanlang: "Aralash" rejimda zal xaritasi va tez kassa yonma-yon.
+3. **Modullar.** Ro'yxatda har bir modul (tez kassa, buyurtma raqami, mijoz ekrani, bugungi menyu, partiya va qozon,
+   xonalar, xona puli, choy-non, bron, nasiya, xizmat haqi, oshxona ekrani...) va u nima qilishi yozilgan. Kalit bilan
+   yoqing yoki o'chiring. "Qo'lda o'zgartirilgan" yozuvi yonidagi **Formatnikiga qaytarish** tugmasi modulni format
+   bo'yicha holatiga qaytaradi.
+   - **"Asosiy tarifda bor"** — modul tarifingizda yo'q: uni yoqib bo'lmaydi ([Tarif va to'lov](hamkor-panel.md)).
+   - **"Qonun bo'yicha o'chirilgan"** — stolovayada xizmat haqi qonun bo'yicha olinmaydi (0%), uni yoqib ham, foizini
+     oshirib ham bo'lmaydi.
+   - Modul o'chirilsa kassa, ofitsiant telefoni va oshxona ekranida uning tugmalari ko'rinmaydi va yangi sozlash
+     yopiladi (masalan, yangi xona yoki yangi bron). **To'lov olish, schyot yopish, chek, smena va qaytarish hech qachon
+     to'xtamaydi** — mavjud bronlar, nasiya qarzlari va xonalar ham ishlayveradi.
+4. **Namunaviy sexlar va menyu.** Format uchun tayyor sexlar (masalan, choyxona: osh va qozon, mangal, salat va bar,
+   choy) va taomlar ro'yxati. **Namunani qo'shish** tugmasi yo'qlarini qo'shadi, bor narsani o'zgartirmaydi: shu nomdagi
+   sex yoki taom qo'shilmaydi. Taomlar **o'chirilgan va narxsiz** qo'shiladi — **Menyu**da har biriga narx va MXIK
+   kiriting, keyin yoqing.
+
+Osh markazi, somsaxona va stolovayani qadamma-qadam sozlash, kassirning tez kassadagi ishi —
+[tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash). Devordagi raqamlar taxtasi va kassaning ikkinchi
+ekrani — [mijoz-ekrani.md](mijoz-ekrani.md).
+
+Yangi do'kon ariza formasida tanlangan formatdan boshlaydi (masalan, "Qahvaxona" — qahvaxona formati). Avvaldan
+ishlayotgan filiallar — choyxona: ular uchun hech narsa o'zgarmaydi. Format o'zgarishlari harakatlar jurnalida yoziladi.
+
 ## 1. Boshlash tartibi
 
 Quyidagi tartibda sozlang. Har bandda qaysi bo'limga o'tish va kim bajarishi yozilgan.
 
 | # | Nima | Qayerda | Kim |
 |---|---|---|---|
+| 0 | Filial formati (choyxona, osh markazi, stolovaya...), modullar, namunaviy sexlar va menyu | **Kassa sozlamalari** → **Format** ([Filial formati](#filial-formati-birinchi-qadam)) | ega |
 | 1 | Do'kon va filial ma'lumotlari, ish vaqti | **Sozlamalar** → **Do'kon**; **Filiallar** ([panel qo'llanmasi](hamkor-panel.md#9-filiallar-va-ish-vaqti)) | ega |
 | 2 | Menyu: kg bilan sotiladigan osh, qo'shimchalar, narxlar | **Menyu** ([panel qo'llanmasi](hamkor-panel.md#5-menyu)) | ega |
 | 3 | Menyuga **MXIK** kodlari | **Fiskal** → **Fiskal tayyorlik** ([3-bo'lim](#3-fiskal-sozlamalar)) | ega, buxgalter bilan |
@@ -201,6 +238,41 @@ joy puli uchun MXIK yo'q", "Fiskal xizmat hozir ishlamayapti. Birozdan so'ng qay
 
 Cheklar tushmay qolgan kassa — bu "**Fiskal kutmoqda**" ([kassa qo'llanmasi](kassa.md#13-fiskal-chek-va-fiskal-kutmoqda)): kassir ularni
 **Navbat** bo'limida ko'radi, kutayotgan chek bor bo'lsa **smena yopilmaydi**.
+
+### Karta terminali (bank terminali va smart-kassa)
+
+22.10.2026 dan summani eski fiskal terminalga **qayta terish** ham, Rizqim'ni unga chek uchun **ulash** ham mumkin emas
+(Vazirlar Mahkamasining 393-qarori). Chekni Rizqim chiqaradi. **Fiskal** → **Karta terminali** yorlig'ida har filial uchun:
+
+1. **Karta qanday qabul qilinadi:**
+   - **Bank terminali "faqat terminal" rejimida** — terminalingizga xizmat ko'rsatadigan markaz (TXKM) uni faqat karta qabul qiladigan
+     rejimga o'tkazadi. Kassir karta to'lovida terminal chekidagi **tranzaksiya (RRN) raqamini** Rizqim'ga teradi, xohlasa kartaning
+     **oxirgi 4 raqamini** ham. Ikkalasi Rizqim chekida chiqadi.
+   - **Rizqim smart-kassada** (Sunmi P2/P3 va shunga o'xshash) — karta qurilmaning o'zida qabul qilinadi, chek provayder virtual kassasi
+     orqali chiqadi. Pastdagi **Kassalar** ro'yxatida shu kassaga **Smart-kassa** belgisini qo'ying va provayder bergan **kassa raqamini**
+     yozing (6–32 belgi: lotin harflari, raqamlar va "-"). Rizqim provayderdan bu kassa sizning STIRingizga tegishli ekanini so'raydi:
+     avval **Fiskal** → **Sozlamalar**da STIRni kiriting. Bitta kassa raqami faqat bitta kassada bo'ladi.
+   - **Karta qabul qilinmaydi** — faqat naqd va QR.
+2. **O'rnatish ro'yxati:** eski kassa sotuvda ishlatilmaydi; bank terminali rejimi sozlangan; har kassada 2D skaner bor. Har bandni
+   bajarganingizda belgilang (kim va qachon belgilagani yoziladi). Hammasi belgilansa — **O'rnatish tayyor**.
+3. **Farq chegarasi** va **Z da bank terminali summasini so'rash.** Kassir smenani yopayotganda bank terminalining kunlik jamini
+   kiritadi (majburiy emas — smena baribir yopiladi). Rizqim uni shu smenadagi karta to'lovlari bilan solishtiradi (kartadagi bron
+   avansi va nasiya to'lovi ham, qaytarishlar ayiriladi). Farq chegaradan katta bo'lsa sizga Telegram'da xabar boradi, Z hisobotda
+   **Bank terminali** qatori chiqadi. Kassir chegarani ham, farqni ham Z dan oldin ko'rmaydi: jamini terminal chekidan yozadi, farqni
+   Rizqim Z dan keyin ko'rsatadi.
+4. **Umumiy bank terminali** — filialning bir nechta kassasi bitta bank terminalidan foydalansa yoki kassada kuniga bir necha smena
+   bo'lsa, belgilang. Shunda terminal kuniga bir marta yopiladi deb olinadi: kunlik jamni kunning **oxirgi** smenasini yopayotgan
+   kassir kiritadi, Rizqim uni shu kunning barcha smenalaridagi karta pul bilan solishtiradi. Kunning hamma smenalari yopilguncha
+   xabar yuborilmaydi.
+
+Pastdagi **Bank terminali va Z** jadvalida har smena (umumiy terminalda — har kun): bank jami, Rizqim (karta), farq va **Mos** /
+**Mos emas** / **Kutilmoqda** belgisi. Kassir kiritmagan yoki xato kiritgan bo'lsa, shu yerda yopilgan smenani tanlab jamini kiriting
+yoki terminal hisobotidagi tranzaksiyalarni qatorma-qator ("RRN;summa") joylang: Rizqim ularni RRN bo'yicha o'zidagi to'lovlar bilan
+juftlaydi va mos kelmaganlarini sanaydi. Z dan keyin buni faqat **moliya huquqi** (finance.manage) bor xodim qiladi. Tuzatish
+ogohlantirishni o'chirmaydi: qator **Mos emas** bo'lib qoladi, oldingi yozuv **Tuzatilgan** bo'lib saqlanadi.
+
+Hozir fiskal ulanish sinov rejimida: smart-kassa ham sinov drayveri orqali ishlaydi, haqiqiy provayder ulanguncha cheklar soliq
+tizimiga yuborilmaydi.
 
 ## 4. Xona tariflari va bayramlar
 
@@ -378,13 +450,14 @@ bron avansi qaytarilsa yoki ushlab qolinsa; katta nasiya (standart 500 000 so'md
 | Kassa (Android planshet, Sunmi, Windows monoblok) | **Kassa (POS)** | Kassa — [kassa.md](kassa.md#1-kassani-ulash-bir-marta) |
 | Ofitsiant telefoni | **Kassa (POS)** (shu turdagi kod) | Ofitsiant — [ofitsiant.md](ofitsiant.md#1-telefonni-ulash-va-kirish) |
 | Oshxona plansheti yoki monitor | **Oshxona ekrani** | Oshxona — [oshxona-ekrani.md](oshxona-ekrani.md#1-planshetni-ulash-bir-marta) |
+| Mijozga qaragan ekran yoki "tayyor" raqamlar televizori | **Mijoz ekrani (bepul)** | Mijoz ekrani — [mijoz-ekrani.md](mijoz-ekrani.md#2-ekranni-ulash-bir-marta) |
 
 Tartib: **Turi** → **Filial** → **Nomi** (masalan, "Kassa 1", "Ofitsiant Botir", "Oshxona 1") → **Kod yaratish**. `ABCD-EFGH` kodi
 10 daqiqa amal qiladi va bir marta ishlaydi. Bir do'konda bir vaqtda ko'pi bilan 5 ta faol kod bo'ladi. Qurilma ulangach, u **Qurilmalar**
 ro'yxatida paydo bo'ladi. Qurilma yo'qolsa yoki almashtirilsa: **O'chirish** (shunda u darhol tizimdan chiqadi).
 
 **Tarif va qurilmalar:** tarifga kassa va oshxona ekrani soni kiradi (Start — 1 kassa; Asosiy — 1 kassa va 1 oshxona ekrani; Pro — 2 kassa
-va 1 oshxona ekrani). Ortiqchasi har oy qo'shimcha to'lanadi (kassa 59 000, oshxona ekrani 29 000 so'm); ofitsiant telefonlari cheksiz va bepul.
+va 1 oshxona ekrani). Ortiqchasi har oy qo'shimcha to'lanadi (kassa 59 000, oshxona ekrani 29 000 so'm); ofitsiant telefonlari va **mijoz ekranlari** cheksiz va bepul.
 Start tarifda oshxona ekrani ulanmaydi (**Asosiy tarifda bor**). To'lanmagan hisob-faktura muddatidan 7 kun o'tgach tarifdagidan ortiq
 qurilma ulanmaydi (eskisini o'chirib, o'rniga yangisini ulash mumkin).
 

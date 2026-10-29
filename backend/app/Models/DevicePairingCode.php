@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property DeviceType $type
  * @property \Illuminate\Support\Carbon $expires_at
  * @property \Illuminate\Support\Carbon|null $used_at
+ * @property int|null $display_for_device_id P6-14: the till a customer display paired with this code follows
  */
 class DevicePairingCode extends Model
 {
@@ -24,6 +25,7 @@ class DevicePairingCode extends Model
         'code_hash',
         'created_by',
         'expires_at',
+        'display_for_device_id',
     ];
 
     protected $hidden = ['code_hash'];

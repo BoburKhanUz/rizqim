@@ -119,12 +119,28 @@ describe('DevicesTab', () => {
     expect(within(row).getByText('Eski versiya')).toBeInTheDocument();
     expect(within(row).getByText('Navbatda 3 ta amal')).toBeInTheDocument();
     expect(within(row).getByText('oxirgi aloqa 25 daqiqa oldin')).toBeInTheDocument();
-    expect(screen.getByText('Eng yangi versiyalar: pos 1.6.2')).toBeInTheDocument();
+    expect(screen.getByText('Eng yangi versiyalar: Kassa 1.6.2')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Oflayn (1)' }));
     await waitFor(() => expect(callsTo('GET', '/pos/devices').at(-1)?.query.get('state')).toBe('offline'));
     await user.click(screen.getByRole('button', { name: 'Eski versiya (1)' }));
     await waitFor(() => expect(callsTo('GET', '/pos/devices').at(-1)?.query.get('outdated')).toBe('1'));
+  });
+
+  it('names the device types in the filter, the customer display included (P6-14)', async () => {
+    const page = { ...devicePage([deviceRow({ name: 'Mijoz ekrani 1', type: 'display', type_label: 'Mijoz ekrani' })]), latest_versions: { display: '0.1.0' } };
+    page.counts = { ...page.counts, by_type: { display: 1, kds: 1, pos: 2 } };
+    const { callsTo } = mockFetch({ ...ME(['devices.view']), 'GET /pos/devices': () => ok(page) });
+    const user = userEvent.setup();
+    renderPage(<DevicesTab selected={null} onSelect={() => {}} />);
+
+    const list = await screen.findByRole('list', { name: "Qurilmalar ro'yxati" });
+    expect(within(list).getByText('Mijoz ekrani')).toBeInTheDocument();
+    expect(screen.getByText('Eng yangi versiyalar: Mijoz ekrani 0.1.0')).toBeInTheDocument();
+    const type = screen.getByLabelText('Turi');
+    expect(within(type).getAllByRole('option').map((option) => option.textContent)).toEqual(['Hammasi', 'Mijoz ekrani', 'Oshxona ekrani (KDS)', 'Kassa']);
+    await user.selectOptions(type, 'Mijoz ekrani');
+    await waitFor(() => expect(callsTo('GET', '/pos/devices').at(-1)?.query.get('type')).toBe('display'));
   });
 
   it('revokes a device with a reason', async () => {

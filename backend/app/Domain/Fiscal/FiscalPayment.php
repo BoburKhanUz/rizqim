@@ -21,5 +21,7 @@ final readonly class FiscalPayment
         public bool $credit = false,
         public ?string $cardType = null,
         public ?string $transactionId = null,
+        // P6-16: the card's last four digits as the bank terminal's slip shows them (optional; never the full number)
+        public ?string $cardLast4 = null,
     ) {}
 }

@@ -7,39 +7,41 @@ part of 'data39.dart';
 // **************************************************************************
 
 Data39 _$Data39FromJson(Map<String, dynamic> json) => Data39(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  address: json['address'] as String?,
-  regionId: (json['region_id'] as num?)?.toInt(),
-  districtId: (json['district_id'] as num?)?.toInt(),
-  latitude: json['latitude'] as num?,
-  longitude: json['longitude'] as num?,
-  radiusKm: json['radius_km'] as num,
+  plan: json['plan'] == null
+      ? null
+      : Plan.fromJson(json['plan'] as Map<String, dynamic>),
+  legacy: json['legacy'] as bool,
+  period: json['period'] as String?,
   status: json['status'] as String,
-  isActive: json['is_active'] as bool,
-  workingHours: WorkingHours3.fromJson(
-    json['working_hours'] as Map<String, dynamic>,
-  ),
-  isOpenNow: json['is_open_now'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  trialEndsAt: json['trial_ends_at'] as String?,
+  currentPeriod: json['current_period'] == null
+      ? null
+      : CurrentPeriod.fromJson(json['current_period'] as Map<String, dynamic>),
+  termEndsAt: json['term_ends_at'] as String?,
+  lockedSince: json['locked_since'] as String?,
+  lockAt: json['lock_at'] as String?,
+  settingsLocked: json['settings_locked'] as bool,
+  features: Map<String, bool>.from(json['features'] as Map),
+  requiredPlans: Map<String, String?>.from(json['required_plans'] as Map),
+  devices: Devices.fromJson(json['devices'] as Map<String, dynamic>),
+  notice: json['notice'] == null
+      ? null
+      : Notice.fromJson(json['notice'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data39ToJson(Data39 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'phone': instance.phone,
-  'address': instance.address,
-  'region_id': instance.regionId,
-  'district_id': instance.districtId,
-  'latitude': instance.latitude,
-  'longitude': instance.longitude,
-  'radius_km': instance.radiusKm,
+  'plan': instance.plan,
+  'legacy': instance.legacy,
+  'period': instance.period,
   'status': instance.status,
-  'is_active': instance.isActive,
-  'working_hours': instance.workingHours,
-  'is_open_now': instance.isOpenNow,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'trial_ends_at': instance.trialEndsAt,
+  'current_period': instance.currentPeriod,
+  'term_ends_at': instance.termEndsAt,
+  'locked_since': instance.lockedSince,
+  'lock_at': instance.lockAt,
+  'settings_locked': instance.settingsLocked,
+  'features': instance.features,
+  'required_plans': instance.requiredPlans,
+  'devices': instance.devices,
+  'notice': instance.notice,
 };

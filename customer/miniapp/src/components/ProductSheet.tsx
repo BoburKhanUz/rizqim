@@ -207,7 +207,7 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
                 <span className="min-w-0 flex-1">
                   <span className={cx('block text-body font-bold', isSoldOut ? 'text-fg-muted' : 'text-fg')}>{v.name}</span>
                 </span>
-                {isSoldOut && <SoldOutBadge />}
+                {isSoldOut && <SoldOutBadge nextBatch={availability.nextBatch(product.id, v.id)} />}
                 <span className={cx('shrink-0 pl-2 text-body font-bold', isSoldOut ? 'text-fg-muted' : 'text-fg')}>{formatUnitPrice(v)}</span>
               </button>
             );

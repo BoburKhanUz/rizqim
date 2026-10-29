@@ -4,48 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status4.dart';
+import 'data88.dart';
 
 part 'data89.g.dart';
 
 @JsonSerializable()
 class Data89 {
   const Data89({
-    required this.id,
-    required this.amount,
-    required this.card,
-    required this.status,
-    required this.notes,
-    required this.resolutionNotes,
-    required this.processedAt,
-    required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
+    required this.currentPage,
+    required this.data,
+    required this.perPage,
+    required this.total,
+    required this.lastPage,
   });
 
   factory Data89.fromJson(Map<String, Object?> json) => _$Data89FromJson(json);
 
-  final int id;
-  final String amount;
-  final String card;
-  final Status4 status;
-  final String? notes;
-  @JsonKey(name: 'resolution_notes')
-  final String? resolutionNotes;
-  @JsonKey(name: 'processed_at')
-  final String? processedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  final List<Data88> data;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
 
   Map<String, Object?> toJson() => _$Data89ToJson(this);
 }

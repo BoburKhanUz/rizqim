@@ -28,6 +28,10 @@ use DateTimeZone;
  *   `auto_send` (default true): sent by itself when a booking becomes confirmed; `sms` (default false, an SMS costs
  *   money): SMS may be used when the guest has no Telegram; `cancel_policy`: the branch's cancellation rule shown in it
  *   (up to 300 characters, null: none). Merged key by key like `alerts`.
+ * - P6-11 `profile` and `modules` (FORMAT_KEYS): the branch's format profile (FormatProfile, `choyxona` when not
+ *   set) and the owner's module overrides ({module: bool}, only where they differ from the profile). Read with
+ *   format(), written only by PUT /owner/pos/format (withFormat()); the POS settings endpoint neither shows nor takes
+ *   them, and merge() carries them over unchanged. The effective modules: PosModules.
  */
 final class PosSettings
 {
@@ -35,6 +39,9 @@ final class PosSettings
 
     /** Keys written by the API, in the order they are shown. */
     public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes', 'booking_confirmation'];
+
+    /** P6-11: kept by merge(), written by withFormat() only. */
+    public const FORMAT_KEYS = ['profile', 'modules'];
 
     public const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'];
 
@@ -190,7 +197,77 @@ final class PosSettings
             };
         }
 
+        // P6-11: the format profile and module overrides are not this endpoint's: carried over as stored
+        return $settings + self::storedFormat($stored);
+    }
+
+    /**
+     * P6-11: the branch's format profile and the owner's module overrides as stored: an unknown profile reads as the
+     * default (choyxona), unknown modules and non-boolean values are dropped.
+     *
+     * @param  array<string, mixed>|null  $stored
+     * @return array{profile: FormatProfile, modules: array<string, bool>}
+     */
+    public static function format(?array $stored): array
+    {
+        $profile = is_string($stored['profile'] ?? null) ? FormatProfile::tryFrom($stored['profile']) : null;
+
+        $modules = [];
+        foreach (is_array($stored['modules'] ?? null) ? $stored['modules'] : [] as $key => $value) {
+            if (is_string($key) && is_bool($value) && PosModule::tryFrom($key) !== null) {
+                $modules[$key] = $value;
+            }
+        }
+        ksort($modules);
+
+        return ['profile' => $profile ?? FormatProfile::DEFAULT, 'modules' => $modules];
+    }
+
+    /**
+     * P6-11: what to store after a format change: the settings with the profile, its overrides (only those that
+     * differ from the profile's defaults; a module the profile locks off is never stored on) and, when given, the mode.
+     *
+     * @param  array<string, mixed>|null  $stored
+     * @param  array<string, bool>  $modules  the overrides to keep, by module key
+     * @return array<string, mixed>
+     */
+    public static function withFormat(?array $stored, FormatProfile $profile, array $modules, ?string $mode = null): array
+    {
+        $settings = self::merge($stored, $mode !== null ? ['mode' => $mode] : []);
+
+        $defaults = array_map(fn (PosModule $module) => $module->value, $profile->modules());
+        $locked = array_map(fn (PosModule $module) => $module->value, $profile->lockedOff());
+        $overrides = [];
+        foreach ($modules as $key => $on) {
+            if (PosModule::tryFrom($key) === null || ($on && in_array($key, $locked, true))) {
+                continue;
+            }
+            if ($on !== in_array($key, $defaults, true)) {
+                $overrides[$key] = $on;
+            }
+        }
+        ksort($overrides);
+
+        $settings['profile'] = $profile->value;
+        $settings['modules'] = $overrides;
+
         return $settings;
+    }
+
+    /**
+     * The format keys as they are stored (nothing when never set, so a branch without a profile stays without one).
+     *
+     * @param  array<string, mixed>|null  $stored
+     * @return array<string, mixed>
+     */
+    private static function storedFormat(?array $stored): array
+    {
+        if ($stored === null || !array_key_exists('profile', $stored) && !array_key_exists('modules', $stored)) {
+            return [];
+        }
+        $format = self::format($stored);
+
+        return ['profile' => $format['profile']->value, 'modules' => $format['modules']];
     }
 
     /**

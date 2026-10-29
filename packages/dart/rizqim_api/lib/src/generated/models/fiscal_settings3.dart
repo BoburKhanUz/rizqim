@@ -14,6 +14,7 @@ class FiscalSettings3 {
   const FiscalSettings3({
     this.enabled,
     this.driver,
+    this.smartKassaDriver,
     this.charges,
     this.sandbox,
     this.depositRefundReceipt,
@@ -25,6 +26,8 @@ class FiscalSettings3 {
 
   final bool? enabled;
   final String? driver;
+  @JsonKey(name: 'smart_kassa_driver')
+  final String? smartKassaDriver;
   final Charges3? charges;
   final Sandbox3? sandbox;
   @JsonKey(name: 'deposit_refund_receipt')

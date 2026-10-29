@@ -52,7 +52,7 @@ class StaffOrderController extends Controller
 
     private const DETAIL = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int, status_history: list<array{from_status: string|null, status: string, created_at: string|null}>}';
 
-    private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, canceled_at: string|null, waiting_seconds: int}';
+    private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, canceled_at: string|null, waiting_seconds: int, queue_number: int|null, pickup_status: \\App\\Domain\\Pos\\Orders\\PickupStatus|null}';
 
     /** Longest look-back of `canceled_within` (minutes). */
     public const CANCELED_WITHIN_MAX = 60;
@@ -288,6 +288,9 @@ class StaffOrderController extends Controller
      * reached the kitchen (a line sent, or an online order accepted) are listed too, after the live ones, with their
      * `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a
      * display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
+     *
+     * P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
+     * listed (with `include_ready=1` also while `ready`) until the number is handed over.
      */
     #[Group('Kitchen')]
     #[QueryParameter('branch_id', description: 'One branch; omit for every branch the caller works in (a branch terminal: its branch).', type: 'int')]
@@ -317,6 +320,12 @@ class StaffOrderController extends Controller
         // courier_assigned with lines still pending; it stays on the display until they are bumped
         $query = $this->scope->query($user)->where(function ($query) use ($statuses, $includeReady) {
             $query->whereIn('orders.status', $statuses);
+            // P6-13: a counter order paid first is closed (delivered) while the kitchen still cooks its queue number
+            // (a number never handed over drops off after a day)
+            $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::DELIVERED->value)
+                ->whereIn('orders.channel', [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value])
+                ->whereIn('orders.pickup_status', $includeReady ? ['preparing', 'ready'] : ['preparing'])
+                ->where('orders.closed_at', '>=', now()->subDay()));
             if (!$includeReady) {
                 $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::COURIER_ASSIGNED->value)
                     ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')

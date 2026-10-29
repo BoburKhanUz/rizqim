@@ -16,6 +16,7 @@ class Payments7 {
     required this.changeAmount,
     required this.cardType,
     required this.transactionId,
+    required this.cardLast4,
     required this.reference,
     required this.status,
     required this.paidAt,
@@ -35,6 +36,8 @@ class Payments7 {
   final String? cardType;
   @JsonKey(name: 'transaction_id')
   final String? transactionId;
+  @JsonKey(name: 'card_last4')
+  final String? cardLast4;
   final String? reference;
   final String status;
   @JsonKey(name: 'paid_at')

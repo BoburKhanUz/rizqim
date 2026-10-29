@@ -11,7 +11,7 @@ PostV1PosShiftsResponse _$PostV1PosShiftsResponseFromJson(
 ) => PostV1PosShiftsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data173.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data200.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosShiftsResponseToJson(

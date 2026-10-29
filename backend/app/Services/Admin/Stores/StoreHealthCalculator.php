@@ -144,7 +144,7 @@ class StoreHealthCalculator
         $devices = DB::table('devices')
             ->whereIn('store_id', $ids)
             ->whereNull('revoked_at')
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::billable()))
             ->groupBy('store_id')
             ->selectRaw('store_id, count(*) as terminals, count(*) filter (where coalesce(last_seen_at, created_at) < ?) as silent, max(last_seen_at) as last_seen_at', [$silentBefore])
             ->get()->keyBy('store_id');

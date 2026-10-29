@@ -27,7 +27,7 @@ V1PosBookingsUuidRequestBody _$V1PosBookingsUuidRequestBodyFromJson(
   contactPhone: json['contact_phone'] as String?,
   source: json['source'] == null
       ? null
-      : Source.fromJson(json['source'] as String?),
+      : Source2.fromJson(json['source'] as String?),
   minSpend: json['min_spend'] as num?,
   note: json['note'] as String?,
   version: (json['version'] as num?)?.toInt(),

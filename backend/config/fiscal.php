@@ -35,6 +35,9 @@ return [
         'qr_base_url' => env('FISCAL_SANDBOX_QR_URL', 'https://fiscal-sandbox.invalid/check'),
         // Upper bound for stores.fiscal_settings.sandbox.latency_ms
         'max_latency_ms' => 3000,
+        // Review P6 S#4: sandbox smart kassas whose id does not start with the store's STIR, kassa id => STIR (the
+        // platform's table; SandboxFiscalGateway::kassaBelongsTo). Owners cannot add to it.
+        'kassas' => [],
     ],
 
     // Receipt lines for charges that are not menu items (FiscalLineBuilder::forCharge). A store overrides any of them

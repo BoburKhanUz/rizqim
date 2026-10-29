@@ -293,6 +293,7 @@ class CreateOrderAction
                     'total_price' => $lineTotal->toString(),
                     'batch_id' => $batch?->id,
                     'batch_quantity' => $batch ? $line['quantity']->times(MenuAvailability::consumptionOf($variant))->toString() : null,
+                    'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
                     'variant_model' => $variant, // Temporary reference for stock deduction
                 ];
             }
@@ -443,6 +444,7 @@ class CreateOrderAction
                     'total_price' => $data['total_price'],
                     'batch_id' => $data['batch_id'],
                     'batch_quantity' => $data['batch_quantity'],
+                    'set_parts' => $data['set_parts'],
                 ]);
                 
                 // Deduct stock (conditional: never below zero, even if the row changed after it was read)

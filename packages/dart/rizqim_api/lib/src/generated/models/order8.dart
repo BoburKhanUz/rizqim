@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'ticket7.dart';
+
 part 'order8.g.dart';
 
 @JsonSerializable()
@@ -14,6 +16,7 @@ class Order8 {
     required this.paymentStatus,
     required this.version,
     required this.queueNumber,
+    required this.ticket,
     required this.businessDate,
     required this.billLockedAt,
     required this.closedAt,
@@ -36,6 +39,7 @@ class Order8 {
   final int version;
   @JsonKey(name: 'queue_number')
   final int? queueNumber;
+  final Ticket7? ticket;
   @JsonKey(name: 'business_date')
   final String? businessDate;
   @JsonKey(name: 'bill_locked_at')

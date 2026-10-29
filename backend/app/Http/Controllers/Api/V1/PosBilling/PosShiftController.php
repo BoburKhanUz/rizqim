@@ -233,8 +233,11 @@ class PosShiftController extends PosBillingController
      * `shift_has_open_orders`: the ones opened in this shift, or any of the branch when it is the last open shift) or
      * a sale's receipt is pending (409 `shift_has_pending_receipts`), unless `force: true` with a `reason` by someone
      * with orders.cancel (or a manager's `approval_token` for it): open orders then wait for the next shift. The Z
-     * report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs
-     * pos.close_shift.
+     * report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. P6-16: an
+     * optional `bank_terminal` {`total` — the bank terminal's day total from its settlement slip, `count`,
+     * `terminal_ref`, `note`} is compared with the shift's card money after the Z is written (`bank_terminal` of the
+     * answer; a difference above the branch's threshold alerts the owner); it never keeps the shift from closing and is
+     * ignored while the branch's format has no terminal_card_flow. Needs pos.close_shift.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . ShiftPresenter::DETAIL . '}')]
     public function close(Request $request, ShiftService $shifts, ShiftPresenter $presenter, string $uuid): JsonResponse
@@ -247,8 +250,20 @@ class PosShiftController extends PosBillingController
             'force' => 'nullable|boolean',
             'reason' => 'nullable|string|max:500',
             'approval_token' => 'nullable|string|max:100',
+            // P6-16: the bank terminal's day total from its settlement slip (optional; compared with the shift's card money)
+            'bank_terminal' => 'nullable|array',
+            'bank_terminal.total' => ['required_with:bank_terminal', 'numeric', 'min:-9999999999', 'max:9999999999', 'regex:/^-?\d+(\.\d{1,2})?$/'],
+            'bank_terminal.count' => 'nullable|integer|min:0|max:100000',
+            'bank_terminal.terminal_ref' => 'nullable|string|max:64',
+            'bank_terminal.note' => 'nullable|string|max:500',
         ]);
         $shift = $this->shift($user, $uuid);
+        $bank = isset($data['bank_terminal']['total']) ? [
+            'total' => (string) $data['bank_terminal']['total'],
+            'count' => isset($data['bank_terminal']['count']) ? (int) $data['bank_terminal']['count'] : null,
+            'terminal_ref' => isset($data['bank_terminal']['terminal_ref']) ? (string) $data['bank_terminal']['terminal_ref'] : null,
+            'note' => isset($data['bank_terminal']['note']) ? (string) $data['bank_terminal']['note'] : null,
+        ] : null;
 
         $shift = $shifts->close(
             $user,
@@ -259,6 +274,7 @@ class PosShiftController extends PosBillingController
             $data['approval_token'] ?? null,
             $this->terminal($user),
             $this->applied($request),
+            $bank,
         );
 
         return $this->success($presenter->shift($shift, true), 'Smena yopildi.');

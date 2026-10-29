@@ -255,6 +255,9 @@ function ReceiptDialog({ uuid, canRetry, onClose }: { uuid: string; canRetry: bo
                   <span className="font-bold">{formatMoney(payment.amount, language)}</span>
                   {payment.prepayment && <Pill tone="info">{t('fiscal_rc_prepayment')}</Pill>}
                   {payment.credit && <Pill tone="warning">{t('fiscal_rc_credit')}</Pill>}
+                  {/* P6-16: the bank terminal's transaction (RRN) number and the card's last four digits */}
+                  {payment.transaction_id && <span className="font-mono text-footnote text-fg-muted">RRN {payment.transaction_id}</span>}
+                  {payment.card_last4 && <span className="font-mono text-footnote text-fg-muted">•••• {payment.card_last4}</span>}
                 </li>
               ))}
             </ul>

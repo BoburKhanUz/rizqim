@@ -39,7 +39,9 @@ use Illuminate\Support\Facades\DB;
  *    `summary`, numbered per branch (`z_number`) and sent to the owner. A shift with open orders or sales whose
  *    receipt is still pending does not close, unless a manager forces it with a reason (open orders then wait for the
  *    next shift). P3-31: nor while the till's offline queue still holds operations (as the till last reported it) or
- *    while operations it synced were rejected and nobody resolved them ("Sinxronlash xatolari").
+ *    while operations it synced were rejected and nobody resolved them ("Sinxronlash xatolari"). P6-16: the bank
+ *    terminal's day total given with the close is compared with the shift's card money (BankTerminalReconciler),
+ *    after the Z is written: it never keeps a shift from closing.
  */
 final class ShiftService
 {
@@ -190,7 +192,7 @@ final class ShiftService
         }
 
         $movement = DB::transaction(function () use ($user, $shift, $type, $category, $amount, $note, $employee, $approvalToken, $device, $applied) {
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
             }
@@ -283,6 +285,7 @@ final class ShiftService
      * Closes the shift (Z).
      *
      * @param  array<string|int, int>  $breakdown  banknote => count
+     * @param  array{total: string, count?: int|null, terminal_ref?: string|null, note?: string|null}|null  $bankTerminal  P6-16: the bank terminal's day total
      *
      * @throws PosActionException
      */
@@ -295,6 +298,7 @@ final class ShiftService
         ?string $approvalToken,
         ?Device $device,
         ?Closure $applied = null,
+        ?array $bankTerminal = null,
     ): PosShift {
         $counted = Money::zero();
         $normalized = [];
@@ -349,7 +353,7 @@ final class ShiftService
         }
 
         $shift = DB::transaction(function () use ($user, $shift, $normalized, $counted, $force, $reason, $approvalToken, $device, $openOrders, $pending, $applied) {
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena allaqachon yopilgan.');
             }
@@ -406,9 +410,41 @@ final class ShiftService
         });
 
         event(new ShiftChangedBroadcast($shift, 'closed'));
+        $this->bankTerminal($shift, $bankTerminal, $user, $device);
         $this->summary->send($shift, (array) $shift->summary);
 
         return $shift;
+    }
+
+    /**
+     * P6-16 (D5 d): after the Z, the bank terminal's day total given with the close is recorded, or one entered
+     * earlier in the shift is compared again with the whole shift. Only while the branch has terminal_card_flow; a
+     * problem here is reported and never undoes the close.
+     *
+     * @param  array{total: string, count?: int|null, terminal_ref?: string|null, note?: string|null}|null  $input
+     */
+    private function bankTerminal(PosShift $shift, ?array $input, User $user, ?Device $device): void
+    {
+        try {
+            $branch = Branch::find($shift->branch_id);
+            if ($branch === null || !app(\App\Domain\Pos\Setup\PosModules::class)->enabled($branch, \App\Domain\Pos\Setup\PosModule::TERMINAL_CARD_FLOW)) {
+                return;
+            }
+            $reconciler = app(\App\Domain\Pos\TerminalFlow\BankTerminalReconciler::class);
+            if ($input !== null) {
+                $reconciler->record($shift, [
+                    'source' => 'manual',
+                    'bank_total' => $input['total'],
+                    'bank_count' => $input['count'] ?? null,
+                    'terminal_ref' => $input['terminal_ref'] ?? null,
+                    'note' => $input['note'] ?? null,
+                ], $user, $device);
+            } else {
+                $reconciler->refresh($shift);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

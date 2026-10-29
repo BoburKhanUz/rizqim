@@ -4,69 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
-import 'status5.dart';
-import 'payment_form.dart';
-import 'lines14.dart';
-import 'payments27.dart';
+import 'lines9.dart';
+import 'room_fee4.dart';
+import 'channels3.dart';
 
 part 'data149.g.dart';
 
 @JsonSerializable()
 class Data149 {
   const Data149({
-    required this.uuid,
-    required this.type,
-    required this.status,
-    required this.paymentForm,
-    required this.nonFiscal,
-    required this.total,
-    required this.vatTotal,
-    required this.fiscalSign,
-    required this.receiptNumber,
-    required this.qrUrl,
-    required this.terminalId,
-    required this.error,
-    required this.issuedAt,
-    required this.createdAt,
-    required this.branchId,
-    required this.originalReceiptUuid,
+    required this.text,
     required this.lines,
-    required this.payments,
+    required this.roomFee,
+    required this.channels,
   });
 
   factory Data149.fromJson(Map<String, Object?> json) =>
       _$Data149FromJson(json);
 
-  final String uuid;
-  final Type6 type;
-  final Status5 status;
-  @JsonKey(name: 'payment_form')
-  final PaymentForm paymentForm;
-  @JsonKey(name: 'non_fiscal')
-  final bool nonFiscal;
-  final String total;
-  @JsonKey(name: 'vat_total')
-  final String vatTotal;
-  @JsonKey(name: 'fiscal_sign')
-  final String? fiscalSign;
-  @JsonKey(name: 'receipt_number')
-  final String? receiptNumber;
-  @JsonKey(name: 'qr_url')
-  final String? qrUrl;
-  @JsonKey(name: 'terminal_id')
-  final String? terminalId;
-  final String? error;
-  @JsonKey(name: 'issued_at')
-  final String? issuedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'original_receipt_uuid')
-  final String? originalReceiptUuid;
-  final List<Lines14> lines;
-  final List<Payments27> payments;
+  final String text;
+  final List<Lines9> lines;
+  @JsonKey(name: 'room_fee')
+  final RoomFee4? roomFee;
+  final Channels3 channels;
 
   Map<String, Object?> toJson() => _$Data149ToJson(this);
 }

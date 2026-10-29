@@ -1,6 +1,7 @@
 import {
   Armchair,
   BadgeCheck,
+  CalendarCheck,
   CalendarDays,
   ChartColumn,
   CookingPot,
@@ -12,6 +13,7 @@ import {
   PackageX,
   Printer,
   ReceiptText,
+  Scale,
   Settings,
   ShieldCheck,
   Store,
@@ -29,6 +31,8 @@ import type { MessageKey } from '@/i18n';
 //   dashboard  today's board summary (orders.view) and the analytics (reports.view)
 //   stoplist   the stop-list of a branch (stoplist.manage)
 //   batches    the batches (kazan) of a branch, /stoplist/batches (batches.manage: cooks have it without the stop-list)
+//   dailymenu  "Bugungi menyu" and kompleks (menu.manage, or stoplist.manage for the manager who runs the day; P6-15)
+//   yield      the yield report and the write-offs (reports.view; P6-15)
 //   branches   edit a branch (branches.manage, a branch-bound manager their own) or create/delete (settings.manage)
 //   zones      draw delivery zones (zones.manage, owner only)
 //   floor      halls, places, the floor map, room tariffs, per-guest items (tables.manage; tariffs and guest items inside need
@@ -50,6 +54,8 @@ export type NavKey =
   | 'menu'
   | 'stoplist'
   | 'batches'
+  | 'dailymenu'
+  | 'yield'
   | 'shifts'
   | 'accounts'
   | 'staff'
@@ -80,6 +86,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'menu', href: '/menu', label: 'nav_menu', anyOf: ['menu.view', 'menu.manage'], icon: UtensilsCrossed },
   { key: 'stoplist', href: '/stoplist', label: 'nav_stoplist', anyOf: ['stoplist.manage'], icon: PackageX },
   { key: 'batches', href: '/stoplist/batches', label: 'nav_batches', anyOf: ['batches.manage'], icon: CookingPot },
+  { key: 'dailymenu', href: '/daily-menu', label: 'nav_dailymenu', anyOf: ['menu.manage', 'stoplist.manage'], icon: CalendarCheck },
+  { key: 'yield', href: '/yield', label: 'nav_yield', anyOf: ['reports.view'], icon: Scale },
   { key: 'shifts', href: '/shifts', label: 'nav_shifts', anyOf: ['pos.close_shift', 'reports.view'], icon: Timer },
   { key: 'accounts', href: '/accounts', label: 'nav_accounts', anyOf: ['customer_accounts.manage'], icon: HandCoins },
   { key: 'staff', href: '/staff', label: 'nav_staff', anyOf: ['staff.view'], icon: Users },

@@ -47,6 +47,7 @@ final class FiscalSnapshot
             'credit' => $payment->credit,
             'card_type' => $payment->cardType,
             'transaction_id' => $payment->transactionId,
+            'card_last4' => $payment->cardLast4,
         ], $payments);
     }
 
@@ -83,6 +84,8 @@ final class FiscalSnapshot
             credit: (bool) ($row['credit'] ?? false),
             cardType: isset($row['card_type']) ? (string) $row['card_type'] : null,
             transactionId: isset($row['transaction_id']) ? (string) $row['transaction_id'] : null,
+            // P6-16: receipts stored before it existed have none
+            cardLast4: isset($row['card_last4']) ? (string) $row['card_last4'] : null,
         );
     }
 

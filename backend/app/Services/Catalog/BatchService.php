@@ -2,9 +2,14 @@
 
 namespace App\Services\Catalog;
 
+use App\Domain\Pos\Menu\BatchPlans;
+use App\Domain\Pos\Menu\WriteOffReason;
+use App\Domain\Pos\Shifts\BusinessDay;
 use App\Events\Broadcast\MenuAvailabilityChangedBroadcast;
 use App\Models\Branch;
 use App\Models\MenuBatch;
+use App\Models\MenuBatchWriteOff;
+use App\Models\PosShift;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
@@ -66,6 +71,9 @@ class BatchService
                     'quantity' => $produced->toNumber(),
                     'label' => $batch->label,
                 ], ['actor' => $actor, 'store_id' => (int) $branch->store_id, 'branch_id' => (int) $branch->id]);
+
+                // P6-15: the plan "keyingi partiya HH:MM" this batch keeps is done
+                app(BatchPlans::class)->started($batch);
 
                 $this->announce($batch, true);
 
@@ -155,6 +163,85 @@ class BatchService
             $this->announce($batch, !$tracked);
 
             return $batch;
+        });
+    }
+
+    /**
+     * P6-15: takes unsold portions off an open batch with a reason ("hisobdan chiqarish"): quantity_left goes down (never
+     * below zero, under the batch's row lock, so a sale and a write-off cannot both take the last portion), the amount
+     * is kept as its own record (and as the batch's running `written_off_quantity`) for the Z report and the yield report.
+     * `$close` also closes the batch (the end-of-day "write off the rest and close"). The unit is the batch's own.
+     */
+    public function writeOff(MenuBatch $batch, Quantity $quantity, WriteOffReason $reason, ?string $note, ?PosShift $shift, ?User $actor, bool $close = false, ?int $approvedBy = null): MenuBatchWriteOff
+    {
+        if (!$quantity->isPositive()) {
+            throw ValidationException::withMessages(['quantity' => "Miqdor noldan katta bo'lishi kerak."]);
+        }
+        $note = $note !== null && trim($note) !== '' ? mb_substr(trim($note), 0, 255) : null;
+        if ($reason === WriteOffReason::OTHER && $note === null) {
+            throw ValidationException::withMessages(['note' => '"Boshqa sabab" tanlansa, izoh yozing.']);
+        }
+
+        return DB::transaction(function () use ($batch, $quantity, $reason, $note, $shift, $actor, $close, $approvedBy) {
+            /** @var MenuBatch $batch */
+            $batch = MenuBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
+            if ($batch->closed_at !== null) {
+                throw ValidationException::withMessages(['batch' => "Yopilgan partiyadan hisobdan chiqarib bo'lmaydi."]);
+            }
+
+            $wasLeft = $batch->left();
+            if ($quantity->isGreaterThan($wasLeft)) {
+                throw ValidationException::withMessages(['quantity' => "Partiyada faqat {$wasLeft->format()} qolgan: undan ko'p chiqarib bo'lmaydi."]);
+            }
+            $left = $wasLeft->minus($quantity);
+
+            $branch = Branch::query()->with('store')->findOrFail($batch->branch_id);
+            $variant = $batch->product_variant_id !== null
+                ? ProductVariant::withTrashed()->find($batch->product_variant_id)
+                : ProductVariant::query()->where('product_id', $batch->product_id)->orderBy('id')->first();
+
+            $batch->forceFill([
+                'quantity_left' => $left->toString(),
+                'written_off_quantity' => Quantity::of($batch->written_off_quantity ?? 0)->plus($quantity)->toString(),
+                'sold_out_at' => $left->isZero() ? ($batch->sold_out_at ?? now()) : null,
+            ])->save();
+
+            $writeOff = MenuBatchWriteOff::create([
+                'store_id' => $batch->store_id,
+                'branch_id' => $batch->branch_id,
+                'menu_batch_id' => $batch->id,
+                'product_id' => $batch->product_id,
+                'product_variant_id' => $batch->product_variant_id,
+                'quantity' => $quantity->toString(),
+                'unit' => $variant?->unit->value ?? 'piece',
+                'reason' => $reason->value,
+                'note' => $note,
+                'business_date' => BusinessDay::of($branch),
+                'shift_id' => $shift?->id,
+                'written_off_by' => $actor?->id,
+            ]);
+
+            $this->audit->record('menu.batch_written_off', $batch, [
+                'quantity_left' => $wasLeft->toNumber(),
+            ], [
+                'quantity_left' => $left->toNumber(),
+            ], array_filter([
+                'quantity' => $quantity->toNumber(),
+                'reason' => $reason->value,
+                'note' => $note,
+                'shift_id' => $shift?->id,
+                'closed' => $close ?: null,
+                // P6-19: the manager who approved a cashier's write-off with their PIN on the terminal
+                'approved_by' => $approvedBy,
+            ]), ['actor' => $actor, 'store_id' => (int) $batch->store_id, 'branch_id' => (int) $batch->branch_id]);
+
+            if ($close) {
+                $this->close($batch, $actor);
+            } else {
+                $this->announce($batch, $left->isPositive());
+            }
+
+            return $writeOff;
         });
     }
 

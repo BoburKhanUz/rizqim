@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data184.dart';
+import 'data212.dart';
 import 'meta3.dart';
 
 part 'get_v1_staff_kitchen_tickets_response.g.dart';
@@ -24,7 +24,7 @@ class GetV1StaffKitchenTicketsResponse {
 
   final bool success;
   final String message;
-  final List<Data184> data;
+  final List<Data212> data;
   final Meta3 meta;
 
   Map<String, Object?> toJson() =>

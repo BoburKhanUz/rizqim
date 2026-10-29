@@ -8,11 +8,13 @@ import { useCan } from '../management/access';
 import { FiscalSettingsPanel } from './FiscalSettingsPanel';
 import { ReadinessPanel } from './ReadinessPanel';
 import { ReceiptsPanel } from './ReceiptsPanel';
+import { TerminalFlowPanel } from './TerminalFlowPanel';
 
-type Tab = 'readiness' | 'settings' | 'receipts';
+type Tab = 'readiness' | 'settings' | 'receipts' | 'terminal';
 
 // /fiscal: the MXIK readiness of the menu (menu.view or settings.manage), the store's fiscal settings (settings.manage) and the
-// fiscal receipts (finance.view or reports.view). A tab shows only to those who may read what is behind it.
+// fiscal receipts (finance.view or reports.view), and P6-16's card flow (the setup: settings.manage; the bank terminal reports:
+// finance.view or reports.view). A tab shows only to those who may read what is behind it.
 export function FiscalView() {
   const { t } = useI18n();
   const access = useCan();
@@ -22,6 +24,8 @@ export function FiscalView() {
   if (access.can('menu.view') || access.can('settings.manage')) available.push('readiness');
   if (access.can('settings.manage')) available.push('settings');
   if (access.can('finance.view') || access.can('reports.view')) available.push('receipts');
+  const readsBankReports = access.can('finance.view') || access.can('reports.view');
+  if (access.can('settings.manage') || readsBankReports) available.push('terminal');
   const tab = chosen && available.includes(chosen) ? chosen : available[0];
 
   return (
@@ -31,11 +35,13 @@ export function FiscalView() {
         <EmptyState icon={ReceiptText} title={t('mgmt_forbidden')} text={t('fiscal_noTabs')} />
       ) : (
         <>
-          <Tabs idPrefix="fiscal" label={t('fiscal_tabs')} value={tab} onChange={setChosen} tabs={available.map((id) => ({ id, label: t(`fiscal_tab_${id}`) }))} />
+          <Tabs idPrefix="fiscal" label={t('fiscal_tabs')} value={tab} onChange={setChosen} tabs={available.map((id) => ({ id, label: id === 'terminal' ? t('fterm_tab') : t(`fiscal_tab_${id}`) }))} />
           <div role="tabpanel" id={`fiscal-panel-${tab}`} aria-labelledby={`fiscal-tab-${tab}`}>
             {tab === 'readiness' && <ReadinessPanel canEditMenu={access.can('menu.manage')} canOpenSettings={access.can('settings.manage')} onOpenSettings={() => setChosen('settings')} />}
             {tab === 'settings' && <FiscalSettingsPanel />}
             {tab === 'receipts' && <ReceiptsPanel canRetry={access.can('settings.manage')} />}
+            {/* Review P6 S#5: the panel enters bank totals of closed shifts, which only finance.manage may correct */}
+            {tab === 'terminal' && <TerminalFlowPanel canSetup={access.can('settings.manage')} canReadReports={readsBankReports} canEnter={access.can('finance.manage')} />}
           </div>
         </>
       )}

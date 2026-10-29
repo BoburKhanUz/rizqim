@@ -352,6 +352,7 @@ class PosOffline {
     List<PosLineInput> items = const <PosLineInput>[],
     bool send = false,
     String? idempotencyKey,
+    int? queueNumber,
   }) async {
     _guard('orders.manage');
     if (status.newOrdersBlocked) {
@@ -382,6 +383,8 @@ class PosOffline {
     await store.enqueue(SyncOpType.orderOpen, <String, Object?>{
       'order': uuid,
       'local_number': local,
+      // P6-13: the talon's number from this till's block (the server keeps it or answers queue_number_taken)
+      'queue_number': ?queueNumber,
       'channel': channel.wire,
       'table_id': ?tableId,
       'guests_count': guests,

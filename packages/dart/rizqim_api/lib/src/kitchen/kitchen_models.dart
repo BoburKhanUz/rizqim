@@ -214,6 +214,8 @@ class KitchenTicket {
     this.preparingAt,
     this.readyAt,
     this.canceledAt,
+    this.queueNumber,
+    this.pickupStatus,
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -238,6 +240,8 @@ class KitchenTicket {
     preparingAt: _date(json['preparing_at']),
     readyAt: _date(json['ready_at']),
     canceledAt: _date(json['canceled_at']),
+    queueNumber: (json['queue_number'] as num?)?.toInt(),
+    pickupStatus: json['pickup_status'] as String?,
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
     receivedAt: receivedAt,
   );
@@ -267,6 +271,11 @@ class KitchenTicket {
   final DateTime? preparingAt;
   final DateTime? readyAt;
 
+  /// P6-14: tezkor kassa navbat raqami (`queue_number`) va uning holati (`pickup_status`: `preparing`, `ready`,
+  /// `handed`). Raqamsiz buyurtmada `null`.
+  final int? queueNumber;
+  final String? pickupStatus;
+
   /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
   final DateTime? canceledAt;
 
@@ -293,8 +302,19 @@ class KitchenTicket {
 
   bool get allLinesReady => activeCount > 0 && readyCount == activeCount;
 
-  /// Oshxonada hali pishirilayotgan (server `accepted` yoki `preparing` deb yuborgan) chipta.
-  bool get isCooking => status == 'accepted' || status == 'preparing';
+  /// Oshxonada hali pishirilayotgan (server `accepted` yoki `preparing` deb yuborgan) chipta. P6-14: avval to'langan
+  /// kassa buyurtmasi yopilgan (`delivered`), lekin raqami hali `preparing` — u ham pishirilayotgan chipta.
+  bool get isCooking =>
+      status == 'accepted' || status == 'preparing' || isClosedPickupCooking;
+
+  /// Avval to'langan kassa buyurtmasi: schyot yopilgan (`delivered`), raqami hali oshxonada (`preparing`).
+  bool get isClosedPickupCooking =>
+      status == 'delivered' && pickupStatus == 'preparing';
+
+  /// Navbat raqami bor va u oshxonada yoki tayyor: KDS raqamni katta ko'rsatadi va "Raqam tayyor" tugmasi bor.
+  bool get isQueueOrder =>
+      queueNumber != null &&
+      (pickupStatus == 'preparing' || pickupStatus == 'ready');
 
   /// [now] paytidagi kutish vaqti. Tayyor bo'lgan buyurtmada server vaqti to'xtagan.
   Duration waitingAt(DateTime now) {
@@ -304,27 +324,33 @@ class KitchenTicket {
     return since.isNegative ? server : server + since;
   }
 
-  KitchenTicket copyWith({List<KitchenLine>? lines, String? status}) =>
-      KitchenTicket(
-        uuid: uuid,
-        shortCode: shortCode,
-        status: status ?? this.status,
-        type: type,
-        channel: channel,
-        branchId: branchId,
-        hallRef: hallRef,
-        tableRef: tableRef,
-        guestsCount: guestsCount,
-        notes: notes,
-        lines: lines ?? this.lines,
-        createdAt: createdAt,
-        acceptedAt: acceptedAt,
-        preparingAt: preparingAt,
-        readyAt: readyAt,
-        canceledAt: canceledAt,
-        waitingSeconds: waitingSeconds,
-        receivedAt: receivedAt,
-      );
+  KitchenTicket copyWith({
+    List<KitchenLine>? lines,
+    String? status,
+    int? queueNumber,
+    String? pickupStatus,
+  }) => KitchenTicket(
+    uuid: uuid,
+    shortCode: shortCode,
+    status: status ?? this.status,
+    type: type,
+    channel: channel,
+    branchId: branchId,
+    hallRef: hallRef,
+    tableRef: tableRef,
+    guestsCount: guestsCount,
+    notes: notes,
+    lines: lines ?? this.lines,
+    createdAt: createdAt,
+    acceptedAt: acceptedAt,
+    preparingAt: preparingAt,
+    readyAt: readyAt,
+    canceledAt: canceledAt,
+    queueNumber: queueNumber ?? this.queueNumber,
+    pickupStatus: pickupStatus ?? this.pickupStatus,
+    waitingSeconds: waitingSeconds,
+    receivedAt: receivedAt,
+  );
 }
 
 /// `GET /staff/kitchen/tickets` natijasi: eskisidan yangisiga, ko'pi bilan 200 ta.

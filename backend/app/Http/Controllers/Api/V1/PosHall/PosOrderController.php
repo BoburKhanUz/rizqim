@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\PosHall;
 
 use App\Domain\Pos\Billing\BillStatus;
+use App\Domain\Pos\Orders\PickupQueue;
 use App\Domain\Pos\Orders\PosCharge;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOnlineOrders;
@@ -52,9 +53,9 @@ class PosOrderController extends PosHallController
 
     public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
 
-    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
+    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, queue: ' . PickupQueue::QUEUE . '|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, rounds: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, queue: ' . PickupQueue::QUEUE . '|null, rounds: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -79,6 +80,10 @@ class PosOrderController extends PosHallController
      * lines. `items` (optional) is the first round; `send: true` sends its `now` lines to the kitchen at once.
      * `external_id`: the device's own id for the order; a repeat returns the same order. A room with an open order is
      * 422 `table_occupied`; a closed zone or inactive place 422 `table_inactive`. Needs orders.manage.
+     *
+     * P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block
+     * (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise
+     * the order gets the next number; the answer's `queue.number` is the one to print.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -96,6 +101,8 @@ class PosOrderController extends PosHallController
             'external_id' => 'nullable|string|max:100',
             'note' => 'nullable|string|max:500',
             'send' => 'nullable|boolean',
+            // P6-13: the number the till took from its block (it prints the talon from it)
+            'queue_number' => 'nullable|integer|min:1|max:999999',
             'items' => 'nullable|array|max:100',
             'items.*.variant_id' => 'required|uuid',
             'items.*.quantity' => 'required|numeric|gt:0|max:9999',
@@ -129,6 +136,7 @@ class PosOrderController extends PosHallController
             'external_id' => $data['external_id'] ?? null,
             'send' => (bool) ($data['send'] ?? false),
             'note' => $data['note'] ?? null,
+            'queue_number' => isset($data['queue_number']) ? (int) $data['queue_number'] : null,
         ]), 'Buyurtma ochildi.', 201);
     }
 
@@ -581,6 +589,8 @@ class PosOrderController extends PosHallController
             'fiscal_pending' => (int) $order->getAttribute('fiscal_pending') > 0,
             'booking_id' => $order->getAttribute('booking_id') !== null ? (int) $order->getAttribute('booking_id') : null,
             'business_date' => $order->business_date?->toDateString(),
+            // P6-13: the queue number and its pickup state (an online pickup order's too)
+            'queue' => PickupQueue::present($order),
             'opened_at' => $order->created_at?->toJSON(),
             'closed_at' => $order->closed_at?->toJSON(),
             'updated_at' => $order->updated_at?->toJSON(),

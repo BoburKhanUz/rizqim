@@ -353,7 +353,7 @@ export default function StoreDetail() {
                                 {measuredVariant && <span className="text-footnote font-medium text-fg-muted"> / {unitLabel(measuredVariant.unit)}</span>}
                               </span>
                               {isSoldOut ? (
-                                <SoldOutBadge className="ml-auto" />
+                                <SoldOutBadge className="ml-auto" nextBatch={availability.nextBatch(product.id)} />
                               ) : (
                                 store.is_open &&
                                 (needsSheet ? (

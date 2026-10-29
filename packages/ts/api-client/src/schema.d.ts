@@ -4665,6 +4665,101 @@ export interface paths {
         patch: operations["autoGuestItem.update"];
         trace?: never;
     };
+    "/v1/owner/batch-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A branch's planned batches
+         * @description P6-15, module `batches`: the "keyingi partiya HH:MM" plans still `planned` (a plan whose time has passed is
+         *     `overdue` and no longer shown to guests), earliest first, and `modules` (`batches`, `batch_writeoff`: which of the
+         *     batch features the branch's format has, so a screen shows the write-off button only where it works). Branch-bound
+         *     staff always get their own branch.
+         */
+        get: operations["batchPlan.index"];
+        put?: never;
+        /**
+         * Plan the next batch
+         * @description `time` is "HH:MM" today in the store's time zone (it must not have passed), or `planned_at` an ISO moment (at most
+         *     36 hours ahead). `product_variant_id` null: the plan serves every variant. Where the dish is "tugadi", the till and
+         *     the Mini App then show "keyingi partiya 12:30". Opening a batch of that dish finishes the plan.
+         */
+        post: operations["batchPlan.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batch-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel a planned batch
+         * @description The time is no longer shown to guests. A plan already started (its batch opened) stays as it is.
+         */
+        delete: operations["batchPlan.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batch-writeoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Written-off portions
+         * @description P6-15, module `batch_writeoff`: the branch's write-offs (newest first) between two business days (`from`, `to`,
+         *     YYYY-MM-DD; default today), with who wrote off, why and on which shift. `reasons` is the list of reasons with
+         *     their Uzbek labels for a picker. Needs batches.manage or reports.view.
+         */
+        get: operations["batchWriteOff.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/batch-yield": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Yield report (hosil hisoboti)
+         * @description P6-15, module `batches`: for the batches started between two business days (`from`, `to`, YYYY-MM-DD; default
+         *     today; at most 93 days) what was cooked (`produced`), sold, written off, what is left and the unexplained
+         *     `variance`, per batch (`batches`) and per day and dish (`days`); `write_offs` adds the written-off portions by
+         *     reason and `in_sets` the portions of dishes sold inside a kompleks. Quantities are numbers in the batch's unit
+         *     (portions, kg); percents are strings. Needs reports.view or batches.manage.
+         */
+        get: operations["batchYield.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/batches": {
         parameters: {
             query?: never;
@@ -4733,6 +4828,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/batches/{id}/write-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write off unsold portions
+         * @description P6-15, module `batch_writeoff`: takes `quantity` off what the batch still holds, with a `reason` (unsold, spoiled,
+         *     staff_meal, dropped, expired, other; `other` needs a `note`). More than what is left: 422. `close` also closes
+         *     the batch (the end-of-day "write off the rest"). Done from a terminal, it belongs to that terminal's open shift
+         *     and is listed on its Z report; from the panel it appears in the reports only. Send an Idempotency-Key so a retry
+         *     does not write the same portions off twice. Audited (`menu.batch_written_off`, with `approved_by` when a manager
+         *     approved it). Needs batches.manage; P6-19: on a terminal (staff PIN session) a cashier without it sends a manager's
+         *     `approval_token` for batches.manage (`POST /pos/approvals`; one use, 60 seconds, this terminal only), else 403
+         *     `approval_required` (`data.permission`). A refused write-off (422) does not use the token up.
+         */
+        post: operations["batch.writeOff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/billing/entitlements": {
         parameters: {
             query?: never;
@@ -4747,7 +4869,7 @@ export interface paths {
          *     `trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks
          *     it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
          *     with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
-         *     as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
+         *     as a decimal string, can_add; waiter phones and customer displays unlimited and free), `notice` (the overdue invoice reminder or the lock
          *     message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
          *     their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
          *     member of the store and the terminals read it.
@@ -4804,6 +4926,32 @@ export interface paths {
          *     equal times or none = round the clock, closing before opening = overnight (e.g. 18:00–02:00).
          */
         post: operations["branch.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/branches/{branch}/terminal-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a branch's card flow
+         * @description Send only what changes: `card_mode` terminal_only | smart_kassa | none (null: not chosen), `checklist`
+         *     {old_kassa_unused, bank_terminal_mode, scanner_2d: bool} (ticking records who and when, unticking clears it),
+         *     `difference_threshold` (so'm, 0–100000000: a bank terminal total further than this from the Z's card total
+         *     alerts the owner; 0: any difference), `ask_bank_total` (the till asks for the bank terminal's day total at the
+         *     Z), `shared_terminal` (the branch's tills share one bank terminal, or a till runs several shifts a day, settled
+         *     once per business day: one bank report covers every shift of that day — enter the day's total at the last Z).
+         *     Audited. settings.manage; 403 `module_disabled` without the terminal_card_flow module.
+         */
+        put: operations["terminalFlow.update"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4897,6 +5045,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/daily-menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A branch's menu for a day
+         * @description P6-15, module `daily_menu`: the dishes on the branch's menu for `date` (YYYY-MM-DD, default today's business
+         *     day), `set` false when none was made for that day (then every dish is on sale), and every active dish of the store
+         *     with `daily_rotation` (on THIS branch it is on sale only while on the day's menu) and `on_menu`. `previous_date` is the latest
+         *     earlier day with a menu, for "kechagisini nusxalash". menu.view or menu.manage.
+         */
+        get: operations["dailyMenu.show"];
+        /**
+         * Set a branch's menu for a day
+         * @description P6-15, module `daily_menu`: exactly these dishes (`product_ids`, in the order given; an empty list is a menu with
+         *     nothing on it). Every dish on a menu becomes a rotating one. `date` is today's business day up to 30 days ahead.
+         *     menu.manage, or stoplist.manage for the manager who runs the day. Audited (`menu.daily_menu_saved`); the menus are told when it is today's.
+         */
+        put: operations["dailyMenu.save"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/daily-menu/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a day's menu
+         * @description P6-15, module `daily_menu`: the dishes of `from_date` (default: the latest earlier day with a menu) become the
+         *     menu of `date` (default today); a menu already there is replaced. Dishes deleted or switched off since are left
+         *     out. 422 when there is nothing to copy.
+         */
+        post: operations["dailyMenu.copy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/daily-menu/rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Which dishes rotate on a branch
+         * @description P6-15, module `daily_menu`, per branch like the menu: exactly these dishes (`product_ids`) are sold on the branch
+         *     only while on the day's menu; the others are on sale every day (bread, tea). Dishes put on a menu become rotating
+         *     on that branch by themselves; this is how an owner makes one permanent again. Other branches are never touched.
+         *     menu.manage (any branch), or stoplist.manage for the manager of that branch only. Audited (`menu.daily_rotation_saved`).
+         */
+        put: operations["dailyMenu.rotation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/delivery-zones": {
         parameters: {
             query?: never;
@@ -4977,9 +5199,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal
+         * POST /owner/devices/pairing-codes {type: pos|kds|display, branch_id?, name?, till_uuid?}: a one-time code for a terminal
          * @description `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL
-         *     minutes and works once.
+         *     minutes and works once. P6-14: a `display` (customer display / "ready numbers" board) is free (never counts toward
+         *     the plan's devices), needs a branch (`branch_id`) with the `customer_display` or `queue_calling` module, and may
+         *     follow one till (`till_uuid`: a POS terminal of that branch; without it the display shows the branch's latest cart).
          */
         post: operations["storeDevice.createPairingCode"];
         delete?: never;
@@ -5035,7 +5259,8 @@ export interface paths {
         put?: never;
         /**
          * Add a table, room or tapchan
-         * @description In a hall (its branch is the hall's). `kind`: table, room or tapchan. `min_spend` (optional): the least the party
+         * @description In a hall (its branch is the hall's). `kind`: table, room or tapchan (P6-11: a room or tapchan needs the branch's
+         *     `rooms` module, 403 module_disabled). `min_spend` (optional): the least the party
          *     spends on food, per room (`per_table`) or per guest (`per_person`); the difference is a separate bill line.
          */
         post: operations["diningTable.store"];
@@ -5248,6 +5473,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/fiscal/bank-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bank terminal reports
+         * @description The bank terminal day totals entered at the Z (or after it), newest business day first: the branches the caller
+         *     sees (`branch_id` narrows to one), a business day range (`from`, `to`, YYYY-MM-DD), `over_threshold=1` for the
+         *     mismatches only (an alerted report stays one after a correction); at most `limit` (50, up to 200). A shared
+         *     terminal's report covers several shifts (`shared`, `shifts`; `final` once all are closed). finance.view or
+         *     reports.view.
+         */
+        get: operations["terminalFlow.reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/bank-reports/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Enter or correct a shift's bank terminal report
+         * @description As the till's PUT /pos/shifts/{uuid}/bank-report (same body), from the panel: for a shift whose Z went without
+         *     it, or to correct it. Audited (the replaced entry stays in `history`); a final difference above the threshold
+         *     alerts the owner, and a correction never clears an alert. An open shift: finance.manage or pos.close_shift (the
+         *     latter sees the comparison only once final); a closed one: finance.manage only (403 `bank_report_locked`).
+         *     403 `module_disabled` without the terminal_card_flow module on the shift's branch.
+         */
+        put: operations["terminalFlow.enter"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/devices/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a till as a smart kassa
+         * @description `smart_kassa`: this POS terminal is an Android smart kassa (Sunmi P2/P3...): in fiscal mode its receipts go to
+         *     the store's `smart_kassa_driver` (the provider's virtual kassa bound to it); `fiscal_kassa_id`: the id the
+         *     provider knows that kassa by (null clears it): 6–32 latin letters, digits and dashes (stored upper case), used
+         *     by no other active device of the store and no active smart kassa anywhere, and — on a smart kassa — a kassa of
+         *     the store's STIR at the provider (422 `fiscal_kassa_id` otherwise; the store needs its STIR first).
+         *     `kassa_status`: what the provider says about it (null when the driver cannot say). Audited. settings.manage; a terminal of another branch the caller does not manage: 404;
+         *     403 `module_disabled` without the terminal_card_flow module on the till's branch.
+         */
+        put: operations["terminalFlow.updateDevice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/fiscal/readiness": {
         parameters: {
             query?: never;
@@ -5341,7 +5640,8 @@ export interface paths {
         /**
          * Fiscal settings
          * @description The store's TIN and tax regime, and its fiscal settings with every default filled in. `active_driver` is where
-         *     receipts go now (`null` while fiscal mode is off: receipts are recorded as "fiskal emas").
+         *     receipts go now (`null` while fiscal mode is off: receipts are recorded as "fiskal emas"); P6-16:
+         *     `smart_kassa_driver` is where a smart kassa's receipts go in fiscal mode.
          */
         get: operations["fiscalSettings.show"];
         /**
@@ -5350,10 +5650,37 @@ export interface paths {
          *     turnover (no VAT). `fiscal_settings.charges.<charge>` sets the receipt line of a charge (room_fee, place_fee,
          *     min_spend_topup, service_charge, deposit, booking_fee, credit, delivery): `mxik` 17 digits, `package_code`
          *     digits; a null field goes back to the default. `deposit_refund_receipt` / `retained_deposit_receipt`: whether a
-         *     booking deposit given back / kept gets a receipt (null: the default). Turning `enabled` on needs the TIN and
-         *     the tax regime.
+         *     booking deposit given back / kept gets a receipt (null: the default). P6-16: `smart_kassa_driver` — the driver
+         *     of POS terminals flagged smart kassa (the provider's virtual kassa bound to the device; null: `driver`). Turning
+         *     `enabled` on needs the TIN and the tax regime.
          */
         put: operations["fiscalSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/fiscal/terminal-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Card flow of the branches
+         * @description Every branch the caller sees (`branch_id` narrows to one): whether its format has the terminal_card_flow module
+         *     (`module_enabled`), its setup — `card_mode` (terminal_only: a bank terminal its TXKM switched to "faqat
+         *          * terminal"; smart_kassa: Rizqim on an Android smart kassa, receipts through the provider's virtual kassa; none;
+         *     null: not chosen), the installation `checklist` (old kassa not used for sales, bank terminal mode set, 2D
+         *     scanner present) with who ticked each and when, `difference_threshold`, `ask_bank_total` — and its POS tills
+         *     with their smart kassa flag. `fiscal`: the store's fiscal mode and where a smart kassa's receipts go.
+         *     settings.manage.
+         */
+        get: operations["terminalFlow.index"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -5524,6 +5851,58 @@ export interface paths {
         patch: operations["kitchenStation.update"];
         trace?: never;
     };
+    "/v1/owner/meal-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kompleks list
+         * @description P6-15, module `combo_meal`: the store's complexes. A kompleks is a normal menu product sold at its own price as one
+         *     line; here are its parts (dishes the kitchen prepares for it). menu.view or menu.manage.
+         */
+        get: operations["mealSet.index"];
+        put?: never;
+        /**
+         * Make a product a kompleks
+         * @description `product_id` is a product of the store (its price is the set's price, set in the menu like any dish's) and `parts`
+         *     its dishes: `variant_id` (a dish's variant), `quantity` (default 1) and an optional `label` ("Birinchi", "Salat").
+         *     Up to 12 parts; a part cannot be the kompleks itself or another kompleks. Saving a product that already is a
+         *     kompleks replaces its parts. The sold line keeps the parts it had (`set_parts`).
+         */
+        post: operations["mealSet.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/meal-sets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a kompleks
+         * @description Replaces the parts and/or switches the kompleks off (`is_active` false: it is sold as a plain product again).
+         */
+        put: operations["mealSet.update"];
+        post?: never;
+        /**
+         * Delete a kompleks
+         * @description The product stays on the menu as a plain dish; lines already sold keep their parts.
+         */
+        delete: operations["mealSet.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/modifier-groups": {
         parameters: {
             query?: never;
@@ -5653,6 +6032,66 @@ export interface paths {
          */
         put: operations["staffAccess.updatePermission"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/format": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's format
+         * @description `profile` (one of 14: choyxona, osh_markazi, lagmonxona, somsaxona, tamaddixona, stolovaya, kafe, restoran,
+         *     kabobxona, baliqxona, fast_food, qahvaxona, toyxona, dark_kitchen), `mode` (counter|table|hybrid), `first_screen`
+         *     (hall_map|quick_counter|booking_calendar|online_orders), `modules`: the effective modules (as GET /pos/bootstrap
+         *     `format.modules`), `locks.service_charge_zero` (stolovaya). `module_rows`: one per module — `default` (the
+         *     profile's), `override` (the owner's, null: none), `configured` (default or override, minus the law), `plan_allows`
+         *     with `required_plan` when not, `locked` (law: cannot be switched on; plan: the plan lacks it; null) and `enabled`
+         *     (the result). `profiles`: the picker (each profile's mode, first screen, modules, stations, number of sample
+         *     dishes). `template`: the branch's profile's sample stations and dishes, each with `exists` (applying skips it).
+         */
+        get: operations["posFormat.show"];
+        /**
+         * Change the branch's format
+         * @description Send what changes. `profile`: a new profile starts from its own mode and modules (the earlier switches are
+         *     dropped; send `modules` with it to keep some). `mode`: counter|table|hybrid (a new profile's own when left out).
+         *     `modules`: {module: true|false|null} — true/false switches a module on or off over the profile's default, null goes
+         *     back to the default; an unknown module is 422. Switching on a module the plan lacks: 403 plan_feature_missing;
+         *     the service charge of a stolovaya: 422 service_charge_locked. A locked subscription changes nothing (403
+         *     subscription_locked). Audited (settings.pos_format_changed, the profile change named).
+         */
+        put: operations["posFormat.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/format/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the sample stations and menu
+         * @description The profile's (`profile`, else the branch's) sample kitchen stations on the branch (`stations`, default true) and
+         *     sample dishes in the store's menu (`menu`, default true; needs menu.manage too). Nothing existing is changed: a
+         *     station of the same name (or the same osh/mangal/salat va bar/choy kind) and a product of the same name are
+         *     skipped; dishes are added switched off with a 0 price (set the price, then switch them on). Running it again
+         *     adds nothing. A locked subscription: 403 subscription_locked. Audited (settings.pos_template_applied).
+         */
+        post: operations["posFormat.applyTemplate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6015,7 +6454,8 @@ export interface paths {
          * @description For the store (`branch_id` null) or one branch. `service_charge_percent` 0-30; `place_fee_mode` per_person
          *     (× guests) or per_table. Channels default to pos_hall; telegram is not accepted. P3-12: with `hall_id`, the
          *     hall's own settings (R6: e.g. VIP rooms 15%, a self-service zone 0%); `DELETE /owner/service-fees/halls/{id}`
-         *     removes them.
+         *     removes them. P6-11: a positive service charge needs the branch's `service_charge` module (403 module_disabled);
+         *     a stolovaya branch (or hall) takes none: 422 service_charge_locked.
          */
         put: operations["serviceFee.update"];
         post?: never;
@@ -6382,7 +6822,9 @@ export interface paths {
          * @description One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional
          *     `tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:
          *     `card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are
-         *     required), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
+         *     required; P6-16: in "faqat terminal" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's
+         *     last four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the
+         *     receipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
          *     per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;
          *     once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
          *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
@@ -6767,7 +7209,16 @@ export interface paths {
          *     P3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the
          *     branch's per-guest "choy-non" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and
          *     availability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the
-         *     same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice.
+         *     same as GET /owner/billing/entitlements) for the "Asosiy tarifda bor" locks and the unpaid-invoice notice;
+         *     P6-13: `queue`, order numbers (`numbers`, `calling`: the queue_numbers and queue_calling modules) and this till's
+         *     number blocks of today (`blocks` start/end/next, `next_number`; a till running low gets its next block here).
+         *     P6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to
+         *     ask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the
+         *     terminal_card_flow module.
+         *     P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,
+         *     quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's
+         *     switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;
+         *     `locks.service_charge_zero` for a stolovaya.
          */
         get: operations["posBootstrap.show"];
         put?: never;
@@ -6935,6 +7386,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/display/cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the cart for the second screen
+         * @description The till tells its customer display what to show: `state` (`idle` empty/welcome, `cart` lines being added,
+         *     `payment` the amount due and optionally a payment QR, `paid` "Rahmat"), the lines, the totals as decimal strings, the
+         *     queue number if the order has one and, in `payment`, the tender and a QR (`payment.qr.payload` is the text the display
+         *     draws as a QR code). `seq` grows with every publish (a late older one is dropped); `session` names the till's app run,
+         *     so a restarted till (seq from 1) is not mistaken for a stale one. Answers 200 `stored: false` for a stale publish.
+         *     Fire-and-forget for the till: it never waits for, or fails because of, the display. A POS terminal's own token;
+         *     needs `customer_display`; the display shows it within a moment (`display.cart` on `pos-branch.{id}`).
+         */
+        post: operations["posDisplay.publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/display/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pickup board for the display
+         * @description Today's "Tayyorlanmoqda / Tayyor" numbers of the display's branch, the same payload as GET /pos/queue (a terminal's own
+         *     token instead of a staff session). Refetch on `queue.*` events of `pos-branch.{id}`. Needs `queue_calling`.
+         */
+        get: operations["posDisplay.queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/display/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The display's state
+         * @description What a customer display (or a poll after a missed event) needs: its branch, the till it follows (`till_uuid`, null:
+         *     the branch's latest cart), which screens the format allows (`modules`) and the current `cart` (null: nothing
+         *     published yet or the cart expired). The display refetches this on `display.cart` events of `pos-branch.{id}`.
+         *     A terminal's own token; 422 `branch_required` without a branch.
+         */
+        get: operations["posDisplay.state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/fiscal-receipts/{uuid}": {
         parameters: {
             query?: never;
@@ -7020,6 +7541,10 @@ export interface paths {
          *     lines. `items` (optional) is the first round; `send: true` sends its `now` lines to the kitchen at once.
          *     `external_id`: the device's own id for the order; a repeat returns the same order. A room with an open order is
          *     422 `table_occupied`; a closed zone or inactive place 422 `table_inactive`. Needs orders.manage.
+         *
+         *     P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block
+         *     (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise
+         *     the order gets the next number; the answer's `queue.number` is the one to print.
          */
         post: operations["posOrder.store"];
         delete?: never;
@@ -7103,6 +7628,30 @@ export interface paths {
          *     `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
          */
         post: operations["posBill.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Call a ready number again
+         * @description Re-announces a ready number: `queue.ready` with `called: true` (the customer display and the till's speaker
+         *     call it again), `call_count` + 1, `called_at`; an online customer gets the message again for the first 3 calls
+         *     (later calls are announced on the board only). 422 `call_too_soon` with `data.retry_in` (seconds) within 15 s
+         *     of the last call, `not_ready` unless it is ready, `not_in_queue`. Needs the `queue_calling` module and
+         *     orders.manage or kitchen.manage.
+         */
+        post: operations["posQueue.call"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7255,6 +7804,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/orders/{uuid}/handed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a number handed over
+         * @description The customer took the order: `queue.handed`, the number leaves the board; a POS order's lines are served (its
+         *     bill and payment are not touched), an online pickup order is delivered. Already handed: unchanged. Works for
+         *     an order already in the queue after `queue_calling` was switched off; one not in it: 403 `module_disabled`
+         *     without the module, else 422 `not_in_queue`. Needs orders.manage or kitchen.manage.
+         */
+        post: operations["posQueue.handed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/orders/{uuid}/items/{item}/served": {
         parameters: {
             query?: never;
@@ -7340,6 +7912,31 @@ export interface paths {
          *     409 `paid_bill_affected` when a charge a paid bill carries would go down (P3-35).
          */
         post: operations["posOrder.move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a number ready
+         * @description The order is ready for the customer (a counter without a kitchen display, or the cashier overriding it):
+         *     `queue.ready` on `pos-branch.{id}`, an online pickup order becomes `ready` and its customer is told "Buyurtmangiz
+         *          * tayyor, raqam N". Already ready: unchanged. A paid order of a branch that calls no numbers is handed at once
+         *     (`handed`). An order already in the queue is finished even after `queue_calling` was switched off; one not in it:
+         *     403 `module_disabled` without the module, else 422 `not_in_queue` (no number, not a counter order);
+         *     422 `already_handed`. Needs orders.manage or kitchen.manage.
+         */
+        post: operations["posQueue.ready"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7432,6 +8029,53 @@ export interface paths {
          *     `nothing_to_send` when there is nothing new. Needs orders.manage.
          */
         post: operations["posOrder.send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pickup board
+         * @description Today's numbers of the branch (its business day) still waiting: `preparing` (oldest first) and `ready` (the
+         *     longest waiting first), at most 200 each: the customer display's "Tayyorlanmoqda / Tayyor" and the till's
+         *     calling list. Refetch on `queue.*` events of `pos-branch.{id}`. Needs orders.view; `branch_id` defaults to the
+         *     caller's (or their terminal's) branch.
+         */
+        get: operations["posQueue.board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/queue/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reserve the till's next number block
+         * @description The till asks for its next block of numbers while online, when it holds fewer than `low_water` unused numbers
+         *     of today (GET /pos/bootstrap `queue` shows the same); with enough left nothing new is reserved. Blocks are
+         *     cut one after another for the branch's business day, never overlapping: numbers the till prints from them
+         *     (online or offline) are never another till's. Needs a staff PIN session on a paired till (422
+         *     `terminal_required`) and orders.manage.
+         */
+        post: operations["posQueue.reserve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7540,6 +8184,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/shifts/{uuid}/bank-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Bank terminal's day total of a shift
+         * @description The bank terminal's settlement (day) total, compared with the card money Rizqim recorded in the shift: card
+         *     payments of bills, card booking deposits and nasiya repayments taken on the till, less card refunds and card
+         *     deposit refunds (`rizqim_total`, `rizqim_breakdown`). `difference` = bank − Rizqim; above the branch's
+         *     `difference_threshold` (`over_threshold`) the owner is alerted and the Z shows it. `source`: `manual` (default:
+         *     `bank_total` typed from the slip, optional `bank_count`), `import` (`transactions`: [{rrn, amount}] from the
+         *     bank's report, up to 2000: the total is their sum and each is matched to Rizqim's card payments by RRN —
+         *     `unmatched.bank` / `unmatched.rizqim`), `provider` (a smart kassa whose kassa is the store's: the provider's own
+         *     card total; 409 `provider_report_unavailable` when there is none, or on a shared terminal). A branch with
+         *     `shared_terminal` keeps one report per business day covering every shift of that day (`shared`, `shifts`):
+         *     enter the day's total at the last Z. While a covered shift is still open the comparison is provisional and the
+         *     till gets Rizqim's side, the threshold and the difference as null (`final`: false); the owner is alerted only
+         *     once all are closed, and an alert is never cleared by a correction (`history`). Works on an open shift (compared
+         *     again at its close); after the shift's Z only finance.manage corrects it (403 `bank_report_locked`); a new entry
+         *     replaces the earlier one (audited). Needs pos.close_shift; 403 `module_disabled` without the
+         *     terminal_card_flow module.
+         */
+        put: operations["posBankTerminal.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/shifts/{uuid}/cash-movements": {
         parameters: {
             query?: never;
@@ -7582,8 +8260,11 @@ export interface paths {
          *     `shift_has_open_orders`: the ones opened in this shift, or any of the branch when it is the last open shift) or
          *     a sale's receipt is pending (409 `shift_has_pending_receipts`), unless `force: true` with a `reason` by someone
          *     with orders.cancel (or a manager's `approval_token` for it): open orders then wait for the next shift. The Z
-         *     report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. Needs
-         *     pos.close_shift.
+         *     report is kept in `summary`, numbered per branch (`z_number`) and sent to the owner in Telegram. P6-16: an
+         *     optional `bank_terminal` {`total` — the bank terminal's day total from its settlement slip, `count`,
+         *     `terminal_ref`, `note`} is compared with the shift's card money after the Z is written (`bank_terminal` of the
+         *     answer; a difference above the branch's threshold alerts the owner); it never keeps the shift from closing and is
+         *     ignored while the branch's format has no terminal_card_flow. Needs pos.close_shift.
          */
         post: operations["posShift.close"];
         delete?: never;
@@ -7775,6 +8456,9 @@ export interface paths {
          *     reached the kitchen (a line sent, or an online order accepted) are listed too, after the live ones, with their
          *     `status` (canceled / rejected) and `canceled_at`, their lines as they were (voided ones with `voided_at`), so a
          *     display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
+         *
+         *     P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
+         *     listed (with `include_ready=1` also while `ready`) until the number is handed over.
          */
         get: operations["staffOrder.tickets"];
         put?: never;
@@ -8574,6 +9258,9 @@ export interface components {
             /** Format: date-time */
             sync_reported_at: string | null;
             sync_clock_skew_seconds: number | null;
+            smart_kassa: boolean;
+            fiscal_kassa_id: string | null;
+            display_for_device_id: number | null;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -8583,7 +9270,7 @@ export interface components {
          * DeviceType
          * @enum {string}
          */
-        DeviceType: "pos" | "kds" | "courier" | "partner_mobile" | "customer_mobile" | "web";
+        DeviceType: "pos" | "kds" | "display" | "courier" | "partner_mobile" | "customer_mobile" | "web";
         /** DiningTable */
         DiningTable: {
             id: number;
@@ -8760,6 +9447,7 @@ export interface components {
             /** Format: date-time */
             updated_at: string | null;
             oversold_quantity: string;
+            written_off_quantity: string;
             is_open: boolean;
             store?: components["schemas"]["Store"];
             branch?: components["schemas"]["Branch"];
@@ -8943,6 +9631,14 @@ export interface components {
             commission_channel: string | null;
             commission_rate: string | null;
             fiscalized_by: string | null;
+            pickup_status: string | null;
+            /** Format: date-time */
+            pickup_ready_at: string | null;
+            /** Format: date-time */
+            pickup_called_at: string | null;
+            pickup_call_count: number;
+            /** Format: date-time */
+            pickup_handed_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -9079,6 +9775,9 @@ export interface components {
             note: string | null;
             client_line_id: string | null;
             price_source: string | null;
+            set_parts: {
+                [key: string]: unknown;
+            }[] | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -9142,6 +9841,7 @@ export interface components {
             offline_paid_at: string | null;
             /** Format: date-time */
             synced_at: string | null;
+            card_last4: string | null;
             order?: components["schemas"]["Order"] | null;
             bill?: components["schemas"]["OrderBill"] | null;
             shift?: components["schemas"]["PosShift"] | null;
@@ -9188,6 +9888,12 @@ export interface components {
          * @enum {string}
          */
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        /**
+         * PickupStatus
+         * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a POS counter order before its lines went to the kitchen, an online pickup order of a branch without `queue_calling`). A POS counter order is tracked in every format (its kitchen lines outlive a payment taken first); only where `queue_calling` is on is it shown on the board and announced.
+         * @enum {string}
+         */
+        PickupStatus: "preparing" | "ready" | "handed";
         /**
          * PlatformRole
          * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin); the other roles are users.role = platform, which holds no store-level permission at all.
@@ -21636,7 +22342,22 @@ export interface operations {
                                     subject_id: number;
                                     reason: string;
                                     until: null;
+                                } | {
+                                    id: null;
+                                    type: string;
+                                    subject_id: string;
+                                    /** @constant */
+                                    reason: "Bugungi menyuda yo'q";
+                                    until: null;
+                                } | {
+                                    id: null;
+                                    type: string;
+                                    subject_id: string;
+                                    reason: string;
+                                    until: null;
                                 })[];
+                                /** @description P6-15: "keyingi partiya HH:MM", earliest first: {id, uuid, product_id, product_variant_id, planned_at, time, quantity, label} */
+                                next_batches: string | string[];
                                 batches: {
                                     id: number;
                                     uuid: string;
@@ -22143,14 +22864,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
             422: components["responses"]["ValidationException"];
         };
     };
@@ -23366,6 +24079,239 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "batchPlan.index": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            modules: {
+                                batches: boolean;
+                                batch_writeoff: boolean;
+                            };
+                            plans: unknown[][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "batchPlan.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    product_id: number;
+                    product_variant_id?: number | null;
+                    time?: string | null;
+                    /** Format: date-time */
+                    planned_at?: string | null;
+                    quantity?: number | null;
+                    label?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: unknown[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "batchPlan.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "batchWriteOff.index": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+                /** @description First business day, YYYY-MM-DD (default: today). */
+                from?: string;
+                /** @description Last business day, YYYY-MM-DD (default: from). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            reasons: unknown[];
+                            write_offs: {
+                                uuid: string;
+                                batch_id: number;
+                                product_id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number | null;
+                                unit: string;
+                                reason: string;
+                                reason_label: string;
+                                note: string | null;
+                                business_date: string;
+                                shift_id: number | null;
+                                written_off_by: {
+                                    id: number;
+                                    name: string;
+                                } | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "batchYield.show": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+                /** @description First business day, YYYY-MM-DD (default: today). */
+                from?: string;
+                /** @description Last business day, YYYY-MM-DD (default: from). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            batches: {
+                                id: number;
+                                uuid: string;
+                                business_date: string;
+                                product_id: number;
+                                product_name: string | null;
+                                product_variant_id: number | null;
+                                variant_name: string | null;
+                                unit: string;
+                                label: string;
+                                started_at: string;
+                                closed_at: string | null;
+                                is_open: boolean;
+                                produced: number;
+                                sold: number;
+                                written_off: number;
+                                left: number;
+                                oversold: number;
+                                variance: number;
+                                sold_percent: string | null;
+                                written_off_percent: string | null;
+                            }[];
+                            days: {
+                                business_date: string;
+                                product_id: string;
+                                product_name: string;
+                                unit: string;
+                                batches: string;
+                                produced: string;
+                                sold: string;
+                                written_off: string;
+                                left: string;
+                                variance: string;
+                                sold_percent: string | null;
+                                written_off_percent: string | null;
+                            }[];
+                            write_offs: {
+                                reason: string;
+                                label: string;
+                                count: string;
+                                quantity: number;
+                            }[];
+                            in_sets: unknown[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "batch.index": {
         parameters: {
             query?: {
@@ -23402,6 +24348,8 @@ export interface operations {
                                 label: string | null;
                                 quantity_produced: number | null;
                                 quantity_left: number | null;
+                                /** @description P6-15: portions taken off with a reason (menu_batch_writeoffs) */
+                                written_off_quantity: number | null;
                                 is_open: boolean;
                                 started_at: string | null;
                                 sold_out_at: string | null;
@@ -23453,6 +24401,8 @@ export interface operations {
                             label: string | null;
                             quantity_produced: number | null;
                             quantity_left: number | null;
+                            /** @description P6-15: portions taken off with a reason (menu_batch_writeoffs) */
+                            written_off_quantity: number | null;
                             is_open: boolean;
                             started_at: string | null;
                             sold_out_at: string | null;
@@ -23504,6 +24454,8 @@ export interface operations {
                             label: string | null;
                             quantity_produced: number | null;
                             quantity_left: number | null;
+                            /** @description P6-15: portions taken off with a reason (menu_batch_writeoffs) */
+                            written_off_quantity: number | null;
                             is_open: boolean;
                             started_at: string | null;
                             sold_out_at: string | null;
@@ -23547,6 +24499,8 @@ export interface operations {
                             label: string | null;
                             quantity_produced: number | null;
                             quantity_left: number | null;
+                            /** @description P6-15: portions taken off with a reason (menu_batch_writeoffs) */
+                            written_off_quantity: number | null;
                             is_open: boolean;
                             started_at: string | null;
                             sold_out_at: string | null;
@@ -23556,6 +24510,78 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "batch.writeOff": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    quantity: number;
+                    /** @enum {string} */
+                    reason: "unsold" | "spoiled" | "staff_meal" | "dropped" | "expired" | "other";
+                    note?: string | null;
+                    close?: boolean | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            write_off: {
+                                uuid: string;
+                                quantity: number | null;
+                                unit: string;
+                                reason: string;
+                                note: string | null;
+                                business_date: string;
+                                shift_id: number | null;
+                                /** @description P6-19: the manager whose PIN approved it on the terminal (null: the caller's own permission) */
+                                approved_by: null;
+                            };
+                            batch: {
+                                id: number;
+                                uuid: string;
+                                branch_id: number;
+                                product_id: number;
+                                product_name: string;
+                                product_variant_id: number | null;
+                                variant_name: string | null;
+                                unit: string | null;
+                                label: string | null;
+                                quantity_produced: number | null;
+                                quantity_left: number | null;
+                                /** @description P6-15: portions taken off with a reason (menu_batch_writeoffs) */
+                                written_off_quantity: number | null;
+                                is_open: boolean;
+                                started_at: string | null;
+                                sold_out_at: string | null;
+                                closed_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "ownerBilling.entitlements": {
@@ -23616,6 +24642,12 @@ export interface operations {
                                     can_add: boolean;
                                 };
                                 waiter: {
+                                    included: null;
+                                    unlimited: boolean;
+                                    extra_price: string;
+                                    can_add: boolean;
+                                };
+                                display: {
                                     included: null;
                                     unlimited: boolean;
                                     extra_price: string;
@@ -23871,6 +24903,69 @@ export interface operations {
                             };
                             is_open_now: boolean;
                             created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "terminalFlow.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    checklist?: {
+                        old_kassa_unused?: boolean;
+                        bank_terminal_mode?: boolean;
+                        scanner_2d?: boolean;
+                    };
+                    /** @enum {string|null} */
+                    card_mode?: "terminal_only" | "smart_kassa" | "none" | null;
+                    difference_threshold?: string;
+                    ask_bank_total?: boolean;
+                    shared_terminal?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            /** @enum {string|null} */
+                            card_mode: "terminal_only" | "smart_kassa" | "none" | null;
+                            card_mode_label: string | null;
+                            checklist: {
+                                key: string;
+                                label: string;
+                                hint: string;
+                                done: boolean;
+                                done_at: string | null;
+                                done_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                            }[];
+                            checklist_complete: boolean;
+                            difference_threshold: string;
+                            ask_bank_total: boolean;
+                            shared_terminal: boolean;
                             updated_at: string | null;
                         };
                     };
@@ -24224,6 +25319,197 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "dailyMenu.show": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+                /** @description Business day, YYYY-MM-DD (default: the branch's today). */
+                date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            date: string;
+                            business_date: string;
+                            enforced: boolean;
+                            set: boolean;
+                            product_ids: {
+                                [key: string]: number;
+                            };
+                            previous_date: string | null;
+                            products: {
+                                id: number;
+                                name: string;
+                                category_id: number;
+                                category_name: string;
+                                daily_rotation: string;
+                                on_menu: string;
+                                is_set: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "dailyMenu.save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    /** Format: date */
+                    date?: string | null;
+                    product_ids: number[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            date: string | null;
+                            business_date: string;
+                            enforced: boolean;
+                            set: boolean;
+                            product_ids: {
+                                [key: string]: number;
+                            };
+                            previous_date: string | null;
+                            products: {
+                                id: number;
+                                name: string;
+                                category_id: number;
+                                category_name: string;
+                                daily_rotation: string;
+                                on_menu: string;
+                                is_set: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "dailyMenu.copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    /** Format: date */
+                    date?: string | null;
+                    /** Format: date */
+                    from_date?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            date: string | null;
+                            business_date: string;
+                            enforced: boolean;
+                            set: boolean;
+                            product_ids: {
+                                [key: string]: number;
+                            };
+                            previous_date: string | null;
+                            products: {
+                                id: number;
+                                name: string;
+                                category_id: number;
+                                category_name: string;
+                                daily_rotation: string;
+                                on_menu: string;
+                                is_set: boolean;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "dailyMenu.rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    product_ids: number[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            product_ids: unknown[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "deliveryZoneManage.index": {
         parameters: {
             query?: {
@@ -24565,9 +25851,11 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    type: "pos" | "kds";
+                    type: "pos" | "kds" | "display";
                     branch_id?: number | null;
                     name?: string | null;
+                    /** Format: uuid */
+                    till_uuid?: string | null;
                 };
             };
         };
@@ -25406,6 +26694,278 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "terminalFlow.reports": {
+        parameters: {
+            query?: {
+                /** @description Filial. */
+                branch_id?: number;
+                /** @description Business day from (YYYY-MM-DD) */
+                from?: string;
+                /** @description Business day to (YYYY-MM-DD) */
+                to?: string;
+                /** @description Only the mismatches. */
+                over_threshold?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            shift_uuid: string | null;
+                            z_number: number | null;
+                            branch_id: number;
+                            business_date: string;
+                            /** @enum {string} */
+                            source: "manual" | "import" | "provider";
+                            terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
+                            bank_total: string;
+                            bank_count: number | null;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
+                            rizqim_breakdown: {
+                                payments: string;
+                                deposits: string;
+                                repayments: string;
+                                refunds: string;
+                                deposit_refunds: string;
+                            } | null;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
+                            transactions: {
+                                rrn: string | null;
+                                amount: string;
+                                matched: boolean | null;
+                            }[] | null;
+                            unmatched: {
+                                bank: {
+                                    rrn: string | null;
+                                    amount: string;
+                                }[];
+                                rizqim: {
+                                    rrn: string | null;
+                                    amount: string;
+                                    kind: string;
+                                }[];
+                            } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
+                            note: string | null;
+                            entered_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            alerted_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "terminalFlow.enter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description import: the bank report's rows. */
+                    transactions?: {
+                        rrn?: string | null;
+                        amount: string;
+                    }[];
+                    /**
+                     * @description manual | import | provider (manual by default).
+                     * @enum {string}
+                     */
+                    source?: "manual" | "import" | "provider";
+                    /** @description manual: the bank terminal's day total (decimal string). */
+                    bank_total?: string;
+                    /** @description manual: how many card payments the slip lists. */
+                    bank_count?: number;
+                    /** @description The bank terminal's id or name (optional). */
+                    terminal_ref?: string;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            shift_uuid: string | null;
+                            z_number: number | null;
+                            branch_id: number;
+                            business_date: string;
+                            /** @enum {string} */
+                            source: "manual" | "import" | "provider";
+                            terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
+                            bank_total: string;
+                            bank_count: number | null;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
+                            rizqim_breakdown: {
+                                payments: string;
+                                deposits: string;
+                                repayments: string;
+                                refunds: string;
+                                deposit_refunds: string;
+                            } | null;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
+                            transactions: {
+                                rrn: string | null;
+                                amount: string;
+                                matched: boolean | null;
+                            }[] | null;
+                            unmatched: {
+                                bank: {
+                                    rrn: string | null;
+                                    amount: string;
+                                }[];
+                                rizqim: {
+                                    rrn: string | null;
+                                    amount: string;
+                                    kind: string;
+                                }[];
+                            } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
+                            note: string | null;
+                            entered_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            alerted_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "terminalFlow.updateDevice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    smart_kassa?: boolean;
+                    fiscal_kassa_id?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string | null;
+                            branch_id: number | null;
+                            smart_kassa: boolean;
+                            fiscal_kassa_id: string | null;
+                            kassa_status: {
+                                registered: boolean;
+                                kassa_id: string | null;
+                                message: string | null;
+                            } | null;
+                            last_seen_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "fiscalSettings.readiness": {
         parameters: {
             query?: never;
@@ -25532,6 +27092,7 @@ export interface operations {
                                     credit: boolean;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                 }[];
                             }[];
                             current_page: number;
@@ -25617,6 +27178,7 @@ export interface operations {
                                 credit: boolean;
                                 card_type: string | null;
                                 transaction_id: string | null;
+                                card_last4: string | null;
                             }[];
                         };
                     };
@@ -25694,6 +27256,7 @@ export interface operations {
                                 credit: boolean;
                                 card_type: string | null;
                                 transaction_id: string | null;
+                                card_last4: string | null;
                             }[];
                         };
                     };
@@ -25735,6 +27298,7 @@ export interface operations {
                                 enabled: boolean;
                                 driver: string;
                                 active_driver: string;
+                                smart_kassa_driver: string;
                                 charges: {
                                     room_fee: {
                                         name: string;
@@ -25828,6 +27392,7 @@ export interface operations {
                     fiscal_settings?: {
                         enabled?: boolean;
                         driver?: string | null;
+                        smart_kassa_driver?: string | null;
                         charges?: {
                             room_fee?: {
                                 name?: string | null;
@@ -25907,6 +27472,7 @@ export interface operations {
                                 enabled: boolean;
                                 driver: string;
                                 active_driver: string;
+                                smart_kassa_driver: string;
                                 charges: {
                                     room_fee: {
                                         name: string;
@@ -25971,6 +27537,91 @@ export interface operations {
                                 value: string;
                                 label: string;
                                 vat_rate: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "terminalFlow.index": {
+        parameters: {
+            query?: {
+                /** @description Filial. */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            fiscal: {
+                                enabled: boolean;
+                                active_driver: string;
+                                smart_kassa_driver: string;
+                            };
+                            card_modes: {
+                                value: string;
+                                label: string;
+                            }[];
+                            checklist_items: {
+                                key: string;
+                                label: string;
+                                hint: string;
+                            }[];
+                            branches: {
+                                branch: {
+                                    id: number;
+                                    name: string;
+                                };
+                                module_enabled: boolean;
+                                setup: {
+                                    branch_id: number;
+                                    /** @enum {string|null} */
+                                    card_mode: "terminal_only" | "smart_kassa" | "none" | null;
+                                    card_mode_label: string | null;
+                                    checklist: {
+                                        key: string;
+                                        label: string;
+                                        hint: string;
+                                        done: boolean;
+                                        done_at: string | null;
+                                        done_by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                    }[];
+                                    checklist_complete: boolean;
+                                    difference_threshold: string;
+                                    ask_bank_total: boolean;
+                                    shared_terminal: boolean;
+                                    updated_at: string | null;
+                                };
+                                devices: {
+                                    uuid: string;
+                                    name: string | null;
+                                    branch_id: number | null;
+                                    smart_kassa: boolean;
+                                    fiscal_kassa_id: string | null;
+                                    kassa_status: {
+                                        registered: boolean;
+                                        kassa_id: string | null;
+                                        message: string | null;
+                                    } | null;
+                                    last_seen_at: string | null;
+                                }[];
                             }[];
                         };
                     };
@@ -26548,6 +28199,159 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "mealSet.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            sets: {
+                                id: number;
+                                uuid: string;
+                                product_id: number;
+                                product_name: string;
+                                prices: string[];
+                                is_active: boolean;
+                                parts: {
+                                    variant_id: number;
+                                    variant_uuid: string;
+                                    product_id: number;
+                                    name: string;
+                                    variant_name: string | null;
+                                    quantity: string;
+                                    unit: string;
+                                    label: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "mealSet.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            product_id: number;
+                            product_name: string;
+                            prices: string[];
+                            is_active: boolean;
+                            parts: {
+                                variant_id: number;
+                                variant_uuid: string;
+                                product_id: number;
+                                name: string;
+                                variant_name: string | null;
+                                quantity: string;
+                                unit: string;
+                                label: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "mealSet.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            product_id: number;
+                            product_name: string;
+                            prices: string[];
+                            is_active: boolean;
+                            parts: {
+                                variant_id: number;
+                                variant_uuid: string;
+                                product_id: number;
+                                name: string;
+                                variant_name: string | null;
+                                quantity: string;
+                                unit: string;
+                                label: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "mealSet.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "modifierGroup.index": {
         parameters: {
             query?: never;
@@ -27052,6 +28856,298 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posFormat.show": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            profile: string;
+                            profile_label: string;
+                            mode: string;
+                            first_screen: string;
+                            modules: string[];
+                            locks: {
+                                service_charge_zero: boolean;
+                            };
+                            module_rows: {
+                                key: string;
+                                label: string;
+                                description: string;
+                                default: boolean;
+                                override: boolean | null;
+                                configured: boolean;
+                                plan_allows: boolean;
+                                required_plan: string | null;
+                                required_plan_name: string | null;
+                                locked: string | null;
+                                enabled: boolean;
+                            }[];
+                            profiles: {
+                                key: string;
+                                label: string;
+                                description: string;
+                                mode: string;
+                                first_screen: string;
+                                modules: string[];
+                                locks_service_charge: boolean;
+                                recommended_plan: string;
+                                stations: string[];
+                                dishes: number;
+                            }[];
+                            template: {
+                                profile: string;
+                                stations: {
+                                    name: string;
+                                    kind: string;
+                                    kind_label: string;
+                                    exists: boolean;
+                                }[];
+                                dishes: {
+                                    category: string;
+                                    name: string;
+                                    variants: string[];
+                                    exists: boolean;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posFormat.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Module switches over the profile: {module: true|false|null}.
+                     * @example {
+                     *       "queue_numbers": true,
+                     *       "customer_display": null
+                     *     }
+                     */
+                    modules?: {
+                        [key: string]: boolean | null;
+                    };
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                    /**
+                     * @description The format profile.
+                     * @example osh_markazi
+                     */
+                    profile?: string;
+                    /**
+                     * @description counter, table or hybrid.
+                     * @example counter
+                     */
+                    mode?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            profile: string;
+                            profile_label: string;
+                            mode: string;
+                            first_screen: string;
+                            modules: string[];
+                            locks: {
+                                service_charge_zero: boolean;
+                            };
+                            module_rows: {
+                                key: string;
+                                label: string;
+                                description: string;
+                                default: boolean;
+                                override: boolean | null;
+                                configured: boolean;
+                                plan_allows: boolean;
+                                required_plan: string | null;
+                                required_plan_name: string | null;
+                                locked: string | null;
+                                enabled: boolean;
+                            }[];
+                            profiles: {
+                                key: string;
+                                label: string;
+                                description: string;
+                                mode: string;
+                                first_screen: string;
+                                modules: string[];
+                                locks_service_charge: boolean;
+                                recommended_plan: string;
+                                stations: string[];
+                                dishes: number;
+                            }[];
+                            template: {
+                                profile: string;
+                                stations: {
+                                    name: string;
+                                    kind: string;
+                                    kind_label: string;
+                                    exists: boolean;
+                                }[];
+                                dishes: {
+                                    category: string;
+                                    name: string;
+                                    variants: string[];
+                                    exists: boolean;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "posFormat.applyTemplate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                    /**
+                     * @description The profile whose template to apply (the branch's when omitted).
+                     * @example osh_markazi
+                     */
+                    profile?: string;
+                    /**
+                     * @description Add the sample kitchen stations.
+                     * @example true
+                     */
+                    stations?: boolean;
+                    /**
+                     * @description Add the sample dishes (switched off, 0 price).
+                     * @example true
+                     */
+                    menu?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stations_created: string[];
+                            stations_skipped: string[];
+                            categories_created: string[];
+                            dishes_created: string[];
+                            dishes_skipped: string[];
+                            format: {
+                                branch_id: number;
+                                profile: string;
+                                profile_label: string;
+                                mode: string;
+                                first_screen: string;
+                                modules: string[];
+                                locks: {
+                                    service_charge_zero: boolean;
+                                };
+                                module_rows: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    default: boolean;
+                                    override: boolean | null;
+                                    configured: boolean;
+                                    plan_allows: boolean;
+                                    required_plan: string | null;
+                                    required_plan_name: string | null;
+                                    locked: string | null;
+                                    enabled: boolean;
+                                }[];
+                                profiles: {
+                                    key: string;
+                                    label: string;
+                                    description: string;
+                                    mode: string;
+                                    first_screen: string;
+                                    modules: string[];
+                                    locks_service_charge: boolean;
+                                    recommended_plan: string;
+                                    stations: string[];
+                                    dishes: number;
+                                }[];
+                                template: {
+                                    profile: string;
+                                    stations: {
+                                        name: string;
+                                        kind: string;
+                                        kind_label: string;
+                                        exists: boolean;
+                                    }[];
+                                    dishes: {
+                                        category: string;
+                                        name: string;
+                                        variants: string[];
+                                        exists: boolean;
+                                    }[];
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -29401,7 +31497,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage";
+                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage" | "batches.manage";
                     user_id?: number | null;
                     staff_code?: string | null;
                     pin: string;
@@ -29531,6 +31627,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -29551,10 +31648,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             };
                             order: {
@@ -29563,6 +31667,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -29604,6 +31714,7 @@ export interface operations {
                         tendered_amount?: number | null;
                         card_type?: string | null;
                         transaction_id?: string | null;
+                        card_last4?: string | null;
                         reference?: string | null;
                         /** Format: uuid */
                         account_uuid?: string | null;
@@ -29691,6 +31802,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -29711,10 +31823,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             };
                             order: {
@@ -29723,6 +31842,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -29839,6 +31964,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -29859,10 +31985,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             };
                             copy: boolean;
@@ -29872,6 +32005,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -31029,6 +33168,7 @@ export interface operations {
                                         credit: boolean;
                                         card_type: string | null;
                                         transaction_id: string | null;
+                                        card_last4: string | null;
                                     }[];
                                 } | null;
                             };
@@ -31211,6 +33351,7 @@ export interface operations {
                                         credit: boolean;
                                         card_type: string | null;
                                         transaction_id: string | null;
+                                        card_last4: string | null;
                                     }[];
                                 } | null;
                             };
@@ -31393,6 +33534,7 @@ export interface operations {
                                         credit: boolean;
                                         card_type: string | null;
                                         transaction_id: string | null;
+                                        card_last4: string | null;
                                     }[];
                                 } | null;
                             };
@@ -32043,6 +34185,25 @@ export interface operations {
                                     clock_skew_warn_seconds: number;
                                 };
                             };
+                            terminal_flow: {
+                                /** @enum {string|null} */
+                                card_mode: "terminal_only" | "smart_kassa" | "none" | null;
+                                smart_kassa: boolean;
+                                fiscal_kassa_id: string | null;
+                                ask_bank_total: boolean;
+                                shared_terminal: boolean;
+                                checklist_complete: boolean;
+                            } | null;
+                            format: {
+                                profile: string;
+                                profile_label: string;
+                                mode: string;
+                                first_screen: string;
+                                modules: string[];
+                                locks: {
+                                    service_charge_zero: boolean;
+                                };
+                            };
                             entitlements: {
                                 plan: {
                                     code: string;
@@ -32076,6 +34237,19 @@ export interface operations {
                                 notice: {
                                     [key: string]: unknown;
                                 } | null;
+                            };
+                            queue: {
+                                numbers: boolean;
+                                calling: boolean;
+                                business_date: string;
+                                block_size: number;
+                                low_water: number;
+                                blocks: {
+                                    start: number;
+                                    end: number;
+                                    next: number;
+                                }[];
+                                next_number: number | null;
                             };
                         };
                     };
@@ -32642,6 +34816,7 @@ export interface operations {
                                         credit: boolean;
                                         card_type: string | null;
                                         transaction_id: string | null;
+                                        card_last4: string | null;
                                     }[];
                                 } | null;
                             };
@@ -32731,6 +34906,218 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posDisplay.publish": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    state: "idle" | "cart" | "payment" | "paid";
+                    seq: number;
+                    session?: string | null;
+                    lines: {
+                        name: string;
+                        qty: string;
+                        unit?: string | null;
+                        price: string;
+                        total: string;
+                        modifiers?: string[] | null;
+                        note?: string | null;
+                    }[];
+                    subtotal: string;
+                    discount?: string | null;
+                    total: string;
+                    queue_number?: number | null;
+                    payment?: {
+                        method?: string | null;
+                        tendered?: string | null;
+                        change?: string | null;
+                        qr?: {
+                            payload?: string;
+                            label?: string | null;
+                            provider?: string | null;
+                        } | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stored: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posDisplay.queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            business_date: string;
+                            preparing: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                            ready: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "posDisplay.state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch: {
+                                id: number;
+                                name: string;
+                            };
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            device: {
+                                uuid: string;
+                                type: string;
+                                name: string;
+                            };
+                            till_uuid: string | null;
+                            modules: {
+                                customer_display: boolean;
+                                queue_calling: boolean;
+                            };
+                            server_time: string;
+                            cart: {
+                                terminal: string;
+                                seq: number;
+                                session: string | null;
+                                state: string;
+                                lines: {
+                                    name: string;
+                                    qty: string;
+                                    unit: string | null;
+                                    price: string;
+                                    total: string;
+                                    modifiers: string[];
+                                    note: string | null;
+                                }[];
+                                subtotal: string;
+                                discount: string;
+                                total: string;
+                                queue_number: number | null;
+                                payment: {
+                                    method: string | null;
+                                    tendered: string | null;
+                                    change: string | null;
+                                    qr: {
+                                        payload: string;
+                                        label: string | null;
+                                        provider: string | null;
+                                    } | null;
+                                } | null;
+                                updated_at: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "posFiscalReceipt.show": {
         parameters: {
             query?: never;
@@ -32792,6 +35179,7 @@ export interface operations {
                                 credit: boolean;
                                 card_type: string | null;
                                 transaction_id: string | null;
+                                card_last4: string | null;
                             }[];
                         };
                     };
@@ -32971,6 +35359,15 @@ export interface operations {
                             fiscal_pending: boolean;
                             booking_id: number | null;
                             business_date: string | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             opened_at: string | null;
                             closed_at: string | null;
                             updated_at: string | null;
@@ -33083,6 +35480,8 @@ export interface operations {
                     external_id?: string | null;
                     note?: string | null;
                     send?: boolean | null;
+                    /** @description P6-13: the number the till took from its block (it prints the talon from it) */
+                    queue_number?: number | null;
                     items?: {
                         /** Format: uuid */
                         variant_id: string;
@@ -33194,6 +35593,15 @@ export interface operations {
                                     amount: string | null;
                                     name: string | null;
                                 }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
                             } | null;
                             rounds: number;
                             items: {
@@ -33350,6 +35758,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -33458,6 +35875,15 @@ export interface operations {
                             fiscal_pending: boolean;
                             booking_id: number | null;
                             business_date: string | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             opened_at: string | null;
                             closed_at: string | null;
                             updated_at: string | null;
@@ -33585,6 +36011,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -33663,6 +36095,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -33683,10 +36116,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             }[];
                             refunds: {
@@ -33744,6 +36184,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -33802,6 +36243,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -33880,6 +36327,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -33900,10 +36348,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             }[];
                             refunds: {
@@ -33961,6 +36416,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -33972,6 +36428,55 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQueue.call": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order_uuid: string;
+                            number: number;
+                            business_date: string | null;
+                            status: components["schemas"]["PickupStatus"] | null;
+                            channel: string;
+                            order_status: string;
+                            ready_at: string | null;
+                            called_at: string | null;
+                            call_count: number;
+                            handed_at: string | null;
+                            opened_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posOrder.cancel": {
@@ -34083,6 +36588,15 @@ export interface operations {
                                     amount: string | null;
                                     name: string | null;
                                 }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
                             } | null;
                             rounds: number;
                             items: {
@@ -34249,6 +36763,15 @@ export interface operations {
                                     amount: string | null;
                                     name: string | null;
                                 }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
                             } | null;
                             rounds: number;
                             items: {
@@ -34417,6 +36940,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -34502,6 +37034,12 @@ export interface operations {
                                 payment_status: string;
                                 version: number;
                                 queue_number: number | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 business_date: string | null;
                                 bill_locked_at: string | null;
                                 closed_at: string | null;
@@ -34580,6 +37118,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -34600,10 +37139,17 @@ export interface operations {
                                     change_amount: string | null;
                                     card_type: string | null;
                                     transaction_id: string | null;
+                                    card_last4: string | null;
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
                                 }[];
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
                                 created_at: string | null;
                             }[];
                             refunds: {
@@ -34661,6 +37207,7 @@ export interface operations {
                                             credit: boolean;
                                             card_type: string | null;
                                             transaction_id: string | null;
+                                            card_last4: string | null;
                                         }[];
                                     } | null;
                                 };
@@ -34785,6 +37332,15 @@ export interface operations {
                                     amount: string | null;
                                     name: string | null;
                                 }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
                             } | null;
                             rounds: number;
                             items: {
@@ -34952,6 +37508,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -35006,6 +37571,55 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQueue.handed": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order_uuid: string;
+                            number: number;
+                            business_date: string | null;
+                            status: components["schemas"]["PickupStatus"] | null;
+                            channel: string;
+                            order_status: string;
+                            ready_at: string | null;
+                            called_at: string | null;
+                            call_count: number;
+                            handed_at: string | null;
+                            opened_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posOrder.served": {
@@ -35117,6 +37731,15 @@ export interface operations {
                                     amount: string | null;
                                     name: string | null;
                                 }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
                             } | null;
                             rounds: number;
                             items: {
@@ -35294,6 +37917,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -35470,6 +38102,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -35636,6 +38277,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -35690,6 +38340,55 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQueue.ready": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            order_uuid: string;
+                            number: number;
+                            business_date: string | null;
+                            status: components["schemas"]["PickupStatus"] | null;
+                            channel: string;
+                            order_status: string;
+                            ready_at: string | null;
+                            called_at: string | null;
+                            call_count: number;
+                            handed_at: string | null;
+                            opened_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posOrder.reject": {
@@ -35757,6 +38456,15 @@ export interface operations {
                             fiscal_pending: boolean;
                             booking_id: number | null;
                             business_date: string | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             opened_at: string | null;
                             closed_at: string | null;
                             updated_at: string | null;
@@ -35964,6 +38672,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -36144,6 +38861,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -36310,6 +39036,15 @@ export interface operations {
                                     name: string | null;
                                 }[];
                             } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
                             rounds: number;
                             items: {
                                 id: number;
@@ -36364,6 +39099,117 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQueue.board": {
+        parameters: {
+            query?: {
+                /** @description The branch; default: the caller's (or their terminal's). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            business_date: string;
+                            preparing: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                            ready: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQueue.reserve": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            numbers: boolean;
+                            calling: boolean;
+                            business_date: string;
+                            block_size: number;
+                            low_water: number;
+                            blocks: {
+                                start: number;
+                                end: number;
+                                next: number;
+                            }[];
+                            next_number: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posRefund.store": {
@@ -36453,6 +39299,7 @@ export interface operations {
                                         credit: boolean;
                                         card_type: string | null;
                                         transaction_id: string | null;
+                                        card_last4: string | null;
                                     }[];
                                 } | null;
                             };
@@ -36703,6 +39550,17 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 };
+                                batch_writeoffs: {
+                                    count: number;
+                                    items: {
+                                        product_id: number;
+                                        product_name: string | null;
+                                        unit: string;
+                                        reason: string;
+                                        reason_label: string;
+                                        quantity: number;
+                                    }[];
+                                };
                                 refunds: {
                                     count: number;
                                     amount: string;
@@ -36856,6 +39714,17 @@ export interface operations {
                                     voids: {
                                         count: number;
                                         amount: string;
+                                    };
+                                    batch_writeoffs: {
+                                        count: number;
+                                        items: {
+                                            product_id: number;
+                                            product_name: string | null;
+                                            unit: string;
+                                            reason: string;
+                                            reason_label: string;
+                                            quantity: number;
+                                        }[];
                                     };
                                     refunds: {
                                         count: number;
@@ -37053,6 +39922,17 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 };
+                                batch_writeoffs: {
+                                    count: number;
+                                    items: {
+                                        product_id: number;
+                                        product_name: string | null;
+                                        unit: string;
+                                        reason: string;
+                                        reason_label: string;
+                                        quantity: number;
+                                    }[];
+                                };
                                 refunds: {
                                     count: number;
                                     amount: string;
@@ -37129,11 +40009,190 @@ export interface operations {
                                     refunds: string[];
                                 };
                             } | null;
+                            bank_terminal: {
+                                uuid: string;
+                                shift_uuid: string | null;
+                                z_number: number | null;
+                                branch_id: number;
+                                business_date: string;
+                                /** @enum {string} */
+                                source: "manual" | "import" | "provider";
+                                terminal_ref: string | null;
+                                shared: boolean;
+                                final: boolean;
+                                shifts: {
+                                    uuid: string;
+                                    z_number: number | null;
+                                    status: string;
+                                }[];
+                                bank_total: string;
+                                bank_count: number | null;
+                                rizqim_total: string | null;
+                                rizqim_count: number | null;
+                                rizqim_breakdown: {
+                                    payments: string;
+                                    deposits: string;
+                                    repayments: string;
+                                    refunds: string;
+                                    deposit_refunds: string;
+                                } | null;
+                                difference: string | null;
+                                threshold: string | null;
+                                over_threshold: boolean | null;
+                                transactions: {
+                                    rrn: string | null;
+                                    amount: string;
+                                    matched: boolean | null;
+                                }[] | null;
+                                unmatched: {
+                                    bank: {
+                                        rrn: string | null;
+                                        amount: string;
+                                    }[];
+                                    rizqim: {
+                                        rrn: string | null;
+                                        amount: string;
+                                        kind: string;
+                                    }[];
+                                } | null;
+                                history: {
+                                    source: string;
+                                    bank_total: string;
+                                    bank_count: number | null;
+                                    difference: string;
+                                    over_threshold: boolean;
+                                    entered_by: number | null;
+                                    entered_at: string | null;
+                                }[];
+                                note: string | null;
+                                entered_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                alerted_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            } | null;
                         };
                     };
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBankTerminal.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description manual | import | provider (manual by default).
+                     * @enum {string}
+                     */
+                    source?: "manual" | "import" | "provider";
+                    /** @description manual: the bank terminal's day total (decimal string). */
+                    bank_total?: string;
+                    /** @description manual: how many card payments the slip lists. */
+                    bank_count?: number;
+                    /** @description import: the bank report's rows. */
+                    transactions?: {
+                        rrn?: string | null;
+                        amount: string;
+                    }[];
+                    /** @description The bank terminal's id or name (optional). */
+                    terminal_ref?: string;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            shift_uuid: string | null;
+                            z_number: number | null;
+                            branch_id: number;
+                            business_date: string;
+                            /** @enum {string} */
+                            source: "manual" | "import" | "provider";
+                            terminal_ref: string | null;
+                            shared: boolean;
+                            final: boolean;
+                            shifts: {
+                                uuid: string;
+                                z_number: number | null;
+                                status: string;
+                            }[];
+                            bank_total: string;
+                            bank_count: number | null;
+                            rizqim_total: string | null;
+                            rizqim_count: number | null;
+                            rizqim_breakdown: {
+                                payments: string;
+                                deposits: string;
+                                repayments: string;
+                                refunds: string;
+                                deposit_refunds: string;
+                            } | null;
+                            difference: string | null;
+                            threshold: string | null;
+                            over_threshold: boolean | null;
+                            transactions: {
+                                rrn: string | null;
+                                amount: string;
+                                matched: boolean | null;
+                            }[] | null;
+                            unmatched: {
+                                bank: {
+                                    rrn: string | null;
+                                    amount: string;
+                                }[];
+                                rizqim: {
+                                    rrn: string | null;
+                                    amount: string;
+                                    kind: string;
+                                }[];
+                            } | null;
+                            history: {
+                                source: string;
+                                bank_total: string;
+                                bank_count: number | null;
+                                difference: string;
+                                over_threshold: boolean;
+                                entered_by: number | null;
+                                entered_at: string | null;
+                            }[];
+                            note: string | null;
+                            entered_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            alerted_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "posShift.cashMovement": {
@@ -37250,6 +40309,13 @@ export interface operations {
                     force?: boolean | null;
                     reason?: string | null;
                     approval_token?: string | null;
+                    /** @description P6-16: the bank terminal's day total from its settlement slip (optional; compared with the shift's card money) */
+                    bank_terminal?: {
+                        total?: number;
+                        count?: number | null;
+                        terminal_ref?: string | null;
+                        note?: string | null;
+                    };
                 };
             };
         };
@@ -37343,6 +40409,17 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 };
+                                batch_writeoffs: {
+                                    count: number;
+                                    items: {
+                                        product_id: number;
+                                        product_name: string | null;
+                                        unit: string;
+                                        reason: string;
+                                        reason_label: string;
+                                        quantity: number;
+                                    }[];
+                                };
                                 refunds: {
                                     count: number;
                                     amount: string;
@@ -37418,6 +40495,70 @@ export interface operations {
                                     bills: string[];
                                     refunds: string[];
                                 };
+                            } | null;
+                            bank_terminal: {
+                                uuid: string;
+                                shift_uuid: string | null;
+                                z_number: number | null;
+                                branch_id: number;
+                                business_date: string;
+                                /** @enum {string} */
+                                source: "manual" | "import" | "provider";
+                                terminal_ref: string | null;
+                                shared: boolean;
+                                final: boolean;
+                                shifts: {
+                                    uuid: string;
+                                    z_number: number | null;
+                                    status: string;
+                                }[];
+                                bank_total: string;
+                                bank_count: number | null;
+                                rizqim_total: string | null;
+                                rizqim_count: number | null;
+                                rizqim_breakdown: {
+                                    payments: string;
+                                    deposits: string;
+                                    repayments: string;
+                                    refunds: string;
+                                    deposit_refunds: string;
+                                } | null;
+                                difference: string | null;
+                                threshold: string | null;
+                                over_threshold: boolean | null;
+                                transactions: {
+                                    rrn: string | null;
+                                    amount: string;
+                                    matched: boolean | null;
+                                }[] | null;
+                                unmatched: {
+                                    bank: {
+                                        rrn: string | null;
+                                        amount: string;
+                                    }[];
+                                    rizqim: {
+                                        rrn: string | null;
+                                        amount: string;
+                                        kind: string;
+                                    }[];
+                                } | null;
+                                history: {
+                                    source: string;
+                                    bank_total: string;
+                                    bank_count: number | null;
+                                    difference: string;
+                                    over_threshold: boolean;
+                                    entered_by: number | null;
+                                    entered_at: string | null;
+                                }[];
+                                note: string | null;
+                                entered_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                alerted_at: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
                             } | null;
                         };
                     };
@@ -37528,6 +40669,17 @@ export interface operations {
                                 voids: {
                                     count: number;
                                     amount: string;
+                                };
+                                batch_writeoffs: {
+                                    count: number;
+                                    items: {
+                                        product_id: number;
+                                        product_name: string | null;
+                                        unit: string;
+                                        reason: string;
+                                        reason_label: string;
+                                        quantity: number;
+                                    }[];
                                 };
                                 refunds: {
                                     count: number;
@@ -38127,6 +41279,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         }[];
                         meta: {
                             truncated: boolean;
@@ -38446,6 +41600,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         };
                     };
                 };
@@ -38530,6 +41686,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         };
                     };
                 };

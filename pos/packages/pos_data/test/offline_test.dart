@@ -214,6 +214,43 @@ void main() {
     expect(sync.received, hasLength(5));
   });
 
+  test('P6-16: a card paid offline on the bank terminal syncs with its RRN and last four digits', () async {
+    final String room = h.state.seedOrder(tableId: 1, guests: 4);
+    await h.warmUp();
+    final PosOrder order = await h.pos.orders.get(room);
+    final PosBill bill = (await h.pos.billing.createBills(
+      room,
+      version: order.version,
+    )).bills.single;
+
+    await h.goOffline();
+    final PosBillResult paid = await h.pos.billing.pay(
+      bill.uuid,
+      tenders: <PosTenderInput>[
+        PosTenderInput.card(
+          bill.dueAmount,
+          cardType: 'uzcard',
+          transactionId: '123456789012',
+          cardLast4: '4321',
+        ),
+      ],
+      shiftUuid: h.state.shift!['uuid']! as String,
+    );
+    expect(paid.bill.payments.single.transactionId, '123456789012');
+    expect(paid.bill.payments.single.cardLast4, '4321');
+
+    h.adapter.offline = false;
+    expect((await h.offline.syncNow()).drained, isTrue);
+    final Map<String, Object?> sent =
+        ((sync.received.first['payload']! as Map<String, Object?>)['tenders']!
+                    as List<Object?>)
+                .single!
+            as Map<String, Object?>;
+    expect(sent['transaction_id'], '123456789012');
+    expect(sent['card_last4'], '4321');
+    expect(h.state.orders[room]!['status'], 'delivered');
+  });
+
   test('a bill made and printed online is reprinted and paid once the till is offline, and synced', () async {
     final String room = h.state.seedOrder(tableId: 1, guests: 4);
     await h.warmUp();

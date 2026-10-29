@@ -4,48 +4,40 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user12.dart';
+import 'products2.dart';
 
 part 'data49.g.dart';
 
 @JsonSerializable()
 class Data49 {
   const Data49({
-    required this.uuid,
-    required this.type,
-    required this.name,
-    required this.platform,
-    required this.appVersion,
-    required this.storeId,
     required this.branchId,
-    required this.user,
-    required this.hasPushToken,
-    required this.lastSeenAt,
-    required this.revokedAt,
-    required this.createdAt,
+    required this.date,
+    required this.businessDate,
+    required this.enforced,
+    required this.setValue,
+    required this.productIds,
+    required this.previousDate,
+    required this.products,
   });
 
   factory Data49.fromJson(Map<String, Object?> json) => _$Data49FromJson(json);
 
-  final String uuid;
-  final String type;
-  final String name;
-  final String? platform;
-  @JsonKey(name: 'app_version')
-  final String? appVersion;
-  @JsonKey(name: 'store_id')
-  final int? storeId;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User12? user;
-  @JsonKey(name: 'has_push_token')
-  final bool hasPushToken;
-  @JsonKey(name: 'last_seen_at')
-  final String? lastSeenAt;
-  @JsonKey(name: 'revoked_at')
-  final String? revokedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final int branchId;
+  final String? date;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final bool enforced;
+
+  /// The name has been replaced because it contains a keyword. Original name: `set`.
+  @JsonKey(name: 'set')
+  final bool setValue;
+  @JsonKey(name: 'product_ids')
+  final Map<String, int> productIds;
+  @JsonKey(name: 'previous_date')
+  final String? previousDate;
+  final List<Products2> products;
 
   Map<String, Object?> toJson() => _$Data49ToJson(this);
 }

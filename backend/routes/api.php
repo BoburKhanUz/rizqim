@@ -172,6 +172,9 @@ Route::prefix('v1')->group(function () {
     // P3-11: fiscal settings, readiness, receipts list and retry for the web panel (docs/API.md)
     require __DIR__ . '/api_fiscal.php';
 
+    // P6-16: card flow of the branches (bank terminal, smart kassa, checklist) and bank terminal day reports
+    require __DIR__ . '/api_fiscal_terminal.php';
+
     // P3-17: bookings, pre-orders, deposits and customer accounts (nasiya) (docs/API.md "Bron va nasiya")
     require __DIR__ . '/api_pos_bookings.php';
 
@@ -184,6 +187,12 @@ Route::prefix('v1')->group(function () {
 
     // P3-31: offline limited mode: POST /pos/sync, sync status and errors (docs/API.md "Internetsiz rejim")
     require __DIR__ . '/api_pos_sync.php';
+
+    // P6-13: order numbers and calling: pickup board, till number blocks, ready / call / handed (docs/API.md)
+    require __DIR__ . '/api_pos_queue.php';
+
+    // P6-14: the customer display: state, pickup board for the display, the till's cart feed (docs/API.md)
+    require __DIR__ . '/api_pos_display.php';
 
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")

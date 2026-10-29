@@ -15,6 +15,9 @@ V1PosShiftsUuidCloseRequestBody _$V1PosShiftsUuidCloseRequestBodyFromJson(
   force: json['force'] as bool?,
   reason: json['reason'] as String?,
   approvalToken: json['approval_token'] as String?,
+  bankTerminal: json['bank_terminal'] == null
+      ? null
+      : BankTerminal3.fromJson(json['bank_terminal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$V1PosShiftsUuidCloseRequestBodyToJson(
@@ -24,4 +27,5 @@ Map<String, dynamic> _$V1PosShiftsUuidCloseRequestBodyToJson(
   'force': instance.force,
   'reason': instance.reason,
   'approval_token': instance.approvalToken,
+  'bank_terminal': instance.bankTerminal,
 };

@@ -2,6 +2,8 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Orders\PickupQueue;
+use App\Domain\Pos\Orders\PickupStatus;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Models\Order;
@@ -154,6 +156,10 @@ class StaffOrderPresenter
             // P3-26: when a cancelled or rejected order left the kitchen (GET /staff/kitchen/tickets?canceled_within=)
             'canceled_at' => $order->status->isCancellation() ? $times['closed_at']?->toJSON() : null,
             'waiting_seconds' => $this->waitingSeconds($order, $times, $now),
+            // P6-14: the counter number and where it is in the pickup queue (a paid-first order is `delivered` while
+            // its number is still `preparing`): the kitchen display shows the number big and bumps it ready
+            'queue_number' => $order->queue_number !== null ? (int) $order->queue_number : null,
+            'pickup_status' => PickupQueue::statusOf($order),
         ];
     }
 
@@ -166,7 +172,12 @@ class StaffOrderPresenter
     public function waitingSeconds(Order $order, array $times, ?Carbon $now = null): int
     {
         $start = $times['accepted_at'] ?? $order->created_at;
-        $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true);
+        $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)
+            // P6-14: a counter order paid first is closed while its number is still being cooked
+            || ($order->status === OrderStatus::DELIVERED && PickupQueue::statusOf($order) === PickupStatus::PREPARING);
+        if (!$cooking && $order->status === OrderStatus::DELIVERED && PickupQueue::statusOf($order) === PickupStatus::READY && $order->pickup_ready_at !== null) {
+            $times['ready_at'] ??= $order->pickup_ready_at;
+        }
         // A finished order that never passed `ready` (a pickup handed over from the kitchen, a cancelled one) stops when
         // it closed, so a history row does not keep counting
         $end = $cooking ? ($now ?? now()) : ($times['ready_at'] ?? $times['closed_at'] ?? $now ?? now());
@@ -197,6 +208,11 @@ class StaffOrderPresenter
             'kitchen_status' => $item->kitchen_status->value,
             'ready_at' => $item->ready_at?->toJSON(),
         ];
+
+        // P6-15: the parts of a kompleks line: the kitchen prepares each (docs/POS_SPEC.md "Kompleks")
+        if ($item->set_parts) {
+            $data['set_parts'] = $item->set_parts;
+        }
 
         // P3-12: a POS line also says its round, firing, station, seat, note and void ("O'CHIRILDI"); an online line
         // keeps exactly its P2-11 shape. Review P3-35: and its dish (product, category), so a display routes a line

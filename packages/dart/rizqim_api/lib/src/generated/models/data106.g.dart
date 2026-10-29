@@ -7,25 +7,23 @@ part of 'data106.dart';
 // **************************************************************************
 
 Data106 _$Data106FromJson(Map<String, dynamic> json) => Data106(
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
       .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
+  permissions: (json['permissions'] as List<dynamic>)
+      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
       .toList(),
+  matrix: (json['matrix'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
+  defaults: (json['defaults'] as Map<String, dynamic>).map(
+    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
+  ),
 );
 
 Map<String, dynamic> _$Data106ToJson(Data106 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
+  'roles': instance.roles,
+  'permissions': instance.permissions,
+  'matrix': instance.matrix,
+  'defaults': instance.defaults,
 };

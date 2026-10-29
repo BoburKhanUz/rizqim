@@ -12,6 +12,7 @@ import 'by_channel7.dart';
 import 'by_waiter5.dart';
 import 'discounts5.dart';
 import 'voids5.dart';
+import 'batch_writeoffs5.dart';
 import 'refunds8.dart';
 import 'deposits5.dart';
 import 'credit8.dart';
@@ -33,6 +34,7 @@ class Report3 {
     required this.byWaiter,
     required this.discounts,
     required this.voids,
+    required this.batchWriteoffs,
     required this.refunds,
     required this.deposits,
     required this.credit,
@@ -58,6 +60,8 @@ class Report3 {
   final List<ByWaiter5> byWaiter;
   final Discounts5 discounts;
   final Voids5 voids;
+  @JsonKey(name: 'batch_writeoffs')
+  final BatchWriteoffs5 batchWriteoffs;
   final Refunds8 refunds;
   final Deposits5 deposits;
   final Credit8 credit;

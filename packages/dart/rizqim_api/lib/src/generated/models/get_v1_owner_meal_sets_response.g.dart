@@ -1,0 +1,23 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'get_v1_owner_meal_sets_response.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+GetV1OwnerMealSetsResponse _$GetV1OwnerMealSetsResponseFromJson(
+  Map<String, dynamic> json,
+) => GetV1OwnerMealSetsResponse(
+  success: json['success'] as bool,
+  message: json['message'] as String,
+  data: Data95.fromJson(json['data'] as Map<String, dynamic>),
+);
+
+Map<String, dynamic> _$GetV1OwnerMealSetsResponseToJson(
+  GetV1OwnerMealSetsResponse instance,
+) => <String, dynamic>{
+  'success': instance.success,
+  'message': instance.message,
+  'data': instance.data,
+};

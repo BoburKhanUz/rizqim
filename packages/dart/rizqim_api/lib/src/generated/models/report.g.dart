@@ -25,6 +25,9 @@ Report _$ReportFromJson(Map<String, dynamic> json) => Report(
       .toList(),
   discounts: Discounts.fromJson(json['discounts'] as Map<String, dynamic>),
   voids: Voids.fromJson(json['voids'] as Map<String, dynamic>),
+  batchWriteoffs: BatchWriteoffs.fromJson(
+    json['batch_writeoffs'] as Map<String, dynamic>,
+  ),
   refunds: Refunds4.fromJson(json['refunds'] as Map<String, dynamic>),
   deposits: Deposits.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit4.fromJson(json['credit'] as Map<String, dynamic>),
@@ -45,6 +48,7 @@ Map<String, dynamic> _$ReportToJson(Report instance) => <String, dynamic>{
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
   'voids': instance.voids,
+  'batch_writeoffs': instance.batchWriteoffs,
   'refunds': instance.refunds,
   'deposits': instance.deposits,
   'credit': instance.credit,

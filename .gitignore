@@ -56,5 +56,6 @@ Thumbs.db
 .flutter-plugins
 .flutter-plugins-dependencies
 pos/apps/*/build/
+pos/packages/*/build/
 packages/dart/*/build/
 **/.pub-cache/

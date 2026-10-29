@@ -47,7 +47,8 @@ class FiscalService implements FiscalIssuer
         $this->validator->validate($document, $store, $original);
 
         $receipt = $this->create($document, $store, $original, [
-            'driver' => FiscalSettings::of($store)->driver(),
+            // P6-16: a smart kassa's receipts go through the provider's virtual kassa bound to it (once it is the store's)
+            'driver' => FiscalSettings::of($store)->driverFor($document->deviceId !== null ? \App\Models\Device::find($document->deviceId) : null, $store),
             'status' => FiscalReceiptStatus::PENDING,
             'next_attempt_at' => now(),
         ]);

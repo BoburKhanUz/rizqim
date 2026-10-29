@@ -4,7 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'layout2.dart';
+import 'branch3.dart';
+import 'polygon.dart';
+import 'bbox.dart';
 
 part 'data52.g.dart';
 
@@ -12,37 +14,47 @@ part 'data52.g.dart';
 class Data52 {
   const Data52({
     required this.id,
-    required this.branchId,
-    required this.hallId,
     required this.name,
-    required this.kind,
-    required this.seats,
-    required this.layout,
-    required this.sortOrder,
-    required this.isActive,
-    required this.minSpend,
-    required this.minSpendMode,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data52.fromJson(Map<String, Object?> json) => _$Data52FromJson(json);
 
   final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'hall_id')
-  final int hallId;
   final String name;
-  final String kind;
-  final int? seats;
-  final Layout2 layout;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  @JsonKey(name: 'min_spend_mode')
-  final String minSpendMode;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch3? branch;
+  final Polygon polygon;
+  final Bbox bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data52ToJson(this);
 }

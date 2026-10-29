@@ -9,9 +9,12 @@ import 'billing/billing_repository.dart';
 import 'bookings/booking_repository.dart';
 import 'bootstrap/bootstrap_repository.dart';
 import 'catalog/catalog_repository.dart';
+import 'display/display_feed.dart';
+import 'display/display_repository.dart';
 import 'floor/floor_repository.dart';
 import 'http/connectivity.dart';
 import 'http/pos_http.dart';
+import 'menu_day/batch_repository.dart';
 import 'offline/pos_offline.dart';
 import 'orders/order_repository.dart';
 import 'session/approvals.dart';
@@ -71,6 +74,9 @@ class PosData {
     shifts = ShiftRepository(http, offline: offline);
     bookings = BookingRepository(http);
     accounts = CustomerAccountRepository(http);
+    display = PosDisplayRepository(http);
+    displayFeed = DisplayFeed(display);
+    batches = PosBatchRepository(http);
     final PosOffline? o = offline;
     if (o != null) {
       o
@@ -110,11 +116,19 @@ class PosData {
   late final BookingRepository bookings;
   late final CustomerAccountRepository accounts;
 
+  /// P6-14: mijoz ekrani (ekran o'qiydi, kassa [displayFeed] orqali chekni yuboradi).
+  late final PosDisplayRepository display;
+  late final DisplayFeed displayFeed;
+
+  /// P6-15: qozon/partiya hisobdan chiqarish.
+  late final PosBatchRepository batches;
+
   AuthSession get auth => client.auth;
   PosConnectivity get connectivity => http.connectivity;
 
   Future<void> dispose() async {
     await _authSub?.cancel();
+    await displayFeed.dispose();
     await offline?.dispose();
     await session.dispose();
     await catalog.dispose();

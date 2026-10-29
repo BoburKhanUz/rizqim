@@ -16,6 +16,7 @@ class Tenders {
     this.tenderedAmount,
     this.cardType,
     this.transactionId,
+    this.cardLast4,
     this.reference,
     this.accountUuid,
   });
@@ -31,6 +32,8 @@ class Tenders {
   final String? cardType;
   @JsonKey(name: 'transaction_id')
   final String? transactionId;
+  @JsonKey(name: 'card_last4')
+  final String? cardLast4;
   final String? reference;
   @JsonKey(name: 'account_uuid')
   final String? accountUuid;

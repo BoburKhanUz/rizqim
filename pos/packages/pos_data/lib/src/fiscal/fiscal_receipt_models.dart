@@ -138,6 +138,7 @@ class PosFiscalPaymentPart {
     this.credit = false,
     this.cardType,
     this.transactionId,
+    this.cardLast4,
   });
 
   factory PosFiscalPaymentPart.fromJson(PosJson j) => PosFiscalPaymentPart(
@@ -147,6 +148,7 @@ class PosFiscalPaymentPart {
     credit: j.boolean('credit'),
     cardType: j.strOrNull('card_type'),
     transactionId: j.strOrNull('transaction_id'),
+    cardLast4: j.strOrNull('card_last4'),
   );
 
   /// `cash`, `card`, `qr`.
@@ -156,4 +158,7 @@ class PosFiscalPaymentPart {
   final bool credit;
   final String? cardType;
   final String? transactionId;
+
+  /// P6-16: kartaning oxirgi 4 raqami (ixtiyoriy).
+  final String? cardLast4;
 }

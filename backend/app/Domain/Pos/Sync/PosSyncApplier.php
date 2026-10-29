@@ -14,7 +14,9 @@ use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOrderException;
 use App\Domain\Pos\Orders\PosOrderService;
+use App\Domain\Pos\Shifts\BusinessDay;
 use App\Domain\Pos\Shifts\OrderStamp;
+use App\Domain\Pos\Shifts\QueueNumbers;
 use App\Domain\Pos\Shifts\ShiftService;
 use App\Enums\FireMode;
 use App\Enums\KitchenItemStatus;
@@ -281,7 +283,7 @@ final class PosSyncApplier
     // --- operations -------------------------------------------------------------------------------------------------
 
     /**
-     * order.open: {order (the device's uuid, stored as external_id), local_number, channel, table_id?, guests_count?,
+     * order.open: {order (the device's uuid, stored as external_id), local_number, queue_number? (P6-13), channel, table_id?, guests_count?,
      * waiter_id?, note?, items?, send?, menu_taken_at?}
      *
      * @param  array<string, mixed>  $payload
@@ -315,6 +317,16 @@ final class PosSyncApplier
         $guests = max($channel === OrderChannel::POS_HALL ? 1 : 0, (int) ($payload['guests_count'] ?? 0));
         $waiterId = isset($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
         $options = ['external_id' => $clientId, 'note' => $this->text($payload['note'] ?? null, 500)];
+        // P6-13: the queue number the till printed from its block (QueueNumbers keeps it when it is allowed); without
+        // the queue_numbers module there are no blocks and no talon: a proposed number is ignored (review P6 C#L4)
+        $queueNumber = isset($payload['queue_number']) && is_int($payload['queue_number']) && $payload['queue_number'] > 0 && $payload['queue_number'] <= 999999
+            && QueueNumbers::numbersOn($branch) ? $payload['queue_number'] : null;
+        $options['queue_number'] = $queueNumber;
+        // Review P6 C#M1: the business day the order was taken on (an order taken before the day's start and synced
+        // after it stays in that day, numbered from that day's blocks), not the day it reached the server
+        if ($occurredAt !== null) {
+            $options['business_date'] = BusinessDay::of($branch, $occurredAt);
+        }
 
         try {
             $order = $this->orders->openOrder($branch, $channel, $table, $guests, $waiterId, (int) $device->id, $staff, $options);
@@ -329,6 +341,12 @@ final class PosSyncApplier
         } catch (ValidationException) {
             // An unknown waiter: the order is the staff member's
             $order = $this->orders->openOrder($branch, $channel, $table, $guests, null, (int) $device->id, $staff, $options);
+        }
+
+        if ($queueNumber !== null && (int) $order->queue_number !== $queueNumber) {
+            // The talon in the customer's hand shows another number (another order took it, or it was not this
+            // till's block for the day): the order keeps the server's number, the manager sees both
+            $flags[] = ['flag' => 'queue_number_taken', 'queue_number' => $queueNumber, 'assigned' => $order->queue_number];
         }
 
         $localNumber = $this->text($payload['local_number'] ?? null, 32);
@@ -473,7 +491,7 @@ final class PosSyncApplier
 
     /**
      * bill.pay: {order, bill (the device's id or a server bill uuid), shift_uuid?, tenders: [{tender: cash|card, amount,
-     * tendered_amount?, card_type?, transaction_id?}]} — the money as the till took it.
+     * tendered_amount?, card_type?, transaction_id?, card_last4?}]} — the money as the till took it.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -569,7 +587,7 @@ final class PosSyncApplier
         return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message) {
             // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
-            $shift = $shift !== null ? PosShift::whereKey($shift->id)->lockForUpdate()->first() : null;
+            $shift = $shift !== null ? PosShift::lockForMoney((int) $shift->id) : null;
             if ($shift !== null && !$shift->isOpen()) {
                 $shift = null;
             }
@@ -594,6 +612,7 @@ final class PosSyncApplier
                     'change_amount' => isset($tender['tendered_amount']) ? Money::of($tender['tendered_amount'])->minus($tender['amount'])->toString() : null,
                     'card_type' => $tender['card_type'] ?? null,
                     'transaction_id' => $tender['transaction_id'] ?? null,
+                    'card_last4' => $tender['card_last4'] ?? null,
                     'offline_paid_at' => $occurredAt ?? now(),
                     'synced_at' => now(),
                 ]);
@@ -751,6 +770,8 @@ final class PosSyncApplier
             'stale_menu' => "Narxlar 24 soatdan eski menyu nusxasidan olingan: menejer ko'rib chiqsin.",
             'table_occupied', 'table_inactive' => "Joy ({$flag['table']}) serverda band yoki yopilgan edi: buyurtma joysiz ochildi, menejer joyini tanlasin.",
             'table_missing' => 'Stol yoki xona serverda topilmadi: buyurtma joysiz ochildi.',
+            // P6-13
+            'queue_number_taken' => "Talondagi raqam {$flag['queue_number']} band yoki bu kassaning bugungi oralig'ida emas: buyurtmaga {$flag['assigned']} raqami berildi. Mijozga yangi raqamni ayting.",
             'underpaid' => "Schyot serverda {$flag['server_total']} so'm: {$flag['amount']} so'm kam to'langan.",
             'overpaid' => "Schyot serverda {$flag['server_total']} so'm: {$flag['amount']} so'm ortiqcha olingan.",
             'offline_price_mismatch' => "'{$flag['name']}' kassada {$flag['device_price']} so'mdan sotilgan, lekin menyu nusxasi vaqtida bunday narx bo'lmagan: server narxi ({$flag['server_price']} so'm) qo'yildi. Menejer tekshirsin.",
@@ -789,6 +810,8 @@ final class PosSyncApplier
             'order_version' => (int) $order->version,
             'order_status' => $order->status->value,
             'local_number' => $order->local_number,
+            // P6-13: the order's queue number on the server (the talon's, unless flagged queue_number_taken)
+            'queue_number' => $order->queue_number !== null ? (int) $order->queue_number : null,
             'items' => OrderItem::where('order_id', $order->id)->whereNotNull('client_line_id')->orderBy('id')
                 ->get(['id', 'client_line_id'])
                 ->mapWithKeys(fn (OrderItem $item) => [(string) $item->getAttribute('client_line_id') => (int) $item->id])
@@ -936,7 +959,7 @@ final class PosSyncApplier
     /**
      * The tenders a till takes offline: cash (with what the guest handed over) and card (a separate bank terminal).
      *
-     * @return list<array{tender: string, amount: string, tendered_amount?: string, card_type?: string, transaction_id?: string}>
+     * @return list<array{tender: string, amount: string, tendered_amount?: string, card_type?: string, transaction_id?: string, card_last4?: string}>
      */
     private function tenders(mixed $input): array
     {
@@ -962,6 +985,12 @@ final class PosSyncApplier
                 $cardType = strtolower(trim(is_scalar($tender['card_type'] ?? null) ? (string) $tender['card_type'] : ''));
                 $row['card_type'] = in_array($cardType, PaymentService::CARD_TYPES, true) ? $cardType : 'other';
                 $row['transaction_id'] = mb_substr(trim(is_scalar($tender['transaction_id'] ?? null) ? (string) $tender['transaction_id'] : ''), 0, 64) ?: 'offline';
+                // P6-16: the card's last four digits when the till sent four digits; anything else is dropped (money
+                // taken offline is never refused for it)
+                $last4 = trim(is_scalar($tender['card_last4'] ?? null) ? (string) $tender['card_last4'] : '');
+                if (preg_match('/^\d{4}$/', $last4)) {
+                    $row['card_last4'] = $last4;
+                }
             }
             $tenders[] = $row;
         }

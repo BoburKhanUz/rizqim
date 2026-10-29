@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 
 import '../catalog/catalog_models.dart';
 import '../json.dart';
+import '../menu_day/menu_day_models.dart';
 import '../queue/online_order_models.dart';
 
 /// POS qatorining oshxona holati: `pending` (faqat buyurtmada) → `sent` → `ready` → `served`; `void` — o'chirilgan.
@@ -411,6 +412,7 @@ class PosOrderItem {
     this.voidedAt,
     this.voidedBy,
     this.voidReason,
+    this.setParts,
   });
 
   factory PosOrderItem.fromJson(PosJson j) => PosOrderItem(
@@ -439,6 +441,7 @@ class PosOrderItem {
     voidedAt: j.dateOrNull('voided_at'),
     voidedBy: PosRef.maybe(j, 'voided_by'),
     voidReason: j.strOrNull('void_reason'),
+    setParts: PosSetPart.listOf(j['set_parts']),
   );
 
   final int id;
@@ -468,6 +471,9 @@ class PosOrderItem {
   final DateTime? voidedAt;
   final PosRef? voidedBy;
   final String? voidReason;
+
+  /// P6-15: kompleks qatorining tarkibi (sotuv paytidagi nusxa; kompleks emas — `null`).
+  final List<PosSetPart>? setParts;
 
   bool get isVoid => kitchenStatus == PosKitchenStatus.voided;
 

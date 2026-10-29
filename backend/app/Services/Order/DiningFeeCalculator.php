@@ -2,6 +2,7 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\MinSpendMode;
 use App\Enums\OrderChannel;
 use App\Enums\PlaceFeeMode;
@@ -23,12 +24,30 @@ class DiningFeeCalculator
 
     public function settingsFor(int $storeId, ?int $branchId): ?ServiceFeeSetting
     {
-        return ServiceFeeSetting::query()
+        return $this->lawful(ServiceFeeSetting::query()
             ->where('store_id', $storeId)
             ->whereNull('hall_id') // P3-12: a hall's row applies in that hall only (settingsForHall)
             ->where(fn ($query) => $query->whereNull('branch_id')->when($branchId !== null, fn ($query) => $query->orWhere('branch_id', $branchId)))
             ->orderByRaw('branch_id IS NULL') // the branch's own row first
-            ->first();
+            ->first(), $branchId);
+    }
+
+    /**
+     * P6-11: a stolovaya charges no service charge (VM 75, the format profile's lock): its settings read with 0%
+     * whatever the store's or a hall's row says (a copy, never saved); the place fee stays.
+     */
+    private function lawful(?ServiceFeeSetting $settings, ?int $branchId): ?ServiceFeeSetting
+    {
+        $branchId ??= $settings?->branch_id !== null ? (int) $settings->branch_id : null;
+        if ($settings === null || !Money::of((string) $settings->service_charge_percent)->isPositive()
+            || !app(PosModules::class)->serviceChargeLocked($branchId)) {
+            return $settings;
+        }
+
+        $copy = clone $settings;
+        $copy->setAttribute('service_charge_percent', '0.00');
+
+        return $copy;
     }
 
     /**
@@ -40,7 +59,7 @@ class DiningFeeCalculator
         if ($hallId !== null) {
             $own = ServiceFeeSetting::query()->where('store_id', $storeId)->where('hall_id', $hallId)->first();
             if ($own !== null) {
-                return $own;
+                return $this->lawful($own, $branchId);
             }
         }
 

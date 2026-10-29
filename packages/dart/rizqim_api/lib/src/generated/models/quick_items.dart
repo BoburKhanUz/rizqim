@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'source2.dart';
+import 'source3.dart';
 
 part 'quick_items.g.dart';
 
@@ -34,7 +34,7 @@ class QuickItems {
   final String name;
   @JsonKey(name: 'variant_name')
   final String? variantName;
-  final Source2 source;
+  final Source3 source;
   @JsonKey(name: 'hall_id')
   final int? hallId;
   @JsonKey(name: 'quantity_per_guest')

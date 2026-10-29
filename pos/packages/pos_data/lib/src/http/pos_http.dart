@@ -221,6 +221,15 @@ class PosHttp {
           data: data,
           idempotencyKey: idempotencyKey,
         );
+      case (403, PosReasons.moduleDisabled):
+        return PosModuleDisabled(
+          message: message,
+          statusCode: status,
+          reason: reason,
+          cause: e,
+          data: data,
+          idempotencyKey: idempotencyKey,
+        );
       case (403, final String r) when PosReasons.planRefusals.contains(r):
         return PosPlanRefused(
           message: message,

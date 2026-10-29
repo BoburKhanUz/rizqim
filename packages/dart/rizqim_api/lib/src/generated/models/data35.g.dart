@@ -7,41 +7,39 @@ part of 'data35.dart';
 // **************************************************************************
 
 Data35 _$Data35FromJson(Map<String, dynamic> json) => Data35(
-  plan: json['plan'] == null
-      ? null
-      : Plan.fromJson(json['plan'] as Map<String, dynamic>),
-  legacy: json['legacy'] as bool,
-  period: json['period'] as String?,
-  status: json['status'] as String,
-  trialEndsAt: json['trial_ends_at'] as String?,
-  currentPeriod: json['current_period'] == null
-      ? null
-      : CurrentPeriod.fromJson(json['current_period'] as Map<String, dynamic>),
-  termEndsAt: json['term_ends_at'] as String?,
-  lockedSince: json['locked_since'] as String?,
-  lockAt: json['lock_at'] as String?,
-  settingsLocked: json['settings_locked'] as bool,
-  features: Map<String, bool>.from(json['features'] as Map),
-  requiredPlans: Map<String, String?>.from(json['required_plans'] as Map),
-  devices: Devices.fromJson(json['devices'] as Map<String, dynamic>),
-  notice: json['notice'] == null
-      ? null
-      : Notice.fromJson(json['notice'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  productId: (json['product_id'] as num).toInt(),
+  productName: json['product_name'] as String,
+  productVariantId: (json['product_variant_id'] as num?)?.toInt(),
+  variantName: json['variant_name'] as String?,
+  unit: json['unit'] as String?,
+  label: json['label'] as String?,
+  quantityProduced: json['quantity_produced'] as num?,
+  quantityLeft: json['quantity_left'] as num?,
+  writtenOffQuantity: json['written_off_quantity'] as num?,
+  isOpen: json['is_open'] as bool,
+  startedAt: json['started_at'] as String?,
+  soldOutAt: json['sold_out_at'] as String?,
+  closedAt: json['closed_at'] as String?,
 );
 
 Map<String, dynamic> _$Data35ToJson(Data35 instance) => <String, dynamic>{
-  'plan': instance.plan,
-  'legacy': instance.legacy,
-  'period': instance.period,
-  'status': instance.status,
-  'trial_ends_at': instance.trialEndsAt,
-  'current_period': instance.currentPeriod,
-  'term_ends_at': instance.termEndsAt,
-  'locked_since': instance.lockedSince,
-  'lock_at': instance.lockAt,
-  'settings_locked': instance.settingsLocked,
-  'features': instance.features,
-  'required_plans': instance.requiredPlans,
-  'devices': instance.devices,
-  'notice': instance.notice,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'product_id': instance.productId,
+  'product_name': instance.productName,
+  'product_variant_id': instance.productVariantId,
+  'variant_name': instance.variantName,
+  'unit': instance.unit,
+  'label': instance.label,
+  'quantity_produced': instance.quantityProduced,
+  'quantity_left': instance.quantityLeft,
+  'written_off_quantity': instance.writtenOffQuantity,
+  'is_open': instance.isOpen,
+  'started_at': instance.startedAt,
+  'sold_out_at': instance.soldOutAt,
+  'closed_at': instance.closedAt,
 };

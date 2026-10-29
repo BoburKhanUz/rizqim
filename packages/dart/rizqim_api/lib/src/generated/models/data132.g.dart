@@ -7,13 +7,13 @@ part of 'data132.dart';
 // **************************************************************************
 
 Data132 _$Data132FromJson(Map<String, dynamic> json) => Data132(
-  booking: Booking2.fromJson(json['booking'] as Map<String, dynamic>),
-  payment: Payment.fromJson(json['payment'] as Map<String, dynamic>),
-  fiscal: Fiscal5.fromJson(json['fiscal'] as Map<String, dynamic>),
+  userId: (json['user_id'] as num).toInt(),
+  staffCode: json['staff_code'] as String?,
+  pinSetAt: json['pin_set_at'] as String?,
 );
 
 Map<String, dynamic> _$Data132ToJson(Data132 instance) => <String, dynamic>{
-  'booking': instance.booking,
-  'payment': instance.payment,
-  'fiscal': instance.fiscal,
+  'user_id': instance.userId,
+  'staff_code': instance.staffCode,
+  'pin_set_at': instance.pinSetAt,
 };

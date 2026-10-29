@@ -7,39 +7,23 @@ part of 'data82.dart';
 // **************************************************************************
 
 Data82 _$Data82FromJson(Map<String, dynamic> json) => Data82(
-  id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
+  tin: json['tin'] as String?,
+  taxRegime: json['tax_regime'] == null
+      ? null
+      : TaxRegime.fromJson(json['tax_regime'] as String?),
+  fiscalSettings: FiscalSettings2.fromJson(
+    json['fiscal_settings'] as Map<String, dynamic>,
   ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers.fromJson(e as Map<String, dynamic>))
+  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
+  taxRegimes: (json['tax_regimes'] as List<dynamic>)
+      .map((e) => TaxRegimes2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  productRules: ProductRules.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
 );
 
 Map<String, dynamic> _$Data82ToJson(Data82 instance) => <String, dynamic>{
-  'id': instance.id,
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'tin': instance.tin,
+  'tax_regime': instance.taxRegime,
+  'fiscal_settings': instance.fiscalSettings,
+  'drivers': instance.drivers,
+  'tax_regimes': instance.taxRegimes,
 };

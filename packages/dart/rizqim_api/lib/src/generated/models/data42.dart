@@ -4,28 +4,55 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings2.dart';
+import 'working_hours2.dart';
 
 part 'data42.g.dart';
 
 @JsonSerializable()
 class Data42 {
   const Data42({
-    required this.branchId,
-    required this.timezone,
-    required this.businessDayStartsAt,
-    required this.posSettings,
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.address,
+    required this.regionId,
+    required this.districtId,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusKm,
+    required this.status,
+    required this.isActive,
+    required this.workingHours,
+    required this.isOpenNow,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data42.fromJson(Map<String, Object?> json) => _$Data42FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String timezone;
-  @JsonKey(name: 'business_day_starts_at')
-  final String businessDayStartsAt;
-  @JsonKey(name: 'pos_settings')
-  final PosSettings2 posSettings;
+  final int id;
+  final String name;
+  final String? phone;
+  final String? address;
+  @JsonKey(name: 'region_id')
+  final int? regionId;
+  @JsonKey(name: 'district_id')
+  final int? districtId;
+  final num? latitude;
+  final num? longitude;
+  @JsonKey(name: 'radius_km')
+  final num radiusKm;
+  final String status;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'working_hours')
+  final WorkingHours2 workingHours;
+  @JsonKey(name: 'is_open_now')
+  final bool isOpenNow;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data42ToJson(this);
 }

@@ -11,6 +11,47 @@ function branch(id: number, stopped: Partial<BranchAvailability['stopped']> = {}
 const variant = makeVariant({ id: 11, uuid: 'v-11', product_id: 1, stock: 10 });
 const product = makeProduct({ id: 1, variants: [variant] });
 
+// "Keyingi partiya HH:MM" (P6-15): the planned time shown beside a sold-out dish
+describe('the next batch', () => {
+  const soon = new Date(Date.now() + 2 * 3_600_000).toISOString();
+  const later = new Date(Date.now() + 5 * 3_600_000).toISOString();
+  const gone = new Date(Date.now() - 600_000).toISOString();
+  const withPlans = (id: number, plans: NonNullable<BranchAvailability['next_batches']>): BranchAvailability => ({ ...branch(id), next_batches: plans });
+
+  it('gives the earliest plan of the dish that has not passed', () => {
+    const view = availabilityView([
+      withPlans(1, [
+        { product_id: 1, product_variant_id: null, planned_at: gone, time: '08:00' },
+        { product_id: 1, product_variant_id: null, planned_at: later, time: '17:30' },
+        { product_id: 1, product_variant_id: null, planned_at: soon, time: '12:30' },
+        { product_id: 2, product_variant_id: null, planned_at: soon, time: '09:00' },
+      ]),
+    ]);
+    expect(view.nextBatch(1)).toBe('12:30');
+    expect(view.nextBatch(2)).toBe('09:00');
+    expect(view.nextBatch(3)).toBeNull();
+  });
+
+  it('a plan for one variant is that variant only, a plan for the dish serves them all', () => {
+    const view = availabilityView([
+      withPlans(1, [
+        { product_id: 1, product_variant_id: 12, planned_at: soon, time: '12:30' },
+        { product_id: 1, product_variant_id: null, planned_at: later, time: '17:30' },
+      ]),
+    ]);
+    expect(view.nextBatch(1, 12)).toBe('12:30');
+    expect(view.nextBatch(1, 11)).toBe('17:30');
+  });
+
+  it('follows the branch once it is known, and says nothing without data', () => {
+    const branches = [withPlans(1, [{ product_id: 1, product_variant_id: null, planned_at: later, time: '17:30' }]), withPlans(2, [{ product_id: 1, product_variant_id: null, planned_at: soon, time: '12:30' }])];
+    expect(availabilityView(branches).nextBatch(1)).toBe('12:30');
+    expect(availabilityView(branches, 1).nextBatch(1)).toBe('17:30');
+    expect(availabilityView(undefined).nextBatch(1)).toBeNull();
+    expect(availabilityView([branch(1)]).nextBatch(1)).toBeNull();
+  });
+});
+
 describe('availabilityView', () => {
   it('flags nothing without data: the server decides at checkout', () => {
     const view = availabilityView(undefined);

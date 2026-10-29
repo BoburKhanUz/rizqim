@@ -10,7 +10,8 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
  * menu.availability_changed: something on a branch's menu became unavailable or available again (stop-list entry
- * added, removed or expired; a batch opened, sold out, refilled or closed; a branch override switched). P1-21.
+ * added, removed or expired; a batch opened, sold out, refilled or closed; a branch override switched; P6-15: a dish
+ * on or off today's menu, a "keyingi partiya" planned or canceled). P1-21.
  *
  * Sent to the staff channels (store.{id}, branch.{id}, pos-branch.{id}, like the order events) and to the public `menu.{storeId}`
  * channel the customer apps listen on: availability is public anyway (it is in GET /catalog). The payload says what
@@ -25,7 +26,7 @@ class MenuAvailabilityChangedBroadcast implements ShouldBroadcast, ShouldDispatc
 
     /**
      * @param  list<array{type: string, id: int, available: bool}>  $items  what changed (product, variant, modifier)
-     * @param  string  $reason  stop_list | batch | branch_override
+     * @param  string  $reason  stop_list | batch | branch_override | daily_menu | batch_plan (P6-15: items empty, refetch)
      */
     public function __construct(
         public int $storeId,

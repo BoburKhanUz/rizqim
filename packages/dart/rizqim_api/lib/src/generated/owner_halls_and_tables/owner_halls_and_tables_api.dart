@@ -42,7 +42,8 @@ abstract class OwnerHallsAndTablesApi {
 
   /// Add a table, room or tapchan.
   ///
-  /// In a hall (its branch is the hall's). `kind`: table, room or tapchan. `min_spend` (optional): the least the party.
+  /// In a hall (its branch is the hall's). `kind`: table, room or tapchan (P6-11: a room or tapchan needs the branch's.
+  /// `rooms` module, 403 module_disabled). `min_spend` (optional): the least the party.
   /// spends on food, per room (`per_table`) or per guest (`per_person`); the difference is a separate bill line.
   @POST('/v1/owner/dining-tables')
   Future<PostV1OwnerDiningTablesResponse> diningTableStore({

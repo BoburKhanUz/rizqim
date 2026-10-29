@@ -130,6 +130,12 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     discount_by: null,
     // Who issued the fiscal receipt (P4-31)
     fiscalized_by: null,
+    // Counter-order pickup queue (P6-13): empty on online orders
+    pickup_status: null,
+    pickup_ready_at: null,
+    pickup_called_at: null,
+    pickup_call_count: 0,
+    pickup_handed_at: null,
     ...over,
   };
 }

@@ -4,50 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers.dart';
-import 'product_rules.dart';
+import 'tax_regime.dart';
+import 'fiscal_settings2.dart';
+import 'tax_regimes2.dart';
 
 part 'data82.g.dart';
 
 @JsonSerializable()
 class Data82 {
   const Data82({
-    required this.id,
-    required this.uuid,
-    required this.name,
-    required this.nameI18n,
-    required this.minSelect,
-    required this.maxSelect,
-    required this.isRequired,
-    required this.sortOrder,
-    required this.isActive,
-    required this.modifiers,
-    required this.productIds,
-    required this.productRules,
+    required this.tin,
+    required this.taxRegime,
+    required this.fiscalSettings,
+    required this.drivers,
+    required this.taxRegimes,
   });
 
   factory Data82.fromJson(Map<String, Object?> json) => _$Data82FromJson(json);
 
-  final int id;
-  final String uuid;
-  final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
-  @JsonKey(name: 'min_select')
-  final int minSelect;
-  @JsonKey(name: 'max_select')
-  final int? maxSelect;
-  @JsonKey(name: 'is_required')
-  final bool isRequired;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Modifiers> modifiers;
-  @JsonKey(name: 'product_ids')
-  final List<int> productIds;
-  @JsonKey(name: 'product_rules')
-  final ProductRules productRules;
+  final String? tin;
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings2 fiscalSettings;
+  final List<String> drivers;
+  @JsonKey(name: 'tax_regimes')
+  final List<TaxRegimes2> taxRegimes;
 
   Map<String, Object?> toJson() => _$Data82ToJson(this);
 }

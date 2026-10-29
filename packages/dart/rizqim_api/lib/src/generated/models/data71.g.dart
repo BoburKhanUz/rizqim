@@ -8,24 +8,26 @@ part of 'data71.dart';
 
 Data71 _$Data71FromJson(Map<String, dynamic> json) => Data71(
   id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  serviceFee: json['service_fee'] == null
+  type: json['type'] as String,
+  amount: json['amount'] as String,
+  balanceBefore: json['balance_before'] as String,
+  balanceAfter: json['balance_after'] as String,
+  order: json['order'] == null
       ? null
-      : ServiceFee.fromJson(json['service_fee'] as Map<String, dynamic>),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+      : Order2.fromJson(json['order'] as Map<String, dynamic>),
+  referenceId: json['reference_id'] as String?,
+  notes: json['notes'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data71ToJson(Data71 instance) => <String, dynamic>{
   'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'service_fee': instance.serviceFee,
-  'tables': instance.tables,
+  'type': instance.type,
+  'amount': instance.amount,
+  'balance_before': instance.balanceBefore,
+  'balance_after': instance.balanceAfter,
+  'order': instance.order,
+  'reference_id': instance.referenceId,
+  'notes': instance.notes,
+  'created_at': instance.createdAt,
 };

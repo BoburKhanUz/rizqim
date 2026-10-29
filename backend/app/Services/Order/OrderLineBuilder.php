@@ -2,13 +2,17 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Menu\DailyMenuService;
+use App\Domain\Pos\Menu\MealSets;
 use App\Enums\MenuUnit;
 use App\Enums\StopListSubject;
 use App\Models\Branch;
+use App\Models\BranchProductVariant;
 use App\Models\Modifier;
 use App\Models\ModifierGroup;
 use App\Models\ProductVariant;
 use App\Models\StopListEntry;
+use App\Services\Catalog\MenuAvailability;
 use App\Support\Money;
 use App\Support\Quantity;
 use Brick\Math\BigDecimal;
@@ -115,6 +119,30 @@ class OrderLineBuilder
 
         foreach (StopListEntry::where('branch_id', $branch->id)->active()->get(['subject_type', 'subject_id', 'reason']) as $entry) {
             $stopped[$entry->subject_type->value][(int) $entry->subject_id] = $entry->reason;
+        }
+
+        // P6-15: dishes off today's "Bugungi menyu" count as stopped, and so does a kompleks with a stopped, sold-out or switched-off part
+        $products = StopListSubject::PRODUCT->value;
+        foreach (app(DailyMenuService::class)->offMenuProductIds($branch) as $productId) {
+            if (!array_key_exists($productId, $stopped[$products])) {
+                $stopped[$products][$productId] = DailyMenuService::OFF_MENU_REASON;
+            }
+        }
+        $sets = app(MealSets::class);
+        if ($sets->hasSets((int) $branch->store_id)) {
+            // A part that is sold out (batch stock) or switched off on this branch closes the kompleks like a stopped one
+            $variants = $stopped[StopListSubject::VARIANT->value];
+            foreach (app(MenuAvailability::class)->soldOutVariantIds($branch) as $variantId) {
+                $variants[$variantId] ??= null;
+            }
+            foreach (BranchProductVariant::where('branch_id', $branch->id)->where('is_active', false)->pluck('variant_id') as $variantId) {
+                $variants[(int) $variantId] ??= null;
+            }
+            foreach ($sets->closedByParts((int) $branch->store_id, $stopped[$products], $variants) as $productId => $reason) {
+                if (!array_key_exists($productId, $stopped[$products])) {
+                    $stopped[$products][$productId] = $reason;
+                }
+            }
         }
 
         return $stopped;

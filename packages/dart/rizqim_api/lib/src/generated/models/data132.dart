@@ -4,26 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'booking2.dart';
-import 'payment.dart';
-import 'fiscal5.dart';
-
 part 'data132.g.dart';
 
 @JsonSerializable()
 class Data132 {
   const Data132({
-    required this.booking,
-    required this.payment,
-    required this.fiscal,
+    required this.userId,
+    required this.staffCode,
+    required this.pinSetAt,
   });
 
   factory Data132.fromJson(Map<String, Object?> json) =>
       _$Data132FromJson(json);
 
-  final Booking2 booking;
-  final Payment payment;
-  final Fiscal5 fiscal;
+  @JsonKey(name: 'user_id')
+  final int userId;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'pin_set_at')
+  final String? pinSetAt;
 
   Map<String, Object?> toJson() => _$Data132ToJson(this);
 }

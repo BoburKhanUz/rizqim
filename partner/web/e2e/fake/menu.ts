@@ -74,6 +74,16 @@ export interface FakeGroup {
   product_ids: number[]
 }
 
+export interface FakeMealSet {
+  id: number
+  uuid: string
+  product_id: number
+  product_name: string | null
+  prices: string[]
+  is_active: boolean
+  parts: Array<{ variant_id: number; variant_uuid: string; product_id: number; name: string; variant_name: string | null; quantity: string; unit: string; label: string | null }>
+}
+
 export interface FakeStopEntry {
   id: number
   branch_id: number
@@ -100,6 +110,14 @@ export class FakeMenu {
   stopList: FakeStopEntry[] = []
   /** ProductChannelPrice rows the owner saved, by product id (the body of PUT /owner/products/{id}/channel-prices). */
   channelPrices = new Map<number, unknown>()
+  /** P6-15: the dishes on today's menu (null: no menu set for the day) and the rotating dishes. */
+  dailyMenu: number[] | null = null
+  rotating = new Set<number>()
+  /** P6-15: kompleks sets (a product sold as one line, with the dishes the kitchen prepares for it). */
+  mealSets: FakeMealSet[] = []
+  /** P6-15: what the yield report answers (null: no batches). Tests put the rows a day has. */
+  yieldRows: { batches: unknown[]; days: unknown[]; write_offs: unknown[]; in_sets: unknown[] } | null = null
+  writeOffRows: unknown[] = []
   private counter = 500
 
   constructor(private readonly backend: FakeBackend) {
@@ -302,6 +320,34 @@ export class FakeMenu {
     return this.groups.flatMap((group) => group.modifiers).find((modifier) => modifier.id === id)?.name ?? null
   }
 
+  private saveMealSet(id: number | null, input: Record<string, unknown>): Reply {
+    const existing = id === null ? null : (this.mealSets.find((set) => set.id === id) ?? null)
+    if (id !== null && !existing) return fail(404, 'Kompleks topilmadi.')
+    const productId = existing?.product_id ?? Number(input.product_id)
+    const product = this.products.find((candidate) => candidate.id === productId)
+    if (!product) return fail(422, 'The given data was invalid.', { product_id: ['Mahsulot topilmadi.'] })
+    if (!existing && this.mealSets.some((set) => set.product_id === productId)) return fail(422, 'The given data was invalid.', { product_id: ['Bu mahsulot allaqachon kompleks.'] })
+    const rows = Array.isArray(input.parts) ? (input.parts as Array<{ variant_id: number; quantity: number; label: string | null }>) : null
+    const parts = rows
+      ? rows.map((row, index) => {
+          const owner = this.products.find((candidate) => candidate.variants.some((variant) => variant.id === row.variant_id))
+          const variant = owner?.variants.find((candidate) => candidate.id === row.variant_id)
+          return { variant_id: row.variant_id, variant_uuid: `v-${row.variant_id}-${index}`, product_id: owner?.id ?? 0, name: owner?.name ?? '', variant_name: variant?.name ?? null, quantity: Number(row.quantity).toFixed(3), unit: 'piece', label: row.label }
+        })
+      : (existing?.parts ?? [])
+    const set: FakeMealSet = {
+      id: existing?.id ?? ++this.counter,
+      uuid: existing?.uuid ?? `m0000000-0000-4000-8000-${String(this.counter).padStart(12, '0')}`,
+      product_id: productId,
+      product_name: product.name,
+      prices: product.variants.map((variant) => variant.price),
+      is_active: typeof input.is_active === 'boolean' ? input.is_active : (existing?.is_active ?? true),
+      parts,
+    }
+    this.mealSets = existing ? this.mealSets.map((candidate) => (candidate.id === existing.id ? set : candidate)) : [...this.mealSets, set]
+    return ok(set)
+  }
+
   private branchOf(query: Record<string, string>, bodyBranch?: unknown): number | Reply {
     const bound = this.backend.account.branchId
     if (bound !== null) return bound
@@ -420,6 +466,65 @@ export class FakeMenu {
     if (req.method === 'GET' && path === '/v1/owner/batches') {
       const branch = this.branchOf(req.query)
       return typeof branch === 'number' ? ok({ branch_id: branch, batches: [] }) : branch
+    }
+
+    // P6-15: batch plans, the daily menu and the yield report
+    if (req.method === 'GET' && path === '/v1/owner/batch-plans') {
+      const branch = this.branchOf(req.query)
+      return typeof branch === 'number' ? ok({ branch_id: branch, modules: { batches: true, batch_writeoff: true }, plans: [] }) : branch
+    }
+    if (path === '/v1/owner/daily-menu' && (req.method === 'GET' || req.method === 'PUT')) {
+      const branch = this.branchOf(req.query, input.branch_id)
+      if (typeof branch !== 'number') return branch
+      if (req.method === 'PUT') {
+        const ids = Array.isArray(input.product_ids) ? input.product_ids.map(Number) : []
+        this.dailyMenu = ids
+        for (const id of ids) this.rotating.add(id)
+      }
+      const date = '2026-11-14'
+      return ok({
+        branch_id: branch,
+        date,
+        business_date: date,
+        enforced: true,
+        set: this.dailyMenu !== null,
+        product_ids: this.dailyMenu ?? [],
+        previous_date: null,
+        products: this.products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          category_id: product.category_id,
+          category_name: product.category?.name ?? null,
+          daily_rotation: this.rotating.has(product.id),
+          on_menu: (this.dailyMenu ?? []).includes(product.id),
+          is_set: false,
+        })),
+      })
+    }
+    if (req.method === 'PUT' && path === '/v1/owner/daily-menu/rotation') {
+      const ids = Array.isArray(input.product_ids) ? input.product_ids.map(Number) : []
+      this.rotating = new Set(ids)
+      return ok({ branch_id: Number(input.branch_id), product_ids: ids })
+    }
+    if (req.method === 'GET' && path === '/v1/owner/batch-yield') {
+      const branch = this.branchOf(req.query)
+      return typeof branch === 'number'
+        ? ok({ branch_id: branch, from: String(req.query.from ?? ''), to: String(req.query.to ?? ''), ...(this.yieldRows ?? { batches: [], days: [], write_offs: [], in_sets: [] }) })
+        : branch
+    }
+    if (req.method === 'GET' && path === '/v1/owner/batch-writeoffs') {
+      const branch = this.branchOf(req.query)
+      return typeof branch === 'number' ? ok({ branch_id: branch, from: String(req.query.from ?? ''), to: String(req.query.to ?? ''), reasons: [], write_offs: this.writeOffRows }) : branch
+    }
+    if (req.method === 'GET' && path === '/v1/owner/meal-sets') return ok({ sets: this.mealSets })
+    if (req.method === 'POST' && path === '/v1/owner/meal-sets') return this.saveMealSet(null, input)
+    if ((match = /^\/v1\/owner\/meal-sets\/(\d+)$/.exec(path))) {
+      const id = Number(match[1])
+      if (req.method === 'PUT') return this.saveMealSet(id, input)
+      if (req.method === 'DELETE') {
+        this.mealSets = this.mealSets.filter((set) => set.id !== id)
+        return ok(null)
+      }
     }
     return null
   }

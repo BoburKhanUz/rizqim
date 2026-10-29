@@ -25,6 +25,9 @@ Summary4 _$Summary4FromJson(Map<String, dynamic> json) => Summary4(
       .toList(),
   discounts: Discounts4.fromJson(json['discounts'] as Map<String, dynamic>),
   voids: Voids4.fromJson(json['voids'] as Map<String, dynamic>),
+  batchWriteoffs: BatchWriteoffs4.fromJson(
+    json['batch_writeoffs'] as Map<String, dynamic>,
+  ),
   refunds: Refunds7.fromJson(json['refunds'] as Map<String, dynamic>),
   deposits: Deposits4.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit7.fromJson(json['credit'] as Map<String, dynamic>),
@@ -53,6 +56,7 @@ Map<String, dynamic> _$Summary4ToJson(Summary4 instance) => <String, dynamic>{
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
   'voids': instance.voids,
+  'batch_writeoffs': instance.batchWriteoffs,
   'refunds': instance.refunds,
   'deposits': instance.deposits,
   'credit': instance.credit,

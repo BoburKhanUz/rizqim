@@ -19,7 +19,7 @@ V1StoreApplicationsRequestBody _$V1StoreApplicationsRequestBodyFromJson(
   comment: json['comment'] as String?,
   source: json['source'] == null
       ? null
-      : Source3.fromJson(json['source'] as String?),
+      : Source4.fromJson(json['source'] as String?),
   website: json['website'] as String?,
 );
 

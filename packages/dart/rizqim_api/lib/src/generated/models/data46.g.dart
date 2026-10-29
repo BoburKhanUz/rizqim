@@ -7,39 +7,17 @@ part of 'data46.dart';
 // **************************************************************************
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  branch: json['branch'] == null
-      ? null
-      : Branch6.fromJson(json['branch'] as Map<String, dynamic>),
-  polygon: Polygon4.fromJson(json['polygon'] as Map<String, dynamic>),
-  bbox: Bbox4.fromJson(json['bbox'] as Map<String, dynamic>),
-  areaKm2: json['area_km2'] as String,
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
-  active: json['active'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  timezone: json['timezone'] as String,
+  businessDayStartsAt: json['business_day_starts_at'] as String,
+  posSettings: PosSettings.fromJson(
+    json['pos_settings'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
   'branch_id': instance.branchId,
-  'branch': instance.branch,
-  'polygon': instance.polygon,
-  'bbox': instance.bbox,
-  'area_km2': instance.areaKm2,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
-  'active': instance.active,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'timezone': instance.timezone,
+  'business_day_starts_at': instance.businessDayStartsAt,
+  'pos_settings': instance.posSettings,
 };

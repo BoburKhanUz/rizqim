@@ -69,7 +69,7 @@ final class RefundService
 
         $refund = DB::transaction(function () use ($user, $payment, $order, $tender, $amount, $reason, $approvalToken, $shift, $device, $applied) {
             // The shift first (as payments and the Z lock it): closed meanwhile, nothing leaves its drawer
-            $shift = PosShift::whereKey($shift->id)->lockForUpdate()->firstOrFail();
+            $shift = PosShift::lockForMoney((int) $shift->id);
             if (!$shift->isOpen()) {
                 throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
             }

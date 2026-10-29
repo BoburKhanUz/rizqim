@@ -49,6 +49,27 @@ describe('StoreCardView', () => {
     expect(screen.getByText('Ulash jarayoni yakunlandi')).toBeInTheDocument();
   });
 
+  it('counts and names the customer displays among the devices and the plan rows (P6-14)', async () => {
+    const card = storeCard();
+    card.devices = {
+      terminals: 2,
+      terminals_online: 1,
+      by_type: { pos: 1, kds: 0 },
+      items: [
+        ...card.devices.items,
+        { uuid: 'd-2', name: 'Raqamlar ekrani', type: 'display', type_label: 'Mijoz ekrani', terminal: true, branch: { id: 5, name: 'Asosiy Filial' }, platform: 'android', app_version: '0.1.0', last_seen_at: '2026-11-05T10:00:00+05:00', online: true, paired_at: null },
+      ],
+    };
+    card.plan.entitlements.devices = { pos: { included: null, active: 1, extra: 0 }, display: { included: null, active: 1, extra: 0 } };
+    const { user } = setup({ 'GET /stores/12': () => ok(card) });
+    await screen.findByRole('heading', { name: 'Lazzat Oshxona', level: 1 });
+    expect(screen.getByText('Mijoz ekrani: 1 ta (tarifda ∞)')).toBeInTheDocument();
+    expect(screen.getByText('Kassa: 1 ta (tarifda ∞)')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Qurilmalar va fiskal' }));
+    expect(screen.getByText('Terminallar: 1 / 2 onlayn (kassa 1, oshxona ekrani 0, mijoz ekrani 1)')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Qurilmalar' })).getByText('Mijoz ekrani')).toBeInTheDocument();
+  });
+
   it('suspends with a reason and shows the answer', async () => {
     const suspended = storeCard({ profile: { ...storeCard().profile, status: 'suspended', status_label: "To'xtatilgan", is_active: false }, actions: { ...storeCard().actions, suspend: false, activate: true } });
     let current = storeCard();

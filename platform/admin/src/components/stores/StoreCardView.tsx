@@ -26,6 +26,8 @@ const CHANNEL_LABEL: Record<string, MessageKey> = {
   aggregator: 'stores_channel_aggregator',
 };
 const INVOICE_LABEL: Record<string, MessageKey> = { issued: 'stores_invoice_issued', paid: 'stores_invoice_paid', void: 'stores_invoice_void' };
+// The plan's device rows (entitlements.devices): P6-14 `display` is the free customer display
+const PLAN_DEVICE_LABEL: Record<string, MessageKey> = { pos: 'stores_devicePos', kds: 'stores_deviceKds', display: 'stores_deviceDisplay', waiter: 'stores_deviceWaiter' };
 
 // The 360° card of a store (/stores/[id], P4-22): profile, health with its reasons, contacts, plan and subscription,
 // branches, devices and fiscal state, money, orders and quality, complaints, status history and audit, CRM. The action
@@ -299,7 +301,7 @@ function Overview({ store }: { store: StoreCard }) {
           )}
           {plan.entitlements.settings_locked && <p className="font-bold text-danger-soft-fg">{t('stores_planLocked', { date: when(plan.entitlements.locked_since) })}</p>}
           {Object.entries(plan.entitlements.devices ?? {}).map(([type, device]) => (
-            <p key={type}>{t('stores_planDevices', { type: type === 'kds' ? t('stores_deviceKds') : t('stores_devicePos'), active: device.active, included: device.included ?? '∞' })}</p>
+            <p key={type}>{t('stores_planDevices', { type: t(PLAN_DEVICE_LABEL[type] ?? 'stores_devicePos'), active: device.active, included: device.included ?? '∞' })}</p>
           ))}
           <ul aria-label={t('stores_commissionRates')} className="mt-1 flex flex-col gap-0.5">
             {Object.entries(plan.commission.rates).map(([channel, rate]) => (
@@ -346,12 +348,16 @@ function Branches({ store }: { store: StoreCard }) {
 function Devices({ store }: { store: StoreCard }) {
   const t = useT();
   const { devices, fiscal } = store;
+  // P6-14: customer displays are paired terminals too (free); the server's by_type counts tills and kitchens only
+  const displays = devices.by_type.display ?? devices.items.filter((device) => device.terminal && device.type === 'display').length;
   return (
     <>
       <Section title={t('stores_devices')}>
         <Card padded={false}>
           <p className="px-4 pt-3 text-footnote text-fg">
-            {t('stores_devicesSummary', { online: devices.terminals_online, total: devices.terminals, pos: devices.by_type.pos ?? 0, kds: devices.by_type.kds ?? 0 })}
+            {displays > 0
+              ? t('stores_devicesSummaryDisplay', { online: devices.terminals_online, total: devices.terminals, pos: devices.by_type.pos ?? 0, kds: devices.by_type.kds ?? 0, display: displays })
+              : t('stores_devicesSummary', { online: devices.terminals_online, total: devices.terminals, pos: devices.by_type.pos ?? 0, kds: devices.by_type.kds ?? 0 })}
           </p>
           {devices.items.length === 0 ? (
             <div className="p-4">

@@ -53,6 +53,8 @@ class TicketCard extends StatelessWidget {
     final RzColors c = context.rz;
     final String? notes = ticket.notes?.trim();
     final bool anyBumpable = ticket.lines.any(canBump);
+    // P6-14: navbat raqamli kassa buyurtmasi hali oshxonada: "Raqam N tayyor" (yig'ish) tugmasi
+    final bool expo = ticket.isQueueOrder && ticket.pickupStatus == 'preparing';
     final bool nothingLeft = ticket.lines.every(
       (KitchenLine l) => l.isDone || l.isVoid,
     );
@@ -150,8 +152,11 @@ class TicketCard extends StatelessWidget {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: anyBumpable
-                  ? RzButton(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (anyBumpable)
+                    RzButton(
                       label: 'Hammasi tayyor',
                       icon: Icons.done_all_rounded,
                       variant: RzButtonVariant.success,
@@ -159,16 +164,35 @@ class TicketCard extends StatelessWidget {
                       fullWidth: true,
                       loading: orderBusy,
                       onPressed: onBumpAll,
+                    ),
+                  if (anyBumpable && expo) const SizedBox(height: 8),
+                  if (expo)
+                    // P6-14: yig'ish (expo): raqam tayyor — qolgan qatorlar ham tayyor bo'ladi, raqam ekranda chaqiriladi
+                    RzButton(
+                      key: const ValueKey<String>('expo-ready'),
+                      label: "Raqam ${ticket.queueNumber} tayyor",
+                      icon: Icons.campaign_outlined,
+                      variant: anyBumpable
+                          ? RzButtonVariant.secondary
+                          : RzButtonVariant.success,
+                      size: RzButtonSize.lg,
+                      fullWidth: true,
+                      loading: orderBusy,
+                      onPressed: onMarkReady,
                     )
-                  : ticket.isCooking && nothingLeft && entry.canMarkOrderReady
-                  ? RzButton(
+                  else if (!anyBumpable &&
+                      ticket.isCooking &&
+                      nothingLeft &&
+                      entry.canMarkOrderReady)
+                    RzButton(
                       label: 'Buyurtma tayyor',
                       icon: Icons.check_circle_outline,
                       size: RzButtonSize.lg,
                       fullWidth: true,
                       onPressed: onMarkReady,
-                    )
-                  : const SizedBox.shrink(),
+                    ),
+                ],
+              ),
             ),
           ] else
             const SizedBox(height: 8),
@@ -267,8 +291,10 @@ class _Header extends StatelessWidget {
     ];
     final String channel =
         OrderChannel.fromWire(ticket.channel)?.label ?? ticket.channel;
-    final String status =
-        OrderStatus.fromWire(ticket.status)?.staffLabel ?? ticket.status;
+    // P6-14: avval to'langan kassa buyurtmasi yopilgan ("Yetkazildi" emas), raqami hali oshxonada
+    final String status = ticket.isClosedPickupCooking
+        ? "To'langan"
+        : OrderStatus.fromWire(ticket.status)?.staffLabel ?? ticket.status;
     final String accepted = formatTime(ticket.acceptedAt ?? ticket.createdAt);
     final TextStyle meta = KdsType.meta.copyWith(color: fg);
 
@@ -289,7 +315,13 @@ class _Header extends StatelessWidget {
                     children: <Widget>[
                       Flexible(
                         child: Text(
-                          ticket.code,
+                          // P6-14: kassa navbat raqami asosiy; buyurtma kodi pastdagi qatorda
+                          ticket.queueNumber != null
+                              ? '№${ticket.queueNumber}'
+                              : ticket.code,
+                          key: ticket.queueNumber != null
+                              ? const ValueKey<String>('queue-number')
+                              : null,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: KdsType.code.copyWith(color: fg),
@@ -332,7 +364,7 @@ class _Header extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '$status · $accepted · ${ticket.readyCount}/${ticket.activeCount} tayyor${rounds.length == 1 ? ' · ${rounds.single}-bosqich' : ''}',
+              '${ticket.queueNumber != null ? '${ticket.code} · ' : ''}$status · $accepted · ${ticket.readyCount}/${ticket.activeCount} tayyor${rounds.length == 1 ? ' · ${rounds.single}-bosqich' : ''}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: meta,

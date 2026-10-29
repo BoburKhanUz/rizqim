@@ -17,6 +17,7 @@ V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   externalId: json['external_id'] as String?,
   note: json['note'] as String?,
   send: json['send'] as bool?,
+  queueNumber: (json['queue_number'] as num?)?.toInt(),
   items: (json['items'] as List<dynamic>?)
       ?.map((e) => Items21.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -33,5 +34,6 @@ Map<String, dynamic> _$V1PosOrdersRequestBodyToJson(
   'external_id': instance.externalId,
   'note': instance.note,
   'send': instance.send,
+  'queue_number': instance.queueNumber,
   'items': instance.items,
 };

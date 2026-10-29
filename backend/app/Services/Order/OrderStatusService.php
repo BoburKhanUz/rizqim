@@ -119,7 +119,10 @@ class OrderStatusService
             // P2-11: a ready order is ready in the kitchen too, whoever marked it (kitchen display, panel, Telegram).
             // P2-33: so is an order that left the kitchen (on its way, handed over): its lines are closed, so the board's
             // items_ready stays right and no ticket keeps waiting for food that is gone
-            if (in_array($to, [OrderStatus::READY, OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true)) {
+            // P6-13: a counter order paid first is closed while the kitchen still cooks its queue number: its lines stay
+            $tracker = app()->bound(\App\Domain\Pos\Contracts\PickupTracker::class) ? app(\App\Domain\Pos\Contracts\PickupTracker::class) : null;
+            $keepsKitchen = $to === OrderStatus::DELIVERED && $tracker !== null && $tracker->keepsKitchen($order);
+            if (!$keepsKitchen && in_array($to, [OrderStatus::READY, OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true)) {
                 // P3-12: a POS line sent to the kitchen too; a POS line never sent (held) and a voided one stay as they are
                 $order->items()->whereIn('kitchen_status', \App\Enums\KitchenItemStatus::cookingValues())
                     ->where(fn ($query) => $query->whereNotNull('sent_at')->orWhereNull('fire_mode'))
@@ -165,6 +168,9 @@ class OrderStatusService
             ]);
 
             $this->audit($order, $from, $to, $actor, $cancellation, $courier, $options);
+
+            // P6-13: the pickup queue (an online pickup order's number and state, a cancelled number leaving the board)
+            $tracker?->statusChanged($order, $from, $to);
 
             if ($to === OrderStatus::DELIVERED) {
                 // In a savepoint: a failed booking is marked on the order, alerted and retried, never fails the delivery

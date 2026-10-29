@@ -4,19 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'batches2.dart';
+import 'modules.dart';
 
 part 'data31.g.dart';
 
 @JsonSerializable()
 class Data31 {
-  const Data31({required this.branchId, required this.batches});
+  const Data31({
+    required this.branchId,
+    required this.modules,
+    required this.plans,
+  });
 
   factory Data31.fromJson(Map<String, Object?> json) => _$Data31FromJson(json);
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final List<Batches2> batches;
+  final Modules modules;
+  final List<List<dynamic>> plans;
 
   Map<String, Object?> toJson() => _$Data31ToJson(this);
 }

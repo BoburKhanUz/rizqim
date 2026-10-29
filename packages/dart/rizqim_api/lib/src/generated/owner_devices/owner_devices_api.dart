@@ -25,10 +25,12 @@ abstract class OwnerDevicesApi {
     @Query('include_revoked') bool? includeRevoked,
   });
 
-  /// POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal.
+  /// POST /owner/devices/pairing-codes {type: pos|kds|display, branch_id?, name?, till_uuid?}: a one-time code for a terminal.
   ///
   /// `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL.
-  /// minutes and works once.
+  /// minutes and works once. P6-14: a `display` (customer display / "ready numbers" board) is free (never counts toward.
+  /// the plan's devices), needs a branch (`branch_id`) with the `customer_display` or `queue_calling` module, and may.
+  /// follow one till (`till_uuid`: a POS terminal of that branch; without it the display shows the branch's latest cart).
   @POST('/v1/owner/devices/pairing-codes')
   Future<PostV1OwnerDevicesPairingCodesResponse> storeDeviceCreatePairingCode({
     @Body() required V1OwnerDevicesPairingCodesRequestBody body,

@@ -115,9 +115,12 @@ class PosOrderService implements PosOrderOpener
     /**
      * Opens the order. Options: `booking_id` (P3-17's column), `held` (parsed held lines), `items` (parsed first round),
      * `external_id` (the device's own id for the order: a repeat returns the order already opened), `send` (send the
-     * first round's `now` lines at once), `note`.
+     * first round's `now` lines at once), `note`, `queue_number` (P6-13: the number the till took from its block;
+     * kept when allowed, else the order gets the next one, QueueNumbers), `business_date` (Y-m-d: the business day the
+     * order belongs to when it is not today's — an order taken offline before the day's start and synced after it;
+     * OrderStamp numbers it within that day).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -173,6 +176,9 @@ class PosOrderService implements PosOrderOpener
                 'total_price' => '0.00',
                 'commission_amount' => '0.00',
                 'booking_id' => $options['booking_id'] ?? null,
+                // P6-13: the till's number (OrderStamp checks it on `creating`) and, offline, the day it was taken
+                'queue_number' => $options['queue_number'] ?? null,
+                'business_date' => $options['business_date'] ?? null,
             ], fn ($value) => $value !== null));
 
             OrderStatusHistory::create([
@@ -952,8 +958,11 @@ class PosOrderService implements PosOrderOpener
     /**
      * P3-37: cancels a closed order refunded in full (the guests got their money back; the refund receipts already
      * reverse its sale receipts): the same permission (orders.cancel or a manager's approval token) and waiter rule as
-     * any cancel; the order becomes `canceled` and keeps `closed_at`, its lines (served) and paid bills stay as they
-     * were — no stock moves, no receipt is asked for. Audited and alerted like any cancel. Runs under the order's lock.
+     * any cancel; the order becomes `canceled` and keeps `closed_at`, its served lines and paid bills stay as they
+     * were, no receipt is asked for. Review P6 C#M3: a counter order paid first may still be cooking: its lines still in
+     * the kitchen are voided like any cancel's (a sent one keeps its portion, the station sees "O'CHIRILDI"; one never
+     * sent gives its stock back) and its number leaves the pickup queue (PickupQueue: `queue.canceled`). Audited and
+     * alerted like any cancel. Runs under the order's lock.
      *
      * @return array{0: Order, 1: array{amount: string, approved_by: int|null}}
      */
@@ -964,6 +973,25 @@ class PosOrderService implements PosOrderOpener
 
         $from = $locked->status;
         $amount = (string) $locked->total_price;
+
+        $cooking = OrderItem::where('order_id', $locked->id)
+            ->whereIn('kitchen_status', KitchenItemStatus::cookingValues())
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        foreach ($cooking as $item) {
+            $sent = $item->sent_at !== null;
+            $item->forceFill([
+                'kitchen_status' => KitchenItemStatus::VOID->value,
+                'voided_at' => now(),
+                'voided_by' => $actor->id,
+                'void_reason' => $reason,
+            ])->save();
+            if (!$sent) {
+                $this->lines->release($item);
+            }
+        }
+
         $locked->forceFill([
             'status' => OrderStatus::CANCELED->value,
             'cancel_reason' => \App\Enums\CancelReason::OTHER->value,
@@ -979,6 +1007,8 @@ class PosOrderService implements PosOrderOpener
             'notes' => "POS: to'liq qaytarilgan buyurtma bekor qilindi ({$actor->name}) | Sabab: {$reason}",
         ]);
         $locked->refresh();
+        // The number leaves the pickup queue like any cancelled order's (OrderStatusService tells the tracker there)
+        app(PickupQueue::class)->statusChanged($locked, $from, OrderStatus::CANCELED);
 
         $this->audit->record('pos.order_cancelled', $locked, ['status' => $from->value], ['status' => OrderStatus::CANCELED->value], array_filter([
             'short_code' => $locked->short_code,
@@ -987,10 +1017,16 @@ class PosOrderService implements PosOrderOpener
             'reason' => $reason,
             'approved_by' => $approvedBy,
             'after_refund' => true,
+            'voided_items' => $cooking->isNotEmpty() ? $cooking->count() : null,
         ], fn ($value) => $value !== null), ['actor' => $actor]);
 
+        foreach ($cooking as $item) {
+            if ($item->sent_at !== null) {
+                event(new KitchenItemStatusChangedBroadcast($locked, $item));
+            }
+        }
         event(new OrderStatusChangedBroadcast($locked));
-        event(new OrderItemsChangedBroadcast($locked, 'cancelled', []));
+        event(new OrderItemsChangedBroadcast($locked, 'cancelled', $cooking->pluck('id')->map(fn ($id) => (int) $id)->all()));
 
         return [$locked, ['amount' => $amount, 'approved_by' => $approvedBy]];
     }
@@ -1133,6 +1169,9 @@ class PosOrderService implements PosOrderOpener
             $order->status = OrderStatus::PREPARING;
             $order->syncOriginalAttribute('status');
         }
+
+        // P6-13: a counter order's queue number is being prepared (the customer display's "Tayyorlanmoqda")
+        app(PickupQueue::class)->linesSent($order);
 
         return $items->pluck('id')->map(fn ($id) => (int) $id)->all();
     }

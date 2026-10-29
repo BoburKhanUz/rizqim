@@ -13,6 +13,7 @@ import { CHANNEL_LABEL, daysUntil, day, INVOICE_TONE, invoiceLabel, money, perce
 import { featureLabel } from './featureLabels';
 import { BackButton, Facts } from './PosParts';
 import { BillingDialog, type BillingDialogKind } from './BillingDialogs';
+import { deviceTypeLabel } from './deviceLabels';
 
 // A store's subscription (P4-24): the plan and period, the trial, what the plan allows (features and devices), the debt split
 // (the credit limit counts the commission part only), the commission per channel, the history and the last invoices. The actions
@@ -115,7 +116,7 @@ export function StoreBillingPanel({ storeId, onBack, onOpenInvoice }: { storeId:
           <ul aria-label={t('pos_store_devices')} className="divide-y divide-line">
             {Object.entries(data.entitlements.devices).map(([type, allowance]) => (
               <li key={type} className="flex flex-wrap items-center justify-between gap-2 p-3 text-body">
-                <span className="font-bold">{t(type === 'pos' ? 'pos_store_dev_pos' : type === 'kds' ? 'pos_store_dev_kds' : 'pos_store_dev_waiter')}</span>
+                <span className="font-bold">{deviceTypeLabel(type, t)}</span>
                 <span className="text-footnote text-fg-muted">
                   {allowance.unlimited
                     ? t('pos_store_dev_unlimited')

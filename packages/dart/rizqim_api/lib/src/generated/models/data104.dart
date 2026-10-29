@@ -4,44 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'data103.dart';
+
 part 'data104.g.dart';
 
 @JsonSerializable()
 class Data104 {
   const Data104({
-    required this.id,
-    required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
   });
 
   factory Data104.fromJson(Map<String, Object?> json) =>
       _$Data104FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  final List<Data103> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data104ToJson(this);
 }

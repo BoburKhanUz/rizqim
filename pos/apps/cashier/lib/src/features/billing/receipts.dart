@@ -5,6 +5,7 @@ import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_hardware/pos_hardware.dart';
 
+import '../../counter/counter_format.dart';
 import '../../shell/pos_scope.dart';
 import '../order/kitchen_tickets.dart';
 import '../settings/cashier_prefs.dart';
@@ -57,6 +58,8 @@ class ReceiptPrinter {
     await CashierPrefs.instance.load();
     final PrinterConfig? printer = config;
     if (printer == null) {
+      // P6-12 phone mode: the printer is optional (the receipt and the number are on the screen)
+      if (scope.session.phoneMode) return null;
       if (context.mounted) {
         showPosMessage(
           context,
@@ -175,11 +178,15 @@ ReceiptPayment _payment(
   PosMoney amount, {
   String? cardType,
   String? reference,
+  String? cardLast4,
 }) => ReceiptPayment(
   PosTender.fromWire(tender) ?? PosTender.cash,
   amount,
   cardType: cardType == null ? null : (cardTypes[cardType] ?? cardType),
-  reference: reference,
+  // P6-16: the RRN of the bank terminal's slip and (optional) the card's last four digits
+  reference: cardLast4 == null || cardLast4.isEmpty
+      ? reference
+      : '${reference == null ? '' : '$reference '}**** $cardLast4',
 );
 
 ReceiptLine _lineOf(PosFiscalLine l) => ReceiptLine(
@@ -229,6 +236,7 @@ List<ReceiptPayment>? _paymentsOf(PosFiscalReceiptDetail? d) =>
             p.amount,
             cardType: p.cardType,
             reference: p.transactionId,
+            cardLast4: p.cardLast4,
           ),
       ];
 
@@ -305,6 +313,7 @@ FiscalReceipt saleReceiptOf({
               p.amount,
               cardType: p.cardType,
               reference: p.transactionId,
+              cardLast4: p.cardLast4,
             ),
         ],
     cashier: cashier,

@@ -6,6 +6,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../counter/counter_format.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
@@ -611,8 +612,9 @@ class _OrderPageState extends State<OrderPage> {
     }
     final PosOrder? o = ctl.order;
     final bool open = ctl.isOpen;
-    final List<PosQuickItem> quickItems =
-        _scope.session.bootstrap?.quickItems ?? const <PosQuickItem>[];
+    // P6-11: choy-non buttons only where the format has them (`guest_items`)
+    final List<PosQuickItem> quickItems = quickItemsFor(_scope.session);
+    final bool guestItems = _scope.session.hasModule(PosModule.guestItems);
     final Widget menu = MenuPanel(
       catalog: cat,
       enabled: open && !ctl.busy,
@@ -636,6 +638,7 @@ class _OrderPageState extends State<OrderPage> {
         quickItems,
         hallId: o?.hall?.id,
         limit: 4,
+        fallback: guestItems ? null : (PosProduct _) => false,
       ),
       onQuickAdd: (PosProduct p) {
         final PosVariant? v = quickVariantOf(p, quickItems);

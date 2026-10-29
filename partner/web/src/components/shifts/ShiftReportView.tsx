@@ -6,6 +6,7 @@ import type { Shift, ShiftReport } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { labelFor } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';
+import { readShiftWriteOffs, ShiftWriteOffs } from '../dailymenu/ShiftWriteOffs';
 
 type Language = 'uz' | 'ru' | 'en';
 
@@ -44,6 +45,8 @@ export function ShiftReportView({ shift, report, branchName }: { shift: Shift; r
   const closed = shift.status === 'closed';
   const title = closed ? t('shift_zTitle', { n: shift.z_number ?? '—' }) : t('shift_xTitle');
   const denominations = Object.entries(shift.counted_breakdown ?? {}).sort(([a], [b]) => Number(b) - Number(a));
+  // P6-15: the portions written off at this till (null when there were none)
+  const writeOffs = readShiftWriteOffs(report);
 
   return (
     <article className="flex flex-col gap-4" aria-label={title}>
@@ -230,6 +233,8 @@ export function ShiftReportView({ shift, report, branchName }: { shift: Shift; r
           </dl>
         </Section>
       </div>
+
+      {writeOffs && <ShiftWriteOffs writeOffs={writeOffs} />}
 
       <Section title={t('shift_movements')}>
         {report.movements.length === 0 ? (

@@ -8,10 +8,16 @@
 
 use App\Http\Controllers\Api\V1\Catalog\MenuAvailabilityController;
 use App\Http\Controllers\Api\V1\Menu\BatchController;
+use App\Http\Controllers\Api\V1\Menu\BatchPlanController;
+use App\Http\Controllers\Api\V1\Menu\BatchWriteOffController;
+use App\Http\Controllers\Api\V1\Menu\BatchYieldController;
 use App\Http\Controllers\Api\V1\Menu\ChannelPriceController;
+use App\Http\Controllers\Api\V1\Menu\DailyMenuController;
+use App\Http\Controllers\Api\V1\Menu\MealSetController;
 use App\Http\Controllers\Api\V1\Menu\ModifierGroupController;
 use App\Http\Controllers\Api\V1\Menu\ServiceFeeController;
 use App\Http\Controllers\Api\V1\Menu\StopListController;
+use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
@@ -35,6 +41,26 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     Route::post('/owner/batches', [BatchController::class, 'store'])->middleware('permission:batches.manage');
     Route::post('/owner/batches/{id}/adjust', [BatchController::class, 'adjust'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:batches.manage');
     Route::post('/owner/batches/{id}/close', [BatchController::class, 'close'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:batches.manage');
+
+    // P6-15: unsold portions written off with a reason (module batch_writeoff; send an Idempotency-Key), the branch's
+    // write-offs, "keyingi partiya HH:MM" plans and the yield report (module batches)
+    // batches.manage, or on a terminal a manager's approval_token for it (P6-19: checked in the controller)
+    Route::post('/owner/batches/{id}/write-off', [BatchController::class, 'writeOff'])->where('id', RowId::ROUTE_PATTERN)->middleware(['pos.module:batch_writeoff', EnsureIdempotency::class . ':owner.batches.write_off,optional']);
+    Route::get('/owner/batch-writeoffs', [BatchWriteOffController::class, 'index'])->middleware(['permission:batches.manage,reports.view', 'pos.module:batch_writeoff']);
+    Route::get('/owner/batch-plans', [BatchPlanController::class, 'index'])->middleware(['permission:batches.manage,menu.view', 'pos.module:batches']);
+    Route::post('/owner/batch-plans', [BatchPlanController::class, 'store'])->middleware(['permission:batches.manage', 'pos.module:batches']);
+    Route::delete('/owner/batch-plans/{id}', [BatchPlanController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:batches.manage', 'pos.module:batches']);
+    Route::get('/owner/batch-yield', [BatchYieldController::class, 'show'])->middleware(['permission:reports.view,batches.manage', 'pos.module:batches']);
+
+    // P6-15: "Bugungi menyu" (module daily_menu) and kompleks (module combo_meal)
+    Route::get('/owner/daily-menu', [DailyMenuController::class, 'show'])->middleware(['permission:menu.view,menu.manage', 'pos.module:daily_menu']);
+    Route::put('/owner/daily-menu', [DailyMenuController::class, 'save'])->middleware(['permission:menu.manage,stoplist.manage', 'pos.module:daily_menu']);
+    Route::post('/owner/daily-menu/copy', [DailyMenuController::class, 'copy'])->middleware(['permission:menu.manage,stoplist.manage', 'pos.module:daily_menu']);
+    Route::put('/owner/daily-menu/rotation', [DailyMenuController::class, 'rotation'])->middleware(['permission:menu.manage,stoplist.manage', 'pos.module:daily_menu']);
+    Route::get('/owner/meal-sets', [MealSetController::class, 'index'])->middleware(['permission:menu.view,menu.manage', 'pos.module:combo_meal']);
+    Route::post('/owner/meal-sets', [MealSetController::class, 'store'])->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
+    Route::put('/owner/meal-sets/{id}', [MealSetController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
+    Route::delete('/owner/meal-sets/{id}', [MealSetController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
 
     // The branch stop-list
     Route::get('/owner/stop-list', [StopListController::class, 'index'])->middleware('permission:stoplist.manage,menu.view');

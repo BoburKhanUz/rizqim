@@ -46,6 +46,14 @@ class StackConfig {
   final String reverbUrl;
   final String reverbKey;
   final Seed seed;
+
+  /// The same stack with another part of the seed file (P6-19: the osh markazi store, `seed.section('osh')`).
+  StackConfig withSeed(Seed other) => StackConfig._(
+    apiUrl: apiUrl,
+    reverbUrl: reverbUrl,
+    reverbKey: reverbKey,
+    seed: other,
+  );
 }
 
 /// A member of the staff the seeder made.
@@ -90,6 +98,18 @@ class Seed {
   String get ownerToken =>
       _map(_map(json['staff'])['owner'])['token']! as String;
   String get accountUuid => _map(json['account'])['uuid']! as String;
+
+  /// A nested store of the seed file in the same shape (P6-19: `osh`, the osh markazi of the lunch-rush test).
+  Seed section(String key) => Seed(_map(json[key]));
+
+  /// The seeded product and variant ids by dish name (the osh markazi section has them).
+  ({int productId, int variantId}) product(String name) {
+    final Map<String, Object?> p = _map(_map(json['products'])[name]);
+    return (
+      productId: (p['product_id']! as num).toInt(),
+      variantId: (p['variant_id']! as num).toInt(),
+    );
+  }
 }
 
 /// One event the terminal heard, with the moment it arrived.
@@ -182,8 +202,13 @@ class Terminal {
   Staff? staff;
 
   /// Pairs nothing: the seeder paired the terminal; its token is restored from the device store, as an app does after
-  /// a restart.
-  static Future<Terminal> open(StackConfig config, String terminalKey) async {
+  /// a restart. [offlineStore]: the till's journal (the cashier app always has one: queue numbers and the offline
+  /// mode, P3-31/P6-13).
+  static Future<Terminal> open(
+    StackConfig config,
+    String terminalKey, {
+    SyncStore? offlineStore,
+  }) async {
     final MemoryKeyValueStore store = MemoryKeyValueStore();
     store.values[CredentialStorage.key] = jsonEncode(<String, Object?>{
       'terminal': config.seed.terminal(terminalKey),
@@ -196,7 +221,12 @@ class Terminal {
     if (client.auth.terminal == null) {
       throw StateError('Terminal $terminalKey was not restored');
     }
-    return Terminal._(terminalKey, config, client, PosData(client));
+    return Terminal._(
+      terminalKey,
+      config,
+      client,
+      PosData(client, offlineStore: offlineStore),
+    );
   }
 
   PosBootstrap get bootstrap => pos.session.bootstrap!;

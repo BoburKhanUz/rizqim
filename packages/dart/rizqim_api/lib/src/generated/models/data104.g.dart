@@ -7,27 +7,23 @@ part of 'data104.dart';
 // **************************************************************************
 
 Data104 _$Data104FromJson(Map<String, dynamic> json) => Data104(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data103.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data104ToJson(Data104 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

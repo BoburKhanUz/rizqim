@@ -11,7 +11,7 @@ _$PostV1StaffOrdersUuidStatusResponseFromJson(Map<String, dynamic> json) =>
     PostV1StaffOrdersUuidStatusResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data189.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data217.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1StaffOrdersUuidStatusResponseToJson(

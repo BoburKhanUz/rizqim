@@ -84,6 +84,7 @@ export const pos = defineSection({
     pos_store_dev_pos: 'Kassa',
     pos_store_dev_kds: 'Oshxona ekrani (KDS)',
     pos_store_dev_waiter: 'Ofitsiant telefonlari',
+    pos_store_dev_display: 'Mijoz ekrani',
     pos_store_dev_unlimited: 'Cheksiz va bepul',
     pos_store_dev_usage: '{{active}} / {{included}} ishlayapti',
     pos_store_dev_extra: '+{{count}} ortiqcha, {{price}}/oy',

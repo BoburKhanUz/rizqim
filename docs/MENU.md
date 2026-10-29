@@ -171,3 +171,68 @@ diskka yoziladi (log'da ogohlantirish).
 `order_items`: `quantity` (kasr), `unit`, `unit_price` (kanal narxi), `modifiers` (`[{id, uuid, group_id, group_name,
 name, price_delta, quantity, total}]`), `modifiers_total`, `total_price`, `batch_id`, `batch_quantity`. Menyu keyin
 o'zgarsa yoki o'chirilsa ham tarix o'zgarmaydi.
+
+
+## 12. Bugungi menyu, kompleks, keyingi partiya va hisobdan chiqarish (P6-15)
+
+Hammasi `pos.module:<kalit>` ortida: modul filialning format profilida (yoki egasi qo'lda) yoqilmagan bo'lsa 403
+`module_disabled`. Sozlash va yangi oqimlar yopiladi; to'lov, chek, smena va qaytarish hech qachon.
+
+**Bugungi menyu** (`daily_menu`; stolovaya profilida o'zi yoqilgan). `daily_menus` (filial + biznes kun) va `daily_menu_items`
+(taomlar). `branch_product_rotation` (filial + taom) — "kunlik" taom: shu filialda faqat shu kun menyusida bo'lsa sotiladi. Doimiy
+taomlar (non, choy) har kuni sotiladi. Menyuga qo'yilgan taom shu filialda o'zi kunlik bo'ladi. **Kunlik taomlar ham filial
+bo'yicha** (menyu kabi): bir filial menejeri yoki menyusi boshqa filialning taomini to'xtata olmaydi. Eski `products.daily_rotation`
+belgisi migratsiyada do'konning har bir filialiga ko'chirildi va ustun o'chirildi.
+- Qoida stop-list manbai sifatida ishlaydi: menyuda bo'lmagan kunlik taom `stopped.products` da ("Bugungi menyuda yo'q"),
+  POS va Telegram checkout uni 422 bilan rad etadi, POS katalogida `unavailable_reason: stopped`.
+- **Menyusi belgilanmagan kunda hamma narsa sotiladi** (unutilgan menyu kassani to'xtatmasin); `GET /pos/bootstrap`
+  `daily_menu.set: false` deydi, panel ogohlantiradi. Modul o'chiq bo'lsa qoida ham o'chiq.
+- Kun — filialning biznes kuni (Asia/Tashkent, kun boshlanishi 05:00). Menyu bugundan 30 kun oldinga qo'yiladi.
+- `GET /owner/daily-menu?branch_id=&date=` (menu.view | menu.manage), `PUT /owner/daily-menu {branch_id, date?, product_ids[]}`,
+  `POST /owner/daily-menu/copy {branch_id, date?, from_date?}` ("kechagisini nusxalash": `from_date` yo'q bo'lsa oxirgi oldingi
+  menyu; o'chirilgan yoki faol bo'lmagan taomlar tushib qoladi), `PUT /owner/daily-menu/rotation {branch_id, product_ids[]}` (shu
+  filialda qaysi taomlar kunlik; `branch_id` filialga bog'langan xodimda o'zining filiali). Yozish: `menu.manage` (istalgan filial) yoki
+  `stoplist.manage` (kunni boshqaradigan menejer — faqat o'z filiali; boshqa filial 403). Jurnal:
+  `menu.daily_menu_saved`, `menu.daily_rotation_saved` (filial bilan). Menyular `menu.availability_changed` (`reason: daily_menu`) oladi.
+
+**Kompleks** (`combo_meal`). Menyudagi oddiy mahsulot (narxi, MXIK kodi, kanal narxlari o'zining) bir qator va bir fiskal qator
+bo'lib sotiladi; tarkibi `daily_sets` + `daily_set_items` (variant, miqdor, nom: "Birinchi", "Salat"; 12 tagacha). Sotilgan qator
+tarkibni `order_items.set_parts` ga nusxalaydi (modifikatorlar kabi: keyin tahrirlash o'zgartirmaydi); oshxona chiptasida
+(`GET /staff/kitchen/tickets`) va POS buyurtmasida `set_parts` ko'rinadi, POS katalogida mahsulotda `set_parts`, bootstrapda
+`meal_sets`. Tarkibdagi taom stop-listda, filialda o'chirilgan, menyuda bo'lmasa yoki partiyasi tugagan (`sold_out`) bo'lsa kompleks yopiladi
+(availability'da ham, checkout'da ham: Telegram va POS 422). `GET/POST /owner/meal-sets`,
+`PUT/DELETE /owner/meal-sets/{id}` (yozish: `menu.manage`). Jurnal: `menu.meal_set_saved/deleted`.
+**Ochiq masala:** kompleks sotilganda tarkibdagi taomlarning partiya qoldig'i va ombor qoldig'i kamaymaydi; hosil
+hisobotida ular `in_sets` da alohida ko'rsatiladi. Tarkib qismlari alohida sexga bo'linmaydi (qator kompleks mahsulotining sexiga ketadi).
+
+**Keyingi partiya** (`batches`). `menu_batch_plans`: filial + taom (ixtiyoriy variant) + vaqt. Taom "tugadi" bo'lganda kassa, ofitsiant
+telefoni va Mini App "keyingi partiya 12:30" ko'rsatadi; ro'yxatda `time` — do'kon vaqti bilan HH:MM. Reja qoldiq surmaydi.
+Partiya ochilganda (`BatchService::open`) eng yaqin mos reja `started` bo'ladi; vaqti o'tgan reja mijozga ko'rinmaydi (egasi
+ro'yxatida `overdue`). `GET /owner/batch-plans?branch_id=` (+ `modules`), `POST /owner/batch-plans {branch_id?, product_id,
+product_variant_id?, time | planned_at, quantity?, label?}` (36 soatgacha oldinga), `DELETE /owner/batch-plans/{id}`.
+Ma'lumot: `GET /catalog/availability` va POS katalog availability'sida `next_batches`, POS katalogida mahsulot/variantda
+`next_batch`, bootstrapda `next_batches`. Jurnal: `menu.batch_planned`, `menu.batch_plan_canceled`.
+
+**Hisobdan chiqarish** (`batch_writeoff`). `POST /owner/batches/{id}/write-off {quantity, reason, note?, close?}` (Idempotency-Key
+tavsiya etiladi; `batches.manage` — P6-19: kassada bu ruxsati yo'q kassir menejerning PIN tasdig'i bilan, `approval_token`,
+jurnalda `approved_by`): partiya qoldig'idan sabab bilan ayiradi (qoldiqdan ko'p — 422; `other` sababi izoh talab
+qiladi; `close` — qolganini chiqarib partiyani yopadi). Sabablar: `unsold`, `spoiled`, `staff_meal`, `dropped`, `expired`, `other`.
+Yozuv `menu_batch_writeoffs` (kim, nega, qachon, biznes kun, smena), partiyada `written_off_quantity`. Terminaldan (PIN sessiya)
+qilinsa terminalning ochiq smenasiga bog'lanadi va **X/Z hisobotda `batch_writeoffs`** blokida ko'rinadi (`count`, `items[]`:
+taom, birlik, sabab, miqdor); panelda qilinsa faqat hisobotlarda. `GET /owner/batch-writeoffs?branch_id=&from=&to=`.
+Jurnal: `menu.batch_written_off`.
+
+**Hosil hisoboti** (`batches`). `GET /owner/batch-yield?branch_id=&from=&to=` (reports.view | batches.manage; 93 kungacha): har
+partiya uchun `produced` (ochilgan + to'ldirilgan), `sold` (partiya olgan qatorlar; bekor qilingan/rad etilgan buyurtma va o'chirilgan qatorlarsiz),
+`written_off`, `left`, `oversold`, `variance = produced − sold − written_off − left` (tushuntirilmagan farq: qayta sanash,
+oshxona pishirgandan keyin o'chirilgan qator, partiya yopilgach bekor qilish) va foizlar (`sold_percent`, `written_off_percent`);
+`days` — kun va taom bo'yicha yig'indi; `write_offs` — sabab bo'yicha; `in_sets` — kompleks ichida sotilgan porsiyalar. Miqdorlar partiya
+birligida (porsiya, kg) son bilan.
+
+Panel: "Bugungi menyu" (`/daily-menu`: menyu va Komplekslar), "Qozon" sahifasida (`/stoplist/batches`) "Keyingi partiya" va
+"Hisobdan chiqarish", "Hosil hisoboti" (`/yield`: hosil va hisobdan chiqarilganlar), Smenalar X/Z da "Hisobdan chiqarilgan taomlar".
+Mini App: sotuvda yo'q taom kartasida "Tugadi" ostida "Keyingi partiya 12:30".
+
+Migratsiyalar: `2026_11_10_400100_create_menu_batch_plans_table`, `..400200_create_menu_batch_writeoffs_table` (+ `menu_batches.written_off_quantity`),
+`..400300_create_daily_menus_tables` (+ `products.daily_rotation`, keyin `2026_11_11_300100_create_branch_product_rotation_table` bilan filial jadvaliga ko'chirildi), `..400400_create_daily_sets_tables` (+ `order_items.set_parts`).
+Testlar: `tests/Feature/PosMenu` (DailyMenuTest, DailyMenuBranchRotationTest, MealSetTest, BatchPlansTest, BatchWriteOffTest).

@@ -242,7 +242,9 @@ Choy-non qoidasi bo'lsa, har mehmonga choy va non ham o'zi qo'shiladi ([ega qo'l
 
 ### Tez kassa
 
-Stolsiz sotuv uchun (olib ketish yoki zalda stolsiz):
+Osh markazi, somsaxona, stolovaya kabi joylarda kassa tez kassadan boshlanadi (avval to'lov, raqamli talon, "Tayyor" va
+"Berildi"): bu haqda alohida qo'llanma — [tez-kassa.md](tez-kassa.md). Choyxonada tez kassa stolsiz sotuv uchun
+(olib ketish yoki zalda stolsiz):
 
 1. **Zal** da **Tez kassa** ni bosing.
 2. Tepada tanlang: **Olib ketish** yoki **Zalda, stolsiz**.

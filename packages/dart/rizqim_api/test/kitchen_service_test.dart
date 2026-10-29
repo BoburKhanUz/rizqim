@@ -199,6 +199,60 @@ void main() {
     );
   });
 
+  test('P6-14: a paid-first counter order keeps its queue number and is still a cooking ticket', () async {
+    adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+      'success': true,
+      'message': '',
+      'data': <Object?>[
+        <String, Object?>{
+          ...ticketJson(status: 'delivered', type: 'pickup'),
+          'queue_number': 17,
+          'pickup_status': 'preparing',
+        },
+        ticketJson(uuid: 'bbbbbbbb-0000-4000-8000-000000000002'),
+      ],
+      'meta': <String, Object?>{'truncated': false},
+    });
+
+    final KitchenTicketList list = await client.kitchen.tickets();
+
+    final KitchenTicket paid = list.tickets.first;
+    expect(paid.queueNumber, 17);
+    expect(paid.pickupStatus, 'preparing');
+    expect(paid.isClosedPickupCooking, isTrue);
+    expect(paid.isCooking, isTrue);
+    expect(paid.isQueueOrder, isTrue);
+    expect(list.tickets.last.queueNumber, isNull);
+    expect(list.tickets.last.isQueueOrder, isFalse);
+    // A delivered order without a cooking number is not a kitchen ticket
+    expect(paid.copyWith(pickupStatus: 'handed').isCooking, isFalse);
+  });
+
+  test('P6-14: the expo bump posts /pos/orders/{uuid}/ready with an Idempotency-Key', () async {
+    adapter.handler = (RequestOptions o) =>
+        ok(<String, Object?>{'status': 'ready'});
+    await client.kitchen.markQueueReady('aaaaaaaa-0000-4000-8000-000000000001');
+    await client.kitchen.markQueueReady('aaaaaaaa-0000-4000-8000-000000000001');
+
+    final RequestOptions first = adapter.requests.first;
+    expect(first.method, 'POST');
+    expect(
+      first.uri.path,
+      '/api/v1/pos/orders/aaaaaaaa-0000-4000-8000-000000000001/ready',
+    );
+    expect(bearer(first), 'Bearer staff-token');
+    final String key = first.headers['Idempotency-Key']! as String;
+    expect(
+      key,
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ),
+      ),
+    );
+    expect(adapter.requests.last.headers['Idempotency-Key'], isNot(key));
+  });
+
   test('marking the whole order ready posts status=ready', () async {
     adapter.handler = (RequestOptions o) => ok(<String, Object?>{'uuid': 'x'});
     await client.kitchen.markOrderReady('aaaaaaaa-0000-4000-8000-000000000001');

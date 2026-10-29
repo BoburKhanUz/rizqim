@@ -7,15 +7,15 @@ part of 'data114.dart';
 // **************************************************************************
 
 Data114 _$Data114FromJson(Map<String, dynamic> json) => Data114(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: UserRole.fromJson(json['role'] as String),
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  productId: (json['product_id'] as num).toInt(),
+  channels: json['channels'] as List<dynamic>,
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data114ToJson(Data114 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'branch_id': instance.branchId,
+  'product_id': instance.productId,
+  'channels': instance.channels,
+  'prices': instance.prices,
 };
