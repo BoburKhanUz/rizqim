@@ -12,6 +12,7 @@ _$V1OwnerDevicesPairingCodesRequestBodyFromJson(Map<String, dynamic> json) =>
       type: Type5.fromJson(json['type'] as String),
       branchId: (json['branch_id'] as num?)?.toInt(),
       name: json['name'] as String?,
+      tillUuid: json['till_uuid'] as String?,
     );
 
 Map<String, dynamic> _$V1OwnerDevicesPairingCodesRequestBodyToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$V1OwnerDevicesPairingCodesRequestBodyToJson(
   'type': instance.type,
   'branch_id': instance.branchId,
   'name': instance.name,
+  'till_uuid': instance.tillUuid,
 };

@@ -52,6 +52,7 @@ import 'pos_billing/pos_billing_api.dart';
 import 'pos_bookings/pos_bookings_api.dart';
 import 'pos_bootstrap/pos_bootstrap_api.dart';
 import 'pos_customer_accounts/pos_customer_accounts_api.dart';
+import 'pos_customer_display/pos_customer_display_api.dart';
 import 'pos_orders/pos_orders_api.dart';
 import 'pos_queue_numbers/pos_queue_numbers_api.dart';
 import 'pos_sync/pos_sync_api.dart';
@@ -129,6 +130,7 @@ class RizqimApi {
   PosBookingsApi? _posBookings;
   PosBootstrapApi? _posBootstrap;
   PosCustomerAccountsApi? _posCustomerAccounts;
+  PosCustomerDisplayApi? _posCustomerDisplay;
   PosOrdersApi? _posOrders;
   PosQueueNumbersApi? _posQueueNumbers;
   PosSyncApi? _posSync;
@@ -281,6 +283,9 @@ class RizqimApi {
 
   PosCustomerAccountsApi get posCustomerAccounts =>
       _posCustomerAccounts ??= PosCustomerAccountsApi(_dio, baseUrl: _baseUrl);
+
+  PosCustomerDisplayApi get posCustomerDisplay =>
+      _posCustomerDisplay ??= PosCustomerDisplayApi(_dio, baseUrl: _baseUrl);
 
   PosOrdersApi get posOrders =>
       _posOrders ??= PosOrdersApi(_dio, baseUrl: _baseUrl);

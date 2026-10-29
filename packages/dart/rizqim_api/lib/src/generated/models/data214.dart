@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer6.dart';
-import 'delivery9.dart';
-import 'courier6.dart';
-import 'items52.dart';
-import 'status_history2.dart';
+import 'customer5.dart';
+import 'delivery8.dart';
+import 'courier5.dart';
+import 'items49.dart';
+import 'status_history.dart';
 
 part 'data214.g.dart';
 
@@ -96,14 +96,14 @@ class Data214 {
   final String? cancelReason;
   @JsonKey(name: 'cancel_note')
   final String? cancelNote;
-  final Customer6? customer;
-  final Delivery9? delivery;
-  final Courier6? courier;
+  final Customer5? customer;
+  final Delivery8? delivery;
+  final Courier5? courier;
   @JsonKey(name: 'items_total')
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items52> items;
+  final List<Items49> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')
@@ -119,7 +119,7 @@ class Data214 {
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
   @JsonKey(name: 'status_history')
-  final List<StatusHistory2> statusHistory;
+  final List<StatusHistory> statusHistory;
 
   Map<String, Object?> toJson() => _$Data214ToJson(this);
 }

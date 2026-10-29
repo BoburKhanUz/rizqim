@@ -4,14 +4,14 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall15.dart';
-import 'table15.dart';
-import 'waiter18.dart';
+import 'hall13.dart';
+import 'table13.dart';
+import 'waiter16.dart';
 import 'discount_kind.dart';
-import 'charges17.dart';
-import 'offline13.dart';
-import 'queue16.dart';
-import 'items38.dart';
+import 'charges16.dart';
+import 'offline12.dart';
+import 'queue14.dart';
+import 'items36.dart';
 
 part 'data190.g.dart';
 
@@ -74,15 +74,15 @@ class Data190 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall15? hall;
-  final Table15? table;
+  final Hall13? hall;
+  final Table13? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter18? waiter;
+  final Waiter16? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -122,11 +122,11 @@ class Data190 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges17 charges;
-  final Offline13? offline;
-  final Queue16? queue;
+  final Charges16 charges;
+  final Offline12? offline;
+  final Queue14? queue;
   final int rounds;
-  final List<Items38> items;
+  final List<Items36> items;
 
   Map<String, Object?> toJson() => _$Data190ToJson(this);
 }

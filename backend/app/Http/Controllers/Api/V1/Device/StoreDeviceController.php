@@ -90,10 +90,12 @@ class StoreDeviceController extends Controller
     }
 
     /**
-     * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal.
+     * POST /owner/devices/pairing-codes {type: pos|kds|display, branch_id?, name?, till_uuid?}: a one-time code for a terminal.
      *
      * `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL
-     * minutes and works once.
+     * minutes and works once. P6-14: a `display` (customer display / "ready numbers" board) is free (never counts toward
+     * the plan's devices), needs a branch (`branch_id`) with the `customer_display` or `queue_calling` module, and may
+     * follow one till (`till_uuid`: a POS terminal of that branch; without it the display shows the branch's latest cart).
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{code: string, expires_at: string, type: string, branch_id: int|null}}')]
     public function createPairingCode(Request $request): JsonResponse
@@ -102,6 +104,7 @@ class StoreDeviceController extends Controller
             'type' => ['required', Rule::in(array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))],
             'branch_id' => 'nullable|integer',
             'name' => 'nullable|string|max:100',
+            'till_uuid' => 'nullable|uuid',
         ]);
 
         /** @var User $user */
@@ -131,8 +134,26 @@ class StoreDeviceController extends Controller
                 : $modules->assertEnabledInStore((int) $store->id, \App\Domain\Pos\Setup\PosModule::KDS);
         }
 
+        // P6-14: a display belongs to one branch (it shows that branch's numbers); it may follow one of its tills
+        $till = null;
+        if ($data['type'] === DeviceType::DISPLAY->value) {
+            if ($branch === null) {
+                return $this->error('Mijoz ekrani uchun filialni tanlang.', ['reason' => 'branch_required'], 422);
+            }
+            $modules = app(\App\Domain\Pos\Setup\PosModules::class);
+            if (!$modules->enabled($branch, \App\Domain\Pos\Setup\PosModule::CUSTOMER_DISPLAY)) {
+                $modules->assertEnabled($branch, \App\Domain\Pos\Setup\PosModule::QUEUE_CALLING);
+            }
+            if (filled($data['till_uuid'] ?? null)) {
+                $till = $this->tillOf($store->id, $branch->id, (string) $data['till_uuid']);
+                if ($till === null) {
+                    return $this->error('Kassa topilmadi: u shu filialning ulangan kassasi bo\'lishi kerak.', ['reason' => 'till_not_found'], 422);
+                }
+            }
+        }
+
         try {
-            $result = $this->pairing->createCode($store, $branch, DeviceType::from($data['type']), $data['name'] ?? null, $user);
+            $result = $this->pairing->createCode($store, $branch, DeviceType::from($data['type']), $data['name'] ?? null, $user, $till);
         } catch (AuthTokenException $e) {
             return $this->error($e->getMessage(), $e->data(), $e->status);
         }
@@ -143,6 +164,20 @@ class StoreDeviceController extends Controller
             'type' => $data['type'],
             'branch_id' => $branch?->id,
         ], 'Ulash kodi yaratildi. Uni terminalda kiriting.', 201);
+    }
+
+    /**
+     * A live POS terminal of the branch (P6-14: the till a customer display follows).
+     */
+    private function tillOf(int $storeId, int $branchId, string $uuid): ?Device
+    {
+        return Device::query()
+            ->where('store_id', $storeId)
+            ->where('type', DeviceType::POS->value)
+            ->where('uuid', $uuid)
+            ->whereNull('revoked_at')
+            ->where(fn (Builder $query) => $query->whereNull('branch_id')->orWhere('branch_id', $branchId))
+            ->first();
     }
 
     /**

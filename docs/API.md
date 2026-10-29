@@ -296,6 +296,7 @@ Barchasi `/api/v1` ostida. To'liq ro'yxat, parametrlar va javob shakllari — Op
 | Xodim buyurtmalari (P2-11) | `GET /staff/orders`, `GET /staff/orders/{uuid}`, `POST /staff/orders/{uuid}/status` | filial doskasi (filtrlar, kursor), tafsilot, rolga qarab holat o'zgartirish |
 | Oshxona ekrani (P2-11) | `GET /staff/kitchen/tickets`, `POST /staff/orders/{uuid}/items/{id}/ready`, `.../recall` | oshxona chiptalari, taom qatorini "tayyor" deb belgilash va qaytarish |
 | Buyurtma raqami (P6-13) | `GET /pos/queue`, `POST /pos/queue/blocks`, `POST /pos/orders/{uuid}/ready`, `.../call`, `.../handed` | navbat raqami bloklari, "Tayyorlanmoqda / Tayyor" taxtasi, chaqirish ("Buyurtma raqami va chaqiruv (P6-13)" bo'limi) |
+| Mijoz ekrani (P6-14) | `GET /pos/display/state`, `GET /pos/display/queue`, `POST /pos/display/cart` | mijoz ekrani qurilmasi (`display`, terminal tokeni): joriy chek, "Tayyorlanmoqda / Tayyor" taxtasi; kassa chekni ikkinchi ekranga yuboradi ("Mijoz ekrani (P6-14)" bo'limi) |
 | Promo, shikoyat | `POST /promo/validate`, `GET/POST /complaints`, `/complaints/{id}/reply`, `/escalate` | promo-kodni oldindan ko'rish, shikoyatlar |
 | Ega: menyu | `/owner/categories`, `/owner/products`, `DELETE /owner/products/{id}/image`, `/owner/modifier-groups`, `/owner/products/{id}/modifier-groups`, `/owner/products/{id}/channel-prices`, `/owner/branch-variants` | menyu, rasm, modifikatorlar, kanal narxlari, filial mavjudligi |
 | Ega: oshxona va stop-list | `/owner/batches` (+ `/adjust`, `/close`), `/owner/stop-list` | qozon/partiya qoldig'i, stop-list |
@@ -2882,6 +2883,58 @@ qabul qilinganda (`accepted`) filialning o'z blokidan oladi.
 `GET /staff/kitchen/tickets` da qoladi (`include_ready=1` bilan `ready` ham); KDS'da oxirgi taom "tayyor" bosilganda
 raqam `ready` bo'ladi, qaytarilsa (`recall`) — yana `preparing`. Berilmay qolgan raqam bir kundan keyin ro'yxatdan
 tushadi.
+
+## Mijoz ekrani (P6-14)
+
+Kassaning ikkinchi ekrani va "Tayyorlanmoqda / Tayyor" raqamlar taxtasi ([POS_SPEC.md](POS_SPEC.md) 2.14a). Ekran —
+alohida qurilma turi **`display`**: boshqa terminal kabi bir martalik kod bilan ulanadi (`POST /owner/devices/pairing-codes`
+`type: display`, `POST /devices/pair`) va **o'z terminal tokeni** (`auth:device`) bilan ishlaydi; xodim, PIN va PIN
+sessiyasi yo'q (`GET /terminal/staff` va `POST /devices/{uuid}/staff-session` — 403 `display_has_no_staff`). Mijoz ekrani
+**bepul**: tarifdagi qurilmalar soniga kirmaydi, hisob-faktura va MRR'ga qo'shilmaydi, to'lanmagan hisob-faktura uni
+ulashni to'smaydi (`GET /owner/billing/entitlements` `devices.display`: `{included: null, unlimited: true, extra_price:
+"0.00", can_add: true}`); oflayn-monitoring (`PosDeviceOfflineCheck`) uni kuzatmaydi (televizor tunda o'chadi).
+
+**Ulash kodi.** `POST /owner/devices/pairing-codes {type: "display", branch_id, name?, till_uuid?}` (`devices.manage`):
+`branch_id` **majburiy** (ekran shu filial raqamlarini ko'rsatadi; yo'q — 422 `branch_required`), filialda `customer_display`
+yoki `queue_calling` moduli yoqilgan bo'lishi kerak (aks holda 403 `module_disabled`). `till_uuid` — ekran faqat shu
+kassaning chekini ko'rsatadi (filialning ulangan `pos` terminali; topilmasa 422 `till_not_found`); bo'lmasa — filialning
+oxirgi cheki (bitta kassa uchun odatiy). Migratsiya `2026_11_10_500100`: `devices.display_for_device_id`,
+`device_pairing_codes.display_for_device_id`.
+
+Hamma endpoint terminal tokeni bilan (`Authorization: Bearer <terminal token>`), filial — terminalniki (filialsiz ulangan
+terminal — 422 `branch_required`: filialni tanlab qayta ulang).
+
+| Endpoint | Kim | Nima qiladi |
+|---|---|---|
+| `GET /pos/display/state` | istalgan filial terminali (ekran) | ekran holati: `{branch, store, device, till_uuid, modules: {customer_display, queue_calling}, server_time, cart}`. `cart` — kuzatiladigan kassaning (yoki filialning oxirgi) cheki, `customer_display` o'chiq bo'lsa yoki chek yo'q/eskirgan bo'lsa `null` |
+| `GET /pos/display/queue` | xuddi shu; `queue_calling` kerak | `GET /pos/queue` bilan bir xil taxta (`{business_date, preparing, ready}`), xodim sessiyasi o'rniga terminal tokeni |
+| `POST /pos/display/cart` | faqat `pos` terminali (boshqasi 403 `till_required`); `customer_display` kerak | kassa chekni ikkinchi ekranga yuboradi (pastda); `Idempotency-Key` ixtiyoriy |
+
+**Chek (`POST /pos/display/cart`).** `{state: idle|cart|payment|paid, seq, session?, lines: [{name, qty, unit?, price,
+total, modifiers?: [string], note?}], subtotal, discount?, total, queue_number?, payment?: {method?, tendered?, change?,
+qr?: {payload, label?, provider?}}}`. Pul — o'nlik satr (`"36000.00"`, manfiy emas), `qty` — `"2"` yoki `"0.750"`;
+`lines` ko'pi bilan 100, `qr.payload` ko'pi bilan 1024 belgi (ekran uni QR qilib chizadi: 271 baytgacha; uzunroq bo'lsa
+"QR kodni ko'rsatib bo'lmadi"). `state`: `idle` — chek yo'q ("Keyingi mijoz"), `cart` — taomlar qo'shilmoqda, `payment` —
+to'lov summasi va (kassa ko'rsatsa) QR, `paid` — "Rahmat" (+ `payment.change`). `seq` har yuborishda o'sadi: serverda
+kutilganidan kichik `seq` (xuddi shu `session` ichida) tashlanadi — javob 200 `{stored: false}`; `session` — kassa
+ilovasining ishga tushishi (qayta ochilganda `seq` 1 dan boshlanadi). Server chekni keshda 6 soat saqlaydi (tarixiy yozuv emas)
+va `pos-branch.{id}` kanaliga **`display.cart`** hodisasini yuboradi: `{terminal: <kassa uuid>, seq, state, branch_id,
+store_id}` — **faqat ishora**, taom nomi va narx yo'q (xodimlar kanalida chek ko'rinmaydi): ekran `GET /pos/display/state` ni
+qayta o'qiydi. Hodisa navbatsiz (`ShouldBroadcastNow`) ketadi; Reverb ishlamasa so'rov yiqilmaydi, ekran so'rov bilan
+(har 5 soniya) oladi. Kassa kutib o'tirmaydi (`pos_data` `DisplayFeed.publish`).
+
+**Real-time.** Ekran `private-pos-branch.{id}` kanaliga terminal tokeni bilan obuna bo'ladi (mavjud qoida: filialning
+ulangan terminali). Ekran tinglaydigan hodisalar: `display.cart` (chek), `queue.preparing|ready|handed|canceled`
+(taxta; `queue.ready` `called: true` — qayta chaqirish). Hodisa kelishi bilan ekran darhol qayta o'qiydi (kutmasdan),
+tayyor raqam ovozi va yirik raqam hodisaning o'zidan; aloqa uzilsa har 5 soniyada so'raydi, jonli bo'lsa ham 30 soniyada
+(ehtiyot).
+
+**Oshxona ekrani (KDS).** `GET /staff/kitchen/tickets` chiptasiga `queue_number` (int|null) va `pickup_status`
+(`preparing|ready|handed|null`) qo'shildi. Avval to'langan (yopilgan, `delivered`) kassa buyurtmasi raqami `preparing`
+bo'lsa oddiy chipta bo'lib qoladi va `waiting_seconds` raqam tayyor bo'lguncha o'sadi (to'lov paytida to'xtamaydi);
+tayyor bo'lgach (`include_ready=1`) soat tayyor bo'lgan paytda to'xtaydi. KDS "Raqam N tayyor" (yig'ish) tugmasi
+`POST /pos/orders/{uuid}/ready` ni chaqiradi (`kitchen.manage` yetarli; yopilgan buyurtmada `POST /staff/orders/{uuid}/status`
+ishlamaydi).
 
 ## POS va obunalar (P4-24)
 

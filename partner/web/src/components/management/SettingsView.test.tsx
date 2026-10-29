@@ -360,6 +360,55 @@ describe('SettingsView: devices', () => {
     expect(await screen.findByRole('button', { name: 'Kod yaratish' })).toBeInTheDocument();
   });
 
+  it('pairs a free customer display: the branch is required, and the code says which app takes it', async () => {
+    const expires = new Date(Date.now() + 10 * 60_000).toISOString();
+    const { calls } = base({
+      'GET /api/v1/owner/devices': () => ok([]),
+      'POST /api/v1/owner/devices/pairing-codes': () => ok({ code: 'WXYZ-2345', expires_at: expires, type: 'display', branch_id: 1 }, 201),
+    });
+    const typing = await open();
+    await typing.click(await screen.findByRole('button', { name: 'Ulash kodini yaratish' }));
+    const form = within(await screen.findByRole('dialog'));
+    await typing.selectOptions(form.getByLabelText('Turi'), 'display');
+
+    // No branch: nothing is sent, the field says why
+    await typing.click(form.getByRole('button', { name: 'Kod yaratish' }));
+    expect(await form.findByText('Mijoz ekrani uchun filialni tanlang.')).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+
+    await typing.selectOptions(form.getByLabelText('Filial'), 'Markaz');
+    await typing.click(form.getByRole('button', { name: 'Kod yaratish' }));
+    expect(await screen.findByTestId('pairing-code')).toHaveTextContent('WXYZ-2345');
+    expect(await calls.find((call) => call.method === 'POST')!.json()).toEqual({ type: 'display', branch_id: 1 });
+    expect(screen.getByText('Kodni Mijoz ekrani (bepul) ilovasida kiriting.')).toBeInTheDocument();
+  });
+
+  it('lets a customer display follow one till of its branch', async () => {
+    const expires = new Date(Date.now() + 10 * 60_000).toISOString();
+    const tills = [
+      { uuid: '11111111-1111-4111-8111-111111111111', type: 'pos', name: 'Kassa 1', branch_id: 1, revoked_at: null },
+      { uuid: '22222222-2222-4222-8222-222222222222', type: 'pos', name: 'Kassa 2', branch_id: 1, revoked_at: null },
+      { uuid: '33333333-3333-4333-8333-333333333333', type: 'pos', name: 'Boshqa filial kassasi', branch_id: 2, revoked_at: null },
+      { uuid: '44444444-4444-4444-8444-444444444444', type: 'kds', name: 'Oshxona', branch_id: 1, revoked_at: null },
+    ];
+    const { calls } = base({
+      'GET /api/v1/owner/devices': () => ok(tills),
+      'POST /api/v1/owner/devices/pairing-codes': () => ok({ code: 'WXYZ-2345', expires_at: expires, type: 'display', branch_id: 1 }, 201),
+    });
+    const typing = await open();
+    await typing.click(await screen.findByRole('button', { name: 'Ulash kodini yaratish' }));
+    const form = within(await screen.findByRole('dialog'));
+    await typing.selectOptions(form.getByLabelText('Turi'), 'display');
+    await typing.selectOptions(form.getByLabelText('Filial'), 'Markaz');
+
+    const till = form.getByLabelText('Qaysi kassaning ekrani');
+    expect(within(till).getAllByRole('option').map((option) => option.textContent)).toEqual(['Filialning oxirgi cheki', 'Kassa 1', 'Kassa 2']);
+    await typing.selectOptions(till, 'Kassa 2');
+    await typing.click(form.getByRole('button', { name: 'Kod yaratish' }));
+    await screen.findByTestId('pairing-code');
+    expect(await calls.find((call) => call.method === 'POST')!.json()).toEqual({ type: 'display', branch_id: 1, till_uuid: '22222222-2222-4222-8222-222222222222' });
+  });
+
   it("shows the server's refusal when the code cannot be created", async () => {
     base({ 'GET /api/v1/owner/devices': () => ok([]), 'POST /api/v1/owner/devices/pairing-codes': () => refusal('Xato', 422, { errors: { branch_id: ['Filial topilmadi.'] } }) });
     const typing = await open();

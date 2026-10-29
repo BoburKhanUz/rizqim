@@ -4,67 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device12.dart';
-import 'opened_by2.dart';
-import 'closed_by2.dart';
+import 'blocks2.dart';
 
 part 'data197.g.dart';
 
 @JsonSerializable()
 class Data197 {
   const Data197({
-    required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
+    required this.numbers,
+    required this.calling,
     required this.businessDate,
-    required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.blockSize,
+    required this.lowWater,
+    required this.blocks,
+    required this.nextNumber,
   });
 
   factory Data197.fromJson(Map<String, Object?> json) =>
       _$Data197FromJson(json);
 
-  final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device12? device;
+  final bool numbers;
+  final bool calling;
   @JsonKey(name: 'business_date')
   final String businessDate;
-  @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy2? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy2? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  @JsonKey(name: 'block_size')
+  final int blockSize;
+  @JsonKey(name: 'low_water')
+  final int lowWater;
+  final List<Blocks2> blocks;
+  @JsonKey(name: 'next_number')
+  final int? nextNumber;
 
   Map<String, Object?> toJson() => _$Data197ToJson(this);
 }

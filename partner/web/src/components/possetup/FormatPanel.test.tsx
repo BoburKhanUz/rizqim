@@ -76,6 +76,7 @@ const open = (over: Parameters<typeof mockFetch>[0] = {}) => {
     'GET /api/v1/me/permissions': () => ownerAnswer(),
     'GET /api/v1/owner/branches': () => ok([makeBranch()]),
     'GET /api/v1/owner/pos/format': () => ok(formatOf()),
+    'GET /api/v1/owner/service-fees': () => ok({ channels: ['pos_hall'], settings: [] }),
     ...over,
   });
   renderPage(<PosSetupView />);
@@ -128,6 +129,25 @@ describe('Format', () => {
     expect(await last(calls, 'PUT').json()).toEqual({ branch_id: 1, profile: 'osh_markazi' });
     expect(screen.getByRole('radio', { name: /Osh markazi/ })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText('Kassa ochilganda: tez kassa')).toBeInTheDocument();
+  });
+
+  it('warns that the service charge becomes 0% when switching to a stolovaya while a charge is set', async () => {
+    const fee = { branch_id: 1, hall_id: null, service_charge_percent: '10.00', service_charge_channels: null, place_fee_amount: '0.00', place_fee_mode: 'per_person', place_fee_channels: null };
+    const { typing } = open({ 'GET /api/v1/owner/service-fees': () => ok({ channels: ['pos_hall'], settings: [fee] }) });
+    await typing.click(await screen.findByRole('radio', { name: /Osh markazi/ }));
+    // A profile that keeps the charge: no warning
+    expect(within(await screen.findByRole('alertdialog')).queryByRole('note')).toBeNull();
+    await typing.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Bekor qilish' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
+    await typing.click(screen.getByRole('radio', { name: /Stolovaya/ }));
+    expect(within(await screen.findByRole('alertdialog')).getByRole('note')).toHaveTextContent("Xizmat haqi 0% bo'ladi");
+  });
+
+  it('does not warn about the service charge when no row charges one', async () => {
+    const { typing } = open();
+    await typing.click(await screen.findByRole('radio', { name: /Stolovaya/ }));
+    expect(within(await screen.findByRole('alertdialog')).queryByRole('note')).toBeNull();
   });
 
   it("shows the server's refusal of a locked module", async () => {

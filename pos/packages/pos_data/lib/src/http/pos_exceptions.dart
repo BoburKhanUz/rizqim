@@ -342,6 +342,12 @@ abstract final class PosReasons {
     'overpayment': "To'lov schyot qoldig'idan ko'p.",
     'card_type_required': 'Karta turini tanlang.',
     'transaction_id_required': 'Tranzaksiya raqamini kiriting.',
+    'card_last4_invalid':
+        "Kartaning oxirgi 4 raqamini kiriting (yoki bo'sh qoldiring).",
+    'bank_total_required':
+        'Bank terminalining kunlik jami summasini kiriting.',
+    'provider_report_unavailable':
+        "Provayder karta hisobotini bermadi: bank terminali jamini qo'lda kiriting.",
     'advance_insufficient': "Avans qoldig'i yetmaydi.",
     'shift_not_open': 'Kassada ochiq smena yo\'q. Avval smenani oching.',
     'shift_already_open': 'Bu terminalda smena allaqachon ochiq.',

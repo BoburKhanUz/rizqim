@@ -244,6 +244,7 @@ class PosPayment {
     this.changeAmount,
     this.cardType,
     this.transactionId,
+    this.cardLast4,
     this.reference,
     this.status,
     this.paidAt,
@@ -257,6 +258,7 @@ class PosPayment {
     changeAmount: j.moneyOrNull('change_amount'),
     cardType: j.strOrNull('card_type'),
     transactionId: j.strOrNull('transaction_id'),
+    cardLast4: j.strOrNull('card_last4'),
     reference: j.strOrNull('reference'),
     status: j.strOrNull('status'),
     paidAt: j.dateOrNull('paid_at'),
@@ -275,7 +277,12 @@ class PosPayment {
   /// Qaytim.
   final PosMoney? changeAmount;
   final String? cardType;
+
+  /// Terminal chekidagi tranzaksiya raqami (RRN).
   final String? transactionId;
+
+  /// P6-16: kartaning oxirgi 4 raqami (ixtiyoriy).
+  final String? cardLast4;
   final String? reference;
   final String? status;
   final DateTime? paidAt;
@@ -453,11 +460,13 @@ sealed class PosTenderInput {
       _Cash;
 
   /// Karta (alohida bank terminali): [cardType] (`uzcard`, `humo`, `visa`, `mastercard`, `unionpay`, `mir`,
-  /// `other`) va [transactionId] majburiy.
+  /// `other`) va [transactionId] (terminal chekidagi RRN) majburiy. P6-16: [cardLast4] — kartaning oxirgi 4 raqami
+  /// (ixtiyoriy; 4 raqam bo'lmasa server 422 `card_last4_invalid`, oflayn to'lovda tashlab yuboriladi).
   const factory PosTenderInput.card(
     PosMoney amount, {
     required String cardType,
     required String transactionId,
+    String? cardLast4,
   }) = _Card;
 
   const factory PosTenderInput.qr(PosMoney amount, {String? reference}) = _Qr;
@@ -497,15 +506,18 @@ class _Card extends PosTenderInput {
     PosMoney amount, {
     required this.cardType,
     required this.transactionId,
+    this.cardLast4,
   }) : super(PosTender.card, amount);
 
   final String cardType;
   final String transactionId;
+  final String? cardLast4;
 
   @override
   Map<String, Object?> _extra() => <String, Object?>{
     'card_type': cardType,
     'transaction_id': transactionId,
+    if (cardLast4 != null && cardLast4!.isNotEmpty) 'card_last4': cardLast4,
   };
 }
 

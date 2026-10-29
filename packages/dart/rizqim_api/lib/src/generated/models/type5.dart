@@ -10,6 +10,8 @@ enum Type5 {
   pos('pos'),
   @JsonValue('kds')
   kds('kds'),
+  @JsonValue('display')
+  display('display'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall4.dart';
-import 'table4.dart';
-import 'waiter7.dart';
-import 'queue5.dart';
-import 'online2.dart';
+import 'hall.dart';
+import 'table.dart';
+import 'waiter4.dart';
+import 'queue2.dart';
+import 'online.dart';
 
 part 'data173.g.dart';
 
@@ -56,15 +56,15 @@ class Data173 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   final int version;
-  final Hall4? hall;
-  final Table4? table;
+  final Hall? hall;
+  final Table? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter7? waiter;
+  final Waiter4? waiter;
   @JsonKey(name: 'items_count')
   final int itemsCount;
   final String subtotal;
@@ -82,14 +82,14 @@ class Data173 {
   final int? bookingId;
   @JsonKey(name: 'business_date')
   final String? businessDate;
-  final Queue5? queue;
+  final Queue2? queue;
   @JsonKey(name: 'opened_at')
   final String? openedAt;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final Online2? online;
+  final Online? online;
 
   Map<String, Object?> toJson() => _$Data173ToJson(this);
 }

@@ -10,6 +10,7 @@ use App\Domain\Pos\Shifts\QueueNumbers;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\PosHall\PosHallController;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\User;
 use Closure;
@@ -55,6 +56,17 @@ class PosQueueController extends PosHallController
         $user = $this->staff($request);
         $request->validate(['branch_id' => 'nullable|integer|min:1']);
         $branch = $this->branchFor($request, $user, Permission::ORDERS_VIEW);
+
+        return $this->success(self::boardOf($branch));
+    }
+
+    /**
+     * The branch's board for its business day (also served to the paired customer display, P6-14).
+     *
+     * @return array{business_date: string, preparing: list<array<string, mixed>>, ready: list<array<string, mixed>>}
+     */
+    public static function boardOf(Branch $branch): array
+    {
         $date = BusinessDay::of($branch);
 
         $list = fn (PickupStatus $status, string $order) => Order::query()
@@ -70,11 +82,11 @@ class PosQueueController extends PosHallController
             ->values()
             ->all();
 
-        return $this->success([
+        return [
             'business_date' => $date,
             'preparing' => $list(PickupStatus::PREPARING, 'created_at'),
             'ready' => $list(PickupStatus::READY, 'pickup_ready_at'),
-        ]);
+        ];
     }
 
     /**

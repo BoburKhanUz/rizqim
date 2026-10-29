@@ -4,6 +4,8 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../counter/counter_format.dart';
+import '../../menu_day/menu_day.dart';
 import '../../shell/pos_scope.dart';
 import 'discount_dialog.dart';
 import 'order_controller.dart';
@@ -332,6 +334,7 @@ class _RoundSection extends StatelessWidget {
             key: ValueKey<String>('item-${i.id}'),
             quantityLabel: itemQuantityLabel(i),
             name: i.displayName,
+            parts: setPartLines(i.setParts),
             modifiers: itemModifierLabels(i),
             note: i.note,
             seat: i.seatNo,
@@ -386,6 +389,7 @@ class _DraftSection extends StatelessWidget {
                 unitLabel: l.variant.unitLabel,
               ),
               name: l.name,
+              parts: setPartLines(l.product.setParts),
               modifiers: l.modifierLabels,
               note: l.note,
               seat: l.seatNo,
@@ -455,6 +459,10 @@ class _Totals extends StatelessWidget {
     final bool open = o.isOpen;
     final PosEntitlements plan =
         PosScope.maybeOf(context)?.session.entitlements ?? PosEntitlements.open;
+    final PosFormat? format = PosScope.maybeOf(context)?.session.posFormat;
+    final bool serviceChargeOn =
+        format == null ||
+        (format.has(PosModule.serviceCharge) && !format.serviceChargeZero);
     PosTotalsLine? charge(PosChargeKind kind, String label, PosMoney amount) {
       final bool waived = ch.waived.contains(kind);
       if (!waived && amount.isZero) return null;
@@ -462,10 +470,11 @@ class _Totals extends StatelessWidget {
           .where((PosChargeWaiver x) => x.charge == kind.wire)
           .lastOrNull;
       // P4-21: taking a waived service charge back is the plan's service_charge; taking it off is always allowed
+      // P6-11: nor where the format has no service charge (or the law keeps it at 0%, stolovaya)
       final bool restoreLocked =
           waived &&
           kind == PosChargeKind.serviceCharge &&
-          !plan.has(PosFeature.serviceCharge);
+          (!plan.has(PosFeature.serviceCharge) || !serviceChargeOn);
       final String waivedText =
           'Olib tashlandi${w == null || w.reason.isEmpty ? '' : ': ${w.reason}'}';
       return PosTotalsLine(
@@ -473,7 +482,7 @@ class _Totals extends StatelessWidget {
         amount: amount,
         waived: waived,
         detail: restoreLocked
-            ? '$waivedText · ${plan.lockLabel(PosFeature.serviceCharge)}'
+            ? '$waivedText · ${serviceChargeOn ? plan.lockLabel(PosFeature.serviceCharge) : 'formatda yo\'q'}'
             : waived
             ? waivedText
             : null,

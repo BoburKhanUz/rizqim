@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device17.dart';
-import 'opened_by7.dart';
-import 'closed_by7.dart';
-import 'summary4.dart';
-import 'bank_terminal2.dart';
+import 'device16.dart';
+import 'opened_by5.dart';
+import 'closed_by5.dart';
+import 'summary3.dart';
+import 'bank_terminal.dart';
 
 part 'data202.g.dart';
 
@@ -43,19 +43,19 @@ class Data202 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device17? device;
+  final Device16? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy7? openedBy;
+  final OpenedBy5? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy7? closedBy;
+  final ClosedBy5? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')
@@ -69,9 +69,9 @@ class Data202 {
   final bool forceClosed;
   @JsonKey(name: 'close_note')
   final String? closeNote;
-  final Summary4? summary;
+  final Summary3? summary;
   @JsonKey(name: 'bank_terminal')
-  final BankTerminal2? bankTerminal;
+  final BankTerminal? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data202ToJson(this);
 }

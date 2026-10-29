@@ -39,6 +39,9 @@ export function DailyMenuPanel() {
 function MenuOfDay({ branchId, date, onDate, canEdit }: { branchId: number; date: string; onDate: (date: string) => void; canEdit: boolean }) {
   const { t } = useI18n();
   const query = useDailyMenu(branchId, date);
+  // The answer to a save or copy lives here: the editor below starts again from the server's menu after it (its key), which
+  // would drop the message the moment it appears
+  const [saved, setSaved] = useState<string | null>(null);
 
   if (query.isPending) return <CardSkeletons count={3} lines={3} label={t('loading')} />;
   if (query.isError) return <InlineError title={t('loadErrorTitle')} message={describeError(query.error, t).message} retryLabel={t('retry')} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
@@ -46,7 +49,7 @@ function MenuOfDay({ branchId, date, onDate, canEdit }: { branchId: number; date
   const menu = query.data;
   // The editor starts again from the server's menu after every save, copy or change of day
   const key = [menu.date, menu.product_ids.join(','), menu.products.map((product) => (product.daily_rotation ? 1 : 0)).join('')].join('|');
-  return <MenuEditor key={key} menu={menu} date={date} onDate={onDate} canEdit={canEdit} />;
+  return <MenuEditor key={key} menu={menu} onDate={(next) => { setSaved(null); onDate(next); }} canEdit={canEdit} saved={saved} onSaved={setSaved} />;
 }
 
 function plusDays(day: string, days: number): string {
@@ -56,20 +59,19 @@ function plusDays(day: string, days: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function MenuEditor({ menu, onDate, canEdit }: { menu: DailyMenu; date: string; onDate: (date: string) => void; canEdit: boolean }) {
+function MenuEditor({ menu, onDate, canEdit, saved, onSaved }: { menu: DailyMenu; onDate: (date: string) => void; canEdit: boolean; saved: string | null; onSaved: (message: string | null) => void }) {
   const { t, language } = useI18n();
   const [selected, setSelected] = useState<Set<number>>(() => new Set(menu.product_ids));
   // The dishes that rotate (sold only on a day they are ticked); starts as the server's list
   const [rotating, setRotating] = useState<Set<number>>(() => new Set(menu.products.filter((product) => product.daily_rotation).map((product) => product.id)));
   const [search, setSearch] = useState('');
-  const [saved, setSaved] = useState<string | null>(null);
   const [confirmCopy, setConfirmCopy] = useState(false);
 
-  const save = useSaveDailyMenu({ onSuccess: () => setSaved(t('dm_saved')) });
+  const save = useSaveDailyMenu({ onSuccess: () => onSaved(t('dm_saved')) });
   const copy = useCopyDailyMenu({
     onSuccess: () => {
       setConfirmCopy(false);
-      setSaved(t('dm_copied'));
+      onSaved(t('dm_copied'));
     },
   });
   const failure = save.error ? describeError(save.error, t) : copy.error ? describeError(copy.error, t) : null;
@@ -114,7 +116,7 @@ function MenuEditor({ menu, onDate, canEdit }: { menu: DailyMenu; date: string; 
   // Which dishes rotate is saved too, when the owner changed it here
   const rotationChanged = menu.products.some((product) => rotating.has(product.id) !== product.daily_rotation);
   const submit = () => {
-    setSaved(null);
+    onSaved(null);
     // In the order of the list, so the menu reads as the owner ticked it
     const ordered = menu.products.filter((product) => selected.has(product.id) && rotating.has(product.id)).map((product) => product.id);
     save.mutate({ branchId: menu.branch_id, date: menu.date, productIds: ordered, ...(rotationChanged ? { rotation: [...rotating] } : {}) });

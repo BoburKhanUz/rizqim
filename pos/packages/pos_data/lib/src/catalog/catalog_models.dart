@@ -1,6 +1,7 @@
 import 'package:pos_core/pos_core.dart';
 
 import '../json.dart';
+import '../menu_day/menu_day_models.dart';
 
 /// POS kanali: zal (`pos_hall`) yoki olib ketish (`pos_takeaway`). Narx kanal bo'yicha.
 enum PosChannel {
@@ -144,6 +145,24 @@ class PosCatalog {
   /// Qozon qoldig'i: variantning o'z partiyasi, bo'lmasa mahsulotniki.
   PosBatch? batchFor(PosVariant v) =>
       availability.batchFor(productId: v.productId, variantId: v.id);
+
+  /// P6-15: kunlik taom bugungi menyuda emas (server uni stop-listga "Bugungi menyuda yo'q" sababi bilan qo'yadi).
+  bool isOffMenu(PosProduct p) =>
+      availability.stoppedProducts.contains(p.id) &&
+      availability.stopReasons[p.id] == posOffMenuReason;
+
+  /// P6-15: tugagan taomning "keyingi partiya 12:30": avval joriy `availability.next_batches` (menyu versiyasini
+  /// o'zgartirmay yangilanadi), keyin katalogdagi taom va variantlar; sotuvdagi yoki menyuda yo'q taom uchun `null`.
+  PosNextBatch? nextBatchOf(PosProduct p) {
+    if (isProductAvailable(p) || isOffMenu(p)) return null;
+    final PosNextBatch? fresh = availability.nextBatchFor(p.id);
+    if (fresh != null) return fresh;
+    if (p.nextBatch != null) return p.nextBatch;
+    for (final PosVariant v in p.variants) {
+      if (v.nextBatch != null) return v.nextBatch;
+    }
+    return null;
+  }
 }
 
 class PosCategory {
@@ -187,6 +206,8 @@ class PosProduct {
     this.quickAdd = false,
     this.imageUrl,
     this.modifierGroups = const <PosModifierGroup>[],
+    this.nextBatch,
+    this.setParts,
   });
 
   factory PosProduct.fromJson(PosJson j) => PosProduct(
@@ -207,6 +228,8 @@ class PosProduct {
     imageUrl: j.strOrNull('image_url'),
     variants: j.objects('variants', PosVariant.fromJson),
     modifierGroups: j.objects('modifier_groups', PosModifierGroup.fromJson),
+    nextBatch: PosNextBatch.maybe(j['next_batch']),
+    setParts: PosSetPart.listOf(j['set_parts']),
   );
 
   final int id;
@@ -235,7 +258,16 @@ class PosProduct {
   final List<PosVariant> variants;
   final List<PosModifierGroup> modifierGroups;
 
+  /// P6-15: tugagan taomning "keyingi partiya 12:30" (sotuvdagi taomda `null`).
+  final PosNextBatch? nextBatch;
+
+  /// P6-15: kompleks tarkibi (kompleks emas — `null`): bitta qator, oshxona tarkibni ko'radi.
+  final List<PosSetPart>? setParts;
+
   bool get hasModifiers => modifierGroups.isNotEmpty;
+
+  /// Kompleks (tarkibli to'plam).
+  bool get isSet => setParts != null && setParts!.isNotEmpty;
 
   /// Bitta variant bo'lsa — u (tez qo'shish).
   PosVariant? get singleVariant =>
@@ -258,6 +290,7 @@ class PosVariant {
     this.stock,
     this.isAvailable = true,
     this.unavailableReason,
+    this.nextBatch,
   }) : basePrice = basePrice ?? price;
 
   factory PosVariant.fromJson(PosJson j) => PosVariant(
@@ -277,6 +310,7 @@ class PosVariant {
     unavailableReason: PosUnavailableReason.fromWire(
       j.strOrNull('unavailable_reason'),
     ),
+    nextBatch: PosNextBatch.maybe(j['next_batch']),
   );
 
   final int id;
@@ -301,6 +335,9 @@ class PosVariant {
   final int? stock;
   final bool isAvailable;
   final PosUnavailableReason? unavailableReason;
+
+  /// P6-15: variant tugagan bo'lsa uning "keyingi partiya"si.
+  final PosNextBatch? nextBatch;
 
   /// Miqdor qadami: dona — 1; kg va l — `quantity_step` yoki 0.1 (docs/MENU.md).
   PosQuantity get step => unit.isMeasured
@@ -388,6 +425,8 @@ class PosAvailability {
     this.stoppedModifiers = const <int>{},
     this.soldOutVariants = const <int>{},
     this.batches = const <PosBatch>[],
+    this.stopReasons = const <int, String>{},
+    this.nextBatches = const <PosPlannedBatch>[],
   });
 
   factory PosAvailability.fromJson(PosJson j) {
@@ -401,7 +440,23 @@ class PosAvailability {
       stoppedModifiers: stopped.ints('modifiers').toSet(),
       soldOutVariants: soldOut.ints('variants').toSet(),
       batches: j.objects('batches', PosBatch.fromJson),
+      stopReasons: _stopReasons(j),
+      nextBatches: j.objects('next_batches', PosPlannedBatch.fromJson),
     );
+  }
+
+  /// `stop_list[]` (`{type: product, subject_id, reason}`) dan taom → sabab ("Bugungi menyuda yo'q" ...).
+  static Map<int, String> _stopReasons(PosJson j) {
+    final Map<int, String> out = <int, String>{};
+    for (final Object? e in j.list('stop_list')) {
+      if (e is! Map || e['type'] != 'product') continue;
+      final Object? id = e['subject_id'];
+      final Object? reason = e['reason'];
+      if (id is num && reason is String && reason.isNotEmpty) {
+        out[id.toInt()] = reason;
+      }
+    }
+    return out;
   }
 
   final Set<int> stoppedProducts;
@@ -409,6 +464,20 @@ class PosAvailability {
   final Set<int> stoppedModifiers;
   final Set<int> soldOutVariants;
   final List<PosBatch> batches;
+
+  /// P6-15: taom id → stop-list sababi (menyuda yo'qligi ham shu yerda).
+  final Map<int, String> stopReasons;
+
+  /// P6-15: rejalashtirilgan partiyalar (eng yaqini birinchi).
+  final List<PosPlannedBatch> nextBatches;
+
+  /// Taomning eng yaqin rejalashtirilgan partiyasi.
+  PosNextBatch? nextBatchFor(int productId) {
+    for (final PosPlannedBatch b in nextBatches) {
+      if (b.productId == productId) return b.next;
+    }
+    return null;
+  }
 
   /// Variantning o'z partiyasi, bo'lmasa mahsulotning umumiy qozoni.
   PosBatch? batchFor({required int productId, int? variantId}) {

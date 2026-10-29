@@ -162,6 +162,19 @@ describe('Karta terminali: the bank terminal against the Z', () => {
     expect(await put.json()).toEqual({ source: 'import', transactions: [{ rrn: '000123', amount: '600000' }, { rrn: null, amount: '650000' }] });
   });
 
+  it('keeps the answer of a correction made from a row of the list', async () => {
+    base({ 'PUT /api/v1/owner/fiscal/bank-reports/s0000000-0000-4000-8000-000000000001': () => ok(bankReport({ source: 'manual', over_threshold: false, difference: '0.00' })) });
+    const typing = await openTab();
+    const table = await screen.findByRole('table', { name: 'Bank terminali va Z' });
+    await typing.click(within(table).getByRole('button', { name: /hisobotini tuzatish/ }));
+    const form = await screen.findByRole('form', { name: 'Bank terminali summasini kiritish' });
+    await vi.waitFor(() => expect(within(form).getByLabelText('Smena')).toHaveValue('s0000000-0000-4000-8000-000000000001'));
+    await typing.type(within(form).getByLabelText("Terminal kunlik jami (so'm)"), '1200000');
+    await typing.click(within(form).getByRole('button', { name: 'Solishtirish' }));
+    // The form starts again after the save; the message stays
+    expect(await screen.findByText(/^Saqlandi\. Farq: /)).toBeInTheDocument();
+  });
+
   it('is read-only for someone who reads reports but cannot enter them, and has no setup without settings.manage', async () => {
     base({}, ['reports.view']);
     await openTab();

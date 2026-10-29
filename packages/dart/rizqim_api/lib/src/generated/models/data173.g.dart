@@ -16,16 +16,16 @@ Data173 _$Data173FromJson(Map<String, dynamic> json) => Data173(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall4.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table4.fromJson(json['table'] as Map<String, dynamic>),
+      : Table.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
-      : Waiter7.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter4.fromJson(json['waiter'] as Map<String, dynamic>),
   itemsCount: (json['items_count'] as num).toInt(),
   subtotal: json['subtotal'] as String,
   totalPrice: json['total_price'] as String,
@@ -37,13 +37,13 @@ Data173 _$Data173FromJson(Map<String, dynamic> json) => Data173(
   businessDate: json['business_date'] as String?,
   queue: json['queue'] == null
       ? null
-      : Queue5.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue2.fromJson(json['queue'] as Map<String, dynamic>),
   openedAt: json['opened_at'] as String?,
   closedAt: json['closed_at'] as String?,
   updatedAt: json['updated_at'] as String?,
   online: json['online'] == null
       ? null
-      : Online2.fromJson(json['online'] as Map<String, dynamic>),
+      : Online.fromJson(json['online'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data173ToJson(Data173 instance) => <String, dynamic>{

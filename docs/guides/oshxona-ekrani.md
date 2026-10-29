@@ -324,7 +324,23 @@ Qozon bo'lmasa: "Qozon bo'yicha sotiladigan taomlar qozon ochilmaguncha menyuda 
 Qozon amallari uchun alohida ruxsat kerak (`batches.manage`: oshpaz, menejer va egada bor). Ruxsat bo'lmasa, **Qozon** yorlig'i ko'rinmaydi.
 Qozonni panelda yoki Mini App'da ham boshqarish mumkin ([panel qo'llanmasi](hamkor-panel.md#6-stop-list-va-qozon)).
 
-## 13. Muammolar va yechimlar
+## 13. Raqamli buyurtmalar (tez kassa: avval to'lov)
+
+Fast food, kafe, osh markazi va qahvaxonada mijoz avval kassada to'laydi va **raqam** oladi, taom keyin pishadi. Bunday buyurtma
+kassada yopilgan bo'lsa ham oshxona ekranida **oddiy chipta** bo'lib turadi, raqami tayyor bo'lguncha:
+
+- Chiptaning sarlavhasida yirik **№ 17** (raqam). Buyurtma kodi pastki qatorda, unda "To'langan" belgisi.
+- Kutish soati to'lov paytida to'xtamaydi: mijoz to'lagan paytdan emas, buyurtma qabul qilinganidan hisoblanadi, raqam tayyor bo'lguncha.
+- Taomlarni avvalgidek bosib belgilaysiz (**Hammasi tayyor** ham ishlaydi). **Oxirgi taom tayyor bo'lsa**, raqam o'zi tayyor bo'ladi:
+  chipta doskadan ketadi, mijoz ekranida (televizorda) "17 raqam tayyor!" chiqadi va ovoz chalinadi.
+- **Raqam 17 tayyor** tugmasi (yig'ish): barcha taomlar tayyor bo'lsa-yu, hali bir sexda belgilanmagan qatorlar qolgan bo'lsa yoki yig'uvchi
+  hammasini bir bosishda tayyor qilmoqchi bo'lsa. U qolgan pishayotgan qatorlarni ham tayyor qiladi va raqamni e'lon qiladi.
+- Ko'rish huquqi bor xodimda (masalan, faqat ko'ra oladigan kassir) tugma yo'q: u faqat ko'radi.
+- Xato bosilgan bo'lsa, qatorni **Qaytarish** bilan qaytaring: raqam yana "Tayyorlanmoqda" bo'ladi.
+
+[Mijoz ekrani qo'llanmasi](mijoz-ekrani.md): raqamlar taxtasini qanday ulash va sozlash.
+
+## 14. Muammolar va yechimlar
 
 | Muammo | Nima qilish kerak |
 |---|---|

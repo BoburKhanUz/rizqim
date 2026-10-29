@@ -4,11 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'source.dart';
-import 'rizqim_breakdown4.dart';
-import 'transactions5.dart';
-import 'unmatched4.dart';
-import 'entered_by4.dart';
+import 'device13.dart';
+import 'opened_by2.dart';
+import 'closed_by2.dart';
 
 part 'data200.g.dart';
 
@@ -16,69 +14,57 @@ part 'data200.g.dart';
 class Data200 {
   const Data200({
     required this.uuid,
-    required this.shiftUuid,
-    required this.zNumber,
+    required this.status,
     required this.branchId,
+    required this.device,
     required this.businessDate,
-    required this.source,
-    required this.terminalRef,
-    required this.bankTotal,
-    required this.bankCount,
-    required this.rizqimTotal,
-    required this.rizqimCount,
-    required this.rizqimBreakdown,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
+    required this.closedAt,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
     required this.difference,
-    required this.threshold,
-    required this.overThreshold,
-    required this.transactions,
-    required this.unmatched,
-    required this.note,
-    required this.enteredBy,
-    required this.alertedAt,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
   });
 
   factory Data200.fromJson(Map<String, Object?> json) =>
       _$Data200FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
+  final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
+  final Device13? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
-  final Source source;
-  @JsonKey(name: 'terminal_ref')
-  final String? terminalRef;
-  @JsonKey(name: 'bank_total')
-  final String bankTotal;
-  @JsonKey(name: 'bank_count')
-  final int? bankCount;
-  @JsonKey(name: 'rizqim_total')
-  final String rizqimTotal;
-  @JsonKey(name: 'rizqim_count')
-  final int rizqimCount;
-  @JsonKey(name: 'rizqim_breakdown')
-  final RizqimBreakdown4? rizqimBreakdown;
-  final String difference;
-  final String threshold;
-  @JsonKey(name: 'over_threshold')
-  final bool overThreshold;
-  final List<Transactions5>? transactions;
-  final Unmatched4? unmatched;
-  final String? note;
-  @JsonKey(name: 'entered_by')
-  final EnteredBy4? enteredBy;
-  @JsonKey(name: 'alerted_at')
-  final String? alertedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy2? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy2? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
+  final String? difference;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
 
   Map<String, Object?> toJson() => _$Data200ToJson(this);
 }

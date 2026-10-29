@@ -4,14 +4,14 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall9.dart';
-import 'table9.dart';
-import 'waiter12.dart';
+import 'hall7.dart';
+import 'table7.dart';
+import 'waiter10.dart';
 import 'discount_kind.dart';
-import 'charges12.dart';
-import 'offline8.dart';
-import 'queue10.dart';
-import 'items32.dart';
+import 'charges10.dart';
+import 'offline6.dart';
+import 'queue8.dart';
+import 'items29.dart';
 
 part 'data182.g.dart';
 
@@ -74,15 +74,15 @@ class Data182 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall9? hall;
-  final Table9? table;
+  final Hall7? hall;
+  final Table7? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter12? waiter;
+  final Waiter10? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -122,11 +122,11 @@ class Data182 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges12 charges;
-  final Offline8? offline;
-  final Queue10? queue;
+  final Charges10 charges;
+  final Offline6? offline;
+  final Queue8? queue;
   final int rounds;
-  final List<Items32> items;
+  final List<Items29> items;
 
   Map<String, Object?> toJson() => _$Data182ToJson(this);
 }

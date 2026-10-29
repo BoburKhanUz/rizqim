@@ -73,6 +73,7 @@ class PosOrderLineTile extends StatelessWidget {
     super.key,
     required this.quantityLabel,
     required this.name,
+    this.parts = const <String>[],
     this.modifiers = const <String>[],
     this.note,
     this.seat,
@@ -89,6 +90,9 @@ class PosOrderLineTile extends StatelessWidget {
   /// "2", "1.5 kg (guruch)".
   final String quantityLabel;
   final String name;
+
+  /// Kompleks tarkibi (bitta qator, oshxona tarkibni ko'radi): "Birinchi: Mastava", "Salat".
+  final List<String> parts;
 
   /// "Piyoz", "2 × Qazi".
   final List<String> modifiers;
@@ -113,6 +117,7 @@ class PosOrderLineTile extends StatelessWidget {
     final Color fg = voided ? c.fgSubtle : c.fg;
     final TextDecoration? strike = voided ? TextDecoration.lineThrough : null;
     final List<String> details = <String>[
+      ...parts.map((String p) => '· $p'),
       ...modifiers.map((String m) => '+ $m'),
     ];
     return InkWell(

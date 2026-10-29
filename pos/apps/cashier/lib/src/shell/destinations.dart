@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
 
+import '../counter/counter_format.dart';
+import '../counter/counter_page.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/bookings/bookings_page.dart';
 import '../features/floor/floor_page.dart';
@@ -14,6 +16,15 @@ import '../features/shift/shift_page.dart';
 /// konstruktorli vidjet (`FloorPage`, `QueuePage`, ...). Feature egasi faqat o'z faylini (va papkasini) almashtiradi:
 /// bu jadval va qobiq o'zgarmaydi. Bog'liqliklar — `PosScope.of(context)`.
 enum CashierDestination {
+  /// P6-12: tez kassa (`counter`): menyu panjarasi, "To'lash", "Keyingi mijoz". `quick_counter` moduli va rejim
+  /// `counter` yoki `hybrid` (choyxonadan tashqari) bo'lsa ko'rinadi.
+  counter(
+    'Tez kassa',
+    Icons.bolt_outlined,
+    Icons.bolt,
+    anyOf: <String>{PosPermissions.ordersManage, PosPermissions.takePayment},
+  ),
+
   /// Zal xaritasi (P3-21: `features/floor`).
   floor('Zal', Icons.table_restaurant_outlined, Icons.table_restaurant),
 
@@ -68,11 +79,27 @@ enum CashierDestination {
   /// Shu ruxsatlardan biri bo'lsa ko'rinadi (bo'sh — hammaga).
   final Set<String> anyOf;
 
-  bool visibleFor(PosSession session) =>
-      anyOf.isEmpty || anyOf.any(session.can);
+  /// Ruxsat va (P6-11) filial formati: modul o'chiq bo'lsa bo'lim ko'rinmaydi (`bookings`, `customer_accounts`).
+  bool visibleFor(PosSession session) {
+    if (anyOf.isNotEmpty && !anyOf.any(session.can)) return false;
+    return switch (this) {
+      CashierDestination.counter => session.showsCounter,
+      CashierDestination.floor => session.showsFloor,
+      CashierDestination.bookings => session.hasModule(PosModule.bookings),
+      CashierDestination.accounts => session.hasModule(
+        PosModule.customerAccounts,
+      ),
+      _ => true,
+    };
+  }
+
+  /// Ish ekrani ochilganda birinchi bo'lim (`format.first_screen`).
+  static CashierDestination firstFor(PosSession session) =>
+      session.startsAtCounter && counter.visibleFor(session) ? counter : floor;
 
   /// Bo'lim sahifasi.
   Widget page() => switch (this) {
+    CashierDestination.counter => const CounterPage(),
     CashierDestination.floor => const FloorPage(),
     CashierDestination.queue => const QueuePage(),
     CashierDestination.bookings => const BookingsPage(),

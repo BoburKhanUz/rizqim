@@ -70,6 +70,28 @@ describe('Bugungi menyu', () => {
     expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(1);
   });
 
+  it('keeps the saved message when the menu comes back changed', async () => {
+    // After the save the page reads the new menu: the editor starts again from it, and the message must stay
+    let saved = false;
+    mockFetch(
+      routes({
+        'GET /api/v1/owner/daily-menu': () => ok(saved ? menu({ product_ids: [1, 2], products: [dish(), dish({ id: 2, name: 'Mastava', on_menu: true }), dish({ id: 3, name: 'Qora choy', daily_rotation: false, on_menu: false })] }) : menu()),
+        'PUT /api/v1/owner/daily-menu': () => {
+          saved = true;
+          return ok(menu());
+        },
+      }),
+    );
+    renderPage(<DailyMenuView />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Mastava' }));
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+
+    await waitFor(() => expect(screen.getByText('Bugun bor: 2 ta')).toBeInTheDocument());
+    expect(screen.getByText('Menyu saqlandi.')).toBeInTheDocument();
+  });
+
   it('turns a permanent dish into a daily one and saves the rotation first', async () => {
     const { calls } = mockFetch(routes({ 'PUT /api/v1/owner/daily-menu/rotation': () => ok({ product_ids: [1, 2, 3] }), 'PUT /api/v1/owner/daily-menu': () => ok(menu()) }));
     renderPage(<DailyMenuView />);

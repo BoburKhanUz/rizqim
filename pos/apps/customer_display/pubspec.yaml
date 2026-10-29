@@ -1,0 +1,37 @@
+name: rizqim_customer_display
+description: Rizqim mijoz ekrani - kassaning ikkinchi ekrani va "Tayyorlanmoqda / Tayyor" raqamlar taxtasi.
+version: 0.1.0+1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
+
+dependencies:
+  audioplayers: ^6.8.1
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  pos_core:
+    path: ../../packages/pos_core
+  pos_data:
+    path: ../../packages/pos_data
+  rizqim_api:
+    path: ../../../packages/dart/rizqim_api
+  rizqim_core:
+    path: ../../../packages/dart/rizqim_core
+  rizqim_ui:
+    path: ../../../packages/dart/rizqim_ui
+  shared_preferences: ^2.5.6
+
+dev_dependencies:
+  dio: ^5.9.0
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/

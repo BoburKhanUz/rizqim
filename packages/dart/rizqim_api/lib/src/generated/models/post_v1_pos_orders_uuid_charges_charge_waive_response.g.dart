@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidChargesChargeWaiveResponseFromJson(
 ) => PostV1PosOrdersUuidChargesChargeWaiveResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data179.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data182.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidChargesChargeWaiveResponseToJson(

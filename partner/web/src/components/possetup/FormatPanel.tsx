@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Check, Lock, RotateCcw, Sparkles } from 'lucide-react';
 import { Button, Card, cx, FormError, Notice, Pill, Switch } from '@rizqim/ui';
-import { POS_MODES, useApplyFormatTemplate, usePosFormat, useSavePosFormat, type FormatProfileOption, type PosFormat, type PosFormatPatch, type PosModuleRow, type PosMode } from '@rizqim/staff';
+import { POS_MODES, useApplyFormatTemplate, usePosFormat, useSavePosFormat, useServiceFees, type FormatProfileOption, type PosFormat, type PosFormatPatch, type PosModuleRow, type PosMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
@@ -26,6 +26,9 @@ function FormatForm({ branchId, data }: { branchId: number; data: PosFormat }) {
   const [asking, setAsking] = useState<FormatProfileOption | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Service charge rows over 0% (the store's and this branch's, halls included): a stolovaya reads all of them as 0%
+  const fees = useServiceFees();
+  const chargeRows = (fees.data?.settings ?? []).filter((row) => (row.branch_id === null || row.branch_id === branchId) && Number(row.service_charge_percent) > 0);
 
   const send = (patch: Omit<PosFormatPatch, 'branch_id'>, done: (answer: PosFormat) => string) => {
     setNotice(null);
@@ -149,6 +152,7 @@ function FormatForm({ branchId, data }: { branchId: number; data: PosFormat }) {
           tone="primary"
           busy={save.isPending}
           error={error}
+          extra={asking.locks_service_charge && chargeRows.length > 0 ? <p role="note" className="rounded-control bg-warning-soft px-3 py-2 text-footnote font-bold text-warning-soft-fg">{t('fmt_change_chargeWarning')}</p> : undefined}
           onConfirm={() => send({ profile: asking.key }, () => t('fmt_changed', { profile: asking.label }))}
           onClose={() => {
             setAsking(null);

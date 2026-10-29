@@ -23,7 +23,7 @@ abstract class OwnerBillingApi {
   /// `trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks.
   /// it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan.
   /// with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price.
-  /// as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock.
+  /// as a decimal string, can_add; waiter phones and customer displays unlimited and free), `notice` (the overdue invoice reminder or the lock.
   /// message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on.
   /// their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any.
   /// member of the store and the terminals read it.

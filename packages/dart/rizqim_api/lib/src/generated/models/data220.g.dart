@@ -7,15 +7,23 @@ part of 'data220.dart';
 // **************************************************************************
 
 Data220 _$Data220FromJson(Map<String, dynamic> json) => Data220(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data220ToJson(Data220 instance) => <String, dynamic>{
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'id': instance.id,
+  'name': instance.name,
+  'polygon': instance.polygon,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
 };

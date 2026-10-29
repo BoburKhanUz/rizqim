@@ -6,6 +6,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../shell/destinations.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../order/kitchen_tickets.dart';
@@ -183,6 +184,12 @@ class _FloorPageState extends State<FloorPage> {
   );
 
   Future<void> _quickSale() async {
+    // P6-12: where the format has the «Tez kassa» section (kafe, lag'monxona), the button goes there
+    final PosScope scope = PosScope.of(context);
+    if (CashierDestination.counter.visibleFor(scope.session)) {
+      scope.go(CashierDestination.counter);
+      return;
+    }
     await CashierRoutes.openOrder<void>(context);
     if (mounted) unawaited(_scheduler?.refreshNow());
   }

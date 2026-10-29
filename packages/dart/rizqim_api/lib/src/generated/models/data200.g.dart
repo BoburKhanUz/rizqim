@@ -8,60 +8,48 @@ part of 'data200.dart';
 
 Data200 _$Data200FromJson(Map<String, dynamic> json) => Data200(
   uuid: json['uuid'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
+  status: json['status'] as String,
   branchId: (json['branch_id'] as num).toInt(),
+  device: json['device'] == null
+      ? null
+      : Device13.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
-  source: Source.fromJson(json['source'] as String),
-  terminalRef: json['terminal_ref'] as String?,
-  bankTotal: json['bank_total'] as String,
-  bankCount: (json['bank_count'] as num?)?.toInt(),
-  rizqimTotal: json['rizqim_total'] as String,
-  rizqimCount: (json['rizqim_count'] as num).toInt(),
-  rizqimBreakdown: json['rizqim_breakdown'] == null
+  openedAt: json['opened_at'] as String,
+  openedBy: json['opened_by'] == null
       ? null
-      : RizqimBreakdown4.fromJson(
-          json['rizqim_breakdown'] as Map<String, dynamic>,
-        ),
-  difference: json['difference'] as String,
-  threshold: json['threshold'] as String,
-  overThreshold: json['over_threshold'] as bool,
-  transactions: (json['transactions'] as List<dynamic>?)
-      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  unmatched: json['unmatched'] == null
+      : OpenedBy2.fromJson(json['opened_by'] as Map<String, dynamic>),
+  openingCash: json['opening_cash'] as String,
+  closedAt: json['closed_at'] as String?,
+  closedBy: json['closed_by'] == null
       ? null
-      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
-  note: json['note'] as String?,
-  enteredBy: json['entered_by'] == null
-      ? null
-      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
-  alertedAt: json['alerted_at'] as String?,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+      : ClosedBy2.fromJson(json['closed_by'] as Map<String, dynamic>),
+  expectedCash: json['expected_cash'] as String?,
+  countedCash: json['counted_cash'] as String?,
+  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, (e as num).toInt()),
+  ),
+  difference: json['difference'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  forceClosed: json['force_closed'] as bool,
+  closeNote: json['close_note'] as String?,
 );
 
 Map<String, dynamic> _$Data200ToJson(Data200 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'shift_uuid': instance.shiftUuid,
-  'z_number': instance.zNumber,
+  'status': instance.status,
   'branch_id': instance.branchId,
+  'device': instance.device,
   'business_date': instance.businessDate,
-  'source': instance.source,
-  'terminal_ref': instance.terminalRef,
-  'bank_total': instance.bankTotal,
-  'bank_count': instance.bankCount,
-  'rizqim_total': instance.rizqimTotal,
-  'rizqim_count': instance.rizqimCount,
-  'rizqim_breakdown': instance.rizqimBreakdown,
+  'opened_at': instance.openedAt,
+  'opened_by': instance.openedBy,
+  'opening_cash': instance.openingCash,
+  'closed_at': instance.closedAt,
+  'closed_by': instance.closedBy,
+  'expected_cash': instance.expectedCash,
+  'counted_cash': instance.countedCash,
+  'counted_breakdown': instance.countedBreakdown,
   'difference': instance.difference,
-  'threshold': instance.threshold,
-  'over_threshold': instance.overThreshold,
-  'transactions': instance.transactions,
-  'unmatched': instance.unmatched,
-  'note': instance.note,
-  'entered_by': instance.enteredBy,
-  'alerted_at': instance.alertedAt,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'z_number': instance.zNumber,
+  'force_closed': instance.forceClosed,
+  'close_note': instance.closeNote,
 };

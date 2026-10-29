@@ -4866,7 +4866,7 @@ export interface paths {
          *     `trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks
          *     it), `settings_locked`, `features` (every App\Enums\PlanFeature: on or off), `required_plans` (the cheapest plan
          *     with each gated feature: show "Asosiy tarifda bor"), `devices` (pos and kds: included, active, extra, extra_price
-         *     as a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock
+         *     as a decimal string, can_add; waiter phones and customer displays unlimited and free), `notice` (the overdue invoice reminder or the lock
          *     message for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on
          *     their own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any
          *     member of the store and the terminals read it.
@@ -5193,9 +5193,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal
+         * POST /owner/devices/pairing-codes {type: pos|kds|display, branch_id?, name?, till_uuid?}: a one-time code for a terminal
          * @description `code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL
-         *     minutes and works once.
+         *     minutes and works once. P6-14: a `display` (customer display / "ready numbers" board) is free (never counts toward
+         *     the plan's devices), needs a branch (`branch_id`) with the `customer_display` or `queue_calling` module, and may
+         *     follow one till (`till_uuid`: a POS terminal of that branch; without it the display shows the branch's latest cart).
          */
         post: operations["storeDevice.createPairingCode"];
         delete?: never;
@@ -7372,6 +7374,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/display/cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the cart for the second screen
+         * @description The till tells its customer display what to show: `state` (`idle` empty/welcome, `cart` lines being added,
+         *     `payment` the amount due and optionally a payment QR, `paid` "Rahmat"), the lines, the totals as decimal strings, the
+         *     queue number if the order has one and, in `payment`, the tender and a QR (`payment.qr.payload` is the text the display
+         *     draws as a QR code). `seq` grows with every publish (a late older one is dropped); `session` names the till's app run,
+         *     so a restarted till (seq from 1) is not mistaken for a stale one. Answers 200 `stored: false` for a stale publish.
+         *     Fire-and-forget for the till: it never waits for, or fails because of, the display. A POS terminal's own token;
+         *     needs `customer_display`; the display shows it within a moment (`display.cart` on `pos-branch.{id}`).
+         */
+        post: operations["posDisplay.publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/display/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pickup board for the display
+         * @description Today's "Tayyorlanmoqda / Tayyor" numbers of the display's branch, the same payload as GET /pos/queue (a terminal's own
+         *     token instead of a staff session). Refetch on `queue.*` events of `pos-branch.{id}`. Needs `queue_calling`.
+         */
+        get: operations["posDisplay.queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/display/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The display's state
+         * @description What a customer display (or a poll after a missed event) needs: its branch, the till it follows (`till_uuid`, null:
+         *     the branch's latest cart), which screens the format allows (`modules`) and the current `cart` (null: nothing
+         *     published yet or the cart expired). The display refetches this on `display.cart` events of `pos-branch.{id}`.
+         *     A terminal's own token; 422 `branch_required` without a branch.
+         */
+        get: operations["posDisplay.state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/fiscal-receipts/{uuid}": {
         parameters: {
             query?: never;
@@ -9166,6 +9238,7 @@ export interface components {
             sync_clock_skew_seconds: number | null;
             smart_kassa: boolean;
             fiscal_kassa_id: string | null;
+            display_for_device_id: number | null;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
@@ -9175,7 +9248,7 @@ export interface components {
          * DeviceType
          * @enum {string}
          */
-        DeviceType: "pos" | "kds" | "courier" | "partner_mobile" | "customer_mobile" | "web";
+        DeviceType: "pos" | "kds" | "display" | "courier" | "partner_mobile" | "customer_mobile" | "web";
         /** DiningTable */
         DiningTable: {
             id: number;
@@ -9793,6 +9866,12 @@ export interface components {
          * @enum {string}
          */
         Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        /**
+         * PickupStatus
+         * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a branch without `queue_calling`).
+         * @enum {string}
+         */
+        PickupStatus: "preparing" | "ready" | "handed";
         /**
          * PlatformRole
          * @description P4-11: the RIZQIM team's roles in the Boshqaruv markazi (platform/admin, docs/PHASE4_PLAN.md §5). A user is platform staff when users.platform_role is set. What each role may do is App\Services\Admin\PlatformRolePermissions (defaults) with the superadmin's overrides (platform_role_permissions); `superadmin` is fixed: everything. Only `superadmin` is also users.role = super_admin (the old store-level super admin); the other roles are users.role = platform, which holds no store-level permission at all.
@@ -22764,14 +22843,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
             422: components["responses"]["ValidationException"];
         };
     };
@@ -24552,6 +24623,12 @@ export interface operations {
                                     extra_price: string;
                                     can_add: boolean;
                                 };
+                                display: {
+                                    included: null;
+                                    unlimited: boolean;
+                                    extra_price: string;
+                                    can_add: boolean;
+                                };
                             };
                             notice: {
                                 level: string;
@@ -25746,9 +25823,11 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    type: "pos" | "kds";
+                    type: "pos" | "kds" | "display";
                     branch_id?: number | null;
                     name?: string | null;
+                    /** Format: uuid */
+                    till_uuid?: string | null;
                 };
             };
         };
@@ -34766,6 +34845,218 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posDisplay.publish": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    state: "idle" | "cart" | "payment" | "paid";
+                    seq: number;
+                    session?: string | null;
+                    lines: {
+                        name: string;
+                        qty: string;
+                        unit?: string | null;
+                        price: string;
+                        total: string;
+                        modifiers?: string[] | null;
+                        note?: string | null;
+                    }[];
+                    subtotal: string;
+                    discount?: string | null;
+                    total: string;
+                    queue_number?: number | null;
+                    payment?: {
+                        method?: string | null;
+                        tendered?: string | null;
+                        change?: string | null;
+                        qr?: {
+                            payload?: string;
+                            label?: string | null;
+                            provider?: string | null;
+                        } | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            stored: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posDisplay.queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            business_date: string;
+                            preparing: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                            ready: {
+                                order_uuid: string;
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                channel: string;
+                                order_status: string;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                                opened_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "posDisplay.state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch: {
+                                id: number;
+                                name: string;
+                            };
+                            store: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            device: {
+                                uuid: string;
+                                type: string;
+                                name: string;
+                            };
+                            till_uuid: string | null;
+                            modules: {
+                                customer_display: boolean;
+                                queue_calling: boolean;
+                            };
+                            server_time: string;
+                            cart: {
+                                terminal: string;
+                                seq: number;
+                                session: string | null;
+                                state: string;
+                                lines: {
+                                    name: string;
+                                    qty: string;
+                                    unit: string | null;
+                                    price: string;
+                                    total: string;
+                                    modifiers: string[];
+                                    note: string | null;
+                                }[];
+                                subtotal: string;
+                                discount: string;
+                                total: string;
+                                queue_number: number | null;
+                                payment: {
+                                    method: string | null;
+                                    tendered: string | null;
+                                    change: string | null;
+                                    qr: {
+                                        payload: string;
+                                        label: string | null;
+                                        provider: string | null;
+                                    } | null;
+                                } | null;
+                                updated_at: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     "posFiscalReceipt.show": {
         parameters: {
             query?: never;
@@ -35010,8 +35301,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -35246,8 +35536,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -35411,8 +35700,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -35529,8 +35817,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -36108,8 +36395,7 @@ export interface operations {
                             order_uuid: string;
                             number: number;
                             business_date: string | null;
-                            /** @enum {string|null} */
-                            status: "preparing" | "ready" | "handed" | null;
+                            status: components["schemas"]["PickupStatus"] | null;
                             channel: string;
                             order_status: string;
                             ready_at: string | null;
@@ -36245,8 +36531,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -36421,8 +36706,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -36598,8 +36882,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -36992,8 +37275,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -37168,8 +37450,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -37257,8 +37538,7 @@ export interface operations {
                             order_uuid: string;
                             number: number;
                             business_date: string | null;
-                            /** @enum {string|null} */
-                            status: "preparing" | "ready" | "handed" | null;
+                            status: components["schemas"]["PickupStatus"] | null;
                             channel: string;
                             order_status: string;
                             ready_at: string | null;
@@ -37394,8 +37674,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -37580,8 +37859,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -37766,8 +38044,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -37942,8 +38219,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -38031,8 +38307,7 @@ export interface operations {
                             order_uuid: string;
                             number: number;
                             business_date: string | null;
-                            /** @enum {string|null} */
-                            status: "preparing" | "ready" | "handed" | null;
+                            status: components["schemas"]["PickupStatus"] | null;
                             channel: string;
                             order_status: string;
                             ready_at: string | null;
@@ -38123,8 +38398,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -38340,8 +38614,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -38530,8 +38803,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -38706,8 +38978,7 @@ export interface operations {
                             queue: {
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 ready_at: string | null;
                                 called_at: string | null;
                                 call_count: number;
@@ -38795,8 +39066,7 @@ export interface operations {
                                 order_uuid: string;
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 channel: string;
                                 order_status: string;
                                 ready_at: string | null;
@@ -38809,8 +39079,7 @@ export interface operations {
                                 order_uuid: string;
                                 number: number;
                                 business_date: string | null;
-                                /** @enum {string|null} */
-                                status: "preparing" | "ready" | "handed" | null;
+                                status: components["schemas"]["PickupStatus"] | null;
                                 channel: string;
                                 order_status: string;
                                 ready_at: string | null;
@@ -40901,6 +41170,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         }[];
                         meta: {
                             truncated: boolean;
@@ -41220,6 +41491,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         };
                     };
                 };
@@ -41304,6 +41577,8 @@ export interface operations {
                             ready_at: string | null;
                             canceled_at: string | null;
                             waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
                         };
                     };
                 };

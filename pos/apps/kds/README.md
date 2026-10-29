@@ -109,6 +109,16 @@ chiziq: yashil / sariq 20% dan kam / qizil "TUGADI"). Amallar (docs/MENU.md §4)
 /owner/batches`) va yopilgan qozonni **Qayta ochish**. Panel `menu.availability_changed` hodisasida va har 15 soniyada
 yangilanadi; server rad etsa xabar chiqadi.
 
+### 3f. Raqamli buyurtmalar (tez kassa, P6-14)
+
+Fast food, kafe, osh markazi, qahvaxona: mijoz avval to'laydi va **navbat raqami** oladi. To'langan buyurtma kassada yopiladi
+(`delivered`), lekin raqami `preparing` ekan **oddiy chipta** bo'lib doskada turadi: sarlavhada yirik **№17** (buyurtma kodi
+pastki qatorda), "To'langan" belgisi, kutish soati to'lov paytida to'xtamay raqam tayyor bo'lguncha ketadi (server
+`waiting_seconds`: `queue_number`, `pickup_status` maydonlari bilan). Taomlarni odatdagidek belgilang; oxirgisi tayyor bo'lsa raqam
+o'zi tayyor bo'ladi (mijoz ekranida chaqiriladi). **"Raqam N tayyor"** (yig'ish) tugmasi qolgan pishayotgan qatorlarni ham
+tayyor qiladi (`POST /pos/orders/{uuid}/ready`: yopilgan buyurtmada `/staff/orders/{uuid}/status` ishlamaydi). Faqat ko'rish huquqi
+bor xodimda tugma yo'q.
+
 ### 4. Real-time va aloqa
 
 * Ilova Reverb'ga (WebSocket) ulanadi va filialning `private-pos-branch.{id}` kanalini **terminal tokeni** bilan
@@ -259,6 +269,7 @@ tiklansa, ulanish joyida). Kassa va ofitsiant ilovalari ham shunday.
 | `lib/src/realtime/branch_realtime.dart` | `private-pos-branch.{id}` (terminal tokeni bilan) |
 | `lib/src/settings/kds_settings.dart` | sozlamalar va ularni saqlash |
 | `lib/src/sound/ticket_sound.dart`, `assets/sounds/new_ticket.wav` | yangi chipta ovozi |
+| `lib/src/widgets/ticket_card.dart` | chipta; raqamli buyurtmada yirik № va "Raqam N tayyor" tugmasi (P6-14) |
 | `lib/src/widgets/` | chipta va mangal kartochkasi, sex tanlash, oldindan buyurtmalar, qozon paneli, "Yaqinda tayyor" lentasi, real-time belgisi, sozlamalar oynasi |
 
 Umumiy qismlar (kassa va ofitsiant ilovalari uchun ham) `packages/dart` da: Reverb klienti, oshxona modellari, PIN xatolari

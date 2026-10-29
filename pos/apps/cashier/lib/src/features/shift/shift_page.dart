@@ -6,10 +6,12 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../menu_day/write_off_dialog.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
+import '../../terminal/bank_terminal_view.dart';
 import '../billing/cashier_ui.dart';
 import 'cash_movement_dialog.dart';
 import 'shift_report_mapping.dart';
@@ -220,6 +222,7 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
                                       ? StatusTone.danger
                                       : StatusTone.warning),
                           ),
+                        BankTerminalSummary(report: z.bankTerminal),
                       ],
                     ),
                   ),
@@ -385,6 +388,8 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
                     variant: RzButtonVariant.secondary,
                     onPressed: _xReport,
                   ),
+                  // P6-15: unsold portions written off with a reason land on this shift's X and Z
+                  BatchWriteOffButton(onDone: () => unawaited(refresh())),
                   RzButton(
                     key: const ValueKey<String>('z-open'),
                     label: 'Smenani yopish (Z)',
@@ -397,6 +402,14 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
             ],
           ),
         ),
+        if (report != null &&
+            report.batchWriteoffs.items.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          PosCard(
+            title: 'Hisobdan chiqarilgan taomlar',
+            child: ShiftWriteOffsList(writeOffs: report.batchWriteoffs),
+          ),
+        ],
         if (v != null) ...<Widget>[
           const SizedBox(height: 16),
           LayoutBuilder(

@@ -35,13 +35,13 @@ class DevicePairingService
      *
      * @throws AuthTokenException when the store already has too many live codes
      */
-    public function createCode(Store $store, ?Branch $branch, DeviceType $type, ?string $name, User $creator): array
+    public function createCode(Store $store, ?Branch $branch, DeviceType $type, ?string $name, User $creator, ?Device $followsTill = null): array
     {
         if (!$type->isTerminal()) {
             throw new \InvalidArgumentException('Only POS/KDS terminals are paired with a code.');
         }
 
-        return DB::transaction(function () use ($store, $branch, $type, $name, $creator) {
+        return DB::transaction(function () use ($store, $branch, $type, $name, $creator, $followsTill) {
             // Serialises code creation per store, so the live-code cap and uniqueness hold under parallel requests
             Store::whereKey($store->id)->lockForUpdate()->first();
 
@@ -68,12 +68,14 @@ class DevicePairingService
                 'code_hash' => self::hash($code),
                 'created_by' => $creator->id,
                 'expires_at' => $expiresAt,
+                'display_for_device_id' => $type === DeviceType::DISPLAY ? $followsTill?->id : null,
             ]);
 
             $this->audit->record('device.pairing_code_created', $pairing, [], [], [
                 'type' => $type->value,
                 'name' => $name,
                 'expires_at' => $expiresAt,
+                'follows_till' => $followsTill?->uuid,
             ], ['actor' => $creator, 'store_id' => $store->id, 'branch_id' => $branch?->id]);
 
             return ['code' => self::format($code), 'expires_at' => $expiresAt, 'pairing' => $pairing];
@@ -109,6 +111,7 @@ class DevicePairingService
                 'app_version' => $details['app_version'] ?? null,
                 'paired_by' => $pairing->created_by,
                 'last_seen_at' => now(),
+                'display_for_device_id' => $pairing->display_for_device_id,
             ]);
 
             $pairing->forceFill(['used_at' => now(), 'device_id' => $device->id])->save();

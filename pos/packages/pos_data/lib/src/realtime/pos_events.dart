@@ -45,6 +45,7 @@ sealed class PosEvent {
           data,
           j,
         ),
+        'display.cart' => PosDisplayCartChanged._(name, data, j),
         'queue.preparing' ||
         'queue.ready' ||
         'queue.handed' ||
@@ -206,6 +207,22 @@ class PosQueueEvent extends PosEvent {
 
   @override
   String get orderUuid => order.uuid;
+}
+
+/// P6-14: `display.cart` — kassa mijoz ekranidagi chekni o'zgartirdi. Hodisada faqat kassa uuid'si, tartib raqami va
+/// ekran holati bor (taom nomi, narx yo'q): ekran `GET /pos/display/state` ni qayta o'qiydi.
+class PosDisplayCartChanged extends PosEvent {
+  PosDisplayCartChanged._(super.name, super.data, PosJson j)
+    : terminal = j.strOrNull('terminal'),
+      seq = j.intOrNull('seq') ?? 0,
+      state = j.strOrNull('state');
+
+  /// Qaysi kassa (qurilma uuid).
+  final String? terminal;
+  final int seq;
+
+  /// `idle`, `cart`, `payment`, `paid`.
+  final String? state;
 }
 
 /// `shift.changed`: smena ochildi, kassa harakati, yopildi.

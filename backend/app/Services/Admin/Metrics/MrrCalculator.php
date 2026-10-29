@@ -149,7 +149,7 @@ class MrrCalculator
         $byStore = [];
         Device::query()
             ->whereIn('store_id', $storeIds)
-            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::terminals()))
+            ->whereIn('type', array_map(fn (DeviceType $type) => $type->value, DeviceType::billable()))
             ->where('created_at', '<=', $latest)
             ->where(fn ($query) => $query->whereNull('revoked_at')->orWhere('revoked_at', '>', $earliest))
             ->get(['id', 'store_id', 'type', 'created_at', 'revoked_at'])

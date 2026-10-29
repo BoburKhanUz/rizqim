@@ -11,7 +11,7 @@ GetV1PosShiftsUuidResponse _$GetV1PosShiftsUuidResponseFromJson(
 ) => GetV1PosShiftsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data199.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data202.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosShiftsUuidResponseToJson(

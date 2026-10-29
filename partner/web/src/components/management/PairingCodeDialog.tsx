@@ -3,12 +3,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Button, Dialog, Field, fieldClass, formatTime, FormError } from '@rizqim/ui';
-import { getApiFieldError, useCreatePairingCode, useEntitlements, useFeature, useMenuBranches, type PairingCode } from '@rizqim/staff';
+import { getApiFieldError, useCreatePairingCode, useEntitlements, useFeature, useMenuBranches, useStoreDevices, type PairingCode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 
-type TerminalType = 'pos' | 'kds';
-const TYPES: readonly TerminalType[] = ['pos', 'kds'];
+// P6-14: `display` is the free customer display / ready-numbers board (it never counts toward the plan's devices)
+type TerminalType = 'pos' | 'kds' | 'display';
+const TYPES: readonly TerminalType[] = ['pos', 'kds', 'display'];
 
 // Seconds left until `expiresAt`, counting down once a second
 function useSecondsLeft(expiresAt: string | null): number | null {
@@ -33,16 +34,20 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<TerminalType>('pos');
   const [branchId, setBranchId] = useState('');
   const [name, setName] = useState('');
+  const [tillUuid, setTillUuid] = useState('');
   const [code, setCode] = useState<PairingCode | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const create = useCreatePairingCode();
+  // P6-14: a customer display may follow one till of its branch (otherwise it shows the branch's latest cart)
+  const devices = useStoreDevices(false);
+  const branchTills = type === 'display' && branchId ? (devices.data ?? []).filter((item) => item.type === 'pos' && !item.revoked_at && (item.branch_id === null || item.branch_id === Number(branchId))) : [];
   // P4-21: a KDS is the plan's `kds`; while an invoice is overdue for a week only the plan's own terminals can be paired
   const kds = useFeature('kds');
   const entitlements = useEntitlements();
   const kdsOff = type === 'kds' && !kds.allowed;
-  const device = entitlements.data?.devices[type];
+  const device = type === 'display' ? undefined : entitlements.data?.devices[type];
   const limitHit = !kdsOff && device?.can_add === false;
   const secondsLeft = useSecondsLeft(code?.expires_at ?? null);
   const expired = code !== null && secondsLeft === 0;
@@ -52,13 +57,18 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
     setErrors({});
     setFormError(null);
     setCopied(false);
+    // A customer display shows one branch's numbers: the branch is required (the server says 422 `branch_required` too)
+    if (type === 'display' && !branchId) {
+      setErrors({ branch_id: t('devices_branchRequired') });
+      return;
+    }
     create.mutate(
-      { type, ...(branchId ? { branch_id: Number(branchId) } : {}), ...(name.trim() ? { name: name.trim() } : {}) },
+      { type, ...(branchId ? { branch_id: Number(branchId) } : {}), ...(name.trim() ? { name: name.trim() } : {}), ...(type === 'display' && tillUuid && branchTills.some((till) => till.uuid === tillUuid) ? { till_uuid: tillUuid } : {}) },
       {
         onSuccess: setCode,
         onError: (err) => {
           const next: Record<string, string> = {};
-          for (const field of ['type', 'branch_id', 'name']) {
+          for (const field of ['type', 'branch_id', 'name', 'till_uuid']) {
             const message = getApiFieldError(err, field);
             if (message) next[field] = message;
           }
@@ -84,7 +94,7 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
       <Dialog
         open
         title={t('devices_codeTitle')}
-        description={t('devices_codeText', { type: t(`devices_type_${code.type === 'kds' ? 'kds' : 'pos'}`) })}
+        description={t('devices_codeText', { type: t(`devices_type_${code.type === 'kds' || code.type === 'display' ? code.type : 'pos'}`) })}
         closeLabel={t('mgmt_close')}
         onClose={onClose}
         footer={
@@ -143,6 +153,20 @@ export function PairingCodeDialog({ onClose }: { onClose: () => void }) {
             </select>
           )}
         </Field>
+        {branchTills.length > 0 && (
+          <Field label={t('devices_till')} hint={t('devices_tillHint')} error={errors.till_uuid}>
+            {(props) => (
+              <select {...props} value={tillUuid} onChange={(event) => setTillUuid(event.target.value)} className={fieldClass}>
+                <option value="">{t('devices_tillAny')}</option>
+                {branchTills.map((till) => (
+                  <option key={till.uuid} value={till.uuid}>
+                    {till.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <Field label={t('devices_name')} hint={t('devices_nameHint')} error={errors.name}>
           {(props) => <input {...props} type="text" maxLength={100} autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} />}
         </Field>

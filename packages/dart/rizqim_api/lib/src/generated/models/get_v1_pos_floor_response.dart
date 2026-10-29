@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data169.dart';
+import 'data172.dart';
 
 part 'get_v1_pos_floor_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosFloorResponse {
 
   final bool success;
   final String message;
-  final Data169 data;
+  final Data172 data;
 
   Map<String, Object?> toJson() => _$GetV1PosFloorResponseToJson(this);
 }

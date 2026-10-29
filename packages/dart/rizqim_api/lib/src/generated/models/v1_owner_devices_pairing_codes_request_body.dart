@@ -14,6 +14,7 @@ class V1OwnerDevicesPairingCodesRequestBody {
     required this.type,
     this.branchId,
     this.name,
+    this.tillUuid,
   });
 
   factory V1OwnerDevicesPairingCodesRequestBody.fromJson(
@@ -24,6 +25,8 @@ class V1OwnerDevicesPairingCodesRequestBody {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final String? name;
+  @JsonKey(name: 'till_uuid')
+  final String? tillUuid;
 
   Map<String, Object?> toJson() =>
       _$V1OwnerDevicesPairingCodesRequestBodyToJson(this);

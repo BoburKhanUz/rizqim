@@ -10,6 +10,8 @@ enum DeviceType {
   pos('pos'),
   @JsonValue('kds')
   kds('kds'),
+  @JsonValue('display')
+  display('display'),
   @JsonValue('courier')
   courier('courier'),
   @JsonValue('partner_mobile')

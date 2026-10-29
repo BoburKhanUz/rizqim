@@ -438,13 +438,14 @@ bron avansi qaytarilsa yoki ushlab qolinsa; katta nasiya (standart 500 000 so'md
 | Kassa (Android planshet, Sunmi, Windows monoblok) | **Kassa (POS)** | Kassa — [kassa.md](kassa.md#1-kassani-ulash-bir-marta) |
 | Ofitsiant telefoni | **Kassa (POS)** (shu turdagi kod) | Ofitsiant — [ofitsiant.md](ofitsiant.md#1-telefonni-ulash-va-kirish) |
 | Oshxona plansheti yoki monitor | **Oshxona ekrani** | Oshxona — [oshxona-ekrani.md](oshxona-ekrani.md#1-planshetni-ulash-bir-marta) |
+| Mijozga qaragan ekran yoki "tayyor" raqamlar televizori | **Mijoz ekrani (bepul)** | Mijoz ekrani — [mijoz-ekrani.md](mijoz-ekrani.md#2-ekranni-ulash-bir-marta) |
 
 Tartib: **Turi** → **Filial** → **Nomi** (masalan, "Kassa 1", "Ofitsiant Botir", "Oshxona 1") → **Kod yaratish**. `ABCD-EFGH` kodi
 10 daqiqa amal qiladi va bir marta ishlaydi. Bir do'konda bir vaqtda ko'pi bilan 5 ta faol kod bo'ladi. Qurilma ulangach, u **Qurilmalar**
 ro'yxatida paydo bo'ladi. Qurilma yo'qolsa yoki almashtirilsa: **O'chirish** (shunda u darhol tizimdan chiqadi).
 
 **Tarif va qurilmalar:** tarifga kassa va oshxona ekrani soni kiradi (Start — 1 kassa; Asosiy — 1 kassa va 1 oshxona ekrani; Pro — 2 kassa
-va 1 oshxona ekrani). Ortiqchasi har oy qo'shimcha to'lanadi (kassa 59 000, oshxona ekrani 29 000 so'm); ofitsiant telefonlari cheksiz va bepul.
+va 1 oshxona ekrani). Ortiqchasi har oy qo'shimcha to'lanadi (kassa 59 000, oshxona ekrani 29 000 so'm); ofitsiant telefonlari va **mijoz ekranlari** cheksiz va bepul.
 Start tarifda oshxona ekrani ulanmaydi (**Asosiy tarifda bor**). To'lanmagan hisob-faktura muddatidan 7 kun o'tgach tarifdagidan ortiq
 qurilma ulanmaydi (eskisini o'chirib, o'rniga yangisini ulash mumkin).
 

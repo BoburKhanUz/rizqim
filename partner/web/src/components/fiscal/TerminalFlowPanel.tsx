@@ -245,6 +245,9 @@ function ReportsSection({ canEnter }: { canEnter: boolean }) {
   const [onlyOver, setOnlyOver] = useState(false);
   const reports = useBankReports({ ...(branchId ? { branch_id: branchId } : {}), ...(onlyOver ? { over_threshold: true } : {}) });
   const [editing, setEditing] = useState<string | null>(null);
+  // The answer to an entry lives here: the form starts again (its key) when a row is picked for correction or saved, which
+  // would drop the message the moment it appears
+  const [result, setResult] = useState<BankTerminalReport | null>(null);
 
   return (
     <Card className="flex flex-col gap-3">
@@ -253,7 +256,7 @@ function ReportsSection({ canEnter }: { canEnter: boolean }) {
         <p className="text-footnote text-fg-muted">{t('fterm_reportsIntro')}</p>
       </div>
       <Check checked={onlyOver} onChange={setOnlyOver} label={t('fterm_onlyOver')} />
-      {canEnter && <EntryForm key={editing ?? 'new'} shiftUuid={editing} onDone={() => setEditing(null)} />}
+      {canEnter && <EntryForm key={editing ?? 'new'} shiftUuid={editing} result={result} onResult={setResult} onDone={() => setEditing(null)} />}
       {reports.isError && !reports.data ? (
         <InlineError title={t('loadErrorTitle')} message={errorText(reports.error, t)} retryLabel={t('retry')} retrying={reports.isFetching} onRetry={() => void reports.refetch()} />
       ) : !reports.data ? (
@@ -275,7 +278,7 @@ function ReportsSection({ canEnter }: { canEnter: boolean }) {
           </thead>
           <tbody>
             {reports.data.map((report) => (
-              <ReportRow key={report.uuid} report={report} canEnter={canEnter} language={language} onEdit={() => setEditing(report.shift_uuid)} />
+              <ReportRow key={report.uuid} report={report} canEnter={canEnter} language={language} onEdit={() => { setResult(null); setEditing(report.shift_uuid); }} />
             ))}
           </tbody>
         </DataTable>
@@ -317,7 +320,7 @@ function ReportRow({ report, canEnter, language, onEdit }: { report: BankTermina
 }
 
 // Enter (or correct) a closed shift's bank terminal day total: the slip's total, or its rows pasted one per line ("RRN;summa")
-function EntryForm({ shiftUuid, onDone }: { shiftUuid: string | null; onDone: () => void }) {
+function EntryForm({ shiftUuid, result, onResult, onDone }: { shiftUuid: string | null; result: BankTerminalReport | null; onResult: (report: BankTerminalReport | null) => void; onDone: () => void }) {
   const { t, language } = useI18n();
   const { branchId } = useBranchScope();
   const shifts = useShifts({ ...(branchId ? { branch_id: branchId } : {}), status: 'closed', limit: 30 });
@@ -327,12 +330,11 @@ function EntryForm({ shiftUuid, onDone }: { shiftUuid: string | null; onDone: ()
   const [rows, setRows] = useState('');
   const [local, setLocal] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>(NO_ERRORS);
-  const [result, setResult] = useState<BankTerminalReport | null>(null);
   const enter = useEnterBankReport();
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    setResult(null);
+    onResult(null);
     setErrors(NO_ERRORS);
     if (shift === '') {
       setLocal(t('fterm_errShift'));
@@ -359,7 +361,7 @@ function EntryForm({ shiftUuid, onDone }: { shiftUuid: string | null; onDone: ()
       { shiftUuid: shift, input },
       {
         onSuccess: (report) => {
-          setResult(report);
+          onResult(report);
           onDone();
         },
         onError: (error) => setErrors(sortServerErrors(error, ['bank_total', 'transactions'], t)),

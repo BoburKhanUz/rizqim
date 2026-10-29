@@ -233,6 +233,10 @@
             "description": "Buyurtma raqami va chaqiruv: kassa oralig'lari, \"Tayyorlanmoqda / Tayyor\" taxtasi, tayyor, qayta chaqirish, berildi (P6-13)."
         },
         {
+            "name": "POS: customer display",
+            "description": "Mijoz ekrani: joriy chek, to'lov va \"Rahmat\", \"Tayyorlanmoqda / Tayyor\" taxtasi (P6-14)."
+        },
+        {
             "name": "Admin",
             "description": "Boshqaruv markazi (RIZQIM jamoasi): kirish, 2FA, jamoa, rollar, jurnal, qidiruv. Alohida `admin` token."
         },
@@ -37772,16 +37776,6 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     },
@@ -42690,7 +42684,7 @@
         "/v1/owner/billing/entitlements": {
             "get": {
                 "operationId": "ownerBilling.entitlements",
-                "description": "P4-21 (docs/BILLING.md, \"Funksiyalar va cheklovlar\"): `plan` (null without a subscription), `legacy` (true: every\nfeature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,\n`trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks\nit), `settings_locked`, `features` (every App\\Enums\\PlanFeature: on or off), `required_plans` (the cheapest plan\nwith each gated feature: show \"Asosiy tarifda bor\"), `devices` (pos and kds: included, active, extra, extra_price\nas a decimal string, can_add; waiter phones unlimited and free), `notice` (the overdue invoice reminder or the lock\nmessage for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on\ntheir own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any\nmember of the store and the terminals read it.",
+                "description": "P4-21 (docs/BILLING.md, \"Funksiyalar va cheklovlar\"): `plan` (null without a subscription), `legacy` (true: every\nfeature, the store is not on a v2 plan yet), `period` monthly|yearly, `status` none|trialing|active|past_due|locked,\n`trial_ends_at`, `current_period`, `term_ends_at` (yearly), `locked_since`, `lock_at` (when an overdue invoice locks\nit), `settings_locked`, `features` (every App\\Enums\\PlanFeature: on or off), `required_plans` (the cheapest plan\nwith each gated feature: show \"Asosiy tarifda bor\"), `devices` (pos and kds: included, active, extra, extra_price\nas a decimal string, can_add; waiter phones and customer displays unlimited and free), `notice` (the overdue invoice reminder or the lock\nmessage for a banner, null when none; its `invoice` — uuid, number, amounts — only for a member with finance.view on\ntheir own sign-in, null for other staff and terminal PIN sessions, whose `message` does not name it either). Any\nmember of the store and the terminals read it.",
                 "summary": "What the plan lets the store use",
                 "tags": [
                     "Owner: billing"
@@ -42904,12 +42898,36 @@
                                                                 "extra_price",
                                                                 "can_add"
                                                             ]
+                                                        },
+                                                        "display": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "included": {
+                                                                    "type": "null"
+                                                                },
+                                                                "unlimited": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "extra_price": {
+                                                                    "type": "string"
+                                                                },
+                                                                "can_add": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "included",
+                                                                "unlimited",
+                                                                "extra_price",
+                                                                "can_add"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
                                                         "pos",
                                                         "kds",
-                                                        "waiter"
+                                                        "waiter",
+                                                        "display"
                                                     ]
                                                 },
                                                 "notice": {
@@ -46571,8 +46589,8 @@
         "/v1/owner/devices/pairing-codes": {
             "post": {
                 "operationId": "storeDevice.createPairingCode",
-                "description": "`code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL\nminutes and works once.",
-                "summary": "POST /owner/devices/pairing-codes {type: pos|kds, branch_id?, name?}: a one-time code for a terminal",
+                "description": "`code` is 8 characters shown as ABCD-EFGH (digits and capitals without I, L, O, U); it lasts AUTH_PAIRING_CODE_TTL\nminutes and works once. P6-14: a `display` (customer display / \"ready numbers\" board) is free (never counts toward\nthe plan's devices), needs a branch (`branch_id`) with the `customer_display` or `queue_calling` module, and may\nfollow one till (`till_uuid`: a POS terminal of that branch; without it the display shows the branch's latest cart).",
+                "summary": "POST /owner/devices/pairing-codes {type: pos|kds|display, branch_id?, name?, till_uuid?}: a one-time code for a terminal",
                 "tags": [
                     "Owner: devices"
                 ],
@@ -46587,7 +46605,8 @@
                                         "type": "string",
                                         "enum": [
                                             "pos",
-                                            "kds"
+                                            "kds",
+                                            "display"
                                         ]
                                     },
                                     "branch_id": {
@@ -46602,6 +46621,13 @@
                                             "null"
                                         ],
                                         "maxLength": 100
+                                    },
+                                    "till_uuid": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "uuid"
                                     }
                                 },
                                 "required": [
@@ -79067,6 +79093,764 @@
                 }
             }
         },
+        "/v1/pos/display/cart": {
+            "post": {
+                "operationId": "posDisplay.publish",
+                "description": "The till tells its customer display what to show: `state` (`idle` empty/welcome, `cart` lines being added,\n`payment` the amount due and optionally a payment QR, `paid` \"Rahmat\"), the lines, the totals as decimal strings, the\nqueue number if the order has one and, in `payment`, the tender and a QR (`payment.qr.payload` is the text the display\ndraws as a QR code). `seq` grows with every publish (a late older one is dropped); `session` names the till's app run,\nso a restarted till (seq from 1) is not mistaken for a stale one. Answers 200 `stored: false` for a stale publish.\nFire-and-forget for the till: it never waits for, or fails because of, the display. A POS terminal's own token;\nneeds `customer_display`; the display shows it within a moment (`display.cart` on `pos-branch.{id}`).",
+                "summary": "Publish the cart for the second screen",
+                "tags": [
+                    "POS: customer display"
+                ],
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "state": {
+                                        "type": "string",
+                                        "enum": [
+                                            "idle",
+                                            "cart",
+                                            "payment",
+                                            "paid"
+                                        ]
+                                    },
+                                    "seq": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 2000000000
+                                    },
+                                    "session": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 64
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string",
+                                                    "maxLength": 120
+                                                },
+                                                "qty": {
+                                                    "type": "string",
+                                                    "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                                                },
+                                                "unit": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "maxLength": 16
+                                                },
+                                                "price": {
+                                                    "type": "string",
+                                                    "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                                },
+                                                "total": {
+                                                    "type": "string",
+                                                    "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                                },
+                                                "modifiers": {
+                                                    "type": [
+                                                        "array",
+                                                        "null"
+                                                    ],
+                                                    "items": {
+                                                        "type": "string",
+                                                        "maxLength": 60
+                                                    },
+                                                    "maxItems": 10
+                                                },
+                                                "note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "maxLength": 120
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "qty",
+                                                "price",
+                                                "total"
+                                            ]
+                                        },
+                                        "maxItems": 100
+                                    },
+                                    "subtotal": {
+                                        "type": "string",
+                                        "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                    },
+                                    "discount": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                    },
+                                    "total": {
+                                        "type": "string",
+                                        "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                    },
+                                    "queue_number": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "minimum": 1,
+                                        "maximum": 99999
+                                    },
+                                    "payment": {
+                                        "type": "object",
+                                        "properties": {
+                                            "method": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 32
+                                            },
+                                            "tendered": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                            },
+                                            "change": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "pattern": "^\\d{1,12}(\\.\\d{1,2})?$"
+                                            },
+                                            "qr": {
+                                                "type": [
+                                                    "object",
+                                                    "null"
+                                                ],
+                                                "properties": {
+                                                    "payload": {
+                                                        "type": "string",
+                                                        "maxLength": 1024
+                                                    },
+                                                    "label": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ],
+                                                        "maxLength": 60
+                                                    },
+                                                    "provider": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ],
+                                                        "maxLength": 32
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "state",
+                                    "seq",
+                                    "lines",
+                                    "subtotal",
+                                    "total"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "stored": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "stored"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/pos/display/queue": {
+            "get": {
+                "operationId": "posDisplay.queue",
+                "description": "Today's \"Tayyorlanmoqda / Tayyor\" numbers of the display's branch, the same payload as GET /pos/queue (a terminal's own\ntoken instead of a staff session). Refetch on `queue.*` events of `pos-branch.{id}`. Needs `queue_calling`.",
+                "summary": "The pickup board for the display",
+                "tags": [
+                    "POS: customer display"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "business_date": {
+                                                    "type": "string"
+                                                },
+                                                "preparing": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "order_uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "number": {
+                                                                "type": "integer"
+                                                            },
+                                                            "business_date": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "status": {
+                                                                "anyOf": [
+                                                                    {
+                                                                        "$ref": "#/components/schemas/PickupStatus"
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "order_status": {
+                                                                "type": "string"
+                                                            },
+                                                            "ready_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "called_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "call_count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "handed_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "opened_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "order_uuid",
+                                                            "number",
+                                                            "business_date",
+                                                            "status",
+                                                            "channel",
+                                                            "order_status",
+                                                            "ready_at",
+                                                            "called_at",
+                                                            "call_count",
+                                                            "handed_at",
+                                                            "opened_at"
+                                                        ]
+                                                    }
+                                                },
+                                                "ready": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "order_uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "number": {
+                                                                "type": "integer"
+                                                            },
+                                                            "business_date": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "status": {
+                                                                "anyOf": [
+                                                                    {
+                                                                        "$ref": "#/components/schemas/PickupStatus"
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            },
+                                                            "channel": {
+                                                                "type": "string"
+                                                            },
+                                                            "order_status": {
+                                                                "type": "string"
+                                                            },
+                                                            "ready_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "called_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "call_count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "handed_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "opened_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "order_uuid",
+                                                            "number",
+                                                            "business_date",
+                                                            "status",
+                                                            "channel",
+                                                            "order_status",
+                                                            "ready_at",
+                                                            "called_at",
+                                                            "call_count",
+                                                            "handed_at",
+                                                            "opened_at"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "business_date",
+                                                "preparing",
+                                                "ready"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/pos/display/state": {
+            "get": {
+                "operationId": "posDisplay.state",
+                "description": "What a customer display (or a poll after a missed event) needs: its branch, the till it follows (`till_uuid`, null:\nthe branch's latest cart), which screens the format allows (`modules`) and the current `cart` (null: nothing\npublished yet or the cart expired). The display refetches this on `display.cart` events of `pos-branch.{id}`.\nA terminal's own token; 422 `branch_required` without a branch.",
+                "summary": "The display's state",
+                "tags": [
+                    "POS: customer display"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "branch": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "store": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "device": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "type",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "till_uuid": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "customer_display": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "queue_calling": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "customer_display",
+                                                        "queue_calling"
+                                                    ]
+                                                },
+                                                "server_time": {
+                                                    "type": "string"
+                                                },
+                                                "cart": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "terminal": {
+                                                            "type": "string"
+                                                        },
+                                                        "seq": {
+                                                            "type": "integer"
+                                                        },
+                                                        "session": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "state": {
+                                                            "type": "string"
+                                                        },
+                                                        "lines": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "qty": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "unit": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "price": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "total": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "modifiers": {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "note": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "qty",
+                                                                    "unit",
+                                                                    "price",
+                                                                    "total",
+                                                                    "modifiers",
+                                                                    "note"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "subtotal": {
+                                                            "type": "string"
+                                                        },
+                                                        "discount": {
+                                                            "type": "string"
+                                                        },
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "queue_number": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "payment": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "method": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "tendered": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "change": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "qr": {
+                                                                    "type": [
+                                                                        "object",
+                                                                        "null"
+                                                                    ],
+                                                                    "properties": {
+                                                                        "payload": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "label": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "provider": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "payload",
+                                                                        "label",
+                                                                        "provider"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "method",
+                                                                "tendered",
+                                                                "change",
+                                                                "qr"
+                                                            ]
+                                                        },
+                                                        "updated_at": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "terminal",
+                                                        "seq",
+                                                        "session",
+                                                        "state",
+                                                        "lines",
+                                                        "subtotal",
+                                                        "discount",
+                                                        "total",
+                                                        "queue_number",
+                                                        "payment",
+                                                        "updated_at"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "branch",
+                                                "store",
+                                                "device",
+                                                "till_uuid",
+                                                "modules",
+                                                "server_time",
+                                                "cart"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/pos/fiscal-receipts/{uuid}": {
             "get": {
                 "operationId": "posFiscalReceipt.show",
@@ -105701,6 +106485,22 @@
                                                     },
                                                     "waiting_seconds": {
                                                         "type": "integer"
+                                                    },
+                                                    "queue_number": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "pickup_status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/PickupStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -105722,7 +106522,9 @@
                                                     "preparing_at",
                                                     "ready_at",
                                                     "canceled_at",
-                                                    "waiting_seconds"
+                                                    "waiting_seconds",
+                                                    "queue_number",
+                                                    "pickup_status"
                                                 ]
                                             }
                                         },
@@ -107109,6 +107911,22 @@
                                                 },
                                                 "waiting_seconds": {
                                                     "type": "integer"
+                                                },
+                                                "queue_number": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "pickup_status": {
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/PickupStatus"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -107130,7 +107948,9 @@
                                                 "preparing_at",
                                                 "ready_at",
                                                 "canceled_at",
-                                                "waiting_seconds"
+                                                "waiting_seconds",
+                                                "queue_number",
+                                                "pickup_status"
                                             ]
                                         }
                                     },
@@ -107433,6 +108253,22 @@
                                                 },
                                                 "waiting_seconds": {
                                                     "type": "integer"
+                                                },
+                                                "queue_number": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "pickup_status": {
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/PickupStatus"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -107454,7 +108290,9 @@
                                                 "preparing_at",
                                                 "ready_at",
                                                 "canceled_at",
-                                                "waiting_seconds"
+                                                "waiting_seconds",
+                                                "queue_number",
+                                                "pickup_status"
                                             ]
                                         }
                                     },
@@ -110970,6 +111808,12 @@
                             "null"
                         ]
                     },
+                    "display_for_device_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "user": {
                         "anyOf": [
                             {
@@ -111029,7 +111873,8 @@
                     "sync_reported_at",
                     "sync_clock_skew_seconds",
                     "smart_kassa",
-                    "fiscal_kassa_id"
+                    "fiscal_kassa_id",
+                    "display_for_device_id"
                 ],
                 "title": "Device"
             },
@@ -111038,6 +111883,7 @@
                 "enum": [
                     "pos",
                     "kds",
+                    "display",
                     "courier",
                     "partner_mobile",
                     "customer_mobile",

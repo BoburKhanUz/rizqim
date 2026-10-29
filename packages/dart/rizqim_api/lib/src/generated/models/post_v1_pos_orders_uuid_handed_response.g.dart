@@ -11,7 +11,7 @@ PostV1PosOrdersUuidHandedResponse _$PostV1PosOrdersUuidHandedResponseFromJson(
 ) => PostV1PosOrdersUuidHandedResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data183.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data186.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidHandedResponseToJson(

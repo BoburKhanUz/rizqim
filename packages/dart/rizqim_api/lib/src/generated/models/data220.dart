@@ -4,26 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user.dart';
-import 'store.dart';
+import 'polygon5.dart';
 
 part 'data220.g.dart';
 
 @JsonSerializable()
 class Data220 {
   const Data220({
-    required this.user,
-    required this.store,
-    required this.smsVerificationRequired,
+    required this.id,
+    required this.name,
+    required this.polygon,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
   });
 
   factory Data220.fromJson(Map<String, Object?> json) =>
       _$Data220FromJson(json);
 
-  final User user;
-  final Store? store;
-  @JsonKey(name: 'sms_verification_required')
-  final bool smsVerificationRequired;
+  final int id;
+  final String name;
+  final Polygon5 polygon;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
 
   Map<String, Object?> toJson() => _$Data220ToJson(this);
 }

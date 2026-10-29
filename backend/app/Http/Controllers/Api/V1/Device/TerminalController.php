@@ -100,6 +100,10 @@ class TerminalController extends Controller
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<array{id: int, name: string, role: string, staff_code: string|null, photo_url: string|null}>}')]
     public function staff(Request $request): JsonResponse
     {
+        if ($refusal = $this->refuseDisplay($request)) {
+            return $refusal;
+        }
+
         $request->validate(['role' => 'nullable|string|max:100']);
         $terminalRoles = array_map(fn (\App\Enums\UserRole $role) => $role->value, \App\Enums\UserRole::terminalRoles());
         $roles = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) $request->query('role', ''))), fn ($role) => $role !== '')));
@@ -128,6 +132,10 @@ class TerminalController extends Controller
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{token: string, expires_at: string, user: array{id: int, name: string, role: string, branch_id: int|null}, permissions: list<string>}}')]
     public function startStaffSession(Request $request, string $deviceUuid): JsonResponse
     {
+        if ($refusal = $this->refuseDisplay($request)) {
+            return $refusal;
+        }
+
         $device = $this->device($request);
         if (!hash_equals($device->uuid, $deviceUuid)) {
             return $this->error('Ruxsat etilmagan', [], 403);
@@ -213,6 +221,16 @@ class TerminalController extends Controller
                 'attempts' => $count,
             ]);
         }
+    }
+
+    /**
+     * P6-14: a customer display has no staff: no PIN pad, no staff session (403 `display_has_no_staff`).
+     */
+    private function refuseDisplay(Request $request): ?JsonResponse
+    {
+        return $this->device($request)->type === \App\Enums\DeviceType::DISPLAY
+            ? $this->error("Mijoz ekranida xodim kirishi yo'q.", ['reason' => 'display_has_no_staff'], 403)
+            : null;
     }
 
     private function device(Request $request): Device

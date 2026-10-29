@@ -191,6 +191,9 @@ Route::prefix('v1')->group(function () {
     // P6-13: order numbers and calling: pickup board, till number blocks, ready / call / handed (docs/API.md)
     require __DIR__ . '/api_pos_queue.php';
 
+    // P6-14: the customer display: state, pickup board for the display, the till's cart feed (docs/API.md)
+    require __DIR__ . '/api_pos_display.php';
+
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")
     require __DIR__ . '/api_admin.php';

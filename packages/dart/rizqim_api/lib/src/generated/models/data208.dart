@@ -4,31 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type10.dart';
+import 'errors.dart';
+import 'meta2.dart';
 
 part 'data208.g.dart';
 
 @JsonSerializable()
 class Data208 {
-  const Data208({
-    required this.id,
-    required this.code,
-    required this.type,
-    required this.amount,
-    required this.discountAmount,
-    required this.description,
-  });
+  const Data208({required this.errors, required this.meta});
 
   factory Data208.fromJson(Map<String, Object?> json) =>
       _$Data208FromJson(json);
 
-  final int id;
-  final String code;
-  final Type10 type;
-  final num amount;
-  @JsonKey(name: 'discount_amount')
-  final num? discountAmount;
-  final String description;
+  final List<Errors> errors;
+  final Meta2 meta;
 
   Map<String, Object?> toJson() => _$Data208ToJson(this);
 }

@@ -20,7 +20,7 @@ Data212 _$Data212FromJson(Map<String, dynamic> json) => Data212(
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items50.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items47.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   acceptedAt: json['accepted_at'] as String?,
@@ -28,6 +28,10 @@ Data212 _$Data212FromJson(Map<String, dynamic> json) => Data212(
   readyAt: json['ready_at'] as String?,
   canceledAt: json['canceled_at'] as String?,
   waitingSeconds: (json['waiting_seconds'] as num).toInt(),
+  queueNumber: (json['queue_number'] as num?)?.toInt(),
+  pickupStatus: json['pickup_status'] == null
+      ? null
+      : PickupStatus.fromJson(json['pickup_status'] as String),
 );
 
 Map<String, dynamic> _$Data212ToJson(Data212 instance) => <String, dynamic>{
@@ -50,4 +54,6 @@ Map<String, dynamic> _$Data212ToJson(Data212 instance) => <String, dynamic>{
   'ready_at': instance.readyAt,
   'canceled_at': instance.canceledAt,
   'waiting_seconds': instance.waitingSeconds,
+  'queue_number': instance.queueNumber,
+  'pickup_status': instance.pickupStatus,
 };

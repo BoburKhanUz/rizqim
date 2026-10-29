@@ -10,6 +10,7 @@ class PosTileButton extends StatelessWidget {
     super.key,
     required this.label,
     this.subtitle,
+    this.detail,
     this.icon,
     this.badge,
     this.accent,
@@ -26,6 +27,9 @@ class PosTileButton extends StatelessWidget {
 
   /// Narx yoki qisqa izoh ("160 000 so'm / kg").
   final String? subtitle;
+
+  /// Subtitr ostidagi kichik qator (kompleks tarkibi: "Mastava · Osh · Salat"); bitta qatordan oshsa qirqiladi.
+  final String? detail;
   final IconData? icon;
   final String? badge;
   final Color? accent;
@@ -55,7 +59,7 @@ class PosTileButton extends StatelessWidget {
       button: true,
       enabled: _enabled,
       selected: selected,
-      label: <String>[label, ?subtitle, ?corner].join(', '),
+      label: <String>[label, ?subtitle, ?detail, ?corner].join(', '),
       excludeSemantics: true,
       child: ConstrainedBox(
         constraints: BoxConstraints(minWidth: minWidth, minHeight: minHeight),
@@ -111,6 +115,15 @@ class PosTileButton extends StatelessWidget {
                           style: RzType.footnote.copyWith(
                             color: unavailable ? c.fgSubtle : c.fgMuted,
                           ),
+                        ),
+                      ],
+                      if (detail != null) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          detail!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: RzType.caption.copyWith(color: c.fgSubtle),
                         ),
                       ],
                       // burchakdagi belgi uchun joy

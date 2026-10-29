@@ -7,12 +7,18 @@ import 'package:json_annotation/json_annotation.dart';
 import 'pos.dart';
 import 'kds.dart';
 import 'waiter.dart';
+import 'display.dart';
 
 part 'devices.g.dart';
 
 @JsonSerializable()
 class Devices {
-  const Devices({required this.pos, required this.kds, required this.waiter});
+  const Devices({
+    required this.pos,
+    required this.kds,
+    required this.waiter,
+    required this.display,
+  });
 
   factory Devices.fromJson(Map<String, Object?> json) =>
       _$DevicesFromJson(json);
@@ -20,6 +26,7 @@ class Devices {
   final Pos pos;
   final Kds kds;
   final Waiter waiter;
+  final Display display;
 
   Map<String, Object?> toJson() => _$DevicesToJson(this);
 }

@@ -7,19 +7,27 @@ part of 'data198.dart';
 // **************************************************************************
 
 Data198 _$Data198FromJson(Map<String, dynamic> json) => Data198(
-  shift: json['shift'] == null
-      ? null
-      : Shift2.fromJson(json['shift'] as Map<String, dynamic>),
-  report: json['report'] == null
-      ? null
-      : Report.fromJson(json['report'] as Map<String, dynamic>),
-  shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  orderUuid: json['order_uuid'] as String?,
+  billUuid: json['bill_uuid'] as String?,
+  paymentUuid: json['payment_uuid'] as String?,
+  amount: json['amount'] as String,
+  method: json['method'] as String,
+  reason: json['reason'] as String,
+  approvedBy: (json['approved_by'] as num?)?.toInt(),
+  fiscal: Fiscal16.fromJson(json['fiscal'] as Map<String, dynamic>),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data198ToJson(Data198 instance) => <String, dynamic>{
-  'shift': instance.shift,
-  'report': instance.report,
-  'shifts': instance.shifts,
+  'uuid': instance.uuid,
+  'order_uuid': instance.orderUuid,
+  'bill_uuid': instance.billUuid,
+  'payment_uuid': instance.paymentUuid,
+  'amount': instance.amount,
+  'method': instance.method,
+  'reason': instance.reason,
+  'approved_by': instance.approvedBy,
+  'fiscal': instance.fiscal,
+  'created_at': instance.createdAt,
 };

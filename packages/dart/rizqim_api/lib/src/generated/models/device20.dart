@@ -8,13 +8,36 @@ part 'device20.g.dart';
 
 @JsonSerializable()
 class Device20 {
-  const Device20({required this.uuid, required this.name});
+  const Device20({
+    required this.uuid,
+    required this.name,
+    required this.prefix,
+    required this.lastSeq,
+    required this.pendingOps,
+    required this.oldestOpAt,
+    required this.reportedAt,
+    required this.clockSkewSeconds,
+    required this.clockWarning,
+  });
 
   factory Device20.fromJson(Map<String, Object?> json) =>
       _$Device20FromJson(json);
 
   final String uuid;
   final String? name;
+  final String? prefix;
+  @JsonKey(name: 'last_seq')
+  final int lastSeq;
+  @JsonKey(name: 'pending_ops')
+  final int pendingOps;
+  @JsonKey(name: 'oldest_op_at')
+  final String? oldestOpAt;
+  @JsonKey(name: 'reported_at')
+  final String? reportedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  @JsonKey(name: 'clock_warning')
+  final bool clockWarning;
 
   Map<String, Object?> toJson() => _$Device20ToJson(this);
 }

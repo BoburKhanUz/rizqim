@@ -4,6 +4,7 @@ import '../http/pos_http.dart';
 import '../json.dart';
 import '../offline/pos_offline.dart';
 import '../offline/sync_models.dart';
+import '../terminal/terminal_flow_models.dart';
 import 'shift_models.dart';
 
 /// Smena, kassa harakatlari, X va Z (docs/API.md, "Smena, kassa, X va Z"). Yupqa qatlam: P3-22 kengaytiradi.
@@ -127,13 +128,16 @@ class ShiftRepository {
   }
 
   /// `POST /pos/shifts/{uuid}/close` (Z): [countedBreakdown] — kupyura (so'm) → soni. Ochiq buyurtmalar bo'lsa
-  /// [PosConflict] `shift_has_open_orders`; [force] + [reason] bilan majburan (menejer yoki tasdiq).
+  /// [PosConflict] `shift_has_open_orders`; [force] + [reason] bilan majburan (menejer yoki tasdiq). P6-16:
+  /// [bankTerminal] — bank terminalining kunlik jami; Z yozilgach Rizqim'dagi karta pul bilan solishtiriladi
+  /// (javobdagi [PosShift.bankTerminal]) va smena yopilishiga hech qachon to'sqinlik qilmaydi.
   Future<PosShift> close(
     String shiftUuid, {
     required Map<int, int> countedBreakdown,
     bool force = false,
     String? reason,
     String? approvalToken,
+    PosBankTerminalInput? bankTerminal,
     String? idempotencyKey,
   }) async {
     _guard('smenani yopish (Z)');
@@ -143,9 +147,37 @@ class ShiftRepository {
       force: force,
       reason: reason,
       approvalToken: approvalToken,
+      bankTerminal: bankTerminal,
       idempotencyKey: idempotencyKey,
     );
   }
+
+  /// `PUT /pos/shifts/{uuid}/bank-report` (`pos.close_shift`, Idempotency-Key bilan): bank terminalining kunlik jami
+  /// ochiq smenada ham, Z dan keyin ham kiritiladi yoki tuzatiladi (yangisi eskisini almashtiradi). [source]:
+  /// `manual` ([bankTotal] kerak), `provider` (smart-kassa: provayderning o'z karta jami, sandbox; bo'lmasa
+  /// [PosConflict] `provider_report_unavailable`). Modul o'chiq — [PosModuleDisabled].
+  Future<PosBankTerminalReport> bankReport(
+    String shiftUuid, {
+    PosBankReportSource source = PosBankReportSource.manual,
+    PosMoney? bankTotal,
+    int? bankCount,
+    String? terminalRef,
+    String? note,
+    String? idempotencyKey,
+  }) => _http.mutate(
+    'PUT',
+    '/v1/pos/shifts/$shiftUuid/bank-report',
+    (Object? data) => PosBankTerminalReport.fromJson(dataObject(data)),
+    idempotencyKey: idempotencyKey,
+    body: <String, Object?>{
+      'source': source.wire,
+      'bank_total': ?bankTotal?.toApiString(),
+      'bank_count': ?bankCount,
+      if (terminalRef != null && terminalRef.trim().isNotEmpty)
+        'terminal_ref': terminalRef.trim(),
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    },
+  );
 
   Future<PosShift> _close(
     String shiftUuid, {
@@ -153,6 +185,7 @@ class ShiftRepository {
     bool force = false,
     String? reason,
     String? approvalToken,
+    PosBankTerminalInput? bankTerminal,
     String? idempotencyKey,
   }) => _http.mutate(
     'POST',
@@ -167,6 +200,7 @@ class ShiftRepository {
       if (force) 'force': true,
       'reason': ?reason,
       'approval_token': ?approvalToken,
+      'bank_terminal': ?bankTerminal?.toJson(),
     },
   );
 }

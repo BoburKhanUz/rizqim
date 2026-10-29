@@ -203,6 +203,35 @@ class FakeKitchenState {
     return uuid;
   }
 
+  /// P6-14: tezkor kassa buyurtmasi navbat raqami bilan. [paid] — avval to'langan: buyurtma yopilgan (`delivered`), raqami
+  /// `preparing` ekan oshxona chiptasi doskada turadi.
+  String addQueueOrder({
+    required int number,
+    bool paid = true,
+    Duration age = const Duration(minutes: 3),
+    List<(String, String, String, List<String>)> items =
+        const <(String, String, String, List<String>)>[
+          ("Lag'mon", '2', 'piece', <String>[]),
+        ],
+  }) {
+    final String uuid = addOrder(
+      type: 'pickup',
+      channel: 'pos_takeaway',
+      age: age,
+      items: items,
+      status: paid ? 'delivered' : 'accepted',
+    );
+    final Map<String, Object?> order = _order(uuid)!;
+    order['queue_number'] = number;
+    order['pickup_status'] = 'preparing';
+    for (final Map<String, Object?> i in _items(order)) {
+      i['fire_mode'] = 'now';
+      i['sent_at'] = now().subtract(age);
+      i['kitchen_status'] = 'sent';
+    }
+    return uuid;
+  }
+
   /// Yangi sex (`kind`: osh, mangal, ...); `stations` ro'yxatiga qo'shiladi.
   void addStation(int id, String name, String kind, {bool showOnKds = true}) {
     (stations ??= <Map<String, Object?>>[]).add(<String, Object?>{
@@ -645,6 +674,14 @@ class FakeKitchenState {
       return _setup(method, p, data, query);
     }
 
+    final RegExpMatch? queueReady = RegExp(
+      r'^/v1/pos/orders/([^/]+)/ready$',
+    ).firstMatch(p);
+    if (method == 'POST' && queueReady != null) {
+      if (bearer == null || bearer != _staffToken) return _unauthenticated();
+      return _queueReady(queueReady[1]!);
+    }
+
     if (p.startsWith('/v1/staff/')) {
       if (bearer == null || bearer != _staffToken) return _unauthenticated();
       final RegExpMatch? detail = RegExp(r'^/v1/staff/orders/([^/]+)$')
@@ -663,7 +700,11 @@ class FakeKitchenState {
             'message': '',
             'data': <Object?>[
               for (final Map<String, Object?> o in orders)
-                if (o['status'] == 'accepted' || o['status'] == 'preparing')
+                if (o['status'] == 'accepted' ||
+                    o['status'] == 'preparing' ||
+                    // P6-14: avval to'langan kassa buyurtmasi raqami tayyor bo'lguncha
+                    (o['status'] == 'delivered' &&
+                        o['pickup_status'] == 'preparing'))
                   _ticket(o),
               if (within != null)
                 for (final Map<String, Object?> o in orders)
@@ -865,7 +906,11 @@ class FakeKitchenState {
         .where((Map<String, Object?> i) => i['id'] == itemId)
         .firstOrNull;
     if (item == null) return _notFound('Taom topilmadi.');
-    if (order['status'] != 'accepted' && order['status'] != 'preparing') {
+    final bool closedPickup =
+        order['status'] == 'delivered' && order['pickup_status'] == 'preparing';
+    if (order['status'] != 'accepted' &&
+        order['status'] != 'preparing' &&
+        !closedPickup) {
       return const FakeResponse(422, <String, Object?>{
         'success': false,
         'message': "Buyurtma oshxonada emas: taomni o'zgartirib bo'lmaydi.",
@@ -902,6 +947,17 @@ class FakeKitchenState {
       order['preparing_at'] = now();
     }
     if (ready &&
+        closedPickup &&
+        items.every(
+          (Map<String, Object?> i) =>
+              i['kitchen_status'] == 'ready' ||
+              i['kitchen_status'] == 'served' ||
+              i['kitchen_status'] == 'void',
+        )) {
+      order['pickup_status'] = 'ready';
+    }
+    if (ready &&
+        !closedPickup &&
         order['type'] != 'dine_in' &&
         items.every(
           (Map<String, Object?> i) =>
@@ -914,6 +970,36 @@ class FakeKitchenState {
     }
     _event('kitchen.item_status_changed', uuid);
     return _ok(_ticket(order));
+  }
+
+  /// `POST /pos/orders/{uuid}/ready` (P6-13): raqam tayyor, pishayotgan qatorlar tayyor bo'ladi.
+  FakeResponse _queueReady(String uuid) {
+    final Map<String, Object?>? order = _order(uuid);
+    if (order == null) return _notFound();
+    if (order['queue_number'] == null || order['pickup_status'] == null) {
+      return const FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message': 'Bu buyurtma navbat raqami bilan olib ketish navbatida emas.',
+        'data': <String, Object?>{'reason': 'not_in_queue'},
+      });
+    }
+    for (final Map<String, Object?> i in _items(order)) {
+      if (i['kitchen_status'] == 'sent' || i['kitchen_status'] == 'pending') {
+        i['kitchen_status'] = 'ready';
+        i['ready_at'] = now();
+      }
+    }
+    order['pickup_status'] = 'ready';
+    if (order['status'] == 'accepted' || order['status'] == 'preparing') {
+      order['status'] = 'ready';
+      order['ready_at'] = now();
+    }
+    _event('queue.ready', uuid);
+    return _ok(<String, Object?>{
+      'order_uuid': uuid,
+      'number': order['queue_number'],
+      'status': 'ready',
+    });
   }
 
   FakeResponse _status(String uuid, String status) {

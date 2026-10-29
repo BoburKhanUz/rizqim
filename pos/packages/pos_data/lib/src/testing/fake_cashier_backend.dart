@@ -66,6 +66,16 @@ class FakeCashierBackend {
     'holiday': '300000.00',
   };
 
+  /// P6-15: terminaldan hisobdan chiqarilgan partiya porsiyalari (`shift_uuid`, `product_id`, `quantity`, `reason`).
+  final List<Map<String, Object?>> batchWriteOffs = <Map<String, Object?>>[];
+
+  /// P6-16: smart-kassada provayderning o'z karta jami (`source: provider`); `null` — Rizqim'dagi karta pulning o'zi.
+  int? providerCardTotal;
+
+  final Map<String, Map<String, Object?>> _writeOffByKey =
+      <String, Map<String, Object?>>{};
+  int _writeOffSeq = 0;
+
   /// P3-38: yuborilgan tasdiqlar (`booking_uuid`, `channel`, `text`, `auto`).
   final List<Map<String, Object?>> sentConfirmations = <Map<String, Object?>>[];
 
@@ -93,6 +103,10 @@ class FakeCashierBackend {
       return _onlineDecision(x!.group(1)!, x.group(2)!, r);
     }
     if (m == 'GET' && p == '/v1/pos/shifts/current') return _current();
+    if (m == 'POST' &&
+        (x = _match(r'^/v1/owner/batches/(\d+)/write-off$', p)) != null) {
+      return _writeOff(int.parse(x!.group(1)!), r);
+    }
 
     if ((x = _match(r'^/v1/pos/orders/([^/]+)/bills$', p)) != null) {
       final Map<String, Object?>? order = state.orders[x!.group(1)];
@@ -851,6 +865,17 @@ class FakeCashierBackend {
               'Terminal tranzaksiya raqamini kiriting.',
             );
           }
+          // P6-16: the last four digits are optional, but not four digits is refused
+          final Object? last4 = t['card_last4'];
+          if (last4 != null &&
+              '$last4'.isNotEmpty &&
+              !RegExp(r'^\d{4}$').hasMatch('$last4')) {
+            return _fail(
+              422,
+              'card_last4_invalid',
+              "Kartaning oxirgi 4 raqamini kiriting (yoki bo'sh qoldiring).",
+            );
+          }
         case 'prepayment':
           booking = _bookingOfOrder(order);
           final int available = booking == null
@@ -911,6 +936,7 @@ class FakeCashierBackend {
             : _m(math.max(0, tendered - amount)),
         'card_type': t['card_type'],
         'transaction_id': t['transaction_id'],
+        'card_last4': t['card_last4'],
         'reference': t['reference'],
         'status': 'paid',
         'paid_at': _iso(state.now()),
@@ -1078,6 +1104,7 @@ class FakeCashierBackend {
             'credit': p['tender'] == 'account',
             'card_type': p['card_type'],
             'transaction_id': p['transaction_id'],
+            'card_last4': p['card_last4'],
           },
       ],
     };
@@ -1853,8 +1880,47 @@ class FakeCashierBackend {
         },
         ...moves,
       ],
+      'batch_writeoffs': _shiftWriteOffs(id),
     };
   }
+
+  /// X/Z hisobotning `batch_writeoffs` bloki (P6-15): taom + sabab bo'yicha yig'indi.
+  Map<String, Object?> _shiftWriteOffs(String shiftUuid) {
+    final Map<String, Map<String, Object?>> rows =
+        <String, Map<String, Object?>>{};
+    var count = 0;
+    for (final Map<String, Object?> w in batchWriteOffs) {
+      if (w['shift_uuid'] != shiftUuid) continue;
+      count++;
+      final String key = '${w['product_id']}|${w['reason']}';
+      final Map<String, Object?> row = rows[key] ??= <String, Object?>{
+        'product_id': w['product_id'],
+        'product_name': _productName(w['product_id']),
+        'unit': 'piece',
+        'reason': w['reason'],
+        'reason_label': _reasonLabels['${w['reason']}'] ?? '${w['reason']}',
+        'quantity': 0,
+      };
+      row['quantity'] = (row['quantity']! as num) + (w['quantity']! as num);
+    }
+    return <String, Object?>{'count': count, 'items': rows.values.toList()};
+  }
+
+  String? _productName(Object? id) {
+    for (final Map<String, Object?> p in state.products) {
+      if (p['id'] == id) return p['name'] as String?;
+    }
+    return null;
+  }
+
+  static const Map<String, String> _reasonLabels = <String, String>{
+    'unsold': 'Sotilmay qoldi',
+    'spoiled': 'Buzildi',
+    'staff_meal': 'Xodimlar ovqati',
+    'dropped': "To'kildi yoki tushib ketdi",
+    'expired': 'Muddati tugadi',
+    'other': 'Boshqa sabab',
+  };
 
   FakeResponse _shiftAction(
     String m,
@@ -1880,11 +1946,15 @@ class FakeCashierBackend {
         'report': shift['summary'] ?? _report(shift),
       });
     }
+    if (m == 'PUT' && action == 'bank-report' && open == null) {
+      return _bankReportPut(shift, r);
+    }
     if (open == null) {
       return _fail(409, 'shift_closed', 'Smena allaqachon yopilgan.');
     }
     if (m == 'POST' && action == 'cash-movements') return _movement(open, r);
     if (m == 'POST' && action == 'close') return _closeShift(open, r);
+    if (m == 'PUT' && action == 'bank-report') return _bankReportPut(open, r);
     return _fail(404, null, 'Topilmadi.');
   }
 
@@ -2036,8 +2106,206 @@ class FakeCashierBackend {
     shift['summary'] = summary;
     closedShifts['${shift['uuid']}'] = shift;
     state.shift = null;
+    // P6-16: the bank terminal's day total, compared after the Z is written; it never keeps the shift from closing
+    final Object? bank = r.data['bank_terminal'];
+    if (bank is Map && state.bootstrapExtras['terminal_flow'] != null) {
+      final int? total = bank['total'] == null ? null : _t(bank['total']);
+      if (total != null) {
+        shift['bank_terminal'] = _bankReport(
+          shift,
+          source: 'manual',
+          bankTotal: total,
+          bankCount: (bank['count'] as num?)?.toInt(),
+          terminalRef: bank['terminal_ref'] as String?,
+          note: bank['note'] as String?,
+        );
+      }
+    }
     _shiftEvent(shift, 'closed');
     return _ok(shift, message: 'Smena yopildi.');
+  }
+
+  /// Smenadagi karta pul (Rizqim tomoni): schyotlarning karta to'lovlari.
+  int _cardMoney(Map<String, Object?> shift) {
+    final List<Map<String, Object?>> pays = _shiftPayments('${shift['uuid']}');
+    int sum = 0;
+    for (final Map<String, Object?> p in pays) {
+      if (p['tender'] == 'card') sum += _t(p['amount']);
+    }
+    return sum;
+  }
+
+  /// `bank_terminal` bloki (BankTerminalPresenter shakli).
+  Map<String, Object?> _bankReport(
+    Map<String, Object?> shift, {
+    required String source,
+    required int bankTotal,
+    int? bankCount,
+    String? terminalRef,
+    String? note,
+  }) {
+    final Map<String, Object?>? flow =
+        state.bootstrapExtras['terminal_flow'] as Map<String, Object?>?;
+    final int threshold = _t(flow?['difference_threshold'] ?? '0');
+    final int rizqim = _cardMoney(shift);
+    final int diff = bankTotal - rizqim;
+    return <String, Object?>{
+      'uuid': _uuid('bt'),
+      'shift_uuid': shift['uuid'],
+      'z_number': shift['z_number'],
+      'branch_id': FakePosState.branchId,
+      'business_date': shift['business_date'],
+      'source': source,
+      'terminal_ref': terminalRef,
+      'bank_total': _m(bankTotal),
+      'bank_count': bankCount,
+      'rizqim_total': _m(rizqim),
+      'rizqim_count': _shiftPayments(
+        '${shift['uuid']}',
+      ).where((Map<String, Object?> p) => p['tender'] == 'card').length,
+      'rizqim_breakdown': null,
+      'difference': _m(diff),
+      'threshold': _m(threshold),
+      'over_threshold': diff.abs() > threshold,
+      'transactions': null,
+      'unmatched': null,
+      'note': note,
+      'entered_by': <String, Object?>{'id': 3, 'name': 'Kamola Karimova'},
+      'alerted_at': null,
+      'created_at': _iso(state.now()),
+      'updated_at': _iso(state.now()),
+    };
+  }
+
+  /// `PUT /pos/shifts/{uuid}/bank-report` (P6-16).
+  FakeResponse _bankReportPut(Map<String, Object?> shift, FakeRequest r) {
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'pos.close_shift',
+      null,
+    );
+    if (denied != null) return denied;
+    final Map<String, Object?>? flow =
+        state.bootstrapExtras['terminal_flow'] as Map<String, Object?>?;
+    if (flow == null) {
+      return _fail(403, 'module_disabled', "Bu modul filialda o'chirilgan.");
+    }
+    final String source = '${r.data['source'] ?? 'manual'}';
+    int total;
+    if (source == 'provider') {
+      if (flow['smart_kassa'] != true) {
+        return _fail(
+          409,
+          'provider_report_unavailable',
+          "Bu kassa smart-kassa emas: bank terminali hisobotini qo'lda kiriting.",
+        );
+      }
+      total = providerCardTotal ?? _cardMoney(shift);
+    } else {
+      if (r.data['bank_total'] == null) {
+        return _fail(
+          422,
+          'bank_total_required',
+          'Bank terminalining kunlik jami summasini kiriting.',
+        );
+      }
+      total = _t(r.data['bank_total']);
+    }
+    final Map<String, Object?> report = _bankReport(
+      shift,
+      source: source,
+      bankTotal: total,
+      bankCount: (r.data['bank_count'] as num?)?.toInt(),
+      terminalRef: r.data['terminal_ref'] as String?,
+      note: r.data['note'] as String?,
+    );
+    shift['bank_terminal'] = report;
+    return _ok(report, message: 'Yozildi.');
+  }
+
+  /// `POST /owner/batches/{id}/write-off` (P6-15): `batches.manage` + `batch_writeoff` moduli.
+  FakeResponse _writeOff(int batchId, FakeRequest r) {
+    final Map<String, Object?>? format = state.format;
+    if (format != null) {
+      final Object? modules = format['modules'];
+      if (modules is! List || !modules.contains('batch_writeoff')) {
+        return const FakeResponse(403, <String, Object?>{
+          'success': false,
+          'message': "Bu modul filialda o'chirilgan.",
+          'code': 'module_disabled',
+          'module': 'batch_writeoff',
+          'data': <String, Object?>{
+            'reason': 'module_disabled',
+            'module': 'batch_writeoff',
+          },
+        });
+      }
+    }
+    if (!state.permissionsOf(r.member).contains('batches.manage')) {
+      return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
+    }
+    final String? key = r.idempotencyKey;
+    if (key != null && _writeOffByKey.containsKey(key)) {
+      return _ok(_writeOffByKey[key]!, status: 201);
+    }
+    final List<Object?> batches =
+        state.availability['batches']! as List<Object?>;
+    Map<String, Object?>? batch;
+    for (final Object? b in batches) {
+      if (b is Map<String, Object?> && b['id'] == batchId) batch = b;
+    }
+    if (batch == null) return _fail(404, null, 'Partiya topilmadi.');
+    final double quantity = double.tryParse('${r.data['quantity']}') ?? 0;
+    final double left = (batch['quantity_left']! as num).toDouble();
+    final String reason = '${r.data['reason']}';
+    if (quantity <= 0) return _validation('quantity', 'Miqdorni kiriting.');
+    if (quantity > left) {
+      return _validation(
+        'quantity',
+        "Hisobdan chiqariladigan miqdor qoldiqdan ko'p ($left).",
+      );
+    }
+    if (reason == 'other' && '${r.data['note'] ?? ''}'.trim().isEmpty) {
+      return _validation('note', 'Boshqa sabab uchun izoh yozing.');
+    }
+    final bool close = r.data['close'] == true;
+    batch['quantity_left'] = close ? 0 : left - quantity;
+    final int shiftId = state.shift == null ? 0 : 1;
+    batchWriteOffs.add(<String, Object?>{
+      'shift_uuid': state.shift?['uuid'],
+      'product_id': batch['product_id'],
+      'quantity': quantity,
+      'reason': reason,
+    });
+    final Map<String, Object?> body = <String, Object?>{
+      'write_off': <String, Object?>{
+        'uuid': 'wo-${++_writeOffSeq}',
+        'quantity': quantity,
+        'unit': 'piece',
+        'reason': reason,
+        'note': r.data['note'],
+        'business_date': _localDate(state.now()),
+        'shift_id': shiftId == 0 ? null : shiftId,
+      },
+      'batch': <String, Object?>{
+        'id': batchId,
+        'uuid': batch['uuid'],
+        'product_id': batch['product_id'],
+        'product_name': null,
+        'product_variant_id': batch['product_variant_id'],
+        'unit': 'piece',
+        'quantity_produced': batch['quantity_produced'],
+        'quantity_left': batch['quantity_left'],
+        'written_off_quantity': quantity,
+        'is_open': !close && (batch['quantity_left']! as num) > 0,
+      },
+    };
+    if (key != null) _writeOffByKey[key] = body;
+    state.emit('menu.availability_changed', <String, Object?>{
+      'branch_id': FakePosState.branchId,
+      'reason': 'batch_writeoff',
+    });
+    return _ok(body, status: 201, message: 'Hisobdan chiqarildi.');
   }
 
   void _shiftEvent(Map<String, Object?> shift, String change) =>

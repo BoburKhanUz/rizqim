@@ -4,20 +4,81 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'shift5.dart';
-import 'report3.dart';
+import 'source.dart';
+import 'rizqim_breakdown4.dart';
+import 'transactions5.dart';
+import 'unmatched4.dart';
+import 'entered_by4.dart';
 
 part 'data203.g.dart';
 
 @JsonSerializable()
 class Data203 {
-  const Data203({required this.shift, required this.report});
+  const Data203({
+    required this.uuid,
+    required this.shiftUuid,
+    required this.zNumber,
+    required this.branchId,
+    required this.businessDate,
+    required this.source,
+    required this.terminalRef,
+    required this.bankTotal,
+    required this.bankCount,
+    required this.rizqimTotal,
+    required this.rizqimCount,
+    required this.rizqimBreakdown,
+    required this.difference,
+    required this.threshold,
+    required this.overThreshold,
+    required this.transactions,
+    required this.unmatched,
+    required this.note,
+    required this.enteredBy,
+    required this.alertedAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
 
   factory Data203.fromJson(Map<String, Object?> json) =>
       _$Data203FromJson(json);
 
-  final Shift5 shift;
-  final Report3 report;
+  final String uuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final Source source;
+  @JsonKey(name: 'terminal_ref')
+  final String? terminalRef;
+  @JsonKey(name: 'bank_total')
+  final String bankTotal;
+  @JsonKey(name: 'bank_count')
+  final int? bankCount;
+  @JsonKey(name: 'rizqim_total')
+  final String rizqimTotal;
+  @JsonKey(name: 'rizqim_count')
+  final int rizqimCount;
+  @JsonKey(name: 'rizqim_breakdown')
+  final RizqimBreakdown4? rizqimBreakdown;
+  final String difference;
+  final String threshold;
+  @JsonKey(name: 'over_threshold')
+  final bool overThreshold;
+  final List<Transactions5>? transactions;
+  final Unmatched4? unmatched;
+  final String? note;
+  @JsonKey(name: 'entered_by')
+  final EnteredBy4? enteredBy;
+  @JsonKey(name: 'alerted_at')
+  final String? alertedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data203ToJson(this);
 }

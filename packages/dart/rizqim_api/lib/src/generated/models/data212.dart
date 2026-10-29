@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items50.dart';
+import 'items47.dart';
+import 'pickup_status.dart';
 
 part 'data212.g.dart';
 
@@ -30,6 +31,8 @@ class Data212 {
     required this.readyAt,
     required this.canceledAt,
     required this.waitingSeconds,
+    required this.queueNumber,
+    required this.pickupStatus,
   });
 
   factory Data212.fromJson(Map<String, Object?> json) =>
@@ -54,7 +57,7 @@ class Data212 {
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items50> items;
+  final List<Items47> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'accepted_at')
@@ -67,6 +70,10 @@ class Data212 {
   final String? canceledAt;
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
+  @JsonKey(name: 'queue_number')
+  final int? queueNumber;
+  @JsonKey(name: 'pickup_status')
+  final PickupStatus? pickupStatus;
 
   Map<String, Object?> toJson() => _$Data212ToJson(this);
 }

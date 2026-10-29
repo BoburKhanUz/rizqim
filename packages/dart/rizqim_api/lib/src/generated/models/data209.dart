@@ -4,69 +4,70 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items47.dart';
+import 'staff4.dart';
+import 'device22.dart';
+import 'order12.dart';
+import 'resolved_by2.dart';
 
 part 'data209.g.dart';
 
 @JsonSerializable()
 class Data209 {
   const Data209({
-    required this.uuid,
-    required this.shortCode,
-    required this.status,
+    required this.opId,
+    required this.seq,
     required this.type,
-    required this.channel,
-    required this.branchId,
-    required this.hallRef,
-    required this.tableRef,
-    required this.guestsCount,
-    required this.notes,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.canceledAt,
-    required this.waitingSeconds,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data209.fromJson(Map<String, Object?> json) =>
       _$Data209FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
   final String type;
-  final String channel;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final String? notes;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items47> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  final Staff4? staff;
+  final Device22? device;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order12? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data209ToJson(this);
 }

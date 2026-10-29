@@ -140,7 +140,8 @@ class PosOrderRepository {
 
   /// `POST /pos/orders`: buyurtma ochish. Zal — [tableId] (xona, stol, tapchan) yoki stolsiz; olib ketish —
   /// [PosChannel.takeaway]. [items] — birinchi bosqich, [send] — darhol oshxonaga. [externalId] — qurilmaning o'z
-  /// raqami (shu raqam bilan qayta yuborilsa o'sha buyurtma qaytadi).
+  /// raqami (shu raqam bilan qayta yuborilsa o'sha buyurtma qaytadi). P6-13: [queueNumber] — kassa o'z blokidan olgan
+  /// navbat raqami (`SyncStore.takeQueueNumber`); server boshqasini bersa javobdagi `queue.number` chop etiladi.
   Future<PosOrder> open({
     required PosChannel channel,
     int? tableId,
@@ -153,6 +154,7 @@ class PosOrderRepository {
     bool send = false,
     String? approvalToken,
     String? idempotencyKey,
+    int? queueNumber,
   }) => _either(
     () => _http.mutate(
       'POST',
@@ -167,6 +169,7 @@ class PosOrderRepository {
         'waiter_id': ?waiterId,
         'external_id': ?externalId,
         'note': ?note,
+        'queue_number': ?queueNumber,
         if (items.isNotEmpty)
           'items': <Map<String, Object?>>[
             for (final PosLineInput i in items) i.toJson(),
@@ -184,6 +187,7 @@ class PosOrderRepository {
       items: items,
       send: send,
       idempotencyKey: key,
+      queueNumber: queueNumber,
     ),
     idempotencyKey: idempotencyKey,
   );

@@ -7,19 +7,13 @@ part of 'data208.dart';
 // **************************************************************************
 
 Data208 _$Data208FromJson(Map<String, dynamic> json) => Data208(
-  id: (json['id'] as num).toInt(),
-  code: json['code'] as String,
-  type: Type10.fromJson(json['type'] as String),
-  amount: json['amount'] as num,
-  discountAmount: json['discount_amount'] as num?,
-  description: json['description'] as String,
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  meta: Meta2.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data208ToJson(Data208 instance) => <String, dynamic>{
-  'id': instance.id,
-  'code': instance.code,
-  'type': instance.type,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'description': instance.description,
+  'errors': instance.errors,
+  'meta': instance.meta,
 };

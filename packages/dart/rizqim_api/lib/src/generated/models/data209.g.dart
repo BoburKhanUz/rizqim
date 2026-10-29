@@ -7,47 +7,55 @@ part of 'data209.dart';
 // **************************************************************************
 
 Data209 _$Data209FromJson(Map<String, dynamic> json) => Data209(
-  uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
+  opId: json['op_id'] as String,
+  seq: (json['seq'] as num).toInt(),
   type: json['type'] as String,
-  channel: json['channel'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  notes: json['notes'] as String?,
-  itemsTotal: (json['items_total'] as num).toInt(),
-  itemsReady: (json['items_ready'] as num).toInt(),
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items47.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  createdAt: json['created_at'] as String?,
-  acceptedAt: json['accepted_at'] as String?,
-  preparingAt: json['preparing_at'] as String?,
-  readyAt: json['ready_at'] as String?,
-  canceledAt: json['canceled_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
+  typeLabel: json['type_label'] as String,
+  status: json['status'] as String,
+  reason: json['reason'] as String?,
+  message: json['message'] as String?,
+  staff: json['staff'] == null
+      ? null
+      : Staff4.fromJson(json['staff'] as Map<String, dynamic>),
+  device: json['device'] == null
+      ? null
+      : Device22.fromJson(json['device'] as Map<String, dynamic>),
+  occurredAt: json['occurred_at'] as String?,
+  receivedAt: json['received_at'] as String?,
+  appliedAt: json['applied_at'] as String?,
+  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
+  order: json['order'] == null
+      ? null
+      : Order12.fromJson(json['order'] as Map<String, dynamic>),
+  payload: json['payload'] as Map<String, dynamic>,
+  refs: json['refs'] as Map<String, dynamic>,
+  resolvedAt: json['resolved_at'] as String?,
+  resolvedBy: json['resolved_by'] == null
+      ? null
+      : ResolvedBy2.fromJson(json['resolved_by'] as Map<String, dynamic>),
+  resolution: json['resolution'] as String?,
+  resolutionNote: json['resolution_note'] as String?,
 );
 
 Map<String, dynamic> _$Data209ToJson(Data209 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
+  'op_id': instance.opId,
+  'seq': instance.seq,
   'type': instance.type,
-  'channel': instance.channel,
-  'branch_id': instance.branchId,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'guests_count': instance.guestsCount,
-  'notes': instance.notes,
-  'items_total': instance.itemsTotal,
-  'items_ready': instance.itemsReady,
-  'items': instance.items,
-  'created_at': instance.createdAt,
-  'accepted_at': instance.acceptedAt,
-  'preparing_at': instance.preparingAt,
-  'ready_at': instance.readyAt,
-  'canceled_at': instance.canceledAt,
-  'waiting_seconds': instance.waitingSeconds,
+  'type_label': instance.typeLabel,
+  'status': instance.status,
+  'reason': instance.reason,
+  'message': instance.message,
+  'staff': instance.staff,
+  'device': instance.device,
+  'occurred_at': instance.occurredAt,
+  'received_at': instance.receivedAt,
+  'applied_at': instance.appliedAt,
+  'clock_skew_seconds': instance.clockSkewSeconds,
+  'order': instance.order,
+  'payload': instance.payload,
+  'refs': instance.refs,
+  'resolved_at': instance.resolvedAt,
+  'resolved_by': instance.resolvedBy,
+  'resolution': instance.resolution,
+  'resolution_note': instance.resolutionNote,
 };

@@ -38,11 +38,35 @@ Soxta backend'da ulash kodi — istalgan 8 belgi, PIN: kassir 4827, menejer 5926
 | Smena | `lib/src/features/shift/shift_page.dart` (`ShiftPage()`) | P3-22 |
 | Sozlamalar | `lib/src/features/settings/settings_page.dart` (`SettingsPage()`) | P3-22 |
 | Schyot (ustidan ochiladi) | `lib/src/features/billing/billing_page.dart` (`BillingPage({required orderUuid})`) | P3-22 |
+| Tez kassa | `lib/src/counter/counter_page.dart` (`CounterPage()`) | P6-12 |
 
 Feature faqat o'z papkasini o'zgartiradi; marshrutlar (`shell/destinations.dart`, `shell/routes.dart`) va qobiq —
 P3-21 da. Bog'liqliklar `PosScope.of(context)` dan: `data` (`PosData`), `session`, `realtime`, `printing`
 (`receiptPrinter`, `kitchenPrinterFor(stationId)`), `go(CashierDestination...)`. Ustidan sahifa —
 `CashierRoutes.openOrder / openBilling / push`. Testlar: `pos_data/testing.dart` va `test/support/harness.dart`.
+
+## Tez kassa va telefon rejimi (`counter`, P6-12)
+
+- Birinchi ekran filial formatidan (`bootstrap.format`, docs/POS_SPEC.md 2.15): `counter` rejimi yoki
+  `first_screen: quick_counter` — «Tez kassa»; `hybrid` (lag'monxona, kafe) — «Tez kassa» va «Zal» yonma-yon bo'limlar;
+  `table` — avvalgidek zal xaritasi. Choyxona (va `format` bermaydigan eski server) o'zgarmaydi: «Tez kassa» bo'limi
+  yo'q, zal xaritasidagi «Tez kassa» tugmasi ishlaydi. `counter` rejimida zal (stol) bo'lmasa «Zal» bo'limi yo'q.
+- Menyu panjarasi (qidiruv, kategoriyalar, «Tez-tez»), bosish = +1, tez miqdor ×2…×10 (bir bosishga), majburiy
+  qo'shimcha — oyna, uzoq bosish — ixtiyoriy qo'shimchalar; savat yonda (planshet) yoki pastki panel va varaq (telefon).
+  «To'lash»: navbat raqami olinadi (`queue_numbers`, `SyncStore.takeQueueNumber`, internetsiz ham), buyurtma taomlar
+  bilan **darhol oshxonaga** yuborib ochiladi (A4), bitta schyot va to'lov sahifasi; to'langach talon (`QueueSlip`)
+  chop etiladi yoki raqam ekranda, «Keyingi mijoz» (yoki keyingi taom) — yangi savat. Bitta taom — 3 bosish; 20 ta
+  odatiy buyurtma o'lchovi — `test/counter_speed_test.dart`.
+- To'lov sahifasidan to'lovsiz qaytilsa — «To'lov kutilmoqda»: «To'lash» (o'sha schyot) yoki «Bekor qilish» (sabab,
+  «O'CHIRILDI» markasi).
+- `queue_calling`: «Tayyor» ro'yxati (`GET /pos/queue`) — «Berildi», «Qayta chaqirish»; KDS'siz kassada tayyorlanayotgan
+  raqamga «Tayyor». `queue.ready` (va qayta chaqiruv) — ovoz va ekranda e'lon.
+- `phone_mode` (somsaxona, tamaddixona): portret telefon — bir ustunli panjara, katta tugmalar, smena bir bosishda
+  ochiladi (boshlang'ich naqd 0) va yopiladi (Z sahifasi), printer ixtiyoriy: chek va raqam ekranda, fiskal chek
+  havolasi nusxalanadi.
+- `customer_display`: savat, to'lov (summa, raqam), «Rahmat» va bo'sh ekran mijoz ekraniga (`PosData.displayFeed`).
+- Modullar bo'yicha yashiriladi: «Bronlar» (`bookings`), «Nasiya» bo'limi va to'lov turi (`customer_accounts`), choy-non
+  tez tugmalari (`guest_items`), olib tashlangan xizmat haqini qaytarish (`service_charge`, stolovaya qulfi).
 
 ## Zal xaritasi (`features/floor`)
 

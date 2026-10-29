@@ -12,17 +12,17 @@ Data199 _$Data199FromJson(Map<String, dynamic> json) => Data199(
   branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device15.fromJson(json['device'] as Map<String, dynamic>),
+      : Device12.fromJson(json['device'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String,
   openedAt: json['opened_at'] as String,
   openedBy: json['opened_by'] == null
       ? null
-      : OpenedBy5.fromJson(json['opened_by'] as Map<String, dynamic>),
+      : OpenedBy.fromJson(json['opened_by'] as Map<String, dynamic>),
   openingCash: json['opening_cash'] as String,
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy5.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy.fromJson(json['closed_by'] as Map<String, dynamic>),
   expectedCash: json['expected_cash'] as String?,
   countedCash: json['counted_cash'] as String?,
   countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
@@ -32,12 +32,6 @@ Data199 _$Data199FromJson(Map<String, dynamic> json) => Data199(
   zNumber: (json['z_number'] as num?)?.toInt(),
   forceClosed: json['force_closed'] as bool,
   closeNote: json['close_note'] as String?,
-  summary: json['summary'] == null
-      ? null
-      : Summary3.fromJson(json['summary'] as Map<String, dynamic>),
-  bankTerminal: json['bank_terminal'] == null
-      ? null
-      : BankTerminal.fromJson(json['bank_terminal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data199ToJson(Data199 instance) => <String, dynamic>{
@@ -58,6 +52,4 @@ Map<String, dynamic> _$Data199ToJson(Data199 instance) => <String, dynamic>{
   'z_number': instance.zNumber,
   'force_closed': instance.forceClosed,
   'close_note': instance.closeNote,
-  'summary': instance.summary,
-  'bank_terminal': instance.bankTerminal,
 };
