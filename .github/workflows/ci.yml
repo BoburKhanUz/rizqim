@@ -226,6 +226,10 @@ jobs:
           php artisan migrate --force --no-interaction
           if ! php artisan api-spec:export --check; then
             echo "::error file=packages/api-spec/openapi.json::OpenAPI spetsifikatsiyasi koddan orqada. Yangilang: cd backend && php artisan migrate && php artisan api-spec:export; cd packages/ts/api-client && npm run generate; so'ng commit qiling."
+            # What differs, so a drift that does not reproduce locally can be read from the log
+            php artisan api-spec:export >/dev/null
+            git diff --stat -- ../packages/api-spec/openapi.json
+            git diff -U2 -- ../packages/api-spec/openapi.json | head -300
             exit 1
           fi
 
