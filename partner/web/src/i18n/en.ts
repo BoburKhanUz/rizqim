@@ -102,6 +102,7 @@ export const en: Messages = {
   role_owner: 'Owner',
   role_manager: 'Manager',
   role_super_admin: 'Super admin',
+  role_platform: 'Platform',
   role_cashier: 'Cashier',
   role_waiter: 'Waiter',
   role_cook: 'Cook',

@@ -308,6 +308,23 @@ class Store extends Model
         return (float) ($this->payment_settings['delivery_fee'] ?? 0);
     }
 
+    /**
+     * Who changes the status and why, for the StoreStatusLog row the next save writes (see booted()); not an attribute.
+     *
+     * @var array{admin_id: int|null, comment: string}|null
+     */
+    public ?array $statusLogContext = null;
+
+    /**
+     * Name the member and the reason of the status change the next save() makes; without it the change is logged as "system".
+     */
+    public function logStatusChangeAs(?User $member, string $comment): static
+    {
+        $this->statusLogContext = ['admin_id' => $member?->id, 'comment' => mb_substr(trim($comment), 0, 1000)];
+
+        return $this;
+    }
+
     protected static function booted()
     {
         // P1-34: a deleted store's subscription is closed once its ended months are billed (docs/BILLING.md); if this
@@ -319,6 +336,28 @@ class Store extends Model
             } catch (\Throwable $e) {
                 report($e);
             }
+        });
+
+        // Review W3 C#3: every status change is logged here, in one place, whoever makes it (StoreActions, LedgerService,
+        // AdjustmentService, NettingService, PlanMigration...); the Ko'rsatkichlar history (StoreActivity) is rebuilt from
+        // these rows. The member and reason come from logStatusChangeAs(), else the change is "system".
+        static::updated(function (Store $store) {
+            $context = $store->statusLogContext;
+            $store->statusLogContext = null;
+
+            if (!$store->wasChanged('status')) {
+                return;
+            }
+
+            $from = $store->getOriginal('status');
+
+            StoreStatusLog::create([
+                'store_id' => $store->id,
+                'from_status' => $from instanceof \BackedEnum ? $from->value : $from,
+                'to_status' => $store->status->value,
+                'admin_id' => $context['admin_id'] ?? null,
+                'comment' => $context['comment'] ?? 'system',
+            ]);
         });
 
         static::creating(function ($store) {

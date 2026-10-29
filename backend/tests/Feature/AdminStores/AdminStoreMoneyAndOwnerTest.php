@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\AdminStores;
 
+use App\Enums\AdminPermission;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\PlatformRole;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\Order;
+use App\Models\PlatformRolePermission;
 use App\Models\User;
 use App\Services\Auth\StaffPhoneLoginService;
 use App\Services\Finance\LedgerService;
@@ -17,8 +19,8 @@ use Tests\TestCase;
 
 /**
  * P4-32: what the old superadmin store and user forms changed and the control center lacked: the store's payment
- * account and payout reserve (stores.manage), and the owner's login phone for an owner who lost the number
- * (stores.impersonate). A step-up and a reason each, audited.
+ * account and payout reserve (stores.manage and, review S#8, finance.manage), and the owner's login phone for an owner
+ * who lost the number (stores.impersonate). A step-up and a reason each, audited.
  */
 class AdminStoreMoneyAndOwnerTest extends TestCase
 {
@@ -29,6 +31,16 @@ class AdminStoreMoneyAndOwnerTest extends TestCase
     {
         $store = $this->makeStore(['payment_account_type' => 'platform_account', 'min_payout_reserve' => '100000.00', 'wallet_balance' => '300000.00']);
         $sales = $this->makeMember(PlatformRole::SALES);
+        $token = $this->signIn($sales);
+
+        // Review S#8: it routes money, so stores.manage alone is not enough (admin.finance.manage too)
+        $this->adminJson('GET', "/stores/{$store->id}", $token)->assertOk()->assertJsonPath('data.actions.payment_account', false);
+        $this->stepUp($sales, $token);
+        $this->adminJson('PUT', "/stores/{$store->id}/payment-account", $token, ['min_payout_reserve' => '50000', 'reason' => 'Kelishuv'])
+            ->assertForbidden()->assertJsonPath('code', 'forbidden');
+        $this->assertSame('100000.00', $store->fresh()->min_payout_reserve);
+
+        PlatformRolePermission::create(['platform_role' => PlatformRole::SALES->value, 'permission' => AdminPermission::FINANCE_MANAGE->value, 'allowed' => true]);
         $token = $this->signIn($sales);
 
         $this->adminJson('GET', "/stores/{$store->id}", $token)->assertOk()
@@ -81,7 +93,7 @@ class AdminStoreMoneyAndOwnerTest extends TestCase
             'payment_owner' => 'PLATFORM',
             'payment_status' => PaymentStatus::PENDING->value,
         ]);
-        $token = $this->confirmedSession($this->makeMember(PlatformRole::SALES));
+        $token = $this->confirmedSession($this->makeMember(PlatformRole::SUPERADMIN));
 
         $this->adminJson('PUT', "/stores/{$store->id}/payment-account", $token, ['payment_account_type' => 'own_account', 'reason' => 'Kelishuv'])
             ->assertStatus(409)->assertJsonPath('code', 'payments_in_flight');
@@ -96,7 +108,8 @@ class AdminStoreMoneyAndOwnerTest extends TestCase
     public function test_viewers_and_other_roles_cannot_change_the_payment_account(): void
     {
         $store = $this->makeStore();
-        foreach ([PlatformRole::SUPPORT, PlatformRole::OPERATOR, PlatformRole::FINANCE, PlatformRole::VIEWER] as $role) {
+        // By default only the superadmin holds both stores.manage and finance.manage
+        foreach ([PlatformRole::SUPPORT, PlatformRole::OPERATOR, PlatformRole::FINANCE, PlatformRole::SALES, PlatformRole::VIEWER] as $role) {
             $token = $this->confirmedSession($this->makeMember($role));
             $this->adminJson('PUT', "/stores/{$store->id}/payment-account", $token, ['min_payout_reserve' => '1', 'reason' => 'Sinov uchun'])->assertForbidden();
         }

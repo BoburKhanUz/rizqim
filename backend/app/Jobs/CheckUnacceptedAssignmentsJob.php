@@ -41,10 +41,10 @@ class CheckUnacceptedAssignmentsJob implements ShouldQueue
                 continue;
             }
 
-            // Find branch managers
-            $managers = User::where('store_id', $store->id)
+            // Find branch managers (never a blocked one: NotificationRouter::withoutBlocked)
+            $managers = app(\App\Services\Notifications\NotificationRouter::class)->withoutBlocked(User::where('store_id', $store->id)
                 ->where('role', \App\Enums\UserRole::MANAGER->value)
-                ->where('branch_id', $order->branch_id)
+                ->where('branch_id', $order->branch_id))
                 ->get();
 
             $text = "⚠️ *KURYER KECHIKMOQDA!*\n\n"

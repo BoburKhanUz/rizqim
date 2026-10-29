@@ -246,8 +246,10 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
   Bitta xodim uchun urinishlar navbat bilan (cache lock ostida) tekshiriladi: bir vaqtda yuborilgan so'rovlar ham
   bittadan hisoblanadi, chegaraga yetgach qolganlari PIN tekshirilmasdan 429 bilan rad etiladi. Qo'shimcha: terminal bo'yicha
   daqiqasiga 10 ta, bir IP'dan 60 ta urinish.
-- Noto'g'ri PIN, mavjud bo'lmagan xodim, boshqa do'kon xodimi, PIN'i yo'q xodim — hammasiga bir xil javob va bir xil
-  bcrypt ishi: terminal orqali kim borligini bilib bo'lmaydi.
+- Noto'g'ri PIN, mavjud bo'lmagan xodim, boshqa do'kon xodimi, PIN'i yo'q xodim, RIZQIM bloklagan xodim — hammasiga bir
+  xil javob va bir xil bcrypt ishi: terminal orqali kim borligini bilib bo'lmaydi. Bloklangan xodim (ega, menejer ham)
+  terminal ro'yxatida yo'q, PIN'i kirishga ham, menejer tasdig'iga ham yaramaydi; bloklashda PIN sessiyalari yopiladi va
+  hali ishlatilmagan tasdiqlari bekor bo'ladi (review W3).
 
 ## 6. Rollar va ruxsatlar
 
@@ -377,7 +379,8 @@ yoziladi (mijozning manzili saqlanmaydi) va faqat ega hamda superadminga ko'rsat
 
 Xodim PIN sessiyasi orqali qilingan har bir amalda terminal ham yoziladi. Jurnalga **hech qachon** PIN, parol, token,
 kod, karta ma'lumoti yozilmaydi; telefon raqamlari niqoblanadi (`+99890*****67`), erkin matn ichida ham
-(`App\Services\Audit\AuditRedactor`).
+(`App\Services\Audit\AuditRedactor`). Sarlavha nomlari (`Authorization`, `Cookie`, `X-Auth`, `sign`, `session`, `xsrf`), `Bearer`/Sanctum/JWT
+ko'rinishidagi tokenlar va URL'dagi `token=`, `signature=` qiymatlari ham yashiriladi (Sentry skrubberi bilan bir xil ro'yxat).
 
 P4-11: jurnal **o'zgarmaydi** — yozuvni yangilash yoki o'chirishni model ham, PostgreSQL trigger ham rad etadi
 (faqat bog'langan foydalanuvchi, do'kon, filial yoki qurilma o'chirilganda havola `null` bo'ladi). Jamoaning har bir
@@ -385,7 +388,10 @@ admin harakati `admin.*` nomi bilan yoziladi (IP va brauzer bilan); butun platfo
 
 Ega jurnalni `GET /owner/audit-logs` (`audit.view`; filtrlar: `action` yoki `order.*`, `user_id`,
 `device_uuid`, `branch_id`, `subject_type`, `subject_id`, `from`, `to`, `per_page`) va panelda "Harakatlar
-jurnali" orqali ko'radi. Butun platforma jurnali va barcha qurilmalar Boshqaruv markazida (Harakatlar jurnali, POS va obunalar → Qurilmalar).
+jurnali" orqali ko'radi. RIZQIM jamoasining do'kon bo'yicha harakatlari (masalan, xodimni bloklash) egaga amal nomi, nima
+o'zgargani bilan ko'rinadi, lekin bajaruvchi — `{id: null, name: "RIZQIM jamoasi", role: "platform"}`: jamoa a'zosining
+ismi, IP manzili va ichki sababi/izohlari (`reason`, `note`, `email`, `session_id`...) ko'rsatilmaydi, `user_id` filtri
+jamoa a'zosini topmaydi (review W3). Butun platforma jurnali va barcha qurilmalar Boshqaruv markazida (Harakatlar jurnali, POS va obunalar → Qurilmalar).
 
 ## 8. Panellar
 

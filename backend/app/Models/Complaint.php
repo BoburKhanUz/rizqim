@@ -35,12 +35,13 @@ class Complaint extends Model
     ];
 
     /**
-     * The team member who took it is the platform's business, not the customer's or the store's (their complaint APIs
-     * serialize the model).
+     * The support side (who took it, where it is with RIZQIM, when support answered or resolved it) is the platform's
+     * business, not the customer's or the store's: their complaint APIs serialize the model (review W3 C#7). The
+     * control center reads these columns directly (ComplaintInbox).
      *
      * @var list<string>
      */
-    protected $hidden = ['assigned_to'];
+    protected $hidden = ['assigned_to', 'support_status', 'support_status_changed_at', 'answered_at', 'resolved_at'];
 
     protected function casts(): array
     {

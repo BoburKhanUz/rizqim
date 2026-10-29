@@ -21,7 +21,7 @@ class CheckProductionConfigCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Fail (exit 1) on production-unsafe settings (APP_ENV production or staging): APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password';
+    protected $description = 'Fail (exit 1) on production-unsafe settings (APP_ENV production or staging): APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, Reverb keys, default super admin password; warns on a payment provider in test mode or switched off (production)';
 
     private const DEFAULT_SEED_PASSWORD = '12345678';
 
@@ -76,6 +76,7 @@ class CheckProductionConfigCommand extends Command
         }
 
         $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());
+        $this->warnPaymentProviders();
 
         if ($problems !== []) {
             $this->error('XAVFLI SOZLAMALAR: production uchun ishga tushirish rad etildi.');
@@ -119,6 +120,37 @@ class CheckProductionConfigCommand extends Command
         }
 
         return $problems;
+    }
+
+    /**
+     * Review C#1: on production a platform payment provider in `test` sends live Payme checkouts to the sandbox, and
+     * one switched off is not offered to any store. Either may be on purpose, so a warning, not a refusal (staging may
+     * test freely). The switches: control center, Tizim → To'lov tizimlari.
+     */
+    private function warnPaymentProviders(): void
+    {
+        if (config('app.env') !== 'production') {
+            return;
+        }
+
+        try {
+            if (!Schema::hasTable('payment_providers') || !Schema::hasColumn('payment_providers', 'mode')) {
+                return;
+            }
+            $providers = \App\Models\PaymentProvider::query()->orderBy('id')->get(['name', 'slug', 'is_active', 'mode']);
+        } catch (\Throwable) {
+            return;
+        }
+
+        foreach ($providers as $provider) {
+            $name = "{$provider->name} ({$provider->slug})";
+            if ($provider->getAttribute('mode') === 'test') {
+                $this->warn("OGOHLANTIRISH: To'lov tizimi {$name} test rejimida — platforma hisobiga to'lovlar sinov (sandbox) kassasiga ketadi. Boshqaruv markazi → Tizim → To'lov tizimlari'da \"Production\" qiling.");
+            }
+            if (!$provider->is_active) {
+                $this->warn("OGOHLANTIRISH: To'lov tizimi {$name} o'chirilgan — hech bir ovqatxona uni taklif qilmaydi. Ataylab bo'lmasa, Tizim → To'lov tizimlari'da yoqing.");
+            }
+        }
     }
 
     /**

@@ -312,5 +312,20 @@ describe('admin proxy', () => {
       const deep = await forward(request('GET', 'v1/admin/exports/a/b/c', { cookie: 'tok' }), ['v1', 'admin', 'exports', 'a', 'b', 'c']);
       expect((await deep.json()).data.reason).toBe('bad_gateway');
     });
+
+    // Review W3 C#4: the 20 s cap aborted big exports (the signal also cuts the body read); downloads get 300 s, the rest 20 s
+    it('gives file downloads a long timeout and ordinary calls the short one', async () => {
+      const timeout = vi.spyOn(AbortSignal, 'timeout');
+      stubBackend(() => reply({ success: true, data: {} }));
+      await forward(request('GET', 'v1/admin/exports/orders', { cookie: 'tok' }), ['v1', 'admin', 'exports', 'orders']);
+      await forward(request('GET', 'v1/admin/finance/reports/monthly/export?month=2026-10', { cookie: 'tok' }), ['v1', 'admin', 'finance', 'reports', 'monthly', 'export']);
+      expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([300_000, 300_000]);
+
+      timeout.mockClear();
+      await forward(request('GET', 'v1/admin/stores', { cookie: 'tok' }), ['v1', 'admin', 'stores']);
+      await forward(request('POST', 'v1/admin/exports/orders', { cookie: 'tok', body: {} }), ['v1', 'admin', 'exports', 'orders']);
+      expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([20_000, 20_000]);
+      timeout.mockRestore();
+    });
   });
 });

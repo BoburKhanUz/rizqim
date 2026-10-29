@@ -17,7 +17,9 @@ class PaymentProviderSeeder extends Seeder
                 'name' => 'Payme',
                 'slug' => 'payme',
                 'is_active' => true,
-                // P4-32: the mode is its own column (Tizim → To'lov tizimlari), no longer a `test_mode` credential
+                // P4-32: the mode is its own column (Tizim → To'lov tizimlari), no longer a `test_mode` credential.
+                // Review C#1: production for every provider; the team switches to test there (never on production
+                // unless PAYMENTS_ALLOW_TEST_MODE=true)
                 'mode' => 'production',
                 'credentials' => [
                     'merchant_id' => '',
@@ -28,6 +30,7 @@ class PaymentProviderSeeder extends Seeder
                 'name' => 'Click',
                 'slug' => 'click',
                 'is_active' => true,
+                'mode' => 'production',
                 'credentials' => [
                     'service_id' => '',
                     'merchant_id' => '',
@@ -38,6 +41,7 @@ class PaymentProviderSeeder extends Seeder
                 'name' => 'Uzum Bank',
                 'slug' => 'uzum',
                 'is_active' => true,
+                'mode' => 'production',
                 'credentials' => [
                     'terminal_id' => '',
                     'secret_key' => '',
@@ -47,6 +51,7 @@ class PaymentProviderSeeder extends Seeder
                 'name' => 'Paynet',
                 'slug' => 'paynet',
                 'is_active' => true,
+                'mode' => 'production',
                 'credentials' => [
                     'merchant_id' => '',
                     'secret_key' => '',

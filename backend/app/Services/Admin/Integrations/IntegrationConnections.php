@@ -121,16 +121,17 @@ final class IntegrationConnections
     }
 
     /**
-     * The card: the row, its credentials (names, "configured", last 4), settings (secrets dropped, phones masked), the
+     * The card: the row, its credentials (names, "configured", last 4 of a long one only with `$showHints`: the member
+     * has admin.integrations.manage, review W3 S#6), settings (secrets dropped, phones masked), the
      * last events and the menu map counts.
      *
      * @return array<string, mixed>
      */
-    public function card(IntegrationConnection $connection, IntegrationEvents $events, StuckIntegrationOrders $stuck): array
+    public function card(IntegrationConnection $connection, IntegrationEvents $events, StuckIntegrationOrders $stuck, bool $showHints = false): array
     {
         $credentials = [];
         foreach ($connection->credentialKeys() as $key) {
-            $credentials[] = ['key' => $key, ...SecretMask::describe($connection->credential($key))];
+            $credentials[] = ['key' => $key, ...SecretMask::describe($connection->credential($key), $showHints)];
         }
 
         $refs = ExternalRef::query()->where('integration_connection_id', $connection->id)->groupBy('entity_type')

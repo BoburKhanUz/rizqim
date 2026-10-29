@@ -102,6 +102,9 @@ export class FakeSystem {
     { id: 22, region_id: 2, name: 'Yunusobod tumani', is_active: true, sort_order: 2, usage: { branches: 1, addresses: 2 } },
   ]
 
+  // Review S#7: the fake is a production server (app_env above) without PAYMENTS_ALLOW_TEST_MODE
+  allowTestMode = false
+
   flagDefault = false
   // store id → its own value of new-checkout-copy
   flagValues = new Map<number, boolean>([[12, true]])
@@ -216,6 +219,9 @@ export class FakeSystem {
       const row = this.providers.find((p) => p.slug === provider[1])
       if (!row) return fail(404, "To'lov tizimi topilmadi.", { reason: 'not_found' })
       if (!provider[2] && req.method === 'PATCH') {
+        if (body.mode === 'test' && row.mode !== 'test' && !this.allowTestMode) {
+          return fail(422, "Productionda to'lov tizimini test rejimiga o'tkazib bo'lmaydi: mijozlar to'lovi sinov (sandbox) hisobiga ketadi. Ataylab sinash kerak bo'lsa, serverda PAYMENTS_ALLOW_TEST_MODE=true qiling.", { reason: 'test_mode_not_allowed' })
+        }
         if (typeof body.is_active === 'boolean') row.is_active = body.is_active
         if (body.mode === 'test' || body.mode === 'production') row.mode = body.mode
         row.updated_at = now

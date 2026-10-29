@@ -11,6 +11,7 @@ use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * P4-31: Ko'rsatkichlar (admin.finance.view or admin.stores.view): MRR and how it moves, churn, active stores, GMV and
@@ -38,7 +39,7 @@ class AdminMetricsController extends AdminController
      * the start, how many churned (went inactive, or their subscription ended), `rate` and `revenue_rate` in percent.
      * `revenue`: per month marketplace `orders`, `gmv`, `commission` and paid subscription invoices from the Bugun
      * aggregate, with `missing_days` / `complete` when the aggregate lacks days. Money is a decimal string. Cached a few
-     * minutes (`generated_at`).
+     * minutes (`generated_at`); `refresh=1` rebuilds it, at most once a minute per member (sooner: the cached report).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{timezone: string, generated_at: string, months: int, cards: array{mrr: string, mrr_change: array{direction: string, amount: string, percent: string|null}, arr: string, paying_stores: int, trialing_stores: int, arpa: string|null, active_stores: int, churn_rate: string|null, churn_month: string|null, gmv_month: string, commission_month: string, revenue_complete: bool}, series: list<array{month: string, partial: bool, mrr: string, paying_stores: int, trialing_stores: int, active_stores: int}>, movement: list<array{month: string, partial: bool, opening: string, closing: string, new: array{mrr: string, stores: int}, expansion: array{mrr: string, stores: int}, contraction: array{mrr: string, stores: int}, churned: array{mrr: string, stores: int}, net_new: string, paying_stores: int, trialing_stores: int}>, churn: list<array{month: string, partial: bool, active_at_start: int, active_at_end: int, churned: int, went_inactive: int, subscription_ended: int, rate: string|null, revenue_rate: string|null}>, revenue: list<array{month: string, partial: bool, orders: int, gmv: string, commission: string, subscription_revenue: string, missing_days: int, complete: bool}>}}')]
     public function index(Request $request): JsonResponse
@@ -49,9 +50,14 @@ class AdminMetricsController extends AdminController
         ], UzValidation::messages());
         $months = (int) ($data['months'] ?? MetricsMonths::DEFAULT);
 
-        // "Yangilash": the member asks for the numbers as they are now
+        // "Yangilash": the member asks for the numbers as they are now. The report is heavy, so a member rebuilds it at
+        // most once a minute (review W3); a refresh sooner than that is served from the cache like a plain read
         if (filter_var($data['refresh'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-            Cache::forget(MetricsReport::cacheKey($months));
+            $key = 'admin-metrics-refresh:' . ($request->user()?->getAuthIdentifier() ?? $request->ip());
+            if (!RateLimiter::tooManyAttempts($key, 1)) {
+                RateLimiter::hit($key, 60);
+                Cache::forget(MetricsReport::cacheKey($months));
+            }
         }
 
         return $this->success($this->report->overview($months));

@@ -65,6 +65,12 @@ return [
         'merchant_id' => env('PAYME_MERCHANT_ID', '65eb2b988f01b97b0a7c4912'),
     ],
 
+    // Review S#7: Tizim → To'lov tizimlari may put a platform provider in `test` (Payme's sandbox checkout) on
+    // APP_ENV=production only with this set: a live customer would otherwise pay into the sandbox
+    'payments' => [
+        'allow_test_mode' => (bool) env('PAYMENTS_ALLOW_TEST_MODE', false),
+    ],
+
     // Address search / reverse geocoding behind /api/v1/geocode/* (see App\Services\Geo). The Mini App never calls a
     // geocoder directly: the server adds the identification, caching and rate limiting a provider's usage policy asks for.
     'geocoding' => [

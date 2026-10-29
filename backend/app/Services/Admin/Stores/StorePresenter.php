@@ -202,7 +202,8 @@ class StorePresenter
                 'telegram_link' => $canManage && $owner !== null && StoreActions::telegramChat($owner) === null,
                 'message_owner' => $canManage && $owner !== null && StoreActions::telegramChat($owner) !== null,
                 // P4-32
-                'payment_account' => $canManage,
+                // Review S#8: it routes money, so admin.finance.manage too (the route checks both)
+                'payment_account' => $canManage && $this->permissions->has($member, AdminPermission::FINANCE_MANAGE),
                 'owner_login_phone' => $canManage && $owner !== null && $this->permissions->has($member, AdminPermission::STORES_IMPERSONATE),
                 // P4-21's endpoint (admin.subscriptions.manage); the POS va obunalar screens use it in stage B
                 'commission_override' => $this->permissions->has($member, AdminPermission::SUBSCRIPTIONS_MANAGE),

@@ -90,9 +90,22 @@ final class PaymentProviders
         ];
     }
 
+    public const TEST_MODE_NOT_ALLOWED = 'test_mode_not_allowed';
+
+    /**
+     * Review S#7: whether a provider may be put in `test` here. Not on APP_ENV=production (a live customer would pay
+     * into Payme's sandbox) unless PAYMENTS_ALLOW_TEST_MODE=true (services.payments.allow_test_mode).
+     */
+    public static function testModeAllowed(): bool
+    {
+        return config('app.env') !== 'production' || (bool) config('services.payments.allow_test_mode', false);
+    }
+
     /**
      * @param  array{is_active?: bool, mode?: string}  $change
      * @return array{before: array<string, mixed>, after: array<string, mixed>}
+     *
+     * @throws SystemAdminException 422 test_mode_not_allowed
      */
     public function update(PaymentProvider $provider, array $change): array
     {
@@ -103,6 +116,13 @@ final class PaymentProviders
         }
         if (array_key_exists('mode', $change)) {
             $after['mode'] = (string) $change['mode'];
+        }
+        // Only a move INTO test is refused: a row already in test may still be saved or switched back
+        if ($after['mode'] === 'test' && $before['mode'] !== 'test' && !self::testModeAllowed()) {
+            throw new SystemAdminException(
+                "Productionda to'lov tizimini test rejimiga o'tkazib bo'lmaydi: mijozlar to'lovi sinov (sandbox) hisobiga ketadi. Ataylab sinash kerak bo'lsa, serverda PAYMENTS_ALLOW_TEST_MODE=true qiling.",
+                self::TEST_MODE_NOT_ALLOWED,
+            );
         }
 
         if ($after !== $before) {

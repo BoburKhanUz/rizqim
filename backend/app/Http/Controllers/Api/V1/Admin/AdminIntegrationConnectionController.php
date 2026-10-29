@@ -8,7 +8,9 @@ use App\Domain\Integrations\IntegrationDirection;
 use App\Domain\Integrations\IntegrationMode;
 use App\Domain\Integrations\IntegrationProvider;
 use App\Http\Requests\Admin\AdminRules;
+use App\Enums\AdminPermission;
 use App\Services\Admin\AdminAudit;
+use App\Services\Admin\AdminPermissionService;
 use App\Services\Admin\Integrations\IntegrationConnections;
 use App\Services\Admin\Integrations\IntegrationEvents;
 use App\Services\Admin\Integrations\StuckIntegrationOrders;
@@ -23,7 +25,7 @@ use Illuminate\Validation\Rule;
 /**
  * P4-31 Integratsiyalar → Ulanishlar (admin.integrations.view): every store's connections to outside systems and a
  * connection's card. Pausing and resuming: admin.integrations.manage, a step-up and a `reason`. Credentials are never
- * answered: names, "configured" and the last 4 characters only.
+ * answered: names, "configured" and, for a member who manages integrations, the last 4 characters of a long one.
  */
 #[Group('Admin')]
 class AdminIntegrationConnectionController extends AdminController
@@ -36,6 +38,7 @@ class AdminIntegrationConnectionController extends AdminController
         private readonly IntegrationConnections $connections,
         private readonly IntegrationEvents $events,
         private readonly StuckIntegrationOrders $stuck,
+        private readonly AdminPermissionService $permissions,
     ) {}
 
     /**
@@ -75,17 +78,17 @@ class AdminIntegrationConnectionController extends AdminController
     /**
      * A connection
      *
-     * The list row plus `credentials` (key names, `configured`, `last4`), `settings` (secret-looking keys
+     * The list row plus `credentials` (key names, `configured`, `last4`: the last 4 characters of a credential of 16 or more, only with `admin.integrations.manage`, else null), `settings` (secret-looking keys
      * "[redacted]", phones masked), the last 10 events, the menu map counts (`external_refs` by type) and how many of
      * its orders are stuck.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . IntegrationConnections::ROW . '&' . self::CARD . '}')]
     #[ApiDocResponse(404, 'No such connection (not_found)', type: self::ERROR)]
-    public function show(string $uuid): JsonResponse
+    public function show(Request $request, string $uuid): JsonResponse
     {
         $connection = $this->connections->find($uuid);
 
-        return $connection === null ? $this->notFound() : $this->success($this->connections->card($connection, $this->events, $this->stuck));
+        return $connection === null ? $this->notFound() : $this->success($this->card($request, $connection));
     }
 
     /**
@@ -107,7 +110,7 @@ class AdminIntegrationConnectionController extends AdminController
         $changed = $this->connections->pause($connection, $this->member($request), trim($data['reason']));
         $this->audit($request, $connection, $before, $changed);
 
-        return $this->success($this->connections->card($this->connections->find($uuid) ?? $connection, $this->events, $this->stuck), "Ulanish to'xtatildi.");
+        return $this->success($this->card($request, $this->connections->find($uuid) ?? $connection), "Ulanish to'xtatildi.");
     }
 
     /**
@@ -128,7 +131,16 @@ class AdminIntegrationConnectionController extends AdminController
         $changed = $this->connections->resume($connection);
         $this->audit($request, $connection, $before, $changed);
 
-        return $this->success($this->connections->card($this->connections->find($uuid) ?? $connection, $this->events, $this->stuck), 'Ulanish qayta yoqildi.');
+        return $this->success($this->card($request, $this->connections->find($uuid) ?? $connection), 'Ulanish qayta yoqildi.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function card(Request $request, IntegrationConnection $connection): array
+    {
+        // The last 4 characters of a long credential: only for a member who manages integrations
+        return $this->connections->card($connection, $this->events, $this->stuck, $this->permissions->has($this->member($request), AdminPermission::INTEGRATIONS_MANAGE));
     }
 
     private function audit(Request $request, IntegrationConnection $connection, string $before, bool $changed): void

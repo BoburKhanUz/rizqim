@@ -57,6 +57,13 @@ test('suspending a store asks for a reason and a fresh 2FA code, and lands in th
   await expect(page.getByRole('list', { name: 'Holat tarixi' })).toContainText('Gigiyena tekshiruvi')
 })
 
+test('review S#8: the payment account needs finance.manage as well as stores.manage', async ({ page, api, signIn }) => {
+  api.addMember({ name: 'Savdo Bekzod', email: 'bekzod@rizqim.uz', platform_role: 'sales', twoFactor: true })
+  await openSignedIn(page, signIn, '/stores/12', 'bekzod@rizqim.uz', { confirmed: true })
+  await expect(page.getByRole('button', { name: "Kredit limiti" })).toBeVisible()
+  await expect(page.getByRole('button', { name: "To'lov hisobi" })).toHaveCount(0)
+})
+
 test("P4-32: the payment account and reserve, and the owner's login phone, each with a reason", async ({ page, api, signIn }) => {
   await openSignedIn(page, signIn, '/stores/12', 'aziza@rizqim.uz', { confirmed: true })
   await page.getByRole('button', { name: "To'lov hisobi" }).click()

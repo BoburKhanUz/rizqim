@@ -188,7 +188,7 @@ Qadamlari batafsil (2FA, jamoa, rollar): [guides/boshqaruv-markazi.md](guides/bo
 
 1. Taklif havolasini oching (`https://admin.<domen>/invite/...`, 72 soat): parol, 2FA va tiklash kodlari. Jamoani **Tizim → Jamoa** dan taklif qiling.
 2. **Tizim → Tizim sozlamalari → Viloyatlar va tumanlar** da kerakli hududlarni faollashtiring (seeder faqat Andijon viloyati/Asaka tumanini yoqadi).
-3. Ixtiyoriy: **Tizim → Tizim sozlamalari → To'lov tizimlari** da platforma merchant kalitlarini kiriting (bo'sh qiymat env'ga qaytadi). SMS: **Sozlamalar** yorlig'i.
+3. Ixtiyoriy: **Tizim → Tizim sozlamalari → To'lov tizimlari** da platforma merchant kalitlarini kiriting (bo'sh qiymat env'ga qaytadi). SMS: **Sozlamalar** yorlig'i. Har bir tizim **Faol** va **Ishchi** rejimda ekanini ko'ring (productionda «Sinov»ga faqat `PAYMENTS_ALLOW_TEST_MODE=true` bilan o'tiladi).
 4. **Ovqatxonalar → Ulash jarayoni** da birinchi ovqatxonaning arizasini qo'shing va «Ovqatxonani yaratish» bilan ovqatxonaga aylantiring (egasi, birinchi filial, koordinata). **Kamida bitta faol do'kon bo'lmaguncha Mini App'ga hech kim kira olmaydi** (`POST /auth/telegram` 404 qaytaradi). Egasining Telegram taklif havolasi ovqatxona kartasidagi «Telegram havola» amali bilan egasiga SMS'da boradi (egasi botga shu havola bilan kirib akkauntini ulaydi); ega hamkor paneliga telefon va SMS kod bilan kiradi.
 5. Webhook: deploy `telegram:set-webhook` ni ishga tushirgan; holatni tekshirish: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"` (`url` va `last_error_message`). Muvaffaqiyatsiz bo'lsa qo'lda: `php artisan telegram:set-webhook [--url=https://...]`.
 
@@ -198,6 +198,7 @@ Qadamlari batafsil (2FA, jamoa, rollar): [guides/boshqaruv-markazi.md](guides/bo
 |---|---|
 | `APP_ENV=production`, `APP_DEBUG=false`, `TELEGRAM_ALLOW_MOCK_AUTH=false` | `app:check-production` buzilganda `exit 1` qiladi: konteyner ishga tushmaydi. U `APP_ENV`, `APP_DEBUG`, `APP_KEY` (bo'sh bo'lmasligi), `TELEGRAM_ALLOW_MOCK_AUTH`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_WEBAPP_URL` (`https://`) va standart super admin parolini tekshiradi; Click/Payme kalitlari, Redis, CORS va `SMS_EXPOSE_CODE_IN_RESPONSE` ni **tekshirmaydi** |
 | `CLICK_SECRET_KEY`, `PAYME_SECRET_KEY` (yoki boshqaruv markazi: Tizim → To'lov tizimlari) | Kalit yo'q bo'lsa webhook rad etadi (Click `error -1`, Payme `-32504`): onlayn to'lov hech qachon `paid` bo'lmaydi va buyurtmalar TTL bo'yicha bekor bo'ladi |
+| To'lov tizimlarining rejimi va yoqilgani (Tizim → To'lov tizimlari) | Productionda «Sinov» rejimidagi tizim Payme to'lovini sinov sahifasiga (`checkout.test.paycom.uz`) yuboradi, o'chirilgani hech bir ovqatxonada taklif qilinmaydi: `app:check-production` ikkalasi haqida **ogohlantiradi** (to'xtatmaydi). `PAYMENTS_ALLOW_TEST_MODE` odatda `false`: productionda sinov rejimiga o'tkazish 422 `test_mode_not_allowed` bilan rad etiladi |
 | `TELEGRAM_WEBHOOK_SECRET` + `telegram:set-webhook` | Secret bo'sh yoki noto'g'ri belgili bo'lsa `app:check-production` yiqiladi; webhook ro'yxatdan o'tmasa bot `/start` ga va buyurtma tugmalari bosilishiga javob bermaydi (chiquvchi xabarlar ketaveradi) |
 | `TELEGRAM_WEBAPP_URL` | Mini App'ning `https://` manzili. Bo'sh bo'lsa bot xabarlaridagi Mini App tugmalari tushirib qoldiriladi (zaxira manzil yo'q) va `app:check-production` yiqiladi; `https://` bilan boshlanmasa ham yiqiladi |
 | Standart super admin parolini almashtiring | `12345678` parolli `super_admin` bo'lsa `app:check-production` yiqiladi (lokal seeder `admin@gmail.com` yaratgan bo'lishi mumkin). Almashtirish: shu hisobni boshqaruv markazida o'chiring (Tizim → Jamoa) yoki `rizqim:admin:invite <email>` bilan yangi parol o'rnating |
@@ -234,6 +235,14 @@ Bu repodagi migratsiyalardan ehtiyot talab qiladiganlari (qolganlarining `down()
 - `copy_order_status_logs_into_order_status_histories` `down()` da ko'chirilgan qatorlar va `order_status_log_id` ustunini o'chiradi; asl `order_status_logs` jadvali o'zgarmaydi.
 - `add_promo_code_id_to_orders_table` indekslarni `CREATE INDEX CONCURRENTLY` bilan tranzaksiyasiz quradi: yarim yo'lda to'xtasa `INVALID` indeks qolishi mumkin (`\d orders`), uni `DROP INDEX CONCURRENTLY <nom>` bilan o'chirib qayta yurgizing. `add_non_negative_stock_check_...` ham tranzaksiyasiz (`NOT VALID`, so'ng `VALIDATE`), uni qayta yurgizish xavfsiz.
 - Eng ishonchli yo'l — `pg_dump` zaxirasidan tiklash.
+
+**To'lov tizimlari (P4 wave 3 migratsiyasidan keyin).** `2026_11_06_300200_add_mode_to_payment_providers_table` hamma
+`payment_providers` qatorini `mode=production` va `is_active=true` qilib qo'yadi: eski panelda ikkalasi hech narsaga ta'sir
+qilmasdi (eski seeder Payme'ga `test_mode: 'true'` yozgan edi), endi esa jonli to'lovlarni yo'naltiradi. Kalitlarida
+`test_mode` bo'lgan tizimlar logga yoziladi («the old credentials said test_mode»). **Migratsiyadan keyin boshqaruv
+markazida Tizim → To'lov tizimlari'ni ko'rib chiqing**: ataylab o'chirilishi kerak bo'lgan tizimni o'chiring, sinov
+serveri bo'lsa (staging) kerakli tizimni «Sinov»ga o'tkazing. So'ng `php artisan app:check-production` ogohlantirishlarini
+tekshiring.
 
 Kodni qaytarish: eski commit'ni checkout qilib `docker compose up -d --build` (yoki zararli commit'ni `git revert` qilib, `git pull && docker compose up -d --build`). Konteyner ishga tushganda `migrate --force` qayta yuradi: migratsiyani oldin qaytarmagan bo'lsangiz, eski kod yangi sxemada ishlaydi.
 

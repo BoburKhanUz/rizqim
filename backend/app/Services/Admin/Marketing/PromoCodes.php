@@ -214,6 +214,22 @@ class PromoCodes
      */
     public function update(PromoCode $promo, array $data): PromoCode
     {
+        // Review C#5: under the row lock checkout takes (PromoCodeService::find(..., true)), so no order is placed
+        // with the old value between the check for orders below and the save
+        return DB::transaction(function () use ($promo, $data) {
+            $this->lock($promo);
+
+            return $this->applyUpdate($promo, $data);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     *
+     * @throws MarketingException
+     */
+    private function applyUpdate(PromoCode $promo, array $data): PromoCode
+    {
         $attributes = $this->attributes($data);
         $type = $attributes['type'] ?? $promo->type;
         $value = $attributes['value'] ?? $promo->value;
@@ -249,6 +265,8 @@ class PromoCodes
     public function delete(PromoCode $promo): void
     {
         DB::transaction(function () use ($promo) {
+            // Review C#5: the row lock checkout takes, so an order placed meanwhile is seen here
+            $this->lock($promo);
             if ($this->hasOrders($promo)) {
                 throw new MarketingException("Bu promo-koddan buyurtma berilgan, uni o'chirib bo'lmaydi. O'chirib qo'ying (faolsizlantiring).", 'promo_code_used', 409);
             }
@@ -300,6 +318,17 @@ class PromoCodes
             if ($amount->isLessThanOrEqualTo(0) || !$amount->equals($amount->roundTo(0))) {
                 throw new MarketingException("Belgilangan chegirma butun so'm bo'lishi kerak (0 dan katta).", 'invalid_value');
             }
+        }
+    }
+
+    /**
+     * Locks the code's row for the rest of the transaction and takes its current values.
+     */
+    private function lock(PromoCode $promo): void
+    {
+        $current = PromoCode::query()->whereKey($promo->getKey())->lockForUpdate()->first();
+        if ($current !== null) {
+            $promo->setRawAttributes($current->getAttributes(), true);
         }
     }
 

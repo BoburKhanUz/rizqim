@@ -170,6 +170,28 @@ describe('SystemView', () => {
     expect(callsTo('PUT', '/system/payment-providers/payme/credentials/secret_key')[0]!.body).toEqual({ value: 'payme-key-ABCD', reason: 'Yangi kalit' });
   });
 
+  it('says why production refuses the test mode (review S#7)', async () => {
+    const user = userEvent.setup();
+    const message = "Productionda to'lov tizimini test rejimiga o'tkazib bo'lmaydi: mijozlar to'lovi sinov (sandbox) hisobiga ketadi. Ataylab sinash kerak bo'lsa, serverda PAYMENTS_ALLOW_TEST_MODE=true qiling.";
+    const live = [{ ...PROVIDERS[0]!, mode: 'production' }];
+    const { callsTo } = mockFetch({
+      'GET /auth/me': me(),
+      'GET /system/payment-providers': () => ok(live),
+      'PATCH /system/payment-providers/payme': () => refusal(422, message, { reason: 'test_mode_not_allowed' }, { code: 'test_mode_not_allowed' }),
+    });
+    renderPage(<SystemView initialTab="payments" />);
+
+    const payme = await screen.findByRole('region', { name: 'Payme' });
+    await user.selectOptions(within(payme).getByLabelText('Rejim'), 'test');
+    await user.click(within(payme).getByRole('button', { name: 'Payme: saqlash' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Sabab'), 'Sinab ko‘ramiz');
+    await user.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+
+    expect(await within(dialog).findByText(message)).toBeInTheDocument();
+    expect(callsTo('PATCH', '/system/payment-providers/payme')[0]!.body).toEqual({ mode: 'test', reason: 'Sinab ko‘ramiz' });
+  });
+
   it('adds a region, says why one in use cannot go, and saves a new order as the full list', async () => {
     const user = userEvent.setup();
     const { callsTo } = mockFetch({

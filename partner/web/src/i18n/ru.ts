@@ -102,6 +102,7 @@ export const ru: Messages = {
   role_owner: 'Владелец',
   role_manager: 'Менеджер',
   role_super_admin: 'Суперадмин',
+  role_platform: 'Платформа',
   role_cashier: 'Кассир',
   role_waiter: 'Официант',
   role_cook: 'Повар',

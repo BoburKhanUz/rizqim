@@ -30,6 +30,8 @@ use Illuminate\Support\Facades\DB;
  *   Telegram account nothing is saved (503 telegram_not_configured, 422 no_recipient).
  * - resolve: `resolved` with a note, and the store flow is closed with that note as the resolution comment (the Mini
  *   App shows it to the customer), resolved_by the member — what the old panel's "Hal qilish" did.
+ * - escalated (review W3 C#6): the customer sent the store's answer on to RIZQIM (store flow in_review). A complaint
+ *   support had answered or resolved is open again: in_progress when someone has it, else new (resolved_at cleared).
  *
  * Waiting: open on the support side (new, in progress), not answered by the store without the customer sending it on
  * (store flow owner_replied), and older than support.complaint_waiting_hours (the attention source and the `waiting`
@@ -279,6 +281,23 @@ class ComplaintInbox
 
             return ['before' => $before, 'after' => $after];
         });
+    }
+
+    /**
+     * The customer escalated the complaint (ComplaintController::escalate, inside its transaction, the row locked):
+     * the support side opens again unless it is open already. Saved by the caller.
+     */
+    public function escalated(Complaint $complaint): void
+    {
+        if ($complaint->support_status->isOpen()) {
+            return;
+        }
+
+        if ($complaint->support_status === ComplaintSupportStatus::RESOLVED) {
+            $complaint->resolved_at = null;
+        }
+        $complaint->support_status = $complaint->assigned_to !== null ? ComplaintSupportStatus::IN_PROGRESS : ComplaintSupportStatus::NEW;
+        $complaint->support_status_changed_at = now();
     }
 
     /**

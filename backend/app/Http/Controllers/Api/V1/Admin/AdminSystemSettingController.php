@@ -35,7 +35,7 @@ class AdminSystemSettingController extends AdminController
      *
      * Groups `sms`, `telegram`, `general`. `editable=false` items come from the server's configuration (.env) and only
      * show. `source`: `settings` (stored here), `env`, `default` (the code's own) or null (not set). A secret
-     * (`secret=true`) has `value: null`, `configured` and `last4` (null for a value under 8 characters).
+     * (`secret=true`) has `value: null`, `configured` and `last4` (null for a value under 16 characters).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::GROUPS . '}')]
     public function index(): JsonResponse

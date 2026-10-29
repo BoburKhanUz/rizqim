@@ -8,12 +8,18 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Complaint;
 use App\Models\Order;
+use App\Services\Admin\Customers\ComplaintInbox;
 use App\Traits\ApiResponse;
+use Illuminate\Support\Facades\DB;
 
 #[Group('Complaints', "Shikoyatlar: mijoz yuboradi, ega yoki menejer javob beradi, mijoz moderatorga yuboradi.")]
 class ComplaintController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(
+        private readonly ComplaintInbox $inbox,
+    ) {}
 
     /**
      * Get list of complaints based on user role.
@@ -126,19 +132,27 @@ class ComplaintController extends Controller
             return $this->error('Unauthorized.', [], 401);
         }
 
-        $complaint = Complaint::where('user_id', $user->id)->find($id);
+        // Review W3 C#6: the support side opens again as well (ComplaintInbox::escalated), under the row lock
+        $complaint = DB::transaction(function () use ($user, $id) {
+            $complaint = Complaint::where('user_id', $user->id)->lockForUpdate()->find($id);
+            if (!$complaint || $complaint->status !== 'owner_replied') {
+                return $complaint;
+            }
+
+            $complaint->status = 'in_review';
+            $this->inbox->escalated($complaint);
+            $complaint->save();
+
+            return $complaint;
+        });
 
         if (!$complaint) {
             return $this->error('Shikoyat topilmadi.', [], 404);
         }
 
-        if ($complaint->status !== 'owner_replied') {
+        if (!$complaint->wasChanged('status')) {
             return $this->error('Ushbu shikoyatni moderatorga yuborib bo\'lmaydi.', [], 400);
         }
-
-        $complaint->update([
-            'status' => 'in_review',
-        ]);
 
         return $this->success($complaint, 'Shikoyat ko\'rib chiqish uchun SuperAdmin paneliga yuborildi.');
     }

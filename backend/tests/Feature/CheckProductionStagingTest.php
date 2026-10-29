@@ -67,4 +67,25 @@ class CheckProductionStagingTest extends TestCase
         config(['scramble.access.public' => false]);
         $this->artisan('app:check-production')->doesntExpectOutputToContain('API_DOCS_PUBLIC')->assertSuccessful();
     }
+
+    /**
+     * Review C#1: a platform payment provider in test (Payme's sandbox) or switched off is a warning on production
+     * (staging may test on purpose); it never fails the check.
+     */
+    public function test_payment_providers_in_test_or_off_warn_on_production(): void
+    {
+        $this->seed(\Database\Seeders\PaymentProviderSeeder::class);
+        $this->safeConfig('production');
+        $this->artisan('app:check-production')->doesntExpectOutputToContain("To'lov tizimi")->assertSuccessful();
+
+        \App\Models\PaymentProvider::where('slug', 'payme')->sole()->forceFill(['mode' => 'test'])->save();
+        \App\Models\PaymentProvider::where('slug', 'click')->sole()->forceFill(['is_active' => false])->save();
+        $this->artisan('app:check-production')
+            ->expectsOutputToContain("To'lov tizimi Payme (payme) test rejimida")
+            ->expectsOutputToContain("To'lov tizimi Click (click) o'chirilgan")
+            ->assertSuccessful();
+
+        $this->safeConfig('staging');
+        $this->artisan('app:check-production')->doesntExpectOutputToContain("To'lov tizimi")->assertSuccessful();
+    }
 }

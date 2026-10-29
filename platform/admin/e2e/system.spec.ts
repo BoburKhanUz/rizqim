@@ -66,6 +66,15 @@ test("payment keys show the last 4 and where they come from; a key is replaced o
   await dialog.getByRole('button', { name: 'Almashtirish' }).click()
   await expect(payme.getByText('Kiritilgan, oxiri ••••ABCD')).toBeVisible()
   expect(api.system.providers[0]!.credentials[1]!.value).toBe('payme-secret-ABCD')
+
+  // Review S#7: production refuses the sandbox (without PAYMENTS_ALLOW_TEST_MODE) and says why
+  await click.getByLabel('Rejim').selectOption('test')
+  await click.getByRole('button', { name: 'Click: saqlash' }).click()
+  const reason = page.getByRole('dialog', { name: "Click: o'zgartirish" })
+  await reason.getByLabel('Sabab').fill('Sinab ko\'ramiz')
+  await reason.getByRole('button', { name: 'Saqlash' }).click()
+  await expect(reason.getByText(/PAYMENTS_ALLOW_TEST_MODE=true/)).toBeVisible()
+  expect(api.system.providers[1]!.mode).toBe('production')
 })
 
 test('regions: add one, a region in use cannot be deleted, the order is saved as the full list', async ({ page, api, signIn }) => {

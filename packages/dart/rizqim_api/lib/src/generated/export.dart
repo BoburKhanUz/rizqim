@@ -80,7 +80,6 @@ export 'models/category.dart';
 export 'models/channel_price.dart';
 export 'models/complaint.dart';
 export 'models/complaint_reply.dart';
-export 'models/complaint_support_status.dart';
 export 'models/courier_type.dart';
 export 'models/delivery_zone.dart';
 export 'models/device.dart';

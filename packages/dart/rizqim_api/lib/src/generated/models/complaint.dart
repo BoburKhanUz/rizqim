@@ -5,7 +5,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'complaint_reply.dart';
-import 'complaint_support_status.dart';
 import 'order.dart';
 import 'user.dart';
 
@@ -26,10 +25,6 @@ class Complaint {
     required this.resolvedBy,
     required this.createdAt,
     required this.updatedAt,
-    required this.supportStatus,
-    required this.supportStatusChangedAt,
-    required this.answeredAt,
-    required this.resolvedAt,
     this.order,
     this.user,
     this.resolver,
@@ -58,14 +53,6 @@ class Complaint {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
-  @JsonKey(name: 'support_status')
-  final ComplaintSupportStatus supportStatus;
-  @JsonKey(name: 'support_status_changed_at')
-  final DateTime? supportStatusChangedAt;
-  @JsonKey(name: 'answered_at')
-  final DateTime? answeredAt;
-  @JsonKey(name: 'resolved_at')
-  final DateTime? resolvedAt;
   final Order? order;
   final User? user;
   final User? resolver;

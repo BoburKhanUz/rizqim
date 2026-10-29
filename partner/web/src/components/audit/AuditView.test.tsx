@@ -27,6 +27,8 @@ const ENTRIES = [
     ip: '10.0.0.5',
     created_at: '2026-10-28T10:00:00+05:00',
   },
+  // Review W3 S#4: an action of the RIZQIM team comes signed by the team, without the member, their IP or reason
+  { id: 3, action: 'admin.users.blocked', actor: { id: null, name: 'RIZQIM jamoasi', role: 'platform' }, device: null, subject_type: 'User', subject_id: 9, branch_id: null, before: { blocked: false }, after: { blocked: true }, meta: null, ip: null, created_at: '2026-10-28T11:00:00+05:00' },
   { id: 1, action: 'something.new', actor: null, device: null, subject_type: null, subject_id: null, branch_id: null, before: null, after: null, meta: null, ip: null, created_at: '2026-10-27T09:00:00+05:00' },
 ];
 
@@ -43,6 +45,8 @@ describe('AuditView', () => {
     // An action the panel does not know is shown as the server wrote it; no actor is the system
     expect(within(table).getByText('something.new')).toBeInTheDocument();
     expect(within(table).getByText('Tizim')).toBeInTheDocument();
+    expect(within(table).getByText('RIZQIM jamoasi')).toBeInTheDocument();
+    expect(within(table).getByText('Platforma')).toBeInTheDocument();
   });
 
   it('filters by the kind of action and dates, from the first page', async () => {

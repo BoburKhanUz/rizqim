@@ -12,7 +12,7 @@ class Actor {
 
   factory Actor.fromJson(Map<String, Object?> json) => _$ActorFromJson(json);
 
-  final int id;
+  final int? id;
   final String name;
   final String role;
 

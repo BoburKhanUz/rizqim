@@ -119,10 +119,11 @@ class TelegramMessageHandler
         if (!empty($payload)) {
             $tokenWithoutPrefix = str_replace('invite_', '', $payload);
             // A storeless invite would match the person's global account via "store_id IS NULL" below
+            // Review W3 S#2: a blocked placeholder's invite is no invite
             $employee = User::where(function ($q) use ($payload, $tokenWithoutPrefix) {
                 $q->where('telegram_invite_token', $payload)
                   ->orWhere('telegram_invite_token', $tokenWithoutPrefix);
-            })->whereNotNull('store_id')->first();
+            })->whereNotNull('store_id')->whereNull('blocked_at')->first();
         }
 
         if ($employee) {
@@ -135,9 +136,10 @@ class TelegramMessageHandler
     protected function bindStoreChat(Store $store, array $message, int|string $chatId): string
     {
         // The store uuid is public and this chat gets every order and its action buttons:
-        // only the owner, or a store-wide manager (no branch), may route it
+        // only the owner, or a store-wide manager (no branch), may route it; never a blocked one (review W3 S#2)
         $canBindStoreChat = isset($message['from']['id']) && User::where('telegram_id', (string) $message['from']['id'])
             ->where('store_id', $store->id)
+            ->whereNull('blocked_at')
             ->where(function ($query) {
                 $query->where('role', UserRole::OWNER->value)
                     ->orWhere(fn ($q) => $q->where('role', UserRole::MANAGER->value)->whereNull('branch_id'));
@@ -165,6 +167,19 @@ class TelegramMessageHandler
 
     protected function linkEmployee(User $employee, array $message, int|string $chatId): string
     {
+        // Review W3 S#2: someone blocked in this store gets neither a fresh account nor a new role through an invite
+        // (the invite is left as it is for the person it was meant for)
+        $blockedHere = User::where('store_id', $employee->store_id)
+            ->where('telegram_id', $chatId)
+            ->where('id', '!=', $employee->id)
+            ->whereNotNull('blocked_at')
+            ->exists();
+        if ($blockedHere) {
+            $this->telegram->sendMessage($chatId, "⛔ Hisobingiz bloklangan. Savollar bo'lsa, RIZQIM yordam xizmatiga murojaat qiling.");
+
+            return 'employee_link_blocked';
+        }
+
         // Unlink this telegram_id from any other user in other stores globally first to prevent conflicts
         User::where('telegram_id', $chatId)
             ->where('id', '!=', $employee->id)

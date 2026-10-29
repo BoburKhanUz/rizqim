@@ -21,6 +21,11 @@ use Throwable;
  * Telegram (queued SendTelegramRequest), push (a SendPushNotification job per registered device) and, for a critical
  * message nobody else took, SMS. Everything is queued or fire-and-forget and wrapped here, so a notification problem
  * never breaks the order flow that triggered it.
+ *
+ * Review W3 S#3: a blocked account (users.blocked_at, Mijozlar va yordam) gets nothing from here, on any channel, and
+ * is never picked as a recipient: send() drops it, reachable() / onlyReachable() leave it out, and code that picks
+ * staff for a message it sends itself (an order card to the managers' chats) narrows its query with withoutBlocked().
+ * A store's own Telegram chat (telegram_admin_chat_id) is the store's, not a person's: it is not filtered.
  */
 class NotificationRouter
 {
@@ -36,6 +41,10 @@ class NotificationRouter
      */
     public function send(User $recipient, NotificationMessage $message): array
     {
+        if ($recipient->isBlocked()) {
+            return [];
+        }
+
         $used = [];
 
         foreach ([NotificationChannel::TELEGRAM, NotificationChannel::PUSH] as $channel) {
@@ -88,12 +97,24 @@ class NotificationRouter
      */
     public function reachable(User $user): bool
     {
-        return $user->hasTelegram()
-            || Device::where('user_id', $user->id)->active()->whereNotNull('push_token')->exists();
+        return !$user->isBlocked() && ($user->hasTelegram()
+            || Device::where('user_id', $user->id)->active()->whereNotNull('push_token')->exists());
     }
 
     /**
-     * Narrow a users query to those the router can reach (Telegram linked, or an app with a push token).
+     * Narrow a users query to those who may be sent a notification at all: not blocked.
+     *
+     * @template TBuilder of QueryBuilder
+     * @param TBuilder $query
+     * @return TBuilder
+     */
+    public function withoutBlocked($query)
+    {
+        return $query->whereNull('users.blocked_at');
+    }
+
+    /**
+     * Narrow a users query to those the router can reach (not blocked; Telegram linked, or an app with a push token).
      *
      * @template TBuilder of QueryBuilder
      * @param TBuilder $query
@@ -101,7 +122,7 @@ class NotificationRouter
      */
     public function onlyReachable($query)
     {
-        return $query->where(fn ($query) => $query
+        return $this->withoutBlocked($query)->where(fn ($query) => $query
             ->where(fn ($query) => $query->whereNotNull('telegram_id')->where('telegram_id', 'not like', 'temp\\_%'))
             ->orWhereExists(fn ($devices) => $devices->selectRaw('1')->from('devices')
                 ->whereColumn('devices.user_id', 'users.id')

@@ -268,6 +268,36 @@ class AdminMarketingPromoCodeTest extends TestCase
         $this->assertSame($unused->code, $audit->before['promo']);
     }
 
+    /**
+     * Review C#5: checkout locks the promo_codes row (PromoCodeService::find(..., true)) while it places an order with
+     * it; editing a locked field or deleting the code takes the same row lock before it asks whether any order used
+     * it, so an order placed meanwhile is either seen (refused) or waits for the edit to commit.
+     */
+    public function test_edit_and_delete_lock_the_code_before_they_look_for_its_orders(): void
+    {
+        $code = $this->makeCode(['code' => 'POYGA', 'value' => '10.00']);
+        $codes = app(\App\Services\Admin\Marketing\PromoCodes::class);
+
+        $queries = [];
+        $base = \Illuminate\Support\Facades\DB::transactionLevel();
+        \Illuminate\Support\Facades\DB::listen(function ($query) use (&$queries, $base) {
+            $queries[] = [strtolower($query->sql), \Illuminate\Support\Facades\DB::transactionLevel() > $base];
+        });
+
+        foreach ([fn () => $codes->update($code->fresh(), ['value' => '15']), fn () => $codes->delete($code->fresh())] as $call) {
+            $queries = [];
+            $call();
+
+            $lock = array_key_first(array_filter($queries, fn (array $query) => str_contains($query[0], 'from "promo_codes"') && str_contains($query[0], 'for update')));
+            $orders = array_key_first(array_filter($queries, fn (array $query) => str_contains($query[0], 'from "orders"') && str_contains($query[0], 'promo_code_id')));
+            $this->assertNotNull($lock, 'the promo_codes row is not locked');
+            $this->assertNotNull($orders);
+            $this->assertLessThan($orders, $lock, 'the row is locked only after the orders were counted');
+            $this->assertTrue($queries[$lock][1] && $queries[$orders][1], 'not inside one transaction');
+        }
+        $this->assertModelMissing($code);
+    }
+
     private function expectedRefusal(callable $call): void
     {
         try {

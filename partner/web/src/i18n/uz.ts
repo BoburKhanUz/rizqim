@@ -106,6 +106,7 @@ export const uz = {
   role_owner: 'Ega',
   role_manager: 'Menejer',
   role_super_admin: 'Superadmin',
+  role_platform: 'Platforma',
   role_cashier: 'Kassir',
   role_waiter: 'Ofitsiant',
   role_cook: 'Oshpaz',

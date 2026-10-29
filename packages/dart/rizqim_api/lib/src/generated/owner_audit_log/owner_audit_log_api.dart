@@ -19,7 +19,9 @@ abstract class OwnerAuditLogApi {
   /// The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a.
   /// prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`.
   /// (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);.
-  /// `ip` is shown to the owner only.
+  /// `ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,.
+  /// subject and before/after, but its actor is `{id: null, name: "RIZQIM jamoasi", role: "platform"}`, without the.
+  /// member's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.
   @GET('/v1/owner/audit-logs')
   Future<GetV1OwnerAuditLogsResponse> auditLogIndex({
     @Query('action') String? action,

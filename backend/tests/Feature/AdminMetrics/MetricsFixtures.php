@@ -102,8 +102,8 @@ trait MetricsFixtures
 
         $this->billing()->assignPlan($epsilon, $this->v2('start'), false, null, $this->at('2026-07-05 09:00'));
         $epsilon->forceFill(['status' => 'suspended'])->save();
-        $log = new StoreStatusLog(['store_id' => $epsilon->id, 'from_status' => 'active', 'to_status' => 'suspended', 'comment' => 'Test']);
-        $log->forceFill(['created_at' => $this->at('2026-09-15 10:00')])->save();
+        // The Store model's hook logged the change just now; it happened on Sep 15
+        StoreStatusLog::where('store_id', $epsilon->id)->update(['created_at' => $this->at('2026-09-15 10:00')]);
 
         return ['alfa' => $alfa, 'beta' => $beta, 'gamma' => $gamma, 'delta' => $delta, 'epsilon' => $epsilon];
     }

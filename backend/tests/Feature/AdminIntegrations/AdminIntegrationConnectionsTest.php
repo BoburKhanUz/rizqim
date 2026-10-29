@@ -102,8 +102,9 @@ class AdminIntegrationConnectionsTest extends TestCase
         $response = $this->adminJson('GET', "/integrations/connections/{$connection->uuid}", $this->signIn($this->makeMember(PlatformRole::OPERATOR)))->assertOk();
         $card = $response->json('data');
 
+        // Review W3 S#6: an operator (integrations.view only) sees no characters of a credential
         $this->assertSame([
-            ['key' => 'api_login', 'configured' => true, 'last4' => '4321'],
+            ['key' => 'api_login', 'configured' => true, 'last4' => null],
             ['key' => 'pin', 'configured' => true, 'last4' => null],
         ], $card['credentials']);
         $this->assertSame(['terminal_id' => 'T-9', 'webhook_secret' => '[redacted]', 'manager_phone' => '+99893*****11', 'price_source' => 'pos'], $card['settings']);
@@ -112,6 +113,13 @@ class AdminIntegrationConnectionsTest extends TestCase
         $this->assertSame(0, $card['stuck_orders']);
         $this->assertStringNotContainsString('rizqim-api-login', $response->getContent());
         $this->assertStringNotContainsString('whsec_abcdef', $response->getContent());
+
+        // ... a member with integrations.manage sees the last 4 of a credential of 16+ characters, never of a short one
+        $this->adminJson('GET', "/integrations/connections/{$connection->uuid}", $this->signIn($this->makeMember(PlatformRole::SUPERADMIN)))->assertOk()
+            ->assertJsonPath('data.credentials', [
+                ['key' => 'api_login', 'configured' => true, 'last4' => '4321'],
+                ['key' => 'pin', 'configured' => true, 'last4' => null],
+            ]);
 
         $this->adminJson('GET', '/integrations/connections/' . \Illuminate\Support\Str::uuid(), $this->signIn($this->makeMember(PlatformRole::OPERATOR)))->assertNotFound()->assertJsonPath('code', 'not_found');
     }

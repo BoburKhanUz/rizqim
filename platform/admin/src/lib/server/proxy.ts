@@ -14,6 +14,8 @@ export const SESSION_COOKIE_NAME = 'rz_admin';
 export const SECURE_SESSION_COOKIE_NAME = `__Host-${SESSION_COOKIE_NAME}`;
 export const sessionCookieName = (): string => (secureCookies() ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME);
 const BACKEND_TIMEOUT_MS = 20_000;
+// Review W3 C#4: a file download (the Excel exports build up to 20 000 rows) gets longer; the abort signal also cuts the body read
+const DOWNLOAD_TIMEOUT_MS = 300_000;
 const MAX_BODY_BYTES = 256 * 1024;
 // P4-23: the only calls that send a file (multipart/form-data, raw bytes passed on) and how big it may be
 const UPLOAD_PATHS = /^v1\/admin\/(?:finance\/adjustments|marketing\/(?:promos|categories)(?:\/\d{1,18})?)$/;
@@ -162,7 +164,7 @@ async function forwardCall(request: NextRequest, segments: string[]): Promise<Ne
       body,
       cache: 'no-store',
       redirect: 'manual',
-      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
+      signal: AbortSignal.timeout(request.method === 'GET' && DOWNLOAD_PATHS.test(path) ? DOWNLOAD_TIMEOUT_MS : BACKEND_TIMEOUT_MS),
     });
   } catch {
     return jsonError(502, 'Serverga ulanib bo\'lmadi.', 'unreachable');

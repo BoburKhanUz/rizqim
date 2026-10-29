@@ -2444,7 +2444,9 @@ Har bir yozish amali jurnalga yoziladi (amal nomi — route nomi): `admin.stores
 o'zi jurnalga yozilmaydi — u kalit), `admin.stores.owner_messaged`, `admin.stores.broadcast_sent`,
 `admin.stores.applications.created|updated|stage_changed|checklist_updated|converted|rejected|note_added`,
 `admin.stores.note_added`, `admin.stores.next_contact_set`, `admin.stores.tasks.created|updated`. Holat o'zgarishi
-qo'shimcha `store_status_logs` ga (kim, qachon, sabab) yoziladi — kartaning "Holat tarixi". Komissiyani alohida
+qo'shimcha `store_status_logs` ga (kim, qachon, sabab) yoziladi — kartaning "Holat tarixi". Yozuvni `Store` modelining
+`updated` hook'i bitta joyda yozadi: LedgerService, AdjustmentService, NettingService, PlanMigration kabi tizim o'zgartirishlari
+ham jurnalga tushadi (`admin_id` bo'sh, izoh `system`); xodim amalida (`StoreActions::setStatus`) xodim va sabab ko'rsatiladi. Komissiyani alohida
 o'zgartirish — P4-21 endpointi `PUT /admin/billing/stores/{id}/commission` (`subscriptions.manage`); kartada "POS va
 obunalar" havolasi.
 
@@ -2574,8 +2576,13 @@ Buyurtma trendi va faollik faqat ulash jarayonidan o'tgan ovqatxonaga (`active`,
 - P4-32: `PUT .../payment-account {payment_account_type?, min_payout_reserve?}` — onlayn to'lov qayerga tushadi
   (`platform_account`: RIZQIM yig'adi va hamyonga o'tkazadi; `own_account`: ovqatxonaning o'z Click/Payme kassasi, kalitlarni
   egasi hamkor panelida kiritadi, kiritilmaguncha RIZQIM yig'adi) va payoutdan keyin hamyonda qoladigan zaxira (0–100 000 000
-  so'm). Kamida bittasi. To'lovi kutilayotgan onlayn buyurtma bo'lsa hisob turi o'zgarmaydi: 409 `payments_in_flight`
-  (callback o'sha buyurtma yaratilgan hisob kaliti bilan tekshiriladi). Karta: `actions.payment_account`.
+  so'm). Kamida bittasi. Pul yo'nalishini o'zgartiradi, shuning uchun `admin.stores.manage` bilan birga
+  **`admin.finance.manage`** ham kerak (review S#8; standart: faqat superadmin), aks holda 403 `forbidden`. Bekor
+  qilingan, rad etilgan yoki qaytarilganidan boshqa (istalgan bosqichdagi) to'lanmagan onlayn buyurtma bo'lsa hisob turi
+  o'zgarmaydi: 409 `payments_in_flight`. Buyurtmaning callbacklari va to'langan buyurtmaning qaytarilishi (Payme
+  `CancelTransaction`) har doim buyurtma yaratilganda belgilangan hisob (`payment_owner`: `STORE` — ovqatxonaning o'z
+  kalitlari, `PLATFORM` — platforma kalitlari) bilan tekshiriladi, hozirgi `payment_account_type` bilan emas (review C#2).
+  Karta: `actions.payment_account` (ikkala ruxsat bo'lsa `true`).
 - P4-32: `PUT .../owner-login-phone {phone}` — raqamini yo'qotgan ega uchun yangi kirish raqami (+998XXXXXXXXX). Platforma
   kafolatlaydi (`vouched`): shu raqamga kelgan SMS kod bilan hamkor paneli va ilovalarga ega sifatida kiriladi, eski raqamdagi
   barcha ilova sessiyalari yopiladi, ovqatxona jurnaliga `staff.login_phone_changed` yoziladi (raqam yashirilgan). Raqam
@@ -2971,11 +2978,24 @@ qoida); `pii.view` bilan istalgan 4+ raqam. Qator: `id`, `name`, `role`, `role_l
 ### Bloklash va sessiyalarni yopish (`support.manage`, step-up, `reason`)
 
 - `POST .../block` — `users.blocked_at`, `blocked_by`, `blocked_reason` yoziladi va **barcha sessiyalar darhol yopiladi**.
-  Bloklangan hisob hech qayerga kira olmaydi: Telegram (Mini App, bot), SMS kod, refresh, kassa PIN — hammasi 403
+  Bloklangan hisob hech qayerga kira olmaydi: Telegram (Mini App, bot), SMS kod, refresh — hammasi 403
   `account_blocked` ("Hisobingiz bloklangan..."); oldin berilgan token ham ishlamaydi (Sanctum tekshiruvi), shuning uchun
   buyurtma bera olmaydi. Bloklangan xodim Telegram'dagi buyurtma tugmalari bilan ham ishlay olmaydi, eski `/admin`
   paneliga ham kirmaydi. **Ovqatxona egasi bloklansa, ovqatxona ishlashda davom etadi** — to'xtatish Ovqatxonalar
   bo'limida. 409 `already_blocked`.
+- Bloklangan ega, menejer yoki xodim (review W3):
+  - **kassada**: PIN'i hech narsa qilmaydi — kirish (`staff-session`) ham, menejer tasdig'i (`POST /pos/approvals`)
+    ham noto'g'ri PIN kabi 422 `pin_invalid` (terminal bloklangan odamni noma'lum odamdan ajrata olmaydi), terminaldagi
+    xodimlar ro'yxatida (`GET /terminal/staff`) yo'q. Bloklashda uning PIN sessiyalari yopiladi va bergan, hali
+    ishlatilmagan tasdiqlari (60 soniyalik) muddati tugagan bo'ladi (`approval_expired`);
+  - **Telegram botida**: ovqatxona chatini bog'lay olmaydi (`/start store_<uuid>` → `store_link_forbidden`), bloklangan
+    xodim yozuvining taklifi ishlamaydi, shu ovqatxonada bloklangan odam yangi taklif bilan yangi hisob yoki yangi rol
+    ololmaydi (bot: `employee_link_blocked`, Mini App: 403 `account_blocked`; taklif kim uchun bo'lsa o'shanga qoladi);
+  - **bildirishnomalar**: hech qanday kanal orqali hech narsa olmaydi (`NotificationRouter`: buyurtma kartasi — mijoz
+    ismi, telefoni, manzili —, "yo'lda" kartasi, kuryer topshiriqlari, kechikish ogohlantirishi, kassa ogohlantirishlari,
+    push). Bloklangan kuryerga biriktirilgan buyurtmaning "yo'lda" kartasi menejerlarga (ular bo'lmasa egalarga) boradi.
+    Ovqatxonaning Telegram chati (`telegram_admin_chat_id`) odamniki emas, ovqatxonaniki: ega bloklangan bo'lsa ham
+    karta chatga boradi.
 - `POST .../unblock` — blok olib tashlanadi, odam qaytadan kira oladi. 409 `not_blocked`.
 - `POST .../close-sessions` — Mini App va ilova tokenlari, refresh tokenlar, terminaldagi PIN sessiyalari o'chiriladi,
   qurilmalarga push ketmaydi. Kassaning o'z ulanishi (terminal tokeni) saqlanadi, admin sessiyalariga tegilmaydi;
@@ -3001,10 +3021,17 @@ yordam xizmati** (`support_status`): `new` (Yangi) → `in_progress` (Ko'rib chi
 - `PATCH .../{uuid} {support_status?, assigned_to?}` — holat (`resolved` emas: 422 `use_resolve`) va mas'ul (`support.view`
   li faol jamoa a'zosi yoki `null`; 422 `assignee_invalid`). Mas'ulsiz `in_progress` ga o'tkazgan xodimga biriktiriladi;
   hal qilinganini qaytarish — qayta ochish (ovqatxona tomoni `in_review` ga qaytadi).
+- Mijoz ovqatxona javobidan keyin shikoyatni RIZQIMga yuborsa (`POST /complaints/{id}/escalate`, `in_review`) va yordam
+  tomonida u `answered` yoki `resolved` bo'lsa, u yana ochiladi: mas'ul bo'lsa `in_progress`, bo'lmasa `new`
+  (`support_status_changed_at` yangilanadi, `resolved_at` tozalanadi). Allaqachon ochiq bo'lsa, o'zgarmaydi.
+- Yordam tomoni (`support_status`, `support_status_changed_at`, `answered_at`, `resolved_at`, `assigned_to`) mijoz va
+  ovqatxonaning shikoyat API'larida (`GET /complaints`, `POST /complaints`, `.../reply`, `.../escalate`) ko'rinmaydi.
 - `POST .../reply {text, canned_reply_id?}` — 1–1000 belgi oddiy matn mijozning Telegramiga RIZQIM boti orqali, navbat
   bilan (buyurtma aralashuvlaridagi yo'l): "📣 RIZQIM yordam xizmati / Shikoyatingiz bo'yicha (buyurtma #KOD): ...".
   Javob saqlanadi (`complaint_replies`), holat `answered`. Telegram yo'q — 422 `no_recipient`, bot sozlanmagan — 503
-  `telegram_not_configured` (ikkalasida hech narsa saqlanmaydi), hal qilingan — 409 `already_resolved`.
+  `telegram_not_configured` (ikkalasida hech narsa saqlanmaydi), hal qilingan — 409 `already_resolved`. Bir xodim
+  daqiqasiga ko'pi bilan 20 ta javob yuboradi (`admin-complaint-reply`, `support.complaint_replies_per_minute`), keyin
+  429.
 - `POST .../resolve {note}` — 3–1000 belgi. `resolved`, ovqatxona tomoni `closed`, izoh `resolution_comment` ga
   (mijoz Mini App'dagi shikoyatlar ro'yxatida ko'radi), `resolved_by` — xodim (eski paneldagi "Hal qilish" bilan bir
   xil). 409 `already_resolved`.
@@ -3128,7 +3155,8 @@ so'mga yaxlitlaydi va chegarani e'tiborsiz qoldiradi, shuning uchun `fixed`da ch
   (`locked: true`; bekor qilingani ham sanaladi — hisobotlar va buyurtmalar eski chegirmaga tayanadi) `code`, `type`, `value`,
   `max_discount_amount` va `store_id` o'zgarmaydi: 422 `promo_code_used`, `data.fields` — qaysi maydonlar. **Yangi promo-kod
   yaratib, eskisini o'chirib qo'ying.** Limitlar, `min_order_amount`, `expires_at` va yoqish/o'chirish erkin; o'sha qiymatni
-  qayta yuborish o'zgarish emas.
+  qayta yuborish o'zgarish emas. Tekshiruv va saqlash promo-kod qatorini qulflab bajariladi (checkout ham shu qatorni
+  qulflaydi), shuning uchun shu orada berilgan buyurtma ko'rinadi yoki tahrir tugashini kutadi (review C#5; o'chirish ham shunday).
 - `POST /admin/marketing/promo-codes/{id}/activate`, `/deactivate` — yoqish/o'chirib qo'yish (buyurtma oqimi har buyurtmada
   tekshiradi, shuning uchun darhol ta'sir qiladi; berilgan buyurtmalar o'z chegirmasini saqlaydi).
 - `DELETE /admin/marketing/promo-codes/{id}` — faqat hech bir buyurtmada **ishlatilmagan** kod (aks holda 409
@@ -3180,7 +3208,7 @@ yoziladi. Hech narsani o'zgartirmagan takroriy so'rov jurnalga yozilmaydi. SLA c
 tariflar katalogi (`/admin/billing/plans`) o'z bo'limlarida qoladi; Tizim sahifasi ularga havola beradi.
 
 **Maxfiy kalitlar hech qachon to'liq qaytmaydi:** javobda faqat `configured` (kiritilganmi) va `last4` (oxirgi 4 belgi;
-8 belgidan qisqa qiymatda `null`). Maxfiy kalit oddiy forma bilan o'zgartirilmaydi — alohida «almashtirish» amali bor.
+16 belgidan qisqa qiymatda `null`). Maxfiy kalit oddiy forma bilan o'zgartirilmaydi — alohida «almashtirish» amali bor.
 Jurnal yozuvida qiymatning o'zi yo'q: faqat qaysi kalit, avval kiritilganmi va o'chirildimi.
 
 | Endpoint | Nima |
@@ -3190,7 +3218,7 @@ Jurnal yozuvida qiymatning o'zi yo'q: faqat qaysi kalit, avval kiritilganmi va o
 | `PUT /admin/system/settings/secrets/{key}` | `value` (1–500) + `reason`. Hozir faqat `eskiz_password`; boshqasi 404 `not_found` |
 | `DELETE /admin/system/settings/secrets/{key}` | `reason`. Saqlangan qiymat o'chadi (`.env` dagisi ishlaydi). SMS Eskiz orqali ketayotganda parolni o'chirish 422 `in_use` |
 | `GET /admin/system/payment-providers` | Payme, Click, Uzum Bank, Paynet: `is_active`, `mode` (`test` / `production`), `wired` (to'lov havolasi va webhooklar ishlatadimi: Payme, Click), `credentials` — har kalit uchun `label`, `known`, `configured`, `last4`, `source` |
-| `PATCH /admin/system/payment-providers/{slug}` | `is_active` va/yoki `mode` + `reason` |
+| `PATCH /admin/system/payment-providers/{slug}` | `is_active` va/yoki `mode` + `reason`. `APP_ENV=production` da `test` ga o'tkazish 422 `test_mode_not_allowed` (serverda `PAYMENTS_ALLOW_TEST_MODE=true` bo'lmasa; allaqachon `test` dagi qatorni saqlash yoki `production` ga qaytarish mumkin) |
 | `PUT /admin/system/payment-providers/{slug}/credentials/{key}` | `value` + `reason`. Kalit tizim kodi biladiganlardan (Payme: `merchant_id`, `secret_key`; Click: `service_id`, `merchant_id`, `secret_key`, `merchant_user_id`; Uzum: `terminal_id`, `secret_key`; Paynet: `merchant_id`, `secret_key`) yoki allaqachon saqlangan bo'lishi kerak, aks holda 422 `unknown_key` |
 | `DELETE /admin/system/payment-providers/{slug}/credentials/{key}` | `reason`. Saqlangan kalit o'chadi, `config/services.php` (`.env`) qiymati ishlaydi |
 | `GET /admin/system/regions` | Hamma viloyatlar (`sort_order`, keyin nom bo'yicha) va ichida tumanlari. `usage`: viloyatda `branches`, `addresses` (mijoz manzillari), `applications` (ovqatxona arizalari); tumanda `branches`, `addresses`. `deletable` |
@@ -3214,7 +3242,11 @@ Qoidalar va izohlar:
   superadmin chati, navbatchi guruhi) va Umumiy (ilova nomi, manzili, muhit, vaqt mintaqasi) qatorlari `.env` dan olinadi
   va faqat ko'rsatiladi (`editable: false`).
 - To'lov kaliti `PaymentProvider::platformCredential()` kabi aniqlanadi: shu yerda saqlangani, bo'lmasa
-  `config/services.php`. Yangi `payment_providers.mode` ustuni eski `test_mode` kalitidan to'ldirildi. P4-32 dan
+  `config/services.php`. Yangi `payment_providers.mode` ustuni hamma qatorda `production`, `is_active` hamma qatorda
+  `true` bo'lib boshlanadi (review C#1: eski seeder Payme kalitlariga `test_mode: 'true'` yozgan, eski paneldagi rejim va
+  yoqish/o'chirish hech narsaga ta'sir qilmasdi — ularni olsak ishchi Payme to'lovlari sinov sahifasiga ketardi; `test_mode`
+  bo'lgan qatorlar faqat logga yoziladi). Migratsiyadan keyin Tizim → To'lov tizimlari'ni ko'rib chiqing
+  (docs/DEPLOY.md); `app:check-production` productionda test rejimidagi yoki o'chirilgan tizim haqida ogohlantiradi. P4-32 dan
   `is_active` va `mode` buyurtma oqimida ishlaydi — pastdagi «To'lov tizimini o'chirish va sinov rejimi» bo'limiga qarang. «Ulanishni tekshirish» yo'q: hech bir provayderda kalitni yon ta'sirsiz tekshiradigan so'rov yo'q.
 - Viloyatlar va tumanlar tartibi Mini App'ning `GET /locations` javobiga ham ta'sir qiladi (`sort_order`, keyin nom).
 - Eski paneldagi to'lov tizimi yaratish/o'chirish va ikonka yuklash ko'chirilmadi: yangi provayder kodsiz ishlamaydi,
@@ -3237,7 +3269,8 @@ qatorlar keshda, saqlanganda kesh tozalanadi):
 - **Sinov rejimi** (`mode: test`) platforma hisobi orqali Payme to'lovini Payme sinov sahifasiga (`checkout.test.paycom.uz`)
   yo'naltiradi; ishchi rejim — `checkout.paycom.uz`. Click'da alohida sinov manzili yo'q (`my.click.uz`). Kalitlar rejimdan
   qat'i nazar shu yerda saqlangani (yoki `.env`) — eski `test_mode` belgisi ham kalitlar yonida turgan edi: sinov paytida
-  sinov kalitlarini kiriting. O'z hisobiga yig'adigan ovqatxona har doim ishchi manzilda.
+  sinov kalitlarini kiriting. O'z hisobiga yig'adigan ovqatxona har doim ishchi manzilda. Production serverda sinov
+  rejimiga faqat `PAYMENTS_ALLOW_TEST_MODE=true` bilan o'tiladi (review S#7).
 - Satr yo'q (kalitlar faqat `.env`da) — tizim yoqilgan va ishchi rejimda.
 - To'lovdan qaytish manzili endi eski `/admin` panel emas: buyurtma — Mini App (`TELEGRAM_WEBAPP_URL`), balans to'ldirish —
   hamkor panelining `/finance` sahifasi (`PARTNER_WEB_URL`; bo'sh bo'lsa `APP_URL`).
@@ -3266,12 +3299,14 @@ tinch matn bilan aytadi. Kod: `routes/api_admin_integrations.php` (`/admin/integ
 Modellar: `IntegrationConnection`, `IntegrationEvent`, `ExternalRef` va enumlar (`IntegrationProvider`,
 `IntegrationDirection`, `IntegrationMode`, `IntegrationConnectionStatus`, `IntegrationEventDirection`,
 `IntegrationEventStatus`, `ExternalRefEntity`, `FiscalizedBy`); factory'lar `database/factories/Integrations`.
-Jurnalga yozuvchilar (5-bosqich) tanaga token va secret qo'ymaydi; o'qishda baribir `AuditRedactor` ishlaydi.
+Jurnalga yozuvchilar (5-bosqich) tanaga token va secret qo'ymaydi; o'qishda baribir `AuditRedactor` ishlaydi: sarlavha nomlari
+(`Authorization`, `Cookie`, `X-Auth`, `X-XSRF-TOKEN`, `sign`, `sign_string`, `session`) qiymati yashiriladi, matn ichidagi `Bearer ...`,
+Sanctum/JWT/`sk_live_` kabi tokenlar va URL'dagi `token=`, `signature=`, `key=` qiymatlari ham.
 
 | Endpoint | Ruxsat | Nima |
 |---|---|---|
 | `GET /admin/integrations/connections?status=&provider=&direction=&mode=&health=&store_id=&q=` | `integrations.view` | Sahifalangan (`page`, `per_page` 1–100, 30), eng kasal birinchi. `health`: `good` (80+), `attention` (50–79), `disconnected` (50 dan past), `unknown` (baho yo'q). Qatorda `health.verdict`, xato matnida telefon yashirilgan. `counts` (filtrsiz) va `stuck_orders` |
-| `GET /admin/integrations/connections/{uuid}` | shu | Karta: qator + `credentials` (faqat kalit nomi, `configured`, `last4`), `settings` (maxfiy ko'rinadigan kalitlar `[redacted]`, telefonlar yashirilgan), oxirgi 10 hodisa, `menu_map` (`external_refs` turlari bo'yicha), `stuck_orders` |
+| `GET /admin/integrations/connections/{uuid}` | shu | Karta: qator + `credentials` (faqat kalit nomi, `configured`, `last4` — 16+ belgili kalitning oxirgi 4 belgisi, faqat `integrations.manage` bor xodimga; boshqalarga `null`), `settings` (maxfiy ko'rinadigan kalitlar `[redacted]`, telefonlar yashirilgan), oxirgi 10 hodisa, `menu_map` (`external_refs` turlari bo'yicha), `stuck_orders` |
 | `POST /admin/integrations/connections/{uuid}/pause` | `integrations.manage` + step-up + `reason` | To'xtatish (`status_before_pause` eslab qolinadi). To'xtatilganni qayta to'xtatish hech narsa qilmaydi |
 | `POST /admin/integrations/connections/{uuid}/resume` | shu | Pauzadan oldingi holatga qaytarish (noma'lum bo'lsa `configuring`) |
 | `GET /admin/integrations/events?connection=&store_id=&status=&type=&direction=&from=&to=` | `integrations.view` | Jurnal, eng yangisi birinchi, kursor bilan (`cursor`, `per_page` 1–100, 25; `from`/`to` — Toshkent sanasi). Qatorlarda tana yo'q |
@@ -3317,7 +3352,9 @@ kasrli satr (`"4.2"`).
   **yangi** — oldin 0, endi bor (to'lay boshlagan, sinovi tugagan yoki qaytgan ovqatxona); **o'sish** — ikkalasida ham bor, oxirida
   ko'p (yuqori tarif, qo'shimcha qurilma); **kamayish** — ikkalasida ham bor, oxirida kam; **ketgan** — oldin bor, endi 0.
   `boshida + yangi + o'sish − kamayish − ketgan = oxirida` (tiyingacha).
-- **Faol ovqatxonalar** — holati `active` bo'lganlar; o'tgan oylar uchun holatlar tarixidan (`store_status_logs`) tiklanadi.
+- **Faol ovqatxonalar** — holati `active` bo'lganlar; o'tgan oylar uchun holatlar tarixidan (`store_status_logs`) tiklanadi. Tarixni `Store` modelining hook'i yuritadi (har bir holat
+  o'zgarishi, kim qilishidan qat'i nazar); `2026_11_07_100100_backfill_store_status_baseline_logs` migratsiyasi tarixi yo'q har bir
+  ovqatxonaga joriy holatni yaratilgan vaqtida bitta boshlang'ich yozuv qilib yozadi.
 - **Ketish (churn)** — oy boshida faol bo'lgan ovqatxonalardan nechtasi oy davomida (1) faol holatdan chiqdi (to'xtatildi, yopildi,
   o'chirildi) yoki (2) oy boshida pul to'lagan bo'lib, oy oxirida to'lamaydi (obunasi tugadi). Foiz = ketganlar ÷ oy boshidagi faollar
   (`rate`; oy boshida faol ovqatxona bo'lmasa `null`). `revenue_rate` — obunasi tugaganlarning MRR'i ÷ oy boshidagi MRR.
@@ -3332,7 +3369,8 @@ kasrli satr (`"4.2"`).
 
 ### `GET /admin/metrics?months=12&refresh=1`
 
-`months` 3–24 (standart 12; oxirgisi — tugamagan joriy oy). Javob (5 daqiqa keshlanadi, `generated_at`; `refresh=1` keshni tashlaydi):
+`months` 3–24 (standart 12; oxirgisi — tugamagan joriy oy). Javob (5 daqiqa keshlanadi, `generated_at`; `refresh=1` keshni tashlaydi —
+bir xodim uchun daqiqasiga ko'pi bilan bir marta, undan tez-tez so'ralsa keshdagi javob qaytadi):
 
 - `cards`: `mrr`, `mrr_change` (`direction`, `amount`, `percent` — oy boshiga nisbatan), `arr`, `paying_stores`, `trialing_stores`,
   `arpa`, `active_stores`, `churn_rate` va `churn_month` (oxirgi **tugagan** oy), `gmv_month`, `commission_month`, `revenue_complete`;
@@ -3378,6 +3416,8 @@ Qoidalar (hammasi uchun bitta yordamchi, `App\Services\Admin\Export\XlsxExporter
   `finance_balances`, `pos_invoices`, `pos_devices`, `audit_logs`) — kim, qaysi ro'yxat, filtrlar (qidiruvdagi telefon yashiriladi),
   qatorlar soni, `truncated`, `phones_shown`, IP.
 - Bir xodim daqiqasiga 10 tagacha eksport boshlay oladi (`admin.export.per_minute`, 429).
+- Boshqaruv markazi proksisi (`platform/admin/src/lib/server/proxy.ts`) fayl yuklash yo'llari (`exports/*`, oylik hisobot, hujjat/rasm) uchun
+  backend javobini 300 s gacha kutadi (boshqa so'rovlar 20 s); tashqi TLS proksining `proxy_read_timeout` i ham shuncha bo'lishi kerak.
 - Fayl 2 varaqdan iborat: ma'lumot (sarlavhalar qalin) va "Ma'lumot" (ro'yxat nomi, vaqt, kim, qatorlar, filtrlar).
 
 ### Migratsiya va testlar

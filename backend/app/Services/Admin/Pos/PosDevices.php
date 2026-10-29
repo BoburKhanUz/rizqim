@@ -147,7 +147,7 @@ class PosDevices
             'never' => $active()->whereNull('last_seen_at')->count(),
             'revoked' => $this->base()->whereNotNull('revoked_at')->count(),
             'outdated' => $this->query(['outdated' => true], $now)->count(),
-            'by_type' => $active()->selectRaw('type, COUNT(*) AS n')->groupBy('type')->pluck('n', 'type')->map(fn ($n) => (int) $n)->all(),
+            'by_type' => $active()->selectRaw('type, COUNT(*) AS n')->groupBy('type')->orderBy('type')->pluck('n', 'type')->map(fn ($n) => (int) $n)->all(),
         ];
     }
 

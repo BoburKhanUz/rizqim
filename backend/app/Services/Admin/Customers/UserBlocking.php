@@ -4,6 +4,7 @@ namespace App\Services\Admin\Customers;
 
 use App\Auth\AdminTokenGuard;
 use App\Models\Device;
+use App\Models\PosApproval;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -14,12 +15,17 @@ use Laravel\Sanctum\PersonalAccessToken;
  * reason each, audited by the controller).
  *
  * - block: users.blocked_at / blocked_by / blocked_reason, and every session ends. A blocked account signs in nowhere
- *   (Telegram, SMS code, refresh, staff PIN: AccountBlockedException), no token issued before works (the Sanctum
- *   check in AccessServiceProvider), so it cannot order; a blocked staff member's Telegram order buttons stop too.
+ *   (Telegram, SMS code, refresh: AccountBlockedException; a staff PIN is refused like a wrong one), no token issued
+ *   before works (the Sanctum check in AccessServiceProvider), so it cannot order; a blocked staff member's Telegram
+ *   order buttons stop too.
  *   A blocked owner's store keeps working (suspending a store is Ovqatxonalar' action).
  * - unblock: clears the three columns; the person signs in again.
  * - closeSessions: every token and refresh token of the account (Mini App, apps, staff PIN sessions on terminals),
  *   and its devices stop getting pushes. A terminal's own token belongs to the device, not to the person, and stays.
+ *   Manager approvals the person gave on a terminal (60-second tokens, POS) and not used yet expire as well.
+ * - Review W3: a blocked person's PIN is refused on every terminal (StaffPinService::eligibleStaff), they cannot
+ *   route the store's Telegram chat or claim an invite (TelegramMessageHandler) and get no notification
+ *   (NotificationRouter): what they could see before the block is not sent to them after it.
  *
  * An admin session token is never touched here, and a RIZQIM team account is never acted on (Jamoa disables those).
  * The old sanctum:prune-expired is never run (it would delete paired terminals' tokens too).
@@ -114,6 +120,10 @@ class UserBlocking
 
         // Signed out everywhere: no more pushes to its installs (P1-22)
         Device::query()->where('user_id', $user->id)->whereNotNull('push_token')->update(['push_token' => null]);
+
+        // A manager approval given on a terminal a moment ago is not used after the sign-out (review W3 S#1)
+        PosApproval::query()->where('manager_id', $user->id)->whereNull('used_at')->where('expires_at', '>', now())
+            ->update(['expires_at' => now()->subSecond()]);
 
         return ['tokens' => (int) $tokens, 'refresh_tokens' => (int) $refresh];
     }

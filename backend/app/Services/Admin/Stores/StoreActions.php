@@ -7,7 +7,6 @@ use App\Enums\StoreStatus;
 use App\Enums\UserRole;
 use App\Models\Store;
 use App\Models\StoreApplication;
-use App\Models\StoreStatusLog;
 use App\Models\User;
 use App\Services\Sms\SmsServiceInterface;
 use App\Services\Telegram\TelegramMessenger;
@@ -18,7 +17,7 @@ use Illuminate\Support\Str;
 /**
  * P4-22: what a team member does to a store from its 360° card (admin.stores.manage, a step-up and a `reason` each,
  * audited by the controller with the fields before and after). Every status change writes a StoreStatusLog row with
- * the member and the reason (the card's "Holat tarixi").
+ * the member and the reason (the card's "Holat tarixi"); the Store model's updated hook writes it, setStatus names the member.
  *
  *  - suspend: status suspended and hidden from the marketplace (is_active false): no new Mini App orders, the store
  *    disappears from the catalog. The till keeps working (the POS never checks the store status) — owner decision:
@@ -131,8 +130,10 @@ class StoreActions
      *
      *  - `payment_account_type`: platform_account (Click/Payme pay the platform, the ledger settles the store's wallet)
      *    or own_account (the store's own merchant cashbox, once the owner entered its keys in the partner panel). Not
-     *    while the store has an online order waiting for its payment: its callbacks are verified with the key of the
-     *    account it was placed with (409 payments_in_flight);
+     *    while the store has an online order still unpaid at any stage (review C#2: not only `new`; one that is not
+     *    cancelled, rejected or refunded may still be paid) — 409 payments_in_flight. The callbacks of an order, and
+     *    the refund of a paid one, are verified with the account it was placed with (`payment_owner`,
+     *    App\Services\Payment\OrderMerchantAccount) whatever this is changed to;
      *  - `min_payout_reserve`: what stays in the wallet after a payout (LedgerService::availableForPayout).
      *
      * @param  array{payment_account_type?: string, min_payout_reserve?: string}  $change
@@ -150,9 +151,9 @@ class StoreActions
             if (array_key_exists('payment_account_type', $change) && $change['payment_account_type'] !== $before['payment_account_type']) {
                 $waiting = \App\Models\Order::query()
                     ->where('store_id', $store->id)
-                    ->where('status', \App\Enums\OrderStatus::NEW->value)
+                    ->whereNotIn('status', [\App\Enums\OrderStatus::CANCELED->value, \App\Enums\OrderStatus::REJECTED->value, \App\Enums\OrderStatus::REFUNDED->value])
                     ->whereIn('payment_method', (array) config('orders.online_payment_methods', []))
-                    ->where('payment_status', '!=', \App\Enums\PaymentStatus::PAID->value)
+                    ->whereNotIn('payment_status', [\App\Enums\PaymentStatus::PAID->value, \App\Enums\PaymentStatus::REFUNDED->value])
                     ->exists();
                 if ($waiting) {
                     throw new StoreAdminException(
@@ -329,17 +330,8 @@ class StoreActions
     public function setStatus(Store $store, StoreStatus $to, bool $isActive, ?User $member, string $comment): array
     {
         $before = ['status' => $store->status->value, 'is_active' => (bool) $store->is_active];
-        $store->forceFill(['status' => $to->value, 'is_active' => $isActive])->save();
-
-        if ($before['status'] !== $to->value) {
-            StoreStatusLog::create([
-                'store_id' => $store->id,
-                'from_status' => $before['status'],
-                'to_status' => $to->value,
-                'admin_id' => $member?->id,
-                'comment' => mb_substr(trim($comment), 0, 1000),
-            ]);
-        }
+        // The Store model's updated hook writes the StoreStatusLog row (the member and the reason set here)
+        $store->logStatusChangeAs($member, $comment)->forceFill(['status' => $to->value, 'is_active' => $isActive])->save();
 
         return ['before' => $before, 'after' => ['status' => $to->value, 'is_active' => $isActive]];
     }

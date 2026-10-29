@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Route;
 // P4-31: Mijozlar va yordam. Loaded from routes/api_admin.php inside the auth:admin group (prefix /api/v1/admin, names
 // admin.*). Users: admin.users.view reads; block, unblock and closing sessions need admin.support.manage, a step-up
 // (admin.recent) and a `reason`. Complaints, tayyor javoblar and Shubhali holatlar: admin.support.view reads,
-// admin.support.manage changes. RIZQIM team accounts are never listed or acted on here. The route name is the audit
-// action.
+// admin.support.manage changes (a reply to the customer: at most 20 a minute per member, admin-complaint-reply). RIZQIM
+// team accounts are never listed or acted on here. The route name is the audit action.
 
 $id = '[1-9][0-9]{0,17}';
 
@@ -35,7 +35,7 @@ Route::middleware('admin.can:support.view')->group(function () {
 
 Route::middleware('admin.can:support.manage')->group(function () use ($id) {
     Route::patch('/complaints/{uuid}', [AdminComplaintController::class, 'update'])->whereUuid('uuid')->name('support.complaint_updated');
-    Route::post('/complaints/{uuid}/reply', [AdminComplaintController::class, 'reply'])->whereUuid('uuid')->name('support.complaint_replied');
+    Route::post('/complaints/{uuid}/reply', [AdminComplaintController::class, 'reply'])->whereUuid('uuid')->middleware('throttle:admin-complaint-reply')->name('support.complaint_replied');
     Route::post('/complaints/{uuid}/resolve', [AdminComplaintController::class, 'resolve'])->whereUuid('uuid')->name('support.complaint_resolved');
 
     Route::post('/support/canned-replies', [AdminSupportCannedReplyController::class, 'store'])->name('support.canned_reply_created');

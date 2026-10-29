@@ -162,6 +162,7 @@ export class FakeStores {
         return ok(this.card(store, can))
       }
       if (req.method === 'PUT' && sub === 'payment-account') {
+        if (!can('admin.finance.manage')) return forbidden
         if (body.payment_account_type === 'own_account' || body.payment_account_type === 'platform_account') store.payment_account_type = body.payment_account_type
         if (body.min_payout_reserve !== undefined) store.min_payout_reserve = Number(body.min_payout_reserve).toFixed(2)
         return ok(this.card(store, can))
@@ -392,7 +393,8 @@ export class FakeStores {
       actions: {
         manage, suspend: manage && store.status !== 'suspended', activate: manage && store.status !== 'active' && application === null, credit_limit: manage, display: manage,
         telegram_link: manage && store.owner !== null && !store.owner.telegram, message_owner: manage && Boolean(store.owner?.telegram), commission_override: can('admin.subscriptions.manage'),
-        payment_account: manage, owner_login_phone: manage && store.owner !== null && can('admin.stores.impersonate'),
+        // Review S#8: it routes money, so admin.finance.manage as well
+        payment_account: manage && can('admin.finance.manage'), owner_login_phone: manage && store.owner !== null && can('admin.stores.impersonate'),
       },
       links: { orders: `/orders?store_id=${store.id}`, audit: `/audit?store_id=${store.id}`, subscription: `/pos?store=${store.id}` },
     }

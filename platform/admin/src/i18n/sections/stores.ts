@@ -220,7 +220,7 @@ export const stores = defineSection({
     stores_close: 'Yopish',
     stores_account: "To'lov hisobi",
     stores_accountTitle: "To'lov hisobi va zaxira",
-    stores_accountText: "Onlayn to'lovlar (Click, Payme) qayerga tushishi va payoutdan keyin hamyonda qancha qolishi. To'lovi kutilayotgan onlayn buyurtma bo'lsa, hisob turi o'zgarmaydi.",
+    stores_accountText: "Onlayn to'lovlar (Click, Payme) qayerga tushishi va payoutdan keyin hamyonda qancha qolishi. To'lanmagan onlayn buyurtma bo'lsa (bekor qilingan, rad etilgan yoki qaytarilganidan boshqa), hisob turi o'zgarmaydi. Allaqachon to'langan buyurtmalarning qaytarilishi o'zi to'langan hisob orqali o'tadi.",
     stores_accountType: "To'lov hisobi",
     stores_accountPlatform: 'RIZQIM hisobi (platforma yig\'adi)',
     stores_accountOwn: "Ovqatxonaning o'z hisobi",

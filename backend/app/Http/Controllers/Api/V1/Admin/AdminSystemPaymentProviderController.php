@@ -44,10 +44,13 @@ class AdminSystemPaymentProviderController extends AdminController
     /**
      * Switch a provider
      *
-     * `is_active` and/or `mode` (test | production), `reason`. Answers the provider.
+     * `is_active` and/or `mode` (test | production), `reason`. Answers the provider. On APP_ENV=production a move to
+     * `test` is refused with 422 `test_mode_not_allowed` unless the server sets PAYMENTS_ALLOW_TEST_MODE=true (a row
+     * already in test may still be saved or switched back).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . PaymentProviders::ROW . '}')]
     #[ApiDocResponse(404, 'No such provider (not_found)', type: self::ERROR)]
+    #[ApiDocResponse(422, 'Test mode on production without PAYMENTS_ALLOW_TEST_MODE (test_mode_not_allowed)', type: self::ERROR)]
     public function update(Request $request, string $slug): JsonResponse
     {
         $data = $request->validate([
@@ -61,7 +64,11 @@ class AdminSystemPaymentProviderController extends AdminController
             return $this->notFound();
         }
 
-        $change = $this->providers->update($provider, array_intersect_key($data, array_flip(['is_active', 'mode'])));
+        try {
+            $change = $this->providers->update($provider, array_intersect_key($data, array_flip(['is_active', 'mode'])));
+        } catch (SystemAdminException $e) {
+            return $this->refuse($e->getMessage(), $e->reason, $e->status, $e->data);
+        }
         $audit = AdminAudit::for($request)->subject($provider)->changes($change['before'], $change['after'])->meta(['provider' => $provider->slug]);
         if ($change['before'] === $change['after']) {
             $audit->skip();

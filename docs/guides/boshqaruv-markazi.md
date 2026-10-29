@@ -189,14 +189,14 @@ ishlayotgan ovqatxonalar). Viloyati ko'rsatilmagan filiallar "Viloyat ko'rsatilm
 
 Menyuda **Ko'rsatkichlar** ("Bugun"dan keyin). Moliya yoki ovqatxonalarni ko'rish ruxsati bor har bir xodim ochadi. Faqat o'qish:
 bu yerda hech narsa o'zgartirilmaydi. Tepada **Davr** (6, 12 yoki 24 oy) va **Yangilash** tugmasi: raqamlar 5 daqiqaga saqlanadi,
-tugma yangisini so'raydi. Oylar Toshkent vaqti bilan.
+tugma yangisini so'raydi (daqiqasiga bir marta; undan tez bosilsa, saqlangan raqamlar ko'rsatiladi). Oylar Toshkent vaqti bilan.
 
 ### Kartalar
 
 - **MRR** — hozir pul to'layotgan ovqatxonalarning oylik obuna daromadi yig'indisi (yillik obuna 12 ga bo'linadi, tarifdan ortiq
   kassa va oshxona ekranlari qo'shiladi). **Sinov davridagi ovqatxonalar kirmaydi.** Pastida: oy boshiga nisbatan o'zgarish.
 - **ARR** — MRR × 12. **Pullik ovqatxonalar** (sinovdagilar soni pastida). **ARPA** — bitta pullik ovqatxonadan o'rtacha.
-- **Faol ovqatxonalar** — holati "Faol" bo'lganlar. **Ketish** — oxirgi **tugagan** oy uchun (qaysi oy ekani yozilgan).
+- **Faol ovqatxonalar** — holati "Faol" bo'lganlar (o'tgan oylar uchun ovqatxona holatlari tarixidan; har bir holat o'zgarishi — qo'lda ham, qarz sababli avtomatik ham — kartaning «Holat tarixi»ga yoziladi, avtomatiklari «system» izohi bilan). **Ketish** — oxirgi **tugagan** oy uchun (qaysi oy ekani yozilgan).
 - **GMV** va **Komissiya** — shu oyning, Telegram va mobil buyurtmalardan. Agar oyning ayrim kunlari hisoblanmagan bo'lsa,
   kartada "raqamlar to'liq emas" deyiladi.
 
@@ -314,7 +314,7 @@ Kartada yorliqlar:
 | **Ko'rsatish sozlamalari** | "Premium" va "Tavsiya etilgan" belgilari (marketpleysda ko'rinishi) |
 | **Telegram havola** | Egasi uchun bir martalik yangi havola; eskisi ishlamay qoladi. Havola egasining tasdiqlangan telefoniga **SMS bilan** boradi va ekranda ko'rinmaydi |
 | **Egasiga yozish** | Oddiy matn RIZQIM boti orqali egasining Telegramiga boradi |
-| **To'lov hisobi** | Onlayn to'lov pullari qayerga tushadi: RIZQIM hisobi (`platform_account` — pul hamyonga yig'iladi, ovqatxona payout so'raydi) yoki ovqatxonaning o'z hisobi (`own_account` — o'z Click/Payme kalitlari bilan). Shu yerda **payout zaxirasi** ham: hamyonda doim qoladigan, payout qilib bo'lmaydigan summa. Kutilayotgan onlayn to'lovi bor ovqatxonada hisob turini almashtirib bo'lmaydi — to'lovlar yakunlanguncha kuting |
+| **To'lov hisobi** | Onlayn to'lov pullari qayerga tushadi: RIZQIM hisobi (`platform_account` — pul hamyonga yig'iladi, ovqatxona payout so'raydi) yoki ovqatxonaning o'z hisobi (`own_account` — o'z Click/Payme kalitlari bilan). Shu yerda **payout zaxirasi** ham: hamyonda doim qoladigan, payout qilib bo'lmaydigan summa. Pul yo'nalishini o'zgartirgani uchun ovqatxonalarni boshqarish bilan birga **moliyani boshqarish** ruxsati ham kerak (standartda faqat Superadmin; ruxsat bo'lmasa tugma ko'rinmaydi). To'lanmagan onlayn buyurtmasi bor ovqatxonada (bekor qilingan, rad etilgan yoki qaytarilganidan boshqa — qaysi bosqichda bo'lmasin) hisob turini almashtirib bo'lmaydi — to'lovlar yakunlanguncha kuting. Allaqachon to'langan buyurtmaning qaytarilishi u to'langan hisob orqali o'tadi, hisob turi keyin o'zgargan bo'lsa ham |
 | **Kirish raqami** | Egasining hamkor paneliga SMS bilan kirish raqami (masalan, eski raqamini yo'qotgan bo'lsa). Faqat "Ovqatxona egasi sifatida kirish" (`stores.impersonate`, standartda Superadmin) ruxsati bor xodimda (u egasi nomidan kirishga ruxsat bermaydi — bunday imkoniyat yo'q); eski raqam bilan ochilgan sessiyalar yopiladi |
 
 Komissiya stavkasini o'zgartirish bu yerda emas — [POS va obunalar](#pos-va-obunalar) bo'limida. Karta tagidagi havolalar ovqatxonaning
@@ -531,8 +531,12 @@ Qatorni bosing — **foydalanuvchi kartasi** ochiladi (umumiy qidiruvdagi foydal
 
 **Bloklash** — firibgarlik yoki suiiste'molda. Sabab yoziladi va 6 xonali kod so'raladi. Bloklangan odam hech qayerga
 kira olmaydi (Mini App, ilova, hamkor paneli, kassa PIN), buyurtma bera olmaydi, hozirgi barcha sessiyalari darhol
-yopiladi; kartada kim, qachon, nima uchun bloklagani yoziladi. **Ovqatxona egasi bloklansa, ovqatxona ishlashda davom
-etadi** — ovqatxonani to'xtatish Ovqatxonalar bo'limida. **Blokdan chiqarish** — sabab va kod bilan, odam qaytadan
+yopiladi; kartada kim, qachon, nima uchun bloklagani yoziladi. Bloklangan xodimning PIN'i kassada hech narsani
+tasdiqlamaydi, u kassadagi xodimlar ro'yxatidan chiqadi, Telegram'da ovqatxona chatini bog'lay olmaydi va taklif
+havolasidan foydalana olmaydi, unga hech qanday xabar (buyurtma kartasi, mijoz telefoni va manzili) bormaydi.
+**Ovqatxona egasi bloklansa, ovqatxona ishlashda davom etadi** — buyurtma kartalari ovqatxonaning Telegram chatiga
+boraveradi (chat ovqatxonaniki); ovqatxonani to'xtatish Ovqatxonalar bo'limida. Ega o'z harakatlar jurnalida bu amalni
+"RIZQIM jamoasi" nomidan ko'radi: sizning ismingiz, IP manzilingiz va yozgan sababingiz unga ko'rinmaydi. **Blokdan chiqarish** — sabab va kod bilan, odam qaytadan
 kira oladi.
 
 **Sessiyalarni yopish** — telefon yo'qolganda yoki o'g'irlanganda: Mini App, ilova va kassadagi PIN sessiyalari yopiladi
@@ -556,6 +560,11 @@ Shikoyatni bosing:
   Mijozning Telegrami bo'lmasa, tugma yo'q — hal qilish izohini u Mini App'da ko'radi.
 - **Hal qilish** — qanday hal qilinganini yozing. Izoh mijozga Mini App'dagi shikoyatlar ro'yxatida ko'rinadi.
 - **Qayta ochish** — hal qilingan shikoyat bo'yicha ish davom etsa.
+
+Mijoz ovqatxona javobidan qoniqmay shikoyatni RIZQIMga yuborsa, u yana ochiq bo'ladi: mas'ul xodimi bo'lsa "Ko'rib
+chiqilmoqda", bo'lmasa "Yangi" (oldin javob berilgan yoki hal qilingan bo'lsa ham). Yordam holati, mas'ul xodim va
+javob/hal qilish vaqtlari mijozga ham, ovqatxonaga ham ko'rinmaydi. Bir xodim daqiqasiga ko'pi bilan 20 ta javob
+yuboradi.
 
 **Tayyor javoblar** tugmasi — tez-tez yoziladigan matnlar (masalan "Kechikish uchun uzr"). Qo'shish, tahrirlash va
 o'chirish — "Murojaatlarni hal qilish" ruxsati bilan; o'zgartirish oldin yuborilgan javoblarga ta'sir qilmaydi.
@@ -744,7 +753,7 @@ API). Ulagichlar **5-bosqichda** qo'shiladi; hozir sahifa tayyor, lekin ro'yxatl
 
 - **Ulanishlar.** Har ovqatxona (yoki filial) ulanishi: tizim, yo'nalish (RIZQIM → joyning POS'i yoki Agregator → Rizqim
   POS), rejim (Sinov / Ishchi), holat va **sog'liq bahosi** (80 va yuqori — «Yaxshi», 50–79 — «E'tibor kerak», 50 dan past —
-  «Uzilgan»), oxirgi muvaffaqiyatli so'rov, bugungi xatolar. Kartada kalitlar (faqat nomi va oxirgi 4 belgisi), sozlamalar,
+  «Uzilgan»), oxirgi muvaffaqiyatli so'rov, bugungi xatolar. Kartada kalitlar (nomi; 16 belgidan uzun kalitning oxirgi 4 belgisi esa faqat «Integratsiyalarni boshqarish» ruxsati borga), sozlamalar,
   oxirgi hodisalar va menyu xaritasi soni. **To'xtatish** (sabab va kod bilan) — ulanish orqali hech narsa yuborilmaydi;
   buyurtma baribir RIZQIM xodim ekranida va Telegramda chiqadi. **Qayta yoqish** oldingi holatga qaytaradi.
 - **Hodisalar jurnali.** Tashqi tizimga har so'rov va undan kelgan har webhook: turi, holati (Kutmoqda, Yuborildi,
@@ -775,7 +784,10 @@ daqiqada kiritilmagan bo'lsa); hammasi harakatlar jurnaliga yoziladi. To'rtta bo
   to'lov sahifasi Payme'ning sinov manzilida (sandbox, `checkout.test.paycom.uz`) ochiladi va **kalitlar o'zgarmaydi** —
   sinov paytida jamoa shu yerga Payme bergan **sinov kalitlarini** o'zi kiritadi, ishchi rejimga qaytishdan oldin ishchi
   kalitlarni qaytaradi. Click'da alohida sinov manzili yo'q (sinov — Click'dagi sinov xizmati va uning kalitlari). O'z
-  hisobiga yig'adigan ovqatxonalarning to'lovlari har doim ishchi manzilda. Haqiqiy to'lovlar uchun «Ishchi».
+  hisobiga yig'adigan ovqatxonalarning to'lovlari har doim ishchi manzilda. Haqiqiy to'lovlar uchun «Ishchi». **Production
+  serverda «Sinov»ni saqlab bo'lmaydi** — ekranda sababi chiqadi; ataylab sinash kerak bo'lsa texnik jamoa serverda
+  `PAYMENTS_ALLOW_TEST_MODE=true` qiladi. Yangilanishdan keyin hamma tizim «Faol» va «Ishchi» bo'lib boshlanadi: bu
+  bo'limni bir ko'rib chiqing.
 - **Viloyatlar va tumanlar.** Mini App manzil formasi, filiallar va arizalar shu ro'yxatdan tanlaydi. Qo'shish, nomini
   o'zgartirish, yoqish/o'chirish va tartib («Tartibni o'zgartirish» → yuqoriga/pastga → «Tartibni saqlash»). Filial, mijoz
   manzili yoki ariza ishlatayotgan viloyat/tuman **o'chirilmaydi** — uni «Faol emas» qiling. Tumanlari bor viloyat ham
@@ -867,6 +879,7 @@ ko'rinadi (standart: Moliya va Superadmin; rollar sahifasida o'zgartiriladi).
   holat) va qayta yuklang.
 - **Telefon raqamlari** ro'yxatdagidek yashirin; to'liq raqam faqat "to'liq telefon va karta" ruxsati borga (bu ham jurnalga yoziladi).
   **Karta raqamlari faylda hamisha yashirin.**
+- Katta eksport 5 daqiqagacha kutiladi (oddiy so'rovlar 20 soniyagacha).
 - Har bir eksport **harakatlar jurnaliga** yoziladi (kim, qaysi ro'yxat, filtrlar, nechta qator). Daqiqasiga 10 tadan ko'p eksport
   qilib bo'lmaydi.
 - Matnlar katakda matn bo'lib qoladi (formula ishlamaydi); summalar son — Excel'da yig'ish mumkin.

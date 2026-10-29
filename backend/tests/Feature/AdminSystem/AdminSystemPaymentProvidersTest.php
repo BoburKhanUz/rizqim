@@ -5,9 +5,11 @@ namespace Tests\Feature\AdminSystem;
 use App\Enums\PlatformRole;
 use App\Models\AuditLog;
 use App\Models\PaymentProvider;
+use App\Services\Payment\PaymentProviderSwitch;
 use Database\Seeders\PaymentProviderSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -67,18 +69,76 @@ class AdminSystemPaymentProvidersTest extends TestCase
         $this->adminJson('GET', '/system/payment-providers', $this->signIn($this->makeMember(PlatformRole::VIEWER)))->assertForbidden();
     }
 
-    public function test_the_mode_column_starts_from_the_old_test_mode_flag(): void
+    /**
+     * Review C#1: the old seeder wrote Payme's credentials with test_mode 'true', and the old panel's mode and on/off
+     * switches did nothing. Now both route live payments, so the migration starts every row in production and on (the
+     * team reviews Tizim → To'lov tizimlari after migrating, docs/DEPLOY.md) and only logs where test_mode was set.
+     */
+    public function test_the_migration_starts_every_provider_in_production_and_on(): void
+    {
+        PaymentProvider::where('slug', 'uzum')->sole()->forceFill(['is_active' => false])->save();
+        $migration = require database_path('migrations/2026_11_06_300200_add_mode_to_payment_providers_table.php');
+        $migration->down();
+
+        Log::spy();
+        $migration->up();
+
+        $this->assertSame(
+            ['payme' => ['production', true], 'click' => ['production', true], 'uzum' => ['production', true], 'paynet' => ['production', true]],
+            DB::table('payment_providers')->orderBy('id')->get(['slug', 'mode', 'is_active'])->mapWithKeys(fn ($row) => [$row->slug => [$row->mode, (bool) $row->is_active]])->all(),
+        );
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context = []) => str_contains($message, 'test_mode') && ($context['providers'] ?? null) === ['payme'])->once();
+        // The credentials are untouched
+        $this->assertSame(self::SECRET, PaymentProvider::where('slug', 'payme')->sole()->credentials['secret_key']);
+    }
+
+    public function test_after_the_migration_a_live_payme_checkout_opens_production(): void
     {
         $migration = require database_path('migrations/2026_11_06_300200_add_mode_to_payment_providers_table.php');
         $migration->down();
         $migration->up();
+        PaymentProviderSwitch::forget();
 
-        $this->assertSame(['test', 'production'], [
-            DB::table('payment_providers')->where('slug', 'payme')->value('mode'),
-            DB::table('payment_providers')->where('slug', 'click')->value('mode'),
-        ]);
-        // The credentials are untouched
-        $this->assertSame(self::SECRET, PaymentProvider::where('slug', 'payme')->sole()->credentials['secret_key']);
+        $this->assertSame('production', app(PaymentProviderSwitch::class)->mode('payme'));
+        $this->assertSame('https://checkout.paycom.uz/', app(PaymentProviderSwitch::class)->paymeCheckoutBase());
+    }
+
+    public function test_the_seeder_starts_every_provider_in_production(): void
+    {
+        $this->assertSame(['production'], PaymentProvider::query()->distinct()->pluck('mode')->all());
+        $this->assertSame([true], PaymentProvider::query()->distinct()->pluck('is_active')->map(fn ($active) => (bool) $active)->all());
+    }
+
+    /**
+     * Review S#7: on production the sandbox is refused unless PAYMENTS_ALLOW_TEST_MODE=true; back to production and
+     * the on/off switch always work.
+     */
+    public function test_production_refuses_test_mode_without_the_override(): void
+    {
+        config(['app.env' => 'production']);
+
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['mode' => 'test', 'reason' => 'Sinov'])
+            ->assertStatus(422)->assertJsonPath('code', 'test_mode_not_allowed')
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'PAYMENTS_ALLOW_TEST_MODE'));
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['is_active' => false, 'mode' => 'test', 'reason' => 'Sinov'])
+            ->assertStatus(422)->assertJsonPath('code', 'test_mode_not_allowed');
+        $this->assertSame(['production', true], [PaymentProvider::where('slug', 'payme')->value('mode'), (bool) PaymentProvider::where('slug', 'payme')->value('is_active')]);
+        $this->assertSame(0, AuditLog::where('action', 'admin.system.payment_provider_updated')->count());
+
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['is_active' => false, 'mode' => 'production', 'reason' => "Vaqtincha o'chiramiz"])
+            ->assertOk()->assertJsonPath('data.is_active', false);
+
+        config(['services.payments.allow_test_mode' => true]);
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['mode' => 'test', 'reason' => 'Sinov'])->assertOk()->assertJsonPath('data.mode', 'test');
+
+        // A row already in test (the override was on then) may still be switched back, and saved as it is
+        config(['services.payments.allow_test_mode' => false]);
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['mode' => 'test', 'is_active' => true, 'reason' => 'Yoqamiz'])->assertOk();
+        $this->adminJson('PATCH', '/system/payment-providers/payme', $this->superToken(), ['mode' => 'production', 'reason' => 'Ishga tushirdik'])->assertOk()->assertJsonPath('data.mode', 'production');
+
+        // Staging (and local) may test freely
+        config(['app.env' => 'staging']);
+        $this->adminJson('PATCH', '/system/payment-providers/click', $this->superToken(), ['mode' => 'test', 'reason' => 'Sinov'])->assertOk()->assertJsonPath('data.mode', 'test');
     }
 
     public function test_switching_a_provider_is_guarded_and_audited(): void

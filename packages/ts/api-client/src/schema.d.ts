@@ -1221,7 +1221,7 @@ export interface paths {
         };
         /**
          * A connection
-         * @description The list row plus `credentials` (key names, `configured`, `last4`), `settings` (secret-looking keys
+         * @description The list row plus `credentials` (key names, `configured`, `last4`: the last 4 characters of a credential of 16 or more, only with `admin.integrations.manage`, else null), `settings` (secret-looking keys
          *     "[redacted]", phones masked), the last 10 events, the menu map counts (`external_refs` by type) and how many of
          *     its orders are stuck.
          */
@@ -1721,7 +1721,7 @@ export interface paths {
          *     the start, how many churned (went inactive, or their subscription ended), `rate` and `revenue_rate` in percent.
          *     `revenue`: per month marketplace `orders`, `gmv`, `commission` and paid subscription invoices from the Bugun
          *     aggregate, with `missing_days` / `complete` when the aggregate lacks days. Money is a decimal string. Cached a few
-         *     minutes (`generated_at`).
+         *     minutes (`generated_at`); `refresh=1` rebuilds it, at most once a minute per member (sooner: the cached report).
          */
         get: operations["admin.metrics.overview"];
         put?: never;
@@ -3155,9 +3155,10 @@ export interface paths {
          * @description P4-32 (the old superadmin store form's money settings). `payment_account_type`: `platform_account` (Click and
          *     Payme pay the platform, which settles the store's wallet) or `own_account` (the store's own merchant cashbox; the
          *     owner enters its keys in the partner panel, until then the platform collects); `min_payout_reserve`: what must
-         *     stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. 409 `payments_in_flight`
-         *     while an online order of the store waits for its payment (its callbacks are verified with the account it was
-         *     placed with). Answers the card.
+         *     stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. Needs `admin.finance.manage`
+         *     as well as `admin.stores.manage` (it routes money; superadmin by default). 409 `payments_in_flight` while an
+         *     online order of the store is still unpaid (any status but cancelled, rejected or refunded). An order's callbacks
+         *     and refunds are verified with the account it was placed with, whatever this becomes. Answers the card.
          */
         put: operations["admin.stores.payment_account_changed"];
         post?: never;
@@ -3425,7 +3426,9 @@ export interface paths {
         head?: never;
         /**
          * Switch a provider
-         * @description `is_active` and/or `mode` (test | production), `reason`. Answers the provider.
+         * @description `is_active` and/or `mode` (test | production), `reason`. Answers the provider. On APP_ENV=production a move to
+         *     `test` is refused with 422 `test_mode_not_allowed` unless the server sets PAYMENTS_ALLOW_TEST_MODE=true (a row
+         *     already in test may still be saved or switched back).
          */
         patch: operations["admin.system.payment_provider_updated"];
         trace?: never;
@@ -3577,7 +3580,7 @@ export interface paths {
          * Settings
          * @description Groups `sms`, `telegram`, `general`. `editable=false` items come from the server's configuration (.env) and only
          *     show. `source`: `settings` (stored here), `env`, `default` (the code's own) or null (not set). A secret
-         *     (`secret=true`) has `value: null`, `configured` and `last4` (null for a value under 8 characters).
+         *     (`secret=true`) has `value: null`, `configured` and `last4` (null for a value under 16 characters).
          */
         get: operations["admin.system.settings"];
         put?: never;
@@ -4607,7 +4610,9 @@ export interface paths {
          * @description The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a
          *     prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`
          *     (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
-         *     `ip` is shown to the owner only.
+         *     `ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,
+         *     subject and before/after, but its actor is `{id: null, name: "RIZQIM jamoasi", role: "platform"}`, without the
+         *     member's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.
          */
         get: operations["auditLog.index"];
         put?: never;
@@ -8488,13 +8493,6 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
-            support_status: components["schemas"]["ComplaintSupportStatus"];
-            /** Format: date-time */
-            support_status_changed_at: string | null;
-            /** Format: date-time */
-            answered_at: string | null;
-            /** Format: date-time */
-            resolved_at: string | null;
             order?: components["schemas"]["Order"];
             user?: components["schemas"]["User"];
             resolver?: components["schemas"]["User"] | null;
@@ -8516,12 +8514,6 @@ export interface components {
             complaint?: components["schemas"]["Complaint"];
             author?: components["schemas"]["User"] | null;
         };
-        /**
-         * ComplaintSupportStatus
-         * @description P4-31: where a complaint is on the RIZQIM support side (complaints.support_status, Mijozlar va yordam → Shikoyatlar): new → in_progress (someone took it) → answered (support wrote to the customer) → resolved (closed with a note). The customer ↔ store flow (complaints.status: pending, owner_replied, in_review, closed) runs beside it.
-         * @enum {string}
-         */
-        ComplaintSupportStatus: "new" | "in_progress" | "answered" | "resolved";
         /**
          * CourierType
          * @description Whose courier it is: the restaurant's own staff or the platform's fleet. Dispatch by type comes in phase 4.
@@ -19589,7 +19581,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            422: components["responses"]["ValidationException"];
+            /** @description Test mode on production without PAYMENTS_ALLOW_TEST_MODE (test_mode_not_allowed) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "admin.system.payment_credential_replaced": {
@@ -23154,7 +23154,7 @@ export interface operations {
                                 id: number;
                                 action: string;
                                 actor: {
-                                    id: number;
+                                    id: number | null;
                                     name: string;
                                     role: string;
                                 } | null;

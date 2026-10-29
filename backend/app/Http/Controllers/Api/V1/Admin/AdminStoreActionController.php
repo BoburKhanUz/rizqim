@@ -106,9 +106,10 @@ class AdminStoreActionController extends AdminController
      * P4-32 (the old superadmin store form's money settings). `payment_account_type`: `platform_account` (Click and
      * Payme pay the platform, which settles the store's wallet) or `own_account` (the store's own merchant cashbox; the
      * owner enters its keys in the partner panel, until then the platform collects); `min_payout_reserve`: what must
-     * stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. 409 `payments_in_flight`
-     * while an online order of the store waits for its payment (its callbacks are verified with the account it was
-     * placed with). Answers the card.
+     * stay in the wallet after a payout, 0–100 000 000 so'm. Either or both, and `reason`. Needs `admin.finance.manage`
+     * as well as `admin.stores.manage` (it routes money; superadmin by default). 409 `payments_in_flight` while an
+     * online order of the store is still unpaid (any status but cancelled, rejected or refunded). An order's callbacks
+     * and refunds are verified with the account it was placed with, whatever this becomes. Answers the card.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array<string, mixed>}')]
     #[ApiDocResponse(409, 'An online payment is still on its way (payments_in_flight)', type: self::ERROR)]
