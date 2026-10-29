@@ -442,7 +442,7 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
    ofitsiant telefoni kabi) yoki qo'shimcha KDS kabi 29 000 so'm.
 8. **Format ro'yxati:** 6-bo'limdagi 14 profil va ularning nomlari ariza formasida (P4-22) — tasdiqlash.
 9. **Ofitsiant ish haqi:** standart qoidalar ro'yxati (smena stavkasi, sotuvdan %, xizmat haqidan %, garant + %, tadbir
-   stavkasi) yetarlimi; choy puli shaxsiymi yoki umumiy qozonga.
+   stavkasi) yetarlimi; choy puli shaxsiymi yoki umumiy qozonga. **Qaror (29.10.2026):** moslashuvchan — choy puli rejimi (shaxsiy yoki umumiy qozon va bo'lish qoidasi) va ish haqi qoidalari (bir nechta komponent birga) filial sozlamasidan tanlanadi.
 10. **To'yxona:** mehmon soni va vaqt chegarasi ogohlantirishi yoqilsinmi; shartnoma matni namunasi (yurist bilan); zaklad
     va bekor qilish qoidasi bo'yicha 2–3 to'yxona menejeri bilan suhbat.
 11. **Dark kitchen:** shu bosqichda (tavsiya: oxirgi to'lqinda, 5-bosqich ulagichlari tayyor bo'lsa) yoki keyin alohida.
