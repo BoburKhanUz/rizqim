@@ -25,6 +25,10 @@ use Illuminate\Support\Facades\DB;
  * on it (booking_payments.refunded_shift_id; cash ones were paid from its drawer). Cash deposits and cash repayments count toward the expected
  * cash, cash deposit refunds against it: the booking and account tables stay the one record of that money (nothing
  * of it is copied into cash_movements, so it can never be counted twice).
+ *
+ * P6-22: tips (choy puli) are not revenue: they are their own section (`tips`, App\Domain\Pos\Tips\ShiftTips), never
+ * in `sales` or `by_tender`. Cash tips stay in the drawer (cash.tips, read from pos_tips like the deposits) until paid
+ * out: a `wage` movement of category `tips` (cash.tip_payouts, not in cash.wages).
  */
 final class ShiftReport
 {
@@ -34,7 +38,7 @@ final class ShiftReport
     public const MOVEMENT = 'array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee: array{id: int, name: string|null}|null, user: array{id: int, name: string|null}|null, approved_by: int|null, approver?: array{id: int, name: string|null}|null, created_at: string|null}';
 
     /** The fields of the X report (ShiftPresenter::SUMMARY adds the Z report's own). */
-    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
+    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, tips: ' . \App\Domain\Pos\Tips\ShiftTips::SHAPE . ', cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, tips: string, tip_payouts: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
 
     /** The X report (and, as kept at closing, the Z report's body: ShiftPresenter::SUMMARY). */
     public const REPORT = 'array{' . self::REPORT_FIELDS . '}';
@@ -114,7 +118,10 @@ final class ShiftReport
                 $expected = $movement->type->sign() > 0 ? $expected->plus($movement->amount) : $expected->minus($movement->amount);
             }
         }
-        $expected = $expected->plus($deposits['taken_cash'])->plus($repayments['cash'])->minus($deposits['refunded_cash']);
+        $tips = app(\App\Domain\Pos\Tips\ShiftTips::class);
+        $cashTips = $tips->cash($shift);
+        $expected = $expected->plus($deposits['taken_cash'])->plus($repayments['cash'])->minus($deposits['refunded_cash'])->plus($cashTips);
+        $tipPayouts = $movements->filter(fn (CashMovement $movement) => $movement->type === CashMovementType::WAGE && $movement->category === 'tips');
 
         $employees = User::whereIn('id', $movements->pluck('employee_id')->merge($movements->pluck('user_id'))->merge($movements->pluck('approved_by'))->filter()->unique())->pluck('name', 'id');
 
@@ -168,17 +175,22 @@ final class ShiftReport
                 ],
                 'repayments' => ['count' => $repayments['count'], 'amount' => $repayments['amount'], 'cash' => $repayments['cash']],
             ],
+            // P6-22: tips on their own lines (not revenue)
+            'tips' => $tips->forShift($shift),
             'cash' => [
                 'opening' => Money::of($shift->opening_cash)->toString(),
                 'sales' => $cashOf(CashMovementType::SALE),
                 'refunds' => $cashOf(CashMovementType::REFUND),
                 'cash_in' => $cashOf(CashMovementType::CASH_IN),
                 'cash_out' => $cashOf(CashMovementType::CASH_OUT),
-                'wages' => $cashOf(CashMovementType::WAGE),
+                'wages' => Money::of($cashOf(CashMovementType::WAGE))->minus($this->sum($tipPayouts->pluck('amount')))->toString(),
                 'purchases' => $cashOf(CashMovementType::PURCHASE),
                 'deposits' => $deposits['taken_cash'],
                 'deposit_refunds' => $deposits['refunded_cash'],
                 'repayments' => $repayments['cash'],
+                // P6-22: cash tips in the drawer, and the ones paid out to the staff
+                'tips' => $cashTips->toString(),
+                'tip_payouts' => $this->sum($tipPayouts->pluck('amount')),
                 'expected' => $expected->toString(),
             ],
             'movements' => $movements->map(fn (CashMovement $movement) => [

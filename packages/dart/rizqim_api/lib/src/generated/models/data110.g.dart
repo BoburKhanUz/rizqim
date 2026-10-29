@@ -7,29 +7,31 @@ part of 'data110.dart';
 // **************************************************************************
 
 Data110 _$Data110FromJson(Map<String, dynamic> json) => Data110(
-  stationsCreated: (json['stations_created'] as List<dynamic>)
-      .map((e) => e as String)
+  branchId: (json['branch_id'] as num).toInt(),
+  profile: json['profile'] as String,
+  profileLabel: json['profile_label'] as String,
+  mode: json['mode'] as String,
+  firstScreen: json['first_screen'] as String,
+  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
+  locks: Locks.fromJson(json['locks'] as Map<String, dynamic>),
+  moduleRows: (json['module_rows'] as List<dynamic>)
+      .map((e) => ModuleRows.fromJson(e as Map<String, dynamic>))
       .toList(),
-  stationsSkipped: (json['stations_skipped'] as List<dynamic>)
-      .map((e) => e as String)
+  profiles: (json['profiles'] as List<dynamic>)
+      .map((e) => Profiles.fromJson(e as Map<String, dynamic>))
       .toList(),
-  categoriesCreated: (json['categories_created'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  dishesCreated: (json['dishes_created'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  dishesSkipped: (json['dishes_skipped'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  format: Format.fromJson(json['format'] as Map<String, dynamic>),
+  template: Template.fromJson(json['template'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data110ToJson(Data110 instance) => <String, dynamic>{
-  'stations_created': instance.stationsCreated,
-  'stations_skipped': instance.stationsSkipped,
-  'categories_created': instance.categoriesCreated,
-  'dishes_created': instance.dishesCreated,
-  'dishes_skipped': instance.dishesSkipped,
-  'format': instance.format,
+  'branch_id': instance.branchId,
+  'profile': instance.profile,
+  'profile_label': instance.profileLabel,
+  'mode': instance.mode,
+  'first_screen': instance.firstScreen,
+  'modules': instance.modules,
+  'locks': instance.locks,
+  'module_rows': instance.moduleRows,
+  'profiles': instance.profiles,
+  'template': instance.template,
 };

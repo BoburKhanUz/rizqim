@@ -19,7 +19,7 @@ class OrderItemsChangedBroadcast extends OrderBroadcast
     public ?int $tableId;
 
     /**
-     * @param  'round_added'|'sent'|'voided'|'guests_changed'|'moved'|'merged'|'charges_changed'|'served'|'cancelled'  $change
+     * @param  'round_added'|'sent'|'voided'|'guests_changed'|'moved'|'merged'|'charges_changed'|'served'|'cancelled'|'waiter_changed'|'seat_changed'|'weighed'|'table_label'  $change
      * @param  list<int>  $itemIds  the lines concerned (none for guests, a move or a charge)
      */
     public function __construct(Order $order, public string $change, public array $itemIds = [])

@@ -9,7 +9,7 @@ import { useI18n } from '../I18nProvider';
 import { errorText } from './errors';
 import { PhoneField, phoneToE164, phoneToInput } from './fields';
 
-export const ASSIGNABLE_ROLES: readonly AssignableRole[] = ['manager', 'cashier', 'waiter', 'cook', 'courier'];
+export const ASSIGNABLE_ROLES: readonly AssignableRole[] = ['manager', 'cashier', 'waiter', 'cook', 'hostess', 'courier'];
 
 // Add a member (name, role, branch, login phone) or change one's name, branch and login phone. A role of an existing member
 // has its own dialog; the phone is sent only when it was really changed, because the backend treats a phone in the request

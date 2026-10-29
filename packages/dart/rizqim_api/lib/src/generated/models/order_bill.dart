@@ -42,6 +42,7 @@ class OrderBill {
     required this.voidedAt,
     required this.createdAt,
     required this.updatedAt,
+    required this.seatNo,
     this.order,
     this.items,
     this.payments,
@@ -98,6 +99,8 @@ class OrderBill {
   final DateTime? createdAt;
   @JsonKey(name: 'updated_at')
   final DateTime? updatedAt;
+  @JsonKey(name: 'seat_no')
+  final int? seatNo;
   final Order? order;
   final List<OrderBillItem>? items;
   final List<Payment>? payments;

@@ -10,6 +10,7 @@
 */
 
 use App\Http\Controllers\Api\V1\PosHall\AutoGuestItemController;
+use App\Http\Controllers\Api\V1\PosHall\PosCourseController;
 use App\Http\Controllers\Api\V1\PosHall\DiningTableController;
 use App\Http\Controllers\Api\V1\PosHall\HallController;
 use App\Http\Controllers\Api\V1\PosHall\PosFloorController;
@@ -83,6 +84,11 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             // P3-26: the waiter asks the till for the bill; a new online order accepted at the till
             Route::post('/orders/{uuid}/request-bill', [PosOrderController::class, 'requestBill'])->whereUuid('uuid')->middleware($idempotent('pos.orders.request_bill'));
             Route::post('/orders/{uuid}/accept', [PosOrderController::class, 'accept'])->whereUuid('uuid')->middleware($idempotent('pos.orders.accept'));
+            // P6-21: send a held course; P6-25: the real weight of a "weight later" line (neither gated: an order that has
+            // them always finishes them), the table plate of a counter order (module table_service)
+            Route::post('/orders/{uuid}/courses/{course}/send', [PosCourseController::class, 'send'])->whereUuid('uuid')->where('course', '[0-9]{1,2}')->middleware($idempotent('pos.orders.course_send'));
+            Route::post('/orders/{uuid}/items/{item}/weight', [PosCourseController::class, 'weight'])->whereUuid('uuid')->where('item', RowId::ROUTE_PATTERN)->middleware($idempotent('pos.orders.weight'));
+            Route::post('/orders/{uuid}/table-label', [PosCourseController::class, 'tableLabel'])->whereUuid('uuid')->middleware(['pos.module:table_service', $idempotent('pos.orders.table_label')]);
         });
 
         // P3-26: reject a new online order — orders.cancel, or orders.manage with a manager's approval token (checked in

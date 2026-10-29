@@ -31,6 +31,11 @@ DiningTable _$DiningTableFromJson(Map<String, dynamic> json) => DiningTable(
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
+  serviceState: json['service_state'] as String?,
+  serviceStateAt: json['service_state_at'] == null
+      ? null
+      : DateTime.parse(json['service_state_at'] as String),
+  serviceStateBy: (json['service_state_by'] as num?)?.toInt(),
   store: json['store'] == null
       ? null
       : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -65,6 +70,9 @@ Map<String, dynamic> _$DiningTableToJson(DiningTable instance) =>
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
       'deleted_at': instance.deletedAt?.toIso8601String(),
+      'service_state': instance.serviceState,
+      'service_state_at': instance.serviceStateAt?.toIso8601String(),
+      'service_state_by': instance.serviceStateBy,
       'store': instance.store,
       'branch': instance.branch,
       'hall': instance.hall,

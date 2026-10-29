@@ -7,33 +7,31 @@ part of 'data111.dart';
 // **************************************************************************
 
 Data111 _$Data111FromJson(Map<String, dynamic> json) => Data111(
-  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  purpose: json['purpose'] as String,
-  connection: json['connection'] as String,
-  address: json['address'] as String?,
-  port: (json['port'] as num?)?.toInt(),
-  paperWidth: (json['paper_width'] as num).toInt(),
-  stationId: (json['station_id'] as num?)?.toInt(),
-  deviceId: json['device_id'] as String?,
-  isActive: json['is_active'] as bool,
-  encoding: json['encoding'] as String?,
-  printAsImage: json['print_as_image'] as bool,
+  profile: json['profile'] as String,
+  profileLabel: json['profile_label'] as String,
+  mode: json['mode'] as String,
+  firstScreen: json['first_screen'] as String,
+  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
+  locks: Locks2.fromJson(json['locks'] as Map<String, dynamic>),
+  moduleRows: (json['module_rows'] as List<dynamic>)
+      .map((e) => ModuleRows2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  profiles: (json['profiles'] as List<dynamic>)
+      .map((e) => Profiles2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  template: Template2.fromJson(json['template'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data111ToJson(Data111 instance) => <String, dynamic>{
-  'id': instance.id,
   'branch_id': instance.branchId,
-  'name': instance.name,
-  'purpose': instance.purpose,
-  'connection': instance.connection,
-  'address': instance.address,
-  'port': instance.port,
-  'paper_width': instance.paperWidth,
-  'station_id': instance.stationId,
-  'device_id': instance.deviceId,
-  'is_active': instance.isActive,
-  'encoding': instance.encoding,
-  'print_as_image': instance.printAsImage,
+  'profile': instance.profile,
+  'profile_label': instance.profileLabel,
+  'mode': instance.mode,
+  'first_screen': instance.firstScreen,
+  'modules': instance.modules,
+  'locks': instance.locks,
+  'module_rows': instance.moduleRows,
+  'profiles': instance.profiles,
+  'template': instance.template,
 };

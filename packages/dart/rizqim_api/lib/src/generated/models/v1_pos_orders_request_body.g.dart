@@ -21,6 +21,7 @@ V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   items: (json['items'] as List<dynamic>?)
       ?.map((e) => Items21.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tableLabel: json['table_label'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersRequestBodyToJson(
@@ -36,4 +37,5 @@ Map<String, dynamic> _$V1PosOrdersRequestBodyToJson(
   'send': instance.send,
   'queue_number': instance.queueNumber,
   'items': instance.items,
+  'table_label': instance.tableLabel,
 };

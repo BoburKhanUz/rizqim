@@ -134,6 +134,9 @@ export * from './api/posFormat';
 export * from './hooks/posFormat';
 export * from './api/bookings';
 export * from './hooks/bookings';
+// P6-24/P6-26: the table booking rules of a branch and the owner's view of the hostess' waitlist
+export * from './api/hostess';
+export * from './hooks/hostess';
 export * from './api/accounts';
 export * from './hooks/accounts';
 export * from './api/shifts';

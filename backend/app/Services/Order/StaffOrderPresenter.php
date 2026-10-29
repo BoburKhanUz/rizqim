@@ -144,6 +144,8 @@ class StaffOrderPresenter
             'branch_id' => $order->branch_id !== null ? (int) $order->branch_id : null,
             'hall_ref' => $order->hall_ref,
             'table_ref' => $order->table_ref,
+            // P6-25: the table plate of a counter order the runner carries to the table (kafe)
+            'table_label' => $order->table_label,
             'guests_count' => $order->guests_count,
             'notes' => $this->maskedNotes($order->notes),
             'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
@@ -231,6 +233,10 @@ class StaffOrderPresenter
                 'note' => $item->note,
                 'voided_at' => $item->voided_at?->toJSON(),
                 'void_reason' => $item->void_reason,
+                // P6-21: the course mark ("2-kurs"); P6-25: a dish waiting for its weight, the grill's time
+                'course_no' => $item->course_no,
+                'weight_status' => $item->weight_status?->value,
+                'wait_minutes' => $this->waitMinutesOf($item),
             ];
         }
 
@@ -270,14 +276,37 @@ class StaffOrderPresenter
             \App\Models\ProductVariant::withTrashed()
                 ->join('products', 'products.id', '=', 'product_variants.product_id')
                 ->whereIn('product_variants.id', $missing)
-                ->get(['product_variants.id', 'products.id as dish_product_id', 'products.category_id as dish_category_id'])
+                ->get(['product_variants.id', 'products.id as dish_product_id', 'products.category_id as dish_category_id', 'products.wait_minutes as dish_wait_minutes'])
                 ->each(function (\App\Models\ProductVariant $row) {
                     $categoryId = $row->getAttribute('dish_category_id');
                     $this->dishes[(int) $row->id] = [(int) $row->getAttribute('dish_product_id'), $categoryId !== null ? (int) $categoryId : null];
+                    // P6-25: the grill's time of the dish, read with it
+                    $wait = $row->getAttribute('dish_wait_minutes');
+                    $this->waits[(int) $row->getAttribute('dish_product_id')] = $wait !== null ? (int) $wait : null;
                 });
         }
 
         return $items;
+    }
+
+    /** @var array<int, int|null> product id => wait minutes (P6-25) */
+    private array $waits = [];
+
+    /**
+     * P6-25: how long the line's dish takes on the grill (products.wait_minutes), null when it has none.
+     */
+    private function waitMinutesOf(OrderItem $item): ?int
+    {
+        $productId = $this->dishOf($item)[0];
+        if ($productId === null) {
+            return null;
+        }
+        if (!array_key_exists($productId, $this->waits)) {
+            $wait = \App\Models\Product::withTrashed()->whereKey($productId)->value('wait_minutes');
+            $this->waits[$productId] = $wait !== null ? (int) $wait : null;
+        }
+
+        return $this->waits[$productId];
     }
 
     /**

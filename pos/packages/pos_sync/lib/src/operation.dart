@@ -9,6 +9,12 @@ abstract final class SyncOpType {
   static const String billPay = 'bill.pay';
   static const String orderClose = 'order.close';
 
+  /// P6-21: ushlab turilgan kursni oshxonaga yuborish (`{order, course_no}`).
+  static const String orderCourseSend = 'order.course_send';
+
+  /// P6-25: "og'irlikni keyin kiritish" qatorining haqiqiy og'irligi (`{order, line, quantity}`).
+  static const String orderWeight = 'order.weight';
+
   static const List<String> all = <String>[
     orderOpen,
     orderRound,
@@ -18,6 +24,8 @@ abstract final class SyncOpType {
     billCreate,
     billPay,
     orderClose,
+    orderCourseSend,
+    orderWeight,
   ];
 
   /// Ro'yxatdagi nomi ("Sinxronlash xatolari").
@@ -30,6 +38,8 @@ abstract final class SyncOpType {
     billCreate => 'Schyot tuzildi',
     billPay => "To'lov olindi",
     orderClose => 'Buyurtma yopildi',
+    orderCourseSend => 'Kurs oshxonaga yuborildi',
+    orderWeight => "Og'irlik kiritildi",
     _ => type,
   };
 }

@@ -4,13 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'source.dart';
-import 'shifts5.dart';
-import 'rizqim_breakdown4.dart';
-import 'transactions5.dart';
-import 'unmatched4.dart';
-import 'history4.dart';
-import 'entered_by4.dart';
+import 'type6.dart';
+import 'status5.dart';
+import 'payment_form.dart';
+import 'lines26.dart';
+import 'payments27.dart';
 
 part 'data203.g.dart';
 
@@ -18,80 +16,57 @@ part 'data203.g.dart';
 class Data203 {
   const Data203({
     required this.uuid,
-    required this.shiftUuid,
-    required this.zNumber,
-    required this.branchId,
-    required this.businessDate,
-    required this.source,
-    required this.terminalRef,
-    required this.shared,
-    required this.finalValue,
-    required this.shifts,
-    required this.bankTotal,
-    required this.bankCount,
-    required this.rizqimTotal,
-    required this.rizqimCount,
-    required this.rizqimBreakdown,
-    required this.difference,
-    required this.threshold,
-    required this.overThreshold,
-    required this.transactions,
-    required this.unmatched,
-    required this.history,
-    required this.note,
-    required this.enteredBy,
-    required this.alertedAt,
+    required this.type,
+    required this.status,
+    required this.paymentForm,
+    required this.nonFiscal,
+    required this.total,
+    required this.vatTotal,
+    required this.fiscalSign,
+    required this.receiptNumber,
+    required this.qrUrl,
+    required this.terminalId,
+    required this.error,
+    required this.issuedAt,
     required this.createdAt,
-    required this.updatedAt,
+    required this.branchId,
+    required this.originalReceiptUuid,
+    required this.lines,
+    required this.payments,
   });
 
   factory Data203.fromJson(Map<String, Object?> json) =>
       _$Data203FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  final Source source;
-  @JsonKey(name: 'terminal_ref')
-  final String? terminalRef;
-  final bool shared;
-
-  /// The name has been replaced because it contains a keyword. Original name: `final`.
-  @JsonKey(name: 'final')
-  final bool finalValue;
-  final List<Shifts5> shifts;
-  @JsonKey(name: 'bank_total')
-  final String bankTotal;
-  @JsonKey(name: 'bank_count')
-  final int? bankCount;
-  @JsonKey(name: 'rizqim_total')
-  final String? rizqimTotal;
-  @JsonKey(name: 'rizqim_count')
-  final int? rizqimCount;
-  @JsonKey(name: 'rizqim_breakdown')
-  final RizqimBreakdown4? rizqimBreakdown;
-  final String? difference;
-  final String? threshold;
-  @JsonKey(name: 'over_threshold')
-  final bool? overThreshold;
-  final List<Transactions5>? transactions;
-  final Unmatched4? unmatched;
-  final List<History4> history;
-  final String? note;
-  @JsonKey(name: 'entered_by')
-  final EnteredBy4? enteredBy;
-  @JsonKey(name: 'alerted_at')
-  final String? alertedAt;
+  final Type6 type;
+  final Status5 status;
+  @JsonKey(name: 'payment_form')
+  final PaymentForm paymentForm;
+  @JsonKey(name: 'non_fiscal')
+  final bool nonFiscal;
+  final String total;
+  @JsonKey(name: 'vat_total')
+  final String vatTotal;
+  @JsonKey(name: 'fiscal_sign')
+  final String? fiscalSign;
+  @JsonKey(name: 'receipt_number')
+  final String? receiptNumber;
+  @JsonKey(name: 'qr_url')
+  final String? qrUrl;
+  @JsonKey(name: 'terminal_id')
+  final String? terminalId;
+  final String? error;
+  @JsonKey(name: 'issued_at')
+  final String? issuedAt;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
+  final List<Lines26> lines;
+  final List<Payments27> payments;
 
   Map<String, Object?> toJson() => _$Data203ToJson(this);
 }

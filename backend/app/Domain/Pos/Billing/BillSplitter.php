@@ -13,7 +13,12 @@ use App\Models\OrderBillItem;
  *  - `equal` into N: every bill's total is the same, the remainder tiyin on the first bill; every line's quantity and
  *    amount and every charge is shared out among the bills so each bill can carry its own sale receipt;
  *  - `items`: the cashier puts (parts of) lines on each bill, fractions too (0.5 kg of 1.5 kg); each line's amount
- *    and discount follow its quantity shares, the charges and the order discount follow the bills' amounts.
+ *    and discount follow its quantity shares, the charges and the order discount follow the bills' amounts;
+ *  - `by_guest` (P6-24): one bill per guest (`order_items.seat_no`, ascending): a guest's own lines are on their bill;
+ *    a line with no seat is shared equally among the guests who have a bill (its quantity in thousandths split as
+ *    Allocation::equal: the remainder on the first guest's bill), so the shared dish, bread and tea are paid by all.
+ *    The discount and the charges follow the bills' amounts, as with `items`. A guest whose lines are all paid
+ *    already has no bill (and no share of the unseated lines). Needs at least one seated line left to bill.
  *
  * All shares are exact to the tiyin (Allocation): bills add up to the order, lines and charges are fully shared out.
  */
@@ -24,7 +29,7 @@ final class BillSplitter
     /**
      * Bill plans (not saved): per bill its lines [item id => [quantity, amount, discount]] and charges.
      *
-     * @param  string  $mode  single | equal | items
+     * @param  string  $mode  single | equal | items | by_guest
      * @param  list<array{items: list<array{order_item_id: int, quantity: string}>, guests?: int|null}>  $billsSpec  for `items`
      * @return list<array{lines: array<int, array{quantity: int, amount: int, discount: int}>, charges: array<string, int>, guests: int|null}>
      *
@@ -40,6 +45,7 @@ final class BillSplitter
             'single' => $this->equal($billable, 1),
             'equal' => $this->equal($billable, $parts),
             'items' => $this->byItems($billable, $billsSpec),
+            'by_guest' => $this->byGuest($billable),
             default => throw PosActionException::invalid('split_mode_invalid', "Bo'lish turi noto'g'ri."),
         };
     }
@@ -47,7 +53,7 @@ final class BillSplitter
     /**
      * Saves the plans as bills of the order (numbers after the existing ones).
      *
-     * @param  list<array{lines: array<int, array{quantity: int, amount: int, discount: int}>, charges: array<string, int>, guests: int|null}>  $plans
+     * @param  list<array{lines: array<int, array{quantity: int, amount: int, discount: int}>, charges: array<string, int>, guests: int|null, seat?: int|null}>  $plans
      * @return list<OrderBill>
      */
     public function save(Order $order, string $mode, array $plans, string $basis, ?int $userId): array
@@ -69,6 +75,7 @@ final class BillSplitter
                 'discount' => BillableOrder::moneyOf($discount)->toString(),
                 'total' => BillableOrder::moneyOf($subtotal - $discount + array_sum($plan['charges']))->toString(),
                 'guests_share' => $plan['guests'],
+                'seat_no' => $plan['seat'] ?? null,
                 'basis' => $basis,
                 'created_by' => $userId,
             ];
@@ -189,6 +196,76 @@ final class BillSplitter
             }
         }
 
+        [$lines, $charges] = $this->shareOut($billable, $quantity, $count);
+
+        $plans = [];
+        foreach ($billsSpec as $b => $spec) {
+            if (array_sum(array_column($lines[$b], 'quantity')) === 0) {
+                throw PosActionException::invalid('bill_empty', "Har bir schyotda kamida bitta taom bo'lishi kerak.", ['bill' => $b + 1]);
+            }
+            $plans[] = ['lines' => $lines[$b], 'charges' => $charges[$b], 'guests' => isset($spec['guests']) ? (int) $spec['guests'] : null];
+        }
+
+        return $plans;
+    }
+
+    /**
+     * P6-24: one bill per guest. Seated lines go whole to their guest; unseated lines are shared equally among the
+     * guests who have a bill.
+     *
+     * @return list<array{lines: array<int, array{quantity: int, amount: int, discount: int}>, charges: array<string, int>, guests: int|null, seat: int|null}>
+     */
+    private function byGuest(BillableOrder $billable): array
+    {
+        $seats = [];
+        foreach ($billable->remaining as $id => $line) {
+            $seat = $billable->items[$id]->seat_no;
+            if ($seat !== null && (int) $seat > 0 && $line['quantity'] > 0) {
+                $seats[(int) $seat] = true;
+            }
+        }
+        $seatNumbers = array_keys($seats);
+        sort($seatNumbers);
+        $count = count($seatNumbers);
+        if ($count < 1) {
+            throw PosActionException::invalid('no_seat_lines', "Mehmon bo'yicha bo'lish uchun taomlarga mehmon raqami qo'yilgan bo'lishi kerak.");
+        }
+        if ($count > self::MAX_PARTS) {
+            throw PosActionException::invalid('parts_invalid', 'Schyotlar soni 1 dan ' . self::MAX_PARTS . ' gacha bo\'lishi kerak.');
+        }
+        $index = array_flip($seatNumbers);
+
+        // quantity[item][bill] in thousandths
+        $quantity = [];
+        foreach ($billable->remaining as $id => $line) {
+            $seat = $billable->items[$id]->seat_no;
+            if ($seat !== null && isset($index[(int) $seat])) {
+                $quantity[$id] = array_fill(0, $count, 0);
+                $quantity[$id][$index[(int) $seat]] = $line['quantity'];
+            } else {
+                // No seat (or a seat with nothing left to bill): shared equally, the remainder on the first bill
+                $quantity[$id] = Allocation::equal($line['quantity'], $count);
+            }
+        }
+
+        [$lines, $charges] = $this->shareOut($billable, $quantity, $count);
+
+        $plans = [];
+        foreach ($seatNumbers as $b => $seat) {
+            $plans[] = ['lines' => $lines[$b], 'charges' => $charges[$b], 'guests' => 1, 'seat' => $seat];
+        }
+
+        return $plans;
+    }
+
+    /**
+     * Amounts and discounts follow each line's quantity shares; the charges follow the bills' net amounts.
+     *
+     * @param  array<int, list<int>>  $quantity  [item id][bill] in thousandths
+     * @return array{0: list<array<int, array{quantity: int, amount: int, discount: int}>>, 1: list<array<string, int>>}
+     */
+    private function shareOut(BillableOrder $billable, array $quantity, int $count): array
+    {
         $lines = array_fill(0, $count, []);
         $net = array_fill(0, $count, 0);
         foreach ($billable->remaining as $id => $line) {
@@ -207,14 +284,6 @@ final class BillSplitter
             }
         }
 
-        $plans = [];
-        foreach ($billsSpec as $b => $spec) {
-            if (array_sum(array_column($lines[$b], 'quantity')) === 0) {
-                throw PosActionException::invalid('bill_empty', "Har bir schyotda kamida bitta taom bo'lishi kerak.", ['bill' => $b + 1]);
-            }
-            $plans[] = ['lines' => $lines[$b], 'charges' => $charges[$b], 'guests' => isset($spec['guests']) ? (int) $spec['guests'] : null];
-        }
-
-        return $plans;
+        return [$lines, $charges];
     }
 }

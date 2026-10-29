@@ -14,6 +14,7 @@ class RizqimBreakdown5 {
     required this.repayments,
     required this.refunds,
     required this.depositRefunds,
+    required this.tips,
   });
 
   factory RizqimBreakdown5.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,7 @@ class RizqimBreakdown5 {
   final String refunds;
   @JsonKey(name: 'deposit_refunds')
   final String depositRefunds;
+  final String tips;
 
   Map<String, Object?> toJson() => _$RizqimBreakdown5ToJson(this);
 }

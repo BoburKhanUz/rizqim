@@ -53,6 +53,7 @@ class OrderBill extends Model
             'place_fee_amount' => 'decimal:2',
             'total' => 'decimal:2',
             'guests_share' => 'integer',
+            'seat_no' => 'integer',
             'printed_count' => 'integer',
             'printed_at' => 'datetime',
             'paid_at' => 'datetime',

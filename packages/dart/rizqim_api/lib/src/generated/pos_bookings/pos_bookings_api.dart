@@ -69,7 +69,10 @@ abstract class PosBookingsApi {
   ///
   /// A room or table of the branch (`dining_table_id`; a banquet adds the merged rooms in `extra_table_ids`) for.
   /// `starts_at`–`ends_at` (ISO 8601; without an offset: the store's time zone; without `ends_at`: the branch's default.
-  /// slot, 5 hours). 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`.
+  /// slot: 5 hours, or the slot of the place's kind in the branch's table booking rules, P6-26). 422.
+  /// `booking_too_soon` / `booking_too_far` when the rules (minimum lead time, furthest day) refuse the start —.
+  /// `skip_lead_time: true` lets an owner or a manager book a walk-in; 409 `deposit_required` when `confirm: true`.
+  /// and the rule keeps unconfirmed bookings until the deposit is taken. 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`.
   /// creates it confirmed. The phone is stored as +998XXXXXXXXX.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.

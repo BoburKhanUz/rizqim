@@ -5,6 +5,7 @@ namespace App\Domain\Pos\Booking;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\BookingPayment;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Support\Money;
@@ -22,7 +23,7 @@ class BookingPresenter
 
     public const PAYMENT = 'array{uuid: string, amount: string, tender: string, card_type: string|null, transaction_id: string|null, status: string, status_label: string, remaining: string, applied_amount: string, refunded_amount: string, retained_amount: string, fiscal_receipt_uuid: string|null, fiscal_status: string|null, settle_reason: string|null, settle_receipt_uuid: string|null, settle_fiscal_status: string|null, approved_by: int|null, user_id: int|null, created_at: string|null, settled_at: string|null}';
 
-    public const DETAIL = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, confirmation_sent_at: string|null, confirmation_channel: string|null, created_at: string|null, updated_at: string|null, items: list<' . self::ITEM . '>, payments: list<' . self::PAYMENT . '>}';
+    public const DETAIL = 'array{uuid: string, branch_id: int, dining_table_id: int|null, table_ids: list<int>, starts_at: string, ends_at: string, guests_planned: int, event_type: string, event_type_label: string, contact_name: string, contact_phone: string|null, source: string, source_label: string, status: string, status_label: string, min_spend: string|null, note: string|null, order_uuid: string|null, deposit_total: string, deposit_available: string, deposit_unsettled: bool, items_count: int, cancel_reason: string|null, version: int, created_by: int|null, confirmed_at: string|null, arrived_at: string|null, completed_at: string|null, canceled_at: string|null, confirmation_sent_at: string|null, confirmation_channel: string|null, created_at: string|null, updated_at: string|null, deposit_required: string, deposit_missing: string, items: list<' . self::ITEM . '>, payments: list<' . self::PAYMENT . '>}';
 
     /**
      * @return array<string, mixed>
@@ -86,7 +87,16 @@ class BookingPresenter
     {
         $booking->loadMissing(['items', 'payments']);
 
+        $rules = app(BookingRules::class);
+        $branch = Branch::find($booking->branch_id);
+        $required = $branch !== null ? $rules->depositRequired($branch, $booking) : Money::zero();
+        $taken = $booking->payments->filter(fn (BookingPayment $payment) => $payment->status === BookingPaymentStatus::TAKEN)
+            ->reduce(fn (Money $sum, BookingPayment $payment) => $sum->plus($payment->amount), Money::zero());
+
         return $this->summary($booking) + [
+            // P6-26: the deposit the branch's table booking rule asks for, and what of it is still missing
+            'deposit_required' => $required->toString(),
+            'deposit_missing' => $required->isGreaterThan($taken) ? $required->minus($taken)->toString() : '0.00',
             'items' => $booking->items->sortBy([['due_at', 'asc'], ['id', 'asc']])->values()->map(fn (BookingItem $item) => $this->item($item))->all(),
             'payments' => $booking->payments->sortBy('id')->values()->map(fn (BookingPayment $payment) => $this->payment($payment))->all(),
         ];

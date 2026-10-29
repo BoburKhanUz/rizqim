@@ -31,7 +31,9 @@ enum CashMovementType: string
         return match ($this) {
             self::CASH_IN => ['change_fund', 'owner', 'other'],
             self::CASH_OUT => ['collection', 'owner', 'supplies', 'utilities', 'other'],
-            self::WAGE => ['daily_wage', 'advance', 'bonus'],
+            // P6-23: payroll — a pay statement's line paid from the till (App\Domain\Pos\StaffPay\StaffPayStatements)
+            // P6-22: tips — tips (choy puli) paid out to the staff member (the X/Z shows them as cash.tip_payouts)
+            self::WAGE => ['daily_wage', 'advance', 'bonus', 'payroll', 'tips'],
             self::PURCHASE => ['bazaar', 'meat', 'bread', 'supplies', 'other'],
             default => [],
         };

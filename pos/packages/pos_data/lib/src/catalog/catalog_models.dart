@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 
 import '../json.dart';
 import '../menu_day/menu_day_models.dart';
+import '../orders/course_models.dart';
 
 /// POS kanali: zal (`pos_hall`) yoki olib ketish (`pos_takeaway`). Narx kanal bo'yicha.
 enum PosChannel {
@@ -208,6 +209,9 @@ class PosProduct {
     this.modifierGroups = const <PosModifierGroup>[],
     this.nextBatch,
     this.setParts,
+    this.quickMultipliers = const <int>[],
+    this.waitMinutes,
+    this.weightMode,
   });
 
   factory PosProduct.fromJson(PosJson j) => PosProduct(
@@ -230,6 +234,13 @@ class PosProduct {
     modifierGroups: j.objects('modifier_groups', PosModifierGroup.fromJson),
     nextBatch: PosNextBatch.maybe(j['next_batch']),
     setParts: PosSetPart.listOf(j['set_parts']),
+    quickMultipliers: <int>[
+      for (final Object? m
+          in (j['quick_multipliers'] as List<Object?>?) ?? const <Object?>[])
+        if (m is num) m.toInt(),
+    ],
+    waitMinutes: j.intOrNull('wait_minutes'),
+    weightMode: PosWeightBasis.fromWire(j.strOrNull('weight_mode')),
   );
 
   final int id;
@@ -263,6 +274,19 @@ class PosProduct {
 
   /// P6-15: kompleks tarkibi (kompleks emas — `null`): bitta qator, oshxona tarkibni ko'radi.
   final List<PosSetPart>? setParts;
+
+  /// P6-25 (`skewer_buttons` moduli): six va dona taomning ×N tez tugmalari ([2, 3, 5, 10]); yo'q — bo'sh.
+  final List<int> quickMultipliers;
+
+  /// P6-25: mangalda qancha pishadi (daqiqa), "~15 daq" deb ko'rsatiladi.
+  final int? waitMinutes;
+
+  /// P6-25 (`weight_later` moduli): taom tanlangandan keyin tortiladi, kg narxi shu og'irlik uchun (xom yoki pishgan);
+  /// `null` — terilgan miqdor bilan sotiladi.
+  final PosWeightBasis? weightMode;
+
+  /// Og'irligi keyin kiritiladigan taom.
+  bool get weighedLater => weightMode != null;
 
   bool get hasModifiers => modifierGroups.isNotEmpty;
 

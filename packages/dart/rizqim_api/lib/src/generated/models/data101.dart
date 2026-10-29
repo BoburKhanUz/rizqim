@@ -4,43 +4,51 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order3.dart';
-import 'fiscal2.dart';
+import 'modifiers2.dart';
+import 'product_rules2.dart';
 
 part 'data101.g.dart';
 
 @JsonSerializable()
 class Data101 {
   const Data101({
+    required this.id,
     required this.uuid,
-    required this.provider,
-    required this.providerTransactionId,
-    required this.status,
-    required this.amount,
-    required this.paidAt,
-    required this.cancelledAt,
-    required this.createdAt,
-    required this.order,
-    required this.fiscal,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data101.fromJson(Map<String, Object?> json) =>
       _$Data101FromJson(json);
 
+  final int id;
   final String uuid;
-  final String provider;
-  @JsonKey(name: 'provider_transaction_id')
-  final String? providerTransactionId;
-  final String status;
-  final String amount;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'cancelled_at')
-  final String? cancelledAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  final Order3 order;
-  final Fiscal2? fiscal;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers2> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules2 productRules;
 
   Map<String, Object?> toJson() => _$Data101ToJson(this);
 }

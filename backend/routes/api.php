@@ -182,6 +182,10 @@ Route::prefix('v1')->group(function () {
     // move, merge, charges (docs/API.md)
     require __DIR__ . '/api_pos_hall.php';
 
+    // P6-24/P6-26: the hostess' waitlist and table states, handing a table to another waiter, a line's guest number, the
+    // table booking rules and the owner's waitlist view (docs/API.md "Hostes, ofitsiantni almashtirish va stol broni")
+    require __DIR__ . '/api_pos_hostess.php';
+
     // P3-18: bills, split, payments, refunds, shifts with X/Z, manager approvals (docs/API.md "Schyot, to'lov va smena")
     require __DIR__ . '/api_pos_billing.php';
 
@@ -193,6 +197,13 @@ Route::prefix('v1')->group(function () {
 
     // P6-14: the customer display: state, pickup board for the display, the till's cart feed (docs/API.md)
     require __DIR__ . '/api_pos_display.php';
+
+    // P6-22: service charge variants and tips (choy puli): owner settings, report, corrections, pool split; /pos/tips
+    require __DIR__ . '/api_pos_tips.php';
+
+    // P6-23: staff pay: wage rules, work sessions, pay statements (owner) and the clock-in/out of the till (docs/API.md
+    // "Ish haqi qoidalari")
+    require __DIR__ . '/api_pos_staff_pay.php';
 
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")

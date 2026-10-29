@@ -11,6 +11,9 @@ use App\Domain\Pos\Billing\OrderCloser;
 use App\Domain\Pos\Billing\PaymentService;
 use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Contracts\PosTender;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderBill;
 use App\Models\PosRefund;
@@ -60,7 +63,10 @@ class PosBillController extends PosBillingController
      * the first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of
      * 1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and
      * the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are
-     * exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
+     * exact to the tiyin. `by_guest` (P6-24, the guest_split module, 403 `module_disabled`): one bill per guest
+     * (`seat_no` of the lines, lowest first, `seat_no` on the bill); a line with no seat is shared equally among those
+     * guests (the remainder on the first guest's bill); 422 `no_seat_lines` when no line has a guest number.
+     * `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
      * pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
      * (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
      * `nothing_to_bill`, `order_closed`,
@@ -73,7 +79,7 @@ class PosBillController extends PosBillingController
         $this->requireIdempotencyKey($request);
         $data = $request->validate([
             'version' => 'required|integer|min:0|max:2147483647',
-            'mode' => ['required', 'string', Rule::in(['single', 'equal', 'items'])],
+            'mode' => ['required', 'string', Rule::in(['single', 'equal', 'items', 'by_guest'])],
             'parts' => 'required_if:mode,equal|nullable|integer|min:1|max:' . BillSplitter::MAX_PARTS,
             'bills' => 'required_if:mode,items|nullable|array|min:1|max:' . BillSplitter::MAX_PARTS,
             'bills.*.items' => 'required|array|min:1|max:200',
@@ -83,6 +89,10 @@ class PosBillController extends PosBillingController
             'approval_token' => 'nullable|string|max:100',
         ]);
         $order = $this->order($user, $uuid);
+        // P6-24: splitting by guest is a new flow of the guest_split module (single, equal and items never ask)
+        if ($data['mode'] === 'by_guest' && $order->branch_id !== null) {
+            app(PosModules::class)->assertEnabled(Branch::findOrFail($order->branch_id), PosModule::GUEST_SPLIT);
+        }
 
         $bills->create(
             $user,
@@ -144,7 +154,12 @@ class PosBillController extends PosBillingController
      * once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
      * The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
      * covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
-     * order is closed (delivered, paid, table free) once all its bills are. A receipt not issued yet leaves the bill
+     * order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
+     * carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,
+     * `tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to
+     * (personal mode; else the order's waiter). Tips are never on the receipt nor part of the bill (`tips_amount`
+     * on the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,
+     * `tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill
      * "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422
      * `mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.
      */
@@ -163,6 +178,10 @@ class PosBillController extends PosBillingController
             'tenders.*.card_last4' => 'nullable|string|max:4',
             'tenders.*.reference' => 'nullable|string|max:100',
             'tenders.*.account_uuid' => 'nullable|uuid',
+            // P6-22: a tip on top of the tender, or the cash change left as one
+            'tenders.*.tip_amount' => ['nullable', 'numeric', 'gt:0', 'max:9999999999', 'regex:/^\d+(\.\d{1,2})?$/'],
+            'tenders.*.tip_from_change' => 'nullable|boolean',
+            'tip_staff_id' => 'nullable|integer|min:1|max:999999999999999999',
             'approval_token' => 'nullable|string|max:100',
             'shift_uuid' => 'nullable|uuid',
             'version' => 'nullable|integer|min:0|max:2147483647',
@@ -178,6 +197,7 @@ class PosBillController extends PosBillingController
             isset($data['version']) ? (int) $data['version'] : null,
             $this->terminal($user),
             $this->applied($request),
+            tipStaffId: isset($data['tip_staff_id']) ? (int) $data['tip_staff_id'] : null,
         );
 
         return $this->success([

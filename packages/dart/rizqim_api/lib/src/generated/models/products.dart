@@ -45,13 +45,16 @@ class Products {
     required this.packageCode,
     required this.vatRate,
     required this.quickAdd,
+    required this.quickMultipliers,
+    required this.waitMinutes,
     required this.stationId,
+    required this.isActive,
     required this.imageUrl,
     required this.imageThumbUrls,
     required this.unavailableReason,
     required this.isAvailable,
     required this.variants,
-    required this.isActive,
+    required this.weightMode,
     required this.modifierGroups,
     this.channelPrices,
     this.batches,
@@ -97,6 +100,12 @@ class Products {
   final String? vatRate;
   @JsonKey(name: 'quick_add')
   final bool quickAdd;
+  @JsonKey(name: 'quick_multipliers')
+  final List<int>? quickMultipliers;
+  @JsonKey(name: 'wait_minutes')
+  final int? waitMinutes;
+  @JsonKey(name: 'weight_mode')
+  final String? weightMode;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

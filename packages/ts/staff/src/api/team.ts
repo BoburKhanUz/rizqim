@@ -9,7 +9,7 @@ import type { JsonRequest, OkData } from './types';
 export type Employee = OkData<'ownerEmployee.index'>[number];
 
 // The roles an owner can give (App\Enums\UserRole::assignableStaffRoles)
-export type AssignableRole = 'manager' | 'cashier' | 'waiter' | 'cook' | 'courier';
+export type AssignableRole = 'manager' | 'cashier' | 'waiter' | 'cook' | 'hostess' | 'courier';
 
 export async function fetchEmployees(api: StaffApi): Promise<Employee[]> {
   const body = unwrap(await api.client.GET('/v1/owner/employees'));

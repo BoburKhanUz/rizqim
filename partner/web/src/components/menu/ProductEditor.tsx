@@ -11,6 +11,7 @@ import { BranchOverrides } from './BranchOverrides';
 import { ChannelPrices } from './ChannelPrices';
 import { ProductForm } from './ProductForm';
 import { ProductModifiers } from './ProductModifiers';
+import { ProductPosService, useServiceModules } from './ProductPosService';
 import { describeError } from './serverError';
 
 // /menu/new and /menu/{id}: one product with its variants, and (once it exists) its modifier groups, channel prices
@@ -92,11 +93,24 @@ export function ProductEditor({ id }: { id: string }) {
             <Section title={t('menu_section_branches')}>
               <BranchOverrides product={product} canManage={canManage} />
             </Section>
+            <ServiceSection product={product} canManage={canManage} />
           </>
         ) : (
           <p className="text-footnote text-fg-muted">{t('menu_save_first')}</p>
         )}
       </div>
     </>
+  );
+}
+
+// P6-25: the skewer buttons, grill time and weight rule, only where the branch's format sells that way
+function ServiceSection({ product, canManage }: { product: NonNullable<ReturnType<typeof useOwnerProducts>['data']>[number]; canManage: boolean }) {
+  const { t } = useI18n();
+  const modules = useServiceModules();
+  if (!modules.skewer && !modules.weight) return null;
+  return (
+    <Section title={t('menu_section_service')}>
+      <ProductPosService product={product} canManage={canManage} />
+    </Section>
   );
 }

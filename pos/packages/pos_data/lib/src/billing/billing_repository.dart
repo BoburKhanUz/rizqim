@@ -147,6 +147,7 @@ class BillingRepository {
     int? version,
     String? approvalToken,
     String? idempotencyKey,
+    int? tipStaffId,
   }) async {
     final PosOffline? o = offline;
     if (o != null && o.active) {
@@ -155,6 +156,7 @@ class BillingRepository {
         tenders: tenders,
         shiftUuid: shiftUuid,
         idempotencyKey: idempotencyKey,
+        tipStaffId: tipStaffId,
       );
     }
     return _http.mutate(
@@ -169,6 +171,8 @@ class BillingRepository {
         'shift_uuid': ?shiftUuid,
         'version': ?version,
         'approval_token': ?approvalToken,
+        // P6-22: whom the tips go to (personal mode; else the order's waiter)
+        'tip_staff_id': ?tipStaffId,
       },
     );
   }

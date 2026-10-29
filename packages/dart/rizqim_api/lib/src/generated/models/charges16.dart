@@ -24,6 +24,9 @@ class Charges16 {
     required this.minSpendTopupAmount,
     required this.waived,
     required this.total,
+    required this.serviceChargeRule,
+    required this.placeFeeKind,
+    required this.serviceChargeNotice,
     required this.waivers,
   });
 
@@ -53,6 +56,12 @@ class Charges16 {
   final String minSpendTopupAmount;
   final List<String> waived;
   final String total;
+  @JsonKey(name: 'service_charge_rule')
+  final String serviceChargeRule;
+  @JsonKey(name: 'place_fee_kind')
+  final String placeFeeKind;
+  @JsonKey(name: 'service_charge_notice')
+  final String? serviceChargeNotice;
   final List<Waivers11> waivers;
 
   Map<String, Object?> toJson() => _$Charges16ToJson(this);

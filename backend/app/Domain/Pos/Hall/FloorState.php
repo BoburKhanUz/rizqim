@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\DB;
  *   overdue        an open order older than the branch's "open room" alert (pos_settings.alerts.open_room_hours, 6)
  *   bill_printed   an open order whose bill was printed (orders.bill_locked_at, P3-18): guests are paying
  *
+ * P6-26: `service_state` is the hostess' manual mark (`cleaning`, "tozalanmoqda") on a place with no open order and no
+ * order opened there since the mark (TableStates); it is separate from `status`, so older clients keep working.
+ *
  * A closed (seasonal) hall and an inactive place are left out unless an order is still open there. Open POS orders
  * without a place (in the hall without a table, takeaway) are listed apart.
  */
@@ -67,6 +70,8 @@ class FloorState
             $reserved = array_map(fn (array $reservation) => array_merge($reservation, ['contact_name' => null, 'contact_phone' => null]), $reserved);
         }
 
+        $cleaning = TableStates::cleaning($tables->flatten());
+
         $result = [];
         foreach ($halls as $hall) {
             $places = [];
@@ -77,7 +82,8 @@ class FloorState
                     continue;
                 }
 
-                $places[] = $this->table($table, $orders, $counts, $reserved[(int) $table->id] ?? null, $now, $overdueHours);
+                $places[] = $this->table($table, $orders, $counts, $reserved[(int) $table->id] ?? null, $now, $overdueHours)
+                    + ['service_state' => $orders->isEmpty() && isset($cleaning[(int) $table->id]) ? TableStates::CLEANING : null];
             }
 
             if (!$hall->is_active && collect($places)->every(fn (array $place) => $place['orders'] === [])) {

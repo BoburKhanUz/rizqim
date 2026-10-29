@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Menu\ChannelPriceController;
 use App\Http\Controllers\Api\V1\Menu\DailyMenuController;
 use App\Http\Controllers\Api\V1\Menu\MealSetController;
 use App\Http\Controllers\Api\V1\Menu\ModifierGroupController;
+use App\Http\Controllers\Api\V1\Menu\ProductPosServiceController;
 use App\Http\Controllers\Api\V1\Menu\ServiceFeeController;
 use App\Http\Controllers\Api\V1\Menu\StopListController;
 use App\Http\Middleware\EnsureIdempotency;
@@ -31,6 +32,10 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     Route::put('/owner/modifier-groups/{id}', [ModifierGroupController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:menu.manage');
     Route::delete('/owner/modifier-groups/{id}', [ModifierGroupController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:menu.manage');
     Route::put('/owner/products/{id}/modifier-groups', [ModifierGroupController::class, 'syncProduct'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:menu.manage');
+
+    // P6-25: a dish's skewer buttons and grill time (module skewer_buttons) and "weight later" (module weight_later),
+    // checked per field in the controller (clearing a value never needs the module)
+    Route::patch('/owner/products/{id}/pos-service', [ProductPosServiceController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:menu.manage');
 
     // Per-channel prices and visibility of a product and its variants
     Route::get('/owner/products/{id}/channel-prices', [ChannelPriceController::class, 'index'])->where('id', RowId::ROUTE_PATTERN)->middleware('permission:menu.view,menu.manage');

@@ -13,32 +13,42 @@ import '../models/post_v1_pos_orders_uuid_accept_response.dart';
 import '../models/post_v1_pos_orders_uuid_cancel_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_restore_response.dart';
 import '../models/post_v1_pos_orders_uuid_charges_charge_waive_response.dart';
+import '../models/post_v1_pos_orders_uuid_courses_course_send_response.dart';
 import '../models/post_v1_pos_orders_uuid_discount_response.dart';
 import '../models/post_v1_pos_orders_uuid_guests_response.dart';
+import '../models/post_v1_pos_orders_uuid_items_item_seat_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_served_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_void_response.dart';
+import '../models/post_v1_pos_orders_uuid_items_item_weight_response.dart';
 import '../models/post_v1_pos_orders_uuid_merge_response.dart';
 import '../models/post_v1_pos_orders_uuid_move_response.dart';
 import '../models/post_v1_pos_orders_uuid_reject_response.dart';
 import '../models/post_v1_pos_orders_uuid_request_bill_response.dart';
 import '../models/post_v1_pos_orders_uuid_rounds_response.dart';
 import '../models/post_v1_pos_orders_uuid_send_response.dart';
+import '../models/post_v1_pos_orders_uuid_table_label_response.dart';
+import '../models/post_v1_pos_orders_uuid_transfer_response.dart';
 import '../models/scope2.dart';
 import '../models/v1_pos_orders_request_body.dart';
 import '../models/v1_pos_orders_uuid_accept_request_body.dart';
 import '../models/v1_pos_orders_uuid_cancel_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_restore_request_body.dart';
 import '../models/v1_pos_orders_uuid_charges_charge_waive_request_body.dart';
+import '../models/v1_pos_orders_uuid_courses_course_send_request_body.dart';
 import '../models/v1_pos_orders_uuid_discount_request_body.dart';
 import '../models/v1_pos_orders_uuid_guests_request_body.dart';
+import '../models/v1_pos_orders_uuid_items_item_seat_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_served_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_void_request_body.dart';
+import '../models/v1_pos_orders_uuid_items_item_weight_request_body.dart';
 import '../models/v1_pos_orders_uuid_merge_request_body.dart';
 import '../models/v1_pos_orders_uuid_move_request_body.dart';
 import '../models/v1_pos_orders_uuid_reject_request_body.dart';
 import '../models/v1_pos_orders_uuid_request_bill_request_body.dart';
 import '../models/v1_pos_orders_uuid_rounds_request_body.dart';
 import '../models/v1_pos_orders_uuid_send_request_body.dart';
+import '../models/v1_pos_orders_uuid_table_label_request_body.dart';
+import '../models/v1_pos_orders_uuid_transfer_request_body.dart';
 
 part 'pos_orders_api.g.dart';
 
@@ -53,7 +63,8 @@ abstract class PosOrdersApi {
   /// `bill_printed`, and the open orders on it (opened_at, guests, waiter, total, `unsent_count`: lines not sent to the.
   /// kitchen yet, `ready_count`: lines the kitchen marked ready and nobody served yet, `bill_requested`: a waiter asked.
   /// for the bill, "Schyot so'raldi"; the place's own `bill_requested` while no bill is printed yet). A place's.
-  /// `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage.
+  /// `service_state` (P6-26): the hostess' mark, `cleaning` while a free place waits to be cleaned (a separate key,.
+  /// `status` is unchanged). `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage.
   /// (null for others, e.g. a kitchen screen). `layout`: grid cells of the floor plan (40 columns x 24 rows, x/y the.
   /// top-left cell, w/h the size in cells; null: not placed yet). Closed seasonal halls.
   /// and inactive places are left out unless an order is still open there. `untabled_orders`: open POS orders without.
@@ -105,6 +116,12 @@ abstract class PosOrdersApi {
   /// P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block.
   /// (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise.
   /// the order gets the next number; the answer's `queue.number` is the one to print.
+  ///
+  /// P6-21 / P6-25: a line's `course_no` (module `courses`: a later course is held until POST.
+  /// /pos/orders/{uuid}/courses/{n}/send) and `awaiting_weight` (module `weight_later`: the quantity is the estimate,.
+  /// the real kg comes with POST /pos/orders/{uuid}/items/{item}/weight; default: the product's `weight_mode`);.
+  /// `table_label` the table plate of a counter order carried to the table (module `table_service`). A module that is.
+  /// off: 403 `module_disabled`.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders')
@@ -186,6 +203,22 @@ abstract class PosOrdersApi {
     @Body() required V1PosOrdersUuidChargesChargeWaiveRequestBody body,
   });
 
+  /// Send a course to the kitchen.
+  ///
+  /// P6-21: "N-kursni yuborish" — the held lines of course `course` (1–9) go to their stations (`sent_at`); lines.
+  /// added to that course later go with the next ordinary send. 422 `nothing_to_send` when the course has nothing.
+  /// left to send. Needs orders.manage; the waiter rule. Not gated by the `courses` module: an order that has courses.
+  /// always sends them.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/courses/{course}/send')
+  Future<PostV1PosOrdersUuidCoursesCourseSendResponse> posCourseSend({
+    @Path('uuid') required String uuid,
+    @Path('course') required String course,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidCoursesCourseSendRequestBody body,
+  });
+
   /// Give or take off a discount.
   ///
   /// P3-37. `kind` `percent` (`value` 0 < v ≤ 100, two decimals) or `amount` (`value` in so'm, 0 < v ≤ the dishes'.
@@ -223,6 +256,21 @@ abstract class PosOrdersApi {
     @Body() required V1PosOrdersUuidGuestsRequestBody body,
   });
 
+  /// Set a line's guest number.
+  ///
+  /// `seat_no` 1-500 puts the line on that guest for the split by guest (POST /pos/orders/{uuid}/bills, mode.
+  /// `by_guest`); null takes it off every guest (it is shared). 422 `already_void`; 404 `item_not_found`. Needs.
+  /// orders.manage; the waiter rule applies (`approval_token`). The guest_split module (403 `module_disabled`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/items/{item}/seat')
+  Future<PostV1PosOrdersUuidItemsItemSeatResponse> posOrderHandoverSeat({
+    @Path('uuid') required String uuid,
+    @Path('item') required String item,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidItemsItemSeatRequestBody body,
+  });
+
   /// Mark a line served.
   ///
   /// The line reached the guests: `ready` (the kitchen display bumped it) or `sent` (a station without a display,.
@@ -253,6 +301,23 @@ abstract class PosOrdersApi {
     @Path('item') required String item,
     @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosOrdersUuidItemsItemVoidRequestBody body,
+  });
+
+  /// Enter the weight of a line.
+  ///
+  /// P6-25: the real weight (`quantity`, kg or l, up to 3 decimals) of a line added with `awaiting_weight`: the line's.
+  /// price follows it at its own unit price, `weighed_by` / `weighed_at` are set, the charges follow, and the order can.
+  /// be billed again (no bill while a line awaits its weight: 409 `weight_pending`). A line weighed already: weighing.
+  /// it again needs orders.void_item or a manager's `approval_token` (403 `approval_required`). A line that does not.
+  /// wait for a weight: 422 `not_weighed_line`. Needs orders.manage; the waiter rule. Not gated by the module.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/items/{item}/weight')
+  Future<PostV1PosOrdersUuidItemsItemWeightResponse> posCourseWeight({
+    @Path('uuid') required String uuid,
+    @Path('item') required String item,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidItemsItemWeightRequestBody body,
   });
 
   /// Merge another order into this one.
@@ -320,7 +385,8 @@ abstract class PosOrdersApi {
   /// A new round (`round_no`, who added it, when): lines priced by the order's channel, with the menu's rules (kg and.
   /// fractions in steps, modifiers, stop-list, kazan portions, stock; in fiscal mode the MXIK code). `fire_mode`.
   /// `now` (default) goes with the next send, `hold` only when sent by id; `due_at` for a pre-order; `seat_no` and.
-  /// `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage.
+  /// `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage. P6-21 / P6-25:.
+  /// `course_no` and `awaiting_weight` per line as on opening (a course after the one in the kitchen is held).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/rounds')
@@ -342,5 +408,37 @@ abstract class PosOrdersApi {
     @Path('uuid') required String uuid,
     @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosOrdersUuidSendRequestBody body,
+  });
+
+  /// Set the table plate.
+  ///
+  /// P6-25 (kafe "stolga olib kelish", module `table_service`): the number on the plate the guest took (`table_label`,.
+  /// up to 20 characters; null or empty clears it), shown on the kitchen ticket and the order. Audited. Needs.
+  /// orders.manage; the waiter rule.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/table-label')
+  Future<PostV1PosOrdersUuidTableLabelResponse> posCourseTableLabel({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidTableLabelRequestBody body,
+  });
+
+  /// Hand the table to another waiter.
+  ///
+  /// The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422.
+  /// `same_waiter`). Needs orders.transfer (a manager or the owner by default), or a manager's one-time.
+  /// `approval_token` for orders.transfer (POST /pos/approvals; 403 `approval_required`). The waiter rule is not.
+  /// asked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the.
+  /// new waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already.
+  /// paid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new.
+  /// waiter. The waiter_transfer module (403 `module_disabled`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/transfer')
+  Future<PostV1PosOrdersUuidTransferResponse> posOrderHandoverTransfer({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidTransferRequestBody body,
   });
 }

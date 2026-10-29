@@ -15,10 +15,6 @@ Data105 _$Data105FromJson(Map<String, dynamic> json) => Data105(
   resolutionNotes: json['resolution_notes'] as String?,
   processedAt: json['processed_at'] as String?,
   createdAt: json['created_at'] as String,
-  storeId: (json['store_id'] as num).toInt(),
-  cardNumber: json['card_number'] as String,
-  processedBy: (json['processed_by'] as num?)?.toInt(),
-  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data105ToJson(Data105 instance) => <String, dynamic>{
@@ -30,8 +26,4 @@ Map<String, dynamic> _$Data105ToJson(Data105 instance) => <String, dynamic>{
   'resolution_notes': instance.resolutionNotes,
   'processed_at': instance.processedAt,
   'created_at': instance.createdAt,
-  'store_id': instance.storeId,
-  'card_number': instance.cardNumber,
-  'processed_by': instance.processedBy,
-  'updated_at': instance.updatedAt,
 };

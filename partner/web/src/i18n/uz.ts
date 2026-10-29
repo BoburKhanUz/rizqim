@@ -20,6 +20,7 @@ export const uz = {
   nav_bookings: 'Bronlar',
   nav_accounts: 'Nasiya',
   nav_shifts: 'Smenalar',
+  nav_tips: 'Choy puli',
   nav_possetup: 'Kassa sozlamalari',
   nav_permissions: 'Huquqlar',
   nav_audit: 'Harakatlar jurnali',
@@ -110,6 +111,7 @@ export const uz = {
   role_cashier: 'Kassir',
   role_waiter: 'Ofitsiant',
   role_cook: 'Oshpaz',
+  role_hostess: 'Hostes',
   role_courier: 'Kuryer',
   role_customer: 'Mijoz',
 } as const;

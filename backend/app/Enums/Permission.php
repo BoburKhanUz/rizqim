@@ -49,6 +49,16 @@ enum Permission: string
     case CUSTOMER_ACCOUNTS_MANAGE = 'customer_accounts.manage';
     // P3-18: refund a closed POS order's payment within the shift (refund receipt, cash out of the till)
     case POS_REFUND = 'pos.refund';
+    // P6-24: move an open table to another waiter (the old waiter is told, the change is audited)
+    case ORDERS_TRANSFER = 'orders.transfer';
+    // P6-24/P6-26: the hostess' desk: table bookings, table states (free/occupied/needs cleaning) and the waitlist
+    case HOSTESS_MANAGE = 'hostess.manage';
+    // P6-22/P6-23 (J2, J3 add their cases below this line): tips.manage, staff_pay.view, staff_pay.manage
+    // P6-23: staff pay (wage rules, work sessions, pay statements): see, and set / close / mark paid
+    case STAFF_PAY_VIEW = 'staff_pay.view';
+    case STAFF_PAY_MANAGE = 'staff_pay.manage';
+    // P6-22: tips (choy puli): correct a recorded tip with a reason, compute and close the tip pool's split
+    case TIPS_MANAGE = 'tips.manage';
 
     public function label(): string
     {
@@ -88,6 +98,11 @@ enum Permission: string
             self::BOOKINGS_MANAGE => 'Bron, avans va oldindan buyurtma', // P3-17
             self::CUSTOMER_ACCOUNTS_MANAGE => 'Nasiya hisoblari', // P3-17
             self::POS_REFUND => "Smena ichida pulni qaytarish", // P3-18
+            self::ORDERS_TRANSFER => "Stolni boshqa ofitsiantga o'tkazish", // P6-24
+            self::HOSTESS_MANAGE => "Hostes: stol broni, stol holati va kutish ro'yxati", // P6-24/P6-26
+            self::STAFF_PAY_VIEW => "Ish haqi hisob-kitobini ko'rish", // P6-23
+            self::STAFF_PAY_MANAGE => "Ish haqi qoidalari va hisob-kitob", // P6-23
+            self::TIPS_MANAGE => "Choy pulini tuzatish va umumiy qozonni bo'lish", // P6-22
         };
     }
 

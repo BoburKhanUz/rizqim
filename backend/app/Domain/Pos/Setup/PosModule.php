@@ -35,6 +35,19 @@ enum PosModule: string
     case SERVICE_CHARGE = 'service_charge';
     case KDS = 'kds';
 
+    // Wave 2 "Restoran va kafe" (docs/PHASE6_PLAN.md §9)
+    case COURSES = 'courses';
+    case TIPS = 'tips';
+    case STAFF_PAY = 'staff_pay';
+    case GUEST_SPLIT = 'guest_split';
+    case WAITER_TRANSFER = 'waiter_transfer';
+    case HOSTESS = 'hostess';
+    case TABLE_BOOKING = 'table_booking';
+    case SKEWER_BUTTONS = 'skewer_buttons';
+    case WEIGHT_LATER = 'weight_later';
+    case TABLE_SERVICE = 'table_service';
+    case SERVICE_CHARGE_RULES = 'service_charge_rules';
+
     public function label(): string
     {
         return match ($this) {
@@ -55,6 +68,17 @@ enum PosModule: string
             self::CUSTOMER_ACCOUNTS => 'Nasiya',
             self::SERVICE_CHARGE => 'Xizmat haqi',
             self::KDS => 'Oshxona ekrani (KDS)',
+            self::COURSES => 'Kurslar',
+            self::TIPS => 'Choy puli',
+            self::STAFF_PAY => 'Ofitsiant ish haqi',
+            self::GUEST_SPLIT => "Mehmon bo'yicha bo'lish",
+            self::WAITER_TRANSFER => "Stolni boshqa ofitsiantga o'tkazish",
+            self::HOSTESS => 'Hostes',
+            self::TABLE_BOOKING => 'Stol broni',
+            self::SKEWER_BUTTONS => 'Six tugmalari',
+            self::WEIGHT_LATER => "Og'irlikni keyin kiritish",
+            self::TABLE_SERVICE => 'Stolga olib kelish',
+            self::SERVICE_CHARGE_RULES => 'Xizmat haqi qoidalari',
         };
     }
 
@@ -81,12 +105,28 @@ enum PosModule: string
             self::CUSTOMER_ACCOUNTS => "Doimiy mijozlarga nasiya hisobi: qarzga yozish va to'lovni qabul qilish.",
             self::SERVICE_CHARGE => 'Zal yoki xona bo\'yicha xizmat haqi foizi, chekda alohida qator.',
             self::KDS => 'Oshxona va sexlarda buyurtmalarni ekranda ko\'rsatish (printer o\'rniga yoki u bilan).',
+            self::COURSES => "Taomlar kurs bo'yicha: keyingi kurs oshxonaga \"N-kursni yuborish\" bilan chiqadi, kurs tayyor bo'lsa ofitsiantga xabar.",
+            self::TIPS => "Choy puli to'lovda alohida olinadi: tushum emas, fiskal chekka kirmaydi, ofitsiantga yoki umumiy qozonga.",
+            self::STAFF_PAY => "Ofitsiant va xodimlar ish haqi qoidalari: smena, soat, sotuvdan %, garant + %, davr hisobi.",
+            self::GUEST_SPLIT => "Schyotni mehmon (o'rin) raqami bo'yicha bo'lish.",
+            self::WAITER_TRANSFER => "Ochiq stolni boshqa ofitsiantga o'tkazish (menejer), eski ofitsiantga xabar.",
+            self::HOSTESS => "Hostes: bronlar, stollar holati va kutish ro'yxati.",
+            self::TABLE_BOOKING => "Stolni stol turi bo'yicha vaqt oralig'iga band qilish, ixtiyoriy depozit.",
+            self::SKEWER_BUTTONS => "Six va dona taomlar uchun ×2…×10 tez tugmalari, assorti va mangal kutish vaqti.",
+            self::WEIGHT_LATER => "Taom tanlanadi, og'irlik tortilgach kiritiladi (kim tortdi); schyotda haqiqiy kg.",
+            self::TABLE_SERVICE => "Kassada to'lab, stol raqami tablichkasi bilan: taom stolga olib boriladi.",
+            self::SERVICE_CHARGE_RULES => "Xizmat haqi buyurtma turi bo'yicha, katta guruh qoidasi, mehmon boshiga \"cover\" va e'lon matni.",
         };
     }
 
     /**
      * The plan feature (P4-21) a store needs for this module; null: every plan has it (docs/PHASE6_PLAN.md §7: the quick
-     * counter family, numbers, the customer display, daily menu and batches are on Start).
+     * counter family, numbers, the customer display, daily menu and batches are on Start; wave 2: skewer buttons,
+     * weight later, table service and the waiter transfer too, while courses, the hostess, table booking, guest split,
+     * the service charge rules, tips and staff pay are Asosiy+). Wave 2 reuses the Asosiy plan features instead of
+     * adding new ones, so the catalog and the plans already sold do not change: courses go with the kitchen display,
+     * the hostess and table booking with bookings, the bill and staff money (guest split, service charge rules, tips,
+     * staff pay) with the service charge.
      */
     public function planFeature(): ?PlanFeature
     {
@@ -98,6 +138,9 @@ enum PosModule: string
             self::CUSTOMER_ACCOUNTS => PlanFeature::CUSTOMER_ACCOUNTS,
             self::SERVICE_CHARGE => PlanFeature::SERVICE_CHARGE,
             self::KDS => PlanFeature::KDS,
+            self::COURSES => PlanFeature::KDS,
+            self::HOSTESS, self::TABLE_BOOKING => PlanFeature::BOOKINGS,
+            self::GUEST_SPLIT, self::SERVICE_CHARGE_RULES, self::TIPS, self::STAFF_PAY => PlanFeature::SERVICE_CHARGE,
             default => null,
         };
     }

@@ -84,6 +84,7 @@ class FloorTable {
     this.minSpendMode = 'per_table',
     this.reservation,
     this.billRequested = false,
+    this.serviceState,
   });
 
   factory FloorTable.fromJson(PosJson j) => FloorTable(
@@ -97,6 +98,7 @@ class FloorTable {
     minSpendMode: j.strOrNull('min_spend_mode') ?? 'per_table',
     statusWire: j.strOrNull('status') ?? 'free',
     billRequested: j.boolean('bill_requested'),
+    serviceState: j.strOrNull('service_state'),
     reservation: j.has('reservation')
         ? FloorReservation.fromJson(j.obj('reservation'))
         : null,
@@ -121,6 +123,11 @@ class FloorTable {
 
   /// Ofitsiant schyot so'ragan, schyot hali chiqmagan ("Schyot so'raldi", P3-26).
   final bool billRequested;
+
+  /// P6-26: hostesning belgisi — `cleaning` ("tozalanmoqda"); holat ([statusWire]) o'zgarmaydi.
+  final String? serviceState;
+
+  bool get isCleaning => serviceState == 'cleaning';
 
   /// `pos_core` holati ([FloorTableStatus]): faol bo'lmagan bo'sh joy — `inactive`.
   FloorTableStatus get status {

@@ -5,6 +5,7 @@ enum StaffRole {
   cashier('cashier', 'Kassir'),
   waiter('waiter', 'Ofitsiant'),
   cook('cook', 'Oshpaz'),
+  hostess('hostess', 'Hostes'),
   courier('courier', 'Kuryer');
 
   const StaffRole(this.wire, this.label);

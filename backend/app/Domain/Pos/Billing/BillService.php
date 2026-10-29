@@ -39,7 +39,7 @@ final class BillService
     ) {}
 
     /**
-     * @param  'single'|'equal'|'items'  $mode
+     * @param  'single'|'equal'|'items'|'by_guest'  $mode
      * @param  list<array{items: list<array{order_item_id: int, quantity: string}>, guests?: int|null}>  $billsSpec
      * @return list<OrderBill>
      *
@@ -47,7 +47,7 @@ final class BillService
      */
     public function create(User $user, Order $order, string $mode, int $parts, array $billsSpec, int $version, ?Device $device, ?Closure $applied = null, ?string $approvalToken = null): array
     {
-        $splits = ($mode === 'equal' && $parts > 1) || ($mode === 'items' && count($billsSpec) > 1);
+        $splits = ($mode === 'equal' && $parts > 1) || ($mode === 'items' && count($billsSpec) > 1) || $mode === 'by_guest';
         if ($splits && !$this->permissions->allows($user, Permission::POS_TAKE_PAYMENT, $order)) {
             throw PosActionException::forbidden('permission_denied', "Hisobni bo'lish uchun to'lov qabul qilish huquqi kerak.", ['permission' => Permission::POS_TAKE_PAYMENT->value]);
         }
@@ -55,6 +55,7 @@ final class BillService
         [$order, $bills, $voided] = DB::transaction(function () use ($user, $order, $mode, $parts, $billsSpec, $version, $device, $applied, $approvalToken) {
             $order = self::lockOpenOrder($order, $version);
             app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($order, $user, $approvalToken);
+            self::assertWeighed($order);
 
             $voided = [];
             $payable = OrderBill::where('order_id', $order->id)
@@ -109,6 +110,9 @@ final class BillService
 
             if ($bill->status === BillStatus::VOID) {
                 throw PosActionException::conflict('bill_void', "Bu schyot bekor qilingan: buyurtmaning joriy schyotini chiqaring.");
+            }
+            if ($bill->status !== BillStatus::PAID) {
+                self::assertWeighed($order);
             }
 
             $copy = $bill->printed_count > 0;
@@ -177,6 +181,33 @@ final class BillService
         self::checkVersion($order, $version);
 
         return $order;
+    }
+
+    /**
+     * P6-25: no bill is made or printed while a "weight later" line waits for its real weight (PosWeights): 409
+     * `weight_pending` with the lines (`items`: id and name). Weighing or voiding the line frees the bill.
+     *
+     * @throws PosActionException
+     */
+    public static function assertWeighed(Order $order): void
+    {
+        $pending = \App\Models\OrderItem::query()
+            ->where('order_id', $order->id)
+            ->where('weight_status', \App\Domain\Pos\Orders\WeightStatus::AWAITING->value)
+            ->where('kitchen_status', '!=', 'void')
+            ->whereNull('voided_at')
+            ->orderBy('id')
+            ->get(['id', 'product_name', 'variant_name']);
+        if ($pending->isEmpty()) {
+            return;
+        }
+
+        throw PosActionException::conflict('weight_pending', "Og'irligi kiritilmagan taom bor: avval uni torting va og'irligini kiriting.", [
+            'items' => $pending->map(fn (\App\Models\OrderItem $item) => [
+                'id' => (int) $item->id,
+                'name' => $item->product_name . ($item->variant_name ? " ({$item->variant_name})" : ''),
+            ])->all(),
+        ]);
     }
 
     /**

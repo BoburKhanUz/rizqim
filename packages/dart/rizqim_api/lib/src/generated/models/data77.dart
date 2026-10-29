@@ -4,11 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
-import 'status5.dart';
-import 'payment_form.dart';
-import 'lines.dart';
-import 'payments.dart';
+import 'kassa_status.dart';
 
 part 'data77.g.dart';
 
@@ -16,77 +12,28 @@ part 'data77.g.dart';
 class Data77 {
   const Data77({
     required this.uuid,
-    required this.type,
-    required this.status,
-    required this.paymentForm,
-    required this.driver,
-    required this.provider,
-    required this.nonFiscal,
-    required this.taxRegime,
-    required this.total,
-    required this.vatTotal,
-    required this.fiscalSign,
-    required this.receiptNumber,
-    required this.qrUrl,
-    required this.terminalId,
-    required this.error,
-    required this.attempts,
-    required this.nextAttemptAt,
-    required this.issuedAt,
-    required this.createdAt,
+    required this.name,
     required this.branchId,
-    required this.deviceId,
-    required this.subjectType,
-    required this.subjectId,
-    required this.originalReceiptUuid,
-    required this.lines,
-    required this.payments,
+    required this.smartKassa,
+    required this.fiscalKassaId,
+    required this.kassaStatus,
+    required this.lastSeenAt,
   });
 
   factory Data77.fromJson(Map<String, Object?> json) => _$Data77FromJson(json);
 
   final String uuid;
-  final Type6 type;
-  final Status5 status;
-  @JsonKey(name: 'payment_form')
-  final PaymentForm paymentForm;
-  final String driver;
-  final String? provider;
-  @JsonKey(name: 'non_fiscal')
-  final bool nonFiscal;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  final String total;
-  @JsonKey(name: 'vat_total')
-  final String vatTotal;
-  @JsonKey(name: 'fiscal_sign')
-  final String? fiscalSign;
-  @JsonKey(name: 'receipt_number')
-  final String? receiptNumber;
-  @JsonKey(name: 'qr_url')
-  final String? qrUrl;
-  @JsonKey(name: 'terminal_id')
-  final String? terminalId;
-  final String? error;
-  final int attempts;
-  @JsonKey(name: 'next_attempt_at')
-  final String? nextAttemptAt;
-  @JsonKey(name: 'issued_at')
-  final String? issuedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
+  final String? name;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  @JsonKey(name: 'device_id')
-  final int? deviceId;
-  @JsonKey(name: 'subject_type')
-  final String? subjectType;
-  @JsonKey(name: 'subject_id')
-  final int? subjectId;
-  @JsonKey(name: 'original_receipt_uuid')
-  final String? originalReceiptUuid;
-  final List<Lines> lines;
-  final List<Payments> payments;
+  @JsonKey(name: 'smart_kassa')
+  final bool smartKassa;
+  @JsonKey(name: 'fiscal_kassa_id')
+  final String? fiscalKassaId;
+  @JsonKey(name: 'kassa_status')
+  final KassaStatus? kassaStatus;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
 
   Map<String, Object?> toJson() => _$Data77ToJson(this);
 }

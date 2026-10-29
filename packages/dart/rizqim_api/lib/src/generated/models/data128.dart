@@ -8,13 +8,15 @@ part 'data128.g.dart';
 
 @JsonSerializable()
 class Data128 {
-  const Data128({required this.path, required this.url});
+  const Data128({required this.productId, required this.modifierGroups});
 
   factory Data128.fromJson(Map<String, Object?> json) =>
       _$Data128FromJson(json);
 
-  final String path;
-  final String url;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'modifier_groups')
+  final String modifierGroups;
 
   Map<String, Object?> toJson() => _$Data128ToJson(this);
 }

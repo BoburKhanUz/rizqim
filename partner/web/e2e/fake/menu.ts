@@ -46,6 +46,10 @@ export interface FakeProduct {
   vat_rate: string | null
   category: { id: number; name: string } | null
   variants: FakeVariant[]
+  // P6-25: the ×N buttons, the grill time and the weight rule (PATCH /owner/products/{id}/pos-service)
+  quick_multipliers?: number[] | null
+  wait_minutes?: number | null
+  weight_mode?: 'raw' | 'cooked' | null
 }
 
 export interface FakeModifier {
@@ -377,6 +381,15 @@ export class FakeMenu {
         this.products = this.products.filter((candidate) => candidate !== product)
         return ok(null)
       }
+    }
+    // P6-25: PATCH /owner/products/{id}/pos-service: only what is sent changes
+    if ((match = /^\/v1\/owner\/products\/(\d+)\/pos-service$/.exec(path)) && req.method === 'PATCH') {
+      const product = this.products.find((candidate) => candidate.id === Number(match![1]))
+      if (!product) return fail(404, 'Mahsulot topilmadi.')
+      if ('quick_multipliers' in input) product.quick_multipliers = (input.quick_multipliers as number[] | null) ?? null
+      if ('wait_minutes' in input) product.wait_minutes = (input.wait_minutes as number | null) ?? null
+      if ('weight_mode' in input) product.weight_mode = (input.weight_mode as 'raw' | 'cooked' | null) ?? null
+      return ok({ product_id: product.id, quick_multipliers: product.quick_multipliers ?? null, wait_minutes: product.wait_minutes ?? null, weight_mode: product.weight_mode ?? null })
     }
     // P3-26: PATCH /owner/products/{id}/fiscal: only the fiscal fields (JSON); left out kept, null or "" cleared
     if ((match = /^\/v1\/owner\/products\/(\d+)\/fiscal$/.exec(path)) && req.method === 'PATCH') {

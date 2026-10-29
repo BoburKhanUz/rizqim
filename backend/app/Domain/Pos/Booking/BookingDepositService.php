@@ -14,6 +14,7 @@ use App\Domain\Pos\Accounts\PosOwnerAlerts;
 use App\Domain\Pos\Contracts\PosTender;
 use App\Models\Booking;
 use App\Models\BookingPayment;
+use App\Models\Branch;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -93,8 +94,9 @@ class BookingDepositService
                 'idempotency_key' => $key,
             ]);
 
-            // A deposit confirms the booking (the report's "avans olindi" follows "tasdiqlandi")
-            if ($booking->status === BookingStatus::REQUESTED) {
+            // A deposit confirms the booking (the report's "avans olindi" follows "tasdiqlandi"); P6-26: when the branch's
+            // rule asks for a bigger deposit first, the booking stays a request until the deposits add up to it
+            if ($booking->status === BookingStatus::REQUESTED && $this->depositEnough($booking)) {
                 $booking->status = BookingStatus::CONFIRMED;
                 $booking->confirmed_at = now();
                 $confirmed = true;
@@ -135,6 +137,18 @@ class BookingDepositService
         }
 
         return $payment->refresh();
+    }
+
+    /**
+     * The deposits taken so far (this one included) cover what the branch's rule needs to confirm (true when it asks
+     * for nothing).
+     */
+    private function depositEnough(Booking $booking): bool
+    {
+        $taken = Money::sum(...BookingPayment::where('booking_id', $booking->id)
+            ->where('status', BookingPaymentStatus::TAKEN->value)->pluck('amount')->all());
+
+        return !app(BookingRules::class)->depositMissing(Branch::findOrFail($booking->branch_id), $booking, $taken)->isPositive();
     }
 
     public function refund(Booking $booking, BookingPayment $payment, string $reason, ?string $approvalToken, User $actor, ?int $deviceId): BookingPayment

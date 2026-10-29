@@ -22,6 +22,8 @@ enum UserRole {
   waiter('waiter'),
   @JsonValue('cook')
   cook('cook'),
+  @JsonValue('hostess')
+  hostess('hostess'),
   @JsonValue('platform')
   platform('platform'),
 

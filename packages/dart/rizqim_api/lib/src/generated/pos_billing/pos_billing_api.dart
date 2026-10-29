@@ -80,7 +80,12 @@ abstract class PosBillingApi {
   /// once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
   /// The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is.
   /// covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the.
-  /// order is closed (delivered, paid, table free) once all its bills are. A receipt not issued yet leaves the bill.
+  /// order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may.
+  /// carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,.
+  /// `tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to.
+  /// (personal mode; else the order's waiter). Tips are never on the receipt nor part of the bill (`tips_amount`.
+  /// on the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,.
+  /// `tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill.
   /// "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422.
   /// `mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.
   ///
@@ -141,7 +146,10 @@ abstract class PosBillingApi {
   /// the first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of.
   /// 1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and.
   /// the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are.
-  /// exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or.
+  /// exact to the tiyin. `by_guest` (P6-24, the guest_split module, 403 `module_disabled`): one bill per guest.
+  /// (`seat_no` of the lines, lowest first, `seat_no` on the bill); a line with no seat is shared equally among those.
+  /// guests (the remainder on the first guest's bill); 422 `no_seat_lines` when no line has a guest number.
+  /// `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or.
   /// pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders.
   /// (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409.
   /// `nothing_to_bill`, `order_closed`,.

@@ -197,6 +197,10 @@ class OfflineOrderBook {
         s.pay(op);
       case SyncOpType.orderClose:
         s.closeIfSettled(op.occurredAt);
+      case SyncOpType.orderCourseSend:
+        s.sendCourse(op);
+      case SyncOpType.orderWeight:
+        s.weigh(op);
     }
     s.recalculate();
     s.touch(op);
@@ -256,6 +260,7 @@ class OfflineOrderState {
       'bill_locked': false,
       'bill_requested_at': null,
       'notes': p['note'],
+      'table_label': p['table_label'],
       'opened_at': opened,
       'updated_at': opened,
       'subtotal': '0.00',
@@ -339,8 +344,13 @@ class OfflineOrderState {
           PosMoney.parse(m['price_delta']) *
               ((m['quantity'] as num?)?.toInt() ?? 1),
       ]);
-      final String fire = line['fire_mode'] as String? ?? roundMode ?? 'now';
+      final int? course = (line['course_no'] as num?)?.toInt();
+      // P6-21: a course after the one the kitchen has is held, as on the server
+      final String fire = course != null && course > firedCourse
+          ? 'hold'
+          : line['fire_mode'] as String? ?? roundMode ?? 'now';
       final bool sendNow = send && fire == 'now';
+      final String? weightBasis = line['weight_basis'] as String?;
       target.add(<String, Object?>{
         'id': -(op.seq * 1000 + i),
         'client_line_id': line['line_id'],
@@ -385,6 +395,11 @@ class OfflineOrderState {
         'voided_at': null,
         'voided_by': null,
         'void_reason': null,
+        'course_no': course,
+        'weight_status': weightBasis == null ? null : 'awaiting',
+        'weight_basis': weightBasis,
+        'weighed_by': null,
+        'weighed_at': null,
         'offline': true,
         'auto': line['line_id'] == null,
       });
@@ -408,6 +423,100 @@ class OfflineOrderState {
       any = true;
     }
     if (any) _started();
+  }
+
+  /// P6-21 / P6-25: the order's courses and its lines waiting for a weight, as the server shows them.
+  void _restaurantSummary() {
+    final Map<int, Map<String, int>> courses = <int, Map<String, int>>{};
+    var pendingWeight = 0;
+    for (final Map<String, Object?> item in items) {
+      if (item['kitchen_status'] == 'void') continue;
+      if (item['weight_status'] == 'awaiting') pendingWeight++;
+      final int? course = (item['course_no'] as num?)?.toInt();
+      if (course == null) continue;
+      final Map<String, int> row = courses[course] ??= <String, int>{
+        'items': 0,
+        'sent': 0,
+        'ready': 0,
+        'served': 0,
+      };
+      row['items'] = row['items']! + 1;
+      if (item['sent_at'] != null) row['sent'] = row['sent']! + 1;
+      if (item['kitchen_status'] == 'ready') row['ready'] = row['ready']! + 1;
+      if (item['kitchen_status'] == 'served') {
+        row['served'] = row['served']! + 1;
+      }
+    }
+    final List<int> numbers = courses.keys.toList()..sort();
+    order['courses'] = <Object?>[
+      for (final int no in numbers)
+        <String, Object?>{
+          'course_no': no,
+          'status': switch (courses[no]!) {
+            final Map<String, int> r when r['served'] == r['items'] => 'served',
+            final Map<String, int> r
+                when r['ready']! + r['served']! == r['items'] =>
+              'ready',
+            final Map<String, int> r when r['sent']! > 0 => 'sent',
+            _ => 'held',
+          },
+          ...courses[no]!,
+        },
+    ];
+    order['weight_pending'] = pendingWeight;
+  }
+
+  /// P6-21: the last course the kitchen has (at least 1).
+  int get firedCourse {
+    var fired = 1;
+    for (final Map<String, Object?> item in items) {
+      final int? course = (item['course_no'] as num?)?.toInt();
+      if (course != null &&
+          item['sent_at'] != null &&
+          item['kitchen_status'] != 'void' &&
+          course > fired) {
+        fired = course;
+      }
+    }
+    return fired;
+  }
+
+  /// P6-21: "N-kursni yuborish".
+  void sendCourse(SyncOperation op) {
+    final int? course = (op.payload['course_no'] as num?)?.toInt();
+    final String at = op.occurredAt.toUtc().toIso8601String();
+    var any = false;
+    for (final Map<String, Object?> item in items) {
+      if (item['kitchen_status'] != 'pending' || item['course_no'] != course) {
+        continue;
+      }
+      item['kitchen_status'] = 'sent';
+      item['sent_at'] = at;
+      any = true;
+    }
+    if (any) _started();
+  }
+
+  /// P6-25: the real weight of a line weighed later: its quantity and total at its own price.
+  void weigh(SyncOperation op) {
+    final Map<String, Object?>? item = line(op.payload['line']);
+    if (item == null || item['kitchen_status'] == 'void') return;
+    final PosQuantity qty = PosQuantity.parse(op.payload['quantity']);
+    final PosUnit unit = PosUnit.fromWire(item['unit'] as String?);
+    item['quantity'] = qty.toApiString();
+    item['quantity_label'] = qty.label(unit);
+    item['total_price'] = OfflinePricing.lineTotal(
+      PosMoney.parse(item['unit_price']),
+      qty,
+      PosMoney.parse(item['modifiers_total']),
+      unit,
+    ).toApiString();
+    item['weight_status'] = 'weighed';
+    item['weighed_by'] = <String, Object?>{
+      'id': op.staffId,
+      'name': (op.payload['view'] as Map?)?['staff_name'],
+    };
+    item['weighed_at'] = op.occurredAt.toUtc().toIso8601String();
   }
 
   void voidLine(SyncOperation op) {
@@ -463,6 +572,7 @@ class OfflineOrderState {
 
   /// Xizmat qatorlari va jami (docs/POS_SPEC.md 2.7, oddiy qoidalar).
   void recalculate() {
+    _restaurantSummary();
     final PosMoney itemsTotal = PosMoney.sum(<PosMoney>[
       for (final Map<String, Object?> i in items)
         if (i['kitchen_status'] != 'void') PosMoney.parse(i['total_price']),

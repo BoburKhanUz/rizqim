@@ -4,35 +4,67 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'plan2.dart';
+import 'lines4.dart';
+
 part 'data90.g.dart';
 
 @JsonSerializable()
 class Data90 {
   const Data90({
-    required this.id,
-    required this.branchId,
-    required this.stationId,
-    required this.categoryId,
-    required this.categoryName,
-    required this.productId,
-    required this.productName,
+    required this.uuid,
+    required this.number,
+    required this.period,
+    required this.periodStart,
+    required this.periodEnd,
+    required this.plan,
+    required this.terminalsCount,
+    required this.includedTerminals,
+    required this.baseFee,
+    required this.feePerTerminal,
+    required this.lines,
+    required this.amount,
+    required this.kind,
+    required this.paidAmount,
+    required this.status,
+    required this.dueDate,
+    required this.issuedAt,
+    required this.paidAt,
+    required this.voidedAt,
   });
 
   factory Data90.fromJson(Map<String, Object?> json) => _$Data90FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'station_id')
-  final int stationId;
-  @JsonKey(name: 'category_id')
-  final int? categoryId;
-  @JsonKey(name: 'category_name')
-  final String? categoryName;
-  @JsonKey(name: 'product_id')
-  final int? productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
+  final String uuid;
+  final String number;
+  final String period;
+  @JsonKey(name: 'period_start')
+  final String periodStart;
+  @JsonKey(name: 'period_end')
+  final String periodEnd;
+  final Plan2? plan;
+  @JsonKey(name: 'terminals_count')
+  final int terminalsCount;
+  @JsonKey(name: 'included_terminals')
+  final int includedTerminals;
+  @JsonKey(name: 'base_fee')
+  final num baseFee;
+  @JsonKey(name: 'fee_per_terminal')
+  final num feePerTerminal;
+  final List<Lines4> lines;
+  final num amount;
+  final String kind;
+  @JsonKey(name: 'paid_amount')
+  final String paidAmount;
+  final String status;
+  @JsonKey(name: 'due_date')
+  final String dueDate;
+  @JsonKey(name: 'issued_at')
+  final String issuedAt;
+  @JsonKey(name: 'paid_at')
+  final String? paidAt;
+  @JsonKey(name: 'voided_at')
+  final String? voidedAt;
 
   Map<String, Object?> toJson() => _$Data90ToJson(this);
 }

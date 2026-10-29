@@ -7,25 +7,33 @@ part of 'data125.dart';
 // **************************************************************************
 
 Data125 _$Data125FromJson(Map<String, dynamic> json) => Data125(
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  purpose: json['purpose'] as String,
+  connection: json['connection'] as String,
+  address: json['address'] as String?,
+  port: (json['port'] as num?)?.toInt(),
+  paperWidth: (json['paper_width'] as num).toInt(),
+  stationId: (json['station_id'] as num?)?.toInt(),
+  deviceId: json['device_id'] as String?,
+  isActive: json['is_active'] as bool,
+  encoding: json['encoding'] as String?,
+  printAsImage: json['print_as_image'] as bool,
 );
 
 Map<String, dynamic> _$Data125ToJson(Data125 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
+  'name': instance.name,
+  'purpose': instance.purpose,
+  'connection': instance.connection,
+  'address': instance.address,
+  'port': instance.port,
+  'paper_width': instance.paperWidth,
+  'station_id': instance.stationId,
+  'device_id': instance.deviceId,
+  'is_active': instance.isActive,
+  'encoding': instance.encoding,
+  'print_as_image': instance.printAsImage,
 };

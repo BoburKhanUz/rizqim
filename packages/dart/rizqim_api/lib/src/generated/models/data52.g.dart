@@ -7,39 +7,25 @@ part of 'data52.dart';
 // **************************************************************************
 
 Data52 _$Data52FromJson(Map<String, dynamic> json) => Data52(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  branch: json['branch'] == null
-      ? null
-      : Branch3.fromJson(json['branch'] as Map<String, dynamic>),
-  polygon: Polygon.fromJson(json['polygon'] as Map<String, dynamic>),
-  bbox: Bbox.fromJson(json['bbox'] as Map<String, dynamic>),
-  areaKm2: json['area_km2'] as String,
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
-  active: json['active'] as bool,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  date: json['date'] as String?,
+  businessDate: json['business_date'] as String,
+  enforced: json['enforced'] as bool,
+  setValue: json['set'] as bool,
+  productIds: Map<String, int>.from(json['product_ids'] as Map),
+  previousDate: json['previous_date'] as String?,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data52ToJson(Data52 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
   'branch_id': instance.branchId,
-  'branch': instance.branch,
-  'polygon': instance.polygon,
-  'bbox': instance.bbox,
-  'area_km2': instance.areaKm2,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
-  'active': instance.active,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'date': instance.date,
+  'business_date': instance.businessDate,
+  'enforced': instance.enforced,
+  'set': instance.setValue,
+  'product_ids': instance.productIds,
+  'previous_date': instance.previousDate,
+  'products': instance.products,
 };

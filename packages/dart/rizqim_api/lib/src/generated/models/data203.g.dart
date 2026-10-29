@@ -8,72 +8,46 @@ part of 'data203.dart';
 
 Data203 _$Data203FromJson(Map<String, dynamic> json) => Data203(
   uuid: json['uuid'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  source: Source.fromJson(json['source'] as String),
-  terminalRef: json['terminal_ref'] as String?,
-  shared: json['shared'] as bool,
-  finalValue: json['final'] as bool,
-  shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  bankTotal: json['bank_total'] as String,
-  bankCount: (json['bank_count'] as num?)?.toInt(),
-  rizqimTotal: json['rizqim_total'] as String?,
-  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
-  rizqimBreakdown: json['rizqim_breakdown'] == null
-      ? null
-      : RizqimBreakdown4.fromJson(
-          json['rizqim_breakdown'] as Map<String, dynamic>,
-        ),
-  difference: json['difference'] as String?,
-  threshold: json['threshold'] as String?,
-  overThreshold: json['over_threshold'] as bool?,
-  transactions: (json['transactions'] as List<dynamic>?)
-      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  unmatched: json['unmatched'] == null
-      ? null
-      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
-  history: (json['history'] as List<dynamic>)
-      .map((e) => History4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  note: json['note'] as String?,
-  enteredBy: json['entered_by'] == null
-      ? null
-      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
-  alertedAt: json['alerted_at'] as String?,
+  type: Type6.fromJson(json['type'] as String),
+  status: Status5.fromJson(json['status'] as String),
+  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
+  nonFiscal: json['non_fiscal'] as bool,
+  total: json['total'] as String,
+  vatTotal: json['vat_total'] as String,
+  fiscalSign: json['fiscal_sign'] as String?,
+  receiptNumber: json['receipt_number'] as String?,
+  qrUrl: json['qr_url'] as String?,
+  terminalId: json['terminal_id'] as String?,
+  error: json['error'] as String?,
+  issuedAt: json['issued_at'] as String?,
   createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  originalReceiptUuid: json['original_receipt_uuid'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines26.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments27.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data203ToJson(Data203 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'shift_uuid': instance.shiftUuid,
-  'z_number': instance.zNumber,
-  'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'source': instance.source,
-  'terminal_ref': instance.terminalRef,
-  'shared': instance.shared,
-  'final': instance.finalValue,
-  'shifts': instance.shifts,
-  'bank_total': instance.bankTotal,
-  'bank_count': instance.bankCount,
-  'rizqim_total': instance.rizqimTotal,
-  'rizqim_count': instance.rizqimCount,
-  'rizqim_breakdown': instance.rizqimBreakdown,
-  'difference': instance.difference,
-  'threshold': instance.threshold,
-  'over_threshold': instance.overThreshold,
-  'transactions': instance.transactions,
-  'unmatched': instance.unmatched,
-  'history': instance.history,
-  'note': instance.note,
-  'entered_by': instance.enteredBy,
-  'alerted_at': instance.alertedAt,
+  'type': instance.type,
+  'status': instance.status,
+  'payment_form': instance.paymentForm,
+  'non_fiscal': instance.nonFiscal,
+  'total': instance.total,
+  'vat_total': instance.vatTotal,
+  'fiscal_sign': instance.fiscalSign,
+  'receipt_number': instance.receiptNumber,
+  'qr_url': instance.qrUrl,
+  'terminal_id': instance.terminalId,
+  'error': instance.error,
+  'issued_at': instance.issuedAt,
   'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'branch_id': instance.branchId,
+  'original_receipt_uuid': instance.originalReceiptUuid,
+  'lines': instance.lines,
+  'payments': instance.payments,
 };

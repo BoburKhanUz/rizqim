@@ -6,9 +6,12 @@ part of 'data168.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data168 _$Data168FromJson(Map<String, dynamic> json) =>
-    Data168(stored: json['stored'] as bool);
+Data168 _$Data168FromJson(Map<String, dynamic> json) => Data168(
+  bill: Bill2.fromJson(json['bill'] as Map<String, dynamic>),
+  order: Order5.fromJson(json['order'] as Map<String, dynamic>),
+);
 
 Map<String, dynamic> _$Data168ToJson(Data168 instance) => <String, dynamic>{
-  'stored': instance.stored,
+  'bill': instance.bill,
+  'order': instance.order,
 };

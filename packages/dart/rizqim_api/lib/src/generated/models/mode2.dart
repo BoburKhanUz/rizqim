@@ -12,6 +12,8 @@ enum Mode2 {
   equal('equal'),
   @JsonValue('items')
   items('items'),
+  @JsonValue('by_guest')
+  byGuest('by_guest'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

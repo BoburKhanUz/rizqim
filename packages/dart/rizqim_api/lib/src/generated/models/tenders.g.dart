@@ -15,6 +15,8 @@ Tenders _$TendersFromJson(Map<String, dynamic> json) => Tenders(
   cardLast4: json['card_last4'] as String?,
   reference: json['reference'] as String?,
   accountUuid: json['account_uuid'] as String?,
+  tipAmount: json['tip_amount'] as num?,
+  tipFromChange: json['tip_from_change'] as bool?,
 );
 
 Map<String, dynamic> _$TendersToJson(Tenders instance) => <String, dynamic>{
@@ -26,4 +28,6 @@ Map<String, dynamic> _$TendersToJson(Tenders instance) => <String, dynamic>{
   'card_last4': instance.cardLast4,
   'reference': instance.reference,
   'account_uuid': instance.accountUuid,
+  'tip_amount': instance.tipAmount,
+  'tip_from_change': instance.tipFromChange,
 };

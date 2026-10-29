@@ -51,7 +51,7 @@ final class ShiftService
     /** The manual movement categories as the owner's alert names them (CashMovementType::categories()). */
     private const CATEGORY_LABELS = [
         'collection' => 'inkassatsiya', 'owner' => 'egaga', 'supplies' => "xo'jalik mollari", 'utilities' => "kommunal to'lov",
-        'other' => 'boshqa', 'daily_wage' => 'kunlik ish haqi', 'advance' => 'avans', 'bonus' => 'mukofot',
+        'other' => 'boshqa', 'daily_wage' => 'kunlik ish haqi', 'advance' => 'avans', 'bonus' => 'mukofot', 'payroll' => 'ish haqi hisob-kitobi', 'tips' => 'choy puli',
         'bazaar' => 'bozorlik', 'meat' => "go'sht", 'bread' => 'non',
     ];
 

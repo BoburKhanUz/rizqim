@@ -7,9 +7,7 @@ part of 'order_item.dart';
 // **************************************************************************
 
 OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
-  modifiers: (json['modifiers'] as List<dynamic>?)
-      ?.map((e) => e as Map<String, dynamic>)
-      .toList(),
+  modifiersTotal: json['modifiers_total'] as String,
   orderId: (json['order_id'] as num).toInt(),
   productVariantId: (json['product_variant_id'] as num?)?.toInt(),
   productName: json['product_name'] as String,
@@ -27,8 +25,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
       ? null
       : DateTime.parse(json['deleted_at'] as String),
   unit: MenuUnit.fromJson(json['unit'] as String),
+  modifiers: (json['modifiers'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
   id: (json['id'] as num).toInt(),
-  modifiersTotal: json['modifiers_total'] as String,
   batchId: (json['batch_id'] as num?)?.toInt(),
   batchQuantity: json['batch_quantity'] as String?,
   kitchenStatus: KitchenItemStatus.fromJson(json['kitchen_status'] as String),
@@ -43,22 +43,33 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   sentAt: json['sent_at'] == null
       ? null
       : DateTime.parse(json['sent_at'] as String),
-  setParts: (json['set_parts'] as List<dynamic>?)
-      ?.map((e) => e as Map<String, dynamic>)
-      .toList(),
+  dueAt: json['due_at'] == null
+      ? null
+      : DateTime.parse(json['due_at'] as String),
   addedBy: json['added_by'],
   voidedAt: json['voided_at'] == null
       ? null
       : DateTime.parse(json['voided_at'] as String),
-  voidedBy: json['voided_by'],
+  weighedAt: json['weighed_at'] == null
+      ? null
+      : DateTime.parse(json['weighed_at'] as String),
   voidReason: json['void_reason'] as String?,
   seatNo: (json['seat_no'] as num?)?.toInt(),
   note: json['note'] as String?,
   clientLineId: json['client_line_id'] as String?,
   priceSource: json['price_source'] as String?,
-  dueAt: json['due_at'] == null
+  setParts: (json['set_parts'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
+  courseNo: (json['course_no'] as num?)?.toInt(),
+  weightStatus: json['weight_status'] == null
       ? null
-      : DateTime.parse(json['due_at'] as String),
+      : WeightStatus.fromJson(json['weight_status'] as String),
+  weightBasis: json['weight_basis'] == null
+      ? null
+      : WeightBasis.fromJson(json['weight_basis'] as String),
+  weighedBy: json['weighed_by'],
+  voidedBy: json['voided_by'],
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -105,6 +116,11 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'client_line_id': instance.clientLineId,
   'price_source': instance.priceSource,
   'set_parts': instance.setParts,
+  'course_no': instance.courseNo,
+  'weight_status': instance.weightStatus,
+  'weight_basis': instance.weightBasis,
+  'weighed_by': instance.weighedBy,
+  'weighed_at': instance.weighedAt?.toIso8601String(),
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

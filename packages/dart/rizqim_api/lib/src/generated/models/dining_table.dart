@@ -34,6 +34,9 @@ class DiningTable {
     required this.createdAt,
     required this.updatedAt,
     required this.deletedAt,
+    required this.serviceState,
+    required this.serviceStateAt,
+    required this.serviceStateBy,
     this.store,
     this.branch,
     this.hall,
@@ -75,6 +78,12 @@ class DiningTable {
   final DateTime? updatedAt;
   @JsonKey(name: 'deleted_at')
   final DateTime? deletedAt;
+  @JsonKey(name: 'service_state')
+  final String? serviceState;
+  @JsonKey(name: 'service_state_at')
+  final DateTime? serviceStateAt;
+  @JsonKey(name: 'service_state_by')
+  final int? serviceStateBy;
   final Store? store;
   final Branch? branch;
   final Hall? hall;

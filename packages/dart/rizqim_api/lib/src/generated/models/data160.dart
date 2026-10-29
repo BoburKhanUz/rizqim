@@ -4,20 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'accounts.dart';
-import 'meta.dart';
-
 part 'data160.g.dart';
 
 @JsonSerializable()
 class Data160 {
-  const Data160({required this.accounts, required this.meta});
+  const Data160({
+    required this.userId,
+    required this.staffCode,
+    required this.pinSetAt,
+  });
 
   factory Data160.fromJson(Map<String, Object?> json) =>
       _$Data160FromJson(json);
 
-  final List<Accounts> accounts;
-  final Meta meta;
+  @JsonKey(name: 'user_id')
+  final int userId;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'pin_set_at')
+  final String? pinSetAt;
 
   Map<String, Object?> toJson() => _$Data160ToJson(this);
 }

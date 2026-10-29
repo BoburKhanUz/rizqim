@@ -254,8 +254,10 @@ tushirmang** — u barcha terminallarni uzib qo'yadi.
 ## 6. Rollar va ruxsatlar
 
 Rollar: `super_admin`, `owner` (ega), `manager` (menejer), `cashier` (kassir), `waiter` (ofitsiant), `cook`
-(oshpaz), `courier` (kuryer), `customer` (mijoz). Kassir, ofitsiant va oshpaz — yangi rollar; ular do'konsiz bo'la
-olmaydi (POS/KDS ilovalari uchun).
+(oshpaz), `hostess` (hostes, P6-24), `courier` (kuryer), `customer` (mijoz). Kassir, ofitsiant, oshpaz va hostes — yangi
+rollar; ular do'konsiz bo'la olmaydi (POS/KDS ilovalari uchun). Hostes terminalda PIN bilan kiradi; standart ruxsatlari:
+`orders.view`, `tables.manage`, `menu.view`, `bookings.manage`, `hostess.manage` (to'lov, buyurtma ochish va chegirma
+yo'q); ega uni "Ruxsatlar" sahifasida o'zgartiradi.
 
 Standart jadval (`App\Services\Auth\RolePermissions`). Superadmin hamma narsaga ega. `orders.refund` hozircha faqat
 superadmin uchun.
@@ -297,6 +299,9 @@ superadmin uchun.
 | `bookings.manage` | Bron daftari: taqvim, bron, oldindan buyurtma, avans olish, "Keldi" (P3-17: `/pos/bookings*`; avansni qaytarish — `pos.refund`, ushlab qolish — `orders.cancel` yoki menejer PIN tasdig'i) | ✓ | ✓ | ✓ |  |  |  |
 | `customer_accounts.manage` | Nasiya hisoblari: ochish, limit, bloklash, qarzni tuzatish (P3-17); ko'rish va qarz to'lovini qabul qilish `pos.take_payment` bilan ham | ✓ | ✓ |  |  |  |  |
 | `pos.refund` | Smena ichida pulni qaytarish (P3-18: `POST /pos/refunds` — shu smenada olingan naqd, karta yoki QR to'lov, qaytarish cheki bilan); kassir menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
+| `orders.transfer` | Ochiq stolni boshqa ofitsiantga berish (P6-24: `POST /pos/orders/{uuid}/transfer`); kassir va ofitsiant menejer PIN tasdig'i bilan; eski va yangi ofitsiantga xabar, audit | ✓ | ✓ |  |  |  |  |
+| `hostess.manage` | Hostes stoli: kutish ro'yxati, stolning "tozalanmoqda" belgisi (P6-24, P6-26: `/pos/waitlist*`, `PUT /pos/tables/{id}/state`); stol broni `bookings.manage` bilan. Hostes roli ikkalasiga ham ega | ✓ | ✓ |  |  |  |  |
+| `tips.manage` | Choy pulini sabab bilan tuzatish, umumiy qozonni bo'lish va yopish (P6-22: `POST /owner/pos/tips/{uuid}/corrections`, `/owner/pos/tips/distributions*`, `POST /pos/tips/{uuid}/corrections`); kassir menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
 
 **Do'kon bo'yicha o'zgartirish.** Ega `PUT /owner/permissions {role, permission, allowed: true|false|null}` yoki
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —

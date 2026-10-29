@@ -22,6 +22,7 @@ Bills4 _$Bills4FromJson(Map<String, dynamic> json) => Bills4(
   paidAmount: json['paid_amount'] as String,
   dueAmount: json['due_amount'] as String,
   guestsShare: (json['guests_share'] as num?)?.toInt(),
+  seatNo: (json['seat_no'] as num?)?.toInt(),
   perGuestAmount: json['per_guest_amount'] as String?,
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
@@ -33,6 +34,11 @@ Bills4 _$Bills4FromJson(Map<String, dynamic> json) => Bills4(
   payments: (json['payments'] as List<dynamic>)
       .map((e) => Payments35.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tipsAmount: json['tips_amount'] as String,
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips8.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  serviceChargeNotice: json['service_charge_notice'] as String?,
   ticket: json['ticket'] == null
       ? null
       : Ticket12.fromJson(json['ticket'] as Map<String, dynamic>),
@@ -55,6 +61,7 @@ Map<String, dynamic> _$Bills4ToJson(Bills4 instance) => <String, dynamic>{
   'paid_amount': instance.paidAmount,
   'due_amount': instance.dueAmount,
   'guests_share': instance.guestsShare,
+  'seat_no': instance.seatNo,
   'per_guest_amount': instance.perGuestAmount,
   'printed_count': instance.printedCount,
   'printed_at': instance.printedAt,
@@ -62,6 +69,9 @@ Map<String, dynamic> _$Bills4ToJson(Bills4 instance) => <String, dynamic>{
   'fiscal': instance.fiscal,
   'items': instance.items,
   'payments': instance.payments,
+  'tips_amount': instance.tipsAmount,
+  'tips': instance.tips,
+  'service_charge_notice': instance.serviceChargeNotice,
   'ticket': instance.ticket,
   'created_at': instance.createdAt,
 };

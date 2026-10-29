@@ -184,7 +184,10 @@ class BookingController extends MenuStaffController
      *
      * A room or table of the branch (`dining_table_id`; a banquet adds the merged rooms in `extra_table_ids`) for
      * `starts_at`–`ends_at` (ISO 8601; without an offset: the store's time zone; without `ends_at`: the branch's default
-     * slot, 5 hours). 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`
+     * slot: 5 hours, or the slot of the place's kind in the branch's table booking rules, P6-26). 422
+     * `booking_too_soon` / `booking_too_far` when the rules (minimum lead time, furthest day) refuse the start —
+     * `skip_lead_time: true` lets an owner or a manager book a walk-in; 409 `deposit_required` when `confirm: true`
+     * and the rule keeps unconfirmed bookings until the deposit is taken. 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`
      * creates it confirmed. The phone is stored as +998XXXXXXXXX.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . BookingPresenter::DETAIL . '}')]
@@ -207,6 +210,7 @@ class BookingController extends MenuStaffController
             'min_spend' => 'nullable|numeric|min:0|max:999999999|decimal:0,2',
             'note' => 'nullable|string|max:1000',
             'confirm' => 'nullable|boolean',
+            'skip_lead_time' => 'nullable|boolean',
             'version' => 'nullable|integer|min:1',
         ], UzValidation::messages()), $branch, true);
 
@@ -247,6 +251,7 @@ class BookingController extends MenuStaffController
             'source' => ['nullable', 'string', Rule::in(BookingSource::values())],
             'min_spend' => 'nullable|numeric|min:0|max:999999999|decimal:0,2',
             'note' => 'nullable|string|max:1000',
+            'skip_lead_time' => 'nullable|boolean',
             'version' => 'nullable|integer|min:1',
         ], UzValidation::messages()), $booking->branch()->firstOrFail(), false);
 
@@ -648,6 +653,10 @@ class BookingController extends MenuStaffController
         }
         if ($creating) {
             $out['confirm'] = (bool) ($data['confirm'] ?? false);
+        }
+        // P6-26: an owner or a manager books a walk-in inside the branch's minimum lead time
+        if (array_key_exists('skip_lead_time', $data)) {
+            $out['skip_lead_time'] = (bool) $data['skip_lead_time'];
         }
 
         return $out;

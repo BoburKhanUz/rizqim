@@ -4,34 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data68.dart';
+import 'store_status.dart';
+import 'store_transaction.dart';
+import 'store_wallet_transaction.dart';
+import 'payout_requests.dart';
 
 part 'data69.g.dart';
 
 @JsonSerializable()
 class Data69 {
   const Data69({
-    required this.data,
-    required this.currentPage,
-    required this.lastPage,
-    required this.perPage,
-    required this.total,
-    required this.from,
-    required this.to,
+    required this.debtBalance,
+    required this.walletBalance,
+    required this.creditLimit,
+    required this.minPayoutReserve,
+    required this.paymentAccountType,
+    required this.commissionRate,
+    required this.status,
+    required this.isOrderLocked,
+    required this.ledgerTransactions,
+    required this.walletTransactions,
+    required this.payoutRequests,
   });
 
   factory Data69.fromJson(Map<String, Object?> json) => _$Data69FromJson(json);
 
-  final List<Data68> data;
-  @JsonKey(name: 'current_page')
-  final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
-  @JsonKey(name: 'per_page')
-  final int perPage;
-  final int total;
-  final int? from;
-  final int? to;
+  @JsonKey(name: 'debt_balance')
+  final num debtBalance;
+  @JsonKey(name: 'wallet_balance')
+  final num walletBalance;
+  @JsonKey(name: 'credit_limit')
+  final num creditLimit;
+  @JsonKey(name: 'min_payout_reserve')
+  final num minPayoutReserve;
+  @JsonKey(name: 'payment_account_type')
+  final String paymentAccountType;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final StoreStatus status;
+  @JsonKey(name: 'is_order_locked')
+  final bool isOrderLocked;
+  @JsonKey(name: 'ledger_transactions')
+  final List<StoreTransaction> ledgerTransactions;
+  @JsonKey(name: 'wallet_transactions')
+  final List<StoreWalletTransaction> walletTransactions;
+  @JsonKey(name: 'payout_requests')
+  final List<PayoutRequests> payoutRequests;
 
   Map<String, Object?> toJson() => _$Data69ToJson(this);
 }

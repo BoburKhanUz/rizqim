@@ -6,10 +6,12 @@ part of 'data128.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data128 _$Data128FromJson(Map<String, dynamic> json) =>
-    Data128(path: json['path'] as String, url: json['url'] as String);
+Data128 _$Data128FromJson(Map<String, dynamic> json) => Data128(
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
+);
 
 Map<String, dynamic> _$Data128ToJson(Data128 instance) => <String, dynamic>{
-  'path': instance.path,
-  'url': instance.url,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

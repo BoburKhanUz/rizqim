@@ -6,12 +6,9 @@ part of 'data139.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data139 _$Data139FromJson(Map<String, dynamic> json) => Data139(
-  bill: Bill2.fromJson(json['bill'] as Map<String, dynamic>),
-  order: Order5.fromJson(json['order'] as Map<String, dynamic>),
-);
+Data139 _$Data139FromJson(Map<String, dynamic> json) =>
+    Data139(hallId: (json['hall_id'] as num).toInt());
 
 Map<String, dynamic> _$Data139ToJson(Data139 instance) => <String, dynamic>{
-  'bill': instance.bill,
-  'order': instance.order,
+  'hall_id': instance.hallId,
 };

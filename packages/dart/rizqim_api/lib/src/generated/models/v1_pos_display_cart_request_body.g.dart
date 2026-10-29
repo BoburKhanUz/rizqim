@@ -12,7 +12,7 @@ V1PosDisplayCartRequestBody _$V1PosDisplayCartRequestBodyFromJson(
   state: State.fromJson(json['state'] as String),
   seq: (json['seq'] as num).toInt(),
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines14.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines24.fromJson(e as Map<String, dynamic>))
       .toList(),
   subtotal: json['subtotal'] as String,
   total: json['total'] as String,

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff3.dart';
+import 'staff21.dart';
 import 'device21.dart';
 import 'order11.dart';
 import 'resolved_by.dart';
@@ -47,7 +47,7 @@ class Errors {
   final String status;
   final String? reason;
   final String? message;
-  final Staff3? staff;
+  final Staff21? staff;
   final Device21? device;
   @JsonKey(name: 'occurred_at')
   final String? occurredAt;

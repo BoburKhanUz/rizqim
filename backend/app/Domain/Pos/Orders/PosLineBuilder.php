@@ -42,13 +42,17 @@ class PosLineBuilder
         protected OrderLineBuilder $lines,
         protected BatchService $batches,
         protected FiscalReadiness $fiscal,
+        protected PosCourses $courses,
+        protected PosWeights $weights,
     ) {}
 
     /**
-     * Reads request items ({variant_id: uuid, quantity, modifiers?, note?, seat_no?, fire_mode?, due_at?}) into lines.
+     * Reads request items ({variant_id: uuid, quantity, modifiers?, note?, seat_no?, fire_mode?, due_at?, course_no?,
+     * awaiting_weight?}) into lines. P6-21: `course_no` 1–9 (PosCourses holds a later course); P6-25: `awaiting_weight`
+     * true|false (null: the product's weight_mode decides, PosWeights).
      *
      * @param  array<int, mixed>  $items
-     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon}>
+     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, course_no: ?int, awaiting_weight: ?bool}>
      */
     public function parse(array $items, FireMode $defaultFire): array
     {
@@ -67,11 +71,19 @@ class PosLineBuilder
                 throw ValidationException::withMessages(["items.{$line['index']}.due_at" => "Tayyor bo'lish vaqti noto'g'ri."]);
             }
 
+            $course = isset($item['course_no']) && is_numeric($item['course_no']) ? (int) $item['course_no'] : null;
+            if ($course !== null && ($course < 1 || $course > PosCourses::MAX_COURSE)) {
+                throw ValidationException::withMessages(["items.{$line['index']}.course_no" => 'Kurs raqami 1 dan ' . PosCourses::MAX_COURSE . ' gacha.']);
+            }
+            $awaiting = $item['awaiting_weight'] ?? null;
+
             $lines[] = $line + [
                 'note' => $note,
                 'seat_no' => isset($item['seat_no']) ? (int) $item['seat_no'] : null,
                 'fire_mode' => $fire ?? $defaultFire,
                 'due_at' => $due,
+                'course_no' => $course,
+                'awaiting_weight' => $awaiting === null ? null : filter_var($awaiting, FILTER_VALIDATE_BOOL),
             ];
         }
 
@@ -83,7 +95,7 @@ class PosLineBuilder
      * portions. Strict: any line that cannot be sold is a 422 for the whole round. Lenient (the automatic per-guest
      * items): such lines are left out and the rest is added.
      *
-     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon}>  $lines
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, course_no?: ?int, awaiting_weight?: ?bool}>  $lines
      * @return Collection<int, OrderItem>
      *
      * @throws ValidationException
@@ -93,6 +105,8 @@ class PosLineBuilder
         if ($lines === []) {
             return collect();
         }
+        // P6-21: a later course is held until it is sent by its number
+        $lines = $this->courses->prepare($order, $branch, $lines, !$lenient);
 
         /** @var Store $store */
         $store = $order->store;
@@ -140,6 +154,8 @@ class PosLineBuilder
                 $priced[] = $line + [
                     'variant' => $variant,
                     'price' => $price,
+                    // P6-25: a dish weighed after it is chosen
+                    'weight_basis' => $this->weights->basisFor($line, $variant, $branch, !$lenient),
                     'modifiers_snapshot' => $modifiers['snapshot'],
                     'modifiers_total' => $modifiers['total'],
                     'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiers['total'], $variant->unit),
@@ -199,7 +215,7 @@ class PosLineBuilder
                 'note' => $line['note'],
                 'seat_no' => $line['seat_no'],
                 'added_by' => $actor->id,
-            ]));
+            ] + $this->restaurantFields($line)));
 
             // Conditional, as checkout: never below zero even if the row changed after it was read
             $deducted = ProductVariant::whereKey($variant->id)
@@ -230,7 +246,10 @@ class PosLineBuilder
      * Returns the new lines and the flags for the manager: `offline_price` (the device's price differs from today's),
      * `sold_while_unavailable` (stop-list, hidden or inactive), `oversold` (kazan), `stock_short`.
      *
-     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, client_line_id?: ?string, unit_price?: ?\App\Support\Money, modifier_prices?: array<string, \App\Support\Money>}>  $lines
+     * P6-21 / P6-25: the device's course is kept while the module is on (dropped otherwise); a line waits for its weight
+     * when the device says so (or by the product's default) and the module is on.
+     *
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, note: ?string, seat_no: ?int, fire_mode: FireMode, due_at: ?Carbon, course_no?: ?int, awaiting_weight?: ?bool, client_line_id?: ?string, unit_price?: ?\App\Support\Money, modifier_prices?: array<string, \App\Support\Money>}>  $lines
      * @return array{items: Collection<int, OrderItem>, flags: list<array<string, mixed>>}
      */
     public function addOffline(Order $order, Branch $branch, array $lines, int $roundNo, User $actor, ?Carbon $menuTakenAt = null): array
@@ -238,6 +257,7 @@ class PosLineBuilder
         if ($lines === []) {
             return ['items' => collect(), 'flags' => []];
         }
+        $lines = $this->courses->prepare($order, $branch, $lines, false);
 
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
         $variants = ProductVariant::withTrashed()
@@ -326,6 +346,7 @@ class PosLineBuilder
                 'variant' => $variant,
                 'price' => $price,
                 'price_source' => $source,
+                'weight_basis' => $this->weights->basisFor($line, $variant, $branch, false),
                 'modifiers_snapshot' => $snapshot,
                 'modifiers_total' => $modifiersTotal,
                 'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiersTotal, $variant->unit),
@@ -399,7 +420,7 @@ class PosLineBuilder
                 'added_by' => $actor->id,
                 'client_line_id' => $line['client_line_id'] ?? null,
                 'price_source' => $line['price_source'],
-            ]));
+            ] + $this->restaurantFields($line)));
         }
 
         return ['items' => $created, 'flags' => $flags];
@@ -438,6 +459,53 @@ class PosLineBuilder
         }
 
         return $rows;
+    }
+
+    /**
+     * P6-21 / P6-25: a line's course and, for a dish weighed later, `weight_status = awaiting` with its basis.
+     *
+     * @param  array<string, mixed>  $line
+     * @return array<string, mixed>
+     */
+    private function restaurantFields(array $line): array
+    {
+        $basis = $line['weight_basis'] ?? null;
+
+        return array_filter([
+            'course_no' => $line['course_no'] ?? null,
+            'weight_status' => $basis instanceof WeightBasis ? WeightStatus::AWAITING->value : null,
+            'weight_basis' => $basis instanceof WeightBasis ? $basis->value : null,
+        ], fn ($value) => $value !== null);
+    }
+
+    /**
+     * P6-25: the real weight of a line (PosOrderService::setWeight, under the order's lock): the quantity, the line's
+     * total at its own unit price and modifiers, and the variant stock moved by the difference (taken only from what is
+     * there: the fish was weighed, the sale is never refused for the stock; given back when it weighed less).
+     */
+    public function reweigh(OrderItem $item, Quantity $weight): void
+    {
+        $before = Quantity::of($item->getRawOriginal('quantity') ?? 0);
+        $unit = $item->unit ?? \App\Enums\MenuUnit::KG;
+        $total = $this->lines->lineTotal(\App\Support\Money::of($item->unit_price), $weight, \App\Support\Money::of($item->modifiers_total), $unit);
+
+        if ($item->product_variant_id !== null) {
+            $delta = $weight->minus($before);
+            if ($delta->isPositive()) {
+                $stock = Quantity::of(ProductVariant::withTrashed()->whereKey($item->product_variant_id)->value('stock') ?? 0);
+                $take = $stock->isLessThan($delta) ? $stock : $delta;
+                if ($take->isPositive()) {
+                    ProductVariant::withTrashed()->whereKey($item->product_variant_id)->where('stock', '>=', $take->toString())->decrement('stock', $take->toString()); // @phpstan-ignore argument.type
+                }
+            } elseif ($delta->isLessThan(0)) {
+                ProductVariant::withTrashed()->whereKey($item->product_variant_id)->increment('stock', $before->minus($weight)->toString()); // @phpstan-ignore argument.type
+            }
+        }
+
+        $item->forceFill([
+            'quantity' => $weight->toString(),
+            'total_price' => $total->toString(),
+        ]);
     }
 
     /**

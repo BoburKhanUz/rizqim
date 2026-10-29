@@ -38,6 +38,10 @@ final class ManagerApprovalService implements ManagerApprovals
         'orders.manage', 'orders.cancel', 'orders.discount', 'orders.void_item', 'tables.manage',
         'pos.open_shift', 'pos.close_shift', 'pos.cash_in_out', 'pos.take_payment', 'pos.reprint_bill', 'pos.refund',
         'bookings.manage', 'customer_accounts.manage', 'batches.manage',
+        // P6-24: a manager's PIN lets a waiter or cashier hand an open table to another waiter
+        'orders.transfer',
+        // P6-22: a manager's PIN lets the cashier correct a tip (with a reason)
+        'tips.manage',
     ];
 
     public function __construct(

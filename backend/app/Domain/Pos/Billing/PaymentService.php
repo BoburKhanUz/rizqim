@@ -5,7 +5,13 @@ namespace App\Domain\Pos\Billing;
 use App\Domain\Pos\Contracts\AdvanceLedger;
 use App\Domain\Pos\Contracts\CustomerAccountLedger;
 use App\Domain\Pos\Contracts\PosTender;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Shifts\ShiftService;
+use App\Domain\Pos\Tips\TipMethod;
+use App\Domain\Pos\Tips\TipService;
+use App\Domain\Pos\Tips\TipSource;
+use App\Models\Branch;
 use App\Enums\Permission;
 use App\Events\Broadcast\BillChangedBroadcast;
 use App\Models\Device;
@@ -35,6 +41,12 @@ use Illuminate\Support\Facades\DB;
  * is covered its sale receipt is asked for (BillFiscalizer); the bill is paid, and the order closed once all bills
  * are, only when the receipt is issued. P3-31: a payment a till took offline comes through here at sync, with the
  * device's time of payment (`offline_paid_at`).
+ *
+ * P6-22 (C2): a cash, card or QR tender may carry a tip (`tip_amount`) on top of what it pays of the bill; for cash
+ * the guest may leave the change as the tip (`tip_from_change`: the tip is the change, or `tip_amount` of it).
+ * A tip is never a payment and never on the receipt: it is a pos_tips row (TipService), to the waiter picked at
+ * payment (`$tipStaffId`), else the order's waiter (personal mode), or the branch's pool. A tip needs the branch's
+ * `tips` module (403 module_disabled before any money is taken); a payment synced from offline keeps its tip anyway.
  */
 final class PaymentService
 {
@@ -47,25 +59,42 @@ final class PaymentService
         private readonly ManagerApprovalService $approvals,
         private readonly BillFiscalizer $fiscalizer,
         private readonly AuditLogger $audit,
+        private readonly TipService $tips,
+        private readonly PosModules $modules,
     ) {}
 
     /**
-     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null}>  $tenders
+     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null, tip_amount?: string|null, tip_from_change?: string|bool|null}>  $tenders
+     * @param  int|null  $tipStaffId  P6-22: the staff member the cashier gave the tips to (personal mode)
      *
      * @throws PosActionException
      */
-    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null): OrderBill
+    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null, ?int $tipStaffId = null): OrderBill
     {
         $order = Order::findOrFail($bill->order_id);
         $shift = $this->shifts->forAction($user, $shiftUuid, (int) $order->branch_id);
         $normalized = $this->normalize($tenders);
+
+        // P6-22: tips need the branch's module (online; money taken offline keeps its tip) and a staff member of it
+        $tipped = array_filter($normalized, fn (array $tender) => $tender['tip'] !== null);
+        if ($tipped !== []) {
+            if ($offlinePaidAt === null) {
+                $this->modules->assertEnabled(Branch::findOrFail((int) $order->branch_id), PosModule::TIPS);
+            }
+            if ($tipStaffId !== null && TipService::recipient((int) $order->store_id, (int) $order->branch_id, $tipStaffId) === null) {
+                if ($offlinePaidAt === null) {
+                    throw PosActionException::invalid('tip_staff_not_found', 'Choy puli beriladigan xodim topilmadi.');
+                }
+                $tipStaffId = null;
+            }
+        }
 
         // A line that cannot be receipted (no MXIK...) refuses the payment before any money is taken (422)
         if ($bill->status->isPayable()) {
             $this->fiscalizer->lines($bill);
         }
 
-        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt) {
+        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt, $tipStaffId) {
             // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
             // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
             $shift = PosShift::lockForMoney((int) $shift->id);
@@ -108,6 +137,7 @@ final class PaymentService
             }
 
             $created = [];
+            $tips = [];
             foreach ($normalized as $tender) {
                 $payload = null;
                 if ($tender['tender'] === PosTender::PREPAYMENT) {
@@ -147,6 +177,9 @@ final class PaymentService
                 if ($tender['tender']->isCashDrawer()) {
                     $this->shifts->recordSale($shift, $payment, $user, $device);
                 }
+                if ($tender['tip'] !== null) {
+                    $tips[] = $this->tips->record($order, $bill, $payment, $shift, $tender['tip_method'], $tender['tip'], $tender['tip_source'], $tipStaffId, $user, $device);
+                }
                 $created[] = $payment;
             }
 
@@ -171,6 +204,8 @@ final class PaymentService
                     'card_last4' => $payment->getAttribute('card_last4'),
                 ], fn ($value) => $value !== null), $created),
                 'covered' => $covered,
+                // P6-22: tips taken with these payments (never part of the bill or the receipt)
+                'tips' => array_map(fn (\App\Models\PosTip $tip) => ['uuid' => $tip->uuid, 'method' => $tip->method->value, 'amount' => $tip->amount, 'mode' => $tip->mode->value, 'staff_id' => $tip->staff_id], $tips),
             ], ['actor' => $user, 'device' => $device]);
 
             if ($applied) {
@@ -187,7 +222,7 @@ final class PaymentService
 
     /**
      * @param  list<array<string, mixed>>  $tenders
-     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, account_uuid: string|null}>
+     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, account_uuid: string|null, tip: Money|null, tip_method: TipMethod, tip_source: TipSource}>
      *
      * @throws PosActionException
      */
@@ -208,6 +243,20 @@ final class PaymentService
                 throw PosActionException::invalid('amount_invalid', "To'lov summasi musbat bo'lishi kerak.", ['index' => $i]);
             }
 
+            // P6-22: a tip on top of the tender (cash, card, QR), or the change left as one (cash)
+            $tip = filled($input['tip_amount'] ?? null) ? Money::of((string) $input['tip_amount']) : null;
+            $fromChange = filter_var($input['tip_from_change'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $tipMethod = TipMethod::forTender($tender);
+            if (($tip !== null || $fromChange) && $tipMethod === null) {
+                throw PosActionException::invalid('tip_tender_invalid', "Choy puli faqat naqd, karta yoki QR bilan olinadi.", ['index' => $i]);
+            }
+            if ($tip !== null && !$tip->isPositive()) {
+                throw PosActionException::invalid('tip_invalid', "Choy puli summasi musbat bo'lishi kerak.", ['index' => $i]);
+            }
+            if ($fromChange && ($tender !== PosTender::CASH || !filled($input['tendered_amount'] ?? null))) {
+                throw PosActionException::invalid('tip_from_change_invalid', "Qaytimni choy puliga qoldirish uchun berilgan naqd summani kiriting.", ['index' => $i]);
+            }
+
             $tendered = null;
             $change = null;
             if ($tender === PosTender::CASH && filled($input['tendered_amount'] ?? null)) {
@@ -216,6 +265,18 @@ final class PaymentService
                     throw PosActionException::invalid('tendered_too_small', "Berilgan naqd summa to'lov summasidan kam.", ['index' => $i]);
                 }
                 $change = $tendered->minus($amount);
+                if ($fromChange) {
+                    $tip ??= $change;
+                    if (!$tip->isPositive()) {
+                        throw PosActionException::invalid('tip_invalid', "Qaytim yo'q: choy puliga qoldiradigan summa yo'q.", ['index' => $i]);
+                    }
+                }
+                if ($tip !== null) {
+                    if ($tip->isGreaterThan($change)) {
+                        throw PosActionException::invalid('tendered_too_small', "Berilgan naqd summa to'lov va choy pulidan kam.", ['index' => $i]);
+                    }
+                    $change = $change->minus($tip);
+                }
             }
 
             $cardType = null;
@@ -257,6 +318,9 @@ final class PaymentService
                 'card_last4' => $last4,
                 'reference' => filled($input['reference'] ?? null) ? mb_substr(trim((string) $input['reference']), 0, 100) : null,
                 'account_uuid' => $account,
+                'tip' => $tip,
+                'tip_method' => $tipMethod ?? TipMethod::CASH,
+                'tip_source' => $fromChange ? TipSource::CHANGE : TipSource::TENDER,
             ];
         }
 

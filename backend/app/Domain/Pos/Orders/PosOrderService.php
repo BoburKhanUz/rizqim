@@ -118,9 +118,10 @@ class PosOrderService implements PosOrderOpener
      * first round's `now` lines at once), `note`, `queue_number` (P6-13: the number the till took from its block;
      * kept when allowed, else the order gets the next one, QueueNumbers), `business_date` (Y-m-d: the business day the
      * order belongs to when it is not today's — an order taken offline before the day's start and synced after it;
-     * OrderStamp numbers it within that day).
+     * OrderStamp numbers it within that day). P6-25: `table_label` (the table plate of a counter order carried to the
+     * table, module table_service: checked by the caller).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -179,6 +180,8 @@ class PosOrderService implements PosOrderOpener
                 // P6-13: the till's number (OrderStamp checks it on `creating`) and, offline, the day it was taken
                 'queue_number' => $options['queue_number'] ?? null,
                 'business_date' => $options['business_date'] ?? null,
+                // P6-25: the plate number of a counter order carried to the table
+                'table_label' => $options['table_label'] ?? null,
             ], fn ($value) => $value !== null));
 
             OrderStatusHistory::create([
@@ -774,6 +777,90 @@ class PosOrderService implements PosOrderOpener
             event(new KitchenItemStatusChangedBroadcast($order, $item));
 
             return ['served', [(int) $item->id]];
+        }, $approvalToken);
+    }
+
+    /**
+     * P6-21: "N-kursni yuborish" — sends the held lines of course $courseNo (PosCourses): each gets its station and
+     * sent_at, the order starts on its first send; lines of the course added afterwards go with the next send. 422
+     * `nothing_to_send` when the course has nothing left to send. orders.manage; the waiter rule. Never gated by the
+     * module: an order that has courses always sends them.
+     */
+    public function sendCourse(Order $order, int $version, User $actor, int $courseNo, ?string $approvalToken = null): Order
+    {
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $courseNo) {
+            $ids = app(PosCourses::class)->heldLines($order, $courseNo);
+            $sent = $ids === [] ? [] : $this->fire($order, $actor, $ids);
+            if ($sent === []) {
+                throw new PosOrderException("{$courseNo}-kursda oshxonaga yuboriladigan taom yo'q.", 422, 'nothing_to_send', ['course_no' => $courseNo]);
+            }
+
+            $this->audit->record('pos.course_sent', $order, [], [], ['course_no' => $courseNo, 'items' => $sent], ['actor' => $actor]);
+
+            return ['sent', $sent];
+        }, $approvalToken);
+    }
+
+    /**
+     * P6-25: the real weight of a "weight later" line (PosWeights): the quantity, the price (the line's own unit price),
+     * who weighed it and when; the charges follow. A line weighed already may be weighed again only with
+     * orders.void_item or a manager's approval token (it changes the price the guests were told). A line that does not
+     * wait for a weight: 422 `not_weighed_line`. orders.manage; the waiter rule. Never gated by the module.
+     */
+    public function setWeight(Order $order, int $version, User $actor, int $itemId, Quantity $weight, ?string $approvalToken = null): Order
+    {
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $itemId, $weight, $approvalToken) {
+            $item = OrderItem::where('order_id', $order->id)->whereKey($itemId)->lockForUpdate()->first();
+            if ($item === null) {
+                throw new PosOrderException('Taom topilmadi.', 404, 'item_not_found');
+            }
+            if ($item->isVoid()) {
+                throw new PosOrderException("Bu taom o'chirilgan.", 422, 'already_void');
+            }
+            if ($item->weight_status === null) {
+                throw new PosOrderException("Bu taom og'irlik bo'yicha keyin kiritiladigan taom emas.", 422, 'not_weighed_line');
+            }
+
+            $approvedBy = null;
+            if ($item->weight_status === WeightStatus::WEIGHED) {
+                $approvedBy = $this->authorizeOrApprove($actor, $order, Permission::ORDERS_VOID_ITEM, $approvalToken);
+            }
+
+            $before = ['quantity' => Quantity::of($item->getRawOriginal('quantity') ?? 0)->toString(), 'total_price' => (string) $item->total_price, 'weight_status' => $item->weight_status->value];
+            $this->lines->reweigh($item, $weight);
+            $item->forceFill([
+                'weight_status' => WeightStatus::WEIGHED->value,
+                'weighed_by' => $actor->id,
+                'weighed_at' => now(),
+            ])->save();
+
+            $this->charges->recalculate($order);
+            $this->audit->record('pos.item_weighed', $order, $before, [
+                'quantity' => $weight->toString(),
+                'total_price' => (string) $item->total_price,
+                'weight_status' => WeightStatus::WEIGHED->value,
+            ], array_filter([
+                'item_id' => (int) $item->id,
+                'line' => $item->displayLine(),
+                'approved_by' => $approvedBy,
+            ], fn ($value) => $value !== null), ['actor' => $actor]);
+
+            return ['weighed', [(int) $item->id]];
+        }, $approvalToken);
+    }
+
+    /**
+     * P6-25 (kafe "stolga olib kelish"): the table plate of a counter order (null clears it). Audited. orders.manage; the
+     * waiter rule. The caller checks the module (table_service).
+     */
+    public function setTableLabel(Order $order, int $version, User $actor, ?string $label, ?string $approvalToken = null): Order
+    {
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $label) {
+            $from = $order->table_label;
+            $order->forceFill(['table_label' => $label])->save();
+            $this->audit->record('pos.table_label_set', $order, ['table_label' => $from], ['table_label' => $label], [], ['actor' => $actor]);
+
+            return ['table_label', []];
         }, $approvalToken);
     }
 

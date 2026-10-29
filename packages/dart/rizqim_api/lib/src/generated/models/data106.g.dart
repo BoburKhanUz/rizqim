@@ -7,23 +7,23 @@ part of 'data106.dart';
 // **************************************************************************
 
 Data106 _$Data106FromJson(Map<String, dynamic> json) => Data106(
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles.fromJson(e as Map<String, dynamic>))
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data105.fromJson(e as Map<String, dynamic>))
       .toList(),
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => Permissions.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  matrix: (json['matrix'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
-  ),
-  defaults: (json['defaults'] as Map<String, dynamic>).map(
-    (k, e) => MapEntry(k, Map<String, bool>.from(e as Map)),
-  ),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data106ToJson(Data106 instance) => <String, dynamic>{
-  'roles': instance.roles,
-  'permissions': instance.permissions,
-  'matrix': instance.matrix,
-  'defaults': instance.defaults,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

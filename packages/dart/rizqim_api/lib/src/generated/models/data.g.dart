@@ -7,7 +7,9 @@ part of 'data.dart';
 // **************************************************************************
 
 Data _$DataFromJson(Map<String, dynamic> json) => Data(
-  id: (json['id'] as num).toInt(),
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -19,9 +21,7 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
   hasVariants: json['has_variants'] as bool,
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
+  id: (json['id'] as num).toInt(),
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
@@ -35,17 +35,19 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
-  isActive: json['is_active'] as bool,
-  imageUrl: json['image_url'] as String?,
-  imageThumbUrls: ImageThumbUrls2.fromJson(
-    json['image_thumb_urls'] as Map<String, dynamic>,
-  ),
   modifierGroupLinks: (json['modifier_group_links'] as List<dynamic>)
       .map((e) => ProductModifierGroup.fromJson(e as Map<String, dynamic>))
       .toList(),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  weightMode: json['weight_mode'] as String?,
+  isActive: json['is_active'] as bool,
+  imageUrl: json['image_url'] as String?,
+  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
+  imageThumbUrls: ImageThumbUrls2.fromJson(
+    json['image_thumb_urls'] as Map<String, dynamic>,
+  ),
   category: json['category'] == null
       ? null
       : Category.fromJson(json['category'] as Map<String, dynamic>),
@@ -55,12 +57,15 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   modifierGroups: (json['modifier_groups'] as List<dynamic>?)
       ?.map((e) => ModifierGroup.fromJson(e as Map<String, dynamic>))
       .toList(),
-  channelPrices: (json['channel_prices'] as List<dynamic>?)
-      ?.map((e) => ChannelPrice.fromJson(e as Map<String, dynamic>))
-      .toList(),
   batches: (json['batches'] as List<dynamic>?)
       ?.map((e) => MenuBatch.fromJson(e as Map<String, dynamic>))
       .toList(),
+  channelPrices: (json['channel_prices'] as List<dynamic>?)
+      ?.map((e) => ChannelPrice.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  store: json['store'] == null
+      ? null
+      : Store.fromJson(json['store'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$DataToJson(Data instance) => <String, dynamic>{
@@ -86,6 +91,9 @@ Map<String, dynamic> _$DataToJson(Data instance) => <String, dynamic>{
   'package_code': instance.packageCode,
   'vat_rate': instance.vatRate,
   'quick_add': instance.quickAdd,
+  'quick_multipliers': instance.quickMultipliers,
+  'wait_minutes': instance.waitMinutes,
+  'weight_mode': instance.weightMode,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

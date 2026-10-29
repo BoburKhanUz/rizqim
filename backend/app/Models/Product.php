@@ -22,6 +22,9 @@ use App\Traits\HasMenuImage;
  * @property string|null $mxik_code 17 digits; a fiscal store sells nothing without it (FiscalReadiness)
  * @property string|null $package_code
  * @property numeric-string|null $vat_rate null: the store's tax regime decides
+ * @property list<int>|null $quick_multipliers P6-25: the one-tap ×N buttons of a skewer or piece dish
+ * @property int|null $wait_minutes P6-25: how long the grill takes
+ * @property string|null $weight_mode P6-25: raw|cooked — weighed after it is chosen (App\Domain\Pos\Orders\WeightBasis)
  */
 class Product extends Model
 {
@@ -40,6 +43,9 @@ class Product extends Model
         // P3-11: fiscal fields
         'kind' => \App\Enums\ProductKind::class,
         'vat_rate' => 'decimal:2',
+        // P6-25: skewer buttons, grill time, weight later
+        'quick_multipliers' => 'array',
+        'wait_minutes' => 'integer',
     ];
 
     protected $attributes = [

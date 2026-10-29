@@ -1493,6 +1493,16 @@ class FakePosState {
     final int total = ((price + modsTotal) * qty).round();
     final String unit = '${v['unit']}';
     final String qtyLabel = _qtyLabel(qty);
+    // P6-21: a course after the one the kitchen has is held; P6-25: a dish weighed later
+    final int? course = (line['course_no'] as num?)?.toInt();
+    var fired = 1;
+    for (final Map<String, Object?> i in _items(order)) {
+      final int? c = (i['course_no'] as num?)?.toInt();
+      if (c != null && i['sent_at'] != null && c > fired) fired = c;
+    }
+    final bool awaiting =
+        (line['awaiting_weight'] as bool? ?? product['weight_mode'] != null) &&
+        unit != 'piece';
     _items(order).add(<String, Object?>{
       'id': ++_itemSeq,
       'round_no': round,
@@ -1510,8 +1520,15 @@ class FakePosState {
       'total_price': _money(total),
       'note': line['note'],
       'seat_no': line['seat_no'],
-      'fire_mode': line['fire_mode'] ?? fire ?? 'now',
+      'fire_mode': course != null && course > fired
+          ? 'hold'
+          : line['fire_mode'] ?? fire ?? 'now',
       'due_at': line['due_at'],
+      'course_no': course,
+      'weight_status': awaiting ? 'awaiting' : null,
+      'weight_basis': awaiting ? (product['weight_mode'] ?? 'raw') : null,
+      'weighed_by': null,
+      'weighed_at': null,
       'kitchen_status': 'pending',
       'station_id': product['station_id'],
       'sent_at': null,
@@ -1669,6 +1686,7 @@ class FakePosState {
       note: data['note'] as String?,
     );
     if (external is String) order['external_id'] = external;
+    order['table_label'] = data['table_label'];
     final List<Object?> items =
         (data['items'] as List<Object?>?) ?? const <Object?>[];
     for (final Object? i in items) {
@@ -1829,6 +1847,59 @@ class FakePosState {
           ..['void_reason'] = data['reason'];
         _touch(order, 'voided', itemIds: <int>[item['id']! as int]);
         return _ok(order, message: "Taom o'chirildi.");
+      case <String>['courses', final String no, 'send']:
+        final int course = int.parse(no);
+        final List<int> sent = _sendLines(order, <int>[
+          for (final Map<String, Object?> i in _items(order))
+            if (i['course_no'] == course && i['kitchen_status'] == 'pending')
+              i['id']! as int,
+        ]);
+        if (sent.isEmpty) {
+          return _fail(
+            422,
+            'nothing_to_send',
+            "$course-kursda oshxonaga yuboriladigan taom yo'q.",
+          );
+        }
+        _touch(order, 'sent', itemIds: sent);
+        return _ok(order, message: '$course-kurs oshxonaga yuborildi.');
+      case <String>['items', final String id, 'weight']:
+        final Map<String, Object?>? item = _item(order, int.parse(id));
+        if (item == null) return _notFound();
+        if (item['weight_status'] == null) {
+          return _fail(
+            422,
+            'not_weighed_line',
+            "Bu taom og'irlik bo'yicha keyin kiritiladigan taom emas.",
+          );
+        }
+        if (item['weight_status'] == 'weighed') {
+          final FakeResponse? denied = _authorize(
+            member,
+            'orders.void_item',
+            data['approval_token'],
+          );
+          if (denied != null) return denied;
+        }
+        final double qty = double.parse('${data['quantity']}');
+        item
+          ..['quantity'] = qty
+          ..['quantity_label'] = '${_qtyLabel(qty)} ${item['unit']}'
+          ..['total_price'] = _money(
+            ((_tiyin(item['unit_price']) + _tiyin(item['modifiers_total'])) *
+                    qty)
+                .round(),
+          )
+          ..['weight_status'] = 'weighed'
+          ..['weighed_by'] = <String, Object?>{'id': by, 'name': member['name']}
+          ..['weighed_at'] = _iso(now());
+        _recompute(order);
+        _touch(order, 'weighed', itemIds: <int>[item['id']! as int]);
+        return _ok(order, message: "Og'irlik kiritildi.");
+      case <String>['table-label']:
+        order['table_label'] = data['table_label'];
+        _touch(order, 'table_label');
+        return _ok(order, message: 'Stol raqami yozildi.');
       case <String>['items', final String id, 'served']:
         final Map<String, Object?>? item = _item(order, int.parse(id));
         if (item == null) return _notFound();

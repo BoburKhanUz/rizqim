@@ -7,7 +7,9 @@ part of 'product.dart';
 // **************************************************************************
 
 Product _$ProductFromJson(Map<String, dynamic> json) => Product(
-  id: (json['id'] as num).toInt(),
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -19,9 +21,7 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
   hasVariants: json['has_variants'] as bool,
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
+  id: (json['id'] as num).toInt(),
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
@@ -35,11 +35,16 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
-  isActive: json['is_active'] as bool,
-  imageUrl: json['image_url'] as String?,
   imageThumbUrls: ImageThumbUrls2.fromJson(
     json['image_thumb_urls'] as Map<String, dynamic>,
   ),
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  weightMode: json['weight_mode'] as String?,
+  isActive: json['is_active'] as bool,
+  imageUrl: json['image_url'] as String?,
+  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
   store: json['store'] == null
       ? null
       : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -86,6 +91,9 @@ Map<String, dynamic> _$ProductToJson(Product instance) => <String, dynamic>{
   'package_code': instance.packageCode,
   'vat_rate': instance.vatRate,
   'quick_add': instance.quickAdd,
+  'quick_multipliers': instance.quickMultipliers,
+  'wait_minutes': instance.waitMinutes,
+  'weight_mode': instance.weightMode,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

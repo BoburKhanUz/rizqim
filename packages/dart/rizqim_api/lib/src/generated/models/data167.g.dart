@@ -7,27 +7,11 @@ part of 'data167.dart';
 // **************************************************************************
 
 Data167 _$Data167FromJson(Map<String, dynamic> json) => Data167(
-  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  openingBalance: json['opening_balance'] as String,
-  closingBalance: json['closing_balance'] as String,
-  chargesTotal: json['charges_total'] as String,
-  repaymentsTotal: json['repayments_total'] as String,
-  adjustmentsTotal: json['adjustments_total'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  bill: Bill.fromJson(json['bill'] as Map<String, dynamic>),
+  order: Order4.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data167ToJson(Data167 instance) => <String, dynamic>{
-  'account': instance.account,
-  'from': instance.from,
-  'to': instance.to,
-  'opening_balance': instance.openingBalance,
-  'closing_balance': instance.closingBalance,
-  'charges_total': instance.chargesTotal,
-  'repayments_total': instance.repaymentsTotal,
-  'adjustments_total': instance.adjustmentsTotal,
-  'entries': instance.entries,
+  'bill': instance.bill,
+  'order': instance.order,
 };

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'lines5.dart';
+import 'lines15.dart';
 
 part 'next_invoice.g.dart';
 
@@ -26,7 +26,7 @@ class NextInvoice {
   final String issuedOn;
   final bool trial;
   final num amount;
-  final List<Lines5> lines;
+  final List<Lines15> lines;
 
   Map<String, Object?> toJson() => _$NextInvoiceToJson(this);
 }

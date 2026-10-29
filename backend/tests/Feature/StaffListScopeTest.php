@@ -72,7 +72,7 @@ class StaffListScopeTest extends TestCase
     {
         $this->assertSame($this->ids([$this->courier, $this->mainCook, $this->storeWideCourier]), $this->listedBy($this->manager));
         $this->assertSame(
-            [UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::COURIER],
+            [UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::HOSTESS, UserRole::COURIER],
             app(StaffAccountService::class)->assignableRoles($this->manager),
         );
     }

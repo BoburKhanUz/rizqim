@@ -372,4 +372,31 @@ void main() {
       const Duration(minutes: 10),
     );
   });
+
+  test('P6-21 / P6-25: a line carries its course, weight state and grill time; the ticket its table plate', () {
+    final KitchenTicket t = KitchenTicket.fromJson(<String, Object?>{
+      ...ticketJson(status: 'preparing', waitingSeconds: 60),
+      'table_label': '12',
+      'items': <Object?>[
+        <String, Object?>{
+          'id': 1,
+          'product_name': 'Sazan',
+          'quantity': 1.5,
+          'quantity_label': '1.5 kg',
+          'kitchen_status': 'sent',
+          'fire_mode': 'hold',
+          'course_no': 2,
+          'weight_status': 'awaiting',
+          'wait_minutes': 20,
+        },
+      ],
+    }, receivedAt: now);
+    expect(t.tableLabel, '12');
+    final KitchenLine line = t.lines.single;
+    expect(line.courseNo, 2);
+    expect(line.awaitingWeight, isTrue);
+    expect(line.waitMinutes, 20);
+    expect(line.copyWith(status: 'ready').courseNo, 2);
+    expect(t.copyWith(status: 'ready').tableLabel, '12');
+  });
 }

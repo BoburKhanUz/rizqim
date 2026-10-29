@@ -7,17 +7,17 @@ part of 'data210.dart';
 // **************************************************************************
 
 Data210 _$Data210FromJson(Map<String, dynamic> json) => Data210(
-  serverTime: json['server_time'] as String,
-  device: Device23.fromJson(json['device'] as Map<String, dynamic>),
-  errors: (json['errors'] as List<dynamic>)
-      .map((e) => Errors2.fromJson(e as Map<String, dynamic>))
+  order: Order9.fromJson(json['order'] as Map<String, dynamic>),
+  bills: (json['bills'] as List<dynamic>)
+      .map((e) => Bills2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  errorsCount: (json['errors_count'] as num).toInt(),
+  refunds: (json['refunds'] as List<dynamic>)
+      .map((e) => Refunds2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data210ToJson(Data210 instance) => <String, dynamic>{
-  'server_time': instance.serverTime,
-  'device': instance.device,
-  'errors': instance.errors,
-  'errors_count': instance.errorsCount,
+  'order': instance.order,
+  'bills': instance.bills,
+  'refunds': instance.refunds,
 };

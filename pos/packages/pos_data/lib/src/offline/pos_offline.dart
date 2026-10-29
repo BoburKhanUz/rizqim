@@ -13,6 +13,7 @@ import '../http/connectivity.dart';
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../json.dart';
+import '../orders/course_models.dart';
 import '../orders/order_models.dart';
 import 'offline_book.dart';
 import 'offline_pricing.dart';
@@ -353,6 +354,7 @@ class PosOffline {
     bool send = false,
     String? idempotencyKey,
     int? queueNumber,
+    String? tableLabel,
   }) async {
     _guard('orders.manage');
     if (status.newOrdersBlocked) {
@@ -389,6 +391,8 @@ class PosOffline {
       'table_id': ?tableId,
       'guests_count': guests,
       'note': ?note,
+      // P6-25: the table plate of a counter order carried to the table
+      'table_label': ?tableLabel,
       'items': <Object?>[for (final PosLineInput i in items) _line(cat, i)],
       if (send) 'send': true,
       'menu_taken_at': ?store
@@ -476,6 +480,64 @@ class PosOffline {
     return order(uuid);
   }
 
+  /// P6-21: "N-kursni yuborish" — kursning ushlab turilgan qatorlari oshxonaga.
+  Future<PosOrder> sendCourse(
+    String uuid,
+    int courseNo, {
+    String? idempotencyKey,
+  }) async {
+    _guard('orders.manage');
+    final PosOrder current = order(uuid);
+    final bool any = current.unsentItems.any(
+      (PosOrderItem i) => i.courseNo == courseNo,
+    );
+    if (!any) {
+      throw PosOfflineUnavailable(
+        "$courseNo-kursda oshxonaga yuboriladigan taom yo'q.",
+        reason: 'nothing_to_send',
+      );
+    }
+    await store.enqueue(SyncOpType.orderCourseSend, <String, Object?>{
+      'order': uuid,
+      'base_version': ?_serverVersion(uuid),
+      'course_no': courseNo,
+      'idempotency_key': ?idempotencyKey,
+    }, staffId: _staff());
+    return order(uuid);
+  }
+
+  /// P6-25: og'irligi keyin kiritiladigan qatorning haqiqiy og'irligi (bir marta; qayta tortish — internet va menejer).
+  Future<PosOrder> setWeight(
+    String uuid,
+    int itemId, {
+    required PosQuantity quantity,
+    String? idempotencyKey,
+  }) async {
+    _guard('orders.manage');
+    final PosOrderItem? item = order(uuid).item(itemId);
+    if (item == null) throw const PosOfflineUnavailable('Taom topilmadi.');
+    if (item.weightStatus != PosWeightStatus.awaiting) {
+      throw const PosOfflineUnavailable(
+        "Og'irlikni qayta kiritish uchun internet va menejer tasdig'i kerak.",
+      );
+    }
+    final Object? ref = _lineRef(uuid, itemId);
+    if (ref == null) {
+      throw const PosOfflineUnavailable(
+        "Bu qatorning og'irligini internet tiklangach kiriting.",
+      );
+    }
+    await store.enqueue(SyncOpType.orderWeight, <String, Object?>{
+      'order': uuid,
+      'base_version': ?_serverVersion(uuid),
+      'line': ref,
+      'quantity': quantity.toApiString(),
+      'idempotency_key': ?idempotencyKey,
+      'view': <String, Object?>{'staff_name': staffName()},
+    }, staffId: _staff());
+    return order(uuid);
+  }
+
   /// Faqat oshxonaga yuborilmagan qator (yuborilganini o'chirish uchun menejer tasdig'i — internet kerak).
   Future<PosOrder> voidItem(
     String uuid,
@@ -538,6 +600,13 @@ class PosOffline {
     }
     _guard(null);
     final PosOrder current = order(orderUuid);
+    // P6-25: no bill while a line waits for its weight (as on the server: 409 weight_pending)
+    if (current.items.any((PosOrderItem i) => i.awaitingWeight)) {
+      throw const PosOfflineUnavailable(
+        "Og'irligi kiritilmagan taom bor: avval uni torting va og'irligini kiriting.",
+        reason: 'weight_pending',
+      );
+    }
     if (!(book.state(orderUuid)?.leftToBill.isPositive ?? true)) {
       throw const PosOfflineUnavailable(
         "Schyotga tushadigan narsa qolmadi: ochiq schyotni to'lang.",
@@ -575,6 +644,7 @@ class PosOffline {
     required List<PosTenderInput> tenders,
     String? shiftUuid,
     String? idempotencyKey,
+    int? tipStaffId,
   }) async {
     _guard('pos.take_payment');
     final String? shift = shiftUuid ?? this.shiftUuid();
@@ -607,6 +677,8 @@ class PosOffline {
       'bill': billUuid,
       'shift_uuid': shift,
       'tenders': <Object?>[for (final PosTenderInput t in tenders) t.toJson()],
+      // P6-22: the tip goes with its tender (`tip_amount`); whom it goes to
+      'tip_staff_id': ?tipStaffId,
       'idempotency_key': ?idempotencyKey,
     }, staffId: _staff());
     final PosBilling b = billing(orderRef);
@@ -806,6 +878,11 @@ class PosOffline {
             productId: p.id,
             categoryId: p.categoryId,
           ),
+      // P6-25: the till's own view of a dish weighed later (the server decides by the same rule)
+      if ((input.awaitingWeight ?? p.weighedLater) &&
+          v.unit != PosUnit.piece &&
+          !p.batchTracked)
+        'weight_basis': (p.weightMode ?? PosWeightBasis.raw).wire,
     };
   }
 

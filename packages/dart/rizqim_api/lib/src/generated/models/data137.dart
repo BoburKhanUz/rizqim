@@ -4,28 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'approved_by.dart';
+import 'settings3.dart';
 
 part 'data137.g.dart';
 
 @JsonSerializable()
 class Data137 {
-  const Data137({
-    required this.token,
-    required this.permission,
-    required this.expiresAt,
-    required this.approvedBy,
-  });
+  const Data137({required this.channels, required this.settings});
 
   factory Data137.fromJson(Map<String, Object?> json) =>
       _$Data137FromJson(json);
 
-  final String token;
-  final String permission;
-  @JsonKey(name: 'expires_at')
-  final String expiresAt;
-  @JsonKey(name: 'approved_by')
-  final ApprovedBy approvedBy;
+  final List<dynamic> channels;
+  final List<Settings3> settings;
 
   Map<String, Object?> toJson() => _$Data137ToJson(this);
 }

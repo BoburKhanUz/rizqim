@@ -162,6 +162,7 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
   shift_uuid: 's0000000-0000-4000-8000-000000000001',
   generated_at: '2026-10-21T19:00:00+00:00',
   period: { from: '2026-10-21T04:00:00+00:00', to: '2026-10-21T19:00:00+00:00' },
+  tips: { count: 0, amount: '0.00', by_method: [], personal: '0.00', pool: '0.00', unassigned: '0.00', by_staff: [], corrections: { count: 0, amount: '0.00' } },
   sales: {
     bills: 14,
     received: '3200000.00',
@@ -210,6 +211,8 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
     deposits: '150000.00',
     deposit_refunds: '100000.00',
     repayments: '80000.00',
+    tips: '0.00',
+    tip_payouts: '0.00',
     expected: '1730000.00',
   },
   movements: [

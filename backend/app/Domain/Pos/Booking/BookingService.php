@@ -34,21 +34,29 @@ class BookingService
     public function __construct(
         protected DiningTables $tables,
         protected AuditLogger $audit,
+        protected BookingRules $rules,
     ) {}
 
     /**
-     * @param  array{dining_table_id?: int|null, extra_table_ids?: list<int>|null, starts_at: Carbon, ends_at?: Carbon|null, guests_planned?: int|null, event_type?: string|null, contact_name: string, contact_phone?: string|null, source?: string|null, min_spend?: string|null, note?: string|null, confirm?: bool}  $data
+     * P6-26: without an end the booking holds the slot of the main place's kind (BookingRules::slotMinutes); the
+     * branch's table_booking rules also decide how soon and how far ahead it may start (`skip_lead_time`: an owner or
+     * a manager books a walk-in).
+     *
+     * @param  array{dining_table_id?: int|null, extra_table_ids?: list<int>|null, starts_at: Carbon, ends_at?: Carbon|null, guests_planned?: int|null, event_type?: string|null, contact_name: string, contact_phone?: string|null, source?: string|null, min_spend?: string|null, note?: string|null, confirm?: bool, skip_lead_time?: bool}  $data
      */
     public function create(Branch $branch, array $data, User $actor): Booking
     {
         $start = $data['starts_at']->copy()->utc();
-        $end = ($data['ends_at'] ?? null)?->copy()->utc() ?? $start->copy()->addMinutes(PosSettingsReader::slotMinutes($branch));
+        $mainTable = $data['dining_table_id'] ?? (($data['extra_table_ids'] ?? [])[0] ?? null);
+        $end = ($data['ends_at'] ?? null)?->copy()->utc()
+            ?? $start->copy()->addMinutes($this->rules->slotMinutes($branch, $this->rules->kindOf($mainTable !== null ? (int) $mainTable : null)));
         $this->checkTimes($start, $end);
 
         $booking = DB::transaction(function () use ($branch, $data, $actor, $start, $end) {
             Branch::whereKey($branch->id)->lockForUpdate()->first();
 
             [$main, $tableIds] = $this->resolveTables($branch, $data['dining_table_id'] ?? null, $data['extra_table_ids'] ?? []);
+            $this->rules->assertStart($branch, $start, $tableIds, (bool) ($data['skip_lead_time'] ?? false) && BookingRules::mayOverride($actor));
             $this->assertFree($branch->id, $tableIds, $start, $end, null);
 
             $confirm = (bool) ($data['confirm'] ?? false);
@@ -70,6 +78,9 @@ class BookingService
                 'created_by' => $actor->id,
             ]);
             $this->syncTables($booking, $tableIds);
+            if ($confirm) {
+                $this->assertDepositForConfirm($branch, $booking);
+            }
 
             $this->audit->record('booking.created', $booking, [], $this->auditFields($booking), [], ['actor' => $actor]);
 
@@ -89,7 +100,8 @@ class BookingService
      * Changes the details of a booking that is still requested or confirmed. `version`, when sent, must be the one the
      * client read (409 otherwise). Times and tables are checked for conflicts again.
      *
-     * @param  array<string, mixed>  $data  the fields of create() that were sent (dining_table_id/extra_table_ids together)
+     * @param  array<string, mixed>  $data  the fields of create() that were sent (dining_table_id/extra_table_ids together); a new
+     *                                      start is checked against the branch's booking rules like a new booking
      */
     public function update(Booking $booking, array $data, User $actor, ?int $version = null): Booking
     {
@@ -123,6 +135,9 @@ class BookingService
                     array_key_exists('extra_table_ids', $data) ? ($data['extra_table_ids'] ?? []) : array_values(array_diff($tableIds, [$main])),
                 );
             }
+            if (array_key_exists('starts_at', $data)) {
+                $this->rules->assertStart($branch, $start, $tableIds, (bool) ($data['skip_lead_time'] ?? false) && BookingRules::mayOverride($actor));
+            }
             $this->assertFree($branch->id, $tableIds, $start, $end, (int) $booking->id);
 
             foreach (['guests_planned', 'event_type', 'contact_name', 'contact_phone', 'source', 'note'] as $field) {
@@ -153,6 +168,8 @@ class BookingService
     public function confirm(Booking $booking, User $actor, ?int $version = null): Booking
     {
         $booking = $this->transition($booking, BookingStatus::CONFIRMED, $actor, $version, 'booking.confirmed', function (Booking $booking) {
+            // P6-26: the branch's rule may keep a booking unconfirmed until its deposit is taken
+            $this->assertDepositForConfirm(Branch::findOrFail($booking->branch_id), $booking);
             $booking->confirmed_at = now();
         });
         $this->confirmedNow($booking, $actor);
@@ -404,6 +421,27 @@ class BookingService
     private function statusText(Booking $booking): string
     {
         return '"' . $booking->status->label() . '" holatida';
+    }
+
+    /**
+     * P6-26: the deposit the branch's rule asks for must be taken before the booking is confirmed (when the rule says
+     * so). Deposits refunded or retained do not count, only the ones still `taken`.
+     *
+     * @throws BookingException 409 `deposit_required` with the amount missing
+     */
+    public function assertDepositForConfirm(Branch $branch, Booking $booking): void
+    {
+        $taken = Money::sum(...BookingPayment::where('booking_id', $booking->id)
+            ->where('status', BookingPaymentStatus::TAKEN->value)->pluck('amount')->all());
+        $missing = $this->rules->depositMissing($branch, $booking, $taken);
+        if ($missing->isPositive()) {
+            throw new BookingException(
+                "Bronni tasdiqlash uchun bo'nak kerak: yana {$missing->toString()} so'm olinadi.",
+                'deposit_required',
+                409,
+                ['deposit_required' => $this->rules->depositRequired($branch, $booking)->toString(), 'deposit_missing' => $missing->toString()],
+            );
+        }
     }
 
     private function checkTimes(Carbon $start, Carbon $end): void

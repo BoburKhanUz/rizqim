@@ -12,7 +12,7 @@ NextInvoice _$NextInvoiceFromJson(Map<String, dynamic> json) => NextInvoice(
   trial: json['trial'] as bool,
   amount: json['amount'] as num,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines15.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

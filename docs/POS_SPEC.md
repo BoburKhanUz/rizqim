@@ -499,7 +499,9 @@ oladi. Profil va modullarni faqat `PUT /owner/pos/format` yozadi (POS sozlamalar
 qabul qilmaydi, lekin saqlab qoladi).
 
 **Samarali modullar** = profil modullari + ega o'zgarishlari − qonun qulfi − tarifda yo'qlari (P4-21,
-`Entitlements`). Bitta PHP API: `app(PosModules::class)->enabled($branch, PosModule::X)`. `GET /pos/bootstrap` ularni
+`Entitlements`; 2-to'lqin modullari yangi tarif funksiyasi qo'shmaydi — mavjud Asosiy funksiyalariga bog'langan:
+`courses` → `kds`, `hostess` va `table_booking` → `bookings`, `guest_split`, `service_charge_rules`, `tips`, `staff_pay` →
+`service_charge`; qolganlari Start'da). Bitta PHP API: `app(PosModules::class)->enabled($branch, PosModule::X)`. `GET /pos/bootstrap` ularni
 `format` da beradi: `{profile, profile_label, mode, first_screen, modules: [...], locks: {service_charge_zero}}`. Kassa,
 ofitsiant, KDS va mijoz ekrani ekran va tugmalarni **faqat shu ro'yxatga qarab** ko'rsatadi (`pos_data`: `PosFormat`,
 `PosModules`, `bootstrap.modules.has(PosModule.queueNumbers)`); eski server (`format` yo'q) — choyxona.
@@ -518,6 +520,14 @@ ofitsiant, KDS va mijoz ekrani ekran va tugmalarni **faqat shu ro'yxatga qarab**
 | `customer_accounts` | Nasiya | Asosiy |
 | `service_charge` | Xizmat haqi | Asosiy |
 | `kds` | Oshxona ekrani | Asosiy |
+| `courses` | Kurslar: keyingi kurs ushlab turiladi, "N-kursni yuborish", KDS'da kurs belgisi, "kurs tayyor" (16-bo'lim) | Asosiy (KDS bilan) |
+| `skewer_buttons` | Six va dona taomning ×2…×10 tez tugmalari, mangal kutish vaqti (16-bo'lim) | hamma |
+| `weight_later` | Og'irlikni keyin kiritish: tortilmaguncha schyot yo'q, schyotda haqiqiy kg (16-bo'lim) | hamma |
+| `table_service` | Kafe "stolga olib kelish": kassada to'lab, stol tablichkasi raqami bilan (16-bo'lim) | hamma |
+| `waiter_transfer` | Ochiq stolni boshqa ofitsiantga o'tkazish (menejer) | hamma |
+| `guest_split` | Schyotni mehmon (o'rin) bo'yicha bo'lish | Asosiy (xizmat haqi bilan) |
+| `hostess`, `table_booking` | Hostes (bron, stol holati, kutish ro'yxati), stol broni | Asosiy (bron bilan) |
+| `service_charge_rules`, `tips`, `staff_pay` | Xizmat haqi variantlari, choy puli, ofitsiant ish haqi qoidalari | Asosiy (xizmat haqi bilan) |
 
 | Profil | Rejim, birinchi ekran | Yoqilgan modullar (`terminal_card_flow` hammasida) |
 |---|---|---|
@@ -527,10 +537,10 @@ ofitsiant, KDS va mijoz ekrani ekran va tugmalarni **faqat shu ro'yxatga qarab**
 | `somsaxona` | `counter`, tez kassa | quick_counter, phone_mode, batches, batch_writeoff, bookings |
 | `tamaddixona` | `counter`, tez kassa | quick_counter, phone_mode, batches, batch_writeoff |
 | `stolovaya` | `counter`, tez kassa | quick_counter, daily_menu, combo_meal, customer_accounts, customer_display; **xizmat haqi 0%, qulf** |
-| `kafe` | `hybrid`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, service_charge, kds |
-| `restoran` | `table`, zal xaritasi | bookings, service_charge, kds, customer_accounts |
-| `kabobxona` | `table`, zal xaritasi | service_charge, kds, bookings |
-| `baliqxona` | `table`, zal xaritasi | service_charge, kds |
+| `kafe` | `hybrid`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, service_charge, kds, table_service, service_charge_rules, waiter_transfer |
+| `restoran` | `table`, zal xaritasi | bookings, service_charge, kds, customer_accounts, courses, tips, staff_pay, guest_split, waiter_transfer, hostess, table_booking, service_charge_rules |
+| `kabobxona` | `table`, zal xaritasi | service_charge, kds, bookings, skewer_buttons, combo_meal (assorti), waiter_transfer |
+| `baliqxona` | `table`, zal xaritasi | service_charge, kds, weight_later, waiter_transfer |
 | `fast_food` | `counter`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, combo_meal, kds |
 | `qahvaxona` | `counter`, tez kassa | quick_counter, queue_numbers, queue_calling, customer_display, kds |
 | `toyxona` | `table`, tadbirlar taqvimi | bookings, rooms, customer_accounts |
@@ -1157,6 +1167,9 @@ Keyin (v1.1): `regular_groups` (doimiy guruh: jo'ra boshi, odatiy kun, xona va m
 | `orders` | `booking_id`, `due_at` | P3-17 | bron va oldindan buyurtma |
 | `orders` | `shift_id`, `business_date`, `queue_number`, `bill_locked_at`, `closed_at` | P3-18 | smena, biznes kun, schyot qulfi |
 | `order_items` | `round_no`, `fire_mode` (`now`/`hold`), `station_id`, `sent_at`, `due_at`, `added_by`, `voided_at`, `voided_by`, `void_reason`, `seat_no`; `kitchen_status` ga yangi qiymatlar `sent`, `served`, `void` (mavjud `pending` va `ready` ma'nosi o'zgarmaydi) | P3-12 | bosqichlar, kurslar, sexlar, o'chirish, hisobni bo'lish |
+| `order_items` | `course_no`, `weight_status` (`awaiting`/`weighed`), `weight_basis` (`raw`/`cooked`), `weighed_by`, `weighed_at` | P6-21, P6-25 | kurslar, og'irlikni keyin kiritish (16-bo'lim) |
+| `orders` | `table_label` | P6-25 | kafe "stolga olib kelish": stol tablichkasi raqami |
+| `products` | `quick_multipliers` (jsonb, ×N), `wait_minutes`, `weight_mode` (`raw`/`cooked`) | P6-25 | six tugmalari, mangal vaqti, og'irlik qoidasi |
 | `payments` | `bill_id`, `shift_id`, `device_id`, `received_by`, `tendered_amount`, `change_amount`, `card_type`, `transaction_id`, `reference`. `provider` ga POS qiymatlari — `PosTender`: `cash`, `card` (alohida terminal), `qr`, `prepayment` (avans ofseti), `account` (nasiya). `p2p` qiymati **yo'q** | P3-18 | aralash va bo'lingan to'lov, chek rekvizitlari |
 | `service_fee_settings` | `hall_id` (nullable) | P3-12 | zal yoki zona bo'yicha boshqa foiz |
 | `branches` | `business_day_starts_at` (vaqt, standart 05:00), `pos_settings` (jsonb: rejim, navbat raqami, "chop etuvchi" kassa, ekran qulfi vaqti, ogohlantirish chegaralari) | P3-13 | filial POS sozlamalari |
@@ -1363,3 +1376,242 @@ jadvallar va endpointlar: [MENU.md](MENU.md) §12, [API.md](API.md) "Bugungi men
    teradi va chiqarish bir martalik token bilan yoziladi (kassirning smenasiga, Z hisobotida; jurnalda `approved_by`).
    Token bir marta, 60 soniya, faqat shu terminal va shu filial partiyasi uchun; qoldiqdan ko'p kabi rad etilgan
    chiqarish tokenni sarflamaydi. Panelda (terminalsiz) tasdiq yo'q: ruxsatning o'zi kerak.
+
+## 16. Restoran va kafe: kurslar, six, og'irlik, stolga olib kelish (P6-21, P6-25)
+
+Modullar `courses`, `skewer_buttons`, `weight_later`, `table_service` (2.15). Endpointlar: [API.md](API.md) "Kurslar,
+og'irlik, stolga olib kelish". Modul faqat **yangi** oqimni yopadi: kursli buyurtma kursini, og'irlik kutayotgan qator
+og'irligini modul o'chirilgandan keyin ham oxiriga yetkazadi; to'lov, chek, smena va qaytarish hech qachon to'xtamaydi.
+
+1. **Kurslar (B5).** Qator kursi `course_no` (1–9; yo'q — oddiy qator). Oshxonadagi oxirgi kursdan keyingi kurs
+   (`course_no` > oshxonaga chiqqan eng katta kurs, kamida 1) avtomatik `fire_mode = hold`: oddiy "Oshxonaga yuborish"
+   (`now` qatorlar) uni erta chiqarmaydi. "N-kursni yuborish" — `POST /pos/orders/{uuid}/courses/{n}/send` (kassa va
+   ofitsiant, ofitsiant qoidasi bilan): kursning ushlab turilgan qatorlari sexlarga chiqadi; kurs oshxonaga chiqqandan
+   keyin unga qo'shilgan qator keyingi oddiy yuborish bilan ketadi. Buyurtmada `courses[]`: har kurs `held` / `sent` /
+   `ready` / `served`. KDS chiptasida har POS qatorida `course_no`. Kursning oshxonaga chiqqan oxirgi taomi "tayyor"
+   bo'lganda (`KitchenService` → `CourseTracker`) — `order.course_ready` (`course_no`, `item_ids`, `table_id`,
+   `waiter_id`; pos-branch kanalida): ofitsiant telefoni `waiter_id` o'zi bo'lsa "2-kurs tayyor: 7-stol" deydi.
+   Kurslar modulisiz `course_no` — 403 `module_disabled`; internetsiz amalda kurs tashlab yuboriladi (sotuv rad etilmaydi).
+2. **Six va dona tez miqdor (B4).** Mahsulot ma'lumoti (`PATCH /owner/products/{id}/pos-service`): `quick_multipliers`
+   (×2…×10, masalan `[2, 3, 5, 10]`) va `wait_minutes` (mangal kutish vaqti, 0–240) — POS katalogida va KDS
+   chiptasida (`wait_minutes`). Assorti — kompleks (`combo_meal`, P6-15, 15-bo'lim): bitta qator, tarkibi mangalga;
+   kabobxona profilida `combo_meal` yoqilgan.
+3. **Og'irlikni keyin kiritish (B3).** Mahsulotning `weight_mode` (`raw` — xom, tortib pishiriladi; `cooked` — pishgan)
+   bo'lsa, kg/l taomi (qozon partiyasidan sotilmaydigan) qo'shilganda qator `weight_status = awaiting` bo'ladi
+   (`awaiting_weight: true|false` bilan qatorda aniq aytish mumkin; dona yoki qozon taomida aniq so'rov — 422). Miqdor —
+   taxmin (qoldiq shunga yechiladi). **Og'irlik kiritilmaguncha schyot tuzilmaydi va chop etilmaydi** (409
+   `weight_pending`, qatorlar ro'yxati bilan); qator o'chirilsa schyot ochiladi. Og'irlik —
+   `POST /pos/orders/{uuid}/items/{item}/weight` (`quantity`, 3 kasrgacha): narx qatorning o'z kg narxi bo'yicha qayta
+   hisoblanadi, qoldiq farqi bilan to'g'rilanadi (yetmasa bori olinadi — taom tortilgan, sotuv to'xtamaydi), `weighed_by`
+   va `weighed_at` yoziladi, audit `pos.item_weighed` (avval/keyin miqdor). Tortilgan qatorni qayta tortish —
+   `orders.void_item` yoki menejer tasdig'i (mehmonga aytilgan narx o'zgaradi). Schyot va chekda haqiqiy kg:
+   "Sazan (Mangal) 1.35 kg × 245 000". Tarozi ulanishi — keyin (11-bo'lim, PHASE6_PLAN).
+4. **Stolga olib kelish (C7, kafe).** Kassa buyurtmasi (odatda `pos_takeaway`, kassada oldindan to'lanadi) stol
+   tablichkasi raqami bilan: `table_label` (20 belgigacha, erkin matn — zal xaritasidagi stol emas) ochishda yoki
+   `POST /pos/orders/{uuid}/table-label` bilan. Buyurtmada, ochiq buyurtmalar ro'yxatida va KDS chiptasida
+   `table_label`: yetkazuvchi taomni shu raqamli stolga olib boradi. Xizmat haqi zona bo'yicha (ofitsiantli yoki
+   o'z-o'ziga xizmat) — xizmat haqi qoidalari (P6-22) buyurtma turi bo'yicha.
+5. **Internetsiz.** `order.open` / `order.round` qatorlari `course_no` va `awaiting_weight` ni olib keladi, `order.open` —
+   `table_label`; yangi amallar `order.course_send` (`{order, course_no}`; yuboriladigani qolmagan bo'lsa — qo'llandi,
+   hech narsa qilinmaydi) va `order.weight` (`{order, line, quantity}`; serverda shu orada tortilgan bo'lsa — rad,
+   `line_weighed`). Kassa o'z ko'rinishida ham keyingi kursni ushlab turadi va og'irlik kutayotgan qator bilan schyot
+   tuzmaydi (`weight_pending`).
+
+## 17. Ish haqi qoidalari va ish vaqti (P6-23)
+
+Egasining qarori (29.10.2026): ofitsiant va xodimlar ish haqi filial sozlamasidan, moslashuvchan. Kadrlar hisobi emas (tabel,
+soliq, ijtimoiy to'lov yo'q) — faqat ofitsiant va xodim pul hisobi. Modul `staff_pay` (restoran profilida standart; Asosiy+,
+`service_charge` tarif funksiyasi bilan). Kod: `backend/app/Domain/Pos/StaffPay`.
+
+1. **Qoida.** Bitta xodimga (`user_id`) yoki rolga (menejer, kassir, ofitsiant, oshpaz, hostes, kuryer) beriladi; xodimning o'z
+   qoidasi roldagidan ustun. Har o'zgarish — yangi versiya, `effective_from` (biznes kun) dan keyingi versiyagacha kuchda.
+   Komponentlari bo'sh versiya — shu kundan ish haqi yo'q. Qoida bir yoki bir nechta qismdan iborat, qismlar qo'shiladi:
+   - `shift_rate` — har ishlagan smena uchun summa;
+   - `hourly_rate` — ish vaqti soatiga (daqiqasigacha);
+   - `sales_percent` — o'z sotuvidan %;
+   - `service_charge_percent` — o'z schyotlaridagi xizmat haqidan %;
+   - `guarantee` — garant: har smena yoki butun davr uchun, foiz bilan "max(garant, %)" yoki "garant + %"; foiz sotuvdan yoki
+     xizmat haqidan;
+   - `event_rate` — xodim xizmat qilgan har tadbir (yopilgan bron, tanlangan turlar; tanlanmasa "Boshqa"dan tashqari hammasi);
+   - `tips` — xodimning davrdagi choy puli (P6-22: shaxsiy choy puli va umumiy qozondan ulushi). Choy puli standart bo'yicha
+     ish haqiga kirmaydi: faqat ega shu qismni qo'shsa.
+2. **Davr.** Filial sozlamasi: kun, hafta (dushanba–yakshanba), yarim oy (1–15, 16–oxiri), oy — biznes kunlari, do'konning vaqt
+   mintaqasida (Asia/Tashkent). Hisob-kitob davr bo'yicha tuziladi; filialning davrlari ustma-ust tushmaydi.
+3. **Nima hisobga olinadi** (filial va biznes kun bo'yicha):
+   - *Ishlagan smena* — shu biznes kunda xodim ishga kelganini belgilagan, kassa smenasini ochgan yoki unga to'langan schyot
+     yozilgan kun.
+   - *Ish vaqti* — yopilgan ish vaqtlari (pastda) va xodim ochgan kassa smenasining vaqti, ustma-ust qismi bir marta, har biri
+     ko'pi bilan 24 soat.
+   - *Sotuv* — xodimga yozilgan to'langan schyotlar: buyurtmaning ofitsianti, ofitsianti yo'q buyurtmada schyotni tuzgan
+     xodim; schyot to'langan smenaning biznes kuni (02:15 da to'langan schyot — oldingi kunniki). Sotuv = qatorlar −
+     chegirma (xizmat haqi, xona puli, joy puli, choy puli kirmaydi). Davrdagi qaytarish schyot nisbatida sotuvdan va xizmat
+     haqidan ayriladi. Stol boshqa ofitsiantga o'tkazilsa (P6-24, `orders.waiter_id` almashadi), buyurtmaning hamma
+     schyoti hisoblash paytidagi (yangi) ofitsiantga yoziladi; o'tkazishdan oldin to'langan schyotlar ham.
+   - *Tadbir* — filialning yopilgan broni, buyurtmasining ofitsianti shu xodim, bron boshlangan biznes kun.
+   - *Avans* — davrda filial kassasidan xodimga berilgan `wage` chiqimi (`advance`, `daily_wage`): to'lanadigan summadan
+     ayriladi. `bonus` — qo'shimcha, ayrilmaydi; hisob-kitob to'lovi (`payroll`) avans emas.
+4. **Hisoblash.** Har biznes kunning qoidasi o'sha kun kuchdagi versiya; bir versiya ostidagi kunlar bir qism bo'ladi va har
+   qismning komponentlari o'z kunlari bo'yicha hisoblanadi (davr ichida qoida o'zgarsa, eskisi o'zgarishgacha, yangisi
+   undan keyin). Davr garantiyasi qism kunlari ulushida: garant × qism kunlari / davr kunlari; ishlagan smenalar soniga
+   bog'liq emas. Smena garantiyasi har ishlagan kun alohida taqqoslanadi. Har qism summasi bir marta so'mgacha
+   yaxlitlanadi (0,5 yuqoriga). To'lanadigan = hisoblangan − avans + tuzatish.
+5. **Hisob-kitob holatlari.** `draft` (qoralama: istalgancha qayta hisoblanadi, qatorga sabab bilan tuzatish — jarima yoki
+   mukofot — qayta hisoblashda saqlanadi) → `closed` (oxirgi marta hisoblanib muzlatiladi: qism va ko'rsatkichlar nusxasi
+   saqlanadi, qoida keyin o'zgarsa ham yopilgan hisob o'zgarmaydi) → `paid` (pulli hamma qator to'langanda). Yopilgan
+   hisob-kitob to'langan qatori yo'q ekan sabab bilan qayta ochiladi. Qoralama o'chiriladi.
+   Ogohlantirishlar: qoidasiz ishlagan xodim (`no_rule`, hisoblanmaydi), yopilmagan ish vaqti (`open_sessions`, hisobga
+   kirmaydi). Hech ishlamagan, sotmagan xodim (davr garantiyasi bo'lsa ham) qatorga chiqmaydi.
+6. **To'lash.** Yopilgan qator bir marta to'lanadi: kassadan — filialning ochiq smenasida `wage` chiqimi (kategoriya
+   `payroll`, xodim, izoh "Ish haqi 01.11–30.11.2026"), kassadagi naqddan ko'p bo'lmaydi, X/Z dagi `wages` qatoriga kiradi,
+   P3-37 bo'yicha katta chiqim egaga xabar; yoki boshqa yo'l bilan (karta, o'tkazma) — faqat belgilanadi. `Idempotency-Key`
+   majburiy. Chiqim mavjud kassa harakati orqali (ShiftService), alohida pul yo'li yo'q.
+7. **Ish vaqti (minimal clock-in/out).** Rizqimda ish vaqti yo'q edi: PIN sessiyasi shu terminalga boshqa xodim kirishi bilan
+   tugaydi va kim ishdaligini aytmaydi. Endi xodim o'z PIN sessiyasidan (kassa yoki ofitsiant terminali) "Ishga keldim" /
+   "Ishdan ketdim" bosadi (`POST /pos/clock/in`, `/out`). Ish vaqti boshlangan biznes kunniki; bir xodimda bitta ochiq ish
+   vaqti. Oldingi biznes kunda ochiq qolgani keyingi kelishda chetga olinadi (`abandoned`) va menejer oxirini kiritguncha
+   hisobga kirmaydi; 24 soatdan uzuni ham. Menejer panelda ish vaqtini qo'shadi, tuzatadi, o'chiradi — sabab bilan, jurnalga
+   (ko'pi bilan 24 soat, boshqasi bilan ustma-ust emas, kelajakda emas). Bootstrap'da `staff_pay {clock, session}`.
+   Internetsiz belgilash (sinxronlash amali) hozircha yo'q.
+8. **Ruxsatlar.** `staff_pay.view` (ega, menejer: qoidalar, ish vaqti, hisob-kitobni ko'rish) va `staff_pay.manage` (ega;
+   boshqa rolga berish mumkin: qoidalar, davr, ish vaqtini tuzatish, hisob-kitob, to'lash). Kassadan to'lash `pos.cash_in_out`
+   ni ham tekshiradi. Egasining tomoni PIN sessiyasidan ochilmaydi. Har o'zgarish auditda (`staff_pay.*`).
+
+## 18. Xizmat haqi variantlari va choy puli (P6-22)
+
+Egasining qarori (29.10.2026): choy puli va ofitsiant puli moslashuvchan, filial sozlamasidan. Modullar
+`service_charge_rules` (kafe va restoran profilida standart) va `tips` (restoran); ikkalasi Asosiy+ (`service_charge` tarif
+funksiyasi). Modul faqat sozlashni va yangi oqimni yopadi: to'lov, yopish, chek, smena, qaytarish hech qachon. Kod:
+`backend/app/Domain/Pos/Billing/ServiceChargeRules.php`, `backend/app/Domain/Pos/Tips`.
+
+### 18.1. Xizmat haqi variantlari (C1)
+
+Mavjud xizmat haqi qatori (`service_fee_settings`: do'kon, filial yoki zal qatori, foiz va kanallar) ustiga
+`service_charge_rules` (jsonb) va `service_charge_notice`:
+
+1. **Buyurtma turi bo'yicha** (`by_order_type`): `hall` — zal, ofitsiant (`pos_hall`); `table_service` — kassada to'lab, stol
+   raqami tablichkasi bilan (P6-25, `orders.table_label`); `takeaway` — boshqa kassa buyurtmasi. Turga foiz berilsa, shu tur
+   uchun qatorning o'z foizi va kanallari o'rniga ishlaydi ("0" — olinmaydi); berilmagan tur qatorning o'zinikini oladi.
+2. **Katta guruh qoidasi**: `large_group_min_guests` (2–500) va undan ko'p mehmonli zal yoki stolga olib kelish buyurtmasi
+   `large_group_percent` oladi (butun buyurtmaga bitta foiz; boshqasiga qo'shilmaydi). Olib ketishga tegmaydi.
+3. **Restoran kuveri** (`cover_amount`): zal va stolga olib kelishda har mehmon (kamida 1) uchun summa — joy narxi qatori
+   o'rniga (alohida qator emas: chekdagi nomi do'konning fiskal `place_fee` nomi; schyot va buyurtmada `place_fee_kind: cover`).
+4. **E'lon matni**: egasining o'z matni (300 belgigacha), bo'lmasa qoidalardan avtomatik ("Xizmat haqi: zalda 15%, stolga olib
+   kelishda 12,5%. 8 va undan ko'p mehmonli stolga xizmat haqi 18%. Kuver: 5 000 so'm har bir mehmon uchun."). Buyurtma
+   `charges.service_charge_notice` da va schyotda (`service_charge_notice` — xizmat haqi yoki kuver bo'lsa) ko'rinadi.
+5. **Stolovaya qulfi** (VM 75): profil stolovaya bo'lsa hamma foiz 0 — qoidalarda nima yozilgan bo'lsa ham; musbat foizli
+   qoidani saqlash 422 `service_charge_locked`.
+6. Hisob PosChargesCalculator da (P3-12 formulasi o'zgarmaydi): qoidalar qatorning nusxasini hal qiladi, summa
+   DiningFeeCalculator::apply bilan (butun so'm, 0,5 yuqoriga). `charges.service_charge_rule`: `base`, `order_type`,
+   `large_group`, `none`. Modul o'chsa qoidalar qo'llanmaydi (qatorning o'z foizi), saqlangani qoladi.
+
+### 18.2. Choy puli (C2)
+
+1. **Olish.** To'lovda: naqd, karta yoki QR to'lov turiga `tip_amount` (schyotdan tashqari, ustiga) yoki naqdda
+   `tip_from_change` (qaytim yoki uning `tip_amount` qismi choy puliga qoladi). Naqdda berilgan pul to'lov + choy pulini
+   qoplashi kerak; qaytim = berilgan − to'lov − choy puli. `tip_staff_id` — kassir tanlagan xodim (shaxsiy rejimda; bo'lmasa
+   buyurtma ofitsianti). Har choy puli — `pos_tips` qatori (to'lov, schyot, smena, biznes kun, usul `cash|card|qr`, manba
+   `tender|change`, rejim, xodim). Onlayn to'lovda modul yo'q bo'lsa 403 `module_disabled` (pul olinmasdan); internetsiz olingan
+   choy puli sinxronlashda har doim yoziladi (pul olingan), filialga tegishli bo'lmagan xodim tashlab yuboriladi.
+2. **Tushum emas.** Choy puli to'lov emas: fiskal chekda yo'q (chek = schyot jami), `sales`, `by_tender` va savdo
+   hisobotlariga kirmaydi. **Mijoz bergan jami = chek jami + choy puli.** Qaytarish choy puliga hech qachon tegmaydi (menejer
+   sabab bilan tuzatadi).
+3. **X/Z.** `tips` bo'limi: soni, jami, usul bo'yicha, shaxsiy, qozon, biriktirilmagan, xodim bo'yicha, tuzatishlar. Naqd
+   choy puli kassada turadi: `cash.tips` kutilgan naqdga qo'shiladi; xodimga berilgani — `wage` chiqimi, kategoriya `tips`
+   (`cash.tip_payouts`, `cash.wages` ga kirmaydi). Karta choy puli bank terminalida schyot bilan birga o'tadi: karta
+   tranzaksiyasi = to'lov + choy puli (P6-16 solishtirish, `breakdown.tips`). Egaga Z xabarida "Choy puli" qatori.
+4. **Sozlama** (`pos_tip_settings`, filialga bitta, egasi o'zgartiradi, audit `settings.tips_changed`): `mode` `personal` yoki
+   `pool`; `pool_rule` — `equal` (ishlaganlarga teng), `hours` (ishlagan daqiqasiga), `sales` (xizmat qilgan buyurtmalarining
+   to'langan schyotlari), `role_weights` (rol ulushi, 0,01–100, standart 1); `pool_period` — `day` (biznes kun) yoki `shift`;
+   `roles` — qozonda qatnashadigan rollar (ega emas; standart — ofitsiantlar). Har choy puli olingandagi rejimini saqlaydi.
+5. **Qozonni bo'lish** (`pos_tip_distributions` + qatorlar): davrdagi `pool` choy pullari (tuzatishlar bilan). Kimlar:
+   sozlamadagi rollardan davrda ishlaganlar — P6-23 ish vaqtlari (ochig'i hozirgacha), ular ochgan kassa smenalari, ikkalasi
+   ham bo'lmasa xizmat qilgan buyurtmalari yoki olgan to'lovlarining birinchi va oxirgisi oralig'i (davrga qirqilib, ustma-ust
+   qismi bir marta); yoki menejerning o'z ro'yxati (`participants`, ixtiyoriy daqiqalar bilan). Hamma asos 0 bo'lsa — teng
+   (saqlangan `rule: equal`). **Yaxlitlash (qoldiq qoidasi):** qozonning butun so'mi nisbatda bo'linadi, har ulush pastga
+   yaxlitlanadi; ortgan so'mlar (odamlar sonidan kam) bittadan eng katta qoldiqlarga (teng bo'lsa — kattaroq asos, keyin kichik
+   xodim id) beriladi; so'mdan kichik tiyin qoldig'i eng katta ulushga. Qatorlar yig'indisi har doim qozonga teng. Hisob
+   saqlanadi, yopilguncha qayta hisoblanadi; yopilganda muzlaydi (qozon hisoblangandan keyin o'zgargan bo'lsa yopish 409
+   `tips_distribution_stale`), shu kun yoki smena choy pullari endi tuzatilmaydi.
+6. **Tuzatish** (`tips.manage`; kassada — menejer PIN tasdig'i): choy puli endi `amount` bo'lib `mode`/`staff_id` ga
+   boradi, sabab majburiy. Asl qator qoladi; tuzatish ishorali qator(lar) (`kind: correction`, `corrects_id`): summa farqi,
+   yoki eski egadan − va yangisiga +. Shu sababli xodim va rejim bo'yicha yig'indilar doim aniq; kassaning kutilgan naqdi
+   naqd choy puli tuzatilganda o'zgaradi. Audit `pos.tip_corrected`.
+7. **P6-23 bilan.** Ish haqining `tips` qismi shu daftarni o'qiydi (shaxsiy choy puli va hisoblangan qozon ulushlari,
+   `PosTipsStaffTips`); choy puli ega qo'shmasa ish haqiga kirmaydi.
+8. **Ruxsatlar.** `tips.manage` (menejer standart; ega): tuzatish, qozonni bo'lish va yopish; o'qish — `reports.view`; sozlama —
+   `settings.manage`. Kassada `GET /pos/tips`: `tips.manage`, `pos.close_shift` yoki `reports.view` bo'lmasa (ofitsiant) faqat
+   o'ziniki.
+
+## 19. Restoran va kafe: mehmon bo'yicha bo'lish, ofitsiantni almashtirish, hostes, stol broni (P6-24, P6-26)
+
+Choyxona oqimi o'zgarmaydi: bu qismlar `guest_split`, `waiter_transfer`, `hostess` va `table_booking` modullari bilan
+yoqiladi (restoran profilida standart yoqilgan, Asosiy tarif; choyxonada o'chiq). To'lov, yopish, chek, smena va qaytarish
+modulga qaramaydi. Endpointlar: [API.md](API.md), "Hostes, ofitsiantni almashtirish va stol broni".
+
+### 19.1. Mehmon bo'yicha bo'lish
+
+- Buyurtma qatorida `seat_no` (1–500) — qator qaysi mehmonniki. Ofitsiant telefoni uni qator qo'shganda yoki keyin
+  (`POST /pos/orders/{uuid}/items/{item}/seat`) qo'yadi; `null` — hech kimniki emas (umumiy: non, choy, salat).
+- Schyot turi `by_guest`: **har mehmonga bitta schyot**, mehmon raqami kichigidan boshlab; schyotda `seat_no`,
+  `guests_share: 1` ("kishi boshiga" = shu schyot). Mehmonning o'z qatorlari uning schyotiga to'liq tushadi.
+- **Mehmonsiz qatorlar qoidasi:** schyoti bor hamma mehmonga **teng bo'linadi**: miqdor mingdan bir ulushda
+  (`Allocation::equal`), qoldiq **birinchi mehmonning** schyotiga (3 mehmonga 1 dona non: 0,334 / 0,333 / 0,333); qatorning
+  summasi va chegirmasi miqdor ulushiga mutanosib (tiyingacha aniq, `Allocation::proportional`).
+- Xizmat haqi, xona puli va boshqa qatorlar (`charges`) va buyurtma chegirmasi har schyotning sof summasiga mutanosib
+  taqsimlanadi (xuddi `items` turidagidek): schyotlar yig'indisi buyurtmaga **tiyingacha teng**.
+- To'lov boshlangan schyotlar o'z holicha qoladi; qolganlari qayta tuziladi: to'langan mehmonning qatorlari qolmaydi, uning
+  mehmonsiz qatordagi ulushi to'langan hisoblanadi, qolgan mehmonlar qolganini teng bo'ladi. Qolgan qatorlarda mehmon
+  raqami yo'q bo'lsa — 422 `no_seat_lines`.
+- Bo'lish `pos.take_payment` talab qiladi (ofitsiant bo'lolmaydi); `by_guest` — 403 `module_disabled` (modul o'chiq).
+
+### 19.2. Ofitsiantni almashtirish
+
+- `POST /pos/orders/{uuid}/transfer`: ochiq stol boshqa ofitsiantga o'tadi. `orders.transfer` (ega, menejer) **yoki**
+  menejerning shu ruxsat uchun bir martalik PIN tasdig'i (kassir yoki ofitsiant so'rasa; 403 `approval_required`). Ofitsiant
+  qoidasi so'ralmaydi: qaror menejerniki.
+- Yangi ofitsiant — shu filialning faol (`blocked_at` yo'q) `waiter` roli; boshqasi 404 `waiter_not_found`, o'zi — 422
+  `same_waiter`. Audit `pos.order_transferred` (kimdan, kimga, sabab, tasdiqlagan menejer).
+- Eski va yangi ofitsiantga xabar: `order.transferred` hodisasi `pos-branch.{id}` va ikkala `user.{id}` kanaliga ketadi
+  (ilova `from_waiter_id`/`to_waiter_id` bo'yicha "stol 5 boshqa ofitsiantga o'tkazildi" / "stol 5 sizga berildi" deydi);
+  zal `order.items_changed` (`waiter_changed`) bilan qayta o'qiladi.
+- **Keyingi daromad yangi ofitsiantga:** buyurtmaning ofitsianti `orders.waiter_id`; choy puli (shaxsiy rejim) va ish haqi
+  uchun sotuv shundan o'qiydi, shuning uchun o'tkazishdan keyingi to'lov yangi ofitsiantga yoziladi. Allaqachon to'langan
+  schyotlarning yozuvlari o'zgarmaydi (kim kimga o'tkazgani audit jurnalida).
+
+### 19.3. Hostes
+
+- `hostess` roli (`UserRole::HOSTESS`, "Hostes"): terminalda PIN bilan kiradi; standart ruxsatlari `orders.view`,
+  `tables.manage`, `menu.view`, `bookings.manage`, `hostess.manage`. To'lov, buyurtma ochish va chegirma yo'q; ega
+  "Ruxsatlar" sahifasida o'zgartira oladi.
+- **Kutish ro'yxati** (`pos_waitlist_entries`): mehmon ismi, telefon (+998…), necha kishi, aytilgan kutish (daqiqa), izoh,
+  holat (`waiting` → `seated` | `canceled` | `no_show`). Yozuv filialning biznes kuniga tegishli (Asia/Tashkent). Navbat
+  tartibi — yozilgan vaqt bo'yicha (`position`). Joylashtirish ixtiyoriy ravishda buyurtmani ham ochadi. Hostes mehmon
+  raqamini ko'radi (qo'ng'iroq qiladi); egaga ko'rinishda va audit jurnalida raqam yashirilgan (`+99890*****67`).
+- **Stol holati:** `dining_tables.service_state` = `cleaning` ("tozalanmoqda"). Zal xaritasida `status` o'zgarmaydi,
+  alohida `service_state` kaliti bor; belgi stolda ochiq buyurtma yo'q va belgidan keyin buyurtma ochilmagan bo'lsagina
+  ko'rinadi. Joylashtirishga va buyurtma ochishga hech qachon to'sqinlik qilmaydi.
+
+### 19.4. Stol broni
+
+Bron daftari o'sha (P3-17): xona, tapchan va stol bir xil `bookings`. Filialning qoidalari `branch_booking_rules`da
+(ega: `GET/PUT /owner/branches/{id}/booking-rules`, modul `table_booking`); qator yo'q yoki modul o'chiq — qoidalar yo'q va
+choyxona avvalgidek (tugash vaqtisiz bron 5 soat, oldindan vaqt cheklovi yo'q).
+
+| Qoida | Standart | Ma'nosi |
+|---|---|---|
+| `table_slot_minutes` | 120 | tugash vaqtisiz stol broni ushlab turadigan muddat (30–480) |
+| `room_slot_minutes`, `tapchan_slot_minutes` | `null` | `null` — filialning `booking_slot_minutes` i (5 soat) |
+| `*_min_advance_minutes` (stol, xona, tapchan) | 0 | bron boshlanishigacha eng kamida shuncha vaqt (0–1440); choyxonada xona uchun 180 = "kamida 3 soat". Bir necha joyli bronda eng qattiq qoida. Buzilsa 422 `booking_too_soon` (`data.earliest_at`). Ega yoki menejer `skip_lead_time: true` bilan "yo'lda kelayotgan" mehmonni yozadi |
+| `max_advance_days` | `null` | eng ko'pi bilan necha kun oldin (1–365); 422 `booking_too_far` |
+| `deposit_mode`, `deposit_amount`, `deposit_from_guests` | `off`, 0, 1 | bo'nak: yo'q / bron uchun bir xil / har mehmon uchun; faqat **stol** broniga, rejalashtirilgan mehmon `deposit_from_guests` dan kam bo'lmasa. Pul — mavjud bron bo'nagi (`bookings/{uuid}/deposits`) va bo'nak cheki |
+| `deposit_required_to_confirm` | `false` | `true`: bron "so'rov"da qoladi, bo'nak yetguncha tasdiqlab bo'lmaydi (409 `deposit_required`, `data.deposit_missing`); bo'nak qismlab olinsa yetgan paytda o'zi tasdiqlanadi |
+
+Bron tafsiloti (`GET /pos/bookings/{uuid}`) `deposit_required` va `deposit_missing` ni qaytaradi. Bootstrap `booking_rules`
+(modul yo'q — `null`) kassa va hostes ekraniga muddatni oldindan to'ldirishga yetarli.
+
+### 19.5. Ma'lumotlar
+
+`order_bills.seat_no`, `dining_tables.service_state/_at/_by`, `pos_waitlist_entries`, `branch_booking_rules` (migratsiyalar
+`2026_11_12_4001xx`–`4004xx`). Ruxsatlar: `orders.transfer` (ega, menejer; kassir/ofitsiant PIN tasdig'i bilan),
+`hostess.manage` (ega, menejer, hostes). Menejer PIN tasdig'i bilan beriladigan ruxsatlar ro'yxatiga `orders.transfer`
+qo'shildi.

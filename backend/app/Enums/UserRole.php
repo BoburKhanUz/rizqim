@@ -13,6 +13,8 @@ enum UserRole: string
     case CASHIER = 'cashier';
     case WAITER = 'waiter';
     case COOK = 'cook';
+    // P6-24: the restaurant's hostess (greets guests, keeps bookings, the waitlist and table states)
+    case HOSTESS = 'hostess';
     // P4-11: a RIZQIM team member other than the superadmin (users.platform_role: operator, support, finance, sales,
     // viewer). No store-level permission, no customer features, no partner web / Mini App / POS sign-in: only the
     // admin API with its own token (App\Auth\AdminTokenGuard)
@@ -29,6 +31,7 @@ enum UserRole: string
             self::CASHIER => 'Cashier',
             self::WAITER => 'Waiter',
             self::COOK => 'Cook',
+            self::HOSTESS => 'Hostess',
             self::PLATFORM => 'Platform team',
         };
     }
@@ -47,6 +50,7 @@ enum UserRole: string
             self::CASHIER => 'Kassir',
             self::WAITER => 'Ofitsiant',
             self::COOK => 'Oshpaz',
+            self::HOSTESS => 'Hostes',
             self::PLATFORM => 'RIZQIM jamoasi',
         };
     }
@@ -58,7 +62,7 @@ enum UserRole: string
      */
     public static function storeRoles(): array
     {
-        return [self::OWNER, self::MANAGER, self::COURIER, self::CASHIER, self::WAITER, self::COOK];
+        return [self::OWNER, self::MANAGER, self::COURIER, self::CASHIER, self::WAITER, self::COOK, self::HOSTESS];
     }
 
     public function isStoreStaff(): bool
@@ -73,7 +77,7 @@ enum UserRole: string
      */
     public static function terminalRoles(): array
     {
-        return [self::OWNER, self::MANAGER, self::CASHIER, self::WAITER, self::COOK];
+        return [self::OWNER, self::MANAGER, self::CASHIER, self::WAITER, self::COOK, self::HOSTESS];
     }
 
     /**
@@ -83,7 +87,7 @@ enum UserRole: string
      */
     public static function assignableStaffRoles(): array
     {
-        return [self::MANAGER, self::CASHIER, self::WAITER, self::COOK, self::COURIER];
+        return [self::MANAGER, self::CASHIER, self::WAITER, self::COOK, self::HOSTESS, self::COURIER];
     }
 
     /**
@@ -95,7 +99,7 @@ enum UserRole: string
             self::SUPER_ADMIN => 100,
             self::OWNER => 50,
             self::MANAGER => 40,
-            self::CASHIER, self::WAITER, self::COOK, self::COURIER => 10,
+            self::CASHIER, self::WAITER, self::COOK, self::HOSTESS, self::COURIER => 10,
             self::CUSTOMER, self::PLATFORM => 0,
         };
     }

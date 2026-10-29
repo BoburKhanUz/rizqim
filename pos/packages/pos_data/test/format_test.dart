@@ -77,6 +77,17 @@ void main() {
         'customer_accounts',
         'service_charge',
         'kds',
+        'courses',
+        'tips',
+        'staff_pay',
+        'guest_split',
+        'waiter_transfer',
+        'hostess',
+        'table_booking',
+        'skewer_buttons',
+        'weight_later',
+        'table_service',
+        'service_charge_rules',
       ]);
       expect(PosModule.fromWire('kds'), PosModule.kds);
       expect(PosModule.fromWire('nope'), isNull);

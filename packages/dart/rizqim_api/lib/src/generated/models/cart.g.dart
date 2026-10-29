@@ -12,7 +12,7 @@ Cart _$CartFromJson(Map<String, dynamic> json) => Cart(
   session: json['session'] as String?,
   state: json['state'] as String,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines15.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines25.fromJson(e as Map<String, dynamic>))
       .toList(),
   subtotal: json['subtotal'] as String,
   discount: json['discount'] as String,

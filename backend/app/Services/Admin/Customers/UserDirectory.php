@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 class UserDirectory
 {
     /** The role filter: one role, or `staff` for every store role but the courier. */
-    public const ROLE_FILTERS = ['customer', 'courier', 'staff', 'owner', 'manager', 'cashier', 'waiter', 'cook'];
+    public const ROLE_FILTERS = ['customer', 'courier', 'staff', 'owner', 'manager', 'cashier', 'waiter', 'cook', 'hostess'];
 
     public function __construct(
         private readonly AdminPii $pii,
@@ -51,7 +51,7 @@ class UserDirectory
 
         $role = $filters['role'] ?? null;
         if ($role === 'staff') {
-            $query->whereIn('role', [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::CASHIER->value, UserRole::WAITER->value, UserRole::COOK->value]);
+            $query->whereIn('role', [UserRole::OWNER->value, UserRole::MANAGER->value, UserRole::CASHIER->value, UserRole::WAITER->value, UserRole::COOK->value, UserRole::HOSTESS->value]);
         } elseif (is_string($role) && $role !== '') {
             $query->where('role', $role);
         }
@@ -137,7 +137,7 @@ class UserDirectory
     public static function roleLabels(): array
     {
         $labels = ['staff' => "Ovqatxona xodimlari (barchasi)"];
-        foreach ([UserRole::CUSTOMER, UserRole::COURIER, UserRole::OWNER, UserRole::MANAGER, UserRole::CASHIER, UserRole::WAITER, UserRole::COOK] as $role) {
+        foreach ([UserRole::CUSTOMER, UserRole::COURIER, UserRole::OWNER, UserRole::MANAGER, UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::HOSTESS] as $role) {
             $labels[$role->value] = $role->labelUz();
         }
 

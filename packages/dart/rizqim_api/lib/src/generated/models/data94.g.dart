@@ -7,23 +7,15 @@ part of 'data94.dart';
 // **************************************************************************
 
 Data94 _$Data94FromJson(Map<String, dynamic> json) => Data94(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  kind: json['kind'] as String,
-  kindLabel: json['kind_label'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  showOnKds: json['show_on_kds'] as bool,
+  kinds: (json['kinds'] as List<dynamic>)
+      .map((e) => Kinds.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data94ToJson(Data94 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'kind': instance.kind,
-  'kind_label': instance.kindLabel,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'show_on_kds': instance.showOnKds,
+  'kinds': instance.kinds,
+  'stations': instance.stations,
 };

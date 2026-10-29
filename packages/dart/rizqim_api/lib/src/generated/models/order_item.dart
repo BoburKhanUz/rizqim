@@ -10,13 +10,15 @@ import 'menu_batch.dart';
 import 'menu_unit.dart';
 import 'order.dart';
 import 'product_variant.dart';
+import 'weight_basis.dart';
+import 'weight_status.dart';
 
 part 'order_item.g.dart';
 
 @JsonSerializable()
 class OrderItem {
   const OrderItem({
-    required this.modifiers,
+    required this.modifiersTotal,
     required this.orderId,
     required this.productVariantId,
     required this.productName,
@@ -28,8 +30,8 @@ class OrderItem {
     required this.updatedAt,
     required this.deletedAt,
     required this.unit,
+    required this.modifiers,
     required this.id,
-    required this.modifiersTotal,
     required this.batchId,
     required this.batchQuantity,
     required this.kitchenStatus,
@@ -38,16 +40,21 @@ class OrderItem {
     required this.fireMode,
     required this.stationId,
     required this.sentAt,
-    required this.setParts,
+    required this.dueAt,
     required this.addedBy,
     required this.voidedAt,
-    required this.voidedBy,
+    required this.weighedAt,
     required this.voidReason,
     required this.seatNo,
     required this.note,
     required this.clientLineId,
     required this.priceSource,
-    required this.dueAt,
+    required this.setParts,
+    required this.courseNo,
+    required this.weightStatus,
+    required this.weightBasis,
+    required this.weighedBy,
+    required this.voidedBy,
     this.order,
     this.productVariant,
     this.batch,
@@ -115,6 +122,16 @@ class OrderItem {
   final String? priceSource;
   @JsonKey(name: 'set_parts')
   final List<Map<String, dynamic>>? setParts;
+  @JsonKey(name: 'course_no')
+  final int? courseNo;
+  @JsonKey(name: 'weight_status')
+  final WeightStatus? weightStatus;
+  @JsonKey(name: 'weight_basis')
+  final WeightBasis? weightBasis;
+  @JsonKey(name: 'weighed_by')
+  final dynamic weighedBy;
+  @JsonKey(name: 'weighed_at')
+  final DateTime? weighedAt;
   final Order? order;
   @JsonKey(name: 'product_variant')
   final ProductVariant? productVariant;

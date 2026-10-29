@@ -2,6 +2,7 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Contracts\CourseTracker;
 use App\Domain\Pos\Contracts\KitchenStationResolver;
 use App\Domain\Pos\Contracts\PickupTracker;
 use App\Enums\FireMode;
@@ -174,6 +175,10 @@ class KitchenService
 
             // P6-13: the pickup queue follows the lines (all ready: the number is called; a recall: preparing again)
             $tracker?->kitchenChanged($order->refresh());
+            // P6-21: the last line of a course ready: the waiter hears "N-kurs tayyor"
+            if ($item->course_no !== null && app()->bound(CourseTracker::class)) {
+                app(CourseTracker::class)->kitchenChanged($order, $item);
+            }
 
             // Queued, after commit (ShouldDispatchAfterCommit), ids and kitchen state only
             event(new KitchenItemStatusChangedBroadcast($order->refresh(), $item));

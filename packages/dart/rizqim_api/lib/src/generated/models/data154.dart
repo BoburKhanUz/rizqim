@@ -4,49 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items15.dart';
-import 'payments22.dart';
+import 'warnings7.dart';
+import 'lines13.dart';
+import 'open_shifts6.dart';
 
 part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
   const Data154({
-    required this.sourceLabel,
-    required this.branchId,
-    required this.diningTableId,
-    required this.tableIds,
-    required this.startsAt,
-    required this.endsAt,
-    required this.guestsPlanned,
-    required this.eventType,
-    required this.eventTypeLabel,
-    required this.contactName,
-    required this.contactPhone,
-    required this.source,
     required this.uuid,
+    required this.branchId,
+    required this.period,
+    required this.periodLabel,
+    required this.periodFrom,
+    required this.periodTo,
     required this.status,
     required this.statusLabel,
-    required this.minSpend,
-    required this.note,
-    required this.orderUuid,
-    required this.depositTotal,
-    required this.depositAvailable,
-    required this.depositUnsettled,
-    required this.itemsCount,
-    required this.payments,
+    required this.grossTotal,
+    required this.payableTotal,
+    required this.paidTotal,
+    required this.linesCount,
+    required this.warnings,
+    required this.computedAt,
+    required this.closedAt,
     required this.version,
-    required this.createdBy,
-    required this.confirmedAt,
-    required this.arrivedAt,
-    required this.completedAt,
-    required this.canceledAt,
-    required this.confirmationSentAt,
-    required this.confirmationChannel,
     required this.createdAt,
-    required this.updatedAt,
-    required this.items,
-    required this.cancelReason,
+    required this.lines,
+    required this.openShifts,
   });
 
   factory Data154.fromJson(Map<String, Object?> json) =>
@@ -55,66 +40,35 @@ class Data154 {
   final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_ids')
-  final List<int> tableIds;
-  @JsonKey(name: 'starts_at')
-  final String startsAt;
-  @JsonKey(name: 'ends_at')
-  final String endsAt;
-  @JsonKey(name: 'guests_planned')
-  final int guestsPlanned;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
-  @JsonKey(name: 'contact_name')
-  final String contactName;
-  @JsonKey(name: 'contact_phone')
-  final String? contactPhone;
-  final String source;
-  @JsonKey(name: 'source_label')
-  final String sourceLabel;
+  final String period;
+  @JsonKey(name: 'period_label')
+  final String periodLabel;
+  @JsonKey(name: 'period_from')
+  final String periodFrom;
+  @JsonKey(name: 'period_to')
+  final String periodTo;
   final String status;
   @JsonKey(name: 'status_label')
   final String statusLabel;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  final String? note;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'deposit_total')
-  final String depositTotal;
-  @JsonKey(name: 'deposit_available')
-  final String depositAvailable;
-  @JsonKey(name: 'deposit_unsettled')
-  final bool depositUnsettled;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
+  @JsonKey(name: 'gross_total')
+  final String grossTotal;
+  @JsonKey(name: 'payable_total')
+  final String payableTotal;
+  @JsonKey(name: 'paid_total')
+  final String paidTotal;
+  @JsonKey(name: 'lines_count')
+  final int linesCount;
+  final List<Warnings7> warnings;
+  @JsonKey(name: 'computed_at')
+  final String? computedAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
   final int version;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-  @JsonKey(name: 'confirmed_at')
-  final String? confirmedAt;
-  @JsonKey(name: 'arrived_at')
-  final String? arrivedAt;
-  @JsonKey(name: 'completed_at')
-  final String? completedAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'confirmation_sent_at')
-  final String? confirmationSentAt;
-  @JsonKey(name: 'confirmation_channel')
-  final String? confirmationChannel;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final List<Items15> items;
-  final List<Payments22> payments;
+  final List<Lines13> lines;
+  @JsonKey(name: 'open_shifts')
+  final List<OpenShifts6> openShifts;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

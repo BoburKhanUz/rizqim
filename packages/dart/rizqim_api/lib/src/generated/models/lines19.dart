@@ -4,48 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'kind5.dart';
+
 part 'lines19.g.dart';
 
 @JsonSerializable()
 class Lines19 {
-  const Lines19({
-    required this.name,
-    required this.mxikCode,
-    required this.packageCode,
-    required this.unit,
-    required this.quantity,
-    required this.unitPrice,
-    required this.amount,
-    required this.vatRate,
-    required this.vatAmount,
-    required this.noVat,
-    required this.commissionerTin,
-    required this.markingCode,
-  });
+  const Lines19({required this.kind, required this.label, required this.value});
 
   factory Lines19.fromJson(Map<String, Object?> json) =>
       _$Lines19FromJson(json);
 
-  final String name;
-  @JsonKey(name: 'mxik_code')
-  final String mxikCode;
-  @JsonKey(name: 'package_code')
-  final String? packageCode;
-  final String unit;
-  final String quantity;
-  @JsonKey(name: 'unit_price')
-  final String unitPrice;
-  final String amount;
-  @JsonKey(name: 'vat_rate')
-  final String vatRate;
-  @JsonKey(name: 'vat_amount')
-  final String vatAmount;
-  @JsonKey(name: 'no_vat')
-  final bool noVat;
-  @JsonKey(name: 'commissioner_tin')
-  final String? commissionerTin;
-  @JsonKey(name: 'marking_code')
-  final String? markingCode;
+  final Kind5 kind;
+  final String label;
+  final String value;
 
   Map<String, Object?> toJson() => _$Lines19ToJson(this);
 }

@@ -74,11 +74,12 @@ const TEXT = {
 } satisfies Record<string, Localized>;
 
 // The roles an owner can give (the backend still decides who may give which: 422 "Bu rolni bera olmaysiz")
-const ROLES: ReadonlyArray<{ value: 'manager' | 'cashier' | 'waiter' | 'cook' | 'courier'; label: Localized }> = [
+const ROLES: ReadonlyArray<{ value: 'manager' | 'cashier' | 'waiter' | 'cook' | 'hostess' | 'courier'; label: Localized }> = [
   { value: 'manager', label: { uz: 'Menejer', ru: 'Менеджер' } },
   { value: 'cashier', label: { uz: 'Kassir', ru: 'Кассир' } },
   { value: 'waiter', label: { uz: 'Ofitsiant', ru: 'Официант' } },
   { value: 'cook', label: { uz: 'Oshpaz', ru: 'Повар' } },
+  { value: 'hostess', label: { uz: 'Hostes', ru: 'Хостес' } },
   { value: 'courier', label: { uz: 'Kuryer', ru: 'Курьер' } },
 ];
 

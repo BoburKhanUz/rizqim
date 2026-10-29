@@ -57,6 +57,18 @@ const PROFILES: Profile[] = [
     stations: [{ name: 'Issiq taomlar', kind: 'kitchen', kind_label: 'Issiq oshxona' }],
     dishes: [{ category: 'Birinchi taomlar', name: 'Mastava', variants: ['porsiya'] }],
   },
+  {
+    key: 'kabobxona',
+    label: 'Kabobxona, shashlikxona',
+    description: 'Zal xaritasi, mangal sexi, six soni, xizmat haqi.',
+    mode: 'table',
+    first_screen: 'hall_map',
+    modules: ['service_charge', 'bookings', 'skewer_buttons', 'combo_meal'],
+    locks_service_charge: false,
+    recommended_plan: 'asosiy',
+    stations: [{ name: 'Mangal', kind: 'mangal', kind_label: 'Mangal' }],
+    dishes: [{ category: 'Kaboblar', name: 'Shashlik', variants: ['six'] }],
+  },
 ]
 
 const MODULES: Array<{ key: string; label: string; description: string; plan?: string }> = [
@@ -72,6 +84,11 @@ const MODULES: Array<{ key: string; label: string; description: string; plan?: s
   { key: 'rooms', label: 'Xonalar va tapchanlar', description: "Xona va tapchanlar bandligi." },
   { key: 'service_charge', label: 'Xizmat haqi', description: "Hisobga foiz qo'shiladi." },
   { key: 'kds', label: 'Oshxona ekrani (KDS)', description: 'Oshxona uchun buyurtmalar ekrani.', plan: 'asosiy' },
+  { key: 'hostess', label: 'Hostes', description: "Kutish ro'yxati va stol holati." },
+  { key: 'table_booking', label: 'Stol broni', description: 'Stol turi bo\'yicha slot, bron muddati va bo\'nak.' },
+  // P6-25 (the menu's "Kassada sotish" section reads them)
+  { key: 'skewer_buttons', label: 'Six tugmalari', description: "×2…×10 tez tugmalari va mangal vaqti." },
+  { key: 'weight_later', label: "Og'irlikni keyin kiritish", description: "Taom tortilgach og'irligi kiritiladi." },
 ]
 
 export interface FakeServiceFeeRow {

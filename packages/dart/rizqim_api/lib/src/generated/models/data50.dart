@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'products3.dart';
+import 'products.dart';
 
 part 'data50.g.dart';
 
@@ -25,7 +25,7 @@ class Data50 {
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String? date;
+  final String date;
   @JsonKey(name: 'business_date')
   final String businessDate;
   final bool enforced;
@@ -37,7 +37,7 @@ class Data50 {
   final Map<String, int> productIds;
   @JsonKey(name: 'previous_date')
   final String? previousDate;
-  final List<Products3> products;
+  final List<Products> products;
 
   Map<String, Object?> toJson() => _$Data50ToJson(this);
 }

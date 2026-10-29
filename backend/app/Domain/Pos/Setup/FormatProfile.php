@@ -116,10 +116,12 @@ enum FormatProfile: string
             self::SOMSAXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF, PosModule::BOOKINGS],
             self::TAMADDIXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF],
             self::STOLOVAYA => [PosModule::QUICK_COUNTER, PosModule::DAILY_MENU, PosModule::COMBO_MEAL, PosModule::CUSTOMER_ACCOUNTS, PosModule::CUSTOMER_DISPLAY],
-            self::KAFE => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::SERVICE_CHARGE, PosModule::KDS],
-            self::RESTORAN => [PosModule::BOOKINGS, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::CUSTOMER_ACCOUNTS],
-            self::KABOBXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::BOOKINGS],
-            self::BALIQXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS],
+            // Wave 2: the counter order carried to the table plate, the service charge by zone (order type)
+            self::KAFE => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::TABLE_SERVICE, PosModule::SERVICE_CHARGE_RULES, PosModule::WAITER_TRANSFER],
+            self::RESTORAN => [PosModule::BOOKINGS, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::CUSTOMER_ACCOUNTS, PosModule::COURSES, PosModule::TIPS, PosModule::STAFF_PAY, PosModule::GUEST_SPLIT, PosModule::WAITER_TRANSFER, PosModule::HOSTESS, PosModule::TABLE_BOOKING, PosModule::SERVICE_CHARGE_RULES],
+            // The assorti is a kompleks (combo_meal, P6-15): one line, its parts listed for the grill
+            self::KABOBXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::BOOKINGS, PosModule::SKEWER_BUTTONS, PosModule::COMBO_MEAL, PosModule::WAITER_TRANSFER],
+            self::BALIQXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::WEIGHT_LATER, PosModule::WAITER_TRANSFER],
             self::FAST_FOOD => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::COMBO_MEAL, PosModule::KDS],
             self::QAHVAXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::KDS],
             self::TOYXONA => [PosModule::BOOKINGS, PosModule::ROOMS, PosModule::CUSTOMER_ACCOUNTS],

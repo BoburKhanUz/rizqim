@@ -2,8 +2,13 @@
 
 namespace App\Domain\Pos\Orders;
 
+use App\Domain\Pos\Billing\ServiceChargeRule;
+use App\Domain\Pos\Billing\ServiceChargeRules;
+use App\Domain\Pos\Billing\ServiceOrderType;
 use App\Domain\Pos\Hall\BusinessCalendar;
 use App\Domain\Pos\Hall\RoomTariffResolver;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\KitchenItemStatus;
 use App\Enums\OrderChannel;
 use App\Models\Booking;
@@ -33,6 +38,11 @@ use App\Support\Money;
  *   min spend top-up  = max(0, minimum spend − after discount), whole so'm
  *   total             = after discount + service charge + place fee + room fee + top-up
  *
+ * P6-22 (C1): with the branch's `service_charge_rules` module, the row's service charge rules (ServiceChargeRules)
+ * pick the percent — by the order's type (hall, table service, takeaway), the large-group rule — and may charge the
+ * restaurant cover per guest as the place fee; a stolovaya stays at 0% (the lock wins). The bill's notice text comes
+ * with the result.
+ *
  * A waived charge (order_charge_waivers) is 0. Room fee and the table's minimum spend need a table and the hall channel
  * (a booking's minimum holds in the hall channel without a table). Only POS channels are charged here: a Telegram or
  * mobile order never gets any of these lines.
@@ -43,6 +53,7 @@ class PosChargesCalculator
         protected DiningFeeCalculator $fees,
         protected BusinessCalendar $calendar,
         protected RoomTariffResolver $tariffs,
+        protected PosModules $modules,
     ) {}
 
     public function compute(Order $order): PosCharges
@@ -63,7 +74,25 @@ class PosChargesCalculator
             ->map(fn ($charge) => PosCharge::tryFrom((string) $charge))->filter()->values()->all();
         $isWaived = fn (PosCharge $charge) => in_array($charge, $waived, true);
 
-        $settings = $this->fees->settingsForHall((int) $order->store_id, $order->branch_id !== null ? (int) $order->branch_id : null, $order->hall_id);
+        $branchId = $order->branch_id !== null ? (int) $order->branch_id : null;
+        $branch = $branchId !== null ? Branch::with('store')->find($branchId) : null;
+        $settings = $this->fees->settingsForHall((int) $order->store_id, $branchId, $order->hall_id);
+
+        // P6-22: the service charge rules of the row (the module on), resolved for this order; the notice for the bill
+        $rule = ServiceChargeRule::NONE;
+        $cover = false;
+        $notice = null;
+        if ($settings !== null) {
+            $rules = $branch !== null && $this->modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES) ? ServiceChargeRules::of($settings) : new ServiceChargeRules();
+            $locked = $this->modules->serviceChargeLocked($branchId);
+            $notice = $rules->notice($settings, $locked);
+            if (!$rules->isEmpty()) {
+                $resolved = $rules->resolve($settings, ServiceOrderType::of($order), $order->channel, $guests, $locked);
+                $settings = $resolved['settings'];
+                $rule = $resolved['rule'];
+                $cover = $resolved['cover'];
+            }
+        }
         $dining = $settings !== null
             ? $this->fees->apply($settings, $order->channel, $after, $guests)
             : ['service_charge' => Money::zero(), 'place_fee' => Money::zero(), 'service_charge_percent' => '0.00'];
@@ -71,6 +100,7 @@ class PosChargesCalculator
         $serviceCharge = $isWaived(PosCharge::SERVICE_CHARGE) ? Money::zero() : $dining['service_charge'];
         $percent = $serviceCharge->isPositive() ? $dining['service_charge_percent'] : '0.00';
         $placeFee = $isWaived(PosCharge::PLACE_FEE) ? Money::zero() : $dining['place_fee'];
+        $rule = !$serviceCharge->isPositive() ? ServiceChargeRule::NONE : ($rule === ServiceChargeRule::NONE ? ServiceChargeRule::BASE : $rule);
 
         $roomFee = Money::zero();
         $tariffId = null;
@@ -80,7 +110,6 @@ class PosChargesCalculator
         $topup = Money::zero();
 
         $table = $order->table_id !== null ? DiningTable::withTrashed()->find($order->table_id) : null;
-        $branch = $order->branch_id !== null ? Branch::with('store')->find($order->branch_id) : null;
         if ($table !== null && $branch !== null && $order->channel === OrderChannel::POS_HALL) {
             $businessDate = $this->calendar->businessDate($branch, $order->created_at ?? now());
             $dayType = $this->calendar->dayType($branch, $businessDate);
@@ -109,7 +138,7 @@ class PosChargesCalculator
 
         $total = $after->plus($serviceCharge)->plus($placeFee)->plus($roomFee)->plus($topup);
 
-        return new PosCharges($items, $discount, $after, Money::of($percent)->toString(), $serviceCharge, $placeFee, $roomFee, $tariffId, $businessDate, $dayType, $minSpend, $topup, $waived, $total);
+        return new PosCharges($items, $discount, $after, Money::of($percent)->toString(), $serviceCharge, $placeFee, $roomFee, $tariffId, $businessDate, $dayType, $minSpend, $topup, $waived, $total, $rule, $cover && $placeFee->isPositive() ? PosCharges::COVER : PosCharges::PLACE_FEE, $notice);
     }
 
     /**

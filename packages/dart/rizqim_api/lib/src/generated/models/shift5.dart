@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'device19.dart';
 import 'opened_by8.dart';
-import 'closed_by8.dart';
+import 'closed_by11.dart';
 
 part 'shift5.g.dart';
 
@@ -50,7 +50,7 @@ class Shift5 {
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy8? closedBy;
+  final ClosedBy11? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')

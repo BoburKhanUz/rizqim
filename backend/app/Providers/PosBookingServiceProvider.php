@@ -4,9 +4,11 @@ namespace App\Providers;
 
 use App\Domain\Pos\Accounts\CustomerAccountService;
 use App\Domain\Pos\Booking\BookingAdvanceLedger;
+use App\Domain\Pos\Booking\BookingRulesBootstrapSection;
 use App\Domain\Pos\Booking\BookingService;
 use App\Domain\Pos\Contracts\AdvanceLedger;
 use App\Domain\Pos\Contracts\CustomerAccountLedger;
+use App\Domain\Pos\Setup\PosBootstrap;
 use App\Events\OrderCancelled;
 use App\Events\OrderStatusUpdated;
 use Illuminate\Support\Facades\Event;
@@ -24,6 +26,9 @@ class PosBookingServiceProvider extends ServiceProvider
     {
         $this->app->bind(AdvanceLedger::class, BookingAdvanceLedger::class);
         $this->app->bind(CustomerAccountLedger::class, CustomerAccountService::class);
+
+        // P6-26: the table booking rules in GET /pos/bootstrap
+        $this->app->tag([BookingRulesBootstrapSection::class], PosBootstrap::CONTRIBUTORS);
     }
 
     public function boot(): void

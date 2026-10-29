@@ -18,6 +18,8 @@ class Items21 {
     this.seatNo,
     this.fireMode,
     this.dueAt,
+    this.courseNo,
+    this.awaitingWeight,
   });
 
   factory Items21.fromJson(Map<String, Object?> json) =>
@@ -34,6 +36,12 @@ class Items21 {
   final FireMode? fireMode;
   @JsonKey(name: 'due_at')
   final DateTime? dueAt;
+
+  /// P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later)
+  @JsonKey(name: 'course_no')
+  final int? courseNo;
+  @JsonKey(name: 'awaiting_weight')
+  final bool? awaitingWeight;
 
   Map<String, Object?> toJson() => _$Items21ToJson(this);
 }

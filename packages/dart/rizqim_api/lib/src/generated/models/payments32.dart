@@ -20,6 +20,7 @@ class Payments32 {
     required this.reference,
     required this.status,
     required this.paidAt,
+    required this.tipAmount,
   });
 
   factory Payments32.fromJson(Map<String, Object?> json) =>
@@ -42,6 +43,8 @@ class Payments32 {
   final String status;
   @JsonKey(name: 'paid_at')
   final String? paidAt;
+  @JsonKey(name: 'tip_amount')
+  final String tipAmount;
 
   Map<String, Object?> toJson() => _$Payments32ToJson(this);
 }

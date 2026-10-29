@@ -30,6 +30,7 @@ V1PosBookingsUuidRequestBody _$V1PosBookingsUuidRequestBodyFromJson(
       : Source2.fromJson(json['source'] as String?),
   minSpend: json['min_spend'] as num?,
   note: json['note'] as String?,
+  skipLeadTime: json['skip_lead_time'] as bool?,
   version: (json['version'] as num?)?.toInt(),
 );
 
@@ -47,5 +48,6 @@ Map<String, dynamic> _$V1PosBookingsUuidRequestBodyToJson(
   'source': instance.source,
   'min_spend': instance.minSpend,
   'note': instance.note,
+  'skip_lead_time': instance.skipLeadTime,
   'version': instance.version,
 };

@@ -6,17 +6,20 @@ import { FakeBookings } from './bookings'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
+import { FakeHostess } from './hostess'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
 import { FakePermissions } from './permissions'
 import { FakeReports } from './reports'
 import { FakeShifts } from './shifts'
+import { FakeStaffPay } from './staffpay'
 import { FakeTeam } from './team'
 import { FakeTerminal } from './terminal'
+import { FakeTips } from './tips'
 import { FakeZones } from './zones'
 import { fail, ok, unauthenticated, type FakeRequest, type RecordedCall, type Reply } from './types'
 
-export const ROLE_LABELS: Record<string, string> = { owner: 'Ega', manager: 'Menejer', cashier: 'Kassir', waiter: 'Ofitsiant', cook: 'Oshpaz', courier: 'Kuryer' }
+export const ROLE_LABELS: Record<string, string> = { owner: 'Ega', manager: 'Menejer', cashier: 'Kassir', waiter: 'Ofitsiant', cook: 'Oshpaz', hostess: 'Hostes', courier: 'Kuryer' }
 
 // What the owner's role holds by default (App\Services\Auth\RolePermissions), the part the panel looks at
 export const OWNER_PERMISSIONS = [
@@ -30,6 +33,10 @@ export const OWNER_PERMISSIONS = [
   'audit.view',
   // P3-23: the POS sections (halls and tables, bookings, nasiya, shifts)
   'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift',
+  // P6-23: staff pay ("Ish haqi")
+  'staff_pay.view', 'staff_pay.manage',
+  // P6-22: tips (choy puli): corrections and the pool split
+  'tips.manage',
 ]
 
 export interface Account {
@@ -101,7 +108,10 @@ export class FakeBackend {
   permissions: FakePermissions
   billing: FakeBilling
   format: FakeFormat
+  hostess: FakeHostess
   terminal: FakeTerminal
+  staffPay: FakeStaffPay
+  tips: FakeTips
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -116,7 +126,10 @@ export class FakeBackend {
     this.permissions = new FakePermissions(this)
     this.billing = new FakeBilling(this)
     this.format = new FakeFormat(this)
+    this.hostess = new FakeHostess(this)
     this.terminal = new FakeTerminal(this)
+    this.staffPay = new FakeStaffPay(this)
+    this.tips = new FakeTips(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -278,7 +291,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.terminal]) {
+    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

@@ -20,6 +20,9 @@ Charges17 _$Charges17FromJson(Map<String, dynamic> json) => Charges17(
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   waived: (json['waived'] as List<dynamic>).map((e) => e as String).toList(),
   total: json['total'] as String,
+  serviceChargeRule: json['service_charge_rule'] as String,
+  placeFeeKind: json['place_fee_kind'] as String,
+  serviceChargeNotice: json['service_charge_notice'] as String?,
   waivers: (json['waivers'] as List<dynamic>)
       .map((e) => Waivers12.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -39,5 +42,8 @@ Map<String, dynamic> _$Charges17ToJson(Charges17 instance) => <String, dynamic>{
   'min_spend_topup_amount': instance.minSpendTopupAmount,
   'waived': instance.waived,
   'total': instance.total,
+  'service_charge_rule': instance.serviceChargeRule,
+  'place_fee_kind': instance.placeFeeKind,
+  'service_charge_notice': instance.serviceChargeNotice,
   'waivers': instance.waivers,
 };
