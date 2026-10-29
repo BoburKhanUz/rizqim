@@ -23,7 +23,7 @@ export const OWNER_PERMISSIONS = [
   'orders.view', 'orders.manage', 'orders.cancel', 'orders.assign_courier', 'kitchen.manage',
   'menu.view', 'menu.manage', 'stoplist.manage', 'batches.manage',
   'staff.view', 'staff.manage', 'staff.pin', 'branches.manage', 'settings.manage', 'zones.manage', 'devices.view', 'devices.manage',
-  'reports.view', 'finance.view',
+  'reports.view', 'finance.view', 'finance.manage',
   // P3-37: the "Huquqlar" page
   'permissions.manage',
   // P4-32: the store's audit log
