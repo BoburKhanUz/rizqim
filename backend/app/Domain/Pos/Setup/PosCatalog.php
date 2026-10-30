@@ -24,7 +24,9 @@ use Illuminate\Support\Collection;
  * `unavailable_reason`: `stopped` or `sold_out` on a variant, `stopped` on a product or modifier), and every
  * product its `station_id` (kitchen routing: its own route, else its category's, else null). P6-15: a product also carries
  * `next_batch` ({time, planned_at, quantity, label}: "keyingi partiya 12:30", only while it is sold out or stopped, else
- * null; a variant carries its own) and `set_parts` (the dishes of a kompleks, else null).
+ * null; a variant carries its own) and `set_parts` (the dishes of a kompleks, else null). P6-25 (review C6): a product's
+ * `weight_mode` only while the branch's `weight_later` module is on (else null: sold by the quantity typed, as the
+ * server sells it, PosWeights), so an offline till never holds a line for its weight on a branch without the module.
  */
 final class PosCatalog
 {
@@ -32,6 +34,7 @@ final class PosCatalog
         private readonly CatalogPresenter $presenter,
         private readonly MenuAvailability $availability,
         private readonly KitchenStationRouter $router,
+        private readonly PosModules $modules,
     ) {}
 
     /**
@@ -58,6 +61,9 @@ final class PosCatalog
         ];
 
         $this->annotate($products, $availability, (int) $branch->id, app(MealSets::class)->partsByProduct($storeId));
+        if (!$this->modules->enabled($branch, PosModule::WEIGHT_LATER)) {
+            $products->each(fn (Product $product) => $product->setAttribute('weight_mode', null));
+        }
 
         $categoryIds = $products->pluck('category_id')->unique()->all();
         $columns = ['id', 'uuid', 'name', 'slug', 'parent_id', 'sort_order', 'image', 'image_disk', 'image_thumbs'];

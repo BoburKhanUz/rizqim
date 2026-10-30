@@ -78,7 +78,7 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
                     'place_fee_amount' => $settings !== null && $applies($settings->place_fee_channels) ? Money::of((string) $settings->place_fee_amount)->toString() : '0.00',
                     'place_fee_mode' => $settings?->place_fee_mode->value ?? 'per_person',
                     'rules' => $settings !== null && !$rules->isEmpty() ? $rules->toArray() : null,
-                    'service_charge_notice' => $rules->notice($settings, $locked),
+                    'service_charge_notice' => $rules->notice($settings, $locked, $withRules),
                 ];
             }
         }

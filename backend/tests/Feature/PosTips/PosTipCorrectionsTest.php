@@ -60,7 +60,8 @@ class PosTipCorrectionsTest extends TestCase
         $this->assertSame('-4000.00', PosTip::where('kind', TipKind::CORRECTION->value)->latest('id')->value('amount'));
 
         $report = $this->posAs($this->manager, 'GET', "/shifts/{$shift->uuid}/x-report")->json('data.report');
-        $this->assertSame(['6000.00', '6000.00'], [$report['tips']['amount'], $report['cash']['tips']]);
+        // Review P6 wave 2 (S6): a correction never changes the cash in the drawer
+        $this->assertSame(['6000.00', '10000.00'], [$report['tips']['amount'], $report['cash']['tips']]);
         $this->assertSame([['staff_id' => $this->waiter2->id, 'name' => $this->waiter2->name, 'amount' => '6000.00']], $report['tips']['by_staff']);
         $this->assertSame(['count' => 1, 'amount' => '-4000.00'], $report['tips']['corrections']);
 

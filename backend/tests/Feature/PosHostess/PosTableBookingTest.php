@@ -174,8 +174,8 @@ class PosTableBookingTest extends TestCase
         $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/confirm")->assertStatus(409)->assertJsonPath('data.reason', 'deposit_required');
 
         // A part of the deposit does not confirm; the rest does
-        $this->takeDeposit($uuid, '40000', 'cash')->assertCreated()->assertJsonPath('data.booking.status', 'requested')->assertJsonPath('data.booking.deposit_missing', '60000.00');
-        $this->takeDeposit($uuid, '60000', 'cash')->assertCreated()->assertJsonPath('data.booking.status', 'confirmed')->assertJsonPath('data.booking.deposit_missing', '0.00');
+        $this->takeDeposit($uuid, '40000', 'qr')->assertCreated()->assertJsonPath('data.booking.status', 'requested')->assertJsonPath('data.booking.deposit_missing', '60000.00');
+        $this->takeDeposit($uuid, '60000', 'qr')->assertCreated()->assertJsonPath('data.booking.status', 'confirmed')->assertJsonPath('data.booking.deposit_missing', '0.00');
     }
 
     public function test_a_deposit_not_required_to_confirm_confirms_like_before(): void

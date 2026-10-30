@@ -13,6 +13,7 @@ V1PosBillsUuidPaymentsRequestBody _$V1PosBillsUuidPaymentsRequestBodyFromJson(
       .map((e) => Tenders.fromJson(e as Map<String, dynamic>))
       .toList(),
   tipStaffId: (json['tip_staff_id'] as num?)?.toInt(),
+  tipApprovalToken: json['tip_approval_token'] as String?,
   approvalToken: json['approval_token'] as String?,
   shiftUuid: json['shift_uuid'] as String?,
   version: (json['version'] as num?)?.toInt(),
@@ -23,6 +24,7 @@ Map<String, dynamic> _$V1PosBillsUuidPaymentsRequestBodyToJson(
 ) => <String, dynamic>{
   'tenders': instance.tenders,
   'tip_staff_id': instance.tipStaffId,
+  'tip_approval_token': instance.tipApprovalToken,
   'approval_token': instance.approvalToken,
   'shift_uuid': instance.shiftUuid,
   'version': instance.version,

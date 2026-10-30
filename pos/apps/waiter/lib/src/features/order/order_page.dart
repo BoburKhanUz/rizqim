@@ -160,14 +160,17 @@ class _OrderPageState extends State<OrderPage> {
     await _ctl.transferTo(_approving, pick.waiter, reason: pick.reason);
   }
 
-  /// Menyuda "Boshqa ofitsiantga berish" (modul yoqilgan, ochiq stol buyurtmasi, buyurtma bilan ishlay oladi).
+  /// Menyuda "Boshqa ofitsiantga berish" (modul yoqilgan, ochiq stol buyurtmasi): `orders.transfer` (yolg'iz o'zi
+  /// yetadi) yoki `orders.manage` — ikkinchisida server menejer PIN'ini so'raydi (oyna o'zi ochiladi). Ikkalasi ham
+  /// yo'q xodimni server bu yo'lga kiritmaydi, shuning uchun band ko'rinmaydi.
   bool get _canTransfer {
     final PosOrder? o = _ctl.order;
     return o != null &&
         !_ctl.closed &&
         o.table != null &&
         _ctl.session.transferOn &&
-        _ctl.session.can(PosPermissions.ordersManage);
+        (_ctl.session.can(PosPermissions.ordersTransfer) ||
+            _ctl.session.can(PosPermissions.ordersManage));
   }
 
   Future<void> _requestBill() async {

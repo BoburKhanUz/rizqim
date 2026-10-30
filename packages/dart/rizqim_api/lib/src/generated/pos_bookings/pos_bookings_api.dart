@@ -196,7 +196,10 @@ abstract class PosBookingsApi {
   ///
   /// `amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt.
   /// (`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same.
-  /// deposit and never a second receipt. A requested booking becomes confirmed.
+  /// deposit and never a second receipt. A requested booking becomes confirmed. A deposit is a payment: it needs.
+  /// pos.take_payment, or a manager's one-time `approval_token` for it (POST /pos/approvals; the hostess desk). A cash.
+  /// deposit goes into a drawer: it is taken on a terminal with an open shift in the booking's branch (its X/Z counts.
+  /// it), else 409 `deposit_needs_shift` ("Bo'nakni kassada oling"); card and QR need no shift.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/bookings/{uuid}/deposits')

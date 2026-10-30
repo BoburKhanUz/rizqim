@@ -29,7 +29,11 @@ use Illuminate\Support\Facades\DB;
  *    business day the booking started;
  *  - tips: StaffTipsSource (P6-22);
  *  - advances: wage money given to them from the branch's tills in the period (cash movements `wage`, categories
- *    advance and daily_wage; a bonus is extra and not taken off; payroll payments of statements are not advances).
+ *    advance and daily_wage; a bonus is extra and not taken off; payroll payments of statements are not advances, but
+ *    a `payroll` movement linked to no statement line — written by hand before review P6 wave 2 refused that — is);
+ *  - tip_payouts: tips given to them from the branch's tills in the period (cash movements `wage`, category tips);
+ *    StaffPayStatements takes them off a line whose rule pays the `tips` part, never off one without it (that money
+ *    was the guest's tip, not a wage).
  */
 final class StaffPayMetrics
 {
@@ -46,6 +50,7 @@ final class StaffPayMetrics
      * @return array{
      *     days: array<int, array<string, array{worked: bool, minutes: int, sales: Money, service_charge: Money, events: array<string, int>, tips: Money, bills: int}>>,
      *     advances: array<int, Money>,
+     *     tip_payouts: array<int, Money>,
      *     uncounted_sessions: array<int, int>
      * }
      */
@@ -151,19 +156,28 @@ final class StaffPayMetrics
         }
 
         $advances = [];
+        $tipPayouts = [];
         $movements = DB::table('cash_movements')
             ->join('pos_shifts', 'pos_shifts.id', '=', 'cash_movements.shift_id')
             ->where('cash_movements.branch_id', $branch->id)
             ->where('cash_movements.type', CashMovementType::WAGE->value)
-            ->whereIn('cash_movements.category', self::ADVANCE_CATEGORIES)
+            ->where(fn ($query) => $query->whereIn('cash_movements.category', [...self::ADVANCE_CATEGORIES, 'tips'])
+                // A legacy payroll movement written by hand: paid in advance of the statement
+                ->orWhere(fn ($query) => $query->where('cash_movements.category', 'payroll')
+                    ->whereNotExists(fn ($query) => $query->select(DB::raw(1))->from('staff_pay_statement_lines')->whereColumn('staff_pay_statement_lines.cash_movement_id', 'cash_movements.id'))))
             ->whereNotNull('cash_movements.employee_id')
             ->whereBetween('pos_shifts.business_date', [$from, $to])
-            ->get(['cash_movements.employee_id', 'cash_movements.amount']);
+            ->get(['cash_movements.employee_id', 'cash_movements.category', 'cash_movements.amount']);
         foreach ($movements as $movement) {
-            $advances[(int) $movement->employee_id] = ($advances[(int) $movement->employee_id] ?? Money::zero())->plus($movement->amount);
+            $employeeId = (int) $movement->employee_id;
+            if ($movement->category === 'tips') {
+                $tipPayouts[$employeeId] = ($tipPayouts[$employeeId] ?? Money::zero())->plus($movement->amount);
+            } else {
+                $advances[$employeeId] = ($advances[$employeeId] ?? Money::zero())->plus($movement->amount);
+            }
         }
 
-        return ['days' => $days, 'advances' => $advances, 'uncounted_sessions' => $work['uncounted']];
+        return ['days' => $days, 'advances' => $advances, 'tip_payouts' => $tipPayouts, 'uncounted_sessions' => $work['uncounted']];
     }
 
     /**

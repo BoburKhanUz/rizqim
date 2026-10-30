@@ -39,7 +39,9 @@ class PosTipsController extends PosBillingController
      *
      * The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),
      * with the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or
-     * reports.view (a waiter) sees only the tips that go to them. Needs orders.view.
+     * reports.view (a waiter) sees only the tips that go to them, and of each only their own share: `amount` and
+     * `original_amount` are their share, `staff` themselves, `holders` and `corrections` only theirs (without who
+     * made them), `recorded_by` null. Needs orders.view.
      */
     #[QueryParameter('shift_uuid', description: 'The shift (default: the terminal\'s open shift).', type: 'string', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{shift_uuid: string|null, business_date: string, own_only: bool, summary: ' . ShiftTips::SHAPE . ', tips: list<' . TipPresenter::TIP . '>}}')]
@@ -76,11 +78,20 @@ class PosTipsController extends PosBillingController
 
         $listed = $presenter->many($tips);
         if ($ownOnly) {
-            // A waiter's own share of each tip (a split correction may give part of it to someone else)
+            // A waiter's own share of each tip (a split correction may give part of it to someone else). Review P6
+            // wave 2 (S8): nothing about the others — who else holds it, what was taken, who recorded or corrected it
             $listed = array_map(function (array $tip) use ($user) {
                 $mine = collect($tip['holders'])->filter(fn (array $holder) => ($holder['staff']['id'] ?? null) === (int) $user->id);
                 $tip['amount'] = Money::sum('0', ...$mine->pluck('amount')->all())->toString();
+                $tip['original_amount'] = $tip['amount'];
+                $tip['mode'] = TipMode::PERSONAL->value;
+                $tip['staff'] = ['id' => (int) $user->id, 'name' => $user->name];
                 $tip['holders'] = $mine->values()->all();
+                $tip['recorded_by'] = null;
+                $tip['corrections'] = collect($tip['corrections'])
+                    ->filter(fn (array $correction) => $correction['mode'] === TipMode::PERSONAL->value && $correction['staff_id'] === (int) $user->id)
+                    ->map(fn (array $correction) => ['by' => null, 'approved_by' => null] + $correction)
+                    ->values()->all();
 
                 return $tip;
             }, $listed);

@@ -36,9 +36,10 @@ final class TipService
 
     /**
      * Records a tip taken with `$payment` (inside the payment's transaction). Personal mode: to `$staffId` (the waiter
-     * picked at payment), else the order's waiter, else unassigned. Pool mode: to the branch's pot.
+     * picked at payment, payRecipient), else the order's waiter, else unassigned. Pool mode: to the branch's pot.
+     * `$approvedBy`: the manager who approved giving it to someone other than the waiter.
      */
-    public function record(Order $order, OrderBill $bill, Payment $payment, PosShift $shift, TipMethod $method, Money $amount, TipSource $source, ?int $staffId, User $user, ?Device $device): PosTip
+    public function record(Order $order, OrderBill $bill, Payment $payment, PosShift $shift, TipMethod $method, Money $amount, TipSource $source, ?int $staffId, User $user, ?Device $device, ?int $approvedBy = null): PosTip
     {
         $branch = Branch::findOrFail((int) $order->branch_id);
         $mode = $this->settings->mode($branch);
@@ -62,8 +63,48 @@ final class TipService
             'amount' => $amount->toString(),
             'staff_id' => $recipient,
             'recorded_by' => $user->id,
+            'approved_by' => $approvedBy,
             'device_id' => $device?->id,
         ]);
+    }
+
+    /**
+     * Review P6 wave 2 (S5): whom a personal tip taken with a payment goes to, as the cashier picked it (`$staffId`)
+     * against the order's waiter at payment (`$waiterId`). Pool mode: nobody (the pot), whatever was picked. The
+     * waiter (or no pick): the waiter, no approval. Someone else: a staff member of the branch whose role is one of
+     * its tip roles (TipSettings::roles, waiters by default), and the caller must hold tips.manage or consume a
+     * manager's approval for it (`approval` true) — online an unknown person is 422 tip_staff_not_found, one outside
+     * the roles 422 tip_staff_not_eligible, both before any money is taken. Offline (`$offline`: the money was taken,
+     * nothing is refused and no approval can be asked) an unknown, ineligible or unapproved (`$mayPick` false: the
+     * staff member who took it lacks tips.manage) pick falls back to the waiter.
+     *
+     * @return array{staff_id: int|null, approval: bool}
+     *
+     * @throws PosActionException
+     */
+    public function payRecipient(Order $order, ?int $staffId, ?int $waiterId, bool $offline, bool $mayPick): array
+    {
+        $branch = Branch::findOrFail((int) $order->branch_id);
+        if ($this->settings->mode($branch) !== TipMode::PERSONAL) {
+            return ['staff_id' => null, 'approval' => false];
+        }
+        if ($staffId === null || $staffId === $waiterId) {
+            return ['staff_id' => $waiterId, 'approval' => false];
+        }
+
+        $person = self::recipient((int) $order->store_id, (int) $order->branch_id, $staffId);
+        $eligible = $person !== null && in_array($person->role->value, $this->settings->roles($this->settings->row($branch)), true);
+        if ($offline) {
+            return ['staff_id' => $eligible && $mayPick ? $staffId : $waiterId, 'approval' => false];
+        }
+        if ($person === null) {
+            throw PosActionException::invalid('tip_staff_not_found', 'Choy puli beriladigan xodim topilmadi.');
+        }
+        if (!$eligible) {
+            throw PosActionException::invalid('tip_staff_not_eligible', "Bu xodimga choy puli berilmaydi: filialda choy puli faqat belgilangan lavozimlarga (odatda ofitsiantlarga) beriladi.");
+        }
+
+        return ['staff_id' => $staffId, 'approval' => !$mayPick];
     }
 
     /**
@@ -110,7 +151,11 @@ final class TipService
     /**
      * A manager's correction (tips.manage; the caller checked it or consumed an approval): the tip now gives
      * `$amount` (null: as now) to `$mode`/`$staffId` (personal: the person, null unassigned; pool: the pot). A reason
-     * is required. Refused (409 tips_period_closed) when a closed pool split covers the tip's day or shift.
+     * is required. Refused (409 tips_period_closed) when a closed pool split covers the tip's day or shift; the splits
+     * covering it are locked first, so a close at the same moment either waits for the correction (and finds the
+     * pool changed: stale) or is seen. Review P6 wave 2 (S6): the corrected total stays between 0 and the amount
+     * taken, whatever the method (422 tip_correction_too_high): a correction fixes a mistake or moves the tip, it never
+     * makes up money; and it never changes the drawer's expected cash (ShiftTips::cash).
      *
      * @throws PosActionException
      */
@@ -126,6 +171,9 @@ final class TipService
         if ($amount !== null && ($amount->isNegative() || !$amount->equals($amount->roundTo(2)))) {
             throw PosActionException::invalid('amount_invalid', "Summa noto'g'ri.");
         }
+        if ($amount !== null && $amount->isGreaterThan($tip->amount)) {
+            throw PosActionException::invalid('tip_correction_too_high', "Tuzatilgan choy puli olinganidan ko'p bo'lmaydi: ko'pi bilan " . Money::of($tip->amount)->toString() . " so'm.", ['original_amount' => Money::of($tip->amount)->toString()]);
+        }
         if ($mode === TipMode::POOL) {
             $staffId = null;
         }
@@ -135,6 +183,7 @@ final class TipService
 
         return DB::transaction(function () use ($user, $tip, $amount, $mode, $staffId, $reason, $approvedBy, $device, $applied) {
             $tip = PosTip::whereKey($tip->id)->lockForUpdate()->firstOrFail();
+            self::covering($tip)->lockForUpdate()->get(['id']);
             if (self::closedFor($tip)) {
                 throw PosActionException::conflict('tips_period_closed', "Bu kunning choy puli bo'lingan va yopilgan: tuzatib bo'lmaydi.");
             }
@@ -203,10 +252,18 @@ final class TipService
      */
     public static function closedFor(PosTip $tip): bool
     {
+        return self::covering($tip)->where('status', TipDistributionStatus::CLOSED->value)->exists();
+    }
+
+    /**
+     * The pool splits covering the tip: its business day's, and its shift's.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<PosTipDistribution>
+     */
+    private static function covering(PosTip $tip): \Illuminate\Database\Eloquent\Builder
+    {
         return PosTipDistribution::where('branch_id', $tip->branch_id)
             ->whereDate('business_date', $tip->business_date->toDateString())
-            ->where('status', TipDistributionStatus::CLOSED->value)
-            ->where(fn ($query) => $query->whereNull('shift_id')->when($tip->shift_id !== null, fn ($query) => $query->orWhere('shift_id', $tip->shift_id)))
-            ->exists();
+            ->where(fn ($query) => $query->whereNull('shift_id')->when($tip->shift_id !== null, fn ($query) => $query->orWhere('shift_id', $tip->shift_id)));
     }
 }

@@ -23,7 +23,9 @@ use App\Support\Money;
  *                           version covers the period); max(G, % × base) or G + % × base. It does not depend on the
  *                           number of shifts worked.
  *
- * Every component's amount is rounded once, half up, to the whole so'm; the gross is their sum.
+ * Every component's amount is rounded once, half up, to the whole so'm; the gross is their sum. A percent is worked
+ * out exactly and rounded straight to the so'm (never to the tiyin first: 5% × 10 089.90 = 504.495 gives 504, not
+ * 505); a per-shift guarantee rounds each shift's percent to the so'm this way.
  */
 final class StaffPayCalculator
 {
@@ -97,7 +99,7 @@ final class StaffPayCalculator
             case PayComponentType::SERVICE_CHARGE_PERCENT:
                 $field = $type === PayComponentType::SALES_PERCENT ? 'sales' : 'service_charge';
                 $baseMoney = $sum($field);
-                $amount = $baseMoney->percent($percent);
+                $amount = $baseMoney->percent($percent, 0);
                 $base = $baseMoney->toString();
                 $shownRate = $percent;
                 $detail = self::percentText($percent) . ' × ' . self::sum($baseMoney);
@@ -126,7 +128,7 @@ final class StaffPayCalculator
                 if (($component['per'] ?? 'shift') === GuaranteePer::PERIOD->value) {
                     $guarantee = Money::fromTiyin(intdiv($rate->toTiyin() * count($days) * 2 + $periodDays, 2 * $periodDays));
                     $baseMoney = $sum($field);
-                    $share = $baseMoney->percent($percent);
+                    $share = $baseMoney->percent($percent, 0);
                     $amount = $mode === GuaranteeMode::MAX ? Money::max($guarantee, $share) : $guarantee->plus($share);
                     $base = $baseMoney->toString();
                     $quantity = (string) count($days);
@@ -137,7 +139,7 @@ final class StaffPayCalculator
                     $amount = Money::zero();
                     $covered = 0;
                     foreach ($worked as $day) {
-                        $share = $day[$field]->percent($percent);
+                        $share = $day[$field]->percent($percent, 0);
                         if ($mode === GuaranteeMode::MAX) {
                             $covered += $share->isLessThan($rate) ? 1 : 0;
                             $amount = $amount->plus(Money::max($rate, $share));

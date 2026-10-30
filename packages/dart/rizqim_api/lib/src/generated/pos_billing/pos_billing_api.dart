@@ -83,7 +83,10 @@ abstract class PosBillingApi {
   /// order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may.
   /// carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,.
   /// `tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to.
-  /// (personal mode; else the order's waiter). Tips are never on the receipt nor part of the bill (`tips_amount`.
+  /// (personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip.
+  /// roles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's.
+  /// `tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is.
+  /// taken. Tips are never on the receipt nor part of the bill (`tips_amount`.
   /// on the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,.
   /// `tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill.
   /// "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422.

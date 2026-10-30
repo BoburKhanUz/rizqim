@@ -83,9 +83,10 @@ class PosChargesCalculator
         $cover = false;
         $notice = null;
         if ($settings !== null) {
-            $rules = $branch !== null && $this->modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES) ? ServiceChargeRules::of($settings) : new ServiceChargeRules();
+            $withRules = $branch !== null && $this->modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES);
+            $rules = $withRules ? ServiceChargeRules::of($settings) : new ServiceChargeRules();
             $locked = $this->modules->serviceChargeLocked($branchId);
-            $notice = $rules->notice($settings, $locked);
+            $notice = $rules->notice($settings, $locked, $withRules);
             if (!$rules->isEmpty()) {
                 $resolved = $rules->resolve($settings, ServiceOrderType::of($order), $order->channel, $guests, $locked);
                 $settings = $resolved['settings'];

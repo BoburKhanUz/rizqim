@@ -82,6 +82,10 @@ class _PaymentPageState extends State<PaymentPage> {
   late final TextEditingController _tip = TextEditingController();
   int? _tipStaffId;
 
+  /// Review P6 wave 2 (S5): the manager's approval for giving the tip to [_tipApprovalFor] (not the order's waiter).
+  String? _tipApproval;
+  int? _tipApprovalFor;
+
   // Avans
   late final TextEditingController _prepay = TextEditingController();
 
@@ -321,12 +325,39 @@ class _PaymentPageState extends State<PaymentPage> {
     final bool anyTip = tenders.any(
       (PosTenderInput t) => t.tip?.isPositive ?? false,
     );
-    final int? tipStaff = anyTip && _tips.picksStaff ? _tipStaffId : null;
+    int? tipStaff = anyTip && _tips.picksStaff ? _tipStaffId : null;
+    // Review P6 wave 2 (S5): someone other than the order's waiter needs tips.manage or a manager's PIN; offline
+    // there is no approval — the tip goes to the waiter
+    final int? waiterId = widget.order?.waiter?.id;
+    String? tipToken;
+    if (tipStaff != null &&
+        tipStaff != waiterId &&
+        !_scope.session.can(PosPermissions.tipsManage)) {
+      if (limitedMode(context)) {
+        tipStaff = waiterId;
+        showPosMessage(
+          context,
+          "Internetsiz menejer tasdig'i yo'q: choy puli buyurtma ofitsiantiga yoziladi.",
+        );
+      } else {
+        if (_tipApproval == null || _tipApprovalFor != tipStaff) {
+          final ApprovalToken? ok = await showManagerApproval(
+            context,
+            permission: PosPermissions.tipsManage,
+            reason: "Choy pulini buyurtma ofitsiantidan boshqa xodimga berish uchun menejer tasdig'i kerak.",
+          );
+          if (ok == null || !mounted) return;
+          _tipApproval = ok.token;
+          _tipApprovalFor = tipStaff;
+        }
+        tipToken = _tipApproval;
+      }
+    }
     final PosMoney tipped = PosMoney.sum(<PosMoney>[
       for (final PosTenderInput t in tenders) t.tip ?? PosMoney.zero,
     ]);
     final String signature =
-        '${tenders.map((PosTenderInput t) => t.toJson().toString()).join('|')}|$tipStaff';
+        '${tenders.map((PosTenderInput t) => t.toJson().toString()).join('|')}|$tipStaff|$tipToken';
     setState(() {
       _busy = true;
       _blocking = null;
@@ -342,8 +373,11 @@ class _PaymentPageState extends State<PaymentPage> {
           approvalToken: token,
           idempotencyKey: key,
           tipStaffId: tipStaff,
+          tipApprovalToken: tipToken,
         ),
       );
+      _tipApproval = null;
+      _tipApprovalFor = null;
       if (!mounted) return;
       _bill = r.bill;
       _parts.clear();
@@ -374,6 +408,11 @@ class _PaymentPageState extends State<PaymentPage> {
         showPosError(context, e);
       }
     } on Object catch (e) {
+      // An expired or used approval is asked for again on the next try
+      if (e is PosApprovalRejected) {
+        _tipApproval = null;
+        _tipApprovalFor = null;
+      }
       if (mounted) showPosError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -760,12 +799,14 @@ class _PaymentPageState extends State<PaymentPage> {
     final PosTipSettings settings = _tips;
     final bool cash = _tab == PosTender.cash;
     final PosMoney tip = _draft.effectiveTip;
+    // Review P6 wave 2 (S5): only the branch's tip roles (waiters by default) may take a tip
     final List<PosStaffRef> staff = <PosStaffRef>[
       ...?_scope.session.bootstrap?.staff.where(
-        (PosStaffRef s) => s.role == 'waiter',
+        (PosStaffRef s) => s.role == 'waiter' && settings.takes(s.role),
       ),
       ...?_scope.session.bootstrap?.staff.where(
-        (PosStaffRef s) => s.role != 'waiter' && s.role != 'owner',
+        (PosStaffRef s) =>
+            s.role != 'waiter' && s.role != 'owner' && settings.takes(s.role),
       ),
     ];
     final PosRef? waiter = widget.order?.waiter;
@@ -845,6 +886,16 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Text(
                 "Xodim tanlanmasa choy puli hech kimga biriktirilmaydi (menejer keyin beradi).",
                 style: RzType.footnote.copyWith(color: c.warningSoftFg),
+              ),
+            )
+          else if (_tipStaffId != waiter?.id &&
+              !_scope.session.can(PosPermissions.tipsManage))
+            Padding(
+              key: const ValueKey<String>('tip-staff-approval-hint'),
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                "Buyurtma ofitsiantidan boshqa xodimga — menejer tasdig'i bilan.",
+                style: RzType.footnote.copyWith(color: c.fgMuted),
               ),
             ),
         ],

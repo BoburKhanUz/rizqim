@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\StaffPay;
 
+use App\Domain\Pos\Tips\TipDistributionStatus;
 use App\Models\Branch;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
@@ -9,7 +10,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * P6-23: the tips a wage rule's `tips` component pays, read from P6-22's ledger (App\Domain\Pos\Tips): personal tips
  * are the person's rows of mode `personal` (tips and their corrections, so a corrected tip counts as corrected) on
- * their business day; pool tips are the person's lines of the branch's pool splits (per business day or shift).
+ * their business day; pool tips are the person's lines of the branch's CLOSED pool splits (per business day or
+ * shift): an open split may still be recomputed, so a pay statement sees pool tips once the split is closed.
  */
 final class PosTipsStaffTips implements StaffTipsSource
 {
@@ -35,6 +37,7 @@ final class PosTipsStaffTips implements StaffTipsSource
         $pool = DB::table('pos_tip_distribution_lines')
             ->join('pos_tip_distributions', 'pos_tip_distributions.id', '=', 'pos_tip_distribution_lines.distribution_id')
             ->where('pos_tip_distributions.branch_id', $branch->id)
+            ->where('pos_tip_distributions.status', TipDistributionStatus::CLOSED->value)
             ->whereNotNull('pos_tip_distribution_lines.staff_id')
             ->whereBetween('pos_tip_distributions.business_date', [$from, $to])
             ->get(['pos_tip_distribution_lines.staff_id', 'pos_tip_distributions.business_date', 'pos_tip_distribution_lines.amount']);

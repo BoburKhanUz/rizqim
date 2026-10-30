@@ -57,6 +57,7 @@ const line = (over: Record<string, unknown> = {}) => ({
   components: [{ type: 'shift_rate', label: 'Smena stavkasi', rule_uuid: 'r-1', days: 30, quantity: '2', rate: '100000.00', base: null, amount: '200000.00', detail: "2 smena × 100 000 so'm" }],
   gross: '285000.00',
   advances: '50000.00',
+  tips_paid: '0.00',
   adjustment: '0.00',
   adjustment_reason: null,
   payable: '235000.00',
@@ -212,6 +213,27 @@ describe('Hisob-kitob', () => {
     expect(request.headers.get('Idempotency-Key')).toMatch(/[0-9a-f-]{36}/);
     expect(await request.json()).toEqual({ method: 'cash_drawer', shift_uuid: 'sh-1', note: null });
     expect(await screen.findByText('Kassadan to\'landi')).toBeInTheDocument();
+  });
+
+  it('shows the tips paid from the till as their own minus amount in the line breakdown', async () => {
+    const withTips = statement({ lines: [line({ tips_paid: '30000.00', payable: '205000.00' })] });
+    mockFetch(
+      routes(['staff_pay.view'], {
+        'GET /api/v1/owner/staff-pay/statements': () => ok([withTips]),
+        'GET /api/v1/owner/staff-pay/statements/s-1': () => ok(withTips),
+      }),
+    );
+    renderPage(<StaffPayView />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('tab', { name: 'Hisob-kitob' }));
+    await user.click(await screen.findByRole('button', { name: 'Ochish' }));
+    const lines = await screen.findByRole('table', { name: "Xodimlar bo'yicha hisob-kitob" });
+    expect(screen.queryByText('Choy puli kassadan berilgan')).not.toBeInTheDocument();
+    await user.click(within(within(lines).getAllByRole('row')[1]!).getByRole('button', { name: 'Aziz' }));
+
+    const item = screen.getByText('Choy puli kassadan berilgan').closest('li')!;
+    expect(item.textContent?.replace(/\u00a0/g, ' ')).toContain("−30 000 so'm");
   });
 
   it('adjusts a draft line with a reason', async () => {

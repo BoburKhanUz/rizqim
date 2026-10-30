@@ -26,7 +26,7 @@ export class FakeTips {
     { uuid: 'cccccccc-0000-4000-8000-000000000001', method: 'cash', amount: '20000.00', mode: 'personal', staff: AZIZ, corrections: [] },
     { uuid: 'cccccccc-0000-4000-8000-000000000002', method: 'card', amount: '15001.00', mode: 'pool', staff: null, corrections: [] },
   ]
-  split: { uuid: string; status: 'open' | 'closed' } | null = null
+  split: { uuid: string; status: 'open' | 'closed'; shift_uuid: string | null } | null = null
   rules = { by_order_type: { hall: '15.00' } as Record<string, string>, large_group_min_guests: null as number | null, large_group_percent: null as string | null, cover_amount: null as string | null, notice: null as string | null }
 
   constructor(private readonly backend: FakeBackend) {
@@ -61,7 +61,7 @@ export class FakeTips {
       uuid: this.split!.uuid,
       branch_id: 1,
       business_date: DAY,
-      shift_uuid: null,
+      shift_uuid: this.split!.shift_uuid,
       rule: 'equal',
       roles: ['waiter'],
       role_weights: {},
@@ -111,7 +111,7 @@ export class FakeTips {
           cash: totals.by_method[0].amount,
           card: totals.by_method[1].amount,
           qr: totals.by_method[2].amount,
-          distributions: this.split ? [{ uuid: this.split.uuid, shift_uuid: null, status: this.split.status, pool_amount: totals.pool, distributed: totals.pool }] : [],
+          distributions: this.split ? [{ uuid: this.split.uuid, shift_uuid: this.split.shift_uuid, status: this.split.status, pool_amount: totals.pool, distributed: totals.pool }] : [],
           undistributed: this.split ? '0.00' : totals.pool,
         },
       ],
@@ -161,10 +161,14 @@ export class FakeTips {
     }
     if (req.method === 'GET' && path === '') return ok(this.report())
     if (req.method === 'GET' && path === '/entries') return ok({ tips: this.tips.map((tip) => this.view(tip)), truncated: false })
-    if (req.method === 'GET' && path === '/distributions') return ok({ distributions: this.split ? [this.distribution()] : [] })
+    if (req.method === 'GET' && path === '/distributions') return ok({ pool_period: this.settings.pool_period, distributions: this.split ? [this.distribution()] : [] })
     if (req.method === 'POST' && path === '/distributions') {
+      // The branch's pool period is enforced like the server does (one split per day, or one per shift)
+      const shiftUuid = typeof body?.shift_uuid === 'string' ? body.shift_uuid : null
+      if (this.settings.pool_period === 'day' && shiftUuid !== null) return fail(422, "Qozon biznes kun bo'yicha bo'linadi: smenani tanlamang.", undefined, { reason: 'tips_pool_period_day' })
+      if (this.settings.pool_period === 'shift' && shiftUuid === null) return fail(422, "Qozon smena bo'yicha bo'linadi: smenani tanlang.", undefined, { reason: 'tips_pool_period_shift' })
       if (this.split?.status === 'closed') return fail(409, "Bu choy puli bo'linishi yopilgan: qayta hisoblab bo'lmaydi.", undefined, { reason: 'tips_distribution_closed' })
-      this.split ??= { uuid: 'dddddddd-0000-4000-8000-000000000001', status: 'open' }
+      this.split ??= { uuid: 'dddddddd-0000-4000-8000-000000000001', status: 'open', shift_uuid: shiftUuid }
       return ok(this.distribution())
     }
     const close = path.match(/^\/distributions\/([0-9a-f-]+)\/close$/)

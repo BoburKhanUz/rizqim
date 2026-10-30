@@ -15,6 +15,7 @@ class V1PosBookingsUuidDepositsRequestBody {
     required this.tender,
     this.cardType,
     this.transactionId,
+    this.approvalToken,
   });
 
   factory V1PosBookingsUuidDepositsRequestBody.fromJson(
@@ -27,6 +28,8 @@ class V1PosBookingsUuidDepositsRequestBody {
   final String? cardType;
   @JsonKey(name: 'transaction_id')
   final String? transactionId;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosBookingsUuidDepositsRequestBodyToJson(this);

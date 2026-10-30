@@ -77,33 +77,54 @@ void main() {
     },
   );
 
-  testWidgets('tips: a card tip goes to the staff member picked at payment', (
-    WidgetTester tester,
-  ) async {
-    final Restaurant r = Restaurant();
-    final String uuid = r.order(waiterId: 4);
-    await pumpHome(tester, r.p.h);
-    await openBilling(tester, uuid);
-    await tapButton(tester, 'Schyot tuzish');
-    await tapText(tester, "To'lash: ", contains: true);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Karta'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Uzcard'));
-    await tester.pumpAndSettle();
-    await enter(tester, 'tender-txn', '123456');
-    // Without the tip the switch "change as tip" is a cash-only thing
-    expect(find.byKey(const ValueKey<String>('tip-from-change')), findsNothing);
-    await enter(tester, 'tip-amount', '15000');
-    await tapOn(tester, find.widgetWithText(ChoiceChip, 'Malika Rahimova'));
-    await tapKey(tester, 'payment-submit');
+  testWidgets(
+    'tips: a card tip goes to another waiter picked at payment, with the manager\'s PIN',
+    (WidgetTester tester) async {
+      final Restaurant r = Restaurant();
+      // Review P6 wave 2 (S5): a second waiter; only the tip roles (waiters) are offered, someone other than the
+      // order's waiter needs a manager's approval (tips.manage), sent with the payment
+      r.p.state.staff.add(<String, Object?>{
+        'id': 9,
+        'name': 'Jasur Toshev',
+        'role': 'waiter',
+        'staff_code': '1009',
+      });
+      r.p.state.rolePermissions['manager']!.add('tips.manage');
+      final String uuid = r.order(waiterId: 4);
+      await pumpHome(tester, r.p.h);
+      await openBilling(tester, uuid);
+      await tapButton(tester, 'Schyot tuzish');
+      await tapText(tester, "To'lash: ", contains: true);
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Karta'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Uzcard'));
+      await tester.pumpAndSettle();
+      await enter(tester, 'tender-txn', '123456');
+      // Without the tip the switch "change as tip" is a cash-only thing
+      expect(
+        find.byKey(const ValueKey<String>('tip-from-change')),
+        findsNothing,
+      );
+      await enter(tester, 'tip-amount', '15000');
+      expect(find.widgetWithText(ChoiceChip, 'Malika Rahimova'), findsNothing);
+      expect(find.widgetWithText(ChoiceChip, 'Kamola Karimova'), findsNothing);
+      await tapOn(tester, find.widgetWithText(ChoiceChip, 'Jasur Toshev'));
+      expect(
+        find.byKey(const ValueKey<String>('tip-staff-approval-hint')),
+        findsOneWidget,
+      );
+      await tapKey(tester, 'payment-submit');
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      await typePin(tester, '5926');
 
-    final Map<String, Object?> tip = r.restaurant.tips.single;
-    expect(
-      <Object?>[tip['amount'], tip['method'], tip['source'], tip['staff_id']],
-      <Object?>['15000.00', 'card', 'tender', 2],
-    );
-    expect(r.p.backend.bills[uuid]!.single['total'], '209000.00');
-  });
+      final Map<String, Object?> tip = r.restaurant.tips.single;
+      expect(
+        <Object?>[tip['amount'], tip['method'], tip['source'], tip['staff_id']],
+        <Object?>['15000.00', 'card', 'tender', 9],
+      );
+      expect(r.p.backend.bills[uuid]!.single['total'], '209000.00');
+    },
+  );
 
   testWidgets(
     'offline: the tip goes with the cash tender in the queue (bill.pay tip_amount, tip_staff_id)',

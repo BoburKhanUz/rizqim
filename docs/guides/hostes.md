@@ -25,13 +25,14 @@ bronlar va avans — [kassa.md](kassa.md#15-bron-avans-va-keldi), ega sozlamalar
 1. Telefon yoki planshetda ofitsiant ilovasini oching (ulash va PIN — [ofitsiant.md](ofitsiant.md#1-telefonni-ulash-va-kirish)).
 2. Ismingizni bosib **hostes PIN'ingizni** tering. Ro'yxatda ismingiz bo'lmasa, ega **Xodimlar** da sizga **Hostes** rolini va PIN
    berishi kerak.
-3. Ekranning pastida **Xonalar** va **Hostes** yorliqlari chiqadi (faqat hostes huquqi borlarda va filialda **Hostes** moduli
-   yoqilgan bo'lsa). **Hostes** ni bosing.
+3. Hostes stoli ochiladi. Sizda buyurtmalarni ko'rish huquqi ham bo'lsa (hostesning standart huquqlarida bor), ekranning pastida
+   **Xonalar** va **Hostes** yorliqlari chiqadi; hostes roli bilan kirsangiz ilova o'zi **Hostes** yorlig'ida ochiladi, **Xonalar** esa
+   buyurtmalarni ko'rish uchun. Buyurtmalarni ko'rish huquqi olib qo'yilgan bo'lsa, yorliqlar yo'q: faqat hostes stoli. Menejer yoki ega
+   kirsa, ilova **Xonalar** da ochiladi va **Hostes** yorlig'ini o'zi bosadi. Hostes yorlig'i faqat filialda **Hostes** moduli yoqilgan
+   bo'lsa va hostes huquqi bor bo'lsa chiqadi.
 
 Hostesning standart huquqlari: buyurtmalarni ko'rish, stollarni boshqarish, menyuni ko'rish, bronlar, kutish ro'yxati. To'lov,
-chegirma va buyurtma ochish yo'q. Ega kerak bo'lsa **Huquqlar** sahifasida o'zgartiradi.
-
-<!-- TEKSHIRILMAGAN: pastki "Xonalar | Hostes" yorliqlari (waiter home_shell.dart, K1 ekrani hali tugamagan); hostes huquqlari ro'yxati backend POS_SPEC 19.3 dan -->
+chegirma, buyurtma ochish va **bo'nak (avans) olish** yo'q. Ega kerak bo'lsa **Huquqlar** sahifasida o'zgartiradi.
 
 ## 2. Ekran
 
@@ -39,16 +40,16 @@ chegirma va buyurtma ochish yo'q. Ega kerak bo'lsa **Huquqlar** sahifasida o'zga
 
 | Qism | Nima |
 |---|---|
-| **Kutish** (kutayotganlar soni bilan: **Kutish (3)**) | Navbatdagi mehmonlar, yozilgan tartibda. Pastda **Bugun**: allaqachon joylashgan, ketgan, kelmaganlar |
-| **Stollar** | Zal xaritasi: stollar va holatlari. Tozalanayotgan stollar soni tepada |
-| **Bronlar** | Bugungi bronlar, **Bron qo'shish** tugmasi |
+| **Kutish** (kutayotganlar soni bilan: **Kutish (3)**) | Sarlavhasi **Kutish ro'yxati**, yonida **Mehmon yozish**. Tagida qisqa hisob ("3 kutmoqda · 8 kishi · 2 joylashdi · eng uzoq 25 daq"), keyin navbatdagi mehmonlar yozilgan tartibda. Pastda **Bugun**: allaqachon joylashgan, ketgan, kelmaganlar (oxirgi 20 tasi) |
+| **Stollar** | Zallar bo'yicha stollar va holatlari (**Bo'sh**, **Band**, **Bron: 19:30**, **Tozalanmoqda**). Tozalanayotgan stollar soni tepada ("2 ta stol tozalanmoqda") |
+| **Bronlar** | **Bugungi bronlar**, **Bron qo'shish** tugmasi (bronlar huquqi bilan) |
 
-Telefonda bu uch qism yorliq bo'lib almashadi. Keng ekranda (planshet) qismlar yonma-yon turadi.
+Telefonda bu uch qism yorliq bo'lib almashadi. Keng ekranda (planshet, kamida 840 piksel) **Kutish** chapda doim ochiq turadi, o'ngda
+**Stollar** va **Bronlar** yorliqlari bor.
 
-Ro'yxatlar **o'zi yangilanadi**: boshqa hostes yoki menejer mehmon yozsa, stolni belgilasa, siz ekranni yangilamasdan ko'rasiz.
-Aloqa uzilsa, tepada **Aloqa yo'q** lentasi chiqadi; o'zgartirish aloqa qaytgach mumkin.
-
-<!-- TEKSHIRILMAGAN: planshetda yonma-yon joylashuv (hostess_page.dart wideFrom, _wide) va jonli yangilanish (waitlist.changed / table.state_changed) — K1 ekrani qo'lda ko'rilmagan; "Aloqa yo'q" lentasi ConnectionBanner orqali -->
+Ro'yxatlar **o'zi yangilanadi**: boshqa hostes yoki menejer mehmon yozsa, stolni belgilasa, siz ekranni yangilamasdan ko'rasiz
+(yangilanmasa, ro'yxatni pastga tortib yangilang). Aloqa uzilsa, tepada **Aloqa yo'q** lentasi chiqadi ("Faqat ko'rish mumkin.",
+**Qayta urinish**); o'zgartirish aloqa qaytgach mumkin. Ilova yozuvlarni navbatga qo'ymaydi.
 
 ## 3. Kutish ro'yxati
 
@@ -60,8 +61,9 @@ Hamma stol band, mehmonlar kutadi. Ularni ro'yxatga yozing, stol bo'shaganda cha
 2. To'ldiring:
    - **Ismi** — majburiy.
    - **Telefon (ixtiyoriy)** — `+998 90 123 45 67` ko'rinishida. Mehmon ketib qolsa, qo'ng'iroq qilasiz.
-   - **Necha kishi** — mehmonlar soni (**+** va **−** bilan, 200 gacha).
-   - **Aytilgan kutish** — mehmonga qancha kutishini aytdingiz: tez tugmalar (**10 daq**, **15 daq** ...).
+   - **Necha kishi** — mehmonlar soni (**+** va **−** bilan, 200 gacha; boshida 2).
+   - **Aytilgan kutish** — mehmonga qancha kutishini aytdingiz: tez tugmalar **10 daq**, **15 daq** (boshida tanlangan), **20 daq**, **30 daq**,
+     **45 daq**, **60 daq**; tanlovni qayta bossangiz, "aytilgan kutish" yozilmaydi.
    - **Izoh (ixtiyoriy)** — masalan, "deraza yonida, bolalar stuli".
 3. **Ro'yxatga yozish**.
 
@@ -77,29 +79,30 @@ Stol bo'shaganda:
 1. Mehmon qatoridagi **Chaqirish** ni bosing. **Bu faqat belgi qo'yadi**: mehmonga SMS yoki xabar **ketmaydi**. Mehmonni o'zingiz
    chaqirasiz yoki telefon qilasiz. Qayta chaqirish kerak bo'lsa tugma **Yana chaqirish** bo'ladi.
 2. Mehmon kelganda **Joylashtirish** ni bosing.
-3. Ochilgan oynada **bo'sh stollar** zallar bo'yicha: har stolda o'rinlar soni ("6 o'rin"). Mehmonlar sig'adigan va tayyor
+3. Ochilgan **Joylashtirish** oynasida **bo'sh stollar** zallar bo'yicha: har stolda o'rinlar soni ("6 o'rin"). Mehmonlar sig'adigan va tayyor
    stollar yuqorida; sig'masa o'rinlar soni qizil, tozalanayotgan stol **Tozalanmoqda** yozuvi bilan pastroqda, bronli stolda
    **Bron: 19:30** turadi. Stolni tanlang.
-4. **Buyurtmani ham ochish** — yoqsangiz, stolda buyurtma ochiladi va mehmonlar soni yoziladi. Bu tugma faqat buyurtma ochish
-   huquqi bor xodimda ishlaydi. Hostesning standart huquqlarida u **yo'q**: mehmonni joylashtirasiz, buyurtmani ofitsiant yoki kassir
-   ochadi.
-5. Tasdiqlang. Mehmon ro'yxatdan chiqib **Bugun** qismida "Joylashdi: Stol 7" bo'lib qoladi.
+4. **Buyurtmani ham ochish** — yoqsangiz, stolda buyurtma ochiladi va mehmonlar soni yoziladi; keyin ofitsiantni tanlash qatori chiqadi
+   (o'zingiz "(men)"). Bu tugma faqat buyurtma ochish huquqi bor xodimda ko'rinadi. Hostesning standart huquqlarida u **yo'q**:
+   mehmonni joylashtirasiz, buyurtmani ofitsiant yoki kassir ochadi.
+5. Pastdagi tugma (**Stolni tanlang**, tanlangach **Stol 7ga joylashtirish**) bilan tasdiqlang. Mehmon ro'yxatdan chiqib **Bugun** qismida
+   "Joylashdi: Stol 7" bo'lib qoladi.
 
 Bo'sh stol yo'q bo'lsa, ilova "Bo'sh stol yo'q" deydi va stol bo'shaganda ro'yxat o'zi yangilanadi.
 
 ### Mehmon kutmasdan ketsa
 
-Qator yonidagi menyudan:
+Qator yonidagi menyudan (uch nuqta):
 
 - **Ketdi (bekor qilish)** — mehmon kutib o'tirmasdan ketdi.
 - **Kelmadi** — chaqirdingiz, lekin mehmon kelmadi.
 
-Ikkalasi ham yozuvni **Bugun** qismiga o'tkazadi; o'chirilmaydi. Egaga hisobotda kim qancha kutgani va nima bilan tugagani
+Ilova bir marta tasdiq so'raydi ("… : ketdi" / "… : kelmadi" → **Bekor qilish** / **Kelmadi**). Ikkalasi ham yozuvni **Bugun** qismiga
+o'tkazadi; o'chirilmaydi. Egaga hisobotda kim qancha kutgani va nima bilan tugagani
 ko'rinadi ([ega uchun](#ega-uchun-sozlash)).
 
-Joylashgan, ketgan yoki kelmagan yozuv yopiq: uni qayta ochib bo'lmaydi. Xato yozgan bo'lsangiz, mehmonni qaytadan yozing.
+Joylashgan, ketgan yoki kelmagan yozuv yopiq: uni qayta ochib bo'lmaydi. Xato yozgan bo'lsangiz, mehmonni qaytadan yozing: ilovada yozuvning ismi yoki necha kishiligini o'zgartirish tugmasi yo'q (bu o'zgartirish faqat API orqali bor).
 
-<!-- TEKSHIRILMAGAN: tugmalar nomlari K1 kodidan o'qildi (hostess_page.dart / hostess_sheets.dart: "Mehmon yozish", "Ro'yxatga yozish", "Chaqirish", "Yana chaqirish", "Joylashtirish", "Buyurtmani ham ochish", "Ketdi (bekor qilish)", "Kelmadi"), ekran qo'lda ko'rilmagan; "yozuvni o'zgartirish" (ismi, necha kishi) ekranda yo'q bo'lishi mumkin, faqat API da bor (PATCH /pos/waitlist); aytilgan kutish tugmalari qiymatlari (10, 15 ...) aniq emas -->
 
 **Mehmonning telefon raqami** hostesga ko'rinadi (qo'ng'iroq qilish uchun). Egaga va harakatlar jurnalida u yashirin: `+99890*****67`.
 
@@ -153,14 +156,18 @@ Ega stol broniga **bo'nak** belgilashi mumkin: bron uchun bir xil summa yoki har
 Agar ega "**Bo'nak olinmaguncha tasdiqlanmasin**" ni yoqqan bo'lsa:
 
 - Bron **so'rov** holatida qoladi.
-- Bo'nak kassada olinadi (avans bilan bir xil, bo'nak cheki chiqadi: [kassa.md](kassa.md#avans)). Hostes pul olmaydi.
+- Bo'nak **kassada** olinadi (avans bilan bir xil, bo'nak cheki chiqadi: [kassa.md](kassa.md#avans)). **Hostes bo'nak olmaydi**: hostes
+  ekranida bo'nak olish tugmasi yo'q va to'lov olish huquqisiz (yoki menejer PIN'isiz) bo'nakni qabul qilib bo'lmaydi. Naqd bo'nak
+  faqat **ochiq smenali kassada** olinadi (smenasiz qurilmada server "Bo'nakni kassada oling: naqd bo'nak ochiq smenali kassada olinadi"
+  deb rad etadi), chunki pul kassa qutisiga tushadi va smenaning X/Z hisobotiga kiradi. Karta va QR bo'nagi oldingidek yoziladi.
 - Bo'nak yetgach bron **o'zi tasdiqlanadi**. Qismlab olinsa, oxirgi qism yetgan paytda.
 - Bo'nak yetmasa, bronni qo'lda tasdiqlab bo'lmaydi: ilova "bo'nak yetmaydi" va qancha qolganini aytadi.
 
-Bron ekranida kerakli bo'nak va yetmagan qismi ko'rinadi. Mehmonga: "Bronni tasdiqlash uchun N so'm bo'nak kerak, uni kassada
+Bron oynasida (**Bron qo'shish**) stol va mehmonlar soniga qarab "Bo'nak kerak: N so'm (kassada olinadi)" yozuvi chiqadi ("bo'naksiz bron
+tasdiqlanmaydi" qoidasi yoqilgan bo'lsa, shuni ham yozadi). **Bronlar** ro'yxatida har bronda belgi turadi: sariq **Bo'nak yetmaydi:
+N so'm (kerak M so'm). Bo'nak kassada olinadi** yoki yashil **Bo'nak olingan: M so'm**. Mehmonga: "Bronni tasdiqlash uchun N so'm bo'nak kerak, uni kassada
 to'laysiz" deb ayting.
 
-<!-- TEKSHIRILMAGAN: bron oynasi maydonlari K1 ekranidan (hostess_sheets.dart "Bron qo'shish", "Mehmon ismi", "Telefon (ixtiyoriy)", "Stol", "Qachon", "Yo'lda kelayotgan mehmon", "Bron qilish"); "mehmonlar sonini yozing" maydoni, bo'nak yetmasligi/"deposit_required" xabarining ekranda ko'rinishi, bronlar ro'yxatida bo'nak belgisi — ekranda tekshirilmagan (API da deposit_required/deposit_missing bor) -->
 
 ## 6. Muammolar va yechimlar
 
@@ -173,6 +180,7 @@ to'laysiz" deb ayting.
 | Buyurtmani ochib bo'lmayapti | Hostesda buyurtma ochish huquqi yo'q. Mehmonni joylashtiring, ofitsiant buyurtma ochadi |
 | Bron: "juda yaqin vaqt" va eng erta vaqt ko'rsatildi | Ega bron uchun eng kam oldindan vaqt qo'ygan. Keyingi vaqtni tanlang yoki menejerdan **Yo'lda kelayotgan mehmon** sifatida yozishni so'rang |
 | Bron so'rovda qolib ketdi, tasdiqlanmayapti | Bo'nak yetmaydi. Mehmon kassada bo'nakni to'lashi kerak; keyin bron o'zi tasdiqlanadi |
+| Mehmon bo'nakni sizga bermoqchi | Hostes bo'nak olmaydi: mehmonni kassaga yo'naltiring ("Bo'nakni kassada oling"). Naqd bo'nak uchun kassada smena ochiq bo'lishi kerak; kassir to'lov olish huquqi bilan oladi |
 | Stolda "tozalanmoqda" turib qoldi | **Tayyor** ni bosing. Stolga yangi buyurtma ochilsa, belgi o'zi o'chadi |
 | Ro'yxat eskirib qoldi | Pastga tortib yangilang yoki aloqani tekshiring. Boshqa hostes ham yozayotgan bo'lsa, o'zgarish o'zi keladi |
 

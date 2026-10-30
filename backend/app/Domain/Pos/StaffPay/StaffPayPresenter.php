@@ -22,7 +22,7 @@ final class StaffPayPresenter
 
     public const METRICS = 'array{shifts: int, minutes: int, bills: int, sales: string, service_charge: string, events: int, tips: string, uncounted_sessions: int, rules: list<string>, own_rule: bool}';
 
-    public const LINE = 'array{uuid: string, user_id: int|null, user_name: string|null, role: string|null, role_label: string|null, metrics: ' . self::METRICS . ', components: list<' . StaffPayCalculator::RESULT . '>, gross: string, advances: string, adjustment: string, adjustment_reason: string|null, payable: string, paid: bool, paid_at: string|null, paid_method: string|null, paid_note: string|null, cash_movement_id: int|null}';
+    public const LINE = 'array{uuid: string, user_id: int|null, user_name: string|null, role: string|null, role_label: string|null, metrics: ' . self::METRICS . ', components: list<' . StaffPayCalculator::RESULT . '>, gross: string, advances: string, tips_paid: string, adjustment: string, adjustment_reason: string|null, payable: string, paid: bool, paid_at: string|null, paid_method: string|null, paid_note: string|null, cash_movement_id: int|null}';
 
     public const OPEN_SHIFT = 'array{uuid: string, device_name: string|null, business_date: string, opened_at: string, expected_cash: string}';
 
@@ -134,6 +134,8 @@ final class StaffPayPresenter
             'components' => $line->components,
             'gross' => Money::of($line->gross)->toString(),
             'advances' => Money::of($line->advances)->toString(),
+            // Review P6 wave 2: tips given from the till, taken off a line whose rule pays the tips part
+            'tips_paid' => Money::of($line->tips_paid)->toString(),
             'adjustment' => Money::of($line->adjustment)->toString(),
             'adjustment_reason' => $line->adjustment_reason,
             'payable' => Money::of($line->payable)->toString(),

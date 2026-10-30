@@ -155,12 +155,12 @@ class StaffPayStatementsTest extends TestCase
         $insert('personal', '30000', $this->waiter->id);
         $insert('personal', '-10000', $this->waiter->id, 'correction');
         $insert('pool', '90000', null);
-        $distribution = DB::table('pos_tip_distributions')->insertGetId(['uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'business_date' => '2026-11-10', 'rule' => 'equal', 'pool_amount' => '90000', 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
+        $distribution = DB::table('pos_tip_distributions')->insertGetId(['uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'business_date' => '2026-11-10', 'rule' => 'equal', 'pool_amount' => '90000', 'status' => 'closed', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('pos_tip_distribution_lines')->insert(['distribution_id' => $distribution, 'staff_id' => $this->waiter->id, 'role' => 'waiter', 'basis' => 1, 'amount' => '45000', 'created_at' => now(), 'updated_at' => now()]);
 
         $line = $this->lineOf($this->as($this->owner, 'POST', '/owner/staff-pay/statements', ['branch_id' => $this->branch->id, 'date' => '2026-11-10'])->assertCreated()->json('data'), $this->waiter);
 
-        // 20 000 personal (corrected) + 45 000 pool share
+        // 20 000 personal (corrected) + 45 000 pool share (of a closed split: an open one is not counted yet)
         $this->assertSame(['shift_rate' => '100000.00', 'tips' => '65000.00'], array_column($line['components'], 'amount', 'type'));
     }
 

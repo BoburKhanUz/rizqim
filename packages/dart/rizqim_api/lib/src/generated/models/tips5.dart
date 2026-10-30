@@ -13,6 +13,7 @@ class Tips5 {
     required this.mode,
     required this.poolRule,
     required this.poolPeriod,
+    required this.roles,
   });
 
   factory Tips5.fromJson(Map<String, Object?> json) => _$Tips5FromJson(json);
@@ -23,6 +24,7 @@ class Tips5 {
   final String poolRule;
   @JsonKey(name: 'pool_period')
   final String poolPeriod;
+  final List<String> roles;
 
   Map<String, Object?> toJson() => _$Tips5ToJson(this);
 }

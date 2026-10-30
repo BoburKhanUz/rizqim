@@ -19,7 +19,9 @@ abstract class PosTipsApi {
   ///
   /// The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),.
   /// with the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or.
-  /// reports.view (a waiter) sees only the tips that go to them. Needs orders.view.
+  /// reports.view (a waiter) sees only the tips that go to them, and of each only their own share: `amount` and.
+  /// `original_amount` are their share, `staff` themselves, `holders` and `corrections` only theirs (without who.
+  /// made them), `recorded_by` null. Needs orders.view.
   ///
   /// [shiftUuid] - The shift (default: the terminal's open shift).
   @GET('/v1/pos/tips')

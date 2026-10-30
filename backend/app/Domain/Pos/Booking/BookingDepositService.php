@@ -46,6 +46,9 @@ class BookingDepositService
 
     public const RETAIN_PERMISSION = 'orders.cancel';
 
+    /** A deposit is a payment: the till's right, or a manager's one-time approval for it (the hostess desk) */
+    public const TAKE_PERMISSION = 'pos.take_payment';
+
     public const MAX_AMOUNT = '999999999.99';
 
     public function __construct(
@@ -55,7 +58,7 @@ class BookingDepositService
         protected PosOwnerAlerts $alerts,
     ) {}
 
-    public function take(Booking $booking, Money $amount, PosTender $tender, ?string $cardType, ?string $transactionId, ?string $key, User $actor, ?int $deviceId): BookingPayment
+    public function take(Booking $booking, Money $amount, PosTender $tender, ?string $cardType, ?string $transactionId, ?string $key, User $actor, ?int $deviceId, ?string $approvalToken = null): BookingPayment
     {
         if (!in_array($tender, [PosTender::CASH, PosTender::CARD, PosTender::QR], true)) {
             throw new BookingException("Avans faqat naqd, karta yoki QR bilan olinadi.", 'invalid_tender');
@@ -69,7 +72,7 @@ class BookingDepositService
         $line = app(FiscalLineBuilder::class)->forCharge($store, 'deposit', $amount);
 
         $confirmed = false;
-        $payment = DB::transaction(function () use ($booking, $amount, $tender, $cardType, $transactionId, $key, $actor, $deviceId, &$confirmed) {
+        $payment = DB::transaction(function () use ($booking, $amount, $tender, $cardType, $transactionId, $key, $actor, $deviceId, $approvalToken, &$confirmed) {
             $booking = $this->bookings->lockFresh($booking, null);
 
             if ($key !== null && ($existing = BookingPayment::where('booking_id', $booking->id)->where('idempotency_key', $key)->first())) {
@@ -79,6 +82,14 @@ class BookingDepositService
             if (!in_array($booking->status, [BookingStatus::REQUESTED, BookingStatus::CONFIRMED], true)) {
                 throw new BookingException("Bron \"{$booking->status->label()}\" holatida: avans olib bo'lmaydi.", 'booking_not_editable');
             }
+
+            // P6 review S4: cash goes into a drawer, so a cash deposit is taken on a terminal with its shift open (the
+            // shift's X/Z counts it, ShiftReport::deposits; the row lock keeps a closing Z from missing it). Checked
+            // before the approval, so a refused deposit leaves the manager's token unused
+            if ($tender === PosTender::CASH) {
+                $this->drawerShift($booking, $deviceId);
+            }
+            $this->approvals->approver($actor, self::TAKE_PERMISSION, $approvalToken, $deviceId, $booking);
 
             $payment = BookingPayment::create([
                 'booking_id' => $booking->id,
@@ -137,6 +148,24 @@ class BookingDepositService
         }
 
         return $payment->refresh();
+    }
+
+    /**
+     * The shift open on the terminal in the booking's branch, locked; none (or no terminal: a normal sign-in has no
+     * drawer) refuses a cash deposit with 409 `deposit_needs_shift`.
+     */
+    private function drawerShift(Booking $booking, ?int $deviceId): int
+    {
+        $shiftId = $deviceId === null ? null : \App\Models\PosShift::where('device_id', $deviceId)
+            ->where('branch_id', $booking->branch_id)
+            ->where('status', \App\Domain\Pos\Shifts\ShiftStatus::OPEN->value)
+            ->lockForUpdate()
+            ->value('id');
+        if ($shiftId === null) {
+            throw new BookingException("Bo'nakni kassada oling: naqd bo'nak ochiq smenali kassada olinadi.", 'deposit_needs_shift', 409);
+        }
+
+        return (int) $shiftId;
     }
 
     /**

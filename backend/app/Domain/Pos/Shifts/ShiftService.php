@@ -65,6 +65,7 @@ final class ShiftService
         private readonly ShiftOwnerSummary $summary,
         private readonly \App\Domain\Pos\Sync\PosSyncErrors $syncErrors,
         private readonly \App\Domain\Pos\Accounts\PosOwnerAlerts $alerts,
+        private readonly \App\Domain\Pos\Tips\ShiftTips $tips,
     ) {}
 
     public function current(Device $device): ?PosShift
@@ -153,6 +154,13 @@ final class ShiftService
     /**
      * A cash movement the cashier records: cash_in, cash_out, wage (to an employee) or purchase (bazaar).
      *
+     * Review P6 wave 2 (S1): the `payroll` wage category is written only by paying a pay statement's line
+     * (StaffPayStatements::pay, `$statementPayment`); by hand it is refused (422 movement_category_reserved).
+     * Review P6 wave 2 (S2/S7): tips paid out (wage, category `tips`) need tips.manage, or a manager's approval token
+     * for it (used once; it stands for pos.cash_in_out too), and stay within the shift's cash tips less what was
+     * paid out of them (409 tip_payout_exceeds_tips, `available`) and what the person is owed in cash on the shift's
+     * business day (409 tip_payout_exceeds_owed, `owed`) — ShiftTips.
+     *
      * @throws PosActionException
      */
     public function addMovement(
@@ -166,12 +174,16 @@ final class ShiftService
         ?string $approvalToken,
         ?Device $device,
         ?Closure $applied = null,
+        bool $statementPayment = false,
     ): CashMovement {
         if (!in_array($type->value, CashMovementType::MANUAL, true)) {
             throw PosActionException::invalid('movement_type_invalid', "Kassa harakati turi noto'g'ri.");
         }
         if (!in_array($category, $type->categories(), true)) {
             throw PosActionException::invalid('movement_category_invalid', "Kategoriya noto'g'ri.", ['categories' => $type->categories()]);
+        }
+        if (($category === CashMovementType::PAYROLL_CATEGORY) !== $statementPayment) {
+            throw PosActionException::invalid('movement_category_reserved', "Ish haqi hisob-kitobi kassadan faqat \"Ish haqi\" bo'limidagi hisob-kitob qatori orqali to'lanadi.", ['categories' => array_values(array_diff($type->categories(), [CashMovementType::PAYROLL_CATEGORY]))]);
         }
         if ($category === 'other' && blank($note)) {
             throw PosActionException::invalid('movement_note_required', '"Boshqa" kategoriyasi uchun izoh yozing.');
@@ -197,7 +209,14 @@ final class ShiftService
                 throw PosActionException::conflict('shift_closed', 'Smena yopilgan.');
             }
 
-            $approvedBy = $this->approvals->authorize($user, Permission::POS_CASH_IN_OUT, $shift, $approvalToken, $device);
+            if ($category === CashMovementType::TIPS_CATEGORY && $employee !== null) {
+                $approvedBy = $this->permissions->allows($user, Permission::TIPS_MANAGE, $shift)
+                    ? $this->approvals->authorize($user, Permission::POS_CASH_IN_OUT, $shift, $approvalToken, $device)
+                    : $this->approvals->authorize($user, Permission::TIPS_MANAGE, $shift, $approvalToken, $device);
+                $this->assertTipPayout($shift, $employee, $amount);
+            } else {
+                $approvedBy = $this->approvals->authorize($user, Permission::POS_CASH_IN_OUT, $shift, $approvalToken, $device);
+            }
 
             if ($type->sign() < 0 && $amount->isGreaterThan($this->report->expectedCash($shift))) {
                 throw PosActionException::conflict('not_enough_cash', "Kassada buncha naqd pul yo'q.", ['expected_cash' => $this->report->expectedCash($shift)->toString()]);
@@ -234,6 +253,25 @@ final class ShiftService
         event(new ShiftChangedBroadcast($shift->refresh(), 'cash_movement'));
 
         return $movement;
+    }
+
+    /**
+     * A tip payout within the shift's cash tips and what the person is owed (inside the shift's lock; the person's row
+     * is locked too, so two tills never pay the same tips at once).
+     *
+     * @throws PosActionException
+     */
+    private function assertTipPayout(PosShift $shift, User $employee, Money $amount): void
+    {
+        User::whereKey($employee->id)->lockForUpdate()->first();
+        $available = $this->tips->payable($shift);
+        if ($amount->isGreaterThan($available)) {
+            throw PosActionException::conflict('tip_payout_exceeds_tips', "Bu smenada buncha naqd choy puli yo'q: berish mumkin — {$available->toString()} so'm.", ['available' => $available->toString()]);
+        }
+        $owed = $this->tips->owed((int) $shift->branch_id, $shift->business_date->toDateString(), (int) $employee->id);
+        if ($amount->isGreaterThan($owed)) {
+            throw PosActionException::conflict('tip_payout_exceeds_owed', "{$employee->name}ga bugun buncha naqd choy puli tegishli emas: berish mumkin — {$owed->toString()} so'm.", ['owed' => $owed->toString()]);
+        }
     }
 
     /**

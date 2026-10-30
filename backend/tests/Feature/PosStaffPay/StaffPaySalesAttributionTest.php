@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\PosRefund;
 use App\Models\StaffPaySetting;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -156,6 +157,24 @@ class StaffPaySalesAttributionTest extends TestCase
         $lines = $this->statementLines();
         $this->assertSame('300000.00', $lines[$this->waiter2->id]['metrics']['sales']);
         $this->assertSame('30000.00', $lines[$this->waiter2->id]['metrics']['service_charge']);
+    }
+
+    public function test_the_shift_report_by_waiter_follows_the_same_person(): void
+    {
+        [, $first, $second] = $this->tableHandedOverMidMeal();
+        $shift = \App\Models\PosShift::findOrFail($first->shift_id);
+        $byWaiter = fn () => collect(app(\App\Domain\Pos\Shifts\ShiftReport::class)->build($shift->refresh())['by_waiter'])
+            ->mapWithKeys(fn (array $row) => [$row['waiter_id'] => [$row['orders'], $row['bills'], $row['amount'], $row['service_charge']]])->all();
+
+        // At payment (default): each bill and its payment with the waiter it was paid under, like the pay statement
+        $this->assertSame([
+            $this->waiter->id => [1, 1, Money::of($first->total)->toString(), '20000.00'],
+            $this->waiter2->id => [1, 1, Money::of($second->total)->toString(), '20000.00'],
+        ], $byWaiter());
+
+        // The last waiter: the whole table
+        $this->attribution('current_waiter');
+        $this->assertSame([$this->waiter2->id => [1, 2, '440000.00', '40000.00']], $byWaiter());
     }
 
     public function test_the_setting_is_read_changed_validated_and_audited(): void

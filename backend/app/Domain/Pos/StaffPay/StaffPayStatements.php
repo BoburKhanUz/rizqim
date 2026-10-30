@@ -33,7 +33,10 @@ use Illuminate\Support\Facades\DB;
  *    that shift, through ShiftService: the drawer must hold it; POST with an Idempotency-Key), or marked paid another
  *    way (bank transfer, card); when every line with money to pay is paid the statement is `paid`.
  *
- * payable = gross − advances (wage money given from the till in the period) + adjustment. Every action is audited.
+ * payable = gross − advances (wage money given from the till in the period) − tips_paid + adjustment. Review P6 wave 2
+ * (S1/C1): `tips_paid` is the tips given to the person from the till in the period (wage movements of category tips),
+ * taken off only when the line pays the `tips` part (the tips are in its gross); on a line without it they were the
+ * guest's tips, not a wage, and stay 0. Every action is audited.
  */
 final class StaffPayStatements
 {
@@ -179,7 +182,7 @@ final class StaffPayStatements
             $line->forceFill([
                 'adjustment' => $adjustment->toString(),
                 'adjustment_reason' => $adjustment->isZero() ? null : $reason,
-                'payable' => Money::of($line->gross)->minus($line->advances)->plus($adjustment)->toString(),
+                'payable' => self::payable($line->gross, $line->advances, $line->tips_paid, $adjustment),
             ])->save();
             $this->totals($statement);
             $this->audit->record('staff_pay.line_adjusted', $statement, $before, [
@@ -227,6 +230,7 @@ final class StaffPayStatements
                     $line->user_id !== null ? (int) $line->user_id : null,
                     null,
                     null,
+                    statementPayment: true,
                 );
                 $movementId = $movement->id;
             }
@@ -309,6 +313,8 @@ final class StaffPayStatements
 
             $result = $this->calculator->calculate($days, count($dates));
             $advances = $metrics['advances'][$user->id] ?? Money::zero();
+            $paysTips = in_array(PayComponentType::TIPS->value, array_column($result['components'], 'type'), true);
+            $tipsPaid = $paysTips ? ($metrics['tip_payouts'][$user->id] ?? Money::zero()) : Money::zero();
             $line = $existing->get($user->id) ?? new StaffPayStatementLine(['statement_id' => $statement->id, 'user_id' => $user->id]);
             $adjustment = Money::of($line->adjustment ?? 0);
             $line->forceFill([
@@ -318,8 +324,9 @@ final class StaffPayStatements
                 'components' => $result['components'],
                 'gross' => $result['gross'],
                 'advances' => $advances->toString(),
+                'tips_paid' => $tipsPaid->toString(),
                 'adjustment' => $adjustment->toString(),
-                'payable' => Money::of($result['gross'])->minus($advances)->plus($adjustment)->toString(),
+                'payable' => self::payable($result['gross'], $advances, $tipsPaid, $adjustment),
             ])->save();
             $kept[] = $line->id;
         }
@@ -355,6 +362,14 @@ final class StaffPayStatements
             'rules' => array_values(array_unique(array_filter(array_map(fn ($day) => $day['rule']['uuid'] ?? null, $days)))),
             'own_rule' => $rules->contains(fn (StaffPayRule $rule) => $rule->subject === 'user:' . $user->id),
         ];
+    }
+
+    /**
+     * gross − advances − tips paid from the till + adjustment.
+     */
+    private static function payable(Money|string $gross, Money|string $advances, Money|string $tipsPaid, Money|string $adjustment): string
+    {
+        return Money::of($gross)->minus($advances)->minus($tipsPaid)->plus($adjustment)->toString();
     }
 
     private function totals(StaffPayStatement $statement): void

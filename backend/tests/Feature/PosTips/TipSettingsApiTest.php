@@ -44,7 +44,8 @@ class TipSettingsApiTest extends TestCase
             ->assertJsonPath('data.settings.mode', 'pool')->assertJsonPath('data.settings.pool_period', 'shift');
         $this->assertSame(1, PosTipSetting::count());
 
-        $this->pos('GET', '/bootstrap')->assertOk()->assertJsonPath('data.tips', ['enabled' => true, 'mode' => 'pool', 'pool_rule' => 'role_weights', 'pool_period' => 'shift']);
+        // Review P6 wave 2 (S5): the tip roles too (the payment screen offers only them)
+        $this->pos('GET', '/bootstrap')->assertOk()->assertJsonPath('data.tips', ['enabled' => true, 'mode' => 'pool', 'pool_rule' => 'role_weights', 'pool_period' => 'shift', 'roles' => ['waiter', 'cook']]);
     }
 
     public function test_validation_the_module_and_who_may(): void

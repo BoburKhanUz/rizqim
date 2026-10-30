@@ -7,11 +7,13 @@ part of 'data116.dart';
 // **************************************************************************
 
 Data116 _$Data116FromJson(Map<String, dynamic> json) => Data116(
+  poolPeriod: json['pool_period'] as String,
   distributions: (json['distributions'] as List<dynamic>)
       .map((e) => Distributions2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data116ToJson(Data116 instance) => <String, dynamic>{
+  'pool_period': instance.poolPeriod,
   'distributions': instance.distributions,
 };

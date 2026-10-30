@@ -209,6 +209,23 @@ void main() {
     });
   });
 
+  /// A restaurant branch's `format` block; `weightLater`: the branch's `weight_later` module.
+  Map<String, Object?> restaurantFormat({bool weightLater = true}) =>
+      <String, Object?>{
+        'profile': 'restoran',
+        'profile_label': 'Restoran',
+        'mode': 'hybrid',
+        'first_screen': 'hall_map',
+        'modules': <String>[
+          'quick_counter',
+          'service_charge',
+          'courses',
+          'table_service',
+          if (weightLater) 'weight_later',
+        ],
+        'locks': <String, Object?>{'service_charge_zero': false},
+      };
+
   group('offline', () {
     late OfflineHarness h;
     late FakeSyncBackend sync;
@@ -216,6 +233,7 @@ void main() {
     setUp(() async {
       h = await OfflineHarness.create();
       addFish(h.state);
+      h.state.format = restaurantFormat();
       FakeCashierBackend(h.state);
       sync = FakeSyncBackend(h.state);
       h.state.openShift();
@@ -305,6 +323,33 @@ void main() {
         isTrue,
       );
       expect((items.last! as Map<String, Object?>)['weight_status'], 'weighed');
+    });
+
+    test('without the weight_later module the till sells the fish by the quantity typed (review C6)', () async {
+      // A catalog cached before the owner switched the module off still names the weight rule
+      h.state.format = restaurantFormat(weightLater: false);
+      await h.signIn();
+      await h.warmUp();
+      await h.goOffline();
+
+      final PosOrder opened = await h.pos.orders.open(
+        channel: PosChannel.takeaway,
+        items: <PosLineInput>[
+          line(9, '1.5'),
+          line(9, '1', awaitingWeight: true),
+        ],
+        send: true,
+      );
+      expect(opened.items.map((PosOrderItem i) => i.awaitingWeight), <bool>[
+        false,
+        false,
+      ]);
+      expect(opened.weightPending, 0);
+      final PosBilling billing = await h.pos.billing.createBills(
+        opened.uuid,
+        version: opened.version,
+      );
+      expect(billing.bills, isNotEmpty);
     });
   });
 }

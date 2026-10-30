@@ -346,12 +346,15 @@ class PosOrderService implements PosOrderOpener
             // A manager who approved the void also covers another waiter's order; else the token is the waiter rule's
             $approvedBy = $this->waiters->guard($order, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
 
+            $was = $item->kitchen_status;
             $item->forceFill([
                 'kitchen_status' => KitchenItemStatus::VOID->value,
                 'voided_at' => now(),
                 'voided_by' => $actor->id,
                 'void_reason' => $reason,
             ])->save();
+            // P6-21 (review C9): the last line its course still waited for may be this one
+            app(PosCourses::class)->lineVoided($order, $item, $was);
 
             $returned = $restock ?? !$sent;
             if ($returned) {
@@ -850,14 +853,18 @@ class PosOrderService implements PosOrderOpener
     }
 
     /**
-     * P6-25 (kafe "stolga olib kelish"): the table plate of a counter order (null clears it). Audited. orders.manage; the
-     * waiter rule. The caller checks the module (table_service).
+     * P6-25 (kafe "stolga olib kelish"): the table plate of a counter order (null clears it). Audited; the charges are
+     * recalculated (the plate makes it a table-service order for the service charge rules). orders.manage; the waiter
+     * rule. The caller checks the module (table_service).
      */
     public function setTableLabel(Order $order, int $version, User $actor, ?string $label, ?string $approvalToken = null): Order
     {
         return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $label) {
             $from = $order->table_label;
             $order->forceFill(['table_label' => $label])->save();
+            // The plate makes a counter order "table service" for the service charge rules (ServiceOrderType::of):
+            // setting or clearing it moves the charge (review C4)
+            $this->charges->recalculate($order);
             $this->audit->record('pos.table_label_set', $order, ['table_label' => $from], ['table_label' => $label], [], ['actor' => $actor]);
 
             return ['table_label', []];

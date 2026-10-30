@@ -6197,7 +6197,8 @@ export interface paths {
         /**
          * The pool splits
          * @description The branch's pool splits of business days `from`..`to`, each with its rule, pool, lines (person, role, basis —
-         *     1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status.
+         *     1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status. `pool_period`: the branch's
+         *     period now (day: one split per business day; shift: one per shift, computed with `shift_uuid`).
          */
         get: operations["tips.distributions"];
         put?: never;
@@ -6205,10 +6206,16 @@ export interface paths {
          * Compute the pool split
          * @description Splits the pool tips of `business_date` (or of the shift `shift_uuid`) by the branch's rule among the people of
          *     its roles who worked then (clock-in sessions, the till shifts they opened, else the orders they served), or
-         *     among `participants` ([{staff_id, minutes?}], the manager's own list). Stored; computing again replaces it
-         *     until it is closed (409 `tips_distribution_closed`). Every basis 0: split equally. Shares are whole so'm: the
+         *     among `participants` ([{staff_id, minutes?}], the manager's own list: people of the branch whose role is one of
+         *     the pool's `roles` — else 422 `staff_not_in_pool` / `staff_not_found` — and never the caller unless the owner:
+         *     403 `tips_pool_self`). The branch's `pool_period` decides the period: `day` refuses `shift_uuid` (422
+         *     `tips_pool_period_day`), `shift` requires it (422 `tips_pool_period_shift`, pick a shift of the day); a day split
+         *     and shift splits of one date never both exist (409 `tips_pool_period_conflict`). Stored; computing again
+         *     replaces it until it is closed (409 `tips_distribution_closed`); two first computes at once: 409
+         *     `tips_distribution_busy` for the second (try again). Every basis 0: split equally. Shares are whole so'm: the
          *     so'm left over go to the largest remainders, any tiyin to the largest share — the lines add up to the pool.
-         *     tips.manage. Audited (pos.tips_distribution_computed).
+         *     Staff pay counts a split once it is closed. tips.manage. Audited (pos.tips_distribution_computed, with the
+         *     people and their shares).
          */
         post: operations["tips.compute"];
         delete?: never;
@@ -6229,8 +6236,10 @@ export interface paths {
         /**
          * Close the pool split
          * @description Freezes the split: no more recomputing and no more corrections of the tips it covers. The pool changed since
-         *     it was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); already
-         *     closed: 409 `tips_distribution_closed`. tips.manage. Audited (pos.tips_distribution_closed).
+         *     it was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); a pool nobody
+         *     takes (no people in the split): 409 `tips_distribution_unassigned`; already closed: 409
+         *     `tips_distribution_closed`. From then on the pay statements count its shares. tips.manage. Audited
+         *     (pos.tips_distribution_closed).
          */
         post: operations["tips.close"];
         delete?: never;
@@ -7400,7 +7409,10 @@ export interface paths {
          *     order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
          *     carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,
          *     `tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to
-         *     (personal mode; else the order's waiter). Tips are never on the receipt nor part of the bill (`tips_amount`
+         *     (personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip
+         *     roles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's
+         *     `tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is
+         *     taken. Tips are never on the receipt nor part of the bill (`tips_amount`
          *     on the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,
          *     `tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill
          *     "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422
@@ -7639,7 +7651,10 @@ export interface paths {
          * Take a deposit
          * @description `amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt
          *     (`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same
-         *     deposit and never a second receipt. A requested booking becomes confirmed.
+         *     deposit and never a second receipt. A requested booking becomes confirmed. A deposit is a payment: it needs
+         *     pos.take_payment, or a manager's one-time `approval_token` for it (POST /pos/approvals; the hostess desk). A cash
+         *     deposit goes into a drawer: it is taken on a terminal with an open shift in the booking's branch (its X/Z counts
+         *     it), else 409 `deposit_needs_shift` ("Bo'nakni kassada oling"); card and QR need no shift.
          */
         post: operations["booking.takeDeposit"];
         delete?: never;
@@ -8796,8 +8811,9 @@ export interface paths {
         /**
          * Hand the table to another waiter
          * @description The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422
-         *     `same_waiter`). Needs orders.transfer (a manager or the owner by default), or a manager's one-time
-         *     `approval_token` for orders.transfer (POST /pos/approvals; 403 `approval_required`). The waiter rule is not
+         *     `same_waiter`). Needs orders.transfer (a manager or the owner by default; it is enough on its own, without
+         *     orders.manage), or orders.manage with a manager's one-time `approval_token` for orders.transfer (POST
+         *     /pos/approvals; 403 `approval_required`). The waiter rule is not
          *     asked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the
          *     new waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already
          *     paid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new
@@ -9202,7 +9218,9 @@ export interface paths {
          * The tips of a shift
          * @description The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),
          *     with the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or
-         *     reports.view (a waiter) sees only the tips that go to them. Needs orders.view.
+         *     reports.view (a waiter) sees only the tips that go to them, and of each only their own share: `amount` and
+         *     `original_amount` are their share, `staff` themselves, `holders` and `corrections` only theirs (without who
+         *     made them), `recorded_by` null. Needs orders.view.
          */
         get: operations["posTips.index"];
         put?: never;
@@ -30539,6 +30557,7 @@ export interface operations {
                         success: boolean;
                         message: string;
                         data: {
+                            pool_period: string;
                             distributions: {
                                 uuid: string;
                                 branch_id: number;
@@ -32952,6 +32971,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33049,6 +33069,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33171,6 +33192,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33275,6 +33297,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33385,6 +33408,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33490,6 +33514,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -33592,6 +33617,7 @@ export interface operations {
                                 }[];
                                 gross: string;
                                 advances: string;
+                                tips_paid: string;
                                 adjustment: string;
                                 adjustment_reason: string | null;
                                 payable: string;
@@ -34996,6 +35022,7 @@ export interface operations {
                         tip_from_change?: boolean | null;
                     }[];
                     tip_staff_id?: number | null;
+                    tip_approval_token?: string | null;
                     approval_token?: string | null;
                     /** Format: uuid */
                     shift_uuid?: string | null;
@@ -36400,6 +36427,7 @@ export interface operations {
                     tender: "cash" | "card" | "qr";
                     card_type?: string | null;
                     transaction_id?: string | null;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -37626,6 +37654,7 @@ export interface operations {
                                 mode: string;
                                 pool_rule: string;
                                 pool_period: string;
+                                roles: string[];
                             };
                             entitlements: {
                                 plan: {

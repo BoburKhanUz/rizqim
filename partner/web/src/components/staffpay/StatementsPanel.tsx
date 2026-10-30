@@ -243,6 +243,12 @@ function StatementDetail({ uuid, canManage, onGone }: { uuid: string; canManage:
                             <span className="tabular-nums">{formatMoney(component.amount, language)}</span>
                           </li>
                         ))}
+                        {Number(line.tips_paid) > 0 && (
+                          <li className="flex flex-wrap justify-between gap-2">
+                            <span className="font-bold">{t('sp_tipsPaid')}</span>
+                            <span className="tabular-nums">−{formatMoney(line.tips_paid, language)}</span>
+                          </li>
+                        )}
                         <li className="text-fg-muted">
                           {t('sp_lineMetrics', {
                             bills: line.metrics.bills,

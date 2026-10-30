@@ -215,6 +215,8 @@ export interface StatementLine {
   components: ComponentResult[];
   gross: string;
   advances: string;
+  /** Tips given from the till in the period, taken off a line whose rule pays the tips part. */
+  tips_paid: string;
   adjustment: string;
   adjustment_reason: string | null;
   payable: string;

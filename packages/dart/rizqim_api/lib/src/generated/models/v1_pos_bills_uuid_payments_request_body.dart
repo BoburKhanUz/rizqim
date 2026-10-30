@@ -13,6 +13,7 @@ class V1PosBillsUuidPaymentsRequestBody {
   const V1PosBillsUuidPaymentsRequestBody({
     required this.tenders,
     this.tipStaffId,
+    this.tipApprovalToken,
     this.approvalToken,
     this.shiftUuid,
     this.version,
@@ -25,6 +26,8 @@ class V1PosBillsUuidPaymentsRequestBody {
   final List<Tenders> tenders;
   @JsonKey(name: 'tip_staff_id')
   final int? tipStaffId;
+  @JsonKey(name: 'tip_approval_token')
+  final String? tipApprovalToken;
   @JsonKey(name: 'approval_token')
   final String? approvalToken;
   @JsonKey(name: 'shift_uuid')

@@ -76,9 +76,9 @@ class PosBookingFiscalSnapshotTest extends TestCase
     public function test_a_deposit_and_its_refund_answer_with_their_receipts(): void
     {
         $uuid = $this->booked();
-        $taken = $this->takeDeposit($uuid, '500000', 'cash')->assertCreated();
+        $taken = $this->takeDeposit($uuid, '500000', 'card')->assertCreated();
         $this->assertPrintable($taken->json('data.fiscal'), 'advance', '500000.00', false);
-        $this->assertSame('cash', $taken->json('data.fiscal.receipt.payment_form'));
+        $this->assertSame('card', $taken->json('data.fiscal.receipt.payment_form'));
         $this->assertSame($taken->json('data.payment.fiscal_receipt_uuid'), $taken->json('data.fiscal.receipt_uuid'));
 
         $payment = $taken->json('data.payment.uuid');

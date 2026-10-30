@@ -21,6 +21,7 @@ class Lines13 {
     required this.components,
     required this.gross,
     required this.advances,
+    required this.tipsPaid,
     required this.adjustment,
     required this.adjustmentReason,
     required this.payable,
@@ -46,6 +47,8 @@ class Lines13 {
   final List<Components9> components;
   final String gross;
   final String advances;
+  @JsonKey(name: 'tips_paid')
+  final String tipsPaid;
   final String adjustment;
   @JsonKey(name: 'adjustment_reason')
   final String? adjustmentReason;

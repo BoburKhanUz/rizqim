@@ -87,7 +87,7 @@ class PosBookingAccessTest extends TestCase
         // The cashier on the first branch's till
         $mine = $this->terminalSession($this->cashier, $this->branch);
         $this->apiToken($mine['token'], 'GET', "/api/v1/pos/bookings/{$uuid}")->assertOk();
-        $this->apiToken($mine['token'], 'POST', "/api/v1/pos/bookings/{$uuid}/deposits", ['amount' => '100000', 'tender' => 'cash'], ['Idempotency-Key' => 't-1'])
+        $this->apiToken($mine['token'], 'POST', "/api/v1/pos/bookings/{$uuid}/deposits", ['amount' => '100000', 'tender' => 'qr'], ['Idempotency-Key' => 't-1'])
             ->assertCreated()->assertJsonPath('data.payment.user_id', $this->cashier->id);
         $this->assertSame($mine['device_id'], $this->fiscal->documents()[0]->deviceId);
     }

@@ -183,6 +183,36 @@ class FakeRestaurantBackend {
     if (found == null) return null;
     final Map<String, Object?> bill = found.$1;
     final Map<String, Object?> order = found.$2;
+    // Review P6 wave 2 (S5), as the server: a tip to someone other than the order's waiter goes only to the tip
+    // roles, with tips.manage or a manager's approval (`tip_approval_token`), before any money is taken
+    final int? picked = (r.data['tip_staff_id'] as num?)?.toInt();
+    final int? orderWaiter =
+        (order['waiter'] as Map<String, Object?>?)?['id'] as int?;
+    if (_tipSettings()['mode'] != 'pool' &&
+        picked != null &&
+        picked != orderWaiter) {
+      final Object? roles = _tipSettings()['roles'];
+      final List<Object?> tipRoles = roles is List && roles.isNotEmpty
+          ? roles
+          : const <Object?>['waiter'];
+      final Object? role = state.staff
+          .where((Map<String, Object?> s) => s['id'] == picked)
+          .map((Map<String, Object?> s) => s['role'])
+          .firstOrNull;
+      if (!tipRoles.contains(role)) {
+        return _fail(
+          422,
+          'tip_staff_not_eligible',
+          "Bu xodimga choy puli berilmaydi.",
+        );
+      }
+      final FakeResponse? denied = state.authorize(
+        r.member,
+        'tips.manage',
+        r.data['tip_approval_token'] ?? r.data['approval_token'],
+      );
+      if (denied != null) return denied;
+    }
     final int before = (bill['payments']! as List<Object?>).length;
     final FakeResponse? res = cashier.handle(r);
     if (res == null || res.status >= 300) return res;

@@ -140,7 +140,7 @@ class PosTipPoolTest extends TestCase
 
         $this->owner('POST', '/owner/pos/tips/distributions', ['branch_id' => $this->branch->id, 'business_date' => '2020-01-01', 'shift_uuid' => $shift->uuid])
             ->assertStatus(422)->assertJsonValidationErrors('shift_uuid');
-        $this->owner('POST', '/owner/pos/tips/distributions', ['branch_id' => $this->branch->id, 'business_date' => $date, 'participants' => [['staff_id' => $this->owner->id + 999]]])
+        $this->owner('POST', '/owner/pos/tips/distributions', ['branch_id' => $this->branch->id, 'business_date' => $date, 'shift_uuid' => $shift->uuid, 'participants' => [['staff_id' => $this->owner->id + 999]]])
             ->assertStatus(422)->assertJsonPath('data.reason', 'staff_not_found');
     }
 

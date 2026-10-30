@@ -308,6 +308,65 @@ void main() {
       expect(buttonLabeled("Taom qo'shish"), findsNothing);
     });
 
+    testWidgets('orders.transfer alone shows the hand-over and needs no PIN', (
+      WidgetTester tester,
+    ) async {
+      // Review S9: the server lets orders.transfer in without orders.manage
+      final WaiterHarness h = WaiterHarness();
+      RestaurantFake(h);
+      addOtherWaiter(h);
+      h.state.rolePermissions['waiter'] = <String>[
+        'orders.view',
+        'tables.manage',
+        'menu.view',
+        'orders.transfer',
+      ];
+      final String uuid = await openRestaurantOrder(tester, h);
+      await openMenu(tester);
+      await tester.tap(find.text('Boshqa ofitsiantga berish'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(otherWaiterName));
+      await tester.pump();
+      await tester.tap(buttonLabeled('Berish'));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+
+      expect(find.byType(ManagerApprovalDialog), findsNothing);
+      final List<Map<String, Object?>> sent = bodies(
+        h,
+        'POST',
+        '/v1/pos/orders/$uuid/transfer',
+      );
+      expect(sent.single['waiter_id'], otherWaiterId);
+      expect(sent.single['approval_token'], isNull);
+      expect(
+        h.state.orders[uuid]!['waiter'],
+        containsPair('id', otherWaiterId),
+      );
+    });
+
+    testWidgets(
+      'neither orders.transfer nor orders.manage: no hand-over item',
+      (WidgetTester tester) async {
+        final WaiterHarness h = WaiterHarness();
+        RestaurantFake(h);
+        addOtherWaiter(h);
+        h.state.rolePermissions['waiter'] = <String>[
+          'orders.view',
+          'tables.manage',
+          'menu.view',
+        ];
+        await openRestaurantOrder(tester, h);
+        final Finder menu = find.byTooltip('Menyu');
+        if (menu.evaluate().isNotEmpty) {
+          await tester.tap(menu.first);
+          await tester.pumpAndSettle();
+        }
+        expect(find.text('Boshqa ofitsiantga berish'), findsNothing);
+      },
+    );
+
     testWidgets('the old waiter is told when a manager moves the table', (
       WidgetTester tester,
     ) async {
@@ -550,6 +609,10 @@ void main() {
       // 6 guests × 50 000 (per guest from 6), nothing taken
       expect(find.textContaining("Bo'nak yetmaydi"), findsOneWidget);
       expect(find.textContaining('300'), findsWidgets);
+      // The desk takes no money: the deposit is taken at the till (a cash one needs its open shift)
+      expect(find.textContaining("Bo'nak kassada olinadi"), findsOneWidget);
+      expect(find.textContaining("Bo'nak olish"), findsNothing);
+      expect(find.textContaining('Avans olish'), findsNothing);
     });
 
     testWidgets('a manager books a walk-in without the lead time', (

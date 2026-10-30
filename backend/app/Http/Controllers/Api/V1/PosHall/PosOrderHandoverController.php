@@ -9,6 +9,7 @@ use App\Support\RowId;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\HeaderParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,8 +24,9 @@ class PosOrderHandoverController extends PosHostessController
      * Hand the table to another waiter
      *
      * The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422
-     * `same_waiter`). Needs orders.transfer (a manager or the owner by default), or a manager's one-time
-     * `approval_token` for orders.transfer (POST /pos/approvals; 403 `approval_required`). The waiter rule is not
+     * `same_waiter`). Needs orders.transfer (a manager or the owner by default; it is enough on its own, without
+     * orders.manage), or orders.manage with a manager's one-time `approval_token` for orders.transfer (POST
+     * /pos/approvals; 403 `approval_required`). The waiter rule is not
      * asked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the
      * new waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already
      * paid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new
@@ -43,7 +45,13 @@ class PosOrderHandoverController extends PosHostessController
             'approval_token' => 'nullable|string|max:255',
         ]);
 
-        $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
+        // Review S9: the route lets orders.transfer or orders.manage in, so the order is found (scoped to the user's
+        // branch) with either; orders.manage alone then needs the manager's approval in the service
+        try {
+            $order = $this->order($user, $uuid, Permission::ORDERS_TRANSFER);
+        } catch (HttpResponseException) {
+            $order = $this->order($user, $uuid, Permission::ORDERS_MANAGE);
+        }
         $this->requireModule($order->branch_id, PosModule::WAITER_TRANSFER);
 
         return $this->change($request, fn () => $orders->transfer($order, (int) $data['version'], $user, (int) $data['waiter_id'], $data['reason'] ?? null, $data['approval_token'] ?? null), 'Stol boshqa ofitsiantga berildi.');

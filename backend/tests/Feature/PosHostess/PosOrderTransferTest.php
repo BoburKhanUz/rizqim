@@ -203,6 +203,23 @@ class PosOrderTransferTest extends TestCase
         $this->pos($this->cashier, 'POST', "/pos/orders/{$order->uuid}/transfer", $this->body($order))->assertOk();
     }
 
+    public function test_orders_transfer_alone_is_enough_to_hand_a_table_over(): void
+    {
+        // Review S9: the route lets orders.transfer in; the order is found with it too (no orders.manage needed)
+        $order = $this->table5();
+        $this->pos($this->owner, 'PUT', '/owner/permissions', ['role' => 'hostess', 'permission' => 'orders.transfer', 'allowed' => true])->assertOk();
+        $this->assertFalse(app(\App\Services\Auth\PermissionService::class)->allows($this->hostess->fresh(), \App\Enums\Permission::ORDERS_MANAGE, $this->branch));
+
+        $this->pos($this->hostess, 'POST', "/pos/orders/{$order->uuid}/transfer", $this->body($order))->assertOk()
+            ->assertJsonPath('data.waiter.id', $this->waiter2->id);
+        $this->assertSame((int) $this->waiter2->id, (int) $order->fresh()->waiter_id);
+
+        // Another branch's order stays out of reach
+        $hall = \App\Models\Hall::create(['store_id' => $this->store->id, 'branch_id' => $this->otherBranch->id, 'name' => 'Zal', 'sort_order' => 1]);
+        $other = $this->openedOrder($this->openPos($this->owner, $this->place($hall, 'Stol 1', 'table', ['seats' => 4]), 2, ['branch_id' => $this->otherBranch->id]));
+        $this->pos($this->hostess, 'POST', "/pos/orders/{$other->uuid}/transfer", ['version' => $this->versionOf($other), 'waiter_id' => $this->waiter2->id])->assertNotFound();
+    }
+
     public function test_a_store_wide_owner_is_gated_on_the_orders_own_branch(): void
     {
         // The second branch stays a choyxona (no waiter_transfer): the owner may use the module on the first branch only

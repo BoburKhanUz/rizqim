@@ -34,6 +34,17 @@ void main() {
       expect(tips.enabled, isTrue);
       expect(tips.mode, PosTipMode.personal);
       expect(tips.picksStaff, isTrue);
+      // Review P6 wave 2 (S5): who may take a tip — waiters unless the server says
+      expect(tips.roles, <String>['waiter']);
+      expect(tips.takes('waiter'), isTrue);
+      expect(tips.takes('cashier'), isFalse);
+
+      (h.state.bootstrapExtras['tips']! as Map<String, Object?>)['roles'] =
+          <Object?>['waiter', 'cook'];
+      expect((await h.pos.session.loadBootstrap()).tips.roles, <String>[
+        'waiter',
+        'cook',
+      ]);
     },
   );
 
@@ -131,9 +142,12 @@ void main() {
         ),
       ],
       tipStaffId: 7,
+      tipApprovalToken: 'tok-1',
     );
     final Map<String, Object?> body = Harness.bodyOf(h.last);
     expect(body['tip_staff_id'], 7);
+    // Review P6 wave 2 (S5): a manager's approval for a tip to someone other than the order's waiter
+    expect(body['tip_approval_token'], 'tok-1');
     expect(
       (body['tenders']! as List<Object?>).first,
       containsPair('tip_amount', '10000.00'),

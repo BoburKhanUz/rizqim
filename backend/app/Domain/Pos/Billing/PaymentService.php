@@ -47,6 +47,14 @@ use Illuminate\Support\Facades\DB;
  * A tip is never a payment and never on the receipt: it is a pos_tips row (TipService), to the waiter picked at
  * payment (`$tipStaffId`), else the order's waiter (personal mode), or the branch's pool. A tip needs the branch's
  * `tips` module (403 module_disabled before any money is taken); a payment synced from offline keeps its tip anyway.
+ * Review P6 wave 2 (S5): someone other than the order's waiter takes the tip only from the branch's tip roles and with
+ * tips.manage or a manager's approval for it (`$tipApprovalToken`), refused before any money is taken (TipService::
+ * payRecipient); offline such a pick falls back to the waiter.
+ *
+ * Owner decision 30.10.2026: the covered bill is stamped with the order's waiter at payment (order_bills.waiter_id).
+ * Review P6 wave 2 (C10): for a payment the till took offline, "the waiter at payment" is the waiter the till showed on
+ * the order (`$offlineWaiterId`, bill.pay `waiter_id`; a staff member of the branch), else the order's waiter now; the
+ * default personal tip follows it.
  */
 final class PaymentService
 {
@@ -61,31 +69,46 @@ final class PaymentService
         private readonly AuditLogger $audit,
         private readonly TipService $tips,
         private readonly PosModules $modules,
+        private readonly \App\Services\Auth\PermissionService $permissions,
     ) {}
 
     /**
      * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null, tip_amount?: string|null, tip_from_change?: string|bool|null}>  $tenders
      * @param  int|null  $tipStaffId  P6-22: the staff member the cashier gave the tips to (personal mode)
+     * @param  string|null  $tipApprovalToken  a manager's approval (tips.manage) for a tip to someone other than the waiter
+     * @param  int|null  $offlineWaiterId  offline: the order's waiter as the till saw it when it took the money
      *
      * @throws PosActionException
      */
-    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null, ?int $tipStaffId = null): OrderBill
+    public function pay(User $user, OrderBill $bill, array $tenders, ?string $approvalToken, ?string $shiftUuid, ?int $version, ?Device $device, ?Closure $applied = null, ?\DateTimeInterface $offlinePaidAt = null, ?int $tipStaffId = null, ?string $tipApprovalToken = null, ?int $offlineWaiterId = null): OrderBill
     {
         $order = Order::findOrFail($bill->order_id);
         $shift = $this->shifts->forAction($user, $shiftUuid, (int) $order->branch_id);
         $normalized = $this->normalize($tenders);
+        $offline = $offlinePaidAt !== null;
+        if ($offlineWaiterId !== null && TipService::recipient((int) $order->store_id, (int) $order->branch_id, $offlineWaiterId) === null) {
+            $offlineWaiterId = null;
+        }
+        $waiterOf = fn (Order $order) => $offline && $offlineWaiterId !== null ? $offlineWaiterId : ($order->waiter_id !== null ? (int) $order->waiter_id : null);
 
-        // P6-22: tips need the branch's module (online; money taken offline keeps its tip) and a staff member of it
+        // P6-22: tips need the branch's module (online; money taken offline keeps its tip); review P6 wave 2 (S5):
+        // whom they go to is checked before any money is taken
         $tipped = array_filter($normalized, fn (array $tender) => $tender['tip'] !== null);
+        $tipApproval = false;
         if ($tipped !== []) {
-            if ($offlinePaidAt === null) {
+            if (!$offline) {
                 $this->modules->assertEnabled(Branch::findOrFail((int) $order->branch_id), PosModule::TIPS);
             }
-            if ($tipStaffId !== null && TipService::recipient((int) $order->store_id, (int) $order->branch_id, $tipStaffId) === null) {
-                if ($offlinePaidAt === null) {
-                    throw PosActionException::invalid('tip_staff_not_found', 'Choy puli beriladigan xodim topilmadi.');
-                }
-                $tipStaffId = null;
+            $recipient = $this->tips->payRecipient($order, $tipStaffId, $waiterOf($order), $offline, $this->permissions->allows($user, Permission::TIPS_MANAGE, $order));
+            // The waiter (the default) is read again under the order's lock below
+            $tipStaffId = $recipient['staff_id'] !== $waiterOf($order) ? $recipient['staff_id'] : null;
+            $tipApproval = $recipient['approval'];
+            // A till that answers 403 approval_required by resending with `approval_token` (no nasiya needs it here)
+            if ($tipApproval && ($tipApprovalToken === null || $tipApprovalToken === '') && !in_array(PosTender::ACCOUNT, array_column($normalized, 'tender'), true)) {
+                $tipApprovalToken = $approvalToken;
+            }
+            if ($tipApproval && ($tipApprovalToken === null || $tipApprovalToken === '')) {
+                throw PosActionException::forbidden('approval_required', "Choy pulini buyurtma ofitsiantidan boshqa xodimga berish uchun menejer tasdig'i kerak.", ['permission' => Permission::TIPS_MANAGE->value]);
             }
         }
 
@@ -94,7 +117,7 @@ final class PaymentService
             $this->fiscalizer->lines($bill);
         }
 
-        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt, $tipStaffId) {
+        [$bill, $covered] = DB::transaction(function () use ($user, $bill, $normalized, $approvalToken, $shift, $version, $device, $applied, $offlinePaidAt, $tipStaffId, $tipApproval, $tipApprovalToken, $waiterOf) {
             // Review P3-35: the shift's row first (the Z and refunds lock it too, then the orders): a shift closed
             // meanwhile takes no more money, and a closing Z never misses a payment made at the same moment
             $shift = PosShift::lockForMoney((int) $shift->id);
@@ -103,6 +126,9 @@ final class PaymentService
             }
             $order = BillService::lockOpenOrder(Order::findOrFail($bill->order_id), $version);
             $bill = OrderBill::whereKey($bill->id)->lockForUpdate()->firstOrFail();
+            // The manager's approval for the tip's recipient, used once (with everything else, or not at all)
+            $tipApprovedBy = $tipApproval ? $this->approvals->consume((string) $tipApprovalToken, Permission::TIPS_MANAGE->value, $device?->id) : null;
+            $waiter = $waiterOf($order);
 
             if ($bill->status === BillStatus::PAID) {
                 throw PosActionException::conflict('bill_paid', "Schyot to'langan.");
@@ -178,7 +204,7 @@ final class PaymentService
                     $this->shifts->recordSale($shift, $payment, $user, $device);
                 }
                 if ($tender['tip'] !== null) {
-                    $tips[] = $this->tips->record($order, $bill, $payment, $shift, $tender['tip_method'], $tender['tip'], $tender['tip_source'], $tipStaffId, $user, $device);
+                    $tips[] = $this->tips->record($order, $bill, $payment, $shift, $tender['tip_method'], $tender['tip'], $tender['tip_source'], $tipStaffId ?? $waiter, $user, $device, $tipApprovedBy);
                 }
                 $created[] = $payment;
             }
@@ -187,7 +213,7 @@ final class PaymentService
             if ($covered) {
                 // Owner decision 30.10.2026: the bill is the sales of the order's waiter at payment time (staff pay
                 // `sales_attribution` at_payment), whoever has the table later
-                $bill->forceFill(['shift_id' => $shift->id, 'fiscal_status' => 'pending', 'waiter_id' => $order->waiter_id])->save();
+                $bill->forceFill(['shift_id' => $shift->id, 'fiscal_status' => 'pending', 'waiter_id' => $waiter])->save();
             }
             if ($order->getAttribute('shift_id') === null) {
                 $order->forceFill(['shift_id' => $shift->id]);

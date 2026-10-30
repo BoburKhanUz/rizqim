@@ -20,7 +20,8 @@ use App\Models\OrderItem;
  *  - "N-kursni yuborish" (PosOrderService::sendCourse) sends the held lines of that course; a line added later to a
  *    course that is already in the kitchen goes with the next send, like any `now` line;
  *  - the kitchen sees the course on the ticket (`course_no`); when every line of a course that reached the kitchen is
- *    ready, the waiter hears it (order.course_ready, via KitchenService → CourseTracker).
+ *    ready, the waiter hears it (order.course_ready, via KitchenService → CourseTracker); voiding the last line of a
+ *    course that was still cooking announces it too (PosOrderService::void → lineVoided).
  *
  * The module gates the new flow only: an order that has courses keeps them (and can still send them) after the owner
  * switches the module off; offline lines keep the device's course when it is on, else lose it (a sale is never
@@ -152,16 +153,43 @@ class PosCourses implements CourseTracker
             return;
         }
 
-        $lines = OrderItem::query()
-            ->where('order_id', $order->id)
-            ->where('course_no', $item->course_no)
-            ->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)
-            ->get(['id', 'kitchen_status']);
-        $cooking = $lines->contains(fn (OrderItem $line) => in_array($line->kitchen_status->value, KitchenItemStatus::cookingValues(), true));
-        if ($cooking) {
+        $this->announceIfReady($order, (int) $item->course_no, false);
+    }
+
+    /**
+     * Review C9: a line voided while it was still to cook (`$was`: its status before the void) may have been the last
+     * thing its course waited for: when what is left of the course is ready (at least one line waiting at the pass),
+     * the waiter hears order.course_ready, once — a line voided after it was ready or served never announces again.
+     * Called by PosOrderService::void inside its transaction, the order locked.
+     */
+    public function lineVoided(Order $order, OrderItem $item, KitchenItemStatus $was): void
+    {
+        if ($item->course_no === null || !in_array($was->value, KitchenItemStatus::cookingValues(), true) || !$order->channel->isPos()) {
             return;
         }
 
-        event(new OrderCourseReadyBroadcast($order, (int) $item->course_no, $lines->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all()));
+        $this->announceIfReady($order, (int) $item->course_no, true);
+    }
+
+    /**
+     * Announces the course when none of its live lines is still to cook (held, sent, or not sent yet); `$needsReady`:
+     * only when one of them is ready (a course served in full has nothing left to fetch).
+     */
+    private function announceIfReady(Order $order, int $courseNo, bool $needsReady): void
+    {
+        $lines = OrderItem::query()
+            ->where('order_id', $order->id)
+            ->where('course_no', $courseNo)
+            ->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)
+            ->get(['id', 'kitchen_status']);
+        $cooking = $lines->contains(fn (OrderItem $line) => in_array($line->kitchen_status->value, KitchenItemStatus::cookingValues(), true));
+        if ($lines->isEmpty() || $cooking) {
+            return;
+        }
+        if ($needsReady && !$lines->contains(fn (OrderItem $line) => $line->kitchen_status === KitchenItemStatus::READY)) {
+            return;
+        }
+
+        event(new OrderCourseReadyBroadcast($order, $courseNo, $lines->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all()));
     }
 }

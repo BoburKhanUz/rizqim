@@ -21,6 +21,12 @@ enum CashMovementType: string
     /** Types the cashier records by hand (POST /pos/shifts/{uuid}/cash-movements). */
     public const MANUAL = ['cash_in', 'cash_out', 'wage', 'purchase'];
 
+    /** The wage category only a pay statement's payment writes (review P6 wave 2: refused by hand). */
+    public const PAYROLL_CATEGORY = 'payroll';
+
+    /** The wage category of tips paid out from the till (P6-22; tips.manage or a manager's approval). */
+    public const TIPS_CATEGORY = 'tips';
+
     /**
      * Categories per manual type; `other` needs a note.
      *
@@ -31,8 +37,9 @@ enum CashMovementType: string
         return match ($this) {
             self::CASH_IN => ['change_fund', 'owner', 'other'],
             self::CASH_OUT => ['collection', 'owner', 'supplies', 'utilities', 'other'],
-            // P6-23: payroll — a pay statement's line paid from the till (App\Domain\Pos\StaffPay\StaffPayStatements)
-            // P6-22: tips — tips (choy puli) paid out to the staff member (the X/Z shows them as cash.tip_payouts)
+            // P6-23: payroll — a pay statement's line paid from the till (App\Domain\Pos\StaffPay\StaffPayStatements;
+            // only there: refused by hand). P6-22: tips — tips (choy puli) paid out to the staff member (the X/Z shows
+            // them as cash.tip_payouts; ShiftService::addMovement caps them)
             self::WAGE => ['daily_wage', 'advance', 'bonus', 'payroll', 'tips'],
             self::PURCHASE => ['bazaar', 'meat', 'bread', 'supplies', 'other'],
             default => [],

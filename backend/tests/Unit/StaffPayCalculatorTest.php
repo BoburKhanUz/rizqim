@@ -77,6 +77,20 @@ class StaffPayCalculatorTest extends TestCase
         $this->assertSame('2034567.00', $result['components'][0]['base']);
     }
 
+    public function test_a_percent_is_rounded_once_to_the_som(): void
+    {
+        // 5% × 10 089.90 = 504.495: once to the so'm → 504 (rounding to the tiyin first, 504.50, would give 505)
+        $rule = self::rule([['type' => 'sales_percent', 'percent' => '5'], ['type' => 'service_charge_percent', 'percent' => '5']]);
+        $result = (new StaffPayCalculator())->calculate([self::day('2026-11-01', $rule, sales: '10089.90', service: '10089.90')], 7);
+        $this->assertSame(['sales_percent' => '504.00', 'service_charge_percent' => '504.00'], $this->amounts($result));
+
+        // The guarantee's percent too, per period and per shift (each shift's share in whole so'm)
+        $period = self::rule([['type' => 'guarantee', 'amount' => '100', 'per' => 'period', 'mode' => 'plus', 'percent' => '5', 'base' => 'sales']]);
+        $shift = self::rule([['type' => 'guarantee', 'amount' => '100', 'per' => 'shift', 'mode' => 'plus', 'percent' => '5', 'base' => 'sales']]);
+        $this->assertSame('604.00', (new StaffPayCalculator())->calculate([self::day('2026-11-01', $period, sales: '10089.90')], 1)['gross']);
+        $this->assertSame('1208.00', (new StaffPayCalculator())->calculate([self::day('2026-11-01', $shift, sales: '10089.90'), self::day('2026-11-02', $shift, sales: '10089.90')], 7)['gross']);
+    }
+
     public function test_guarantee_per_shift_max_takes_the_larger_each_day(): void
     {
         $rule = self::rule([['type' => 'guarantee', 'amount' => '100000', 'per' => 'shift', 'mode' => 'max', 'percent' => '10', 'base' => 'sales']]);

@@ -230,8 +230,8 @@ class PosBookingConfirmationTest extends TestCase
         BookingItem::create(['booking_id' => $booking->id, 'product_variant_id' => $this->variant->id, 'product_name' => 'Qozon kabob', 'unit' => 'kg', 'quantity' => '2.5', 'unit_price' => '150000', 'due_at' => '2026-11-05 14:30:00']);
         BookingItem::create(['booking_id' => $booking->id, 'product_variant_id' => $this->variant->id, 'product_name' => 'Somsa', 'unit' => 'piece', 'quantity' => '10', 'unit_price' => '8000', 'due_at' => '2026-11-05 14:30:00']);
 
-        $this->takeDeposit($uuid, '500000', 'cash')->assertCreated();
-        $second = $this->takeDeposit($uuid, '300000', 'cash')->assertCreated()->json('data.payment.uuid');
+        $this->takeDeposit($uuid, '500000', 'qr')->assertCreated();
+        $second = $this->takeDeposit($uuid, '300000', 'qr')->assertCreated()->json('data.payment.uuid');
         BookingPayment::where('uuid', $second)->update(['status' => 'refunded', 'refunded_amount' => '300000.00']);
 
         $this->posSettings(['booking_confirmation' => ['cancel_policy' => "Bekor qilish: 24 soat oldin ayting, bo'nak qaytariladi."]]);

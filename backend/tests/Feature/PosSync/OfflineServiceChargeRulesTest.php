@@ -77,7 +77,8 @@ class OfflineServiceChargeRulesTest extends TestCase
         $this->profile($this->branch, 'kafe', ['service_charge_rules' => false]);
         $fee = $this->branchFee('pos_hall');
         $this->assertNull($fee['rules']);
-        $this->assertSame('Xizmat haqi 10%.', $fee['service_charge_notice']);
+        // Review C8: without the rules only the owner's own text is a notice
+        $this->assertNull($fee['service_charge_notice']);
 
         // Stolovaya: the row reads 0%, the rules come with the lock flag (the till keeps every percent at 0)
         $this->profile($this->branch, 'stolovaya', ['service_charge_rules' => true]);

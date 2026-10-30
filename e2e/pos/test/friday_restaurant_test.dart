@@ -38,11 +38,9 @@ PosMoney money(Object? value) => PosMoney.parse(value);
 /// `a / b` rounded half up (a, b ≥ 0).
 int halfUp(int a, int b) => (2 * a + b) ~/ (2 * b);
 
-/// [base] × [percent] % the way the server's Money::percent() then roundTo(0) does it: to the tiyin, then to the so'm.
-PosMoney percentOf(PosMoney base, int percent) {
-  final int tiyin = halfUp(base.tiyin * percent, 100);
-  return PosMoney(halfUp(tiyin, 100) * 100);
-}
+/// [base] × [percent] % the way the server's staff pay does it: exactly, rounded once (half up) to the so'm.
+PosMoney percentOf(PosMoney base, int percent) =>
+    PosMoney(halfUp(base.tiyin * percent, 10000) * 100);
 
 /// The service charge of an order: [percent] of the dishes, to the whole so'm (half up).
 PosMoney serviceCharge(PosMoney dishes, int percent) =>
@@ -1312,6 +1310,12 @@ void main() {
         reason: 'to the so\'m and the tiyin',
       );
       expect(money(split['distributed']), pool);
+      // Staff pay counts a pool split once it is closed
+      final Map<String, Object?> closed = await ownerCall(
+        'POST',
+        '/v1/owner/pos/tips/distributions/${split['uuid']}/close',
+      );
+      expect(closed['status'], 'closed');
       tipShares
         ..clear()
         ..addAll(shares);

@@ -670,6 +670,28 @@ void main() {
     );
   });
 
+  test('review P6 wave 2 (C10): an offline payment carries the waiter the till shows on the order', () async {
+    final String room = h.state.seedOrder(tableId: 1, guests: 2, waiterId: 4);
+    await h.warmUp();
+    await h.goOffline();
+    final PosOrder order = await h.pos.orders.get(room);
+    expect(order.waiter?.id, 4);
+    final PosBilling b = await h.pos.billing.createBills(
+      room,
+      version: order.version,
+    );
+    await h.pos.billing.pay(
+      b.bills.single.uuid,
+      tenders: <PosTenderInput>[PosTenderInput.cash(b.bills.single.total)],
+      shiftUuid: h.state.shift!['uuid']! as String,
+    );
+
+    final SyncOperation pay = h.offline.store.pending.firstWhere(
+      (SyncOperation o) => o.type == SyncOpType.billPay,
+    );
+    expect(pay.payload['waiter_id'], 4);
+  });
+
   test('a mutation whose answer is lost goes on through the queue with the same key', () async {
     final String room = h.state.seedOrder(tableId: 1, guests: 2);
     await h.warmUp();

@@ -55,7 +55,8 @@ final class ShiftReport
             ->where('payments.shift_id', $shift->id)
             ->whereIn('payments.status', ['paid', 'refunded'])
             ->join('orders', 'orders.id', '=', 'payments.order_id')
-            ->get(['payments.id', 'payments.provider', 'payments.amount', 'payments.card_type', 'payments.order_id', 'orders.channel', 'orders.waiter_id']);
+            ->leftJoin('order_bills', 'order_bills.id', '=', 'payments.bill_id')
+            ->get(['payments.id', 'payments.provider', 'payments.amount', 'payments.card_type', 'payments.order_id', 'orders.channel', 'orders.waiter_id as order_waiter_id', 'order_bills.waiter_id as bill_waiter_id']);
 
         $byTender = [];
         foreach (PosTender::cases() as $tender) {
@@ -75,13 +76,19 @@ final class ShiftReport
             ->where('order_bills.shift_id', $shift->id)
             ->where('order_bills.status', BillStatus::PAID->value)
             ->join('orders', 'orders.id', '=', 'order_bills.order_id')
-            ->get(['order_bills.*', 'orders.waiter_id']);
+            ->get(['order_bills.*', 'order_bills.waiter_id as bill_waiter_id', 'orders.waiter_id as order_waiter_id']);
 
-        $waiterIds = $payments->map(fn (Payment $row) => $row->getAttribute('waiter_id'))->merge($bills->map(fn (OrderBill $bill) => $bill->getAttribute('waiter_id')))->filter()->unique()->values();
+        // The waiter of a bill and of its payments, as in the pay statements (StaffPayMetrics): by the branch's
+        // sales_attribution — the waiter stamped on the bill at payment (else the order's), or the order's now
+        $atPayment = app(\App\Domain\Pos\StaffPay\StaffPaySettings::class)->salesAttribution($shift->branch()->firstOrFail())
+            === \App\Domain\Pos\StaffPay\SalesAttribution::AT_PAYMENT;
+        $waiterOf = fn (Payment|OrderBill $row) => (int) (($atPayment ? $row->getAttribute('bill_waiter_id') : null) ?? $row->getAttribute('order_waiter_id'));
+
+        $waiterIds = $payments->map($waiterOf)->merge($bills->map($waiterOf))->filter()->unique()->values();
         $names = User::whereIn('id', $waiterIds)->pluck('name', 'id');
         $byWaiter = [];
-        foreach ($payments->groupBy(fn (Payment $row) => (int) $row->getAttribute('waiter_id')) as $waiterId => $rows) {
-            $waiterBills = $bills->filter(fn (OrderBill $bill) => (int) $bill->getAttribute('waiter_id') === (int) $waiterId);
+        foreach ($payments->groupBy($waiterOf) as $waiterId => $rows) {
+            $waiterBills = $bills->filter(fn (OrderBill $bill) => $waiterOf($bill) === (int) $waiterId);
             $byWaiter[] = [
                 'waiter_id' => $waiterId ?: null,
                 'name' => $waiterId ? ($names[$waiterId] ?? null) : null,

@@ -1962,14 +1962,26 @@ class FakeCashierBackend {
   }
 
   FakeResponse _movement(Map<String, Object?> shift, FakeRequest r) {
+    final String type = '${r.data['type']}';
+    final String category = '${r.data['category'] ?? ''}';
+    // Review P6 wave 2 (as the server): `payroll` only from a pay statement; a tip payout needs tips.manage or a
+    // manager's approval for it (that approval stands for pos.cash_in_out too)
+    if (category == 'payroll') {
+      return _fail(
+        422,
+        'movement_category_reserved',
+        "Ish haqi hisob-kitobi kassadan faqat hisob-kitob qatori orqali to'lanadi.",
+      );
+    }
+    final bool tipPayout = type == 'wage' && category == 'tips';
     final FakeResponse? denied = state.authorize(
       r.member,
-      'pos.cash_in_out',
+      tipPayout && !state.permissionsOf(r.member).contains('tips.manage')
+          ? 'tips.manage'
+          : 'pos.cash_in_out',
       r.data['approval_token'],
     );
     if (denied != null) return denied;
-    final String type = '${r.data['type']}';
-    final String category = '${r.data['category'] ?? ''}';
     final String? note = (r.data['note'] as String?)?.trim();
     final int amount = _t(r.data['amount']);
     if (amount <= 0) return _validation('amount', "Summani kiriting.");
@@ -2009,7 +2021,12 @@ class FakeCashierBackend {
           ? null
           : <String, Object?>{'id': employeeId, 'name': employeeName},
       'user': <String, Object?>{'id': r.member['id'], 'name': r.member['name']},
-      'approved_by': null,
+      'approved_by': !tipPayout || r.data['approval_token'] == null
+          ? null
+          : state.staff
+                .where((Map<String, Object?> m) => m['role'] == 'manager')
+                .map((Map<String, Object?> m) => m['id']! as int)
+                .firstOrNull,
       'created_at': _iso(state.now()),
       'shift_uuid': shift['uuid'],
     };

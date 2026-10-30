@@ -1,7 +1,8 @@
 import { expect, openSignedIn, test } from './fixtures'
 
 // P6-22 "Choy puli va xizmat haqi": the owner reads the day's tips, gives a tip to another waiter with a reason,
-// switches the branch to a shared pool, splits the day's pool and closes it, and sets the service charge variants.
+// switches the branch to a shared pool, splits the day's pool and closes it (or a shift's, when the pool is per shift),
+// and sets the service charge variants.
 
 test('the report shows the tips and a tip is given to another waiter with a reason', async ({ page, api, signIn, reverb }) => {
   void reverb
@@ -51,6 +52,27 @@ test('the pool is set up, split equally to the so\'m and closed', async ({ page,
   await expect(page.getByText("Bo'linish yopildi.")).toBeVisible()
   await expect(page.getByText('Yopilgan').first()).toBeVisible()
   expect(api.callsTo('POST', '/v1/owner/pos/tips/distributions')[0].body).toEqual({ branch_id: 1, business_date: '2026-11-16' })
+})
+
+test('with a pool per shift the day\'s closed shift is picked and split', async ({ page, api, signIn, reverb }) => {
+  void reverb
+  api.tips.settings.mode = 'pool'
+  api.tips.settings.pool_period = 'shift'
+  const shift = { ...api.shifts.shifts[0], uuid: 's0000000-0000-4000-8000-000000000016', business_date: '2026-11-16', opened_at: '2026-11-16T04:00:00+00:00', closed_at: '2026-11-16T12:00:00+00:00', z_number: 16 }
+  api.shifts.shifts.push(shift)
+  await openSignedIn(page, signIn, '/tips')
+  await page.getByRole('tab', { name: "Qozonni bo'lish" }).click()
+  await page.getByLabel('Biznes kun').first().fill('2026-11-16')
+  const button = page.getByRole('button', { name: "Qozonni bo'lish" })
+  await expect(button).toBeDisabled()
+  // Only the closed shifts of that day are offered
+  const pick = page.getByLabel('Smena', { exact: true })
+  await expect(pick.locator('option')).toHaveCount(2)
+  await pick.selectOption(shift.uuid)
+  await button.click()
+  await expect(page.getByText("Qozon bo'lindi.")).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Kassa 1/ })).toBeVisible()
+  expect(api.callsTo('POST', '/v1/owner/pos/tips/distributions')[0].body).toEqual({ branch_id: 1, business_date: '2026-11-16', shift_uuid: shift.uuid })
 })
 
 test('the service charge variants are saved and the bill notice is shown', async ({ page, api, signIn, reverb }) => {

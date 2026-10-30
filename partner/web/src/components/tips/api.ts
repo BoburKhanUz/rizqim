@@ -210,8 +210,14 @@ export interface Distribution {
   lines: DistributionLine[];
 }
 
+export interface DistributionsPage {
+  // The branch's pool period now: `day` (one split per business day) or `shift` (one per shift, with its uuid)
+  pool_period: PoolPeriod;
+  distributions: Distribution[];
+}
+
 export const fetchDistributions = (api: StaffApi, range: Range) =>
-  data<{ distributions: Distribution[] }>(door(api).GET('/v1/owner/pos/tips/distributions', { params: { query: rangeQuery(range) } }));
+  data<DistributionsPage>(door(api).GET('/v1/owner/pos/tips/distributions', { params: { query: rangeQuery(range) } }));
 
 export const computeDistribution = (api: StaffApi, input: { branchId: number; businessDate: string; shiftUuid?: string | null }) =>
   data<Distribution>(

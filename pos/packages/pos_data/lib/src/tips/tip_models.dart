@@ -29,14 +29,31 @@ class PosTipSettings {
     this.mode = PosTipMode.personal,
     this.poolRule = 'equal',
     this.poolPeriod = 'day',
+    this.roles = defaultRoles,
   });
 
-  factory PosTipSettings.fromJson(PosJson j) => PosTipSettings(
-    enabled: j.boolean('enabled'),
-    mode: PosTipMode.fromWire(j.strOrNull('mode')),
-    poolRule: j.strOrNull('pool_rule') ?? 'equal',
-    poolPeriod: j.strOrNull('pool_period') ?? 'day',
-  );
+  factory PosTipSettings.fromJson(PosJson j) {
+    final List<String> list = j['roles'] is List
+        ? j.strings('roles')
+        : const <String>[];
+    return PosTipSettings(
+      enabled: j.boolean('enabled'),
+      mode: PosTipMode.fromWire(j.strOrNull('mode')),
+      poolRule: j.strOrNull('pool_rule') ?? 'equal',
+      poolPeriod: j.strOrNull('pool_period') ?? 'day',
+      roles: list.isEmpty ? defaultRoles : list,
+    );
+  }
+
+  /// Server aytmasa (eski server) — faqat ofitsiantlar.
+  static const List<String> defaultRoles = <String>['waiter'];
+
+  /// Review P6 wave 2 (S5): choy puli kimga berilishi mumkin — filialning choy puli lavozimlari (`tips.roles`).
+  /// Buyurtma ofitsiantidan boshqa xodimga berish menejer tasdig'i bilan.
+  final List<String> roles;
+
+  /// [role] dagi xodim choy pulini olishi mumkin.
+  bool takes(String role) => roles.contains(role);
 
   final bool enabled;
   final PosTipMode mode;

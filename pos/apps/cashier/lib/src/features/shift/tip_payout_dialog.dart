@@ -10,22 +10,34 @@ import '../billing/receipts.dart';
 import 'shift_report_mapping.dart';
 
 /// "Choy pulini berish" (P6-22): kassadagi naqd choy pulini xodimga berish — kassadan `wage` chiqimi, kategoriya `tips`
-/// (X/Z da `cash.tip_payouts`, ish haqiga kirmaydi). `tips.manage` yoki menejer PIN'i (sahifa so'raydi); yozuvning
-/// o'zi `pos.cash_in_out` bilan (yo'q bo'lsa — menejer tasdig'i). Yozildi — harakat, aks holda `null`.
+/// (X/Z da `cash.tip_payouts`, ish haqiga kirmaydi). `tips.manage` yoki menejer PIN'i: sahifa so'ragan tasdiq
+/// ([approvalToken]) yozuv bilan birga yuboriladi va server uni bir marta ishlatadi (u `pos.cash_in_out` o'rniga ham
+/// o'tadi). Server smenadagi naqd choy pulidan va xodimga tegishlisidan ortig'ini bermaydi (409). Yozildi — harakat,
+/// aks holda `null`.
 Future<PosCashMovement?> showTipPayoutDialog(
   BuildContext context, {
   required String shiftUuid,
   required ShiftReportView report,
+  String? approvalToken,
 }) => showScopedDialog<PosCashMovement>(
   context,
-  (BuildContext _) => _TipPayoutDialog(shiftUuid: shiftUuid, report: report),
+  (BuildContext _) => _TipPayoutDialog(
+    shiftUuid: shiftUuid,
+    report: report,
+    approvalToken: approvalToken,
+  ),
 );
 
 class _TipPayoutDialog extends StatefulWidget {
-  const _TipPayoutDialog({required this.shiftUuid, required this.report});
+  const _TipPayoutDialog({
+    required this.shiftUuid,
+    required this.report,
+    this.approvalToken,
+  });
 
   final String shiftUuid;
   final ShiftReportView report;
+  final String? approvalToken;
 
   @override
   State<_TipPayoutDialog> createState() => _TipPayoutDialogState();
@@ -40,6 +52,9 @@ class _TipPayoutDialogState extends State<_TipPayoutDialog> {
 
   /// Javobsiz qolgan yozuv: aynan o'zi (kalit, tasdiq) qayta yuboriladi.
   final LostRequest _lost = LostRequest();
+
+  /// Sahifa so'ragan tasdiq: birinchi yuborishda ishlatiladi.
+  late String? _granted = widget.approvalToken;
 
   PosMoney get _left => widget.report.cashTipsLeft;
 
@@ -97,7 +112,9 @@ class _TipPayoutDialogState extends State<_TipPayoutDialog> {
           approvalToken: token,
           idempotencyKey: key,
         ),
+        approvalToken: _granted,
       );
+      _granted = null;
       if (!mounted) return;
       ReceiptPrinter(scope).openDrawer();
       showPosMessage(context, 'Choy puli berildi: ${m.amount.format()}.');
@@ -110,10 +127,17 @@ class _TipPayoutDialogState extends State<_TipPayoutDialog> {
         });
       }
     } on Object catch (e) {
+      // A refused payout (409: more than the tips) leaves the approval unused; an expired or used one is dropped
+      if (e is PosApprovalRejected) _granted = null;
       if (mounted) {
         setState(() => _busy = false);
         if (e is PosValidationException) {
           setState(() => _error = e.firstError);
+        } else if (e is PosException &&
+            (e.reason == 'tip_payout_exceeds_tips' ||
+                e.reason == 'tip_payout_exceeds_owed')) {
+          // More than this shift's cash tips, or than the person is owed today: the server says how much
+          setState(() => _error = e.message);
         } else {
           showPosError(context, e);
         }

@@ -9,6 +9,7 @@ import '../billing/billing_models.dart';
 import '../bootstrap/bootstrap_models.dart';
 import '../catalog/catalog_models.dart';
 import '../floor/floor_models.dart';
+import '../format/format_models.dart';
 import '../http/connectivity.dart';
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
@@ -672,13 +673,21 @@ class PosOffline {
         reason: 'overpayment',
       );
     }
+    // Review P6 wave 2 (C10): the order's waiter as this till shows it when the money is taken — the server stamps
+    // the bill (sales) and the default personal tip with them, even if the table was handed over before the sync
+    final Map<String, Object?>? seen = book.order(orderRef);
+    final int? waiterId = seen == null
+        ? null
+        : PosOrder.fromJson(PosJson(seen)).waiter?.id;
     await store.enqueue(SyncOpType.billPay, <String, Object?>{
       'order': orderRef,
       'bill': billUuid,
       'shift_uuid': shift,
       'tenders': <Object?>[for (final PosTenderInput t in tenders) t.toJson()],
-      // P6-22: the tip goes with its tender (`tip_amount`); whom it goes to
+      // P6-22: the tip goes with its tender (`tip_amount`); whom it goes to (review P6 wave 2: someone other than
+      // the waiter needs a manager's approval, which offline cannot be given — the server gives it to the waiter)
       'tip_staff_id': ?tipStaffId,
+      'waiter_id': ?waiterId,
       'idempotency_key': ?idempotencyKey,
     }, staffId: _staff());
     final PosBilling b = billing(orderRef);
@@ -878,8 +887,10 @@ class PosOffline {
             productId: p.id,
             categoryId: p.categoryId,
           ),
-      // P6-25: the till's own view of a dish weighed later (the server decides by the same rule)
+      // P6-25: the till's own view of a dish weighed later (the server decides by the same rule: only with the
+      // branch's `weight_later` module — a catalog cached before it was switched off still names the rule)
       if ((input.awaitingWeight ?? p.weighedLater) &&
+          (bootstrap()?.modules.has(PosModule.weightLater) ?? false) &&
           v.unit != PosUnit.piece &&
           !p.batchTracked)
         'weight_basis': (p.weightMode ?? PosWeightBasis.raw).wire,

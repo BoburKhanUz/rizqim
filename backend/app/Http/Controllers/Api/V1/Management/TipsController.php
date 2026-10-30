@@ -194,20 +194,21 @@ class TipsController extends ManagementController
      * The pool splits
      *
      * The branch's pool splits of business days `from`..`to`, each with its rule, pool, lines (person, role, basis —
-     * 1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status.
+     * 1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status. `pool_period`: the branch's
+     * period now (day: one split per business day; shift: one per shift, computed with `shift_uuid`).
      */
     #[QueryParameter('branch_id', description: 'The branch (a branch-bound caller: their own when omitted).', type: 'int', required: false)]
     #[QueryParameter('from', description: 'First business day (YYYY-MM-DD).', type: 'string', required: false)]
     #[QueryParameter('to', description: 'Last business day (YYYY-MM-DD).', type: 'string', required: false)]
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{distributions: list<' . TipPoolDistributor::VIEW . '>}}')]
-    public function distributions(Request $request, TipPoolDistributor $distributor): JsonResponse
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{pool_period: string, distributions: list<' . TipPoolDistributor::VIEW . '>}}')]
+    public function distributions(Request $request, TipPoolDistributor $distributor, TipSettings $settings): JsonResponse
     {
         $branch = $this->branch($request, Permission::REPORTS_VIEW);
         [$from, $to] = $this->range($request, $branch);
 
         $rows = PosTipDistribution::where('branch_id', $branch->id)->whereBetween('business_date', [$from, $to])->orderByDesc('business_date')->orderBy('id')->get();
 
-        return $this->success(['distributions' => $rows->map(fn (PosTipDistribution $row) => $distributor->present($row))->values()->all()]);
+        return $this->success(['pool_period' => ($settings->row($branch)->pool_period ?? TipPoolPeriod::DAY)->value, 'distributions' => $rows->map(fn (PosTipDistribution $row) => $distributor->present($row))->values()->all()]);
     }
 
     /**
@@ -215,10 +216,16 @@ class TipsController extends ManagementController
      *
      * Splits the pool tips of `business_date` (or of the shift `shift_uuid`) by the branch's rule among the people of
      * its roles who worked then (clock-in sessions, the till shifts they opened, else the orders they served), or
-     * among `participants` ([{staff_id, minutes?}], the manager's own list). Stored; computing again replaces it
-     * until it is closed (409 `tips_distribution_closed`). Every basis 0: split equally. Shares are whole so'm: the
+     * among `participants` ([{staff_id, minutes?}], the manager's own list: people of the branch whose role is one of
+     * the pool's `roles` — else 422 `staff_not_in_pool` / `staff_not_found` — and never the caller unless the owner:
+     * 403 `tips_pool_self`). The branch's `pool_period` decides the period: `day` refuses `shift_uuid` (422
+     * `tips_pool_period_day`), `shift` requires it (422 `tips_pool_period_shift`, pick a shift of the day); a day split
+     * and shift splits of one date never both exist (409 `tips_pool_period_conflict`). Stored; computing again
+     * replaces it until it is closed (409 `tips_distribution_closed`); two first computes at once: 409
+     * `tips_distribution_busy` for the second (try again). Every basis 0: split equally. Shares are whole so'm: the
      * so'm left over go to the largest remainders, any tiyin to the largest share — the lines add up to the pool.
-     * tips.manage. Audited (pos.tips_distribution_computed).
+     * Staff pay counts a split once it is closed. tips.manage. Audited (pos.tips_distribution_computed, with the
+     * people and their shares).
      */
     #[BodyParameter('branch_id', description: 'The branch (a branch-bound caller: their own when omitted).', type: 'int', required: false)]
     #[BodyParameter('business_date', description: 'The business day (YYYY-MM-DD).', type: 'string', required: true)]
@@ -258,8 +265,10 @@ class TipsController extends ManagementController
      * Close the pool split
      *
      * Freezes the split: no more recomputing and no more corrections of the tips it covers. The pool changed since
-     * it was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); already
-     * closed: 409 `tips_distribution_closed`. tips.manage. Audited (pos.tips_distribution_closed).
+     * it was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); a pool nobody
+     * takes (no people in the split): 409 `tips_distribution_unassigned`; already closed: 409
+     * `tips_distribution_closed`. From then on the pay statements count its shares. tips.manage. Audited
+     * (pos.tips_distribution_closed).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . TipPoolDistributor::VIEW . '}')]
     public function close(Request $request, TipPoolDistributor $distributor, string $uuid): JsonResponse

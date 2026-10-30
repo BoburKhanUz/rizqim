@@ -130,10 +130,12 @@ void main() {
       );
       await tapKey(tester, 'tip-payout-submit');
 
+      // Review P6 wave 2 (S2): the approval the page asked for goes with the payout (one PIN, used once)
+      expect(find.text("Menejer tasdig'i"), findsNothing);
       final Map<String, Object?> m = r.p.backend.movements.last;
       expect(
-        <Object?>[m['type'], m['category'], m['amount']],
-        <Object?>['wage', 'tips', '11000.00'],
+        <Object?>[m['type'], m['category'], m['amount'], m['approved_by']],
+        <Object?>['wage', 'tips', '11000.00', isNotNull],
       );
       expect(
         (m['employee'] as Map<String, Object?>?)?['id'] ?? m['employee_id'],

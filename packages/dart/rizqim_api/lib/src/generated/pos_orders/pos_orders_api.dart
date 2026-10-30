@@ -427,8 +427,9 @@ abstract class PosOrdersApi {
   /// Hand the table to another waiter.
   ///
   /// The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422.
-  /// `same_waiter`). Needs orders.transfer (a manager or the owner by default), or a manager's one-time.
-  /// `approval_token` for orders.transfer (POST /pos/approvals; 403 `approval_required`). The waiter rule is not.
+  /// `same_waiter`). Needs orders.transfer (a manager or the owner by default; it is enough on its own, without.
+  /// orders.manage), or orders.manage with a manager's one-time `approval_token` for orders.transfer (POST.
+  /// /pos/approvals; 403 `approval_required`). The waiter rule is not.
   /// asked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the.
   /// new waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already.
   /// paid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new.

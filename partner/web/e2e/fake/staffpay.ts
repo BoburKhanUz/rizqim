@@ -27,6 +27,7 @@ interface Line {
   components: Array<Record<string, unknown>>
   gross: string
   advances: string
+  tips_paid: string
   adjustment: string
   adjustment_reason: string | null
   payable: string
@@ -112,6 +113,7 @@ export class FakeStaffPay {
             components: [{ type: 'shift_rate', label: LABELS.shift_rate, rule_uuid: rule.uuid, days: 30, quantity: '2', rate: money(rate), base: null, amount: money(rate * 2), detail: `2 smena × ${rate} so'm` }],
             gross: money(rate * 2),
             advances: '50000.00',
+            tips_paid: '0.00',
             adjustment: previous?.adjustment ?? '0.00',
             adjustment_reason: previous?.adjustment_reason ?? null,
             payable: money(rate * 2 - 50000 + Number(previous?.adjustment ?? 0)),
@@ -250,7 +252,7 @@ export class FakeStaffPay {
       if (line && req.method === 'PUT') {
         line.adjustment = money(Number(body?.adjustment ?? 0))
         line.adjustment_reason = (body?.reason as string | null) ?? null
-        line.payable = money(Number(line.gross) - Number(line.advances) + Number(line.adjustment))
+        line.payable = money(Number(line.gross) - Number(line.advances) - Number(line.tips_paid) + Number(line.adjustment))
         this.totals(statement)
         return ok(this.detail(statement))
       }

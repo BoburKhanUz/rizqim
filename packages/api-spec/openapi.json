@@ -58595,7 +58595,7 @@
         "/v1/owner/pos/tips/distributions": {
             "get": {
                 "operationId": "tips.distributions",
-                "description": "The branch's pool splits of business days `from`..`to`, each with its rule, pool, lines (person, role, basis —\n1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status.",
+                "description": "The branch's pool splits of business days `from`..`to`, each with its rule, pool, lines (person, role, basis —\n1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status. `pool_period`: the branch's\nperiod now (day: one split per business day; shift: one per shift, computed with `shift_uuid`).",
                 "summary": "The pool splits",
                 "tags": [
                     "Owner: tips"
@@ -58643,6 +58643,9 @@
                                         "data": {
                                             "type": "object",
                                             "properties": {
+                                                "pool_period": {
+                                                    "type": "string"
+                                                },
                                                 "distributions": {
                                                     "type": "array",
                                                     "items": {
@@ -58788,6 +58791,7 @@
                                                 }
                                             },
                                             "required": [
+                                                "pool_period",
                                                 "distributions"
                                             ]
                                         }
@@ -58808,7 +58812,7 @@
             },
             "post": {
                 "operationId": "tips.compute",
-                "description": "Splits the pool tips of `business_date` (or of the shift `shift_uuid`) by the branch's rule among the people of\nits roles who worked then (clock-in sessions, the till shifts they opened, else the orders they served), or\namong `participants` ([{staff_id, minutes?}], the manager's own list). Stored; computing again replaces it\nuntil it is closed (409 `tips_distribution_closed`). Every basis 0: split equally. Shares are whole so'm: the\nso'm left over go to the largest remainders, any tiyin to the largest share — the lines add up to the pool.\ntips.manage. Audited (pos.tips_distribution_computed).",
+                "description": "Splits the pool tips of `business_date` (or of the shift `shift_uuid`) by the branch's rule among the people of\nits roles who worked then (clock-in sessions, the till shifts they opened, else the orders they served), or\namong `participants` ([{staff_id, minutes?}], the manager's own list: people of the branch whose role is one of\nthe pool's `roles` — else 422 `staff_not_in_pool` / `staff_not_found` — and never the caller unless the owner:\n403 `tips_pool_self`). The branch's `pool_period` decides the period: `day` refuses `shift_uuid` (422\n`tips_pool_period_day`), `shift` requires it (422 `tips_pool_period_shift`, pick a shift of the day); a day split\nand shift splits of one date never both exist (409 `tips_pool_period_conflict`). Stored; computing again\nreplaces it until it is closed (409 `tips_distribution_closed`); two first computes at once: 409\n`tips_distribution_busy` for the second (try again). Every basis 0: split equally. Shares are whole so'm: the\nso'm left over go to the largest remainders, any tiyin to the largest share — the lines add up to the pool.\nStaff pay counts a split once it is closed. tips.manage. Audited (pos.tips_distribution_computed, with the\npeople and their shares).",
                 "summary": "Compute the pool split",
                 "tags": [
                     "Owner: tips"
@@ -59041,7 +59045,7 @@
         "/v1/owner/pos/tips/distributions/{uuid}/close": {
             "post": {
                 "operationId": "tips.close",
-                "description": "Freezes the split: no more recomputing and no more corrections of the tips it covers. The pool changed since\nit was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); already\nclosed: 409 `tips_distribution_closed`. tips.manage. Audited (pos.tips_distribution_closed).",
+                "description": "Freezes the split: no more recomputing and no more corrections of the tips it covers. The pool changed since\nit was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); a pool nobody\ntakes (no people in the split): 409 `tips_distribution_unassigned`; already closed: 409\n`tips_distribution_closed`. From then on the pay statements count its shares. tips.manage. Audited\n(pos.tips_distribution_closed).",
                 "summary": "Close the pool split",
                 "tags": [
                     "Owner: tips"
@@ -66369,6 +66373,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -66419,6 +66426,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -66774,6 +66782,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -66824,6 +66835,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -67225,6 +67237,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -67275,6 +67290,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -67659,6 +67675,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -67709,6 +67728,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -68112,6 +68132,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -68162,6 +68185,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -68527,6 +68551,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -68577,6 +68604,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -68947,6 +68975,9 @@
                                                             "advances": {
                                                                 "type": "string"
                                                             },
+                                                            "tips_paid": {
+                                                                "type": "string"
+                                                            },
                                                             "adjustment": {
                                                                 "type": "string"
                                                             },
@@ -68997,6 +69028,7 @@
                                                             "components",
                                                             "gross",
                                                             "advances",
+                                                            "tips_paid",
                                                             "adjustment",
                                                             "adjustment_reason",
                                                             "payable",
@@ -73524,7 +73556,7 @@
         "/v1/pos/bills/{uuid}/payments": {
             "post": {
                 "operationId": "posBill.pay",
-                "description": "One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional\n`tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:\n`card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are\nrequired; P6-16: in \"faqat terminal\" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's\nlast four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the\nreceipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once\nper bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;\nonce per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).\nThe money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is\ncovered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the\norder is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may\ncarry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,\n`tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to\n(personal mode; else the order's waiter). Tips are never on the receipt nor part of the bill (`tips_amount`\non the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,\n`tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill\n\"fiskal kutmoqda\" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422\n`mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.",
+                "description": "One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional\n`tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:\n`card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are\nrequired; P6-16: in \"faqat terminal\" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's\nlast four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the\nreceipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once\nper bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;\nonce per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).\nThe money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is\ncovered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the\norder is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may\ncarry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,\n`tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to\n(personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip\nroles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's\n`tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is\ntaken. Tips are never on the receipt nor part of the bill (`tips_amount`\non the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,\n`tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill\n\"fiskal kutmoqda\" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422\n`mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.",
                 "summary": "Take payment for a bill",
                 "tags": [
                     "POS: billing"
@@ -73649,6 +73681,13 @@
                                         ],
                                         "minimum": 1,
                                         "maximum": 1.0e+18
+                                    },
+                                    "tip_approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 100
                                     },
                                     "approval_token": {
                                         "type": [
@@ -79708,7 +79747,7 @@
         "/v1/pos/bookings/{uuid}/deposits": {
             "post": {
                 "operationId": "booking.takeDeposit",
-                "description": "`amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt\n(`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same\ndeposit and never a second receipt. A requested booking becomes confirmed.",
+                "description": "`amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt\n(`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same\ndeposit and never a second receipt. A requested booking becomes confirmed. A deposit is a payment: it needs\npos.take_payment, or a manager's one-time `approval_token` for it (POST /pos/approvals; the hostess desk). A cash\ndeposit goes into a drawer: it is taken on a terminal with an open shift in the booking's branch (its X/Z counts\nit), else 409 `deposit_needs_shift` (\"Bo'nakni kassada oling\"); card and QR need no shift.",
                 "summary": "Take a deposit",
                 "tags": [
                     "POS: bookings"
@@ -79763,6 +79802,13 @@
                                             "null"
                                         ],
                                         "maxLength": 100
+                                    },
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
                                     }
                                 },
                                 "required": [
@@ -85369,13 +85415,20 @@
                                                         },
                                                         "pool_period": {
                                                             "type": "string"
+                                                        },
+                                                        "roles": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
                                                         }
                                                     },
                                                     "required": [
                                                         "enabled",
                                                         "mode",
                                                         "pool_rule",
-                                                        "pool_period"
+                                                        "pool_period",
+                                                        "roles"
                                                     ]
                                                 },
                                                 "entitlements": {
@@ -113946,7 +113999,7 @@
         "/v1/pos/orders/{uuid}/transfer": {
             "post": {
                 "operationId": "posOrderHandover.transfer",
-                "description": "The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422\n`same_waiter`). Needs orders.transfer (a manager or the owner by default), or a manager's one-time\n`approval_token` for orders.transfer (POST /pos/approvals; 403 `approval_required`). The waiter rule is not\nasked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the\nnew waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already\npaid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new\nwaiter. The waiter_transfer module (403 `module_disabled`).",
+                "description": "The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422\n`same_waiter`). Needs orders.transfer (a manager or the owner by default; it is enough on its own, without\norders.manage), or orders.manage with a manager's one-time `approval_token` for orders.transfer (POST\n/pos/approvals; 403 `approval_required`). The waiter rule is not\nasked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the\nnew waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already\npaid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new\nwaiter. The waiter_transfer module (403 `module_disabled`).",
                 "summary": "Hand the table to another waiter",
                 "tags": [
                     "POS: orders"
@@ -123673,7 +123726,7 @@
         "/v1/pos/tips": {
             "get": {
                 "operationId": "posTips.index",
-                "description": "The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),\nwith the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or\nreports.view (a waiter) sees only the tips that go to them. Needs orders.view.",
+                "description": "The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),\nwith the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or\nreports.view (a waiter) sees only the tips that go to them, and of each only their own share: `amount` and\n`original_amount` are their share, `staff` themselves, `holders` and `corrections` only theirs (without who\nmade them), `recorded_by` null. Needs orders.view.",
                 "summary": "The tips of a shift",
                 "tags": [
                     "POS: tips"

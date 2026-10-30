@@ -75,6 +75,12 @@ Kassir to'lovda choy pulini yozadi; kimga ekani ko'rsatiladi (boshida — buyurt
 emas: har ofitsiantning choy puli **Hisobot** da o'z qatorida. Xodim tanlanmasa, choy puli **biriktirilmagan** bo'lib qoladi
 (**Hech kimga berilmagan** deb ko'rinadi): menejer **Tuzatish** bilan xodimga beradi.
 
+**Kimga yozish mumkin.** Faqat filialning choy puli rollaridagi xodimga (**Qatnashadigan rollar**, standart — ofitsiantlar). Choy pulini
+buyurtmaning ofitsiantidan **boshqa** xodimga yozish uchun menejer PIN'i (yoki **Choy pulini tuzatish va umumiy qozonni bo'lish**
+huquqi) kerak: kassa PIN so'raydi. Ruxsatsiz yoki noto'g'ri xodim bo'lsa, to'lov **olinishidan oldin** aniq xabar bilan rad etiladi
+(pul olinmaydi, choy puli ham yozilmaydi). Internetsiz olingan to'lov esa hech qachon rad etilmaydi: ruxsatsiz yoki noto'g'ri xodim
+tanlangan bo'lsa, choy puli buyurtmaning ofitsiantiga yoziladi.
+
 ### 2.3. Umumiy qozon: bo'lish qoidalari
 
 Qozonda **kimlar** ulush oladi: tanlangan rollardan davrda **ishlaganlar**. Ishlaganni shunday aniqlaydi:
@@ -133,13 +139,29 @@ Yig'indi: 222 223 + 2 × 222 222 + 3 × 111 111 = 1 000 000.
 
 Qozon o'zi bo'linmaydi: siz yoki menejer bo'lasiz.
 
-1. **Qozonni bo'lish** bo'limi → **Biznes kun** ni tanlang.
+1. **Qozonni bo'lish** bo'limi → **Biznes kun** ni tanlang. **Davr** (2.1) **Smena** bo'lsa, yoniga **Smena** tanlovi chiqadi
+   ("Smenani tanlang"): kunning **yopilgan** smenalaridan birini tanlaysiz (yo'q bo'lsa "Bu kunda yopilgan smena yo'q") va har smena
+   alohida bo'linadi; smena tanlanmaguncha **Qozonni bo'lish** tugmasi o'chiq turadi.
 2. **Qozonni bo'lish** ni bosing. Jadvalda har xodimning **Asos** (soat, savdo yoki ulush) va ulushi chiqadi. Yig'indi qozonga teng.
 3. Xato bo'lsa (ish vaqti unutilgan, yangi choy puli tuzatilgan), **Qayta hisoblash** — yopilguncha istalgancha.
 4. To'g'ri bo'lsa **Yopish**. "Yopilgandan keyin qayta hisoblanmaydi va shu kunning choy pulini tuzatib bo'lmaydi."
 
 Qozon hisoblangandan keyin o'zgargan bo'lsa (masalan, choy puli tuzatilgan), yopish rad etiladi: avval **Qayta hisoblash**. Bu kun uchun
 ishlagan odam topilmasa, "bu davrda ishlagan xodim topilmadi" deydi va qozon hech kimga bo'linmaydi: ish vaqtini tuzating (6-bo'lim).
+Qozonda pul bor-u, ulushlar yig'indisi qozonga teng bo'lmasa (masalan, hech kim qatnashmagan), yopish rad etiladi (409): xodimlarni
+tuzatib, qayta hisoblang.
+
+Eslab qoling:
+
+- **Davr qoidasi qat'iy.** **Biznes kun** davrida qozon butun kun uchun bitta bo'linadi (smena tanlanmaydi). **Smena** davrida har
+  smena alohida bo'linadi, butun kunni bitta qilib bo'lib bo'lmaydi. Kunning qozoni bilan o'sha kunning smena qozoni birga
+  bo'lmaydi (aks holda choy puli ikki marta sanalardi): ilova ikkinchisini rad etadi.
+- **Ishtirokchilar** faqat shu filialning **Qatnashadigan rollar** dagi xodimlari bo'ladi (qo'lda ro'yxat berilganda ham; ega bo'lmagan bo'luvchi bunday ro'yxatga
+  o'zini qo'sha olmaydi). Ro'yxat va ulushlar harakatlar jurnaliga yoziladi.
+- **Ish haqiga qozon ulushi yopilgandan keyin kiradi.** Ish haqi hisob-kitobidagi **Choy pulini qo'shish** qismi qozon ulushini faqat
+  qozon **yopilgan** bo'lsa hisoblaydi; qoralama bo'linish hisobga kirmaydi. Hisob-kitob tuzishdan oldin davrdagi qozonlarni yoping.
+- Ikki menejer bir vaqtda birinchi marta hisoblasa, ikkinchisi xato (500) emas, "band" (409) javobini oladi: sahifani yangilab,
+  **Qayta hisoblash** ni bosing.
 
 ### 2.5. Hisobot va tuzatish
 
@@ -154,7 +176,9 @@ belgisi). Choy puli tushum emasligini sahifaning o'zi eslatadi.
    bo'yicha yig'indilar doim aniq.
 3. Qozoni **yopilgan** kunning choy pulini tuzatib bo'lmaydi.
 
-Naqd choy puli tuzatilsa, kassadagi kutilgan naqd ham o'zgaradi.
+**Tuzatish qoidalari.** Tuzatilgan jami summa **0 dan asl summagacha** bo'ladi (oshirib bo'lmaydi: choy puli mehmon bergan puldan ko'p
+bo'lmaydi; kamaytirsangiz yoki boshqa xodimga bersangiz bo'ladi). Tuzatish **kassadagi naqdga tegmaydi**: kassadagi kutilgan naqdga
+faqat to'lovda olingan naqd choy puli kiradi.
 
 ## 3. Ish haqi qoidalari
 
@@ -231,28 +255,37 @@ foiz 2 400 000. **Garant yoki foiz**: max(3 000 000; 2 400 000) = **3 000 000**;
 
 **Choy pulini qo'shish.** Odatda choy puli xodimniki — kassadan alohida beriladi, ish haqiga kirmaydi. Agar siz choy pulini **ish haqi
 ichida** hisoblasangiz (ofitsiantga kassadan choy pulini alohida bermaysiz, hammasini davr oxirida to'laysiz), qoidaga **Choy pulini qo'shish**
-qismini qo'shing. Ikki marta bermaslik uchun ehtiyot bo'ling: choy pulini ham kassadan bergan bo'lsangiz, bu qismni qo'shmang.
+qismini qo'shing. Kassadan (smena ekranidagi **Choy pulini berish** bilan) berilgan choy puli bu holda ish haqidan **ayriladi**:
+hisob-kitob qatorida alohida summa (**Choy puli kassadan berilgan**, ma'lumotda `tips_paid`) bo'lib saqlanadi va **To'lanadi** dan
+ayriladi, shuning uchun xodim ikki marta olmaydi (panel jadvalida hozircha alohida ustun yo'q: **To'lanadi** "Hisoblangan − Avans + Tuzatish"
+dan kam ko'rinsa, farq shu). Qoidada
+**Choy pulini qo'shish** qismi **yo'q** bo'lsa, kassadan berilgan choy puli ish haqi emas (u mehmonning xodimga bergani) va
+hisob-kitobdan **ayrilmaydi**.
 
 ### Stol boshqa ofitsiantga o'tsa, sotuv kimga
 
 Ofitsiant stolni boshqasiga berishi mumkin ([restoran.md](restoran.md#4-stolni-boshqa-ofitsiantga-berish)). **Ish haqidagi sotuv** kimniki
 bo'lishini siz tanlaysiz — **Hisob davri va sotuv** blokida **Stol boshqa ofitsiantga o'tsa, sotuv**:
 
-- **To'lov paytidagi ofitsiantniki** (standart; choy puli kabi). Schyot to'langan paytda buyurtmaning ofitsianti schyotga yoziladi.
+- **To'lov paytidagi ofitsiant** (standart; choy puli kabi). Schyot to'langan paytda buyurtmaning ofitsianti schyotga yoziladi.
   O'tkazishdan **oldin** to'langan schyotlar birinchi ofitsiantda qoladi, keyingilari yangisida.
-- **Stolning oxirgi ofitsiantiniki** — buyurtmaning **hamma** schyoti, o'tkazishdan oldin to'langanlari ham, stolni oxirgi olgan ofitsiantga.
+- **Stolning oxirgi ofitsianti** — buyurtmaning **hamma** schyoti, o'tkazishdan oldin to'langanlari ham, stolni oxirgi olgan ofitsiantga.
+
+Bu sozlama X va Z hisobotdagi **Ofitsiantlar** bo'limiga ham amal qiladi: ofitsiantning smenadagi sotuvi ish haqidagi sotuv bilan bir xil
+qoida bo'yicha yoziladi, shuning uchun kassadagi hisobot va ish haqi hisob-kitobi bir-biriga mos keladi.
 
 **Misol.** Aziz stolni ochdi. Birinchi schyot (400 000 so'm) soat 20:00 da to'landi. 20:30 da stol Botirga berildi. Ikkinchi schyot
 (600 000 so'm) 21:30 da to'landi.
 
 | Sozlama | Aziz sotuvi | Botir sotuvi |
 |---|---|---|
-| **To'lov paytidagi ofitsiantniki** | 400 000 | 600 000 |
-| **Stolning oxirgi ofitsiantiniki** | 0 | 1 000 000 |
+| **To'lov paytidagi ofitsiant** | 400 000 | 600 000 |
+| **Stolning oxirgi ofitsianti** | 0 | 1 000 000 |
 
 Qaytarish **qaytarilgan schyot kimga yozilgan bo'lsa, o'shandan** ayriladi. Sozlamani o'zgartirsangiz, **qoralama** hisob-kitob keyingi
 hisoblashda yangisini oladi; **yopilgan** hisob-kitob o'zgarmaydi. Choy puli qozonining "savdosiga qarab" qoidasi ham shu sozlamaga amal qiladi.
-Shaxsiy choy puli esa to'lov paytida kassir tanlagan (yoki buyurtmaning o'sha paytdagi) ofitsiantga yoziladi.
+Shaxsiy choy puli esa to'lov paytida kassir tanlagan (yoki buyurtmaning o'sha paytdagi) ofitsiantga yoziladi. Internetsiz olingan
+to'lovda schyot va standart choy puli kassa to'lov paytida ko'rgan ofitsiantga yoziladi (serverga yetgan paytdagi emas).
 
 ## 4. Hisob-kitob (davr oxirida)
 
@@ -274,8 +307,12 @@ Shaxsiy choy puli esa to'lov paytida kassir tanlagan (yoki buyurtmaning o'sha pa
 ### Tuzatish: jarima va mukofot
 
 Qatorda **Tuzatish**: jarima uchun manfiy (−50 000), mukofot uchun musbat summa va sabab. U **Qayta hisoblash** da ham saqlanadi.
-To'lanadi = hisoblangan − avans + tuzatish. **Avans** — shu davrda kassadan xodimga berilgan "Avans" va "Kunlik ish haqi" chiqimlari
-(to'lanadigan summadan ayriladi). **Mukofot** chiqimi ayrilmaydi; hisob-kitob to'lovi (kategoriya **payroll**) ham avans emas.
+To'lanadi = hisoblangan − avans − kassadan berilgan choy puli + tuzatish. **Avans** — shu davrda kassadan xodimga berilgan "Avans" va
+"Kunlik ish haqi" chiqimlari (to'lanadigan summadan ayriladi). **Mukofot** chiqimi ayrilmaydi. **Choy puli kassadan berilgan** faqat
+qoidada **Choy pulini qo'shish** qismi bo'lsa ayriladi (3.3 va 5-bo'lim).
+
+Hisob-kitob to'lovi (kategoriya **payroll**, "Ish haqi (hisob-kitob)") avans emas: uni kassada qo'lda yozib bo'lmaydi (ilova rad etadi),
+faqat **To'lash** (5-bo'lim) yozadi. Hisob-kitob qatoriga bog'lanmagan eski **payroll** chiqim bo'lsa, u **avans** sifatida ayriladi.
 
 ### Holatlar
 
@@ -312,10 +349,32 @@ Naqd choy puli **kassada turadi** (kutilgan naqdga qo'shiladi). Uni ofitsiantga:
 - **shaxsiy** rejimda — smena oxirida, har ofitsiantning **Hisobot** dagi o'z summasi bo'yicha;
 - **umumiy qozon** rejimida — qozon bo'lingach, har xodimning ulushi bo'yicha.
 
-Kassir buni smena ekranida kassadan chiqim sifatida yozadi: **Ish haqi** turi, kategoriya **Choy puli** ("Choy pulini berish"), **Kimga** —
-xodim. Buning uchun menejer huquqi yoki menejer PIN'i kerak. Bu chiqim X va Z da ish haqi qatoriga **kirmaydi**: u alohida qatorda turadi. Karta va QR choy puli kassaga naqd tushmaydi: uni siz ofitsiantga boshqa yo'l bilan (o'tkazma) berasiz.
+Kassir buni kassa ilovasida **Smena** ekranidagi **Choy pulini berish** tugmasi bilan qiladi (tugma **Choy puli** moduli yoqilgan va
+kassada naqd choy puli bor bo'lsa ko'rinadi, berilmagan qoldiq bo'lmasa o'chiq turadi; internetsiz rejimda ishlamaydi, kirim-chiqim kabi):
 
-<!-- TEKSHIRILMAGAN: kassadagi "Choy pulini berish" tugmasi/oynasi va X/Z dagi alohida qator nomi (K2: shift ekrani, shift_report_mapping.dart) — kod hali yozilmoqda; backendda cash movement kategoriyasi `tips` va `cash.tip_payouts` bor -->
+1. Tugmani bosing. **Choy pulini boshqarish** huquqi (**Choy pulini tuzatish va umumiy qozonni bo'lish**, menejer standart) bo'lmasa,
+   ilova **menejer PIN'ini** so'raydi: menejer ismini tanlab o'z PIN'ini teradi. Tasdiq bir marta ishlaydi.
+2. Oynada tepada: **Kassadagi naqd choy puli**, **Oldin berilgan** va **Berilmagan** (hali berilmagan qoldiq).
+3. **Kimga** — xodimni tanlang (ro'yxatda choy puli bo'lganlar summasi bilan birinchi turadi). **Summa** o'zi to'ldiriladi, **Izoh** ixtiyoriy.
+4. **Berish**. Kassa qutisi ochiladi, "Choy puli berildi" xabari chiqadi.
+
+Qoidalar (server tekshiradi):
+
+- Berilgan summa smenadagi **naqd choy pulidan, undan oldin berilganini ayirib**, ortiq bo'lmaydi (aks holda "Bu smenada buncha naqd
+  choy puli yo'q" deydi va berish mumkin bo'lgan summani aytadi).
+- Xodimga shu biznes kun uchun **unga tegishli** naqd choy pulidan ortiq berib bo'lmaydi. Tegishli summa = uning shaxsiy naqd choy puli
+  (tuzatishlar bilan) + shu kunning **yopilgan** qozon bo'linishidagi ulushi − shu kuni kassalardan unga allaqachon berilgani. Qozon hali
+  yopilmagan bo'lsa, ulush hali tegishli emas. Kassadan berilmagan qozon ulushi ish haqi hisob-kitobi bilan to'lanadi.
+- Huquq yoki menejer PIN'ini server ham tekshiradi (tasdiq bir martalik): faqat ilova so'ragani yetmaydi.
+
+Bu chiqim yozuvda **Ish haqi** turi, kategoriya **Choy puli**. X va Z da u **Ish haqi** qatoriga **kirmaydi**: **Kassa (naqd)** bo'limida alohida
+**Choy puli berildi** qatorida (minus bilan) turadi, **Choy puli (naqd)** qatori esa kirim tomonida. Tepada alohida **Choy puli (tushum
+emas)** bo'limi: **Jami**, to'lov usullari, **Shaxsiy**, **Umumiy qozon**, xodimlar, **Tuzatishlar** va **Xodimlarga berildi**. Karta va QR
+choy puli kassaga naqd tushmaydi: uni siz ofitsiantga boshqa yo'l bilan (o'tkazma) berasiz.
+
+**Ish haqiga ta'siri.** Kassadan berilgan choy puli, qoidada **Choy pulini qo'shish** qismi bo'lsa, hisob-kitobda xodimning
+to'lanadigan summasidan **ayriladi** (alohida summa **Choy puli kassadan berilgan**); qismi bo'lmasa, ayrilmaydi (3.3).
+
 
 ## 6. Ish vaqti
 
@@ -362,6 +421,7 @@ Modul o'chirilsa, qoidalar qo'llanmaydi (qatorning o'z foizi ishlaydi), saqlanga
 | Choy puli hisoboti | **Hisobotlar** huquqi (ega, menejer) |
 | Choy puli sozlamasi, xizmat haqi qoidalari | **Do'kon sozlamalari** huquqi (ega) |
 | Choy pulini tuzatish, qozonni bo'lish va yopish | **Choy pulini tuzatish va umumiy qozonni bo'lish** huquqi (menejer standart, ega); kassada menejer PIN'i bilan |
+| Kassadan choy pulini berish; choy pulini buyurtma ofitsiantidan boshqa xodimga yozish | Xuddi shu huquq, yoki kassada **menejer PIN'i** (bir martalik tasdiq) |
 | Ish haqi qoidalari, ish vaqti va hisob-kitobni **ko'rish** | **Ish haqi hisob-kitobini ko'rish** (ega, menejer) |
 | Qoidalar, davr, ish vaqtini tuzatish, hisob-kitob va to'lash | **Ish haqi qoidalari va hisob-kitob** (ega; boshqa rolga berish mumkin) |
 | O'z choy pulini ko'rish | Ofitsiant ilovasida **Mening choy pulim** (faqat o'ziniki) |
@@ -378,10 +438,14 @@ puli bo'yicha har o'zgarish harakatlar jurnaliga yoziladi.
 | **Hech kimga berilmagan** choy puli bor | Shaxsiy rejimda kassir xodim tanlamagan. **Tuzatish** bilan xodimga bering |
 | Qozon "Bu davrda ishlagan xodim topilmadi" | Ish vaqti belgilanmagan va smena ochilmagan. **Ish haqi → Ish vaqti** da qo'shing, keyin **Qayta hisoblash** |
 | Qozonni yopib bo'lmayapti | Hisoblangandan keyin choy puli o'zgargan. **Qayta hisoblash**, keyin **Yopish** |
-| Choy pulini tuzatib bo'lmayapti | Shu kunning qozoni yopilgan: yopilgan kunning choy pulini tuzatib bo'lmaydi |
+| Choy pulini tuzatib bo'lmayapti | Shu kunning qozoni yopilgan (yopilgan kunning choy pulini tuzatib bo'lmaydi) yoki yangi jami 0 dan asl summagacha oraliqdan chiqyapti |
+| **Choy pulini berish** tugmasi o'chiq yoki "berib bo'lmaydi" deydi | Kassada berilmagan naqd choy puli qolmagan, xodimga shu kun uchun shuncha naqd choy puli tegishli emas (qozon ulushi qozon yopilgach tegishli bo'ladi) yoki internet yo'q. Karta va QR choy pulini kassadan berib bo'lmaydi |
+| Kassir choy pulini boshqa xodimga yozolmayapti | Buyurtmaning ofitsiantidan boshqasiga yozish uchun menejer PIN'i kerak, xodim esa choy puli rollaridan bo'lishi kerak (2.2) |
+| Qozon ulushi ish haqida ko'rinmayapti | Qozon hali yopilmagan: yopilgan bo'linishgina ish haqiga kiradi. Qozonni yoping, hisob-kitobni **Qayta hisoblash** |
+| Hisob-kitobdan "choy puli kassadan berilgan" ayrildi, kerak emas edi | Qoidada **Choy pulini qo'shish** qismi bor. Qismi bo'lmasa, kassadan berilgan choy puli ayrilmaydi |
 | Hisob-kitobda "qoidasi yo'q" ogohlantirishi | **Ish haqi qoidalari** da shu xodim yoki roli uchun qoida qo'shing; kuchga kirish sanasi davr boshidan oldin bo'lsin; **Qayta hisoblash** |
 | Hisob-kitobda "ish vaqti yopilmagan" | **Ish vaqti** bo'limida ketgan vaqtni kiriting (sabab bilan) |
-| To'lanadigan summa kutilgandan kam | **Avans** ayrilgan bo'lishi mumkin (kassadan berilgan avans va kunlik ish haqi). Qatorni ochib qismlarni ko'ring |
+| To'lanadigan summa kutilgandan kam | **Avans** ayrilgan bo'lishi mumkin (kassadan berilgan avans va kunlik ish haqi), yoki qoidada **Choy pulini qo'shish** qismi bo'lib, kassadan choy puli berilgan. Qatorni ochib qismlarni ko'ring |
 | Ofitsiant "sotuvim kam" deydi | Stol o'tkazilgan bo'lishi mumkin: **Stol boshqa ofitsiantga o'tsa, sotuv** sozlamasini tekshiring (3.3) |
 | "Kassadan to'lash" ishlamayapti: "ochiq smena yo'q" | Filialda smenani oching. Kassadagi naqddan ko'p to'lab bo'lmaydi |
 | Yopilgan hisob-kitobni o'zgartirmoqchiman | Hech bir qatori to'lanmagan bo'lsa **Qayta ochish** (sabab bilan), tuzating, qayta **Yopish**. To'langan qatorli hisob-kitob qayta ochilmaydi |

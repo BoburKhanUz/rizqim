@@ -184,8 +184,11 @@ final class ServiceChargeRules
      * The notice printed on the bill and shown before ordering: the owner's text when set, else worked out from the
      * row and these rules ("Xizmat haqi 15%. 8 va undan ko'p mehmonli stolga 18%. Kuver: 5 000 so'm har bir mehmon
      * uchun."); null when nothing is charged (and always for a stolovaya, which charges none).
+     *
+     * `$withRules`: the branch's `service_charge_rules` module is on. Off, only the owner's own text is a notice: a
+     * branch without the rules (choyxona, osh markazi) prints no notice line, as before P6-22 (review C8).
      */
-    public function notice(?ServiceFeeSetting $settings, bool $locked): ?string
+    public function notice(?ServiceFeeSetting $settings, bool $locked, bool $withRules = true): ?string
     {
         if ($settings === null) {
             return null;
@@ -193,6 +196,9 @@ final class ServiceChargeRules
         $own = trim((string) $settings->getAttribute('service_charge_notice'));
         if ($own !== '') {
             return $own;
+        }
+        if (!$withRules) {
+            return null;
         }
         if ($locked) {
             return $this->coverAmount !== null ? self::coverSentence($this->coverAmount) : null;
@@ -231,7 +237,8 @@ final class ServiceChargeRules
 
     /**
      * The notice of the rules in force for a POS order (its hall's row, else the branch's or the store's; the rules
-     * only with the branch's module); null for any other order.
+     * and the worked-out notice only with the branch's module, else only the owner's own text); null for any other
+     * order.
      */
     public static function noticeFor(Order $order): ?string
     {
@@ -244,9 +251,10 @@ final class ServiceChargeRules
         }
         $modules = app(PosModules::class);
         $settings = app(DiningFeeCalculator::class)->settingsForHall((int) $order->store_id, (int) $branch->id, $order->hall_id);
-        $rules = $modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES) ? self::of($settings) : new self();
+        $withRules = $modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES);
+        $rules = $withRules ? self::of($settings) : new self();
 
-        return $rules->notice($settings, $modules->serviceChargeLocked((int) $branch->id));
+        return $rules->notice($settings, $modules->serviceChargeLocked((int) $branch->id), $withRules);
     }
 
     private static function coverSentence(string $amount): string

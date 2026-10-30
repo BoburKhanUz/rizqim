@@ -5,6 +5,7 @@ import { setSession } from '@/lib/session/client';
 import { json, mockFetch, renderPage } from '@/test/helpers';
 import { makeBranch } from '../management/testSupport';
 import { ok, ownerAnswer, signIn } from '../pos/testSupport';
+import { todayIso } from '../staffpay/describe';
 import { TipsView } from './TipsView';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
@@ -191,6 +192,29 @@ describe('Choy puli', () => {
     const confirm = await screen.findByRole('alertdialog');
     await typing.click(within(confirm).getByRole('button', { name: 'Yopish' }));
     expect(await screen.findByText("Bo'linish yopildi.")).toBeInTheDocument();
+  });
+
+  it('splits the pool per closed shift of the day when the period is a shift', async () => {
+    const day = todayIso();
+    const shift = { uuid: '33333333-3333-4333-8333-333333333333', status: 'closed', branch_id: 1, device: { uuid: 'd1', name: 'Kassa 1' }, business_date: day, opened_at: `${day}T04:00:00+00:00`, opened_by: null, closed_at: `${day}T12:00:00+00:00`, z_number: 4 };
+    const perShift = { ...distribution, business_date: day, shift_uuid: shift.uuid };
+    const { calls, typing } = open({
+      'GET /api/v1/owner/pos/tips/distributions': () => ok({ pool_period: 'shift', distributions: [] }),
+      'GET /api/v1/pos/shifts': () => ok([shift]),
+      'POST /api/v1/owner/pos/tips/distributions': () => ok(perShift),
+    });
+    await typing.click(await screen.findByRole('tab', { name: "Qozonni bo'lish" }));
+    const pick = await screen.findByLabelText('Smena');
+    await waitFor(() => expect(pick).toBeEnabled());
+    expect(screen.getByRole('button', { name: "Qozonni bo'lish" })).toBeDisabled();
+    expect(screen.getByText(/kunning yopilgan smenasini tanlang/)).toBeInTheDocument();
+
+    await typing.selectOptions(pick, shift.uuid);
+    await typing.click(screen.getByRole('button', { name: "Qozonni bo'lish" }));
+    expect(await screen.findByText("Qozon bo'lindi.")).toBeInTheDocument();
+    expect(JSON.parse(await last(calls, 'POST').text())).toEqual({ branch_id: 1, business_date: day, shift_uuid: shift.uuid });
+    const shifts = calls.find((call) => call.method === 'GET' && new URL(call.url).pathname === '/api/v1/pos/shifts')!;
+    expect(Object.fromEntries(new URL(shifts.url).searchParams)).toMatchObject({ branch_id: '1', status: 'closed', from: day, to: day });
   });
 
   it('saves the pool settings with the roles taking part', async () => {

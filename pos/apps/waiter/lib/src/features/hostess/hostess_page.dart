@@ -1033,7 +1033,10 @@ class _BookingTile extends StatelessWidget {
                         ? _pill(
                             context,
                             Icons.warning_amber_rounded,
-                            "Bo'nak yetmaydi: ${d.missing.format()} (kerak ${d.required.format()})",
+                            // The desk takes no money: a deposit is a payment, and a cash one goes into a drawer
+                            // (backend 409 deposit_needs_shift), so the guest pays it at the till
+                            "Bo'nak yetmaydi: ${d.missing.format()} (kerak ${d.required.format()}). "
+                            "Bo'nak kassada olinadi",
                             c.warningSoft,
                             c.warningSoftFg,
                           )

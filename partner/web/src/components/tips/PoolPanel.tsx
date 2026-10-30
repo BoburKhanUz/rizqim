@@ -2,28 +2,40 @@
 
 import { useState } from 'react';
 import { Scale } from 'lucide-react';
-import { Button, Card, CardSkeletons, ConfirmDialog, EmptyState, formatDateTime, formatMoney, InlineError } from '@rizqim/ui';
+import { Button, Card, CardSkeletons, ConfirmDialog, EmptyState, formatDateTime, formatMoney, formatTime, InlineError } from '@rizqim/ui';
+import { useShifts } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { ErrorBanner, SuccessNote } from '../menu/ErrorBanner';
 import { describeError } from '../menu/serverError';
-import { DateField } from '../pos/fields';
+import { DateField, SelectField } from '../pos/fields';
 import { formatDay } from '../reports/format';
 import { DataTable, Pill, Td, Th } from '../reports/ui';
 import { formatMinutes, todayIso } from '../staffpay/describe';
 import type { Distribution } from './api';
 import { useCloseDistribution, useComputeDistribution, useDistributions } from './hooks';
 
-// "Qozonni bo'lish": the split of the branch's tip pool per business day (by the branch's rule: equal, by hours, by
-// sales or by role weights), computed by the server in whole so'm (the so'm left over to the largest remainders) and
-// recomputed until a manager closes it; a closed split freezes the day's tips.
+// "Qozonni bo'lish": the split of the branch's tip pool per business day or, when the branch's pool period is `shift`,
+// per closed shift of the day (by the branch's rule: equal, by hours, by sales or by role weights), computed by the
+// server in whole so'm (the so'm left over to the largest remainders) and recomputed until a manager closes it; a
+// closed split freezes the period's tips and only then counts in staff pay. The server refuses a split of the wrong
+// period; the panel offers only the right one.
 export function PoolPanel({ branchId, canManage }: { branchId: number; canManage: boolean }) {
   const { t, language } = useI18n();
   const [from, setFrom] = useState(() => todayIso(-6));
   const [to, setTo] = useState(() => todayIso());
   const [day, setDay] = useState(() => todayIso());
+  const [shiftUuid, setShiftUuid] = useState('');
   const [closing, setClosing] = useState<Distribution | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const distributions = useDistributions(from !== '' && to !== '' ? { branchId, from, to } : null);
+  const perShift = distributions.data?.pool_period === 'shift';
+  const shifts = useShifts({ branch_id: branchId, status: 'closed', from: day, to: day }, { enabled: canManage && perShift && day !== '' });
+  const dayShifts = (shifts.data ?? []).filter((shift) => shift.business_date === day);
+  const shiftChoice = dayShifts.some((shift) => shift.uuid === shiftUuid) ? shiftUuid : '';
+  const shiftName = (uuid: string | null) => {
+    const shift = uuid ? (shifts.data ?? []).find((candidate) => candidate.uuid === uuid) : undefined;
+    return shift ? `${shift.device?.name ?? t('tips_shift')} · ${formatTime(shift.opened_at)}–${shift.closed_at ? formatTime(shift.closed_at) : ''}` : t('tips_shift');
+  };
   const compute = useComputeDistribution({ onSuccess: () => setDone(t('tips_computed')) });
   const close = useCloseDistribution({
     onSuccess: () => {
@@ -38,10 +50,24 @@ export function PoolPanel({ branchId, canManage }: { branchId: number; canManage
       {canManage && (
         <Card className="flex flex-wrap items-end gap-4">
           <DateField label={t('tips_splitDay')} value={day} onChange={setDay} />
-          <Button loading={compute.isPending} disabled={day === ''} onClick={() => compute.mutate({ branchId, businessDate: day })}>
+          {perShift && (
+            <SelectField
+              label={t('tips_splitShift')}
+              value={shiftChoice}
+              onChange={setShiftUuid}
+              disabled={shifts.isPending || dayShifts.length === 0}
+              options={[{ value: '', label: shifts.isPending ? t('loading') : dayShifts.length === 0 ? t('tips_shiftNone') : t('tips_shiftPick') }, ...dayShifts.map((shift) => ({ value: shift.uuid, label: shiftName(shift.uuid) }))]}
+              className="min-w-56"
+            />
+          )}
+          <Button
+            loading={compute.isPending}
+            disabled={day === '' || (perShift && shiftChoice === '')}
+            onClick={() => compute.mutate({ branchId, businessDate: day, ...(perShift ? { shiftUuid: shiftChoice } : {}) })}
+          >
             {t('tips_compute')}
           </Button>
-          <p className="basis-full text-footnote text-fg-muted">{t('tips_computeHint')}</p>
+          <p className="basis-full text-footnote text-fg-muted">{t(perShift ? 'tips_computeHintShift' : 'tips_computeHint')}</p>
         </Card>
       )}
       {done && <SuccessNote>{done}</SuccessNote>}
@@ -63,7 +89,7 @@ export function PoolPanel({ branchId, canManage }: { branchId: number; canManage
               <div>
                 <h3 className="text-headline font-bold">
                   {formatDay(split.business_date, language)}
-                  {split.shift_uuid ? ` · ${t('tips_shift')}` : ''}
+                  {split.shift_uuid ? ` · ${shiftName(split.shift_uuid)}` : ''}
                 </h3>
                 <p className="text-footnote text-fg-muted">
                   {t('tips_splitLine', { pool: formatMoney(split.pool_amount, language), rule: t(`tips_rule_${split.rule}`), n: split.tips_count })}

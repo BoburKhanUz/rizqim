@@ -876,7 +876,12 @@ oldindan buyurtma qatorlari "ushlab turish" holatida, har biri o'z `due_at` vaqt
 ko'radi). Bronning avanslari shu buyurtmaga bog'lanadi va yopishda ayiriladi (`AdvanceLedger`, P3-18). Ikkinchi marta —
 409 `booking_already_arrived`, `data.order_uuid`. Javob: `{booking, order: {uuid, status}}`.
 
-**Avans (bo'nak).** `amount`, `tender` (`cash`, `card`, `qr`; P2P yo'q), `card_type`, `transaction_id`. Avans
+**Avans (bo'nak).** `amount`, `tender` (`cash`, `card`, `qr`; P2P yo'q), `card_type`, `transaction_id`,
+`approval_token`. Avans — to'lov: `pos.take_payment` kerak, bo'lmasa menejerning shu ruxsat uchun bir martalik
+`approval_token` i (`POST /pos/approvals`; masalan hostes ekrani), aks holda 403 `approval_required`. **Naqd** avans
+kassaga tushadi: faqat bron filialida smenasi ochiq terminalda olinadi (smenaning X/Z `deposits.taken.cash` va kutilgan
+naqdida), aks holda (smenasiz terminal, web panel yoki oddiy kirish) 409 `deposit_needs_shift` — "Bo'nakni kassada
+oling"; karta va QR avans smenasiz ham yoziladi. Avans
 yozilgach **bo'nak (ADVANCE) cheki** chiqariladi: bitta "avans" qatori (do'konning `deposit` xizmati MXIK'i, standart
 10202002004000001), to'lov shakli avans usuli bo'yicha. Javobda `payment.fiscal_receipt_uuid` va `fiscal_status`.
 Takroriy so'rov (bir xil `Idempotency-Key`) o'sha avansni qaytaradi, ikkinchi chek chiqmaydi. Fiskal sozlama xatosi
@@ -1274,7 +1279,8 @@ P3-35: **avans va nasiya qismlari ham qaytariladi** (`method`: `prepayment`, `ac
 - **OpenAPI (P3-26).** X va Z hisobot (`report`, smena tafsilotidagi `summary`) to'liq turlangan; `summary` smena ochiq
   bo'lsa `null`.
 - **X hisobot:** to'lov turlari (`by_tender`) va karta turlari (`cards`), kanallar (`by_channel`), ofitsiantlar
-  (`by_waiter`: tushum va xizmat haqi), chegirma, o'chirilgan taomlar, qaytarishlar, avans (olingan — shu terminalda;
+  (`by_waiter`: tushum va xizmat haqi; schyot va uning to'lovlari ish haqidagi kabi `sales_attribution` bo'yicha — standart
+  schyot to'langan paytdagi ofitsiantga, `current_waiter` da buyurtmaning hozirgi ofitsiantiga), chegirma, o'chirilgan taomlar, qaytarishlar, avans (olingan — shu terminalda;
   ayirilgan; qaytarilgan — shu smenada, `cash` qismi bilan), nasiya savdosi va qarz to'lovlari (musbat summa), kassa
   harakatlari va **kutilgan naqd** (boshlang'ich + naqd sotuv + kirim + naqd avans va qarz to'lovi − qaytarish − naqd
   avans qaytarish (`cash.deposit_refunds`) − chiqim, ish haqi, bozorlik). P3 integratsiya tuzatishi: qarz to'lovlari
@@ -3712,7 +3718,7 @@ buyurtma `version` i bilan, ofitsiant qoidasi (boshqa ofitsiantning buyurtmasi �
 |---|---|---|---|
 | `POST /pos/orders/{uuid}/courses/{n}/send {version, approval_token?}` | — (kursli buyurtma doim yuboradi) | `orders.manage` | "N-kursni yuborish" (n 1–9): ushlab turilgan qatorlar sexlarga; yuboriladigan yo'q — 422 `nothing_to_send` (`data.course_no`); kurs raqami noto'g'ri — 422 `course_invalid`. Audit `pos.course_sent`, hodisa `change: sent` |
 | `POST /pos/orders/{uuid}/items/{item}/weight {version, quantity, approval_token?}` | — (kutayotgan qator doim tortiladi) | `orders.manage`; qayta tortish — `orders.void_item` yoki menejer tasdig'i (403 `approval_required`) | haqiqiy og'irlik (kg/l, 3 kasrgacha, ≤ 999): narx va qoldiq shunga; `weight_status: weighed`, `weighed_by`, `weighed_at`. Oddiy qator — 422 `not_weighed_line`. Audit `pos.item_weighed` (avval/keyin `quantity`, `total_price`), hodisa `change: weighed` |
-| `POST /pos/orders/{uuid}/table-label {version, table_label\|null, approval_token?}` | `table_service` | `orders.manage` | kassa buyurtmasining stol tablichkasi raqami (20 belgigacha; `null`/bo'sh — olib tashlash). Audit `pos.table_label_set`, hodisa `change: table_label` |
+| `POST /pos/orders/{uuid}/table-label {version, table_label\|null, approval_token?}` | `table_service` | `orders.manage` | kassa buyurtmasining stol tablichkasi raqami (20 belgigacha; `null`/bo'sh — olib tashlash). Summalar qayta hisoblanadi (tablichka bilan buyurtma xizmat haqi qoidalarida `table_service`, tablichkasiz `takeaway`). Audit `pos.table_label_set`, hodisa `change: table_label` |
 | `PATCH /owner/products/{id}/pos-service {quick_multipliers?, wait_minutes?, weight_mode?}` | `skewer_buttons` (×N va vaqt), `weight_later` (`weight_mode`) — do'konning kamida bitta filialida; tozalash (`null`) doim | `menu.manage` | ×N tugmalari (2–10, har biri bir marta, 9 tagacha, tartiblanadi), mangal vaqti (0–240 daq), `weight_mode` `raw`\|`cooked` (faqat kg/l, qozonsiz taom — aks holda 422). Faqat yuborilgan maydon o'zgaradi. Javob `{product_id, quick_multipliers, wait_minutes, weight_mode}`. Audit `menu.product_pos_service_updated` |
 
 Mavjud endpointlarga qo'shimchalar:
@@ -3728,7 +3734,10 @@ Mavjud endpointlarga qo'shimchalar:
   409 `weight_pending` (`data.items[{id, name}]`). To'langan schyotning nusxasi bunga qaramaydi.
 - `GET /staff/kitchen/tickets`: chiptada `table_label`; POS qatorida `course_no`, `weight_status`, `wait_minutes`.
 - POS katalogi (`GET /pos/catalog`, `GET /catalog?channel=pos_*`): mahsulotda `quick_multipliers` (`list<int>|null`),
-  `wait_minutes`, `weight_mode`.
+  `wait_minutes`, `weight_mode` (faqat filialning `weight_later` moduli yoqiq bo'lsa, aks holda `null`; internetsiz kassa
+  ham qatorni faqat bootstrap modullarida `weight_later` bo'lsa "tortiladi" qiladi).
+- Kursning hali pishayotgan oxirgi qatori o'chirilsa (`POST /pos/orders/{uuid}/items/{item}/void`) va qolgan qatorlar
+  tayyor bo'lsa, `order.course_ready` bir marta keladi.
 - `POST /pos/sync`: `order.open` / `order.round` qatorlarida `course_no`, `awaiting_weight`; `order.open` da `table_label`;
   yangi amallar `order.course_send`, `order.weight` (yuqoridagi "Internetsiz rejim" jadvali). Kurs moduli o'chiq bo'lsa
   oflayn qatorning kursi tashlab yuboriladi (sotuv rad etilmaydi).
@@ -3752,27 +3761,38 @@ biznes kun `YYYY-MM-DD`.
 | `GET /owner/pos/tips?branch_id&from&to` | `reports.view` | hisobot (≤ 92 kun, standart bugun): `{totals, by_day[{business_date, amount, personal, pool, cash, card, qr, distributions[], undistributed}], by_staff[{staff_id, name, role, personal, pool_share, pool_share_closed, total}], undistributed, staff[]}` |
 | `GET /owner/pos/tips/entries?branch_id&from&to&staff_id` | `reports.view` | choy pullari (yangisi birinchi, 500 tagacha, `truncated`): har biri `{uuid, method, source, amount, original_amount, mode, staff, holders[], business_date, order_uuid, bill_uuid, payment_uuid, shift_uuid, recorded_by, closed, corrections[], created_at}` |
 | `POST /owner/pos/tips/{uuid}/corrections {amount?, mode, staff_id?, reason}` | `tips.manage` | tuzatish (sabab majburiy). 409 `tips_period_closed`; 422 `nothing_to_correct`, `staff_not_found`. Audit `pos.tip_corrected` |
-| `GET /owner/pos/tips/distributions?branch_id&from&to` | `reports.view` | qozon bo'linishlari: `{uuid, business_date, shift_uuid, rule, roles, role_weights, pool_amount, tips_count, distributed, status: open\|closed, computed_at, closed_at, closed_by, manual_participants, lines[{staff_id, name, role, basis, amount}]}` |
-| `POST /owner/pos/tips/distributions {branch_id, business_date, shift_uuid?, participants?[{staff_id, minutes?}]}` | `tips.manage` | hisoblash/qayta hisoblash (saqlanadi). 409 `tips_distribution_closed`; 422 `staff_not_found`, smena boshqa kunniki. Audit `pos.tips_distribution_computed` |
-| `POST /owner/pos/tips/distributions/{uuid}/close` | `tips.manage` | muzlatish. 409 `tips_distribution_stale` (`data.pool_amount`), `tips_distribution_closed`. Audit `pos.tips_distribution_closed` |
-| `GET /pos/tips?shift_uuid` | `orders.view` | smena (standart — terminalning ochiq smenasi, yo'q bo'lsa bugungi biznes kun) choy pullari: `{shift_uuid, business_date, own_only, summary, tips[]}`; `tips.manage`/`pos.close_shift`/`reports.view` yo'q xodim (ofitsiant) — faqat o'ziniki |
-| `POST /pos/tips/{uuid}/corrections {amount?, mode, staff_id?, reason, approval_token?}` | `tips.manage` yoki menejer tasdig'i (`tips.manage` endi tasdiqlanadigan ruxsat) | `Idempotency-Key` majburiy. Xatolar egasinikidek, 403 `approval_required` |
+| `GET /owner/pos/tips/distributions?branch_id&from&to` | `reports.view` | `{pool_period: day\|shift` (filialning hozirgi davri)`, distributions[]}` — qozon bo'linishlari: `{uuid, business_date, shift_uuid, rule, roles, role_weights, pool_amount, tips_count, distributed, status: open\|closed, computed_at, closed_at, closed_by, manual_participants, lines[{staff_id, name, role, basis, amount}]}` |
+| `POST /owner/pos/tips/distributions {branch_id, business_date, shift_uuid?, participants?[{staff_id, minutes?}]}` | `tips.manage` | hisoblash/qayta hisoblash (saqlanadi). `pool_period` majburiy: `day` — `shift_uuid` berilmaydi (422 `tips_pool_period_day`), `shift` — berilishi shart (422 `tips_pool_period_shift`); bir sanada kunlik va smena bo'linishi birga bo'lmaydi (409 `tips_pool_period_conflict`). `participants`: filial xodimlari, roli sozlamadagi `roles` dan (422 `staff_not_found`, `staff_not_in_pool` + `data.staff_ids`); chaqiruvchi o'zini qo'sha olmaydi, egadan boshqa (403 `tips_pool_self`). 409 `tips_distribution_closed`, `tips_distribution_busy` (bir vaqtda ikki birinchi hisob: qayta urining); 422 smena boshqa kunniki. Audit `pos.tips_distribution_computed` (`participants`, `shares`) |
+| `POST /owner/pos/tips/distributions/{uuid}/close` | `tips.manage` | muzlatish. 409 `tips_distribution_stale` (`data.pool_amount`), `tips_distribution_unassigned` (qozon musbat, oladigan xodim yo'q: `data.pool_amount`, `data.distributed`), `tips_distribution_closed`. Ish haqi qozon ulushini faqat yopilgan bo'linishdan oladi. Audit `pos.tips_distribution_closed` |
+| `GET /pos/tips?shift_uuid` | `orders.view` | smena (standart — terminalning ochiq smenasi, yo'q bo'lsa bugungi biznes kun) choy pullari: `{shift_uuid, business_date, own_only, summary, tips[]}`; `tips.manage`/`pos.close_shift`/`reports.view` yo'q xodim (ofitsiant) — faqat o'ziniki va o'z ulushi (`amount`/`original_amount` — ulushi, `staff` — o'zi, `holders`/`corrections` faqat o'ziniki, `by`/`approved_by`/`recorded_by` — `null`) |
+| `POST /pos/tips/{uuid}/corrections {amount?, mode, staff_id?, reason, approval_token?}` | `tips.manage` yoki menejer tasdig'i (`tips.manage` endi tasdiqlanadigan ruxsat) | `Idempotency-Key` majburiy. Xatolar egasinikidek, 403 `approval_required`. `amount` olingan summadan oshmaydi (422 `tip_correction_too_high`, `data.original_amount`; egasining yo'lida ham); kutilgan naqdni o'zgartirmaydi |
 
 Mavjud endpointlarga qo'shimchalar:
 - `POST /pos/bills/{uuid}/payments`: `tenders[].tip_amount` (naqd, karta, QR; naqdda `tendered_amount` to'lov + choy pulini
   qoplashi kerak, aks holda 422 `tendered_too_small`), `tenders[].tip_from_change` (naqd, `tendered_amount` bilan), `tip_staff_id`.
   422 `tip_tender_invalid`, `tip_invalid`, `tip_from_change_invalid`, `tip_staff_not_found`; modul yo'q — 403 `module_disabled`.
+  Buyurtma ofitsiantidan boshqa `tip_staff_id` (shaxsiy rejim): filialning choy puli rollaridan (422 `tip_staff_not_eligible`)
+  va `tips.manage` yoki `tip_approval_token` (menejer tasdig'i, `tips.manage`; nasiya bo'lmasa `approval_token` ham o'tadi) —
+  aks holda 403 `approval_required` (`data.permission: tips.manage`), pul olinmasdan.
 - Schyot (`BillPresenter::BILL`): `tips_amount`, `tips[]`, `service_charge_notice`; to'lov: `tip_amount` (`amount` ga kirmaydi).
 - Buyurtma `charges`: `service_charge_rule` (base\|order_type\|large_group\|none), `place_fee_kind` (place_fee\|cover),
-  `service_charge_notice`.
+  `service_charge_notice`. E'lon: egasining o'z matni, bo'lmasa qoidalardan avtomatik matn — faqat
+  `service_charge_rules` moduli yoqiq bo'lsa; modulsiz filialda (choyxona) o'z matni yo'q bo'lsa `null` (schyot va
+  bootstrap `offline.fees[].service_charge_notice` ham).
 - X/Z (`ShiftReport`): `tips {count, amount, by_method[], personal, pool, unassigned, by_staff[], corrections}`,
   `cash.tips`, `cash.tip_payouts` (`cash.wages` endi choy puli chiqimisiz).
-- `POST /pos/shifts/{uuid}/cash-movements`: `wage` kategoriyalariga `tips` (choy pulini xodimga berish).
+- `POST /pos/shifts/{uuid}/cash-movements`: `wage` kategoriyalariga `tips` (choy pulini xodimga berish): `tips.manage` yoki
+  menejer tasdig'i `approval_token` (`tips.manage` uchun; bir marta, `pos.cash_in_out` o'rniga ham o'tadi; yo'q bo'lsa 403
+  `approval_required`, `data.permission: tips.manage`). 409 `tip_payout_exceeds_tips` (`data.available`: smenaning naqd choy
+  puli − shu smenadan berilgan), `tip_payout_exceeds_owed` (`data.owed`: xodimning shu biznes kundagi shaxsiy naqd choy puli +
+  yopilgan qozon ulushi − berilgani).
 - Bank terminali (`rizqim_breakdown`): `tips`; karta tranzaksiyasi summasi to'lov + choy puli.
 - `GET /owner/service-fees`: har qatorda `service_charge_rules`, `service_charge_notice`.
-- `GET /pos/bootstrap`: `tips {enabled, mode, pool_rule, pool_period}`.
+- `GET /pos/bootstrap`: `tips {enabled, mode, pool_rule, pool_period, roles[]}` (`roles` — choy puli beriladigan rollar).
 - `POST /pos/sync` `bill.pay`: `tenders[].tip_amount`, `tip_staff_id` (har doim yoziladi; `tendered_amount` choy pulini
-  qoplamasa faqat qaytim yozilmaydi).
+  qoplamasa faqat qaytim yozilmaydi; noma'lum, roli mos bo'lmagan yoki tasdiqsiz boshqa xodim — buyurtma ofitsiantiga),
+  `waiter_id` (ixtiyoriy: kassa ko'rgan buyurtma ofitsianti — schyot `waiter_id` va standart shaxsiy choy puli unga; yo'q yoki
+  filial xodimi bo'lmasa — hozirgi ofitsiant).
 - Ruxsat: `tips.manage` (menejer, ega). Migratsiyalar: `2026_11_12_200100` (`service_fee_settings.service_charge_rules`,
   `service_charge_notice`), `200200` (`pos_tip_settings`), `200300` (`pos_tips`), `200400` (`pos_tip_distributions`,
   `pos_tip_distribution_lines`).
@@ -3793,7 +3813,7 @@ filialga biriktirilgan xodim faqat o'z filialida. Pul — o'nlik satr, sanalar �
 | `POST /owner/staff-pay/work-sessions {branch_id, user_id, clock_in_at, clock_out_at?, reason}`, `PUT …/{uuid} {clock_in_at, clock_out_at?, reason}`, `DELETE …/{uuid} {reason}` | `staff_pay.manage` | ≤ 24 soat, ustma-ust emas, kelajakda emas (422). Audit `staff_pay.session_added/_corrected/_removed` |
 | `GET /owner/staff-pay/statements?branch_id&from&to&status&limit` | `staff_pay.view` yoki `.manage` | hisob-kitoblar (yangi davr birinchi): `{uuid, period, period_from, period_to, status, gross_total, payable_total, paid_total, lines_count, warnings[], …}` |
 | `POST /owner/staff-pay/statements {branch_id, date?}` | `staff_pay.manage` | `date` tushgan davr uchun qoralama (standart — bugungi biznes kun); 409 `statement_exists` / `statement_overlaps` (`data.statement_uuid`). `Idempotency-Key` ixtiyoriy |
-| `GET /owner/staff-pay/statements/{uuid}` | `staff_pay.view` yoki `.manage` | `lines[{uuid, user_id, user_name, role, metrics{shifts, minutes, bills, sales, service_charge, events, tips, uncounted_sessions, rules[], own_rule}, components[{type, label, rule_uuid, days, quantity, rate, base, amount, detail}], gross, advances, adjustment, adjustment_reason, payable, paid, paid_at, paid_method, paid_note, cash_movement_id}]`, `open_shifts[{uuid, device_name, business_date, opened_at, expected_cash}]` |
+| `GET /owner/staff-pay/statements/{uuid}` | `staff_pay.view` yoki `.manage` | `lines[{uuid, user_id, user_name, role, metrics{shifts, minutes, bills, sales, service_charge, events, tips, uncounted_sessions, rules[], own_rule}, components[{type, label, rule_uuid, days, quantity, rate, base, amount, detail}], gross, advances, tips_paid, adjustment, adjustment_reason, payable, paid, paid_at, paid_method, paid_note, cash_movement_id}]`, `open_shifts[{uuid, device_name, business_date, opened_at, expected_cash}]` |
 | `POST /owner/staff-pay/statements/{uuid}/recompute`, `…/close`, `…/reopen {reason}`, `DELETE …/{uuid}` | `staff_pay.manage` | qoralamani qayta hisoblash, yopish (oxirgi hisob + muzlatish); qayta ochish — yopilgan va to'lovsiz; o'chirish — faqat qoralama. 409 `statement_not_draft`, `statement_not_closed`, `statement_has_payments` |
 | `PUT /owner/staff-pay/statements/{uuid}/lines/{line} {adjustment, reason?}` | `staff_pay.manage` | qoralama qatoriga ± tuzatish (0 dan farqli bo'lsa sabab majburiy, 422 `adjustment_reason_required`) |
 | `POST /owner/staff-pay/statements/{uuid}/lines/{line}/pay {method: cash_drawer\|other, shift_uuid?, note?}` | `staff_pay.manage` (+ kassa uchun `pos.cash_in_out`) | yopilgan qatorni bir marta to'lash; `cash_drawer` — filialning ochiq smenasida `wage`/`payroll` chiqimi (409 `not_enough_cash`), `other` — faqat belgi. `Idempotency-Key` **majburiy** (428). 409 `statement_not_closed`, `line_already_paid`; 422 `nothing_to_pay`, `shift_not_found`. Audit `staff_pay.line_paid` |
@@ -3802,7 +3822,10 @@ filialga biriktirilgan xodim faqat o'z filialida. Pul — o'nlik satr, sanalar �
 
 Mavjud endpointlarga qo'shimchalar:
 - `GET /pos/bootstrap`: `staff_pay` — `{clock: true, session: {uuid, business_date, clock_in_at} | null}`; modul yo'q — `null`.
-- `POST /pos/shifts/{uuid}/cash-movements`: `wage` kategoriyalariga `payroll` qo'shildi (hisob-kitob to'lovi; odatda panel yozadi).
+- `POST /pos/shifts/{uuid}/cash-movements`: `wage` kategoriyasi `payroll` (hisob-kitob to'lovi) faqat qatorni to'lash bilan
+  yoziladi; qo'lda — 422 `movement_category_reserved`. Hech bir qatorga bog'lanmagan eski `payroll` chiqimi avans.
+- Hisob-kitob qatori: `tips_paid` — davrda kassadan berilgan choy puli (`wage`/`tips`), qoidada `tips` qismi bo'lsa
+  ayriladi: `payable = gross − advances − tips_paid + adjustment` (qism yo'q bo'lsa 0). Migratsiya `2026_11_13_110100`.
 - Ruxsatlar: `staff_pay.view` (ega, menejer), `staff_pay.manage` (ega; boshqa rolga berilishi mumkin).
 - Migratsiyalar: `2026_11_12_300100` (`staff_pay_settings`, `staff_pay_rules`), `300200` (`staff_work_sessions`, bitta ochiq
   ish vaqti uchun qisman unikal indeks), `300300` (`staff_pay_statements`, `staff_pay_statement_lines`).
@@ -3820,7 +3843,7 @@ kirish; boshqa filial yoki do'konning yozuvi — 404.
 
 | Yo'l | Modul | Ruxsat | Qisqacha |
 |---|---|---|---|
-| `POST /pos/orders/{uuid}/transfer {version, waiter_id, reason?, approval_token?}` | `waiter_transfer` | `orders.transfer` yoki `orders.manage` + menejerning `orders.transfer` uchun `approval_token` i | ochiq stolni boshqa ofitsiantga berish. Javob — buyurtma. 404 `waiter_not_found` (filialning faol ofitsianti emas), 422 `same_waiter`, `not_hall_order`, `order_closed`, 403 `approval_required` (`data.permission: orders.transfer`). Audit `pos.order_transferred`, hodisalar `order.transferred`, `order.items_changed` (`waiter_changed`) |
+| `POST /pos/orders/{uuid}/transfer {version, waiter_id, reason?, approval_token?}` | `waiter_transfer` | `orders.transfer` (yolg'iz o'zi yetadi) yoki `orders.manage` + menejerning `orders.transfer` uchun `approval_token` i | ochiq stolni boshqa ofitsiantga berish. Javob — buyurtma. 404 `waiter_not_found` (filialning faol ofitsianti emas), 422 `same_waiter`, `not_hall_order`, `order_closed`, 403 `approval_required` (`data.permission: orders.transfer`). Audit `pos.order_transferred`, hodisalar `order.transferred`, `order.items_changed` (`waiter_changed`) |
 | `POST /pos/orders/{uuid}/items/{item}/seat {version, seat_no, approval_token?}` | `guest_split` | `orders.manage`; ofitsiant qoidasi (`approval_token`) | qatorga mehmon raqami (1–500) yoki `null` (umumiy). Audit `pos.line_seat_changed`, hodisa `order.items_changed` (`seat_changed`) |
 | `POST /pos/orders/{uuid}/bills {version, mode: "by_guest"}` | `guest_split` | `pos.take_payment` | mehmon bo'yicha schyotlar (har mehmonga bittadan, `seat_no`); 422 `no_seat_lines`. Boshqa turlar (`single`, `equal`, `items`) o'zgarishsiz |
 | `GET /pos/waitlist?branch_id&date&status` | `hostess` | `hostess.manage` | filialning biznes kuni (standart bugun) yozuvlari kelish tartibida: `{branch_id, date, entries[], summary}` |

@@ -127,17 +127,20 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
     final PosShift? shift = cur?.shift;
     if (shift == null || cur?.report == null) return;
     final PosSession session = _scope.session;
+    ApprovalToken? approval;
     if (!session.can(PosPermissions.tipsManage)) {
-      final ApprovalToken? ok = await showManagerApproval(
+      approval = await showManagerApproval(
         context,
         permission: PosPermissions.tipsManage,
       );
-      if (ok == null || !mounted) return;
+      if (approval == null || !mounted) return;
     }
+    // Review P6 wave 2 (S2): the manager's approval goes with the payout (the server checks and uses it once)
     final PosCashMovement? m = await showTipPayoutDialog(
       context,
       shiftUuid: shift.uuid,
       report: ShiftReportView(cur!.report!),
+      approvalToken: approval?.token,
     );
     if (m != null && mounted) await refresh();
   }

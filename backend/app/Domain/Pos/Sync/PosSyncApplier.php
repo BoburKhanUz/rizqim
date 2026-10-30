@@ -539,9 +539,12 @@ final class PosSyncApplier
     }
 
     /**
-     * bill.pay: {order, bill (the device's id or a server bill uuid), shift_uuid?, tip_staff_id?, tenders: [{tender:
-     * cash|card, amount, tendered_amount?, card_type?, transaction_id?, card_last4?, tip_amount?}]} — the money as the
-     * till took it (P6-22: a tip on top of a tender is recorded as taken).
+     * bill.pay: {order, bill (the device's id or a server bill uuid), shift_uuid?, tip_staff_id?, waiter_id?, tenders:
+     * [{tender: cash|card, amount, tendered_amount?, card_type?, transaction_id?, card_last4?, tip_amount?}]} — the
+     * money as the till took it (P6-22: a tip on top of a tender is recorded as taken; review P6 wave 2: a tip to
+     * someone other than the order's waiter, or outside the tip roles, goes to the waiter — no approval offline).
+     * Review P6 wave 2 (C10): `waiter_id` is the order's waiter as the till saw it: the bill is that waiter's sales (and
+     * the personal tip theirs) even when the table was handed over before the sync; without it, the waiter now.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -581,7 +584,8 @@ final class PosSyncApplier
             $paidAt = $shift->opened_at->copy();
         }
         $tipStaff = isset($payload['tip_staff_id']) && is_numeric($payload['tip_staff_id']) ? (int) $payload['tip_staff_id'] : null;
-        $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt, $tipStaff);
+        $tillWaiter = isset($payload['waiter_id']) && is_numeric($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
+        $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt, $tipStaff, offlineWaiterId: $tillWaiter);
         $paymentUuids = Payment::where('bill_id', $bill->id)->where('offline_paid_at', '!=', null)->orderBy('id')->pluck('uuid')->all();
 
         return $this->finish(Order::findOrFail($order->id), $flags, $payload, [

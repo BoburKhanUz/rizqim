@@ -72,8 +72,8 @@ class PosTipsPaymentTest extends TestCase
         $this->assertSame('10000.00', $report['cash']['tips']);
         $this->assertSame('253000.00', $report['cash']['expected']); // 100 000 + 143 000 + 10 000
 
-        // Paid out to the waiter: a wage of category `tips`, not a wage
-        $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'wage', 'category' => 'tips', 'amount' => '10000', 'employee_id' => $this->waiter->id, 'approval_token' => $this->approval('pos.cash_in_out')])->assertCreated();
+        // Paid out to the waiter: a wage of category `tips`, not a wage (a manager's approval for tips.manage)
+        $this->pos('POST', "/shifts/{$shift->uuid}/cash-movements", ['type' => 'wage', 'category' => 'tips', 'amount' => '10000', 'employee_id' => $this->waiter->id, 'approval_token' => $this->approval('tips.manage')])->assertCreated();
         $cash = $this->pos('GET', "/shifts/{$shift->uuid}/x-report")->json('data.report.cash');
         $this->assertSame(['10000.00', '0.00', '243000.00'], [$cash['tip_payouts'], $cash['wages'], $cash['expected']]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'pos.payment', 'model_id' => $order->id]);
@@ -84,7 +84,7 @@ class PosTipsPaymentTest extends TestCase
         $this->openShift();
         [, $bill] = $this->billed();
 
-        $this->pay($bill, [['tender' => 'cash', 'amount' => '143000', 'tendered_amount' => '150000', 'tip_from_change' => true]], ['tip_staff_id' => $this->waiter2->id])
+        $this->pay($bill, [['tender' => 'cash', 'amount' => '143000', 'tendered_amount' => '150000', 'tip_from_change' => true]], ['tip_staff_id' => $this->waiter2->id, 'tip_approval_token' => $this->approval('tips.manage')])
             ->assertOk()
             ->assertJsonPath('data.bill.payments.0.change_amount', '0.00')
             ->assertJsonPath('data.bill.tips_amount', '7000.00')
