@@ -311,7 +311,7 @@ To'lqin 5  "Banket va dark kitchen"
 Ish tartibi 3–4-bosqichdagidek: avval backend kelishuvi (jadvallar, endpointlar, ruxsatlar, bootstrap maydonlari),
 keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SPEC va API.md har to'lqinda yangilanadi.
 
-### To'lqin 1 — "Tez kassa"
+### To'lqin 1 — "Tez kassa" (tugadi, PR #18)
 
 | Kod | Ish | Asosiy joylar | Tekshiruv |
 |---|---|---|---|
@@ -323,7 +323,7 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 | P6-16 | **Fiskal terminal oqimlari** (D5): bank terminali "faqat terminal" rejimida tranzaksiya raqami bilan, Sunmi smart-kassada Rizqim, o'rnatish ro'yxati, kun oxirida bank hisoboti va Z solishtiruvi, farq ogohlantirishi | `Domain/Fiscal`, `Billing`, `Shifts`, qo'llanma | Sandbox drayverda to'liq sikl; farq ogohlantirishi testi |
 | P6-19 | **Review, e2e va pilot:** "osh markazi tushligi" e2e (3 soatda 300 buyurtma, 2 qozon, qozon tugaydi); kassir qo'llanmasi (tez kassa); osh markazi va somsaxona pilotlari | hammasi | 10-bo'lim |
 
-### To'lqin 2 — "Restoran va kafe"
+### To'lqin 2 — "Restoran va kafe" (tugadi, PR #19)
 
 | Kod | Ish | Asosiy joylar | Tekshiruv |
 |---|---|---|---|
