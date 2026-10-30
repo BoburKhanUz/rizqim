@@ -436,6 +436,10 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 5. **Buxgalter bilan tekshirish:** kombo chekda (bitta MXIK yoki tarkib bo'yicha), choy puli chekka kiradimi, xizmat haqi
    va qadoq MXIK'i, sovg'a sertifikati (sotishda bo'nak, ishlatishda sotuv), korxona talonlari va JShDS, banket zakladi
    va oraliq to'lovlar, sotilmagan mahsulotni hisobdan chiqarish.
+   **Qaror (30.10.2026), kombo:** chekda bitta qator — kombo nomi, umumiy narxi va soni; tagida tarkibi narxsiz
+   ("1 ta lavash, katta, mol go'shtli", "Ichimlik 0,4 l Pepsi", "Sous achchiq"). Fiskal chekda ham bitta qator kombo
+   mahsulotining o'z MXIK'i bilan; buxgalter tarkib bo'yicha qatorlarni so'rasa — sozlamada "tarkib bo'yicha" rejimi
+   (narx ulushlari yig'indisi = kombo narxi).
 6. **Click va Payme kassada:** har joy o'z merchant hisobini ulaydimi (tavsiya) yoki RIZQIM hisobi orqali; to'lov
    tizimi zal to'loviga chek chiqarmasligi bo'yicha ular bilan kelishuv.
 7. **Tariflar:** 7-bo'lim jadvali to'g'rimi; alohida mijoz yoki "tayyor" ekrani plansheti bepulmi (tavsiya: bepul,
