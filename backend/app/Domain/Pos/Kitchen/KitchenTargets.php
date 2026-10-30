@@ -19,8 +19,8 @@ use Illuminate\Support\Carbon;
  *   target  = the dish's own target (products.kds_target_seconds) ?? its station's (kitchen_stations.target_seconds)
  *             ?? null (no target: never late). The station is the line's own (POS), else the one its dish routes to
  *             (an online line).
- *   started = when the line reached the kitchen: sent_at (POS), else the order's acceptance (an online line), else the
- *             order's creation.
+ *   started = when the line reached the kitchen: sent_at (POS), else the order's acceptance (an online line; one for a
+ *             later pickup: its kitchen time, kitchen_fire_at, if later), else the order's creation.
  *   late    = still cooking and now − started > target; a done line: ready_at − started > target.
  *
  * Instances keep what they read (stations, dishes) for their own life only (one ticket listing, one report).
@@ -159,13 +159,28 @@ class KitchenTargets
     }
 
     /**
-     * When the line reached the kitchen.
+     * When the line reached the kitchen: a POS line when it was sent, an online line when its order did (orderStart).
      *
      * @param  CarbonInterface|null  $acceptedAt  the order's acceptance (an online line)
      */
     public static function startedAt(OrderItem $item, Order $order, ?CarbonInterface $acceptedAt): ?CarbonInterface
     {
-        return $item->sent_at ?? ($item->fire_mode === null ? ($acceptedAt ?? $order->created_at) : null);
+        return $item->sent_at ?? ($item->fire_mode === null ? self::orderStart($order->created_at, $acceptedAt, $order->pickup_at !== null ? $order->kitchen_fire_at : null) : null);
+    }
+
+    /**
+     * When an order reached the kitchen: its acceptance (else its creation); P6-39: an order for a later pickup at its
+     * kitchen time (pickup_at − prep, ScheduledPickup), when the kitchen display starts showing it — not the acceptance
+     * long before (it was never late while it waited), unless it was accepted after that time.
+     */
+    public static function orderStart(?CarbonInterface $createdAt, ?CarbonInterface $acceptedAt, ?CarbonInterface $kitchenFireAt): ?CarbonInterface
+    {
+        $accepted = $acceptedAt ?? $createdAt;
+        if ($kitchenFireAt === null) {
+            return $accepted;
+        }
+
+        return $accepted === null || $kitchenFireAt->greaterThan($accepted) ? $kitchenFireAt : $accepted;
     }
 
     /**

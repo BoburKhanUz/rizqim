@@ -384,6 +384,9 @@ o'chirmasdan, faolsizlantiring (**Sex faol** belgisini olib tashlang).
 - **Sexdan olib tashlash** — biriktirishni bekor qiladi.
 - Sexsiz taom umumiy oshxona printeriga chiqadi.
 
+Fast food va qahvaxonada yana sex turlari bor: **Grill**, **Fritur**, **Ichimliklar**, **Barista**, **Yig'ish** (taom biriktirilmaydi; buyurtmani yig'adi),
+**Vaqt maqsadi** maydoni va yorliq printeri (**Vazifasi: Yorliq**, stiker uchun): [fast-food.md](fast-food.md#10-oshxona-sexlar-vaqt-maqsadi-va-yigish-ekrani).
+
 Tavsiya: choyxonada sexlar — **Osh** (osh va qozon taomlari), **Mangal** (six va shashlik; markada six soni chiqadi), **Salat bar** va
 **Choy**.
 

@@ -17,6 +17,7 @@ import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatLineQuantity } from '../lib/quantity';
 import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
+import { formatPickupTime } from '../lib/pickupTime';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import type { Order, PaymentStatus } from '../types';
 
@@ -190,8 +191,9 @@ export default function Orders() {
             )}
             {/* P6-34: a pickup for later */}
             {order.pickup_at && (
-              <span className="text-footnote font-bold text-fg" data-testid="order-pickup-at">
-                {t('pickupAtLabel')}: {formatDateTime(order.pickup_at, language)}
+              <span className="flex flex-wrap items-baseline gap-x-1.5 text-footnote font-bold text-fg" data-testid="order-pickup-at">
+                <span>{t('pickupAtLabel')}:</span>{' '}
+                <span className="whitespace-nowrap text-headline text-brand">{formatPickupTime(order.pickup_at, language)}</span>
               </span>
             )}
           </div>

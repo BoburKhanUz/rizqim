@@ -110,6 +110,8 @@ class KitchenService {
     'pickup_status',
     // P6-25: kafe stol tablichkasi
     'table_label',
+    // P6-33: yig'ish (expo) ko'rinishi
+    'assembly',
   ];
 
   static Map<String, Object?> _withRawTicketFields(
@@ -131,6 +133,10 @@ class KitchenService {
     'course_no',
     'weight_status',
     'wait_minutes',
+    // P6-33: vaqt maqsadi va kechikish; P6-31: kombo konteksti
+    'target_seconds',
+    'late',
+    'combo',
   ];
 
   static Map<String, Object?> _withRawItemFields(
@@ -169,6 +175,22 @@ class KitchenService {
           receivedAt: _clock(),
         );
       });
+
+  /// P6-33, yig'ish (expo) "Yig'ildi": `POST /staff/orders/{uuid}/assembled` (`kds_expo`). Olib ketish, yetkazish va
+  /// onlayn buyurtma `ready` bo'ladi, navbat raqami chaqiriladi (`queue.ready`); `kitchen.order_assembled` hodisasi
+  /// ketadi. Qayta yuborish — 200, o'zgarishsiz. 422: `assembly_not_required`, `stations_not_ready`, `kitchen_status`.
+  /// Har amalga yangi `Idempotency-Key`. `null` — [bumpLine] dagidek (amal bajarilgan, javob o'qilmadi).
+  Future<KitchenTicket?> assembled(
+    String orderUuid, {
+    String? idempotencyKey,
+  }) => _change(() async {
+    final response = await _api.kitchen.kitchenExpoAssembled(
+      uuid: orderUuid,
+      idempotencyKey: idempotencyKey ?? _newKey(),
+    );
+    final Map<String, Object?> plain = _plain(response.data);
+    return KitchenTicket.fromJson(plain, receivedAt: _clock());
+  });
 
   /// `POST /staff/orders/{uuid}/items/{id}/recall`: xato bosilgan "tayyor"ni qaytarish. Buyurtma `ready` bo'lib
   /// bo'lgan bo'lsa server 422 qaytaradi. `null` — [bumpLine] dagidek.

@@ -94078,6 +94078,42 @@
                                                             "handed_at"
                                                         ]
                                                     },
+                                                    "pickup": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "pickup_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "kitchen_fire_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "kitchen_fired_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "waiting": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "local_time": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "pickup_at",
+                                                            "kitchen_fire_at",
+                                                            "kitchen_fired_at",
+                                                            "waiting",
+                                                            "local_time"
+                                                        ]
+                                                    },
                                                     "opened_at": {
                                                         "type": [
                                                             "string",
@@ -94571,6 +94607,7 @@
                                                     "booking_id",
                                                     "business_date",
                                                     "queue",
+                                                    "pickup",
                                                     "opened_at",
                                                     "closed_at",
                                                     "updated_at",
@@ -97061,6 +97098,42 @@
                                                         "handed_at"
                                                     ]
                                                 },
+                                                "pickup": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "pickup_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "kitchen_fire_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "kitchen_fired_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "waiting": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "local_time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "pickup_at",
+                                                        "kitchen_fire_at",
+                                                        "kitchen_fired_at",
+                                                        "waiting",
+                                                        "local_time"
+                                                    ]
+                                                },
                                                 "opened_at": {
                                                     "type": [
                                                         "string",
@@ -97554,6 +97627,7 @@
                                                 "booking_id",
                                                 "business_date",
                                                 "queue",
+                                                "pickup",
                                                 "opened_at",
                                                 "closed_at",
                                                 "updated_at",
@@ -118116,6 +118190,42 @@
                                                         "handed_at"
                                                     ]
                                                 },
+                                                "pickup": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "pickup_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "kitchen_fire_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "kitchen_fired_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "waiting": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "local_time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "pickup_at",
+                                                        "kitchen_fire_at",
+                                                        "kitchen_fired_at",
+                                                        "waiting",
+                                                        "local_time"
+                                                    ]
+                                                },
                                                 "opened_at": {
                                                     "type": [
                                                         "string",
@@ -118609,6 +118719,7 @@
                                                 "booking_id",
                                                 "business_date",
                                                 "queue",
+                                                "pickup",
                                                 "opened_at",
                                                 "closed_at",
                                                 "updated_at",
@@ -135783,6 +135894,42 @@
                                                             "assembled_at",
                                                             "stations"
                                                         ]
+                                                    },
+                                                    "pickup": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "pickup_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "kitchen_fire_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "kitchen_fired_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "waiting": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "local_time": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "pickup_at",
+                                                            "kitchen_fire_at",
+                                                            "kitchen_fired_at",
+                                                            "waiting",
+                                                            "local_time"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -135808,7 +135955,8 @@
                                                     "waiting_seconds",
                                                     "queue_number",
                                                     "pickup_status",
-                                                    "assembly"
+                                                    "assembly",
+                                                    "pickup"
                                                 ]
                                             }
                                         },
@@ -137368,6 +137516,42 @@
                                                         "assembled_at",
                                                         "stations"
                                                     ]
+                                                },
+                                                "pickup": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "pickup_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "kitchen_fire_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "kitchen_fired_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "waiting": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "local_time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "pickup_at",
+                                                        "kitchen_fire_at",
+                                                        "kitchen_fired_at",
+                                                        "waiting",
+                                                        "local_time"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -137393,7 +137577,8 @@
                                                 "waiting_seconds",
                                                 "queue_number",
                                                 "pickup_status",
-                                                "assembly"
+                                                "assembly",
+                                                "pickup"
                                             ]
                                         }
                                     },
@@ -137815,6 +138000,42 @@
                                                         "assembled_at",
                                                         "stations"
                                                     ]
+                                                },
+                                                "pickup": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "pickup_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "kitchen_fire_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "kitchen_fired_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "waiting": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "local_time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "pickup_at",
+                                                        "kitchen_fire_at",
+                                                        "kitchen_fired_at",
+                                                        "waiting",
+                                                        "local_time"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -137840,7 +138061,8 @@
                                                 "waiting_seconds",
                                                 "queue_number",
                                                 "pickup_status",
-                                                "assembly"
+                                                "assembly",
+                                                "pickup"
                                             ]
                                         }
                                     },
@@ -138262,6 +138484,42 @@
                                                         "assembled_at",
                                                         "stations"
                                                     ]
+                                                },
+                                                "pickup": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "pickup_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "kitchen_fire_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "kitchen_fired_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "waiting": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "local_time": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "pickup_at",
+                                                        "kitchen_fire_at",
+                                                        "kitchen_fired_at",
+                                                        "waiting",
+                                                        "local_time"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -138287,7 +138545,8 @@
                                                 "waiting_seconds",
                                                 "queue_number",
                                                 "pickup_status",
-                                                "assembly"
+                                                "assembly",
+                                                "pickup"
                                             ]
                                         }
                                     },

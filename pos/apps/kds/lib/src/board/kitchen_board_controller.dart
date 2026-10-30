@@ -112,6 +112,10 @@ class KitchenBoardController extends ChangeNotifier {
   /// "Hammasi tayyor" bajarilmoqda.
   final Set<String> _busyOrders = <String>{};
 
+  /// "Yig'ildi" yuborilgan buyurtmalar: server yig'ilganini ko'rsatguncha ([_hidden] bilan birga) yashirin turadi, keyin
+  /// yig'ish bekor bo'lsa (qator qaytarilsa) buyurtma yana ko'rinishi uchun alohida kuzatiladi.
+  final Set<String> _assembling = <String>{};
+
   final List<RecentBump> _recent = <RecentBump>[];
 
   /// Qator birinchi ko'ringan payt (qurilma soati; birinchi yuklashdagilar — "eski"): "Yangi" belgisi chiptaga emas,
@@ -207,6 +211,19 @@ class KitchenBoardController extends ChangeNotifier {
   /// Mangal ko'rinishi yoqilgan.
   bool get mangalView =>
       isMangalView(selection?.value ?? const StationSelection(), _stations);
+
+  /// P6-33: ixcham ko'rinish (barista va ichimlik sexlari: ko'p mayda chipta).
+  bool get compactView =>
+      isCompactView(selection?.value ?? const StationSelection(), _stations);
+
+  /// Ixcham ko'rinishni tanlash mumkin: tanlangan sexlar orasida ichimlik/barista bor (yoki u allaqachon yoqilgan).
+  bool get canChooseCompact {
+    final StationSelection sel = selection?.value ?? const StationSelection();
+    return sel.mode == KitchenViewMode.compact ||
+        (_stations ?? const <KitchenStation>[]).any(
+          (KitchenStation s) => s.isDrink && sel.stationIds.contains(s.id),
+        );
+  }
 
   /// Ekranga chiqadigan doska: faol chiptalar va oldindan buyurtma navbati (sex tanloviga ko'ra).
   BoardView buildView() {
@@ -383,6 +400,15 @@ class KitchenBoardController extends ChangeNotifier {
         for (final KitchenTicket t in live) t.uuid,
       };
       _hidden.removeWhere((String uuid) => !liveUuids.contains(uuid));
+      _assembling.removeWhere((String uuid) => !liveUuids.contains(uuid));
+      // Server buyurtmani yig'ilgan (yoki yig'ishdan o'tmaydigan) deb ko'rsatdi: yashirish shart emas
+      for (final KitchenTicket t in live) {
+        if (_assembling.contains(t.uuid) &&
+            (t.assembly == null || t.assembly!.isAssembled)) {
+          _assembling.remove(t.uuid);
+          _hidden.remove(t.uuid);
+        }
+      }
       _serverOffset = _offsetOf(list) ?? _serverOffset;
       _server = live;
       final Set<int> voidedLines = _trackVoids(before, live, now, firstLoad);
@@ -395,7 +421,11 @@ class KitchenBoardController extends ChangeNotifier {
       // qator o'chirildi yoki ko'rinadigan buyurtma bekor qilindi
       final BoardView seenNow = _build(tickets, now);
       final Set<int> visibleBefore = _lineIds(seenBefore);
-      var fresh = false;
+      // P6-33: yig'ish ekranida yangi buyurtma yig'ishga tayyor bo'ldi (hamma sex tayyor): oshpazga ovoz
+      final Set<String> waitingBefore = _expoWaiting(seenBefore);
+      var fresh =
+          !firstLoad &&
+          _expoWaiting(seenNow).any((String u) => !waitingBefore.contains(u));
       var voided = false;
       for (final BoardTicket e in seenNow.active) {
         if (e.voided) {
@@ -433,6 +463,12 @@ class KitchenBoardController extends ChangeNotifier {
     _pruneRecent();
     _notify();
   }
+
+  /// Yig'ish ekranida yig'ishni kutayotgan (hamma sex tayyor) buyurtmalar.
+  static Set<String> _expoWaiting(BoardView view) => <String>{
+    for (final BoardTicket e in view.expo)
+      if (e.ticket.assembly?.waiting ?? false) e.ticket.uuid,
+  };
 
   /// Doskadagi (bekor qilinmagan) chiptalarning qator id lari.
   static Set<int> _lineIds(BoardView view) => <int>{
@@ -690,6 +726,26 @@ class KitchenBoardController extends ChangeNotifier {
     }
   }
 
+  /// P6-33: yig'ish (expo) "Yig'ildi": `POST /staff/orders/{uuid}/assembled`. Buyurtma darhol ekrandan ketadi, server
+  /// rad etsa (`stations_not_ready`, boshqa joyda yig'ilgan) qaytadi. Navbat raqami serverda chaqiriladi (`queue.ready`:
+  /// raqamlar ekrani va mijoz ekrani); `kitchen.order_assembled` hodisasi boshqa ekranlarni yangilaydi.
+  Future<void> assemble(KitchenTicket ticket) async {
+    if (!canManage || _hidden.contains(ticket.uuid)) return;
+    _hidden.add(ticket.uuid);
+    _assembling.add(ticket.uuid);
+    _notify();
+    try {
+      await service.assembled(ticket.uuid);
+      // Yangilangan ro'yxat kelguncha yashirin turadi (yig'ilgan buyurtma ro'yxatdan ketadi yoki yig'ilgan deb keladi)
+    } on ApiException catch (e) {
+      _hidden.remove(ticket.uuid);
+      _assembling.remove(ticket.uuid);
+      _fail(e);
+    } finally {
+      _afterChange();
+    }
+  }
+
   // --- yordamchilar -----------------------------------------------------------------------------------------------
 
   /// Qatorni "tayyor" deb belgilash mumkin: pishayotgan, o'chirilmagan; ushlab turilgan oldindan buyurtma — faqat vaqti
@@ -750,6 +806,8 @@ class KitchenBoardController extends ChangeNotifier {
                   courseNo: old.courseNo,
                   weightStatus: old.weightStatus,
                   waitMinutes: old.waitMinutes,
+                  // P6-31: kombo konteksti yaratilgan modelda yo'q
+                  combo: old.combo,
                 )
           else
             l,

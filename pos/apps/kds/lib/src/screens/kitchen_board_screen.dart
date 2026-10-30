@@ -12,7 +12,9 @@ import '../board/skewer_groups.dart';
 import '../realtime/branch_realtime.dart';
 import '../settings/kds_settings.dart';
 import '../stations/station_selection.dart';
+import '../widgets/compact_ticket_card.dart';
 import '../widgets/connection_status.dart';
+import '../widgets/expo_card.dart';
 import '../widgets/kazan_panel.dart';
 import '../widgets/mangal_card.dart';
 import '../widgets/plan_bar.dart';
@@ -60,6 +62,12 @@ class KitchenBoardScreen extends StatefulWidget {
   /// Mangal kartochkasi kengroq: katta yozuv va six soni.
   static const double minMangalColumnWidth = 440;
 
+  /// P6-33: ixcham (barista, ichimlik) chipta tor: bir ekranga ko'p chipta sig'adi.
+  static const double minCompactColumnWidth = 250;
+
+  /// P6-33: yig'ish kartochkasida bir necha sex bloklari bor: oddiy chiptadan biroz kengroq.
+  static const double minExpoColumnWidth = 380;
+
   static int columnsFor(double width, {double min = minColumnWidth}) =>
       (width / min).floor().clamp(1, 6);
 
@@ -68,7 +76,7 @@ class KitchenBoardScreen extends StatefulWidget {
 }
 
 /// Doskaning bo'limlari.
-enum BoardTab { active, preorder, kazan }
+enum BoardTab { active, expo, preorder, kazan }
 
 class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
   late final ValueNotifier<DateTime> _now = ValueNotifier<DateTime>(_read());
@@ -166,9 +174,13 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
         widget.setup != null &&
         (widget.auth.staff?.can('batches.manage') ?? false);
     // Ruxsat olinsa yoki bo'lim yo'qolsa doskaga qaytadi
-    final BoardTab tab = _tab == BoardTab.kazan && !canKazan
-        ? BoardTab.active
-        : _tab;
+    // P6-33: yig'ish bo'limi faqat yig'ish sexi tanlangan bo'lsa; faqat yig'ish sexi bo'lsa oddiy doska yo'q
+    final BoardTab tab = switch (_tab) {
+      BoardTab.kazan when !canKazan => BoardTab.active,
+      BoardTab.expo when !view.hasExpo => BoardTab.active,
+      BoardTab.active when view.expoOnly => BoardTab.expo,
+      final BoardTab t => t,
+    };
     final bool choosing =
         board.ready && (_choosing || board.needsStationChoice);
     return Scaffold(
@@ -190,7 +202,9 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
             _TopBar(
               terminal: widget.terminal,
               staffName: widget.auth.staff?.userName ?? '',
-              count: view.active.length,
+              count: tab == BoardTab.expo
+                  ? view.expo.length
+                  : view.active.length,
               realtime: widget.realtime,
               clock: _now,
               muted: settings.muted,
@@ -204,6 +218,9 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
               _SectionBar(
                 tab: tab,
                 activeCount: view.active.length,
+                expoCount: view.expo.length,
+                showActive: !view.expoOnly,
+                showExpo: view.hasExpo,
                 queueCount: view.queue.length,
                 showKazan: canKazan,
                 onTab: (BoardTab t) => setState(() => _tab = t),
@@ -213,9 +230,11 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                     : null,
                 mode: widget.selection?.value.mode,
                 mangal: board.mangalView,
-                showMode:
+                compact: board.compactView,
+                showMangal:
                     board.stations?.any((KitchenStation s) => s.isMangal) ??
                     false,
+                showCompact: board.canChooseCompact,
                 onMode: (KitchenViewMode m) => widget.selection?.setMode(m),
               ),
             if (board.error != null && !board.offline && board.loaded)
@@ -253,6 +272,10 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                           service: widget.setup!,
                           branchId: board.branchId,
                           events: widget.realtime?.events,
+                        ),
+                        BoardTab.expo when board.ready => _expoBoard(
+                          context,
+                          view,
                         ),
                         BoardTab.preorder when board.ready => PreorderQueue(
                           items: view.queue,
@@ -343,78 +366,140 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
       );
     }
     final bool mangal = board.mangalView;
+    final bool compact = !mangal && board.compactView;
+    return _grid(
+      tickets,
+      min: mangal
+          ? KitchenBoardScreen.minMangalColumnWidth
+          : compact
+          ? KitchenBoardScreen.minCompactColumnWidth
+          : KitchenBoardScreen.minColumnWidth,
+      spacing: compact ? 8 : 12,
+      card: (BoardTicket e, DateTime now) => mangal
+          ? MangalCard(
+              key: ValueKey<String>(e.ticket.uuid),
+              entry: e,
+              clock: _now,
+              settings: settings,
+              canManage: board.canManage,
+              isNew: board.isNew(e, now),
+              isLineBusy: board.isLineBusy,
+              orderBusy: board.isOrderBusy(e.ticket.uuid),
+              onGroupTap: (SkewerGroup g) => _onGroupTap(e.ticket, g),
+              onBumpAll: () => unawaited(board.bumpAll(e.ticket)),
+            )
+          : compact
+          ? CompactTicketCard(
+              key: ValueKey<String>(e.ticket.uuid),
+              entry: e,
+              clock: _now,
+              settings: settings,
+              canManage: board.canManage,
+              isNew: board.isNew(e, now),
+              isLineBusy: board.isLineBusy,
+              orderBusy: board.isOrderBusy(e.ticket.uuid),
+              onLineTap: (KitchenLine line) => unawaited(
+                line.isReady
+                    ? board.recallLine(e.ticket.uuid, line.id)
+                    : board.bumpLine(e.ticket, line),
+              ),
+              onBumpAll: () => unawaited(board.bumpAll(e.ticket)),
+            )
+          : TicketCard(
+              key: ValueKey<String>(e.ticket.uuid),
+              entry: e,
+              clock: _now,
+              settings: settings,
+              canManage: board.canManage,
+              isNew: board.isNew(e, now),
+              newRounds: board.newRounds(e, now),
+              isLineBusy: board.isLineBusy,
+              orderBusy: board.isOrderBusy(e.ticket.uuid),
+              onLineTap: (KitchenLine line) => unawaited(
+                line.isReady
+                    ? board.recallLine(e.ticket.uuid, line.id)
+                    : board.bumpLine(e.ticket, line),
+              ),
+              onBumpAll: () => unawaited(board.bumpAll(e.ticket)),
+              onBumpCourse: (int course) =>
+                  unawaited(board.bumpCourse(e.ticket, course)),
+              onMarkReady: () => unawaited(board.markOrderReady(e.ticket)),
+            ),
+    );
+  }
+
+  /// P6-33: yig'ish ekrani — ko'p sexli buyurtmalar, sexlar tayyorligi bilan; "Yig'ildi" bosilsa buyurtma ketadi.
+  Widget _expoBoard(BuildContext context, BoardView view) {
+    final KitchenBoardController board = widget.controller;
+    if (view.expo.isEmpty) {
+      return const EmptyState(
+        icon: Icons.takeout_dining_outlined,
+        title: "Yig'ishga buyurtma yo'q",
+        message: "Bir necha sexda tayyorlanadigan buyurtmalar shu yerda chiqadi. Hamma sex tayyor bo'lganda \"Yig'ildi\" yonadi.",
+      );
+    }
+    return _grid(
+      view.expo,
+      min: KitchenBoardScreen.minExpoColumnWidth,
+      spacing: 12,
+      card: (BoardTicket e, DateTime now) => ExpoCard(
+        key: ValueKey<String>('expo-${e.ticket.uuid}'),
+        entry: e,
+        clock: _now,
+        canManage: board.canManage,
+        busy: board.isOrderBusy(e.ticket.uuid),
+        expoTarget: _expoTarget(board, e.ticket),
+        onAssembled: () => unawaited(board.assemble(e.ticket)),
+      ),
+    );
+  }
+
+  /// Yig'ish sexining vaqt maqsadi (`target_seconds`), bo'lmasa `null`.
+  Duration? _expoTarget(KitchenBoardController board, KitchenTicket ticket) {
+    final int? id = ticket.assembly?.stationId;
+    for (final KitchenStation s in board.stations ?? const <KitchenStation>[]) {
+      if (s.id == id && s.targetSeconds != null) {
+        return Duration(seconds: s.targetSeconds!);
+      }
+    }
+    return null;
+  }
+
+  /// Chiptalar ustunlarda: eskisi chap yuqorida, keyin o'ngga va pastga.
+  Widget _grid(
+    List<BoardTicket> tickets, {
+    required double min,
+    required double spacing,
+    required Widget Function(BoardTicket entry, DateTime now) card,
+  }) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints box) {
         final int n = KitchenBoardScreen.columnsFor(
           box.maxWidth - 24,
-          min: mangal
-              ? KitchenBoardScreen.minMangalColumnWidth
-              : KitchenBoardScreen.minColumnWidth,
+          min: min,
         );
         final List<List<BoardTicket>> columns = <List<BoardTicket>>[
           for (var i = 0; i < n; i++) <BoardTicket>[],
         ];
-        // Eskisi chap yuqorida, keyin o'ngga va pastga
         for (var i = 0; i < tickets.length; i++) {
           columns[i % n].add(tickets[i]);
         }
         final DateTime now = _now.value;
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(spacing),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               for (var col = 0; col < n; col++)
                 Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(left: col == 0 ? 0 : 12),
+                    padding: EdgeInsets.only(left: col == 0 ? 0 : spacing),
                     child: Column(
                       children: <Widget>[
                         for (final BoardTicket e in columns[col])
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: mangal
-                                ? MangalCard(
-                                    key: ValueKey<String>(e.ticket.uuid),
-                                    entry: e,
-                                    clock: _now,
-                                    settings: settings,
-                                    canManage: board.canManage,
-                                    isNew: board.isNew(e, now),
-                                    isLineBusy: board.isLineBusy,
-                                    orderBusy: board.isOrderBusy(e.ticket.uuid),
-                                    onGroupTap: (SkewerGroup g) =>
-                                        _onGroupTap(e.ticket, g),
-                                    onBumpAll: () =>
-                                        unawaited(board.bumpAll(e.ticket)),
-                                  )
-                                : TicketCard(
-                                    key: ValueKey<String>(e.ticket.uuid),
-                                    entry: e,
-                                    clock: _now,
-                                    settings: settings,
-                                    canManage: board.canManage,
-                                    isNew: board.isNew(e, now),
-                                    newRounds: board.newRounds(e, now),
-                                    isLineBusy: board.isLineBusy,
-                                    orderBusy: board.isOrderBusy(e.ticket.uuid),
-                                    onLineTap: (KitchenLine line) => unawaited(
-                                      line.isReady
-                                          ? board.recallLine(
-                                              e.ticket.uuid,
-                                              line.id,
-                                            )
-                                          : board.bumpLine(e.ticket, line),
-                                    ),
-                                    onBumpAll: () =>
-                                        unawaited(board.bumpAll(e.ticket)),
-                                    onBumpCourse: (int course) => unawaited(
-                                      board.bumpCourse(e.ticket, course),
-                                    ),
-                                    onMarkReady: () => unawaited(
-                                      board.markOrderReady(e.ticket),
-                                    ),
-                                  ),
+                            padding: EdgeInsets.only(bottom: spacing),
+                            child: card(e, now),
                           ),
                       ],
                     ),
@@ -446,6 +531,9 @@ class _SectionBar extends StatelessWidget {
   const _SectionBar({
     required this.tab,
     required this.activeCount,
+    required this.expoCount,
+    required this.showActive,
+    required this.showExpo,
     required this.queueCount,
     required this.showKazan,
     required this.onTab,
@@ -453,12 +541,17 @@ class _SectionBar extends StatelessWidget {
     required this.onStations,
     required this.mode,
     required this.mangal,
-    required this.showMode,
+    required this.compact,
+    required this.showMangal,
+    required this.showCompact,
     required this.onMode,
   });
 
   final BoardTab tab;
   final int activeCount;
+  final int expoCount;
+  final bool showActive;
+  final bool showExpo;
   final int queueCount;
   final bool showKazan;
   final ValueChanged<BoardTab> onTab;
@@ -466,7 +559,9 @@ class _SectionBar extends StatelessWidget {
   final VoidCallback? onStations;
   final KitchenViewMode? mode;
   final bool mangal;
-  final bool showMode;
+  final bool compact;
+  final bool showMangal;
+  final bool showCompact;
   final ValueChanged<KitchenViewMode> onMode;
 
   @override
@@ -530,13 +625,24 @@ class _SectionBar extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            tabButton(
-              BoardTab.active,
-              'Buyurtmalar',
-              Icons.receipt_long_outlined,
-              count: activeCount,
-            ),
-            const SizedBox(width: 6),
+            if (showActive) ...<Widget>[
+              tabButton(
+                BoardTab.active,
+                'Buyurtmalar',
+                Icons.receipt_long_outlined,
+                count: activeCount,
+              ),
+              const SizedBox(width: 6),
+            ],
+            if (showExpo) ...<Widget>[
+              tabButton(
+                BoardTab.expo,
+                "Yig'ish",
+                Icons.takeout_dining_outlined,
+                count: expoCount,
+              ),
+              const SizedBox(width: 6),
+            ],
             tabButton(
               BoardTab.preorder,
               'Oldindan buyurtmalar',
@@ -554,31 +660,43 @@ class _SectionBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    if (showMode && mode != null) ...<Widget>[
-                      SegmentedButton<bool>(
+                    if ((showMangal || showCompact) &&
+                        mode != null) ...<Widget>[
+                      SegmentedButton<KitchenViewMode>(
                         showSelectedIcon: false,
                         style: SegmentedButton.styleFrom(
                           selectedBackgroundColor: c.brand,
                           selectedForegroundColor: c.onBrand,
                           minimumSize: const Size(64, 48),
                         ),
-                        segments: const <ButtonSegment<bool>>[
-                          ButtonSegment<bool>(
-                            value: false,
+                        segments: <ButtonSegment<KitchenViewMode>>[
+                          const ButtonSegment<KitchenViewMode>(
+                            value: KitchenViewMode.standard,
                             label: Text('Oddiy'),
                           ),
-                          ButtonSegment<bool>(
-                            value: true,
-                            icon: Icon(Icons.local_fire_department_outlined),
-                            label: Text('Mangal'),
-                          ),
+                          if (showMangal)
+                            const ButtonSegment<KitchenViewMode>(
+                              value: KitchenViewMode.mangal,
+                              icon: Icon(Icons.local_fire_department_outlined),
+                              label: Text('Mangal'),
+                            ),
+                          if (showCompact)
+                            const ButtonSegment<KitchenViewMode>(
+                              value: KitchenViewMode.compact,
+                              icon: Icon(Icons.grid_view_rounded),
+                              label: Text('Ixcham'),
+                            ),
                         ],
-                        selected: <bool>{mangal},
-                        onSelectionChanged: (Set<bool> v) => onMode(
-                          v.first
-                              ? KitchenViewMode.mangal
-                              : KitchenViewMode.standard,
-                        ),
+                        selected: <KitchenViewMode>{
+                          if (mangal)
+                            KitchenViewMode.mangal
+                          else if (compact)
+                            KitchenViewMode.compact
+                          else
+                            KitchenViewMode.standard,
+                        },
+                        onSelectionChanged: (Set<KitchenViewMode> v) =>
+                            onMode(v.first),
                       ),
                       const SizedBox(width: 8),
                     ],

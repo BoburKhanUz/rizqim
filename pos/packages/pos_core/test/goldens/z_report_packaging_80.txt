@@ -1,0 +1,33 @@
+B2x2 |    Choyxona Bog'bon    |
+     |              "Bog'bon Savdo" MChJ              |
+     |                STIR: 301234567                 |
+     |   Toshkent, Yunusobod tumani, 4-mavze, 12-uy   |
+     |             Tel: +998 90 123 45 67             |
+     |================================================|
+B2x2 |       Z-HISOBOT        |
+B    |                 SMENA YOPILDI                  |
+     |Smena: 45                                       |
+     |Ochildi:                        22.10.2026 09:00|
+     |Yopildi:                        23.10.2026 01:10|
+     |Chop etildi:                    23.10.2026 01:10|
+     |------------------------------------------------|
+B    |SAVDO                                           |
+     |Cheklar soni:                                 60|
+     |Sotuv:                                 3 120 000|
+B    |Sof tushum:                            3 120 000|
+     |Shu jumladan qadoq:                       60 000|
+     |O'rtacha chek:                            52 000|
+     |------------------------------------------------|
+B    |TO'LOV TURLARI                                  |
+     |Naqd (60):                             3 120 000|
+     |------------------------------------------------|
+B    |KASSA (NAQD)                                    |
+     |Boshlang'ich qoldiq:                           0|
+     |Naqd tushum:                           3 120 000|
+B    |Kassada bo'lishi kerak:                3 120 000|
+B    |Sanaldi:                               3 120 000|
+B    |Farq:                                          0|
+     |------------------------------------------------|
+     |                                                |
+     |Kassir imzosi: ____________                     |
+     - - - - - - - - - - - - - - - - - - - - kesish -

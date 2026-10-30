@@ -16,6 +16,12 @@ String posErrorText(Object error) => switch (error) {
 String itemQuantityLabel(PosOrderItem i) =>
     i.quantityLabel ?? i.quantity.label(i.unit);
 
+/// P6-31: kombo tarkibi (narxsiz): "Ichimlik — 0,4 l Pepsi".
+List<String> comboPartLines(List<PosComboPart>? parts) => <String>[
+  for (final PosComboPart p in parts ?? const <PosComboPart>[])
+    p.label.isNotEmpty ? p.label : p.name,
+];
+
 /// Qo'shimchalar matni: "Piyoz", "2 × Qazi".
 List<String> itemModifierLabels(PosOrderItem i) => <String>[
   for (final PosOrderItemModifier m in i.modifiers)

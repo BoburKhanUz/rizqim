@@ -37,6 +37,10 @@ class PosLine {
     this.course,
     this.weight,
     this.waitMinutes,
+    this.target,
+    this.combo,
+    this.comboId = 900,
+    this.comboQty = 1,
   });
 
   final String name;
@@ -72,6 +76,14 @@ class PosLine {
 
   /// P6-25: mangal vaqti (daqiqa), mahsulotda belgilangan bo'lsa.
   final int? waitMinutes;
+
+  /// P6-33: taomning o'z vaqt maqsadi (soniya); bo'lmasa sexniki.
+  final int? target;
+
+  /// P6-31: kombo nomi bo'lsa qator shu komboning qismi (`combo` konteksti); [comboId] — kombo qatori id si.
+  final String? combo;
+  final int comboId;
+  final int comboQty;
 }
 
 class FakeKitchenState {
@@ -248,8 +260,15 @@ class FakeKitchenState {
   }
 
   /// Yangi sex (`kind`: osh, mangal, ...); `stations` ro'yxatiga qo'shiladi.
-  void addStation(int id, String name, String kind, {bool showOnKds = true}) {
+  void addStation(
+    int id,
+    String name,
+    String kind, {
+    bool showOnKds = true,
+    int? target,
+  }) {
     (stations ??= <Map<String, Object?>>[]).add(<String, Object?>{
+      'target_seconds': target,
       'id': id,
       'branch_id': branchId,
       'name': name,
@@ -329,6 +348,13 @@ class FakeKitchenState {
       'course_no': l.course,
       'weight_status': l.weight,
       'wait_minutes': l.waitMinutes,
+      if (l.target != null) 'target_seconds': l.target,
+      if (l.combo != null)
+        'combo': <String, Object?>{
+          'item_id': l.comboId,
+          'name': l.combo,
+          'quantity': l.comboQty,
+        },
     };
   }
 
@@ -750,6 +776,12 @@ class FakeKitchenState {
           line[3] == 'ready',
         );
       }
+      final RegExpMatch? assembled = RegExp(
+        r'^/v1/staff/orders/([^/]+)/assembled$',
+      ).firstMatch(p);
+      if (method == 'POST' && assembled != null) {
+        return _assemble(assembled[1]!);
+      }
       final RegExpMatch? status = RegExp(r'^/v1/staff/orders/([^/]+)/status$')
           .firstMatch(p);
       if (method == 'POST' && status != null) {
@@ -963,12 +995,23 @@ class FakeKitchenState {
     // A recalled POS line goes back to `sent`, an online one to `pending`
     item['kitchen_status'] = ready ? 'ready' : (pos ? 'sent' : 'pending');
     item['ready_at'] = ready ? now() : null;
+    // P6-33: a line going back to the kitchen (or a new one bumped) undoes an assembly
+    if (order['assembled_at'] != null) {
+      order['assembled_at'] = null;
+      _event(
+        'kitchen.order_assembled',
+        uuid,
+        extra: <String, Object?>{'assembled': false},
+      );
+    }
+    final bool expo = _requiresExpo(order);
     if (ready && order['status'] == 'accepted') {
       order['status'] = 'preparing';
       order['preparing_at'] = now();
     }
     if (ready &&
         closedPickup &&
+        !expo &&
         items.every(
           (Map<String, Object?> i) =>
               i['kitchen_status'] == 'ready' ||
@@ -979,6 +1022,7 @@ class FakeKitchenState {
     }
     if (ready &&
         !closedPickup &&
+        !expo &&
         order['type'] != 'dine_in' &&
         items.every(
           (Map<String, Object?> i) =>
@@ -1006,6 +1050,164 @@ class FakeKitchenState {
     _event('kitchen.item_status_changed', uuid);
     return _ok(_ticket(order));
   }
+
+  // --- P6-33: expo (assembly) ---------------------------------------------------------------------------------------
+
+  /// The branch's active `expo` station id (`kds_expo` is on in the fake whenever such a station exists).
+  int? get expoStationId {
+    for (final Map<String, Object?> s
+        in stations ?? const <Map<String, Object?>>[]) {
+      if (s['kind'] == 'expo' && s['is_active'] != false) {
+        return s['id']! as int;
+      }
+    }
+    return null;
+  }
+
+  /// The order's kitchen lines (not voided, sent) by station id (0: no station), like `KitchenAssembly`.
+  Map<int, List<Map<String, Object?>>> _stationGroups(Map<String, Object?> o) {
+    final Map<int, List<Map<String, Object?>>> groups =
+        <int, List<Map<String, Object?>>>{};
+    for (final Map<String, Object?> i in _items(o)) {
+      if (i['kitchen_status'] == 'void') continue;
+      if (i['fire_mode'] != null && i['sent_at'] == null) continue;
+      (groups[(i['station_id'] as int?) ?? 0] ??= <Map<String, Object?>>[]).add(
+        i,
+      );
+    }
+    return Map<int, List<Map<String, Object?>>>.fromEntries(
+      groups.entries.toList()..sort((a, b) {
+        if (a.key == 0) return 1;
+        if (b.key == 0) return -1;
+        return a.key.compareTo(b.key);
+      }),
+    );
+  }
+
+  bool _requiresExpo(Map<String, Object?> o) {
+    if (expoStationId == null) return false;
+    if (o['type'] == 'dine_in' && o['queue_number'] == null) return false;
+    return _stationGroups(o).length >= 2;
+  }
+
+  Map<String, Object?>? _assembly(Map<String, Object?> o) {
+    if (!_requiresExpo(o)) return null;
+    bool done(Map<String, Object?> i) =>
+        i['kitchen_status'] == 'ready' || i['kitchen_status'] == 'served';
+    final Map<int, List<Map<String, Object?>>> groups = _stationGroups(o);
+    final DateTime? at = o['assembled_at'] as DateTime?;
+    final bool allDone = groups.values.every((g) => g.every(done));
+    return <String, Object?>{
+      'station_id': expoStationId,
+      'required': true,
+      'waiting':
+          at == null &&
+          allDone &&
+          o['status'] != 'ready' &&
+          o['pickup_status'] != 'ready' &&
+          o['pickup_status'] != 'handed',
+      'assembled_at': at?.toUtc().toIso8601String(),
+      'stations': <Map<String, Object?>>[
+        for (final MapEntry<int, List<Map<String, Object?>>> g
+            in groups.entries)
+          () {
+            final Map<String, Object?>? st = g.key == 0
+                ? null
+                : _station(g.key);
+            final int ready = g.value.where(done).length;
+            return <String, Object?>{
+              'station_id': g.key == 0 ? null : g.key,
+              'name': st?['name'] ?? 'Umumiy',
+              'kind': st?['kind'],
+              'items_total': g.value.length,
+              'items_ready': ready,
+              'done': ready == g.value.length,
+            };
+          }(),
+      ],
+    };
+  }
+
+  Map<String, Object?>? _station(int id) =>
+      (stations ?? const <Map<String, Object?>>[])
+          .where((Map<String, Object?> s) => s['id'] == id)
+          .firstOrNull;
+
+  /// A line's target: its own, else its station's; null: none.
+  int? _targetOf(Map<String, Object?> i) =>
+      (i['target_seconds'] as int?) ??
+      (_station((i['station_id'] as int?) ?? 0)?['target_seconds'] as int?);
+
+  /// `POST /staff/orders/{uuid}/assembled`: the expo bump (backend `KitchenAssembly::assemble`).
+  FakeResponse _assemble(String uuid) {
+    final Map<String, Object?>? order = _order(uuid);
+    if (order == null) return _notFound();
+    if (!_requiresExpo(order)) {
+      return const FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message': "Bu buyurtma yig'ish sexidan o'tmaydi.",
+        'data': <String, Object?>{'reason': 'assembly_not_required'},
+      });
+    }
+    if (order['assembled_at'] != null) return _ok(_ticket(order));
+    final bool closedPickup =
+        order['status'] == 'delivered' && order['pickup_status'] == 'preparing';
+    if (!closedPickup &&
+        order['status'] != 'accepted' &&
+        order['status'] != 'preparing') {
+      return const FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message': "Bu buyurtma oshxonada emas: uni yig'ib bo'lmaydi.",
+        'data': <String, Object?>{'reason': 'kitchen_status'},
+      });
+    }
+    final bool cooking = _items(order).any(
+      (Map<String, Object?> i) =>
+          i['kitchen_status'] == 'sent' || i['kitchen_status'] == 'pending',
+    );
+    if (cooking) {
+      return const FakeResponse(422, <String, Object?>{
+        'success': false,
+        'message':
+            'Hamma sexlar hali tayyor emas: yig\'ishdan oldin ularni kuting.',
+        'data': <String, Object?>{'reason': 'stations_not_ready'},
+      });
+    }
+    order['assembled_at'] = now();
+    if (order['type'] != 'dine_in' && !closedPickup) {
+      order['status'] = 'ready';
+      order['ready_at'] = now();
+    }
+    if (order['pickup_status'] != null) order['pickup_status'] = 'ready';
+    assembledLog.add(uuid);
+    _event(
+      'kitchen.order_assembled',
+      uuid,
+      extra: <String, Object?>{'assembled': true},
+    );
+    if (order['queue_number'] != null) _event('queue.ready', uuid);
+    return _ok(_ticket(order));
+  }
+
+  /// A station finished its lines of an order (another screen bumped them): ready, event sent. Like the backend, an
+  /// order that goes through the expo does not become ready by this.
+  void bumpStation(String uuid, int stationId) {
+    final Map<String, Object?> order = _order(uuid)!;
+    for (final Map<String, Object?> i in _items(order)) {
+      if (i['station_id'] == stationId && i['kitchen_status'] == 'sent') {
+        i['kitchen_status'] = 'ready';
+        i['ready_at'] = now();
+      }
+    }
+    if (order['status'] == 'accepted') order['status'] = 'preparing';
+    _event('kitchen.item_status_changed', uuid);
+  }
+
+  /// Another expo screen assembled the order (event `kitchen.order_assembled`).
+  void assembleOrder(String uuid) => _assemble(uuid);
+
+  /// Orders the expo assembled, in order (tests read it).
+  final List<String> assembledLog = <String>[];
 
   /// `POST /pos/orders/{uuid}/ready` (P6-13): raqam tayyor, pishayotgan qatorlar tayyor bo'ladi.
   FakeResponse _queueReady(String uuid) {
@@ -1065,7 +1267,8 @@ class FakeKitchenState {
     String? iso(Object? v) =>
         v is DateTime ? v.toUtc().toIso8601String() : null;
     return <String, Object?>{
-      ...o,
+      // `assembled_at` is the order's own column; the ticket carries it inside `assembly`
+      ...(<String, Object?>{...o}..remove('assembled_at')),
       'items_total': items
           .where((Map<String, Object?> i) => i['kitchen_status'] != 'void')
           .length,
@@ -1084,8 +1287,11 @@ class FakeKitchenState {
             if (i.containsKey('sent_at')) 'sent_at': iso(i['sent_at']),
             if (i.containsKey('due_at')) 'due_at': iso(i['due_at']),
             if (i.containsKey('voided_at')) 'voided_at': iso(i['voided_at']),
+            // P6-33: the line's target and `late` (a POS line always; an online line only with a target)
+            ..._annotate(i, start),
           },
       ],
+      'assembly': _assembly(o),
       'created_at': iso(o['created_at']),
       'accepted_at': iso(o['accepted_at']),
       'preparing_at': iso(o['preparing_at']),
@@ -1095,15 +1301,42 @@ class FakeKitchenState {
     };
   }
 
+  Map<String, Object?> _annotate(Map<String, Object?> i, DateTime accepted) {
+    final int? target = _targetOf(i);
+    if (i['fire_mode'] == null && target == null) {
+      return const <String, Object?>{};
+    }
+    final Object? sent = i['sent_at'];
+    final DateTime? started = i['fire_mode'] != null
+        ? sent as DateTime?
+        : accepted;
+    final bool done =
+        i['kitchen_status'] == 'ready' || i['kitchen_status'] == 'served';
+    final DateTime end = done ? ((i['ready_at'] as DateTime?) ?? now()) : now();
+    return <String, Object?>{
+      'target_seconds': target,
+      'late':
+          target != null &&
+          started != null &&
+          i['kitchen_status'] != 'void' &&
+          end.difference(started).inSeconds > target,
+    };
+  }
+
   Map<String, Object?>? _order(String uuid) =>
       orders.where((Map<String, Object?> o) => o['uuid'] == uuid).firstOrNull;
 
   static List<Map<String, Object?>> _items(Map<String, Object?> o) =>
       (o['items']! as List<Object?>).cast<Map<String, Object?>>();
 
-  void _event(String event, String uuid) {
+  void _event(
+    String event,
+    String uuid, {
+    Map<String, Object?> extra = const <String, Object?>{},
+  }) {
     final Map<String, Object?>? o = _order(uuid);
     onEvent?.call(event, <String, Object?>{
+      ...extra,
       'order': <String, Object?>{
         'uuid': uuid,
         'status': o?['status'],

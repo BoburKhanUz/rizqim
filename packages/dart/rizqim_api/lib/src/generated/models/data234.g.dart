@@ -55,7 +55,7 @@ Data234 _$Data234FromJson(Map<String, dynamic> json) => Data234(
   packagingAmount: json['packaging_amount'] as String,
   pickup: json['pickup'] == null
       ? null
-      : Pickup9.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup11.fromJson(json['pickup'] as Map<String, dynamic>),
   totalPrice: json['total_price'] as String,
   charges: Charges13.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null

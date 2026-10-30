@@ -10,6 +10,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 | [ofitsiant.md](ofitsiant.md) | Ofitsiant | Telefon ilovasi: ulash va PIN, "Mening xonalarim", xonani ochish, taom qo'shish va yuborish, "Berildi", schyot so'rash, boshqa ofitsiantning buyurtmasi, aloqa yo'qolganda; restoranda kurslar, mehmon raqami, "Boshqa ofitsiantga berish", "Mening choy pulim", "Ishga keldim" |
 | [ega-pos-sozlash.md](ega-pos-sozlash.md) | Ega (va buxgalter) | Kassa tizimini birinchi sozlash: **filial formati va modullar** (choyxona, osh markazi, stolovaya...), zal xaritasi, xona tariflari va bayramlar, choy-non, xizmat haqi (oldindan e'lon qilish), fiskal sozlamalar (STIR, soliq rejimi, MXIK), sexlar va printerlar, terminallar, xodimlar va PIN, smenalar va Z, bron, nasiya; **"Ikki marta hisoblamaslik"** |
 | [tez-kassa.md](tez-kassa.md) | Kassir, ega | **Tez kassa va telefon rejimi** (osh markazi, somsaxona, stolovaya...): birinchi ekran, buyurtma 3 bosishda, avval to'lov, talon va raqam, Tayyor / Berildi / Qayta chaqirish, kompleks, bugungi menyu, "Keyingi partiya", menejer PIN'i bilan hisobdan chiqarish, karta RRN va oxirgi 4 raqam, Z va bank terminali jami; ega uchun osh markazi, somsaxona va stolovayani sozlash |
+| [fast-food.md](fast-food.md) | Ega, kassir, oshpaz | **Fast food va qahvaxona**: kombo (panelda sozlash, chekdagi ko'rinishi, fiskal chek rejimi, kassada), tez modifikatorlar (hajm bir bosishda), stakan stikeri va paket yorlig'i (TSPL yorliq printeri), qadoq qoidalari va olib tashlash, oldindan buyurtma (olib ketish vaqti), 24/7, sexlar, vaqt maqsadi va yig'ish ekrani, tayyorlash vaqti hisoboti |
 | [restoran.md](restoran.md) | Ofitsiant, kassir (va ega) | **Restoran va kafe**: kurslar ("N-kursni yuborish", "2-kurs tayyor" xabari), mehmon raqami va schyotni mehmonlar bo'yicha bo'lish, stolni boshqa ofitsiantga berish va sotuv kimga yozilishi, choy puli kassada (qaytimni choy puli qilish, boshqa xodimga yozish — menejer PIN'i, kassadan berish, misollar), schyotdagi xizmat haqi e'loni, six ×N va og'irligi keyin tortiladigan taom, kafe "stolga olib kelish", internetsiz; ega: nimani yoqish |
 | [hostes.md](hostes.md) | Hostes (va ega) | **Hostes**: kirish va ekran, kutish ro'yxati (yozish, chaqirish, joylashtirish, ketdi, kelmadi), stol "tozalanmoqda", bronlar, oldindan bron qoidasi va bo'nak; ega uchun stol broni qoidalari va kutish ro'yxatini ko'rish |
 | [choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md) | Ega (va buxgalter) | **Choy puli va ofitsiant ish haqi**: choy puli rejimlari (shaxsiy yoki umumiy qozon) va bo'lish qoidalari (misollar bilan), qozonni bo'lish va yopish (davr qoidasi), tuzatish, kassadan choy pulini berish va uning ish haqidan ayrilishi; ish haqi qoidalari (smena, soatbay, sotuvdan %, xizmat haqidan %, garant, tadbir) misollar bilan, stol o'tkazilganda sotuv kimga, hisob-kitob, kassadan to'lash, ish vaqti, xizmat haqi qoidalari |
@@ -28,6 +29,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Oshpaz**: [oshxona-ekrani.md](oshxona-ekrani.md) (2–4-bo'limlar). Choyxonada qo'shimcha: sexlar, mangal, oldindan buyurtmalar, qozon (8–12-bo'limlar).
 - **Kassir**: [kassa.md](kassa.md) (butun qo'llanma; avval 1–4-bo'limlar). Tez kassa (osh markazi, somsaxona, stolovaya) yoki
   telefonda ishlasangiz: [tez-kassa.md](tez-kassa.md).
+- **Fast food yoki qahvaxona egasi**: [fast-food.md](fast-food.md) (kombo, stiker, qadoq, oldindan buyurtma, sexlar), avval [tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash).
 - **Mijoz ekrani yoki raqamlar taxtasini ulaydigan odam**: [mijoz-ekrani.md](mijoz-ekrani.md).
 - **Ofitsiant**: [ofitsiant.md](ofitsiant.md). Restoran yoki kafede qo'shimcha: [restoran.md](restoran.md).
 - **Hostes**: [hostes.md](hostes.md).
@@ -49,6 +51,12 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Ulash kodi** — planshetni do'konga ulaydigan 8 belgili bir martalik kod (`ABCD-EFGH`).
 - **Kassa** — kassir ishlaydigan ilova (planshet, Sunmi yoki Windows monoblok).
 - **Ofitsiant ilovasi** — ofitsiantning telefonidagi ilova.
+- **Kombo** — bitta narxli to'plam, tarkibini mijoz slotlarda tanlaydi (lavash + ichimlik + sous). Chekda bitta qator, tagida tarkibi narxsiz.
+- **Slot** — kombodagi tanlov joyi ("Asosiy", "Ichimlik", "Sous"); tanlovning narx farqi bor (0 yoki qo'shimcha).
+- **Stiker** — ichimlik stakaniga yopishtiriladigan kichik yorliq (raqam, hajm); **paket yorlig'i** — olib ketish paketiga.
+- **Qadoq** — olib ketishda o'zi qo'shiladigan paket yoki idish qatori (o'z narxi va MXIK'i bilan).
+- **Yig'ish ekrani** — bir nechta sexda pishgan buyurtma yig'iladigan joy; **Yig'ildi** bosilgach raqam tayyor bo'ladi.
+- **Vaqt maqsadi** — sex yoki taom tayyor bo'lishi kerak vaqt (soniyada); o'tib ketsa oshxona ekranida qizil.
 - **Mijoz ekrani** — mijozga qaragan ekran: kassaning ikkinchi ekrani yoki tayyor raqamlar taxtasi. Bepul.
 - **Navbat raqami** — tez kassada har buyurtmaga beriladigan raqam; tayyor bo'lganda ekranda chiqadi va chaqiriladi.
 - **Sex** — taom tayyorlanadigan joy: osh, mangal, salat va bar, choy. Har sexning o'z printeri yoki ekrani bor.

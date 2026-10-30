@@ -11,7 +11,9 @@ import '../../shell/approval_dialog.dart';
 import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../billing/billing_page.dart';
+import '../../printing/label_printing.dart';
 import '../billing/cashier_ui.dart';
+import '../order/takeaway_widgets.dart' show pickupTimeLabel;
 import '../settings/cashier_prefs.dart';
 
 /// Barcha kanallar navbati (POS_SPEC 2.5; 13-ekranlar 5, 14): qabul kutayotgan Telegram va mobil buyurtmalar (ovoz,
@@ -42,6 +44,13 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
   PosScope get _scope => PosScope.of(context);
 
   OnlineOrderRepository get _online => OnlineOrderRepository(_scope.data.http);
+
+  late final CashierLabels _labels = CashierLabels(
+    printing: _scope.printing,
+    bootstrap: () => _scope.session.bootstrap,
+    catalog: () => _scope.data.catalog.cached(PosChannel.takeaway),
+    now: _scope.services.now,
+  );
 
   @override
   void didChangeDependencies() {
@@ -141,6 +150,8 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
     if (!mounted) return;
     setState(() => _busy.remove(o.uuid));
     if (ok) {
+      // P6-32: a Telegram pickup gets its bag label (and its drinks their stickers) as it is accepted
+      _labels.printLater(_labels.forOnline(o));
       showPosMessage(
         context,
         'Qabul qilindi: #${o.shortCode ?? ''}. Marka oshxonaga chiqadi.',
@@ -364,6 +375,9 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
                   'dine_in' => 'Zalda',
                   _ => o.type,
                 },
+                // P6-34: a Telegram pickup for later says its time
+                if (_pickupOf(o.raw) case final PosPickupTime p)
+                  'vaqti: ${pickupTimeLabel(p)}',
                 ?o.customerName,
                 ?o.customerPhone,
                 if (o.isPaid)
@@ -466,9 +480,61 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
           .where((PosOpenOrder o) => o.isPos)
           .map((PosOpenOrder o) => o.totalPrice),
     );
+    // P6-34: the orders for later (counter and Telegram pickups) with their time, the soonest first
+    final List<(PosOpenOrder, PosPickupTime)> later =
+        <(PosOpenOrder, PosPickupTime)>[
+          for (final PosOpenOrder o in open)
+            if (_pickupOf(o.raw) case final PosPickupTime p when p.waiting)
+              (o, p),
+        ]..sort(
+          ((PosOpenOrder, PosPickupTime) a, (PosOpenOrder, PosPickupTime) b) =>
+              a.$2.pickupAt.compareTo(b.$2.pickupAt),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (later.isNotEmpty) ...<Widget>[
+          PosCard(
+            key: const ValueKey<String>('queue-scheduled'),
+            title: 'Vaqtga (${later.length})',
+            trailing: Text(
+              'Oshxonaga vaqtida chiqadi',
+              style: RzType.footnote.copyWith(color: c.fgMuted),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (final (PosOpenOrder o, PosPickupTime p) in later)
+                  ListTile(
+                    key: ValueKey<String>('scheduled-${o.uuid}'),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    leading: Icon(Icons.schedule_rounded, color: c.infoSoftFg),
+                    title: Text(
+                      '${pickupTimeLabel(p)} · ${_place(o)}',
+                      style: RzType.headline.copyWith(color: c.fg),
+                    ),
+                    subtitle: Text(
+                      <String>[
+                        if (o.shortCode != null) '#${o.shortCode}',
+                        if (o.raw['queue'] case {'number': final Object n})
+                          'raqam $n',
+                        '${o.itemsCount} taom',
+                        if (p.kitchenFireAt != null)
+                          'oshxonaga ${hm(p.kitchenFireAt!)}',
+                      ].join(' · '),
+                      style: RzType.footnote.copyWith(color: c.fgMuted),
+                    ),
+                    trailing: Text(
+                      o.totalPrice.format(),
+                      style: RzType.headline.copyWith(color: c.fg),
+                    ),
+                    onTap: () => _openOrder(o),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (fiscal.isNotEmpty) ...<Widget>[
           PosCard(
             title: 'Fiskal kutmoqda (${fiscal.length})',
@@ -612,6 +678,17 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
     );
   }
 
+  /// P6-34: ro'yxat qatoridagi olib ketish vaqti (`pickup`), yo'q — `null`.
+  static PosPickupTime? _pickupOf(Map<String, Object?> raw) {
+    final Object? p = raw['pickup'];
+    if (p is! Map) return null;
+    try {
+      return PosPickupTime.fromJson(PosJson.of(p));
+    } on FormatException {
+      return null;
+    }
+  }
+
   static String _place(PosOpenOrder o) =>
       o.table?.name ??
       o.tableRef ??
@@ -639,7 +716,13 @@ class _QueuePageState extends State<QueuePage> with RefreshingState {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          if (o.fiscalPending)
+          if (_pickupOf(o.raw) case final PosPickupTime p when p.waiting)
+            TonePill(
+              label: pickupTimeLabel(p) ?? 'Vaqtga',
+              tone: StatusTone.info,
+              icon: Icons.schedule_rounded,
+            )
+          else if (o.fiscalPending)
             const TonePill(label: 'Fiskal kutmoqda', tone: StatusTone.warning)
           else if (o.billRequested && !o.billLocked)
             const TonePill(

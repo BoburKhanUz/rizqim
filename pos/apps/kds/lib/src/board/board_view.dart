@@ -72,10 +72,23 @@ class BoardView {
   const BoardView({
     this.active = const <BoardTicket>[],
     this.queue = const <QueuedLine>[],
+    this.expo = const <BoardTicket>[],
+    this.hasExpo = false,
+    this.expoOnly = false,
     this.nextBoundary,
   });
 
   final List<BoardTicket> active;
+
+  /// P6-33: yig'ish ekrani — tanlangan yig'ish (expo) sexiga tegishli, hali yig'ilmagan buyurtmalar (hamma sex
+  /// qatorlari bilan, faqat ko'rish uchun). Hamma sex tayyor (yig'ishni kutayotgan) buyurtmalar oldinda.
+  final List<BoardTicket> expo;
+
+  /// Oshpaz yig'ish sexini tanlagan: "Yig'ish" bo'limi bor.
+  final bool hasExpo;
+
+  /// Faqat yig'ish sexi tanlangan: oddiy doska bo'sh, ekran faqat yig'ish ekrani.
+  final bool expoOnly;
 
   /// Muddat bo'yicha (eng yaqini birinchi).
   final List<QueuedLine> queue;
@@ -143,6 +156,9 @@ BoardView buildBoardView({
 
   final List<BoardTicket> active = <BoardTicket>[];
   final List<QueuedLine> queue = <QueuedLine>[];
+  final Set<int> expoIds = filter
+      ? chosenExpoIds(selection, stations)
+      : const <int>{};
 
   for (final KitchenTicket t in tickets) {
     final List<KitchenLine> shown = <KitchenLine>[];
@@ -219,7 +235,45 @@ BoardView buildBoardView({
   }
 
   queue.sort((QueuedLine a, QueuedLine b) => a.dueAt.compareTo(b.dueAt));
-  return BoardView(active: active, queue: queue, nextBoundary: boundary);
+  return BoardView(
+    active: active,
+    queue: queue,
+    expo: expoIds.isEmpty
+        ? const <BoardTicket>[]
+        : _expoTickets(tickets, expoIds),
+    hasExpo: expoIds.isNotEmpty,
+    expoOnly: filter && isExpoOnly(selection, stations),
+    nextBoundary: boundary,
+  );
+}
+
+/// Yig'ish ekrani: tanlangan yig'ish sexiga tegishli, hali yig'ilmagan chiptalar. Qatorlari sexga qarab
+/// filtrlanmaydi (yig'ish hamma sexni ko'radi); o'chirilgan qatorlar tushiriladi.
+List<BoardTicket> _expoTickets(List<KitchenTicket> tickets, Set<int> expoIds) {
+  final List<BoardTicket> out = <BoardTicket>[];
+  for (final KitchenTicket t in tickets) {
+    final KitchenAssembly? a = t.assembly;
+    if (a == null || a.isAssembled || !expoIds.contains(a.stationId)) continue;
+    final List<KitchenLine> lines = <KitchenLine>[
+      for (final KitchenLine l in t.lines)
+        if (!l.isVoid) l,
+    ];
+    if (lines.isEmpty || lines.every((KitchenLine l) => l.isServed)) continue;
+    final KitchenTicket visible = lines.length == t.lines.length
+        ? t
+        : t.copyWith(lines: lines);
+    out.add(_boardTicket(visible, t));
+  }
+  // Yig'ishni kutayotganlar (hamma sex tayyor) oldinda; qolgani eskisidan yangisiga (tartib saqlanadi)
+  final List<BoardTicket> waiting = <BoardTicket>[
+    for (final BoardTicket e in out)
+      if (e.ticket.assembly!.waiting || e.ticket.assembly!.allStationsDone) e,
+  ];
+  return <BoardTicket>[
+    ...waiting,
+    for (final BoardTicket e in out)
+      if (!waiting.contains(e)) e,
+  ];
 }
 
 /// Bosqichlar tartibida (1, 2, ...), bosqich ichida kurslar tartibida (kurssiz qatorlar birinchi; P6-21), kurs ichida

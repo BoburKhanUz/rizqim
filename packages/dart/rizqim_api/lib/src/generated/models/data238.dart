@@ -8,7 +8,7 @@ import 'hall13.dart';
 import 'table13.dart';
 import 'waiter16.dart';
 import 'discount_kind.dart';
-import 'pickup12.dart';
+import 'pickup14.dart';
 import 'charges16.dart';
 import 'offline12.dart';
 import 'queue14.dart';
@@ -131,7 +131,7 @@ class Data238 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup12? pickup;
+  final Pickup14? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
   final Charges16 charges;

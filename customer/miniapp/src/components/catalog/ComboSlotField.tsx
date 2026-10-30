@@ -19,6 +19,8 @@ interface ComboSlotFieldProps {
 export function ComboSlotField({ slot, options, picked, onPick }: ComboSlotFieldProps) {
   const titleId = useId();
   const single = Math.max(1, slot.max_picks) === 1;
+  // When some choices cost extra, the free ones say they are in the price ("Narxda") so no one wonders about a missing number
+  const hasExtra = options.some((option) => toAmount(option.price_delta) > 0);
   const rule = slot.min_picks > 0 ? (single ? 'Majburiy' : `Majburiy, ${slot.min_picks}–${slot.max_picks} ta`) : single ? 'Ixtiyoriy' : `Ixtiyoriy, ko'pi bilan ${slot.max_picks} ta`;
 
   return (
@@ -60,7 +62,11 @@ export function ComboSlotField({ slot, options, picked, onPick }: ComboSlotField
                   <span className="block text-footnote text-fg-muted">{[option.variant_name, ...option.modifiers.map((modifier) => modifier.name)].filter(Boolean).join(', ')}</span>
                 )}
               </span>
-              {delta > 0 && <span className="shrink-0 text-body font-bold text-fg">{`+${formatMoney(delta)}`}</span>}
+              {delta > 0 ? (
+                <span className="shrink-0 text-body font-bold text-fg">{`+${formatMoney(delta)}`}</span>
+              ) : (
+                hasExtra && <span className="shrink-0 text-footnote text-fg-muted">Narxda</span>
+              )}
             </button>
           );
         })}

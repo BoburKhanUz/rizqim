@@ -11,13 +11,18 @@ import '../features/billing/cashier_ui.dart';
 import '../features/billing/payment_page.dart';
 import '../features/order/frequent_items.dart';
 import '../features/order/kitchen_tickets.dart';
+import '../features/order/combo_sheet.dart';
 import '../features/order/line_dialogs.dart';
 import '../features/order/menu_panel.dart';
 import '../features/order/order_controller.dart' show OrderNotice;
 import '../features/order/order_draft.dart';
 import '../features/order/order_format.dart';
+import '../features/order/quick_modifiers.dart';
+import '../features/order/takeaway_widgets.dart';
 import '../features/shift/z_close_page.dart';
 import '../menu_day/menu_day.dart';
+import '../printing/label_preview.dart';
+import '../printing/label_printing.dart';
 import '../shell/approval_dialog.dart';
 import '../shell/destinations.dart';
 import '../shell/pos_scope.dart';
@@ -50,6 +55,9 @@ class CounterPage extends StatefulWidget {
 class _CounterPageState extends State<CounterPage> {
   CounterController? _ctl;
   CounterReadyBoard? _board;
+
+  /// P6-32: stakan stikerlari va paket yorlig'i (to'lovdan keyin).
+  late CashierLabels _labels;
   StreamSubscription<OrderNotice>? _noticeSub;
   StreamSubscription<String>? _boardErrors;
   StreamSubscription<PosEvent>? _menuSub;
@@ -82,10 +90,16 @@ class _CounterPageState extends State<CounterPage> {
         now: scope.services.now,
       ),
       frequent: FrequentItems.of(scope.data),
-      queue: CounterQueueNumbers.of(scope.data),
+      queue: CounterQueueNumbers.of(scope.data, clock: scope.services.now),
       now: scope.services.now,
     );
     _ctl = ctl;
+    _labels = CashierLabels(
+      printing: scope.printing,
+      bootstrap: () => scope.session.bootstrap,
+      catalog: () => ctl.catalog,
+      now: scope.services.now,
+    );
     _noticeSub = ctl.notices.listen(_notice);
     // P6-14: the customer display shows this cart (only with the `customer_display` module)
     scope.data.displayFeed.enabled = scope.session.hasModule(
@@ -218,6 +232,22 @@ class _CounterPageState extends State<CounterPage> {
         p.singleVariant ??
         await showVariantPicker(context, product: p, catalog: cat);
     if (v == null || !mounted || !cat.isVariantAvailable(v)) return;
+    // P6-31: a combo opens its slot sheet (the default combo: one more tap, «Qo'shish»)
+    if (p.isCombo) {
+      final int times = ctl.multiplier;
+      final ComboSheetResult? r = await showComboSheet(
+        context,
+        product: p,
+        variant: v,
+        catalog: cat,
+        quantity: times,
+      );
+      if (r == null || !mounted) return;
+      ctl
+        ..setMultiplier(1)
+        ..add(p, v, quantity: PosQuantity.whole(r.quantity), combo: r.choice);
+      return;
+    }
     PosQuantity? qty;
     if (v.unit.isMeasured) {
       qty = await showQuantityKeypad(
@@ -228,18 +258,74 @@ class _CounterPageState extends State<CounterPage> {
       );
       if (qty == null || !mounted) return;
     }
-    var mods = const <String, int>{};
-    if (needsModifierChoice(p)) {
+    // P6-32: the defaults preselected (a quick group's default needs no dialog)
+    Map<String, int> mods = defaultModifiers(p, availability: cat.availability);
+    if (needsModifierChoice(p, availability: cat.availability)) {
       final Map<String, int>? chosen = await showPosModifierDialog(
         context,
         title: p.name,
         groups: modifierSpecs(p, availability: cat.availability),
+        initial: mods,
         basePrice: v.price,
       );
       if (chosen == null || !mounted) return;
       mods = chosen;
     }
     ctl.add(p, v, quantity: qty, modifiers: mods);
+  }
+
+  /// P6-32: hajm tugmasi (menyu tugmasida): taom shu hajm va qolgan standart tanlov bilan, bir bosishda.
+  Future<void> _onQuickSize(PosProduct p, PosModifier size) async {
+    final CounterController ctl = _ctl!;
+    final PosCatalog cat = ctl.catalog!;
+    if (ctl.stage == CounterStage.awaitingPayment) return;
+    final PosVariant? v =
+        p.singleVariant ??
+        await showVariantPicker(context, product: p, catalog: cat);
+    if (v == null || !mounted || !cat.isVariantAvailable(v)) return;
+    final PosModifierGroup group = sizeGroupOf(p)!;
+    final Map<String, int> mods = toggleQuickModifier(
+      <String, int>{
+        for (final MapEntry<String, int> e in defaultModifiers(
+          p,
+          availability: cat.availability,
+        ).entries)
+          if (!group.modifiers.any((PosModifier m) => m.uuid == e.key))
+            e.key: e.value,
+      },
+      group,
+      size,
+    );
+    if (needsDialogWith(p, mods)) {
+      final Map<String, int>? chosen = await showPosModifierDialog(
+        context,
+        title: p.name,
+        groups: modifierSpecs(p, availability: cat.availability),
+        initial: mods,
+        basePrice: v.price,
+      );
+      if (chosen == null || !mounted) return;
+      ctl.add(p, v, modifiers: chosen);
+      return;
+    }
+    ctl.add(p, v, modifiers: mods);
+  }
+
+  /// P6-31: savatdagi kombo qatori — tanlovni o'zgartirish.
+  Future<void> _editCombo(DraftLine l) async {
+    final CounterController ctl = _ctl!;
+    final PosCatalog? cat = ctl.catalog;
+    if (cat == null || !ctl.editable || l.combo == null) return;
+    final ComboSheetResult? r = await showComboSheet(
+      context,
+      product: l.product,
+      variant: l.variant,
+      catalog: cat,
+      initial: l.combo,
+      quantity: l.quantity.wholePart,
+    );
+    if (r == null || !mounted) return;
+    ctl.updateCombo(l.key, r.choice, PosQuantity.whole(r.quantity));
   }
 
   /// Uzoq bosish: ixtiyoriy qo'shimchalar bilan (piyoz, achchiq ...).
@@ -251,6 +337,7 @@ class _CounterPageState extends State<CounterPage> {
         p.singleVariant ??
         await showVariantPicker(context, product: p, catalog: cat);
     if (v == null || !mounted || !cat.isVariantAvailable(v)) return;
+    if (p.isCombo) return _onProductTap(p);
     if (p.modifierGroups.isEmpty) {
       ctl.add(p, v);
       return;
@@ -259,6 +346,7 @@ class _CounterPageState extends State<CounterPage> {
       context,
       title: p.name,
       groups: modifierSpecs(p, availability: cat.availability),
+      initial: defaultModifiers(p, availability: cat.availability),
       basePrice: v.price,
     );
     if (chosen == null || !mounted) return;
@@ -283,8 +371,30 @@ class _CounterPageState extends State<CounterPage> {
     }
     final CounterReceipt? r = ctl.receipt;
     if (r == null || !mounted) return;
+    // P6-32 (pay first): the cup stickers and the bag label go to the label printer; never waited for, never blocking
+    _labels.printLater(_labels.forOrder(r.order, number: r.number));
     // A4: the talon goes with the sale receipt; no printer (phone mode) — the number is on the screen
     await printTalon(context, r, quiet: true);
+  }
+
+  /// P6-34: "Vaqtga": filialning vaqtlari, bir bosishda (savatda — ochishda yuboriladi; ochilganda — serverda).
+  Future<void> _pickTime() async {
+    final CounterController ctl = _ctl!;
+    final PickupPick? pick = await showPickupSlots(
+      context,
+      load: ctl.pickupSlots,
+      current: ctl.pickupLabel,
+    );
+    if (pick == null || !mounted) return;
+    await ctl.setPickupAt(pick.slot?.at, label: pick.slot?.time);
+  }
+
+  Future<void> _removePackaging(PosPackagingLine l) async {
+    final CounterController ctl = _ctl!;
+    if (ctl.packagingLocked) return;
+    final String? reason = await askPackagingReason(context, l);
+    if (reason == null || !mounted) return;
+    await ctl.removePackaging(l.ruleId, reason);
   }
 
   Future<void> _cancelSale() async {
@@ -499,6 +609,8 @@ class _CounterPageState extends State<CounterPage> {
             frequent: FrequentItems.of(scope.data).top(cat),
             onTap: (PosProduct p) => unawaited(_onProductTap(p)),
             onLongPress: (PosProduct p) => unawaited(_onProductLongPress(p)),
+            onQuickPick: (PosProduct p, PosModifier m) =>
+                unawaited(_onQuickSize(p, m)),
           ),
         ),
       ],
@@ -756,10 +868,14 @@ class _CounterPageState extends State<CounterPage> {
                       PosOrderLineTile(
                         quantityLabel: i.quantity.label(i.unit),
                         name: i.displayName,
-                        parts: setPartLines(i.setParts),
+                        // P6-31: a combo's parts, without prices
+                        parts: i.isCombo
+                            ? comboPartLines(i.comboParts)
+                            : setPartLines(i.setParts),
                         modifiers: itemModifierLabels(i),
                         amount: i.totalPrice,
                       ),
+                    ..._takeawayRows(ctl, waiting: true),
                   ],
                 )
               : ctl.isEmpty
@@ -772,6 +888,7 @@ class _CounterPageState extends State<CounterPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   children: <Widget>[
                     for (final DraftLine l in ctl.lines) _lineTile(ctl, l),
+                    ..._takeawayRows(ctl, waiting: false),
                   ],
                 ),
         ),
@@ -865,14 +982,76 @@ class _CounterPageState extends State<CounterPage> {
     );
   }
 
-  Widget _lineTile(CounterController ctl, DraftLine l) => PosOrderLineTile(
+  /// P6-34: savat ostida — olib ketish vaqti ("Vaqtga") va qadoq qatorlari ("Olib tashlash", "Qaytarish").
+  List<Widget> _takeawayRows(CounterController ctl, {required bool waiting}) =>
+      <Widget>[
+        if (ctl.canSchedule || ctl.pickupAt != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PickupTimeButton(
+                label: ctl.pickupLabel,
+                waiting: ctl.pickupWaiting,
+                onPressed: ctl.canSchedule && !ctl.busy
+                    ? () => unawaited(_pickTime())
+                    : null,
+              ),
+            ),
+          ),
+        if (ctl.packagingLines.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: PackagingLinesView(
+              lines: ctl.packagingLines,
+              estimate: !waiting,
+              locked: ctl.packagingLocked,
+              onRemove: ctl.busy
+                  ? null
+                  : (PosPackagingLine l) => unawaited(_removePackaging(l)),
+              onRestore: ctl.busy
+                  ? null
+                  : (PosPackagingLine l) =>
+                        unawaited(ctl.restorePackaging(l.ruleId)),
+            ),
+          ),
+      ];
+
+  Widget _lineTile(CounterController ctl, DraftLine l) {
+    final Widget tile = _lineRow(ctl, l);
+    // P6-32: the quick modifiers right on the line (sizes, "Muzsiz")
+    if (l.combo != null || quickGroupsOf(l.product).isEmpty) return tile;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        tile,
+        QuickModifierBar(
+          key: ValueKey<String>('cart-quick-${l.key}'),
+          product: l.product,
+          selected: l.modifiers,
+          availability: ctl.catalog?.availability,
+          enabled: ctl.editable,
+          keyPrefix: 'cart-${l.key}-mod',
+          onChanged: (Map<String, int> m) => ctl.setModifiers(l.key, m),
+        ),
+      ],
+    );
+  }
+
+  Widget _lineRow(CounterController ctl, DraftLine l) => PosOrderLineTile(
     key: ValueKey<String>('cart-${l.key}'),
     quantityLabel: l.quantity.label(l.variant.unit),
     name: l.name,
-    // P6-15: a kompleks shows its parts
-    parts: setPartLines(l.product.setParts),
-    modifiers: l.modifierLabels,
+    // P6-15: a kompleks shows its parts; P6-31: a combo its picks (a tap changes them)
+    parts: l.combo != null ? l.comboParts : setPartLines(l.product.setParts),
+    modifiers: l.combo != null || quickGroupsOf(l.product).isEmpty
+        ? l.modifierLabels
+        : l.dialogModifierLabels,
     amount: l.estimate,
+    onTap: l.combo != null && ctl.editable
+        ? () => unawaited(_editCombo(l))
+        : null,
     trailing: l.variant.unit.isMeasured
         ? IconButton(
             tooltip: 'Olib tashlash',
@@ -958,6 +1137,20 @@ class _CounterPageState extends State<CounterPage> {
                 onPressed: () => unawaited(printTalon(context, r)),
                 icon: const Icon(Icons.confirmation_number_outlined),
                 label: const Text('Talonni chop etish'),
+              ),
+            // P6-32: the stickers again (a cup spilled, the printer jammed)
+            if (_labels.settings != null)
+              TextButton.icon(
+                key: const ValueKey<String>('counter-labels'),
+                onPressed: () => unawaited(
+                  showLabelSheet(
+                    context,
+                    labels: _labels,
+                    batch: _labels.forOrder(r.order, number: r.number),
+                  ),
+                ),
+                icon: const Icon(Icons.local_offer_outlined),
+                label: const Text('Stikerlar'),
               ),
             TextButton.icon(
               key: const ValueKey<String>('counter-receipt'),

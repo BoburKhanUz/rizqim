@@ -10,7 +10,9 @@ import '../../counter/counter_format.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
+import '../../printing/label_printing.dart';
 import '../../shell/routes.dart';
+import 'combo_sheet.dart';
 import 'discount_dialog.dart';
 import 'frequent_items.dart';
 import 'kitchen_tickets.dart';
@@ -23,6 +25,7 @@ import 'order_format.dart';
 import 'order_opener.dart';
 import 'order_panel.dart';
 import 'restaurant_widgets.dart';
+import 'takeaway_widgets.dart';
 
 /// Buyurtma muharriri: chapda menyu (kategoriyalar, katta tugmalar, qozon qoldig'i, qidiruv, "tez-tez"), o'ngda
 /// buyurtma (bosqichlar, yangi bosqich, choy-non tugmalari, jami, amallar).
@@ -91,6 +94,12 @@ class _OrderPageState extends State<OrderPage> {
       ),
       frequent: FrequentItems.of(scope.data),
       orderUuid: uuid,
+      labels: CashierLabels(
+        printing: scope.printing,
+        bootstrap: () => scope.session.bootstrap,
+        catalog: () => _ctl?.catalog,
+        now: scope.services.now,
+      ),
     );
     _ctl = ctl;
     _noticeSub = ctl.notices.listen(_showNotice);
@@ -144,6 +153,18 @@ class _OrderPageState extends State<OrderPage> {
         p.singleVariant ??
         await showVariantPicker(context, product: p, catalog: cat);
     if (v == null || !mounted || !cat.isVariantAvailable(v)) return;
+    // P6-31: a combo opens its slot sheet
+    if (p.isCombo) {
+      final ComboSheetResult? r = await showComboSheet(
+        context,
+        product: p,
+        variant: v,
+        catalog: cat,
+      );
+      if (r == null || !mounted) return;
+      ctl.addLine(p, v, PosQuantity.whole(r.quantity), combo: r.choice);
+      return;
+    }
     var qty = v.minimum;
     if (v.unit.isMeasured) {
       final PosQuantity? q = await showQuantityKeypad(
@@ -155,18 +176,79 @@ class _OrderPageState extends State<OrderPage> {
       if (q == null || !mounted) return;
       qty = q;
     }
-    var mods = const <String, int>{};
-    if (needsModifierChoice(p)) {
+    // P6-32: the defaults preselected (a quick group's default needs no dialog)
+    Map<String, int> mods = defaultModifiers(p, availability: cat.availability);
+    if (needsModifierChoice(p, availability: cat.availability)) {
       final Map<String, int>? chosen = await showPosModifierDialog(
         context,
         title: p.name,
         groups: modifierSpecs(p, availability: cat.availability),
+        initial: mods,
         basePrice: v.price,
       );
       if (chosen == null || !mounted) return;
       mods = chosen;
     }
     ctl.addLine(p, v, qty, modifiers: mods);
+  }
+
+  /// P6-32: hajm tugmasi (menyu tugmasida): taom shu hajm bilan, bir bosishda.
+  Future<void> _onQuickSize(PosProduct p, PosModifier size) async {
+    final OrderController ctl = _ctl!;
+    final PosCatalog cat = ctl.catalog!;
+    final PosVariant? v =
+        p.singleVariant ??
+        await showVariantPicker(context, product: p, catalog: cat);
+    if (v == null || !mounted || !cat.isVariantAvailable(v)) return;
+    final PosModifierGroup group = sizeGroupOf(p)!;
+    Map<String, int> mods = toggleQuickModifier(
+      <String, int>{
+        for (final MapEntry<String, int> e in defaultModifiers(
+          p,
+          availability: cat.availability,
+        ).entries)
+          if (!group.modifiers.any((PosModifier m) => m.uuid == e.key))
+            e.key: e.value,
+      },
+      group,
+      size,
+    );
+    if (needsDialogWith(p, mods)) {
+      final Map<String, int>? chosen = await showPosModifierDialog(
+        context,
+        title: p.name,
+        groups: modifierSpecs(p, availability: cat.availability),
+        initial: mods,
+        basePrice: v.price,
+      );
+      if (chosen == null || !mounted) return;
+      mods = chosen;
+    }
+    ctl.addLine(p, v, v.minimum, modifiers: mods);
+  }
+
+  /// P6-34: qadoq qatorini olib tashlash (sabab bilan) yoki qaytarish.
+  Future<void> _onPackaging(PosPackagingLine l) async {
+    final OrderController ctl = _ctl!;
+    if (l.removed) {
+      await ctl.restorePackaging(l.ruleId, approve: _approve);
+      return;
+    }
+    final String? reason = await askPackagingReason(context, l);
+    if (reason == null || !mounted) return;
+    await ctl.removePackaging(l.ruleId, reason, approve: _approve);
+  }
+
+  /// P6-34: "Vaqtga" — olib ketish buyurtmasining vaqti (oshxonaga chiqqunicha o'zgaradi).
+  Future<void> _onPickup() async {
+    final OrderController ctl = _ctl!;
+    final PickupPick? pick = await showPickupSlots(
+      context,
+      load: ctl.takeaway.slots,
+      current: pickupTimeLabel(ctl.order?.pickup),
+    );
+    if (pick == null || !mounted) return;
+    await ctl.setPickupTime(pick.slot?.at, approve: _approve);
   }
 
   Future<void> _onProductLongPress(PosProduct p) async {
@@ -199,6 +281,21 @@ class _OrderPageState extends State<OrderPage> {
 
   Future<void> _onDraftTap(DraftLine l) async {
     final OrderController ctl = _ctl!;
+    // P6-31: a combo line changes its picks and count in the combo sheet
+    final PosCatalog? cat = ctl.catalog;
+    if (l.combo != null && cat != null && l.product.isCombo) {
+      final ComboSheetResult? r = await showComboSheet(
+        context,
+        product: l.product,
+        variant: l.variant,
+        catalog: cat,
+        initial: l.combo,
+        quantity: l.quantity.wholePart,
+      );
+      if (r == null || !mounted) return;
+      ctl.updateCombo(l.key, r.choice, PosQuantity.whole(r.quantity));
+      return;
+    }
     final LineEdit? e = await showLineEditor(
       context,
       title: l.name,
@@ -652,6 +749,8 @@ class _OrderPageState extends State<OrderPage> {
       ),
       onTap: (PosProduct p) => unawaited(_onProductTap(p)),
       onLongPress: (PosProduct p) => unawaited(_onProductLongPress(p)),
+      onQuickPick: (PosProduct p, PosModifier m) =>
+          unawaited(_onQuickSize(p, m)),
     );
     final Widget panel = OrderPanel(
       controller: ctl,
@@ -682,6 +781,19 @@ class _OrderPageState extends State<OrderPage> {
           : null,
       // P6-21: a course order always fires its courses (the module only gates new course numbers)
       onSendCourse: (int n) => unawaited(ctl.sendCourse(n, approve: _approve)),
+      onPackaging: (PosPackagingLine l) => unawaited(_onPackaging(l)),
+      // P6-34: a takeaway order not in the kitchen yet can be given (or changed to) a pickup time
+      onPickup:
+          o != null &&
+              o.isOpen &&
+              o.posChannel == PosChannel.takeaway &&
+              (o.tableLabel ?? '').trim().isEmpty &&
+              (o.pickup?.waiting ??
+                  !o.items.any((PosOrderItem i) => i.wasSent)) &&
+              _scope.session.hasModule(PosModule.scheduledPickup) &&
+              !(_scope.data.offline?.active ?? false)
+          ? () => unawaited(_onPickup())
+          : null,
     );
     final RzColors c = context.rz;
     return Column(

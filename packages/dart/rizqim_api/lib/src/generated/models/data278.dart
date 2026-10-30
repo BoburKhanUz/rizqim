@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'items56.dart';
 import 'pickup_status.dart';
 import 'assembly.dart';
+import 'pickup27.dart';
 
 part 'data278.g.dart';
 
@@ -36,6 +37,7 @@ class Data278 {
     required this.queueNumber,
     required this.pickupStatus,
     required this.assembly,
+    required this.pickup,
   });
 
   factory Data278.fromJson(Map<String, Object?> json) =>
@@ -80,6 +82,7 @@ class Data278 {
   @JsonKey(name: 'pickup_status')
   final PickupStatus? pickupStatus;
   final Assembly? assembly;
+  final Pickup27? pickup;
 
   Map<String, Object?> toJson() => _$Data278ToJson(this);
 }

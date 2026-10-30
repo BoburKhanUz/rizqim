@@ -380,6 +380,7 @@ class PosStation {
     this.kindLabel,
     this.sortOrder = 0,
     this.showOnKds = true,
+    this.targetSeconds,
   });
 
   factory PosStation.fromJson(PosJson j) => PosStation(
@@ -389,16 +390,24 @@ class PosStation {
     kindLabel: j.strOrNull('kind_label'),
     sortOrder: j.intOrNull('sort_order') ?? 0,
     showOnKds: j.boolean('show_on_kds', fallback: true),
+    targetSeconds: j.intOrNull('target_seconds'),
   );
 
   final int id;
   final String name;
 
-  /// `osh`, `mangal`, `salad_bar`, `tea`, `kitchen`, `other`.
+  /// `osh`, `mangal`, `salad_bar`, `tea`, `kitchen`, `other` va P6-33 dan: `grill`, `fryer`, `drinks`, `barista`,
+  /// `expo` (yig'ish: taom pishirmaydi).
   final String kind;
   final String? kindLabel;
   final int sortOrder;
   final bool showOnKds;
+
+  /// P6-33: sexning standart vaqt maqsadi (soniya); `null` — yo'q. `expo` sexida — yig'ish vaqti.
+  final int? targetSeconds;
+
+  /// Yig'ish (expo) sexi: unga taom biriktirilmaydi, ko'p sexli buyurtmani yig'adi.
+  bool get isExpo => kind == 'expo';
 }
 
 /// Taom va kategoriyaning sexi: taomning o'zi → kategoriyasi → `null` (standart marka printeri).

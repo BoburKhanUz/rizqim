@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Pos\Menu\Combos;
 use App\Domain\Pos\Setup\FormatProfile;
 use App\Domain\Pos\Setup\PosSettings;
 use App\Domain\Pos\StaffPay\StaffPayRules;
@@ -11,7 +12,10 @@ use App\Enums\UserRole;
 use App\Models\AutoGuestItem;
 use App\Models\Branch;
 use App\Models\BranchBookingRules;
+use App\Models\BranchLabelSettings;
+use App\Models\BranchPackagingRule;
 use App\Models\BranchProductRotation;
+use App\Models\BranchTakeawaySettings;
 use App\Models\Category;
 use App\Models\CustomerAccount;
 use App\Models\DiningTable;
@@ -21,6 +25,7 @@ use App\Models\KitchenStationRoute;
 use App\Models\MenuBatch;
 use App\Models\ModifierGroup;
 use App\Models\PosTipSetting;
+use App\Models\Printer;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\RoomTariff;
@@ -58,6 +63,16 @@ use RuntimeException;
  * cook 1), table booking rules (a deposit of 50 000 per guest from 6 guests, needed to confirm), the staff pay rules
  * (daily period) and its staff with PINs: owner, manager, cashier, four waiters, a hostess and a cook; seven paired
  * devices (the till, four waiters' phones, the hostess tablet, the kitchen display). In the seed file under `restoran`.
+ *
+ * P6-39: a fourth store, a fast food ("Rizqim Fast Food", e2e/pos/test/lunch_rush_fast_food_test.dart): fiscal on the
+ * sandbox driver (one fiscal line per combo), a branch on the `fast_food` profile, five stations with time targets
+ * (grill, fryer, drinks, a barista for the coffee corner, the expo), a menu of lavash, burgers, fries, drinks, sauces and
+ * coffee with quick modifiers (the meat as chips, drink and cup sizes as a size selector, defaults preselected), two
+ * combos (the lavash kombo of the owner's receipt example, a burger kombo), cup stickers for drinks and coffee with a bag
+ * label, a TSPL label printer on the LAN, packaging rules (a bag per takeaway, a cup per drink), pickup time rules
+ * (24/7 off), its staff (owner, manager, two cashiers, a cook, an expo) with PINs, five Telegram customers and five
+ * paired devices (two tills, the kitchen display, the expo screen, the ready-numbers board). In the seed file under
+ * `fastfood`.
  *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
@@ -99,6 +114,17 @@ class PosStackSeeder extends Seeder
         'waiter4' => '4680',
         'hostess' => '5791',
         'cook' => '6802',
+    ];
+
+    /** P6-39: the fast food store of the "tushlik cho'qqisi" end-to-end test (its own store) */
+    public const FAST_FOOD_TIN = '301234570';
+
+    public const FAST_FOOD_PINS = [
+        'manager' => '7351',
+        'cashier1' => '8462',
+        'cashier2' => '9573',
+        'cook' => '1684',
+        'expo' => '2795',
     ];
 
     private Store $store;
@@ -226,7 +252,314 @@ class PosStackSeeder extends Seeder
             'account' => ['uuid' => $account->uuid, 'name' => $account->name, 'credit_limit' => '3000000.00'],
             'osh' => $this->oshMarkazi(),
             'restoran' => $this->restaurant(),
+            'fastfood' => $this->fastFood(),
         ]);
+    }
+
+    /**
+     * P6-39: the fast food store of the lunch-rush test (e2e/pos/test/lunch_rush_fast_food_test.dart), with its own
+     * staff, menu, combos, stations, rules and devices.
+     *
+     * @return array<string, mixed> the seed file's `fastfood` section (the same shape as the top level)
+     */
+    private function fastFood(): array
+    {
+        $store = Store::forceCreate([
+            'name' => 'Rizqim Fast Food',
+            'slug' => 'rizqim-fast-food',
+            'status' => 'active',
+            'is_open' => true,
+            // Equal hours: a pickup time is taken at any hour (24/7 itself, the round_the_clock module, stays off)
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::FAST_FOOD_TIN,
+            'tax_regime' => 'vat',
+            'payment_settings' => ['cash' => ['enabled' => true], 'delivery_enabled' => false, 'pickup_enabled' => true, 'delivery_fee' => 0],
+            // One fiscal line per combo (the owner's decision, `single`); the test switches it to `split` for a while
+            'fiscal_settings' => [
+                'enabled' => true,
+                'driver' => 'sandbox',
+                'combo_fiscal_mode' => 'single',
+                'charges' => ['packaging' => ['name' => 'Qadoq', 'mxik' => '10202002010000003']],
+            ],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => 'Chilonzor fast food',
+            'latitude' => 41.285,
+            'longitude' => 69.204,
+            'radius_km' => 6,
+            'status' => BranchStatus::ACTIVE->value,
+            'business_day_starts_at' => '05:00:00',
+        ]);
+        // The fast food profile: quick counter, numbers, the board, KDS with expo, combo, quick modifiers, labels,
+        // packaging and pickup times (round_the_clock is not on it)
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(null, FormatProfile::FAST_FOOD, [])])->save();
+
+        $pins = self::FAST_FOOD_PINS;
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $staff = [
+            'owner' => $person(UserRole::OWNER, 'Timur Fastfudov', '+998901000061', null),
+            'manager' => $person(UserRole::MANAGER, 'Zarina Menejer', '+998901000062', $pins['manager']),
+            'cashier1' => $person(UserRole::CASHIER, 'Asal Kassir', '+998901000063', $pins['cashier1']),
+            'cashier2' => $person(UserRole::CASHIER, 'Behruz Kassir', '+998901000064', $pins['cashier2']),
+            'cook' => $person(UserRole::COOK, 'Shahzod Oshpaz', '+998901000065', $pins['cook']),
+            'expo' => $person(UserRole::COOK, 'Ravshan Yig\'uvchi', '+998901000066', $pins['expo']),
+        ];
+
+        // Grill, fryer and drinks for the counter, a barista for the coffee corner, the expo assembles; each with its
+        // time target (seconds; the run keeps them short, the fryer is the one that falls behind)
+        $stations = [];
+        foreach ([
+            'grill' => ['Grill', 'grill', 60],
+            'fryer' => ['Fritur', 'fryer', 20],
+            'drinks' => ['Ichimliklar', 'drinks', 30],
+            'barista' => ['Barista', 'barista', 45],
+            'expo' => ["Yig'ish", 'expo', 30],
+        ] as $key => [$name, $kind, $target]) {
+            $stations[$key] = KitchenStation::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'name' => $name,
+                'kind' => $kind,
+                'sort_order' => count($stations) + 1,
+                'show_on_kds' => true,
+                'target_seconds' => $target,
+            ]);
+        }
+
+        $categories = [];
+        foreach (['Lavash' => 'ff-lavash', 'Burger' => 'ff-burger', 'Fri' => 'ff-fri', 'Ichimliklar' => 'ff-ichimlik', 'Soslar' => 'ff-sous', 'Kofe' => 'ff-kofe', 'Kombo' => 'ff-kombo'] as $name => $slug) {
+            $categories[$name] = Category::create(['name' => $name, 'slug' => 'pos-e2e-' . $slug, 'is_active' => true]);
+        }
+        $product = function (string $name, string $category, string $mxik, array $attributes = []) use ($store, $categories): Product {
+            return Product::create($attributes + [
+                'store_id' => $store->id,
+                'category_id' => $categories[$category]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-ff-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+        };
+        $variant = fn (Product $product, string $name, string $price) => ProductVariant::create(['product_id' => $product->id, 'name' => $name, 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+
+        $lavash = $product('Lavash', 'Lavash', '10202001011000021');
+        $gamburger = $product('Gamburger', 'Burger', '10202001012000021');
+        $chizburger = $product('Chizburger', 'Burger', '10202001012000022');
+        $fri = $product('Kartoshka fri', 'Fri', '10202001013000021');
+        // A dish of its own target: nuggets take longer than the fryer's default
+        $nuggets = $product('Nagetslar', 'Fri', '10202001013000022', ['kds_target_seconds' => 30]);
+        $pepsi = $product('Pepsi', 'Ichimliklar', '10202001005000021');
+        $fanta = $product('Fanta', 'Ichimliklar', '10202001005000022');
+        $water = $product('Suv', 'Ichimliklar', '10202001005000023');
+        $hot = $product('Achchiq sous', 'Soslar', '10202001016000021');
+        $garlic = $product('Sarimsoqli sous', 'Soslar', '10202001016000022');
+        $cappuccino = $product('Kapuchino', 'Kofe', '10202001005000024');
+        $latte = $product('Latte', 'Kofe', '10202001005000025');
+        $lavashCombo = $product('Lavash kombo', 'Kombo', '10202001009000021');
+        $burgerCombo = $product('Burger kombo', 'Kombo', '10202001009000022');
+
+        $menu = [
+            'Lavash' => $variant($lavash, 'Katta', '34000'),
+            'Lavash (oddiy)' => $variant($lavash, 'Oddiy', '28000'),
+            'Gamburger' => $variant($gamburger, 'Dona', '30000'),
+            'Chizburger' => $variant($chizburger, 'Dona', '34000'),
+            'Kartoshka fri' => $variant($fri, 'Porsiya', '15000'),
+            'Nagetslar' => $variant($nuggets, '6 dona', '22000'),
+            'Pepsi' => $variant($pepsi, 'Stakan', '8000'),
+            'Fanta' => $variant($fanta, 'Stakan', '8000'),
+            'Suv' => $variant($water, '0,5 l', '4000'),
+            'Achchiq sous' => $variant($hot, 'Dona', '3000'),
+            'Sarimsoqli sous' => $variant($garlic, 'Dona', '3000'),
+            'Kapuchino' => $variant($cappuccino, 'Stakan', '22000'),
+            'Latte' => $variant($latte, 'Stakan', '24000'),
+            'Lavash kombo' => $variant($lavashCombo, 'Kombo', '45000'),
+            'Burger kombo' => $variant($burgerCombo, 'Kombo', '42000'),
+        ];
+
+        // Quick modifiers: the meat as chips on the lavash tile, the drink and coffee sizes as a one-tap size selector,
+        // each with its preselected option
+        $meat = ModifierGroup::create(['store_id' => $store->id, 'name' => "Go'sht", 'min_select' => 1, 'max_select' => 1, 'is_required' => true, 'display_mode' => 'inline']);
+        $beef = $meat->modifiers()->create(['name' => "Mol go'shtli", 'price_delta' => 0, 'sort_order' => 1, 'is_default' => true]);
+        $chicken = $meat->modifiers()->create(['name' => "Tovuq go'shtli", 'price_delta' => 0, 'sort_order' => 2]);
+        $lavash->modifierGroups()->attach($meat->id, ['sort_order' => 1]);
+        $size = ModifierGroup::create(['store_id' => $store->id, 'name' => 'Hajm', 'min_select' => 1, 'max_select' => 1, 'is_required' => true, 'display_mode' => 'size']);
+        $small = $size->modifiers()->create(['name' => '0,3 l', 'price_delta' => 0, 'sort_order' => 1]);
+        $medium = $size->modifiers()->create(['name' => '0,4 l', 'price_delta' => 2000, 'sort_order' => 2, 'is_default' => true]);
+        $large = $size->modifiers()->create(['name' => '0,5 l', 'price_delta' => 4000, 'sort_order' => 3]);
+        foreach ([$pepsi, $fanta] as $drink) {
+            $drink->modifierGroups()->attach($size->id, ['sort_order' => 1]);
+        }
+        $cup = ModifierGroup::create(['store_id' => $store->id, 'name' => 'Stakan hajmi', 'min_select' => 1, 'max_select' => 1, 'is_required' => true, 'display_mode' => 'size']);
+        $cup->modifiers()->create(['name' => '0,3 l', 'price_delta' => 0, 'sort_order' => 1, 'is_default' => true]);
+        $cup->modifiers()->create(['name' => '0,4 l', 'price_delta' => 5000, 'sort_order' => 2]);
+        foreach ([$cappuccino, $latte] as $coffee) {
+            $coffee->modifierGroups()->attach($cup->id, ['sort_order' => 1]);
+        }
+
+        // The combos. The lavash kombo is the owner's receipt example (30.10.2026): "1 ta lavash — katta, mol go'shtli",
+        // "Ichimlik — 0,4 l Pepsi", "Sous — achchiq"
+        $combos = app(Combos::class);
+        $preset = fn ($modifier) => [['modifier_id' => $modifier->id]];
+        $combos->save((int) $store->id, $lavashCombo, [
+            ['name' => 'Asosiy', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Lavash']->id, 'modifiers' => $preset($beef), 'is_default' => true, 'label' => "1 ta lavash — katta, mol go'shtli"],
+                ['variant_id' => $menu['Lavash']->id, 'modifiers' => $preset($chicken), 'label' => "1 ta lavash — katta, tovuq go'shtli"],
+            ]],
+            ['name' => 'Ichimlik', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Pepsi']->id, 'modifiers' => $preset($medium), 'is_default' => true, 'label' => 'Ichimlik — 0,4 l Pepsi'],
+                ['variant_id' => $menu['Fanta']->id, 'modifiers' => $preset($medium), 'label' => 'Ichimlik — 0,4 l Fanta'],
+                ['variant_id' => $menu['Pepsi']->id, 'modifiers' => $preset($large), 'price_delta' => '2000', 'label' => 'Ichimlik — 0,5 l Pepsi'],
+            ]],
+            ['name' => 'Sous', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Achchiq sous']->id, 'is_default' => true, 'label' => 'Sous — achchiq'],
+                ['variant_id' => $menu['Sarimsoqli sous']->id, 'label' => 'Sous — sarimsoqli'],
+            ]],
+        ], true, $staff['owner']);
+        $combos->save((int) $store->id, $burgerCombo, [
+            ['name' => 'Asosiy', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Chizburger']->id, 'is_default' => true],
+                ['variant_id' => $menu['Gamburger']->id],
+            ]],
+            ['name' => 'Garnir', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Kartoshka fri']->id, 'is_default' => true],
+                ['variant_id' => $menu['Nagetslar']->id, 'price_delta' => '5000'],
+            ]],
+            ['name' => 'Ichimlik', 'min_picks' => 1, 'max_picks' => 1, 'options' => [
+                ['variant_id' => $menu['Pepsi']->id, 'modifiers' => $preset($medium), 'is_default' => true, 'label' => 'Ichimlik — 0,4 l Pepsi'],
+                ['variant_id' => $menu['Fanta']->id, 'modifiers' => $preset($medium), 'label' => 'Ichimlik — 0,4 l Fanta'],
+            ]],
+        ], true, $staff['owner']);
+
+        // Routes by category; the sauces are put in at the grill. A combo line itself goes to no station (its parts do)
+        foreach ([
+            'grill' => ['Lavash', 'Burger', 'Soslar'],
+            'fryer' => ['Fri'],
+            'drinks' => ['Ichimliklar'],
+            'barista' => ['Kofe'],
+        ] as $station => $names) {
+            foreach ($names as $name) {
+                KitchenStationRoute::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'station_id' => $stations[$station]->id, 'category_id' => $categories[$name]->id, 'product_id' => null]);
+            }
+        }
+
+        // Cup stickers for the drinks and the coffee (one per cup), a bag label for every takeaway; a TSPL label
+        // printer on the LAN (the test points it at its emulator)
+        BranchLabelSettings::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'size' => '40x30',
+            'scope' => 'categories',
+            'category_ids' => [$categories['Ichimliklar']->id, $categories['Kofe']->id],
+            'per_unit' => true,
+            'bag_label' => true,
+        ]);
+        $printer = Printer::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'name' => 'Yorliq printeri',
+            'purpose' => 'label',
+            'connection' => 'lan',
+            'address' => '127.0.0.1',
+            'port' => 9100,
+            'paper_width' => 58,
+        ]);
+
+        // Packaging: a bag for every takeaway (counter and Telegram pickup) and a cup for every drink
+        $bag = BranchPackagingRule::create([
+            'store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'Paket', 'basis' => 'order', 'quantity' => 1,
+            'unit_price' => '1500', 'mxik' => '10202002010000001', 'package_code' => '1500001', 'unit' => 'dona',
+            'order_types' => ['takeaway', 'pickup', 'delivery'], 'is_active' => true, 'sort_order' => 1,
+        ]);
+        $cupRule = BranchPackagingRule::create([
+            'store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'Stakan', 'basis' => 'item',
+            'category_id' => $categories['Ichimliklar']->id, 'quantity' => 1, 'unit_price' => '1000',
+            'mxik' => '10202002010000002', 'package_code' => '1500002', 'unit' => 'dona',
+            'order_types' => ['takeaway', 'pickup', 'delivery'], 'is_active' => true, 'sort_order' => 2,
+        ]);
+        // Pickup times: 20 minutes ahead at the earliest, 15-minute slots, today and tomorrow, 10 minutes to cook
+        BranchTakeawaySettings::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'pickup_min_lead_minutes' => 20,
+            'pickup_slot_minutes' => 15,
+            'pickup_max_days_ahead' => 1,
+            'pickup_prep_minutes' => 10,
+        ]);
+
+        // The customers of this store's Telegram bot (several: one customer may place 10 orders a minute)
+        $customers = [];
+        foreach (['Nilufar', 'Jahongir', 'Sevara', 'Otabek', 'Dildora'] as $k => $name) {
+            $customers[] = User::create([
+                'name' => "{$name} Mijoz",
+                'phone' => '+9989010000' . (70 + $k),
+                'password' => bcrypt('pos-e2e-customer-not-used'),
+                'telegram_id' => (string) (910000070 + $k),
+            ]);
+        }
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        foreach ([
+            'till1' => [DeviceType::POS, 'Kassa 1'],
+            'till2' => [DeviceType::POS, 'Kassa 2'],
+            // The station screens (grill, fryer, drinks, barista) on one kitchen display; the expo has its own
+            'kds' => [DeviceType::KDS, 'Oshxona ekrani'],
+            'expo' => [DeviceType::KDS, "Yig'ish ekrani"],
+            'display' => [DeviceType::DISPLAY, 'Raqamlar ekrani'],
+        ] as $key => [$type, $name]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'])['code'];
+            $paired = $pairing->pair($code, ['platform' => 'linux']);
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => [
+                    'uuid' => $paired['device']->uuid,
+                    'type' => $type->value,
+                    'name' => $name,
+                    'platform' => 'linux',
+                    'app_version' => null,
+                    'store_id' => $store->id,
+                    'branch_id' => $branch->id,
+                ],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-fastfood-owner')->plainTextToken;
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::FAST_FOOD_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
+            'terminals' => $terminals,
+            'customers' => array_map(fn (User $customer) => ['id' => $customer->id, 'name' => $customer->name, 'token' => $customer->createToken('pos-e2e-fastfood')->plainTextToken], $customers),
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+            'categories' => array_map(fn (Category $category) => (int) $category->id, $categories),
+            'stations' => array_map(fn (KitchenStation $station) => (int) $station->id, $stations),
+            'label_printer' => ['id' => (int) $printer->id],
+            'packaging' => ['bag' => (int) $bag->id, 'cup' => (int) $cupRule->id],
+        ];
     }
 
     /**

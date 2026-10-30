@@ -36,6 +36,9 @@ Data281 _$Data281FromJson(Map<String, dynamic> json) => Data281(
   assembly: json['assembly'] == null
       ? null
       : Assembly2.fromJson(json['assembly'] as Map<String, dynamic>),
+  pickup: json['pickup'] == null
+      ? null
+      : Pickup28.fromJson(json['pickup'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data281ToJson(Data281 instance) => <String, dynamic>{
@@ -62,4 +65,5 @@ Map<String, dynamic> _$Data281ToJson(Data281 instance) => <String, dynamic>{
   'queue_number': instance.queueNumber,
   'pickup_status': instance.pickupStatus,
   'assembly': instance.assembly,
+  'pickup': instance.pickup,
 };

@@ -10,9 +10,17 @@ afterEach(() => vi.clearAllMocks());
 
 const flush = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
-const pad = (n: number) => String(n).padStart(2, '0');
-const now = new Date();
-const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+// Slots at local noon today and tomorrow, so the wording does not depend on when or where the test runs
+const at = (days: number, hour: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+};
+const dateOf = (iso: string) => iso.slice(0, 10);
+
+const SLOT_TODAY = at(0, 23);
+const SLOT_TOMORROW = at(1, 9);
 
 describe('PickupTimePicker (P6-34)', () => {
   it("offers 'Hozir' and the branch's times, and hands back the slot chosen", async () => {
@@ -24,8 +32,8 @@ describe('PickupTimePicker (P6-34)', () => {
           min_lead_minutes: 20,
           slot_minutes: 15,
           slots: [
-            { at: '2026-10-22T13:30:00.000000Z', time: '18:30', business_date: today },
-            { at: '2026-10-23T04:00:00.000000Z', time: '09:00', business_date: '2099-10-23' },
+            { at: SLOT_TODAY, time: '18:30', business_date: dateOf(SLOT_TODAY) },
+            { at: SLOT_TOMORROW, time: '09:00', business_date: dateOf(SLOT_TOMORROW) },
           ],
         },
       },
@@ -36,13 +44,13 @@ describe('PickupTimePicker (P6-34)', () => {
 
     expect(get).toHaveBeenCalledWith('/stores/4/branches/7/pickup-slots');
     const select = screen.getByRole('combobox', { name: 'Olib ketish vaqti' });
-    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(["Hozir (tayyor bo'lishi bilan)", 'Bugun, 18:30', '23.10, 09:00']);
+    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(["Hozir (tayyor bo'lishi bilan)", 'Bugun, 18:30', 'Ertaga, 09:00']);
     expect(screen.getByText('Eng erta: 20 daqiqadan keyin.')).toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: '2026-10-22T13:30:00.000000Z' } });
-    expect(onChange).toHaveBeenLastCalledWith('2026-10-22T13:30:00.000000Z');
+    fireEvent.change(select, { target: { value: SLOT_TODAY } });
+    expect(onChange).toHaveBeenLastCalledWith(SLOT_TODAY, 'Bugun, 18:30');
     fireEvent.change(select, { target: { value: '' } });
-    expect(onChange).toHaveBeenLastCalledWith(null);
+    expect(onChange).toHaveBeenLastCalledWith(null, null);
   });
 
   it('shows nothing for a branch that takes no orders for later, or when the times cannot be read', async () => {
@@ -59,10 +67,10 @@ describe('PickupTimePicker (P6-34)', () => {
   });
 
   it('drops a chosen time the branch no longer offers', async () => {
-    get.mockResolvedValue({ data: { success: true, data: { enabled: true, min_lead_minutes: 20, slot_minutes: 15, slots: [{ at: '2026-10-22T14:00:00.000000Z', time: '19:00', business_date: today }] } } });
+    get.mockResolvedValue({ data: { success: true, data: { enabled: true, min_lead_minutes: 20, slot_minutes: 15, slots: [{ at: '2026-10-22T14:00:00.000000Z', time: '19:00', business_date: dateOf(SLOT_TODAY) }] } } });
     const onChange = vi.fn();
     render(<PickupTimePicker storeId={4} branchId={7} value="2026-10-22T13:30:00.000000Z" onChange={onChange} />);
     await flush();
-    expect(onChange).toHaveBeenCalledWith(null);
+    expect(onChange).toHaveBeenCalledWith(null, null);
   });
 });

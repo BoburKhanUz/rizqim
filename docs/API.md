@@ -3952,6 +3952,16 @@ hisoblanadi.
 Migratsiya: `2026_11_14_200100` (`kitchen_stations.target_seconds`, `products.kds_target_seconds`, `orders.assembled_at`,
 `orders.assembled_by`, `order_items.sent_at` indeksi).
 
+**P6-39 tuzatishlari (fast food e2e topgan).** Oshxona chiptasida (`GET /staff/kitchen/tickets`, bump javoblari):
+onlayn qator (Telegram, Mini App) ham `station_id` ni beradi — o'zining (kombo qismi) yoki taomining yo'naltirishi bo'yicha;
+sex topilmasa P2-11 shakli o'zgarmaydi — shunda sex ekrani Telegram buyurtmalarining taomlarini ham ko'rsatadi. Chiptada yangi
+`pickup` (`ScheduledPickup::present`: `{pickup_at, kitchen_fire_at, kitchen_fired_at, waiting, local_time}` yoki `null`).
+Keyinroq vaqtga olingan onlayn buyurtmaning oshxona vaqti (`late`, `waiting_seconds`, tayyorlash vaqti hisoboti) qabul
+qilingandan emas, oshxona vaqtidan (`kitchen_fire_at`, qabul undan keyin bo'lsa — qabuldan) sanaladi
+(`KitchenTargets::orderStart`). Daqiqalik ish (`pos:fire-scheduled-pickups`) undan oldin pishib, berib bo'lingan onlayn
+buyurtmaning raqamini `preparing` ga qaytarmaydi (faqat `kitchen_fired_at` yoziladi). `printers.port` endi butun son
+(1–65535; avval PostgreSQL `smallint` 32767 dan kattasida 500 berardi), migratsiya `2026_11_14_500100`.
+
 ## Qadoq, 24/7 va olib ketish vaqti (P6-34)
 
 docs/POS_SPEC.md "Qadoq, 24/7 va olib ketish vaqti". Modullar: `packaging`, `scheduled_pickup`, `round_the_clock` (yopiq —
@@ -3983,6 +3993,8 @@ docs/POS_SPEC.md "Qadoq, 24/7 va olib ketish vaqti". Modullar: `packaging`, `sch
   `{version, pickup_at|null}`: 422 `pickup_too_soon` (`data.earliest_at`, `min_lead_minutes`), `pickup_too_far`
   (`latest_at`), `pickup_closed`; 409 `already_in_kitchen`; null — vaqt olib tashlanadi, buyurtma darhol oshxonaga.
 - `GET /pos/pickup-slots` — `slots [{at (UTC), time ("HH:MM"), business_date}]`.
+- Kassa ro'yxatlari (`GET /pos/orders`, shu jumladan `?scope=incoming`) qatorida ham `pickup` (yuqoridagidek yoki `null`): kassa
+  "Vaqtga" buyurtmalarni vaqti bilan ko'rsatadi.
 - Buyurtma javobida: `packaging_amount`, `pickup {pickup_at, kitchen_fire_at, kitchen_fired_at, waiting, local_time}|null`,
   `charges.packaging_amount`, `charges.packaging_lines [{rule_id, name, basis, quantity, unit, unit_price, amount, mxik,
   package_code, removed, removed_reason}]`. Schyotda: `packaging_amount`, `packaging_lines [{rule_id, name, quantity, unit,

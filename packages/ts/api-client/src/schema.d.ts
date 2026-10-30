@@ -40479,6 +40479,13 @@ export interface operations {
                                 call_count: number;
                                 handed_at: string | null;
                             } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             opened_at: string | null;
                             closed_at: string | null;
                             updated_at: string | null;
@@ -41103,6 +41110,13 @@ export interface operations {
                                 called_at: string | null;
                                 call_count: number;
                                 handed_at: string | null;
+                            } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
                             } | null;
                             opened_at: string | null;
                             closed_at: string | null;
@@ -45589,6 +45603,13 @@ export interface operations {
                                 call_count: number;
                                 handed_at: string | null;
                             } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             opened_at: string | null;
                             closed_at: string | null;
                             updated_at: string | null;
@@ -49829,6 +49850,13 @@ export interface operations {
                                     done: boolean;
                                 }[];
                             } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                         }[];
                         meta: {
                             truncated: boolean;
@@ -50182,6 +50210,13 @@ export interface operations {
                                     done: boolean;
                                 }[];
                             } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                         };
                     };
                 };
@@ -50289,6 +50324,13 @@ export interface operations {
                                     done: boolean;
                                 }[];
                             } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                         };
                     };
                 };
@@ -50394,6 +50436,13 @@ export interface operations {
                                     items_ready: number;
                                     done: boolean;
                                 }[];
+                            } | null;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
                             } | null;
                         };
                     };

@@ -168,6 +168,8 @@ class StaffOrderPresenter
             // P6-33 (kds_expo): the expo (assembly) station's view of an order cooked on several stations; null when the
             // order does not go through the expo
             'assembly' => $this->kitchenContext($now)['assembly']->present($order, $items),
+            // P6-39: an order for a later pickup (P6-34): the time, when the kitchen got it; null without one
+            'pickup' => \App\Domain\Pos\Takeaway\ScheduledPickup::present($order),
         ];
     }
 
@@ -208,6 +210,14 @@ class StaffOrderPresenter
             if ($item->fire_mode !== null || $annotation['target_seconds'] !== null) {
                 $data += $annotation;
             }
+            // P6-39: an online line also names its station (its own, a combo part's, else the one its dish routes to),
+            // so a station's screen shows the Telegram orders' dishes too; without one it keeps its P2-11 shape
+            if ($item->fire_mode === null) {
+                $station = $targets->stationOf($item, $order->branch_id !== null ? (int) $order->branch_id : null);
+                if ($station !== null) {
+                    $data['station_id'] = $station;
+                }
+            }
 
             return $data;
         })->values()->all();
@@ -221,7 +231,8 @@ class StaffOrderPresenter
      */
     public function waitingSeconds(Order $order, array $times, ?Carbon $now = null): int
     {
-        $start = $times['accepted_at'] ?? $order->created_at;
+        // P6-39: an order for a later pickup waits from its kitchen time, not from its acceptance long before
+        $start = KitchenTargets::orderStart($order->created_at, $times['accepted_at'], $order->pickup_at !== null ? $order->kitchen_fire_at : null);
         $cooking = in_array($order->status, [OrderStatus::NEW, OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)
             // P6-14: a counter order paid first is closed while its number is still being cooked
             || ($order->status === OrderStatus::DELIVERED && PickupQueue::statusOf($order) === PickupStatus::PREPARING);

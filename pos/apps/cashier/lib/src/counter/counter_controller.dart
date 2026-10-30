@@ -11,6 +11,7 @@ import '../features/order/order_controller.dart'
     show ApprovalRunner, OrderNotice;
 import '../features/order/order_draft.dart';
 import '../features/order/order_format.dart';
+import '../features/order/takeaway_widgets.dart' show pickupTimeLabel;
 import 'counter_format.dart';
 import 'counter_queue.dart';
 
@@ -74,6 +75,9 @@ class CounterController extends ChangeNotifier {
   final CounterQueueNumbers queue;
   final DateTime Function() now;
   final Random _random;
+
+  /// P6-34: qadoq va olib ketish vaqti (faqat aloqa borida).
+  late final PosTakeawayRepository takeaway = PosTakeawayRepository(data.http);
 
   PosChannel _channel = PosChannel.takeaway;
   PosCatalog? _catalog;
@@ -157,9 +161,181 @@ class CounterController extends ChangeNotifier {
         s + (l.variant.unit.isMeasured ? 1 : l.quantity.wholePart),
   );
 
-  /// Taxminiy jami (aniq narxni server hisoblaydi).
+  /// Taxminiy jami (aniq narxni server hisoblaydi): taomlar va (olib ketishda) qadoq.
   PosMoney get estimate =>
-      PosMoney.sum(_lines.map((DraftLine l) => l.estimate));
+      PosMoney.sum(_lines.map((DraftLine l) => l.estimate)) +
+      (_order == null ? OfflinePackaging.total(packagingLines) : PosMoney.zero);
+
+  // --- qadoq (P6-34) --------------------------------------------------------------------------------------------------
+
+  /// Savatda kassir olib tashlagan qadoq (qoida id → sabab): buyurtma ochilganda serverda ham olib tashlanadi.
+  final Map<int, String> _packagingRemoved = <int, String>{};
+
+  List<PosPackagingRule> get _packagingRules =>
+      data.session.hasModule(PosModule.packaging)
+      ? PosTakeaway.of(data.session.bootstrap?.raw ?? const <String, Object?>{})
+            .packaging
+      : const <PosPackagingRule>[];
+
+  /// Qadoq qatorlari: ochilgan buyurtmada — serverniki, savatda — filial qoidalari bo'yicha (server bilan bir xil
+  /// hisob, [OfflinePackaging]). Zalda va stolga olib boriladigan buyurtmada — yo'q.
+  List<PosPackagingLine> get packagingLines {
+    final PosOrder? o = _order;
+    if (o != null) return o.packagingLines;
+    final List<PosPackagingRule> rules = _packagingRules;
+    if (rules.isEmpty || _lines.isEmpty) return const <PosPackagingLine>[];
+    return OfflinePackaging.lines(
+      rules,
+      OfflinePackaging.orderType(_channel.wire, _tableLabel),
+      <OfflineDish>[
+        for (final DraftLine l in _lines)
+          OfflineDish(
+            productId: l.product.id,
+            categoryId: l.product.categoryId,
+            quantity: l.quantity,
+            measured: l.variant.unit.isMeasured,
+          ),
+      ],
+      removed: _packagingRemoved,
+    );
+  }
+
+  /// Internetsiz: qadoqni olib tashlab ham, qaytarib ham bo'lmaydi (server tasdig'i kerak).
+  bool get packagingLocked => data.offline?.active ?? false;
+
+  /// Mijoz o'z paketini olib keldi: savatda — eslab qolinadi, ochilgan buyurtmada — serverda (sabab bilan, auditda).
+  Future<bool> removePackaging(int ruleId, String reason) =>
+      _changePackaging(ruleId, reason);
+
+  /// Olib tashlangan qadoqni qaytarish.
+  Future<bool> restorePackaging(int ruleId) => _changePackaging(ruleId, null);
+
+  Future<bool> _changePackaging(int ruleId, String? reason) async {
+    if (packagingLocked) {
+      _emit(
+        "Internet yo'q: qadoqni olib tashlab yoki qaytarib bo'lmaydi.",
+        error: true,
+      );
+      return false;
+    }
+    final PosOrder? o = _order;
+    if (o == null) {
+      if (!editable) return false;
+      if (reason == null) {
+        _packagingRemoved.remove(ruleId);
+      } else {
+        _packagingRemoved[ruleId] = reason;
+      }
+      _touch();
+      return true;
+    }
+    if (_busy || _receipt != null) return false;
+    _busy = true;
+    _notify();
+    try {
+      _order = reason == null
+          ? await takeaway.restorePackaging(
+              o.uuid,
+              ruleId,
+              version: o.version,
+              idempotencyKey: _key('pack-restore:$ruleId:${o.version}'),
+            )
+          : await takeaway.removePackaging(
+              o.uuid,
+              ruleId,
+              version: o.version,
+              reason: reason,
+              idempotencyKey: _key('pack-remove:$ruleId:${o.version}'),
+            );
+      // The unpaid bill no longer matches the order: «To'lash» makes a new one (a new request, its own key)
+      _bill = null;
+      _keys.remove('bill:${o.uuid}');
+      return true;
+    } on PosVersionConflict {
+      await _reloadOrder();
+      _emit("Buyurtma o'zgardi: qayta urinib ko'ring.", error: true);
+      return false;
+    } on PosException catch (e) {
+      _emit(posErrorText(e), error: true);
+      return false;
+    } finally {
+      _busy = false;
+      _notify();
+    }
+  }
+
+  // --- olib ketish vaqti (P6-34) --------------------------------------------------------------------------------------
+
+  DateTime? _pickupAt;
+  String? _pickupLabel;
+
+  /// Mijoz keyinroq oladi: tanlangan vaqt (ochilgan buyurtmada — serverniki); `null` — hozir.
+  DateTime? get pickupAt =>
+      _order != null ? _order!.pickup?.pickupAt : _pickupAt;
+
+  /// Tanlangan vaqt do'kon vaqtida (`HH:mm`); `null` — hozir.
+  String? get pickupLabel {
+    final PosOrder? o = _order;
+    if (o != null) return pickupTimeLabel(o.pickup);
+    return _pickupAt == null ? null : _pickupLabel;
+  }
+
+  /// Oshxona hali olmagan (vaqtni o'zgartirish mumkin).
+  bool get pickupWaiting => _order?.pickup?.waiting ?? true;
+
+  /// Filialning qoidalari (`scheduled_pickup` moduli o'chiq — `null`).
+  PosPickupRules? get pickupRules =>
+      data.session.hasModule(PosModule.scheduledPickup)
+      ? PosTakeaway.of(data.session.bootstrap?.raw ?? const <String, Object?>{})
+            .pickup
+      : null;
+
+  /// "Vaqtga" tugmasi: olib ketishda, stol raqamisiz, aloqa borida.
+  bool get canSchedule =>
+      pickupRules != null &&
+      _channel == PosChannel.takeaway &&
+      (tableLabel ?? '').trim().isEmpty &&
+      !(data.offline?.active ?? false) &&
+      _receipt == null &&
+      ((_order?.pickup?.waiting ?? true) || _order == null);
+
+  /// Taklif qilinadigan vaqtlar (`GET /pos/pickup-slots`).
+  Future<List<PosPickupSlot>> pickupSlots() => takeaway.slots();
+
+  /// Vaqtni tanlash yoki olib tashlash: savatda — ochishda yuboriladi; ochilgan buyurtmada — serverda (oshxonaga
+  /// chiqqunicha).
+  Future<bool> setPickupAt(DateTime? at, {String? label}) async {
+    final PosOrder? o = _order;
+    if (o == null) {
+      if (!editable) return false;
+      _pickupAt = at;
+      _pickupLabel = at == null ? null : label;
+      _touch();
+      return true;
+    }
+    if (_busy) return false;
+    _busy = true;
+    _notify();
+    try {
+      _order = await takeaway.setPickupTime(
+        o.uuid,
+        at,
+        version: o.version,
+        idempotencyKey: _key('pickup:${o.version}:${at?.toIso8601String()}'),
+      );
+      return true;
+    } on PosVersionConflict {
+      await _reloadOrder();
+      _emit("Buyurtma o'zgardi: qayta urinib ko'ring.", error: true);
+      return false;
+    } on PosException catch (e) {
+      _emit(posErrorText(e), error: true);
+      return false;
+    } finally {
+      _busy = false;
+      _notify();
+    }
+  }
 
   /// To'lanadigan summa: schyot bo'lsa — schyotniki.
   PosMoney get total => _bill?.dueAmount ?? _order?.totalPrice ?? estimate;
@@ -228,6 +404,16 @@ class CounterController extends ChangeNotifier {
             .where((PosVariant x) => x.uuid == l.variant.uuid)
             .firstOrNull;
         if (p == null || v == null || !cat.isVariantAvailable(v)) continue;
+        ComboChoice? combo;
+        if (l.combo != null) {
+          // P6-31: the same picks priced by this channel's menu (an option it does not sell drops the line)
+          if (!p.isCombo) continue;
+          try {
+            combo = resolveCombo(cat, p, l.combo!.picks);
+          } on PosComboRejected {
+            continue;
+          }
+        }
         kept.add(
           DraftLine(
             key: l.key,
@@ -235,6 +421,7 @@ class CounterController extends ChangeNotifier {
             variant: v,
             quantity: l.quantity,
             modifiers: l.modifiers,
+            combo: combo,
           ),
         );
       }
@@ -263,6 +450,7 @@ class CounterController extends ChangeNotifier {
     PosVariant variant, {
     PosQuantity? quantity,
     Map<String, int> modifiers = const <String, int>{},
+    ComboChoice? combo,
   }) {
     // ×N chosen on the paid screen belongs to the next customer's first dish
     final int times = _multiplier;
@@ -274,7 +462,7 @@ class CounterController extends ChangeNotifier {
         : PosQuantity.milli(base.milli * times);
     _multiplier = 1;
     for (final DraftLine l in _lines) {
-      if (l.canMergeWith(variant, modifiers)) {
+      if (l.canMergeWith(variant, modifiers, combo: combo)) {
         l.quantity = l.quantity + q;
         _touch();
         return;
@@ -287,8 +475,27 @@ class CounterController extends ChangeNotifier {
         variant: variant,
         quantity: q,
         modifiers: Map<String, int>.of(modifiers),
+        combo: combo,
       ),
     );
+    _touch();
+  }
+
+  /// P6-32: qatorning tez modifikatorlari o'zgardi (hajm, "Muzsiz").
+  void setModifiers(int key, Map<String, int> modifiers) {
+    final DraftLine? l = _line(key);
+    if (l == null || !editable) return;
+    l.modifiers = Map<String, int>.of(modifiers);
+    _touch();
+  }
+
+  /// P6-31: kombo qatori qayta tanlandi (kombo oynasida "Saqlash").
+  void updateCombo(int key, ComboChoice combo, PosQuantity quantity) {
+    final DraftLine? l = _line(key);
+    if (l == null || !editable) return;
+    l
+      ..combo = combo
+      ..quantity = quantity.isPositive ? quantity : l.quantity;
     _touch();
   }
 
@@ -336,6 +543,7 @@ class CounterController extends ChangeNotifier {
     }
     if (!editable) return;
     _lines.clear();
+    _packagingRemoved.clear();
     _multiplier = 1;
     _touch();
   }
@@ -418,6 +626,9 @@ class CounterController extends ChangeNotifier {
           send: true,
           queueNumber: _number,
           tableLabel: _tableLabel,
+          pickupAt: _channel == PosChannel.takeaway && _tableLabel == null
+              ? _pickupAt
+              : null,
           approvalToken: token,
           idempotencyKey: token == null ? _key('open:$_revision') : null,
         ),
@@ -431,13 +642,40 @@ class CounterController extends ChangeNotifier {
       rethrow;
     }
     _openUnknown = false;
-    _order = created;
+    _order = await _applyPackagingRemovals(created);
     await queue.note(created.queue?.number);
     unawaited(tickets.printSent(null, created));
     for (final DraftLine l in _lines) {
       frequent.record(l.product.id);
     }
-    return created;
+    return _order!;
+  }
+
+  /// P6-34: the packaging the cashier took off in the cart, taken off the opened order too (a failure is told, the sale
+  /// goes on with the packaging on the bill).
+  Future<PosOrder> _applyPackagingRemovals(PosOrder created) async {
+    var order = created;
+    if (_packagingRemoved.isEmpty || (data.offline?.active ?? false)) {
+      return order;
+    }
+    for (final MapEntry<int, String> r in _packagingRemoved.entries) {
+      final bool on = order.packagingLines.any(
+        (PosPackagingLine l) => l.ruleId == r.key && !l.removed,
+      );
+      if (!on) continue;
+      try {
+        order = await takeaway.removePackaging(
+          order.uuid,
+          r.key,
+          version: order.version,
+          reason: r.value,
+          idempotencyKey: _key('pack-remove:${order.uuid}:${r.key}'),
+        );
+      } on PosException catch (e) {
+        _emit('Qadoq olib tashlanmadi: ${posErrorText(e)}', error: true);
+      }
+    }
+    return order;
   }
 
   /// The server answered and said no (4xx): no order exists, so the next try is a new request with its own external id
@@ -576,6 +814,9 @@ class CounterController extends ChangeNotifier {
     _tableLabel = null;
     _externalId = null;
     _openUnknown = false;
+    _packagingRemoved.clear();
+    _pickupAt = null;
+    _pickupLabel = null;
     _resetKeys();
     _touch();
   }

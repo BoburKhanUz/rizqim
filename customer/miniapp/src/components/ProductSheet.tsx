@@ -165,12 +165,7 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
       variant="sheet"
       onClose={onClose}
       title={product.name}
-      description={variants.length > 1 ? 'Variantni tanlang' : undefined}
-      footer={!hasNativeButton ? (
-        <Button size="lg" disabled={!canConfirm} onClick={handleConfirm}>
-          {confirmText}
-        </Button>
-      ) : undefined}
+      description={variants.length > 1 ? 'Variantni tanlang' : combo ? "Odatiy tanlov belgilangan: xohlasangiz o'zgartiring" : undefined}
     >
       <div className="flex gap-3 rounded-card bg-surface-2 p-3">
         <ProductImage src={product.image_url} className="size-16 rounded-control" />
@@ -272,6 +267,15 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
         <p role="status" className="text-footnote font-bold text-danger-soft-fg">
           {selectionIssue}
         </p>
+      )}
+
+      {/* Outside Telegram the confirm button is the sheet's own: pinned to the bottom, so a long combo never hides it */}
+      {!hasNativeButton && (
+        <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-2 border-t border-line bg-surface px-5 pb-[calc(20px+var(--rz-inset-bottom))] pt-3 [&>*]:flex-1">
+          <Button size="lg" disabled={!canConfirm} onClick={handleConfirm}>
+            {confirmText}
+          </Button>
+        </div>
       )}
     </Dialog>
   );

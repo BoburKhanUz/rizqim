@@ -5,11 +5,13 @@ import 'package:rizqim_api/rizqim_api.dart';
 
 import '../settings/kds_settings.dart';
 
-/// Doska ko'rinishi: oddiy chiptalar yoki mangal (six sanog'i). `auto` — faqat mangal sexlari tanlangan bo'lsa mangal.
+/// Doska ko'rinishi: oddiy chiptalar, mangal (six sanog'i) yoki ixcham (ko'p mayda chipta: ichimlik, barista).
+/// `auto` — faqat mangal sexlari tanlangan bo'lsa mangal, faqat ichimlik/barista sexlari tanlangan bo'lsa ixcham.
 enum KitchenViewMode {
   auto,
   standard,
-  mangal;
+  mangal,
+  compact;
 
   static KitchenViewMode fromWire(Object? raw) => KitchenViewMode.values
       .firstWhere((KitchenViewMode m) => m.name == raw, orElse: () => auto);
@@ -137,15 +139,46 @@ bool isMangalView(StationSelection sel, List<KitchenStation>? stations) {
     case KitchenViewMode.mangal:
       return true;
     case KitchenViewMode.standard:
+    case KitchenViewMode.compact:
       return false;
     case KitchenViewMode.auto:
-      if (stations == null || sel.general || sel.stationIds.isEmpty) {
-        return false;
-      }
-      final List<KitchenStation> chosen = stations
-          .where((KitchenStation s) => sel.stationIds.contains(s.id))
-          .toList();
-      return chosen.isNotEmpty &&
-          chosen.every((KitchenStation s) => s.isMangal);
+      return _allChosen(sel, stations, (KitchenStation s) => s.isMangal);
   }
+}
+
+/// P6-33: doska ixcham ko'rinishdami (barista va ichimlik sexlari: ko'p mayda chipta). Oshpaz tanlagan bo'lsa shu,
+/// `auto` bo'lsa faqat ichimlik/barista sexlari tanlangan bo'lsa.
+bool isCompactView(StationSelection sel, List<KitchenStation>? stations) {
+  switch (sel.mode) {
+    case KitchenViewMode.compact:
+      return true;
+    case KitchenViewMode.standard:
+    case KitchenViewMode.mangal:
+      return false;
+    case KitchenViewMode.auto:
+      return _allChosen(sel, stations, (KitchenStation s) => s.isDrink);
+  }
+}
+
+/// P6-33: tanlangan sexlar orasidagi yig'ish (expo) sexlari id si; sexlar ma'lum bo'lmasa bo'sh.
+Set<int> chosenExpoIds(StationSelection sel, List<KitchenStation>? stations) =>
+    <int>{
+      for (final KitchenStation s in stations ?? const <KitchenStation>[])
+        if (s.isExpo && sel.stationIds.contains(s.id)) s.id,
+    };
+
+/// Faqat yig'ish sexi tanlangan: oddiy doska (sexlarning o'z qatorlari) bo'sh, faqat yig'ish ekrani bor.
+bool isExpoOnly(StationSelection sel, List<KitchenStation>? stations) =>
+    _allChosen(sel, stations, (KitchenStation s) => s.isExpo);
+
+bool _allChosen(
+  StationSelection sel,
+  List<KitchenStation>? stations,
+  bool Function(KitchenStation) test,
+) {
+  if (stations == null || sel.general || sel.stationIds.isEmpty) return false;
+  final List<KitchenStation> chosen = stations
+      .where((KitchenStation s) => sel.stationIds.contains(s.id))
+      .toList();
+  return chosen.isNotEmpty && chosen.every(test);
 }

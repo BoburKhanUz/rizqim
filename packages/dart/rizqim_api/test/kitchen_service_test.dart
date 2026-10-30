@@ -449,4 +449,175 @@ void main() {
     expect(line.copyWith(status: 'ready').courseNo, 2);
     expect(t.copyWith(status: 'ready').tableLabel, '12');
   });
+
+  Map<String, Object?> posLine(
+    int id,
+    String name, {
+    int? station,
+    String status = 'sent',
+    int? target,
+    bool late = false,
+    Map<String, Object?>? combo,
+  }) => <String, Object?>{
+    ...itemJson(id: id, name: name, status: status),
+    'round_no': 1,
+    'fire_mode': 'now',
+    'station_id': station,
+    'sent_at': '2026-10-20T11:58:00+05:00',
+    'due_at': null,
+    'seat_no': null,
+    'note': null,
+    'voided_at': null,
+    'void_reason': null,
+    'product_id': 7,
+    'category_id': 2,
+    'target_seconds': ?target,
+    if (target != null) 'late': late,
+    'combo': ?combo,
+  };
+
+  test('P6-33 / P6-31: a line carries its target, late flag and combo; the ticket its assembly', () async {
+    adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+      'success': true,
+      'message': '',
+      'data': <Object?>[
+        <String, Object?>{
+          ...ticketJson(
+            type: 'pickup',
+            items: <Map<String, Object?>>[
+              posLine(
+                41,
+                'Lavash',
+                station: 1,
+                target: 300,
+                late: true,
+                combo: <String, Object?>{
+                  'item_id': 9,
+                  'name': 'Lavash kombo',
+                  'quantity': 2,
+                },
+              ),
+              posLine(42, 'Pepsi 0,4', station: 3, status: 'ready', target: 90),
+              posLine(43, 'Non'),
+            ],
+          ),
+          'assembly': <String, Object?>{
+            'station_id': 4,
+            'required': true,
+            'waiting': false,
+            'assembled_at': null,
+            'stations': <Object?>[
+              <String, Object?>{
+                'station_id': 1,
+                'name': 'Grill',
+                'kind': 'grill',
+                'items_total': 1,
+                'items_ready': 0,
+                'done': false,
+              },
+              <String, Object?>{
+                'station_id': 3,
+                'name': 'Ichimliklar',
+                'kind': 'drinks',
+                'items_total': 1,
+                'items_ready': 1,
+                'done': true,
+              },
+              <String, Object?>{
+                'station_id': null,
+                'name': 'Umumiy',
+                'kind': null,
+                'items_total': 1,
+                'items_ready': 0,
+                'done': false,
+              },
+            ],
+          },
+        },
+      ],
+      'meta': <String, Object?>{'truncated': false},
+    });
+    final KitchenTicket t = (await client.kitchen.tickets()).tickets.single;
+    final KitchenLine lavash = t.lines[0];
+    expect(lavash.targetSeconds, 300);
+    expect(lavash.late, isTrue);
+    expect(lavash.combo?.itemId, 9);
+    expect(lavash.combo?.label, 'Lavash kombo ×2');
+    expect(t.lines[1].targetSeconds, 90);
+    expect(t.lines[1].late, isFalse);
+    expect(t.lines[1].combo, isNull);
+    expect(t.lines[2].targetSeconds, isNull);
+    expect(t.lines[2].late, isFalse);
+    final KitchenAssembly a = t.assembly!;
+    expect(a.stationId, 4);
+    expect(a.waiting, isFalse);
+    expect(a.isAssembled, isFalse);
+    expect(a.stations.map((s) => s.kind), <String?>['grill', 'drinks', null]);
+    expect(a.stations[1].done, isTrue);
+    expect(a.allStationsDone, isFalse);
+    // copyWith keeps the v2 fields
+    expect(lavash.copyWith(status: 'ready').targetSeconds, 300);
+    expect(lavash.copyWith(status: 'ready').combo?.name, 'Lavash kombo');
+    expect(t.copyWith(status: 'ready').assembly, isNotNull);
+    expect(t.copyWith(clearAssembly: true).assembly, isNull);
+  });
+
+  test(
+    'P6-33: a ticket of an order outside the expo has no assembly',
+    () async {
+      adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+        'success': true,
+        'message': '',
+        'data': <Object?>[ticketJson()],
+        'meta': <String, Object?>{'truncated': false},
+      });
+      final KitchenTicket t = (await client.kitchen.tickets()).tickets.single;
+      expect(t.assembly, isNull);
+      expect(t.lines.first.targetSeconds, isNull);
+    },
+  );
+
+  test('P6-33: the expo bump posts /staff/orders/{uuid}/assembled with an Idempotency-Key and returns the ticket', () async {
+    adapter.handler = (RequestOptions o) => ok(<String, Object?>{
+      ...ticketJson(status: 'ready'),
+      'assembly': <String, Object?>{
+        'station_id': 4,
+        'required': true,
+        'waiting': false,
+        'assembled_at': '2026-10-20T12:03:00+05:00',
+        'stations': <Object?>[],
+      },
+    });
+    final KitchenTicket? t = await client.kitchen.assembled(
+      'aaaaaaaa-0000-4000-8000-000000000001',
+    );
+    final RequestOptions r = adapter.requests.single;
+    expect(r.method, 'POST');
+    expect(
+      r.uri.path,
+      '/api/v1/staff/orders/aaaaaaaa-0000-4000-8000-000000000001/assembled',
+    );
+    expect(bearer(r), 'Bearer staff-token');
+    expect(r.headers['Idempotency-Key'], isA<String>());
+    expect(t?.assembly?.isAssembled, isTrue);
+  });
+
+  test(
+    'P6-33: assembled errors keep the server reason (stations_not_ready)',
+    () async {
+      adapter.handler = (RequestOptions o) => json(422, <String, Object?>{
+        'success': false,
+        'message': 'Hamma sexlar hali tayyor emas.',
+        'data': <String, Object?>{'reason': 'stations_not_ready'},
+      });
+      await expectLater(
+        client.kitchen.assembled('aaaaaaaa-0000-4000-8000-000000000001'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'status', 422)
+              .having((e) => e.reason, 'reason', 'stations_not_ready'),
+        ),
+      );
+    },
+  );
 }

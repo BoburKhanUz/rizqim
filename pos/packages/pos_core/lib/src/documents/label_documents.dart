@@ -11,6 +11,7 @@ final class CupSticker {
     this.takeawayLabel = 'Olib ketish',
     this.index = 1,
     this.total = 1,
+    this.context,
   }) : assert(index >= 1 && total >= 1 && index <= total);
 
   /// Navbat raqami ("57"); bo'sh qator — raqamsiz buyurtma (sarlavhada faqat vaqt chiqadi).
@@ -31,6 +32,9 @@ final class CupSticker {
   /// Qatordagi nechanchi stakan va jami.
   final int index;
   final int total;
+
+  /// P6-31: taom kombo ichida bo'lsa — kombo nomi ("Lavash kombo"): barista qaysi to'plamga ekanini ko'radi.
+  final String? context;
 }
 
 /// Olib ketish paketiga yorliq (P6-32): buyurtma raqami, mahsulotlar soni, mijoz va olib ketish vaqti.

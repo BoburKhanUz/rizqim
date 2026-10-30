@@ -19,7 +19,8 @@ use Illuminate\Support\Facades\DB;
  *
  * A line counts when it reached the kitchen inside the period and was bumped ready (ready_at), voided lines never:
  *
- *   started   sent_at (a POS line); an online line (Telegram, mobile) has none: the order's acceptance (else its creation)
+ *   started   sent_at (a POS line); an online line (Telegram, mobile) has none: the order's acceptance (else its creation),
+ *             for a later pickup its kitchen time if later (orders.kitchen_fire_at, KitchenTargets::orderStart)
  *   seconds   ready_at − started (never below 0). A line recalled and bumped again counts once, with its last ready_at;
  *             lines a cashier marked ready (POST /pos/orders/{uuid}/ready) or an order closed with lines still cooking
  *             count with that moment
@@ -76,16 +77,20 @@ final class PrepTimeReport
         /** @var array<int, array{start: int, done: int}> $orders */
         $orders = [];
 
+        $parse = fn ($value) => $value !== null ? CarbonImmutable::parse($value, 'UTC') : null;
         foreach ($this->lines($branch, $start, $end)->orderBy('order_items.id')->select([
             'order_items.id', 'order_items.order_id', 'order_items.product_variant_id', 'order_items.product_name',
             'order_items.station_id', 'order_items.sent_at', 'order_items.ready_at', 'order_items.fire_mode',
-            'orders.created_at as order_created_at', 'orders.assembled_at as order_assembled_at',
+            'orders.created_at as order_created_at', 'orders.assembled_at as order_assembled_at', 'orders.pickup_at as order_pickup_at', 'orders.kitchen_fire_at as order_fire_at',
         ])->selectSub(fn ($history) => $history->from('order_status_histories')
             ->selectRaw('max(order_status_histories.created_at)')
             ->whereColumn('order_status_histories.order_id', 'orders.id')
             ->where('order_status_histories.status', OrderStatus::ACCEPTED->value), 'order_accepted_at')
             ->cursor() as $row) {
-            $started = $row->sent_at ?? ($row->fire_mode === null ? ($row->order_accepted_at ?? $row->order_created_at) : null);
+            // An online line from its acceptance; one for a later pickup from its kitchen time (KitchenTargets::orderStart)
+            $started = $row->sent_at ?? ($row->fire_mode === null
+                ? KitchenTargets::orderStart($parse($row->order_created_at), $parse($row->order_accepted_at), $row->order_pickup_at !== null ? $parse($row->order_fire_at) : null)
+                : null);
             if ($started === null) {
                 continue;
             }

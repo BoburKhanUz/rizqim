@@ -164,6 +164,25 @@ class PosScheduledPickupTest extends TestCase
         $this->order([['variant_id' => $this->shashlik->uuid, 'quantity' => 1]], ['pickup_at' => '2026-10-22T13:05:00Z'])->assertStatus(422)->assertJsonValidationErrors('pickup_at');
     }
 
+    public function test_the_till_lists_the_orders_for_later_with_their_time(): void
+    {
+        // Stage B (M1): the open orders list carries each order's pickup, so the till shows the scheduled ones with their time
+        $later = $this->takeaway([[$this->shashlik, 1]], ['send' => true, 'pickup_at' => '2026-10-22T14:00:00Z'])->assertCreated();
+        $now = $this->takeaway([[$this->tea, 1]], ['send' => true])->assertCreated();
+        $this->order([['variant_id' => $this->shashlik->uuid, 'quantity' => 1]], ['pickup_at' => '2026-10-22T14:30:00Z'])->assertCreated();
+        $online = Order::where('channel', 'telegram')->latest('id')->firstOrFail();
+
+        $rows = collect($this->tillAs('GET', '/pos/orders')->assertOk()->json('data'))->keyBy('uuid');
+        $this->assertSame('2026-10-22T14:00:00.000000Z', $rows[$later->json('data.uuid')]['pickup']['pickup_at']);
+        $this->assertSame('22.10 19:00', $rows[$later->json('data.uuid')]['pickup']['local_time']);
+        $this->assertTrue($rows[$later->json('data.uuid')]['pickup']['waiting']);
+        $this->assertNull($rows[$now->json('data.uuid')]['pickup']);
+
+        // A Telegram pickup waiting for the till: its row says the time too
+        $incoming = collect($this->tillAs('GET', '/pos/orders?scope=incoming')->assertOk()->json('data'))->keyBy('uuid');
+        $this->assertSame('22.10 19:30', $incoming[$online->uuid]['pickup']['local_time']);
+    }
+
     public function test_the_mini_app_and_the_till_read_the_pickup_times(): void
     {
         $this->openHours('09:00', '22:00');

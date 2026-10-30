@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 
+import '../../printing/label_printing.dart';
 import 'frequent_items.dart';
 import 'kitchen_tickets.dart';
 import 'order_draft.dart';
@@ -36,6 +37,7 @@ class OrderController extends ChangeNotifier {
     required this.data,
     required this.tickets,
     required this.frequent,
+    this.labels,
     String? orderUuid,
     PosChannel draftChannel = PosChannel.takeaway,
     Random? random,
@@ -47,7 +49,13 @@ class OrderController extends ChangeNotifier {
   final PosData data;
   final KitchenTickets tickets;
   final FrequentItems frequent;
+
+  /// P6-32: oshxonaga ketgan qatorlarning stakan stikerlari (`labels` sozlamasi va stiker printeri bo'lsa).
+  final CashierLabels? labels;
   final Random _random;
+
+  /// P6-34: qadoq qatorlari (faqat aloqa borida).
+  late final PosTakeawayRepository takeaway = PosTakeawayRepository(data.http);
 
   String? _uuid;
   late PosChannel _draftChannel;
@@ -211,6 +219,7 @@ class OrderController extends ChangeNotifier {
     String? note,
     int? seatNo,
     PosFireMode? fireMode,
+    ComboChoice? combo,
   }) {
     final bool plain =
         (note == null || note.trim().isEmpty) &&
@@ -218,7 +227,7 @@ class OrderController extends ChangeNotifier {
         fireMode == null;
     if (plain) {
       for (final DraftLine l in _draft) {
-        if (l.canMergeWith(variant, modifiers)) {
+        if (l.canMergeWith(variant, modifiers, combo: combo)) {
           l.quantity = l.quantity + quantity;
           _touchDraft();
           return;
@@ -235,8 +244,27 @@ class OrderController extends ChangeNotifier {
         note: note,
         seatNo: seatNo,
         fireMode: fireMode,
+        combo: combo,
       ),
     );
+    _touchDraft();
+  }
+
+  /// P6-32: qatorning tez modifikatorlari (hajm, "Muzsiz").
+  void setDraftModifiers(int key, Map<String, int> modifiers) {
+    final DraftLine? l = _line(key);
+    if (l == null) return;
+    l.modifiers = Map<String, int>.of(modifiers);
+    _touchDraft();
+  }
+
+  /// P6-31: kombo qatori qayta tanlandi.
+  void updateCombo(int key, ComboChoice combo, PosQuantity quantity) {
+    final DraftLine? l = _line(key);
+    if (l == null) return;
+    l
+      ..combo = combo
+      ..quantity = quantity.isPositive ? quantity : l.quantity;
     _touchDraft();
   }
 
@@ -427,6 +455,7 @@ class OrderController extends ChangeNotifier {
       _uuid = created.uuid;
       _order = created;
       unawaited(tickets.printSent(null, created));
+      labels?.printSent(null, created);
       _emit(send ? 'Buyurtma ochildi va yuborildi' : 'Buyurtma ochildi');
       return true;
     } on PosApprovalCancelled {
@@ -618,6 +647,72 @@ class OrderController extends ChangeNotifier {
     success: '${kind.label} qaytarildi',
   );
 
+  /// P6-34: mijoz o'z paketini olib keldi — qadoq qatorini sabab bilan olib tashlash (aloqa borida; auditda).
+  Future<bool> removePackaging(
+    int ruleId,
+    String reason, {
+    required ApprovalRunner approve,
+  }) => _packaging(
+    (int v) => takeaway.removePackaging(
+      _uuid!,
+      ruleId,
+      version: v,
+      reason: reason,
+      idempotencyKey: _actionKey('pack-remove:$ruleId:$v'),
+    ),
+    approve,
+    'Qadoq olib tashlandi',
+  );
+
+  /// P6-34: olib tashlangan qadoqni qaytarish.
+  Future<bool> restorePackaging(
+    int ruleId, {
+    required ApprovalRunner approve,
+  }) => _packaging(
+    (int v) => takeaway.restorePackaging(
+      _uuid!,
+      ruleId,
+      version: v,
+      idempotencyKey: _actionKey('pack-restore:$ruleId:$v'),
+    ),
+    approve,
+    'Qadoq qaytarildi',
+  );
+
+  Future<bool> _packaging(
+    Future<PosOrder> Function(int version) call,
+    ApprovalRunner approve,
+    String success,
+  ) {
+    if (data.offline?.active ?? false) {
+      _emit(
+        "Internet yo'q: qadoqni olib tashlab yoki qaytarib bo'lmaydi.",
+        error: true,
+      );
+      return Future<bool>.value(false);
+    }
+    return _mutate(
+      (int v, String? _) => call(v),
+      approve: approve,
+      success: success,
+    );
+  }
+
+  /// P6-34: olib ketish vaqti (`scheduled_pickup`; [at] `null` — hozir, darhol oshxonaga).
+  Future<bool> setPickupTime(DateTime? at, {required ApprovalRunner approve}) =>
+      _mutate(
+        (int v, String? _) => takeaway.setPickupTime(
+          _uuid!,
+          at,
+          version: v,
+          idempotencyKey: _actionKey('pickup:$v:${at?.toIso8601String()}'),
+        ),
+        approve: approve,
+        success: at == null
+            ? 'Vaqt olib tashlandi'
+            : 'Olib ketish vaqti saqlandi',
+      );
+
   /// P3-37: buyurtmaga chegirma ([value] `"0"` — olib tashlash). Kassir chegarasidan ko'pi — server menejer
   /// tasdig'ini so'raydi ([approve]). Javob kelmay qolsa (tarmoq) keyingi bosish aynan o'sha so'rovni — o'sha kalit,
   /// versiya, tana va bo'lgan bo'lsa o'sha tasdiq bilan — yuboradi: server uni bir marta bajaradi.
@@ -726,6 +821,7 @@ class OrderController extends ChangeNotifier {
       }
       _order = next;
       unawaited(tickets.printSent(before, next));
+      labels?.printSent(before, next);
       if (success != null) _emit(success);
       return true;
     } on PosApprovalCancelled {
@@ -771,6 +867,11 @@ class OrderController extends ChangeNotifier {
       // keyingi yangilashda
     }
   }
+
+  // P6-34: the packaging and pickup-time calls' keys, apart from the round's (a lost round keeps its own key)
+  final Map<String, String> _actionKeys = <String, String>{};
+
+  String _actionKey(String what) => _actionKeys[what] ??= _randomId();
 
   /// Bir xil amal (bir xil tana) uchun bir xil kalit: tarmoq xatosidan keyin qayta bosilsa server takrorlamaydi.
   String _keyFor(String what) {

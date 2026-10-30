@@ -9,6 +9,39 @@ import 'support/harness.dart';
 void main() {
   PosJson data(String name) => PosJson.of(fixtureData(name));
 
+  test(
+    'P6-33: a station reads its kind and time target; expo is told apart',
+    () {
+      final PosStation grill = PosStation.fromJson(
+        PosJson.of(<String, Object?>{
+          'id': 2,
+          'name': 'Grill',
+          'kind': 'grill',
+          'target_seconds': 300,
+        }),
+      );
+      expect(grill.kind, 'grill');
+      expect(grill.targetSeconds, 300);
+      expect(grill.isExpo, isFalse);
+      final PosStation expo = PosStation.fromJson(
+        PosJson.of(<String, Object?>{
+          'id': 5,
+          'name': "Yig'ish",
+          'kind': 'expo',
+        }),
+      );
+      expect(expo.isExpo, isTrue);
+      expect(expo.targetSeconds, isNull);
+      // The old shape (no target) still reads
+      expect(
+        PosStation.fromJson(
+          PosJson.of(<String, Object?>{'id': 1, 'name': 'Osh', 'kind': 'osh'}),
+        ).targetSeconds,
+        isNull,
+      );
+    },
+  );
+
   test('bootstrap', () {
     final PosBootstrap b = PosBootstrap.fromJson(
       data('bootstrap'),

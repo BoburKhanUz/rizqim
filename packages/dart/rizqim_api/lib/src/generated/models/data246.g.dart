@@ -39,6 +39,9 @@ Data246 _$Data246FromJson(Map<String, dynamic> json) => Data246(
   queue: json['queue'] == null
       ? null
       : Queue21.fromJson(json['queue'] as Map<String, dynamic>),
+  pickup: json['pickup'] == null
+      ? null
+      : Pickup21.fromJson(json['pickup'] as Map<String, dynamic>),
   openedAt: json['opened_at'] as String?,
   closedAt: json['closed_at'] as String?,
   updatedAt: json['updated_at'] as String?,
@@ -72,6 +75,7 @@ Map<String, dynamic> _$Data246ToJson(Data246 instance) => <String, dynamic>{
   'booking_id': instance.bookingId,
   'business_date': instance.businessDate,
   'queue': instance.queue,
+  'pickup': instance.pickup,
   'opened_at': instance.openedAt,
   'closed_at': instance.closedAt,
   'updated_at': instance.updatedAt,

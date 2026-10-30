@@ -8,6 +8,7 @@ import 'hall20.dart';
 import 'table20.dart';
 import 'waiter23.dart';
 import 'queue21.dart';
+import 'pickup21.dart';
 import 'online3.dart';
 
 part 'data246.g.dart';
@@ -39,6 +40,7 @@ class Data246 {
     required this.bookingId,
     required this.businessDate,
     required this.queue,
+    required this.pickup,
     required this.openedAt,
     required this.closedAt,
     required this.updatedAt,
@@ -86,6 +88,7 @@ class Data246 {
   @JsonKey(name: 'business_date')
   final String? businessDate;
   final Queue21? queue;
+  final Pickup21? pickup;
   @JsonKey(name: 'opened_at')
   final String? openedAt;
   @JsonKey(name: 'closed_at')

@@ -141,6 +141,11 @@ StationTicket buildStationTicket(
           modifiers: itemModifierLabels(i),
           note: i.note,
           seat: i.seatNo,
+          // P6-31: a combo's parts (each goes to its own station on the KDS; the paper ticket lists them)
+          parts: <String>[
+            for (final PosComboPart p in i.comboParts ?? const <PosComboPart>[])
+              p.label.isNotEmpty ? p.label : p.name,
+          ],
         ),
     ],
   );
@@ -164,6 +169,14 @@ class KitchenPrintIssues extends ChangeNotifier {
   /// ish ekranlarida banner ko'rinadi (sotuv cheki "jim" yo'qolmasin).
   static KitchenPrintIssues receiptsOf(CashierPrinting printing) =>
       _receiptsByPrinting[printing] ??= KitchenPrintIssues._();
+
+  static final Expando<KitchenPrintIssues> _labelsByPrinting =
+      Expando<KitchenPrintIssues>();
+
+  /// P6-32: stiker printeriga ketgan yorliqlar (stakan stikeri, paket yorlig'i): to'lovni to'xtatmaydi, chiqmasa
+  /// ish ekranlarida "Stiker chop etilmadi" banneri.
+  static KitchenPrintIssues labelsOf(CashierPrinting printing) =>
+      _labelsByPrinting[printing] ??= KitchenPrintIssues._();
 
   final Map<String, PrintJob> _failed = <String, PrintJob>{};
   final Set<String> _watched = <String>{};

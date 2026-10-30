@@ -34,6 +34,11 @@ LabelLayout layoutCupSticker(CupSticker s, LabelSize size) {
   w.text(s.itemName, bold: true, maxRows: 2);
   final String? variant = s.variantName?.trim();
   if (variant != null && variant.isNotEmpty) w.text(variant, maxRows: 1);
+  // P6-31: a drink inside a combo names its combo
+  final String? combo = s.context?.trim();
+  if (combo != null && combo.isNotEmpty && w.rowsLeft > 0) {
+    w.text('[$combo]', maxRows: 1);
+  }
   if (s.modifiers.isNotEmpty) {
     w.text(
       '+ ${s.modifiers.map((String m) => m.trim()).join(', ')}',

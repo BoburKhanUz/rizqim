@@ -226,6 +226,11 @@ class _HomeShellState extends State<HomeShell> {
                 issues: KitchenPrintIssues.receiptsOf(widget.services.printing),
                 title: 'Chek chop etilmadi',
               ),
+              // P6-32: a sticker that did not print never stops the sale: a plain warning with a retry
+              KitchenPrintBanner(
+                issues: KitchenPrintIssues.labelsOf(widget.services.printing),
+                title: 'Stiker chop etilmadi',
+              ),
               Expanded(child: stack),
             ],
           );

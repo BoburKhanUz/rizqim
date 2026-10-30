@@ -45,6 +45,7 @@ PrintLayout layoutShiftReport(ShiftReport r, PaperWidth paper) {
   if (!r.serviceCharges.isZero) {
     amount('Shu jumladan xizmat haqi', r.serviceCharges);
   }
+  if (!r.packaging.isZero) amount('Shu jumladan qadoq', r.packaging);
   if (!r.discounts.isZero) amount('Chegirmalar', -r.discounts.abs());
   amount("O'rtacha chek", r.averageCheck);
 
@@ -135,6 +136,15 @@ PrintLayout layoutQueueSlip(QueueSlip s, PaperWidth paper) {
   w.center(s.number, bold: true, size: PrintTextSize.huge);
   w.feed();
   if (s.orderLabel != null) w.center(s.orderLabel!, bold: true);
+  // P6-34: a scheduled pickup says when to come
+  if (s.pickupAt != null) {
+    w.center(
+      ' Olib ketish: ${formatReceiptTime(s.pickupAt!)} ',
+      bold: true,
+      size: PrintTextSize.tall,
+      inverted: true,
+    );
+  }
   w.center(
     <String>[
       if (s.orderCode != null) s.orderCode!,

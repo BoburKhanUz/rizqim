@@ -8,6 +8,7 @@ import 'package:pos_hardware/pos_hardware.dart';
 import '../../counter/counter_format.dart';
 import '../../shell/pos_scope.dart';
 import '../order/kitchen_tickets.dart';
+import '../order/order_format.dart' show comboPartLines;
 import '../settings/cashier_prefs.dart';
 import 'cashier_ui.dart';
 
@@ -137,6 +138,8 @@ PreCheck preCheckOf({
         quantity: ItemQuantity(i.quantity, unit: i.unit),
         unitPrice: unitPriceOf(i.amount, i.quantity),
         amount: i.amount,
+        // P6-31: a combo's parts, without prices
+        parts: comboPartLines(i.comboParts),
       ),
   ],
   charges: <BillCharge>[
@@ -152,6 +155,14 @@ PreCheck preCheckOf({
       ),
     if (!bill.minSpendTopupAmount.isZero)
       BillCharge(BillChargeKind.minSpendTopUp, bill.minSpendTopupAmount),
+    // P6-34: each packaging line on its own (a bag, a cup)
+    for (final PosPackagingLine l in bill.packagingLines)
+      if (!l.amount.isZero)
+        BillCharge(
+          BillChargeKind.packaging,
+          l.amount,
+          label: l.quantity > 1 ? '${l.name} × ${l.quantity}' : l.name,
+        ),
     if (!bill.serviceChargeAmount.isZero)
       BillCharge(
         BillChargeKind.serviceCharge,
@@ -270,6 +281,43 @@ Future<PosFiscalReceiptDetail?> receiptOf(
 String? _nonFiscalNote(PosFiscalReceiptDetail? d) =>
     d != null && d.nonFiscal ? 'Bu fiskal chek emas (sinov rejimi).' : null;
 
+/// P6-31 (egasining qarori, 30.10.2026): fiskal chekda kombo bitta qator (o'z MXIK'i bilan), mijoz chekida uning tagida
+/// tarkib narxsiz. Server qatorida tarkib yo'q: schyot qatoridan (nomi bo'yicha, tartib bilan) olinadi. `split` rejimida
+/// tarkib o'zi fiskal qatorlar — ularga nom mos kelmaydi va hech narsa qo'shilmaydi.
+List<ReceiptLine> withComboParts(
+  List<ReceiptLine> lines,
+  List<PosBillItem> items,
+) {
+  final List<PosBillItem> combos = <PosBillItem>[
+    for (final PosBillItem i in items)
+      if ((i.comboParts ?? const <PosComboPart>[]).isNotEmpty) i,
+  ];
+  if (combos.isEmpty) return lines;
+  String nameOf(PosBillItem i) =>
+      i.variantName == null || i.variantName!.isEmpty
+      ? i.productName
+      : '${i.productName} (${i.variantName})';
+  return <ReceiptLine>[
+    for (final ReceiptLine l in lines)
+      if (combos.indexWhere((PosBillItem i) => nameOf(i) == l.name)
+          case final int at when at >= 0)
+        ReceiptLine(
+          name: l.name,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          amount: l.amount,
+          vatRate: l.vatRate,
+          vatAmount: l.vatAmount,
+          mxikCode: l.mxikCode,
+          packageCode: l.packageCode,
+          discount: l.discount,
+          parts: comboPartLines(combos.removeAt(at).comboParts),
+        )
+      else
+        l,
+  ];
+}
+
 /// Sotuv cheki: schyot qatorlari, xizmatlar va to'lovlar. [detail] — serverdagi chek (MXIK, QQS, fiskal belgi, QR,
 /// raqam, kassa; P3-26: to'lov javobidagi `fiscal.receipt`); bo'lmasa chek schyotdan tuziladi va fiskal belgi o'rniga
 /// "kutilmoqda" yoziladi.
@@ -283,7 +331,9 @@ FiscalReceipt saleReceiptOf({
   bool copy = false,
 }) {
   final List<ReceiptLine> lines = detail != null && detail.lines.isNotEmpty
-      ? <ReceiptLine>[for (final PosFiscalLine l in detail.lines) _lineOf(l)]
+      ? withComboParts(<ReceiptLine>[
+          for (final PosFiscalLine l in detail.lines) _lineOf(l),
+        ], bill.items)
       : <ReceiptLine>[
           for (final PosBillItem i in bill.items)
             ReceiptLine(
@@ -294,7 +344,17 @@ FiscalReceipt saleReceiptOf({
               unitPrice: unitPriceOf(i.amount, i.quantity),
               amount: i.amount - i.discountAmount,
               discount: i.discountAmount,
+              parts: comboPartLines(i.comboParts),
             ),
+          // P6-34: each packaging line is its own receipt line
+          for (final PosPackagingLine l in bill.packagingLines)
+            if (!l.amount.isZero)
+              ReceiptLine(
+                name: l.name,
+                quantity: ItemQuantity(PosQuantity.whole(l.quantity)),
+                unitPrice: unitPriceOf(l.amount, PosQuantity.whole(l.quantity)),
+                amount: l.amount,
+              ),
           for (final (PosMoney amount, String name) in <(PosMoney, String)>[
             (bill.roomFeeAmount, 'Xona puli'),
             (bill.placeFeeAmount, 'Joy puli'),

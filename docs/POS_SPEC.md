@@ -1696,6 +1696,16 @@ Fast food oqimi: kassa → sexlar (grill, fritur, ichimlik) → yig'ish → "tay
   Biznes kunlari Toshkent vaqti bilan, filial kun boshidan; ko'pi bilan 31 kun. Hamkor panelida "Tayyorlash vaqti" sahifasi.
 - **Ma'lumotlar:** `kitchen_stations.target_seconds`, `products.kds_target_seconds`, `orders.assembled_at`, `orders.assembled_by`
   (migratsiya `2026_11_14_200100`). Real-time: `kitchen.order_assembled` (`{order, assembled, assembled_at, queue_number}`).
+- **KDS ilovasi (pos/apps/kds, 3-bosqich B):** yangi sex turlari o'z ikonkasi va nomi bilan; har qatorda maqsadga nisbatan taymer
+  (maqsadning 80 foizidan sariq, o'tgach qizil "Kechikdi +m:ss", chipta ham shu rangda; server `late` bayrog'i darhol qizil);
+  yig'ish (`expo`) sexi tanlansa **Yig'ish** bo'limi: ko'p sexli buyurtma kartochkasi (har sexning taomlari va tayyorligi,
+  yig'ish vaqti yig'ish sexi maqsadiga qarab) va **Yig'ildi** tugmasi (`POST /staff/orders/{uuid}/assembled`), `kitchen.order_assembled`
+  bilan jonli yangilanadi; kombo qismlari "Kombo: Lavash kombo ×2" sarlavhasi ostida; barista/ichimlik sexlari ixcham doskada.
+  Mijoz ekrani o'zgarmadi: yig'ilgan raqam `queue.ready` bilan "Tayyor"ga tushadi, oldindan buyurtma yuborilguncha taxtada yo'q.
+
+Fast food e2e (P6-39) topgani: Telegram buyurtmasining qatorlari ham sex ekranida (chiptada `station_id`), keyinroq vaqtga
+olingan buyurtma oshxona vaqtidan sanaladi (qabul qilingandan emas: darhol "kechikdi" bo'lmaydi), daqiqalik ishdan oldin
+berilgan buyurtma raqami taxtaga qaytmaydi. API — [API.md](API.md), "P6-39 tuzatishlari".
 
 ## Qadoq, 24/7 va olib ketish vaqti (P6-34)
 
@@ -1764,5 +1774,33 @@ Modul `combo`. Qoidalar, jadvallar va endpointlar: [MENU.md](MENU.md) §13, [API
 4. **Yopilish.** Majburiy slotida sotiladigan tanlov qolmasa kombo stop-listga tushadi; sotilmaydigan tanlov ko'rsatilmaydi.
 5. **Internetsiz.** Kassa komboni o'zi narxlaydi (`PosComboPricing`, server bilan bir xil) va `combo` + `combo_delta` bilan
    navbatga qo'yadi; server tanlovni saqlaydi, farqni o'zi hisoblaydi (`offline_price_mismatch`).
-6. **Kassir ekrani (2-bosqich, stage B).** Katalogdagi `combo` dan slot tanlovi oynasi; standart tanlov bir bosishda; talon va
-   chekda `combo_parts[].label`.
+6. **Kassir ekrani (stage B).** Kombo tugmasi slot oynasini ochadi: majburiy slotlarda standart tanlov belgilangan, slotda
+   bitta bosish tanlovni almashtiradi, farq tugmada (+5 000), sotilmaydigan tanlov ko'rsatilmaydi; standart kombo — 2 bosish
+   (kombo, "Qo'shish"). Savat qatorida tarkib narxsiz; qatorni bosish tanlovni va sonini o'zgartiradi. Kassa tanlovni doim
+   aniq yuboradi (har slot uchun `combo[]`). Mijoz chekida kombo qatori ostida `combo_parts[].label` narxsiz (qog'ozda tire
+   "—" oddiy "-" bilan: bitta belgi uchun chek rasm rejimiga o'tmaydi); fiskal qator nomi bo'yicha schyot qatoriga bog'lanadi,
+   `split` rejimining tarkib qatorlariga hech narsa qo'shilmaydi. Sex markasida tarkib "- ..." qatorlari bilan.
+
+### Kassada fast food (P6 3-to'lqin, stage B)
+
+- **Tez modifikatorlar** (`display_mode`): `size` — menyu tugmasida hajmlar (0,3 / 0,5 / 0,7), bitta bosish taomni shu hajm
+  bilan qo'shadi; savat qatorida hajm va `inline` variantlar ("Muzsiz") tugmalari, bitta bosishda. Standart variantlar
+  oldindan belgilanadi (oynada ham); tez guruh standart bilan to'lsa oyna ochilmaydi; buyurtma variantlarni doim aniq yuboradi.
+- **Stiker va paket yorlig'i** (`labels`): avval to'lov kassasida to'lovdan keyin, zal/buyurtma ekranida oshxonaga
+  yuborilganda, Telegram olib ketish buyurtmasi qabul qilinganda: `labels.appliesTo(kategoriya)` × `stickersFor(soni)`
+  stakan stikeri (kombo ichidagi ichimlik ham, kombo nomi `[Lavash kombo]` bilan), olib ketishda `bag_label` bo'lsa paket
+  yorlig'i (mahsulotlar soni — kombo tarkibi donada, olib ketish vaqti). Printer — bootstrapdagi birinchi `purpose: label`
+  printeri; uning tili maqsaddan (`label` → TSPL, boshqasi ESC/POS; serverda alohida maydon yo'q). Navbatga qo'yiladi (qayta
+  urinish bilan), chiqmasa "Stiker chop etilmadi" banneri — to'lovni hech qachon to'smaydi. "Stikerlar" tugmasi (to'langan
+  ekranda) ko'rinish va qayta chop etish; printer sozlamalarida "Sinov" yorliq printeriga namuna stiker chiqaradi.
+- **Qadoq**: savatda filial qoidalari bo'yicha taxminiy qadoq qatori (`OfflinePackaging`), "Olib tashlash" (sabab oynasi) —
+  savatda eslab qolinadi va buyurtma ochilishi bilan serverda olib tashlanadi; ochilgan buyurtmada "Olib tashlash" va
+  "Qaytarish" (yangi schyot tuziladi). Buyurtma ekranining jami panelida ham. Internetsiz — qatorlar ko'rinadi, tugmalar
+  o'chiq: "Internet yo'q: qadoqni olib tashlab bo'lmaydi."
+- **Olib ketish vaqti**: olib ketishda (stol raqamisiz, aloqa borida) "Vaqtga" — `GET /pos/pickup-slots` vaqtlari, bitta
+  bosishda; savatda — `POST /pos/orders` `pickup_at` bilan, ochilgandan keyin (oshxonaga chiqqunicha) — `PUT .../pickup-time`,
+  "Hozir" vaqtni olib tashlaydi. Talonda "Olib ketish: 13:30" (teskari rangda). "Navbat" bo'limida "Vaqtga" ro'yxati (eng
+  yaqini birinchi; kassa ro'yxati qatorida `pickup`, Telegram kartasida ham).
+- **24/7 navbat**: `takeaway.business_day.next_starts_at` o'tgach kassa keyingi raqamdan oldin yangi kun bloklarini oladi
+  (`POST /pos/queue/blocks`), talon raqami yangi kunda 1 dan; internetsiz — eski blokdan, server yangi kun raqamini beradi.
+- **Z hisobot**: `sales.packaging` — "Shu jumladan qadoq" (X ekranida ham).

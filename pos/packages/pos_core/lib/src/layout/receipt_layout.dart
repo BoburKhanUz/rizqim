@@ -8,6 +8,10 @@ import '../print/print_writer.dart';
 /// Qog'ozdagi summa: oddiy bo'shliq bilan (printer kodlash jadvalida ajralmas bo'shliq bo'lmasligi mumkin).
 String paperAmount(PosMoney m) => m.formatAmount(separator: ' ');
 
+/// P6-31: kombo tarkibi qog'ozda: tire (—, –) oddiy "-" bilan — printer jadvalida yo'q bitta belgi uchun butun chek
+/// rasm rejimiga o'tmasin.
+String paperPart(String text) => text.replaceAll('—', '-').replaceAll('–', '-');
+
 /// Valyuta bilan: "450 000 so'm".
 String paperMoney(PosMoney m) => m.format(separator: ' ');
 
@@ -45,6 +49,10 @@ PrintLayout layoutFiscalReceipt(FiscalReceipt r, PaperWidth paper) {
 
   for (final ReceiptLine line in r.lines) {
     w.text(line.name, bold: true);
+    // P6-31 (owner decision 30.10.2026): a combo's parts under its line, without prices
+    for (final String part in line.parts) {
+      w.text(paperPart(part), indent: 2);
+    }
     w.pair(
       line.quantity.priced(line.unitPrice),
       paperAmount(line.amount),

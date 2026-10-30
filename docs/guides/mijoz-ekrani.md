@@ -102,6 +102,16 @@ Devordagi televizor yoki planshet:
 
 Taxta oshxona ekranidagi (KDS) "tayyor" tugmasi bosilishi bilan, odatda **1–2 soniyada** yangilanadi.
 
+**Fast food: yig'ish va oldindan buyurtma** ([fast-food.md](fast-food.md#10-oshxona-sexlar-vaqt-maqsadi-va-yigish-ekrani)):
+
+- Filialda **Yig'ish** sexi (yig'ish ekrani) bo'lsa, ikki va undan ko'p sexda pishadigan buyurtmaning raqami **Tayyor** ga
+  oxirgi sex tayyor bo'lganda emas, yig'uvchi oshxonada **Yig'ildi** ni bosganda o'tadi: shunda ovoz chalinadi va "17 raqam tayyor!"
+  chiqadi. Bitta sexli buyurtmalar avvalgidek, oshpaz "tayyor" bosganda tayyor bo'ladi.
+- **Oldindan buyurtma** (mijoz olib ketish vaqtini tanlagan): raqam taxtada olib ketish vaqtigacha ko'rinmaydi. Buyurtma oshxonaga
+  chiqqach (vaqtdan tayyorlash vaqti oldin) raqam **Tayyorlanmoqda** ga tushadi.
+
+<!-- TEKSHIRILMAGAN: mijoz ekrani ilovasida yig'ish va oldindan buyurtma ko'rinishi stage B (M2) da tekshirilmoqda. -->
+
 ## 5. Ekran sozlamalari
 
 Ekranning **pastki chap burchagini 2 soniya bosib turing** (tasodifan teginish oynani ochmasin). **Ekran sozlamalari** oynasi
@@ -143,3 +153,5 @@ haqiqatan o'chiq: tokeni yaroqsiz bo'ladi.
 | Raqam tayyor, lekin ovoz yo'q | ovoz o'chirilgan yoki qurilma ovozi pastda | ekran sozlamalarida **Tayyor raqam ovozi**ni yoqing, qurilma ovozini oshiring |
 | Ekran uxlab qolyapti (Windows/Linux) | tizim uyqu rejimi | uyqu va ekran saqlovchini o'chiring (Android'da ilova ekranni o'zi yoqiq tutadi) |
 | Burchakda "Aloqa yo'q" | internet yoki server | ekran o'zi tiklanadi; uzoq davom etsa qurilmaning internetini tekshiring |
+| Hamma taom tayyor, lekin raqam **Tayyorlanmoqda** da turibdi | filialda yig'ish ekrani bor: raqam oshxonada **Yig'ildi** bosilganda tayyor bo'ladi | yig'uvchiga ayting; shoshilinch bo'lsa kassir **Tayyor** ni bosadi |
+| Oldindan buyurtma raqami taxtada yo'q | buyurtma hali oshxonaga chiqmagan: olib ketish vaqtidan tayyorlash vaqti oldin chiqadi | kutish kerak; vaqti kelganda raqam o'zi chiqadi |

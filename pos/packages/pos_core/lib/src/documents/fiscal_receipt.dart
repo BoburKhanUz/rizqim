@@ -14,6 +14,7 @@ final class ReceiptLine {
     this.mxikCode,
     this.packageCode,
     this.discount = PosMoney.zero,
+    this.parts = const <String>[],
   });
 
   final String name;
@@ -33,6 +34,10 @@ final class ReceiptLine {
 
   /// Qatorga tushgan chegirma (musbat son).
   final PosMoney discount;
+
+  /// P6-31: kombo tarkibi, narxsiz ("1 ta lavash — katta, mol go'shtli", "Ichimlik — 0,4 l Pepsi"); qator nomi
+  /// ostida chiqadi. Oddiy taomda bo'sh.
+  final List<String> parts;
 
   bool get hasVat => vatRate != null && percentHundredths(vatRate!) > 0;
 

@@ -7,6 +7,7 @@ Choyxona va katta oshxonada ekran **sexlar** bo'yicha ishlaydi: osh, mangal, sal
 taomlarini ko'radi. Mangal sexida taomlar six sanog'i bilan chiqadi. Oldindan buyurtmalar (nahor oshi, N kg osh) o'z vaqt
 navbatida turadi. Osh qoldig'i uchun **Qozon** paneli bor. Restoran va kafede chiptada yana **kurs**, **og'irlik kutilmoqda**, **mangal vaqti** va **stol raqami** chiqadi
 ([14-bo'lim](#14-restoran-va-kafe-kurslar-ogirlik-mangal-vaqti-stol-raqami)).
+Fast food va qahvaxonada: sex vaqti taymeri, kombo qismlari va yig'ish ekrani ([15-bo'lim](#15-fast-food-vaqt-maqsadi-kombo-va-yigish-ekrani)).
 
 Bu qo'llanma ikki kishi uchun:
 
@@ -406,7 +407,49 @@ Mangal ko'rinishida ham kurs belgisi (**2-kurs**), **Og'irlik kutilmoqda** va ta
 **alohida qatorda** turadi (1-kursdagi 6 six va 2-kursdagi 4 six — ikki qator). Bu ko'rinishda kurs tugmasi yo'q: qatorni bosing yoki
 **Hammasi tayyor**.
 
-## 15. Muammolar va yechimlar
+## 15. Fast food: vaqt maqsadi, kombo va yig'ish ekrani
+
+Fast food va qahvaxonada sexlar boshqacha: **Grill**, **Fritur**, **Ichimliklar**, **Barista** va **Yig'ish**. Sex tanlash ekranida
+har birining o'z belgisi bor ([8. Sexlar](#8-sexlar)). Egasi sozlashi: [fast-food.md](fast-food.md#10-oshxona-sexlar-vaqt-maqsadi-va-yigish-ekrani).
+
+### Vaqt maqsadi: sariq va qizil taymer
+
+Sexda yoki taomda vaqt maqsadi berilgan bo'lsa, qator tagida taymer turadi:
+
+- **Maqsad 4:00 · 2:10 qoldi** — hammasi vaqtida;
+- **sariq** — maqsadning taxminan 80 foizi o'tdi: shoshiling;
+- **qizil** va **Kechikdi +1:15** — maqsad o'tdi. Qizil bo'lganda ham taomni oddiy tayyor qilasiz.
+
+Rang bilan birga ikonka va yozuv ham bor, shuning uchun ranglarni ajrata olmasangiz ham ko'rasiz. Maqsadsiz qatorda taymer yo'q.
+Vaqt qator oshxonaga kelgan paytdan sanaladi (Telegram buyurtmasida — qabul qilingan paytdan). Tayyor qilingan qator taymeri to'xtaydi.
+
+### Kombo
+
+Kombo (masalan, lavash kombo) chiptada bitta taom emas: uning har qismi **o'z sexiga** tushadi. Qismlar tepasida **Kombo: Lavash kombo**
+sarlavhasi turadi, shunda bu ichimlik yoki fri qaysi komboniki ekanini bilasiz. Siz faqat o'z sexingiz qismini tayyor qilasiz; kombo
+hamma qismi tayyor bo'lganda tayyor hisoblanadi. Qismni alohida o'chirib bo'lmaydi: kombo bir butun o'chiriladi.
+
+### Ichimliklar va barista
+
+Ichimliklar va barista sexida ko'p mayda chiptalar bo'ladi, shuning uchun ular **ixcham ro'yxat** bo'lib chiqadi: raqam, ichimlik,
+hajm va qo'shimchalar, taymer.
+
+<!-- TEKSHIRILMAGAN: ixcham ko'rinish (barista, ichimliklar) hozir tayyorlanmoqda (stage B, M2): matnlar va tartib tekshirilsin. -->
+
+### Yig'ish ekrani
+
+**Yig'ish** sexini tanlasangiz, doskada ikki va undan ko'p sexda pishadigan buyurtmalar chiqadi. Har buyurtmada qaysi sexlar
+**tayyor** va qaysilari hali pishayotgani ko'rinadi. Hamma sex tayyor bo'lgach buyurtmani yig'ing (taomlar, ichimlik, sous, paket)
+va **Yig'ildi** ni bosing: shundan keyin raqam **tayyor** bo'ladi — raqamlar taxtasida chiqadi, ovoz chalinadi, onlayn mijozga
+xabar boradi. Yig'ish uchun ham vaqt maqsadi bo'lishi mumkin (hamma sex tayyor bo'lgandan yig'ilguncha): **Yig'ish: 0:45** va
+kechiksa **Kechikdi**.
+
+Xato bosilsa yoki yig'ilgandan keyin sex qatorni qaytarsa, yig'ish bekor bo'ladi va buyurtma yana yig'ishga qaytadi. Bitta sexda
+tayyorlanadigan buyurtmalar yig'ish ekraniga tushmaydi: ular avvalgidek oshpaz "tayyor" bossa tayyor bo'ladi.
+
+<!-- TEKSHIRILMAGAN: yig'ish ekrani va "Yig'ildi" tugmasi hozir tayyorlanmoqda (stage B, M2). -->
+
+## 16. Muammolar va yechimlar
 
 | Muammo | Nima qilish kerak |
 |---|---|
@@ -439,4 +482,7 @@ Mangal ko'rinishida ham kurs belgisi (**2-kurs**), **Og'irlik kutilmoqda** va ta
 | **2-kurs tayyor** tugmasi yo'q | Chiptada bitta kurs bor yoki sizda oshxona ruxsati yo'q (ekran faqat ko'rish uchun). Bitta kurs bo'lsa **Hammasi tayyor** ni bosing |
 | Qatorda **Og'irlik kutilmoqda** turibdi | Taom hali tortilmagan. Pishirishda davom eting; og'irlikni kassir yoki ofitsiant kiritadi, shuning uchun ularga ayting |
 | Taymer ko'rinmayapti | Taomga mangal vaqti belgilanmagan (ega menyuda **Mangal vaqti**ni yozadi) yoki taom hali yuborilmagan/tayyor |
+| Fast foodda taymer yo'q | Sex yoki taomga **Vaqt maqsadi** berilmagan (ega **Kassa sozlamalari** → **Sexlar** da yozadi) yoki qator hali yuborilmagan |
+| Yig'ish ekranida buyurtma yo'q | Buyurtma faqat bitta sexda pishadi (u yig'ishga tushmaydi) yoki hamma sex hali tayyor emas |
+| Raqam tayyor bo'lmayapti, buyurtma yig'ishda turibdi | **Yig'ildi** bosilmagan. Shoshilinch bo'lsa kassir **Tayyor** ni bosadi |
 | Chiptada **Stol 12** bor, zalda bunday stol yo'q | Bu kafe stol tablichkasi raqami, zal xaritasidagi stol emas. Taomni shu raqamli tablichkali stolga olib boring |

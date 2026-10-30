@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:rizqim_api/rizqim_api.dart';
+import 'package:rizqim_core/rizqim_core.dart' show formatDuration;
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../stations/station_selection.dart';
 import 'kds_type.dart';
+import 'station_kinds.dart';
 
 /// Sex tanlash: oshpaz shu ekranda ko'rsatiladigan bir yoki bir nechta sexni belgilaydi. "Umumiy" — sexsiz qatorlar
 /// (onlayn buyurtmalar, yo'naltirish topilmagan taomlar). Tanlov qurilmada saqlanadi.
@@ -80,8 +82,8 @@ class _StationPickerState extends State<StationPicker> {
                     _StationTile(
                       key: ValueKey<String>('station-${s.id}'),
                       title: s.name,
-                      subtitle: s.kindLabel.isEmpty ? null : s.kindLabel,
-                      icon: _iconOf(s.kind),
+                      subtitle: _subtitleOf(s),
+                      icon: stationKindIcon(s.kind),
                       selected: _ids.contains(s.id),
                       onTap: () => setState(() {
                         if (!_ids.add(s.id)) _ids.remove(s.id);
@@ -138,14 +140,18 @@ class _StationPickerState extends State<StationPicker> {
     );
   }
 
-  static IconData _iconOf(String kind) => switch (kind) {
-    StationKind.osh => Icons.rice_bowl_outlined,
-    StationKind.mangal => Icons.local_fire_department_outlined,
-    StationKind.saladBar => Icons.eco_outlined,
-    StationKind.tea => Icons.emoji_food_beverage_outlined,
-    StationKind.kitchen => Icons.soup_kitchen_outlined,
-    _ => Icons.restaurant_outlined,
-  };
+  /// Tur nomi; yig'ish sexida nima qilishi ham, vaqt maqsadi bo'lsa u ham.
+  static String? _subtitleOf(KitchenStation s) {
+    final String kind = s.kindLabel.isEmpty
+        ? stationKindLabel(s.kind)
+        : s.kindLabel;
+    final int? target = s.targetSeconds;
+    final String goal = target == null
+        ? ''
+        : ' · maqsad ${formatDuration(Duration(seconds: target))}';
+    if (s.isExpo) return "$kind: ko'p sexli buyurtmalarni yig'adi$goal";
+    return s.kindLabel.isEmpty && target == null ? null : '$kind$goal';
+  }
 }
 
 class _StationTile extends StatelessWidget {

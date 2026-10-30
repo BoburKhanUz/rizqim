@@ -8,10 +8,14 @@ final class StationTicketItem {
     this.modifiers = const <String>[],
     this.note,
     this.seat,
+    this.parts = const <String>[],
   });
 
   final String name;
   final ItemQuantity quantity;
+
+  /// P6-31: kombo tarkibi ("Asosiy — Lavash (katta)", "Ichimlik — Pepsi 0,4 l").
+  final List<String> parts;
 
   /// "Qazi", "Achchiq".
   final List<String> modifiers;

@@ -103,4 +103,29 @@ describe('combo on the product sheet', () => {
     expect(selection[3]).toEqual(['a', 'b']);
     expect(toggleOption(selection, sauces, 'a')[3]).toEqual(['b']);
   });
+
+  it('adds the default combo in one tap on the sheet, and says the choice is already made', () => {
+    const onAdd = vi.fn<(choice: ProductChoice) => void>();
+    render(<ProductSheet isOpen product={lavashKombo()} onAdd={onAdd} onClose={vi.fn()} />);
+
+    expect(screen.getByText("Odatiy tanlov belgilangan: xohlasangiz o'zgartiring")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Tasdiqlash/ }));
+    expect(onAdd.mock.calls[0]![0].combo!.map((part) => part.label)).toEqual(['Asosiy — Lavash (Katta)', 'Ichimlik — 0,4 l Pepsi']);
+  });
+
+  it('says what each choice adds, and that the included one is in the price', () => {
+    render(<ProductSheet isOpen product={lavashKombo()} onAdd={vi.fn()} onClose={vi.fn()} />);
+
+    const main = screen.getByRole('radiogroup', { name: 'Asosiy' });
+    expect(within(main).getByRole('radio', { name: /^Lavash/ })).toHaveTextContent('Narxda');
+    expect(within(main).getByRole('radio', { name: /Tovuq lavash/ })).toHaveTextContent("+5 000 so'm");
+    // The sauces cost nothing: no "in the price" on every row
+    const sauces = screen.getByRole('group', { name: 'Sous' });
+    expect(within(sauces).getByRole('checkbox', { name: /Achchiq sous/ })).not.toHaveTextContent('Narxda');
+  });
+
+  it('keeps the confirm button pinned in the sheet while Telegram has no main button', () => {
+    render(<ProductSheet isOpen product={lavashKombo()} onAdd={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Tasdiqlash/ }).parentElement).toHaveClass('sticky', 'bottom-0');
+  });
 });

@@ -158,6 +158,7 @@ class PosOrderRepository {
     String? idempotencyKey,
     int? queueNumber,
     String? tableLabel,
+    DateTime? pickupAt,
   }) => _either(
     () => _http.mutate(
       'POST',
@@ -174,6 +175,8 @@ class PosOrderRepository {
         'note': ?note,
         'queue_number': ?queueNumber,
         'table_label': ?tableLabel,
+        // P6-34 (`scheduled_pickup`): a takeaway for later; offline there is no pickup time (the order is "now")
+        'pickup_at': ?pickupAt?.toUtc().toIso8601String(),
         if (items.isNotEmpty)
           'items': <Map<String, Object?>>[
             for (final PosLineInput i in items) i.toJson(),

@@ -135,6 +135,8 @@ export default function Cart() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   // P6-34: a pickup for later (a slot's `at`); null: as soon as possible
   const [pickupAt, setPickupAt] = useState<string | null>(null);
+  // ...and how that time reads ("Bugun, 18:30"), for the summary
+  const [pickupLabel, setPickupLabel] = useState<string | null>(null);
   // The store's own delivery fee: only used for a store that has drawn no delivery zones (the quote prices the others)
   const [storeDeliveryFee, setStoreDeliveryFee] = useState(0);
 
@@ -887,7 +889,15 @@ export default function Cart() {
               <p className="text-footnote text-danger-soft-fg">Faol filiallar topilmadi</p>
             )}
             {selectedBranch && cartStoreId && (
-              <PickupTimePicker storeId={parseInt(cartStoreId)} branchId={selectedBranch.id} value={pickupAt} onChange={setPickupAt} />
+              <PickupTimePicker
+                storeId={parseInt(cartStoreId)}
+                branchId={selectedBranch.id}
+                value={pickupAt}
+                onChange={(value, label) => {
+                  setPickupAt(value);
+                  setPickupLabel(label);
+                }}
+              />
             )}
           </Card>
         </Section>
@@ -918,7 +928,10 @@ export default function Cart() {
                   {item.combo && item.combo.length > 0 && (
                     <ul aria-label="Kombo tarkibi" className="mt-0.5 text-footnote text-fg-muted">
                       {item.combo.map((part, index) => (
-                        <li key={`${part.optionUuid}-${index}`}>{part.label}</li>
+                        <li key={`${part.optionUuid}-${index}`} className="flex justify-between gap-2">
+                          <span className="min-w-0">{part.label}</span>
+                          {part.priceDelta > 0 && <span className="shrink-0 font-medium text-fg">{`+${formatMoney(part.priceDelta)}`}</span>}
+                        </li>
                       ))}
                     </ul>
                   )}
@@ -1142,6 +1155,13 @@ export default function Cart() {
             <div className="flex justify-between gap-3 text-success-soft-fg">
               <dt>Promo-kod chegirmasi ({activePromo.amount}{activePromo.type === 'percentage' ? '%' : " so'm"})</dt>
               <dd className="shrink-0 font-bold">- {formatMoney(discountAmount)}</dd>
+            </div>
+          )}
+          {/* P6-34: the time the customer picked, in the summary he checks before ordering */}
+          {deliveryMethod === 'pickup' && pickupAt && pickupLabel && (
+            <div className="flex justify-between gap-3" data-testid="checkout-pickup-time">
+              <dt className="text-fg-muted">Olib ketish vaqti</dt>
+              <dd className="shrink-0 font-bold text-fg">{pickupLabel}</dd>
             </div>
           )}
           {deliveryMethod === 'delivery' && (

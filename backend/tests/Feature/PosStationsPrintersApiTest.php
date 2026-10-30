@@ -204,6 +204,19 @@ class PosStationsPrintersApiTest extends TestCase
         $this->assertSame(0, Printer::count());
     }
 
+    public function test_a_lan_printer_on_a_high_port_is_saved(): void
+    {
+        // P6-39: ports above 32767 (a print server, the label printer emulator) used to overflow the column (500)
+        $id = $this->as($this->owner, 'POST', '/api/v1/owner/printers', [
+            'branch_id' => $this->branch->id, 'name' => 'Yorliq printeri', 'purpose' => 'label', 'connection' => 'lan',
+            'address' => '192.168.1.70', 'port' => 65535,
+        ])->assertCreated()->assertJsonPath('data.port', 65535)->json('data.id');
+
+        $this->as($this->owner, 'PATCH', "/api/v1/owner/printers/{$id}", ['port' => 33235])
+            ->assertOk()->assertJsonPath('data.port', 33235);
+        $this->assertSame(33235, Printer::findOrFail($id)->port);
+    }
+
     public function test_connection_rules_are_checked(): void
     {
         $terminal = $this->pairTerminal($this->owner, $this->branch)['device'];

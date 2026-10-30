@@ -11,7 +11,9 @@ import 'discount_dialog.dart';
 import 'order_controller.dart';
 import 'order_draft.dart';
 import 'order_format.dart';
+import 'quick_modifiers.dart';
 import 'restaurant_widgets.dart';
+import 'takeaway_widgets.dart';
 
 /// Buyurtmaning o'ng paneli: bosqichlar (raqami, vaqti, kim qo'shgani, qatorlar holati bilan), yangi bosqich
 /// qoralamasi, choy-non tez tugmalari, jami (xizmat qatorlari bilan) va amallar.
@@ -29,6 +31,8 @@ class OrderPanel extends StatefulWidget {
     required this.onCharge,
     this.onRemoveDiscount,
     this.onSendCourse,
+    this.onPackaging,
+    this.onPickup,
   });
 
   final OrderController controller;
@@ -52,6 +56,12 @@ class OrderPanel extends StatefulWidget {
 
   /// P6-21: "N-kursni yuborish" (`null` — kurslar paneli yo'q).
   final ValueChanged<int>? onSendCourse;
+
+  /// P6-34: qadoq qatorini olib tashlash (yoki olib tashlanganini qaytarish).
+  final ValueChanged<PosPackagingLine>? onPackaging;
+
+  /// P6-34: "Vaqtga" (olib ketish vaqti); `null` — tugma yo'q.
+  final VoidCallback? onPickup;
 
   @override
   State<OrderPanel> createState() => _OrderPanelState();
@@ -201,6 +211,8 @@ class _OrderPanelState extends State<OrderPanel> {
               controller: ctl,
               onCharge: widget.onCharge,
               onRemoveDiscount: widget.onRemoveDiscount,
+              onPackaging: widget.onPackaging,
+              onPickup: widget.onPickup,
             ),
           ),
           Padding(
@@ -359,7 +371,10 @@ class _RoundSection extends StatelessWidget {
             key: ValueKey<String>('item-${i.id}'),
             quantityLabel: itemQuantityLabel(i),
             name: i.displayName,
-            parts: setPartLines(i.setParts),
+            // P6-31: a combo's parts, without prices
+            parts: i.isCombo
+                ? comboPartLines(i.comboParts)
+                : setPartLines(i.setParts),
             modifiers: itemModifierLabels(i),
             note: i.note,
             seat: i.seatNo,
@@ -406,7 +421,7 @@ class _DraftSection extends StatelessWidget {
               style: RzType.headline.copyWith(color: c.brandSoftFg),
             ),
           ),
-          for (final DraftLine l in ctl.draft)
+          for (final DraftLine l in ctl.draft) ...<Widget>[
             PosOrderLineTile(
               key: ValueKey<String>('draft-${l.key}'),
               quantityLabel: l.quantity.label(
@@ -414,8 +429,13 @@ class _DraftSection extends StatelessWidget {
                 unitLabel: l.variant.unitLabel,
               ),
               name: l.name,
-              parts: setPartLines(l.product.setParts),
-              modifiers: l.modifierLabels,
+              // P6-31: a combo's picks; P6-32: quick groups are on the line's buttons below
+              parts: l.combo != null
+                  ? l.comboParts
+                  : setPartLines(l.product.setParts),
+              modifiers: l.combo != null || quickGroupsOf(l.product).isEmpty
+                  ? l.modifierLabels
+                  : l.dialogModifierLabels,
               note: l.note,
               seat: l.seatNo,
               amount: l.estimate,
@@ -450,6 +470,16 @@ class _DraftSection extends StatelessWidget {
                   : null,
               onTap: () => onTap(l),
             ),
+            if (l.combo == null && quickGroupsOf(l.product).isNotEmpty)
+              QuickModifierBar(
+                product: l.product,
+                selected: l.modifiers,
+                availability: ctl.catalog?.availability,
+                keyPrefix: 'draft-${l.key}-mod',
+                onChanged: (Map<String, int> m) =>
+                    ctl.setDraftModifiers(l.key, m),
+              ),
+          ],
           const SizedBox(height: 6),
         ],
       ),
@@ -462,11 +492,15 @@ class _Totals extends StatelessWidget {
     required this.controller,
     required this.onCharge,
     this.onRemoveDiscount,
+    this.onPackaging,
+    this.onPickup,
   });
 
   final OrderController controller;
   final void Function(PosChargeKind kind, bool waived) onCharge;
   final VoidCallback? onRemoveDiscount;
+  final ValueChanged<PosPackagingLine>? onPackaging;
+  final VoidCallback? onPickup;
 
   @override
   Widget build(BuildContext context) {
@@ -482,6 +516,8 @@ class _Totals extends StatelessWidget {
     }
     final PosOrderCharges ch = o.charges;
     final bool open = o.isOpen;
+    final bool packagingOffline =
+        PosScope.maybeOf(context)?.data.offline?.active ?? false;
     final PosEntitlements plan =
         PosScope.maybeOf(context)?.session.entitlements ?? PosEntitlements.open;
     final PosFormat? format = PosScope.maybeOf(context)?.session.posFormat;
@@ -552,11 +588,42 @@ class _Totals extends StatelessWidget {
         o.placeFeeIsCover ? 'Kuver' : 'Joy narxi',
         o.placeFeeAmount,
       ),
+      // P6-34: each packaging line, removable with a reason (online only)
+      for (final PosPackagingLine l in o.packagingLines)
+        PosTotalsLine(
+          label: l.quantity > 1 ? '${l.name} × ${l.quantity}' : l.name,
+          amount: l.removed ? l.unitPrice * l.quantity : l.amount,
+          waived: l.removed,
+          detail: l.removed
+              ? 'Olib tashlandi${(l.removedReason ?? '').isEmpty ? '' : ': ${l.removedReason}'}'
+              : (packagingOffline && open
+                    ? "Internet yo'q: olib tashlab bo'lmaydi"
+                    : null),
+          actionLabel: open && onPackaging != null && !packagingOffline
+              ? (l.removed ? 'Qaytarish' : 'Olib tashlash')
+              : null,
+          onAction: open && onPackaging != null && !packagingOffline
+              ? () => onPackaging!(l)
+              : null,
+        ),
     ];
+    final PosPickupTime? pickup = o.pickup;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        if (onPickup != null || pickup != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PickupTimeButton(
+                label: pickupTimeLabel(pickup),
+                waiting: pickup?.waiting ?? true,
+                onPressed: onPickup,
+              ),
+            ),
+          ),
         PosTotalsPanel(lines: lines, total: o.totalPrice),
         if (!draft.isZero)
           Text(

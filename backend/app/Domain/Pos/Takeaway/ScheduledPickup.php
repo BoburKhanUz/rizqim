@@ -4,6 +4,7 @@ namespace App\Domain\Pos\Takeaway;
 
 use App\Domain\Pos\Contracts\KitchenStationResolver;
 use App\Domain\Pos\Orders\PickupQueue;
+use App\Domain\Pos\Orders\PickupStatus;
 use App\Domain\Pos\Orders\PosOrderException;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
@@ -501,8 +502,14 @@ final class ScheduledPickup
             $sent = $this->sendHeld($order);
         } else {
             $sent = OrderItem::where('order_id', $order->id)->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
-            app(PickupQueue::class)->linesSent($order);
-            event(new OrderItemsChangedBroadcast($order, 'sent', $sent));
+            // P6-39: the kitchen display shows an online order from its kitchen time; one cooked before this minute job
+            // came round (ready, handed over) only gets its fired time — its number never goes back to `preparing`
+            $cooked = in_array($order->status, [OrderStatus::READY, OrderStatus::COURIER_ASSIGNED, OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true)
+                || in_array(PickupQueue::statusOf($order), [PickupStatus::READY, PickupStatus::HANDED], true);
+            if (!$cooked) {
+                app(PickupQueue::class)->linesSent($order);
+                event(new OrderItemsChangedBroadcast($order, 'sent', $sent));
+            }
         }
 
         $this->audit->record('pos.pickup_fired', $order, [], [], [

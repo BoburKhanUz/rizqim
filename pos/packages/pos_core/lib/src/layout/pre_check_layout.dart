@@ -31,6 +31,10 @@ PrintLayout layoutPreCheck(PreCheck c, PaperWidth paper) {
 
   for (final PreCheckItem item in c.items) {
     w.text(item.name);
+    // P6-31: a combo's parts, without prices
+    for (final String part in item.parts) {
+      w.text(paperPart(part), indent: 2);
+    }
     for (final String m in item.modifiers) {
       w.text('+ $m', indent: 2);
     }

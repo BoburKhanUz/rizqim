@@ -328,3 +328,35 @@ describe('Cart: the screen', () => {
     expect(screen.queryByRole('button', { name: /^Buyurtma berish/ })).not.toBeInTheDocument();
   });
 });
+
+describe('Cart: pickup for later (P6-34)', () => {
+  const slotAt = new Date();
+  slotAt.setHours(18, 30, 0, 0);
+  const SLOT = { at: slotAt.toISOString(), time: '18:30', business_date: '2026-10-30' };
+
+  it('shows the picked time in the summary and sends it with the order; "Hozir" sends none', async () => {
+    serveStore(storeWith({ cash: { enabled: true }, delivery_enabled: false, pickup_enabled: true }));
+    const serve = get.getMockImplementation()!;
+    get.mockImplementation((url, ...rest) =>
+      /\/pickup-slots$/.test(url) ? Promise.resolve({ data: { success: true, data: { enabled: true, min_lead_minutes: 20, slot_minutes: 15, slots: [SLOT] } } }) : serve(url, ...rest),
+    );
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Cart />
+          <MainButtonHost />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await flush();
+
+    expect(screen.queryByTestId('checkout-pickup-time')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Olib ketish vaqti' }), { target: { value: SLOT.at } });
+    expect(screen.getByTestId('checkout-pickup-time')).toHaveTextContent('Olib ketish vaqti');
+    expect(screen.getByTestId('checkout-pickup-time')).toHaveTextContent('Bugun, 18:30');
+
+    fireEvent.click(orderButton());
+    await flush();
+    expect(post.mock.calls[0][1]).toMatchObject({ type: 'pickup', pickup_at: SLOT.at });
+  });
+});
