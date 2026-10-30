@@ -7,23 +7,23 @@ part of 'data96.dart';
 // **************************************************************************
 
 Data96 _$Data96FromJson(Map<String, dynamic> json) => Data96(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  kind: json['kind'] as String,
-  kindLabel: json['kind_label'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  showOnKds: json['show_on_kds'] as bool,
+  tin: json['tin'] as String?,
+  taxRegime: json['tax_regime'] == null
+      ? null
+      : TaxRegime.fromJson(json['tax_regime'] as String?),
+  fiscalSettings: FiscalSettings.fromJson(
+    json['fiscal_settings'] as Map<String, dynamic>,
+  ),
+  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
+  taxRegimes: (json['tax_regimes'] as List<dynamic>)
+      .map((e) => TaxRegimes.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data96ToJson(Data96 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'kind': instance.kind,
-  'kind_label': instance.kindLabel,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'show_on_kds': instance.showOnKds,
+  'tin': instance.tin,
+  'tax_regime': instance.taxRegime,
+  'fiscal_settings': instance.fiscalSettings,
+  'drivers': instance.drivers,
+  'tax_regimes': instance.taxRegimes,
 };

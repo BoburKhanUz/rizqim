@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $min_spend_topup_amount
  * @property numeric-string $service_charge_amount
  * @property numeric-string $place_fee_amount
+ * @property numeric-string $packaging_amount P6-34
  * @property numeric-string $total
  * @property int $printed_count
  * @property \Illuminate\Support\Carbon|null $printed_at
@@ -37,6 +38,8 @@ class OrderBill extends Model
         'min_spend_topup' => 'min_spend_topup_amount',
         'service_charge' => 'service_charge_amount',
         'place_fee' => 'place_fee_amount',
+        // P6-34: the packaging lines' share (one receipt line per packaging line, App\Domain\Pos\Takeaway\PackagingFiscal)
+        'packaging' => 'packaging_amount',
     ];
 
     protected $guarded = ['id'];
@@ -52,6 +55,7 @@ class OrderBill extends Model
             'min_spend_topup_amount' => 'decimal:2',
             'service_charge_amount' => 'decimal:2',
             'place_fee_amount' => 'decimal:2',
+            'packaging_amount' => 'decimal:2',
             'total' => 'decimal:2',
             'guests_share' => 'integer',
             'seat_no' => 'integer',

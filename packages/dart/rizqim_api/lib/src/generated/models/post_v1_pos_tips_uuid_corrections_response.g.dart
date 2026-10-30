@@ -11,7 +11,7 @@ _$PostV1PosTipsUuidCorrectionsResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosTipsUuidCorrectionsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data250.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data270.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosTipsUuidCorrectionsResponseToJson(

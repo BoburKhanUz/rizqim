@@ -9,12 +9,14 @@ import { formatUnitPrice } from '../lib/catalog';
 import { toAmount } from '../lib/money';
 import { lineTotal } from '../lib/linePrice';
 import { groupsOf, selectionProblem, toCartModifiers, type ModifierSelection } from '../lib/modifiers';
+import { comboDelta, comboProblem, defaultComboSelection, isCombo, optionsOf, toCartCombo, toggleOption, type CartComboPart, type ComboSelection } from '../lib/combo';
 import { NO_AVAILABILITY, isProductUnavailable, isVariantUnavailable, type AvailabilityView } from '../lib/menuAvailability';
 import { addQuantities, formatQuantity, isMeasuredUnit, minQuantityOf, quantityStepOf, subtractQuantities } from '../lib/quantity';
 import { getAddBlockedMessage, getVariantStock } from '../lib/stock';
 import { quantityOfVariant, useCartStore, type CartModifier } from '../store/cartStore';
 import { Button, Dialog, ProductImage, cx } from './ui';
 import { ModifierGroupField } from './catalog/ModifierGroupField';
+import { ComboSlotField } from './catalog/ComboSlotField';
 import { QuantityStepper } from './catalog/QuantityStepper';
 import { SoldOutBadge } from './catalog/SoldOutBadge';
 import type { Product, ProductVariant } from '../types';
@@ -24,6 +26,8 @@ export interface ProductChoice {
   variant: ProductVariant;
   quantity: number; // a fraction for an item sold by weight
   modifiers: CartModifier[];
+  // P6-31: a combo's parts (absent on a plain dish)
+  combo?: CartComboPart[];
 }
 
 interface ProductSheetProps {
@@ -71,14 +75,14 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
   const step = quantityStepOf(selectedVariant);
   const minimum = minQuantityOf(selectedVariant);
   const quantity = selectedVariant ? (quantities[selectedVariant.uuid] ?? minimum) : 1;
-  const showQuantity = selectedVariant !== null && (measured || groups.length > 0);
+  const showQuantity = selectedVariant !== null && (measured || groups.length > 0 || isCombo(product));
 
   const inCart = quantityOfVariant(cartItems, selectedVariant?.uuid);
   const stock = getVariantStock(selectedVariant);
   const atStockLimit = stock !== null && addQuantities(addQuantities(inCart, quantity), step) > stock;
 
   // What makes the choice incomplete: a required group without a choice, or one whose every choice is stopped
-  const selectionIssue = (() => {
+  const modifierIssue = (() => {
     const issue = selectionProblem(groups, selection);
     if (!issue) return null;
     const blocked = groups.find((group) => {
@@ -89,8 +93,14 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
   })();
 
   const modifiers = toCartModifiers(groups, selection);
+  // P6-31: a combo's parts, picked slot by slot (defaults preselected); their deltas join the price like a modifier
+  const combo = isCombo(product) ? product.combo! : null;
+  const [comboSelection, setComboSelection] = useState<ComboSelection>(() => (combo ? defaultComboSelection(combo, availability) : {}));
+  const comboParts = combo ? toCartCombo(combo, comboSelection) : [];
+  const comboIssue = combo ? comboProblem(combo, comboSelection, availability) : null;
+  const priced = combo ? [...modifiers, { priceDelta: comboDelta(comboParts), quantity: 1 }] : modifiers;
   const total = selectedVariant
-    ? lineTotal({ price: toAmount(selectedVariant.price), quantity, unit: selectedVariant.unit, modifiers })
+    ? lineTotal({ price: toAmount(selectedVariant.price), quantity, unit: selectedVariant.unit, modifiers: priced })
     : 0;
 
   const handleSelect = (variant: ProductVariant) => {
@@ -121,12 +131,13 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
     setQuantity(Math.max(minimum, subtractQuantities(quantity, step)));
   };
 
+  const selectionIssue = modifierIssue ?? comboIssue;
   const canConfirm = selectedVariant !== null && isSelectable(selectedVariant) && selectionIssue === null;
 
   const handleConfirm = () => {
     if (!selectedVariant || !canConfirm) return;
     hapticFeedback('success');
-    onAdd({ variant: selectedVariant, quantity, modifiers });
+    onAdd({ variant: selectedVariant, quantity, modifiers, ...(combo ? { combo: comboParts } : {}) });
     onClose();
   };
 
@@ -214,6 +225,20 @@ function Sheet({ product, availability, onClose, onAdd }: SheetProps) {
           })}
         </div>
       )}
+
+      {selectedVariant &&
+        combo?.slots.map((slot) => (
+          <ComboSlotField
+            key={slot.id}
+            slot={slot}
+            options={optionsOf(slot, availability)}
+            picked={comboSelection[slot.id] ?? []}
+            onPick={(uuid) => {
+              hapticFeedback('light');
+              setComboSelection((current) => toggleOption(current, slot, uuid));
+            }}
+          />
+        ))}
 
       {selectedVariant &&
         groups.map((group) => (

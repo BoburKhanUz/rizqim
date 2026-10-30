@@ -12,7 +12,8 @@ _$V1OwnerKitchenStationsIdRequestBodyFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String?,
       kind: json['kind'] == null
           ? null
-          : Kind3.fromJson(json['kind'] as String),
+          : KitchenStationKind.fromJson(json['kind'] as String),
+      targetSeconds: (json['target_seconds'] as num?)?.toInt(),
       sortOrder: (json['sort_order'] as num?)?.toInt(),
       isActive: json['is_active'] as bool?,
       showOnKds: json['show_on_kds'] as bool?,
@@ -23,6 +24,7 @@ Map<String, dynamic> _$V1OwnerKitchenStationsIdRequestBodyToJson(
 ) => <String, dynamic>{
   'name': instance.name,
   'kind': instance.kind,
+  'target_seconds': instance.targetSeconds,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
   'show_on_kds': instance.showOnKds,

@@ -13,7 +13,7 @@ _$V1PosBookingsUuidItemsItemRequestBodyFromJson(Map<String, dynamic> json) =>
       productVariantUuid: json['product_variant_uuid'] as String?,
       quantity: json['quantity'] as num?,
       modifiers: (json['modifiers'] as List<dynamic>?)
-          ?.map((e) => Modifiers5.fromJson(e as Map<String, dynamic>))
+          ?.map((e) => Modifiers8.fromJson(e as Map<String, dynamic>))
           .toList(),
       note: json['note'] as String?,
       dueAt: json['due_at'] == null

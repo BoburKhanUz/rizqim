@@ -4,44 +4,106 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fire_mode.dart';
+import 'modifiers27.dart';
+import 'added_by17.dart';
+import 'voided_by17.dart';
+import 'weighed_by17.dart';
 
 part 'items43.g.dart';
 
 @JsonSerializable()
 class Items43 {
   const Items43({
-    required this.variantId,
+    required this.id,
+    required this.roundNo,
+    required this.productVariantId,
+    required this.productName,
+    required this.variantName,
     required this.quantity,
-    this.modifiers,
-    this.note,
-    this.seatNo,
-    this.fireMode,
-    this.dueAt,
-    this.courseNo,
-    this.awaitingWeight,
+    required this.unit,
+    required this.quantityLabel,
+    required this.unitPrice,
+    required this.modifiers,
+    required this.modifiersTotal,
+    required this.totalPrice,
+    required this.note,
+    required this.seatNo,
+    required this.fireMode,
+    required this.dueAt,
+    required this.kitchenStatus,
+    required this.stationId,
+    required this.sentAt,
+    required this.readyAt,
+    required this.addedBy,
+    required this.addedAt,
+    required this.voidedAt,
+    required this.voidedBy,
+    required this.voidReason,
+    required this.courseNo,
+    required this.weightStatus,
+    required this.weightBasis,
+    required this.weighedBy,
+    required this.weighedAt,
   });
 
   factory Items43.fromJson(Map<String, Object?> json) =>
       _$Items43FromJson(json);
 
-  @JsonKey(name: 'variant_id')
-  final String variantId;
+  final int id;
+  @JsonKey(name: 'round_no')
+  final int? roundNo;
+  @JsonKey(name: 'product_variant_id')
+  final int? productVariantId;
+  @JsonKey(name: 'product_name')
+  final String productName;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
   final num quantity;
-  final List<String>? modifiers;
+  final String unit;
+  @JsonKey(name: 'quantity_label')
+  final String quantityLabel;
+  @JsonKey(name: 'unit_price')
+  final String unitPrice;
+  final List<Modifiers27> modifiers;
+  @JsonKey(name: 'modifiers_total')
+  final String modifiersTotal;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
   final String? note;
   @JsonKey(name: 'seat_no')
   final int? seatNo;
   @JsonKey(name: 'fire_mode')
-  final FireMode? fireMode;
+  final String? fireMode;
   @JsonKey(name: 'due_at')
-  final DateTime? dueAt;
+  final String? dueAt;
+  @JsonKey(name: 'kitchen_status')
+  final String kitchenStatus;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'sent_at')
+  final String? sentAt;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'added_by')
+  final AddedBy17? addedBy;
+  @JsonKey(name: 'added_at')
+  final String? addedAt;
+  @JsonKey(name: 'voided_at')
+  final String? voidedAt;
+  @JsonKey(name: 'voided_by')
+  final VoidedBy17? voidedBy;
+  @JsonKey(name: 'void_reason')
+  final String? voidReason;
   @JsonKey(name: 'course_no')
   final int? courseNo;
-
-  /// P6-21
-  @JsonKey(name: 'awaiting_weight')
-  final bool? awaitingWeight;
+  @JsonKey(name: 'weight_status')
+  final String? weightStatus;
+  @JsonKey(name: 'weight_basis')
+  final String? weightBasis;
+  @JsonKey(name: 'weighed_by')
+  final WeighedBy17? weighedBy;
+  @JsonKey(name: 'weighed_at')
+  final String? weighedAt;
 
   Map<String, Object?> toJson() => _$Items43ToJson(this);
 }

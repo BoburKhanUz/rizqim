@@ -175,6 +175,7 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
     min_spend_topup: '0.00',
     service_charge: '290000.00',
     place_fee: '0.00',
+    packaging: '0.00',
     average_bill: '228571.00',
   },
   by_tender: [

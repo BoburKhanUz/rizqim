@@ -8,38 +8,12 @@ part 'limits.g.dart';
 
 @JsonSerializable()
 class Limits {
-  const Limits({
-    required this.batchSize,
-    required this.warnAfterMinutes,
-    required this.alertAfterMinutes,
-    required this.maxQueuedOrders,
-    required this.menuMaxAgeHours,
-    required this.contactMaxAgeHours,
-    required this.fiscalWarnHours,
-    required this.fiscalLimitHours,
-    required this.clockSkewWarnSeconds,
-  });
+  const Limits({required this.min, required this.max});
 
   factory Limits.fromJson(Map<String, Object?> json) => _$LimitsFromJson(json);
 
-  @JsonKey(name: 'batch_size')
-  final int batchSize;
-  @JsonKey(name: 'warn_after_minutes')
-  final int warnAfterMinutes;
-  @JsonKey(name: 'alert_after_minutes')
-  final int alertAfterMinutes;
-  @JsonKey(name: 'max_queued_orders')
-  final int maxQueuedOrders;
-  @JsonKey(name: 'menu_max_age_hours')
-  final int menuMaxAgeHours;
-  @JsonKey(name: 'contact_max_age_hours')
-  final int contactMaxAgeHours;
-  @JsonKey(name: 'fiscal_warn_hours')
-  final List<int> fiscalWarnHours;
-  @JsonKey(name: 'fiscal_limit_hours')
-  final int fiscalLimitHours;
-  @JsonKey(name: 'clock_skew_warn_seconds')
-  final int clockSkewWarnSeconds;
+  final int min;
+  final int max;
 
   Map<String, Object?> toJson() => _$LimitsToJson(this);
 }

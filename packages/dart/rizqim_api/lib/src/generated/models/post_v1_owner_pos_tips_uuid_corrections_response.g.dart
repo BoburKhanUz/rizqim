@@ -12,7 +12,7 @@ _$PostV1OwnerPosTipsUuidCorrectionsResponseFromJson(
 ) => PostV1OwnerPosTipsUuidCorrectionsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data122.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data137.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerPosTipsUuidCorrectionsResponseToJson(

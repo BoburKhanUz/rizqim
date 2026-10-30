@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'kind5.dart';
+import 'kind4.dart';
 
 part 'lines19.g.dart';
 
@@ -15,7 +15,7 @@ class Lines19 {
   factory Lines19.fromJson(Map<String, Object?> json) =>
       _$Lines19FromJson(json);
 
-  final Kind5 kind;
+  final Kind4 kind;
   final String label;
   final String value;
 

@@ -9,41 +9,22 @@ part 'data163.g.dart';
 @JsonSerializable()
 class Data163 {
   const Data163({
-    required this.id,
-    required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
-    required this.createdAt,
+    required this.period,
+    required this.periodLabel,
+    required this.salesAttribution,
+    required this.salesAttributionLabel,
   });
 
   factory Data163.fromJson(Map<String, Object?> json) =>
       _$Data163FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String period;
+  @JsonKey(name: 'period_label')
+  final String periodLabel;
+  @JsonKey(name: 'sales_attribution')
+  final String salesAttribution;
+  @JsonKey(name: 'sales_attribution_label')
+  final String salesAttributionLabel;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

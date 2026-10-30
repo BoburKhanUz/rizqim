@@ -7,23 +7,115 @@ part of 'data234.dart';
 // **************************************************************************
 
 Data234 _$Data234FromJson(Map<String, dynamic> json) => Data234(
-  numbers: json['numbers'] as bool,
-  calling: json['calling'] as bool,
-  businessDate: json['business_date'] as String,
-  blockSize: (json['block_size'] as num).toInt(),
-  lowWater: (json['low_water'] as num).toInt(),
-  blocks: (json['blocks'] as List<dynamic>)
-      .map((e) => Blocks2.fromJson(e as Map<String, dynamic>))
+  openedBy: (json['opened_by'] as num).toInt(),
+  shortCode: json['short_code'] as String?,
+  status: json['status'] as String,
+  channel: json['channel'] as String,
+  type: json['type'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  version: (json['version'] as num).toInt(),
+  hall: json['hall'] == null
+      ? null
+      : Hall10.fromJson(json['hall'] as Map<String, dynamic>),
+  table: json['table'] == null
+      ? null
+      : Table10.fromJson(json['table'] as Map<String, dynamic>),
+  hallRef: json['hall_ref'] as String?,
+  tableRef: json['table_ref'] as String?,
+  tableLabel: json['table_label'] as String?,
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
+  waiter: json['waiter'] == null
+      ? null
+      : Waiter13.fromJson(json['waiter'] as Map<String, dynamic>),
+  uuid: json['uuid'] as String,
+  deviceId: (json['device_id'] as num?)?.toInt(),
+  bookingId: (json['booking_id'] as num?)?.toInt(),
+  bookingUuid: json['booking_uuid'] as String?,
+  depositAvailable: json['deposit_available'] as String,
+  billLocked: json['bill_locked'] as bool,
+  billRequestedAt: json['bill_requested_at'] as String?,
+  notes: json['notes'] as String?,
+  openedAt: json['opened_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
+  subtotal: json['subtotal'] as String,
+  discount: json['discount'] as String,
+  discountKind: json['discount_kind'] == null
+      ? null
+      : DiscountKind.fromJson(json['discount_kind'] as String?),
+  discountValue: json['discount_value'] as String?,
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items34.fromJson(e as Map<String, dynamic>))
       .toList(),
-  nextNumber: (json['next_number'] as num?)?.toInt(),
+  discountBy: (json['discount_by'] as num?)?.toInt(),
+  serviceChargeAmount: json['service_charge_amount'] as String,
+  placeFeeAmount: json['place_fee_amount'] as String,
+  roomFeeAmount: json['room_fee_amount'] as String,
+  minSpendTopupAmount: json['min_spend_topup_amount'] as String,
+  packagingAmount: json['packaging_amount'] as String,
+  pickup: json['pickup'] == null
+      ? null
+      : Pickup9.fromJson(json['pickup'] as Map<String, dynamic>),
+  totalPrice: json['total_price'] as String,
+  charges: Charges13.fromJson(json['charges'] as Map<String, dynamic>),
+  offline: json['offline'] == null
+      ? null
+      : Offline9.fromJson(json['offline'] as Map<String, dynamic>),
+  queue: json['queue'] == null
+      ? null
+      : Queue11.fromJson(json['queue'] as Map<String, dynamic>),
+  rounds: (json['rounds'] as num).toInt(),
+  courses: (json['courses'] as List<dynamic>)
+      .map((e) => Courses8.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  weightPending: (json['weight_pending'] as num).toInt(),
+  discountReason: json['discount_reason'] as String?,
 );
 
 Map<String, dynamic> _$Data234ToJson(Data234 instance) => <String, dynamic>{
-  'numbers': instance.numbers,
-  'calling': instance.calling,
-  'business_date': instance.businessDate,
-  'block_size': instance.blockSize,
-  'low_water': instance.lowWater,
-  'blocks': instance.blocks,
-  'next_number': instance.nextNumber,
+  'uuid': instance.uuid,
+  'short_code': instance.shortCode,
+  'status': instance.status,
+  'channel': instance.channel,
+  'type': instance.type,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'version': instance.version,
+  'hall': instance.hall,
+  'table': instance.table,
+  'hall_ref': instance.hallRef,
+  'table_ref': instance.tableRef,
+  'table_label': instance.tableLabel,
+  'guests_count': instance.guestsCount,
+  'waiter': instance.waiter,
+  'opened_by': instance.openedBy,
+  'device_id': instance.deviceId,
+  'booking_id': instance.bookingId,
+  'booking_uuid': instance.bookingUuid,
+  'deposit_available': instance.depositAvailable,
+  'bill_locked': instance.billLocked,
+  'bill_requested_at': instance.billRequestedAt,
+  'notes': instance.notes,
+  'opened_at': instance.openedAt,
+  'updated_at': instance.updatedAt,
+  'subtotal': instance.subtotal,
+  'discount': instance.discount,
+  'discount_kind': instance.discountKind,
+  'discount_value': instance.discountValue,
+  'discount_reason': instance.discountReason,
+  'discount_by': instance.discountBy,
+  'service_charge_amount': instance.serviceChargeAmount,
+  'place_fee_amount': instance.placeFeeAmount,
+  'room_fee_amount': instance.roomFeeAmount,
+  'min_spend_topup_amount': instance.minSpendTopupAmount,
+  'packaging_amount': instance.packagingAmount,
+  'pickup': instance.pickup,
+  'total_price': instance.totalPrice,
+  'charges': instance.charges,
+  'offline': instance.offline,
+  'queue': instance.queue,
+  'rounds': instance.rounds,
+  'courses': instance.courses,
+  'weight_pending': instance.weightPending,
+  'items': instance.items,
 };

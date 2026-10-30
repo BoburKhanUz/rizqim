@@ -107,6 +107,8 @@ class PosLineBuilder
         }
         // P6-21: a later course is held until it is sent by its number
         $lines = $this->courses->prepare($order, $branch, $lines, !$lenient);
+        // P6-34: an order for a later pickup holds its lines until its kitchen time (ScheduledPickup)
+        $lines = \App\Domain\Pos\Takeaway\ScheduledPickup::prepare($order, $lines);
 
         /** @var Store $store */
         $store = $order->store;
@@ -131,6 +133,7 @@ class PosLineBuilder
 
         // Per line: the variant exists and may be sold here, its quantity and modifiers are right
         $priced = [];
+        $blocked = null;
         foreach ($lines as $line) {
             try {
                 $variant = $variants->get($line['variant_uuid']);
@@ -150,6 +153,10 @@ class PosLineBuilder
                     $line['index'],
                 );
 
+                // P6-31: a combo's picks checked and priced (its parts' deltas join the line's modifiers total)
+                $combo = $this->combo($variant, $line, $branch, $stopList, $channelMenu, $blocked, true);
+                $modifiersTotal = $combo !== null ? $modifiers['total']->plus($combo['delta']) : $modifiers['total'];
+
                 $price = $channelMenu->priceOf($variant);
                 $priced[] = $line + [
                     'variant' => $variant,
@@ -157,8 +164,9 @@ class PosLineBuilder
                     // P6-25: a dish weighed after it is chosen
                     'weight_basis' => $this->weights->basisFor($line, $variant, $branch, !$lenient),
                     'modifiers_snapshot' => $modifiers['snapshot'],
-                    'modifiers_total' => $modifiers['total'],
-                    'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiers['total'], $variant->unit),
+                    'modifiers_total' => $modifiersTotal,
+                    'combo_parts' => $combo['parts'] ?? null,
+                    'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiersTotal, $variant->unit),
                 ];
             } catch (ValidationException|FiscalException $e) {
                 if (!$lenient) {
@@ -208,6 +216,7 @@ class PosLineBuilder
                 'batch_id' => $batch?->id,
                 'batch_quantity' => $batch ? $line['quantity']->times(MenuAvailability::consumptionOf($variant))->toString() : null,
                 'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
+                'combo_parts' => $line['combo_parts'], // P6-31: a combo keeps its parts as sold
                 'kitchen_status' => KitchenItemStatus::PENDING->value,
                 'round_no' => $roundNo,
                 'fire_mode' => $line['fire_mode']->value,
@@ -216,6 +225,7 @@ class PosLineBuilder
                 'seat_no' => $line['seat_no'],
                 'added_by' => $actor->id,
             ] + $this->restaurantFields($line)));
+            $this->comboParts($created->last(), $line['combo_parts']);
 
             // Conditional, as checkout: never below zero even if the row changed after it was read
             $deducted = ProductVariant::whereKey($variant->id)
@@ -258,6 +268,7 @@ class PosLineBuilder
             return ['items' => collect(), 'flags' => []];
         }
         $lines = $this->courses->prepare($order, $branch, $lines, false);
+        $lines = \App\Domain\Pos\Takeaway\ScheduledPickup::prepare($order, $lines); // P6-34
 
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
         $variants = ProductVariant::withTrashed()
@@ -342,6 +353,18 @@ class PosLineBuilder
                 ];
             }
 
+            // P6-31: the combo the till sold: its picks are kept (availability is not asked again), its deltas the server's
+            $blocked = null;
+            $combo = $this->combo($variant, $line, $branch, $stopList, $channelMenu, $blocked, false);
+            if ($combo !== null) {
+                $modifiersTotal = $modifiersTotal->plus($combo['delta']);
+                $deviceDelta = $line['combo_delta'] ?? null;
+                if ($deviceDelta instanceof \App\Support\Money && !$deviceDelta->equals($combo['delta'])) {
+                    $flags[] = ['flag' => 'offline_price_mismatch', 'line_id' => $line['client_line_id'] ?? null, 'name' => "{$name}: kombo tanlovlari", 'device_price' => $deviceDelta->toString(), 'server_price' => $combo['delta']->toString()];
+                    $source = 'online';
+                }
+            }
+
             $priced[] = $line + [
                 'variant' => $variant,
                 'price' => $price,
@@ -349,6 +372,7 @@ class PosLineBuilder
                 'weight_basis' => $this->weights->basisFor($line, $variant, $branch, false),
                 'modifiers_snapshot' => $snapshot,
                 'modifiers_total' => $modifiersTotal,
+                'combo_parts' => $combo['parts'] ?? null,
                 'total' => $this->lines->lineTotal($price, $line['quantity'], $modifiersTotal, $variant->unit),
             ];
         }
@@ -411,6 +435,7 @@ class PosLineBuilder
                 'batch_id' => $batch !== null && $taken->isPositive() ? $batch->id : null,
                 'batch_quantity' => $batch !== null && $taken->isPositive() ? $taken->toString() : null,
                 'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
+                'combo_parts' => $line['combo_parts'], // P6-31
                 'kitchen_status' => KitchenItemStatus::PENDING->value,
                 'round_no' => $roundNo,
                 'fire_mode' => $line['fire_mode']->value,
@@ -421,6 +446,7 @@ class PosLineBuilder
                 'client_line_id' => $line['client_line_id'] ?? null,
                 'price_source' => $line['price_source'],
             ] + $this->restaurantFields($line)));
+            $this->comboParts($created->last(), $line['combo_parts']);
         }
 
         return ['items' => $created, 'flags' => $flags];
@@ -459,6 +485,38 @@ class PosLineBuilder
         }
 
         return $rows;
+    }
+
+    /**
+     * P6-31: the combo of a line's variant, its picks checked and priced (Combos::resolve); null for a plain dish. What
+     * the branch cannot sell now is read once per round ($blocked), and only when a combo is on it.
+     *
+     * @param  array<string, mixed>  $line
+     * @param  array<string, array<int, ?string>>  $stopList
+     * @param  array{products: array<int, ?string>, variants: array<int, ?string>, modifiers: array<int, ?string>}|null  $blocked
+     * @return array{parts: list<array<string, mixed>>, delta: \App\Support\Money}|null
+     */
+    private function combo(ProductVariant $variant, array $line, Branch $branch, array $stopList, ChannelMenu $menu, ?array &$blocked, bool $strict): ?array
+    {
+        $combos = app(\App\Domain\Pos\Menu\Combos::class);
+        if (!isset($line['combo']) && !$combos->hasCombos((int) $branch->store_id)) {
+            return null;
+        }
+        $blocked ??= $strict ? $combos->blockedFor($branch, $stopList) : ['products' => [], 'variants' => [], 'modifiers' => []];
+
+        return $combos->resolve($variant, (array) ($line['combo'] ?? []), $blocked, $menu, (int) $line['index'], $strict);
+    }
+
+    /**
+     * P6-31: the kitchen lines of a combo line just stored (one per part, each to its own station).
+     *
+     * @param  list<array<string, mixed>>|null  $parts
+     */
+    private function comboParts(?OrderItem $item, ?array $parts): void
+    {
+        if ($item !== null && $parts) {
+            app(\App\Domain\Pos\Menu\ComboKitchen::class)->createParts($item, $parts);
+        }
     }
 
     /**

@@ -7,31 +7,25 @@ part of 'items6.dart';
 // **************************************************************************
 
 Items6 _$Items6FromJson(Map<String, dynamic> json) => Items6(
-  id: (json['id'] as num).toInt(),
-  productVariantId: (json['product_variant_id'] as num).toInt(),
-  productVariantUuid: json['product_variant_uuid'] as String?,
+  orderItemId: (json['order_item_id'] as num).toInt(),
   productName: json['product_name'] as String,
   variantName: json['variant_name'] as String?,
   unit: json['unit'] as String,
   quantity: json['quantity'] as num,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => e as Map<String, dynamic>)
+  amount: json['amount'] as String,
+  discountAmount: json['discount_amount'] as String,
+  comboParts: (json['combo_parts'] as List<dynamic>?)
+      ?.map((e) => ComboParts4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  unitPrice: json['unit_price'] as String,
-  note: json['note'] as String?,
-  dueAt: json['due_at'] as String?,
 );
 
 Map<String, dynamic> _$Items6ToJson(Items6 instance) => <String, dynamic>{
-  'id': instance.id,
-  'product_variant_id': instance.productVariantId,
-  'product_variant_uuid': instance.productVariantUuid,
+  'order_item_id': instance.orderItemId,
   'product_name': instance.productName,
   'variant_name': instance.variantName,
   'unit': instance.unit,
   'quantity': instance.quantity,
-  'modifiers': instance.modifiers,
-  'unit_price': instance.unitPrice,
-  'note': instance.note,
-  'due_at': instance.dueAt,
+  'amount': instance.amount,
+  'discount_amount': instance.discountAmount,
+  'combo_parts': instance.comboParts,
 };

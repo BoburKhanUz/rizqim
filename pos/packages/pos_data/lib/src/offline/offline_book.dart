@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_sync/pos_sync.dart';
 
+import '../json.dart';
+import '../takeaway/takeaway_models.dart';
+import 'offline_packaging.dart';
 import 'offline_pricing.dart';
 import 'offline_settings.dart';
 
@@ -343,6 +346,8 @@ class OfflineOrderState {
         for (final Map<String, Object?> m in mods)
           PosMoney.parse(m['price_delta']) *
               ((m['quantity'] as num?)?.toInt() ?? 1),
+        // P6-31: a combo's picks add their deltas to the line's modifiers total (as on the server)
+        if (line['combo_delta'] != null) PosMoney.parse(line['combo_delta']),
       ]);
       final int? course = (line['course_no'] as num?)?.toInt();
       // P6-21: a course after the one the kitchen has is held, as on the server
@@ -400,6 +405,10 @@ class OfflineOrderState {
         'weight_basis': weightBasis,
         'weighed_by': null,
         'weighed_at': null,
+        'combo_parts': line['combo_parts'],
+        // P6-34: for the packaging rules
+        'product_id': line['product_id'],
+        'category_id': line['category_id'],
         'offline': true,
         'auto': line['line_id'] == null,
       });
@@ -643,7 +652,11 @@ class OfflineOrderState {
     final PosMoney topup = waived.contains('min_spend_topup')
         ? PosMoney.zero
         : OfflinePricing.minSpendTopup(minSpend, 'per_table', guests, after);
-    final PosMoney total = after + service + place + room + topup;
+    // P6-34: the packaging lines of a takeaway (never discounted), as PosChargesCalculator
+    final List<PosPackagingLine> packaging = _packaging(channel, charges);
+    final PosMoney packagingAmount = OfflinePackaging.total(packaging);
+    final PosMoney total =
+        after + service + place + room + topup + packagingAmount;
 
     order
       ..['subtotal'] = itemsTotal.toApiString()
@@ -651,6 +664,7 @@ class OfflineOrderState {
       ..['place_fee_amount'] = place.toApiString()
       ..['room_fee_amount'] = room.toApiString()
       ..['min_spend_topup_amount'] = topup.toApiString()
+      ..['packaging_amount'] = packagingAmount.toApiString()
       ..['total_price'] = total.toApiString();
     order['charges'] = <String, Object?>{
       ...charges,
@@ -662,6 +676,10 @@ class OfflineOrderState {
       'room_fee_amount': room.toApiString(),
       'min_spend': minSpend.toApiString(),
       'min_spend_topup_amount': topup.toApiString(),
+      'packaging_amount': packagingAmount.toApiString(),
+      'packaging_lines': <Object?>[
+        for (final PosPackagingLine l in packaging) l.toJson(),
+      ],
       'total': total.toApiString(),
       if (resolved != null) ...<String, Object?>{
         'service_charge_rule': !service.isPositive
@@ -674,6 +692,42 @@ class OfflineOrderState {
       },
     };
     _syncBillingOrder();
+  }
+
+  /// P6-34: the order's packaging lines by the branch's rules (OfflinePackaging); an order from the server whose
+  /// packaging the till cannot work out (no rules cached, its dishes unknown) keeps the lines the server gave it.
+  List<PosPackagingLine> _packaging(
+    String channel,
+    Map<String, Object?> charges,
+  ) {
+    final List<PosPackagingLine> stored = <PosPackagingLine>[
+      for (final Map<String, Object?> l in _maps(charges['packaging_lines']))
+        PosPackagingLine.fromJson(PosJson.of(l)),
+    ];
+    final List<PosPackagingRule> rules = _settings.packaging;
+    final bool dishesKnown = items.every(
+      (Map<String, Object?> i) =>
+          i['kitchen_status'] == 'void' || i.containsKey('product_id'),
+    );
+    if (rules.isEmpty || (!created && !dishesKnown)) return stored;
+    return OfflinePackaging.lines(
+      rules,
+      OfflinePackaging.orderType(channel, order['table_label'] as String?),
+      <OfflineDish>[
+        for (final Map<String, Object?> i in items)
+          if (i['kitchen_status'] != 'void')
+            OfflineDish(
+              productId: (i['product_id'] as num?)?.toInt(),
+              categoryId: (i['category_id'] as num?)?.toInt(),
+              quantity: PosQuantity.parse(i['quantity']),
+              measured: PosUnit.fromWire(i['unit'] as String?).isMeasured,
+            ),
+      ],
+      removed: <int, String>{
+        for (final PosPackagingLine l in stored)
+          if (l.removed) l.ruleId: l.removedReason ?? '',
+      },
+    );
   }
 
   // --- schyot ------------------------------------------------------------------------------------------------------
@@ -817,6 +871,22 @@ class OfflineOrderState {
         PosMoney.parse(order['place_fee_amount']),
         'place_fee_amount',
       ),
+      // P6-34: the packaging left to bill and its lines (a single offline bill carries all of it)
+      'packaging_amount': left(
+        PosMoney.parse(order['packaging_amount']),
+        'packaging_amount',
+      ),
+      'packaging_lines': <Object?>[
+        for (final Map<String, Object?> l in _maps(charges['packaging_lines']))
+          if (l['removed'] != true)
+            <String, Object?>{
+              'rule_id': l['rule_id'],
+              'name': l['name'],
+              'quantity': l['quantity'],
+              'unit': l['unit'],
+              'amount': l['amount'],
+            },
+      ],
       'total': total.toApiString(),
       'paid_amount': '0.00',
       'due_amount': total.toApiString(),

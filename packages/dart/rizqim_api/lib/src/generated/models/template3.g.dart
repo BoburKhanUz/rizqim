@@ -9,7 +9,7 @@ part of 'template3.dart';
 Template3 _$Template3FromJson(Map<String, dynamic> json) => Template3(
   profile: json['profile'] as String,
   stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Stations6.fromJson(e as Map<String, dynamic>))
       .toList(),
   dishes: (json['dishes'] as List<dynamic>)
       .map((e) => Dishes3.fromJson(e as Map<String, dynamic>))

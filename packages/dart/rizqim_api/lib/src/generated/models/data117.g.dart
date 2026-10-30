@@ -7,43 +7,41 @@ part of 'data117.dart';
 // **************************************************************************
 
 Data117 _$Data117FromJson(Map<String, dynamic> json) => Data117(
+  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  rule: json['rule'] as String,
-  roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
-  roleWeights: Map<String, String>.from(json['role_weights'] as Map),
-  poolAmount: json['pool_amount'] as String,
-  tipsCount: (json['tips_count'] as num).toInt(),
-  distributed: json['distributed'] as String,
-  status: json['status'] as String,
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  closedBy: json['closed_by'] == null
-      ? null
-      : ClosedBy2.fromJson(json['closed_by'] as Map<String, dynamic>),
-  manualParticipants: json['manual_participants'] as bool,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines6.fromJson(e as Map<String, dynamic>))
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  displayMode: json['display_mode'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers6.fromJson(e as Map<String, dynamic>))
       .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules3.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data117ToJson(Data117 instance) => <String, dynamic>{
+  'id': instance.id,
   'uuid': instance.uuid,
-  'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'shift_uuid': instance.shiftUuid,
-  'rule': instance.rule,
-  'roles': instance.roles,
-  'role_weights': instance.roleWeights,
-  'pool_amount': instance.poolAmount,
-  'tips_count': instance.tipsCount,
-  'distributed': instance.distributed,
-  'status': instance.status,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'closed_by': instance.closedBy,
-  'manual_participants': instance.manualParticipants,
-  'lines': instance.lines,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'display_mode': instance.displayMode,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

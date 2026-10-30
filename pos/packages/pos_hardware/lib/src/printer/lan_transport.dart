@@ -17,9 +17,13 @@ class LanPrinterTransport implements PrinterTransport {
     this.writeTimeout = const Duration(seconds: 10),
     this.statusTimeout = const Duration(milliseconds: 800),
     this.checkPaperBeforePrint = true,
+    this.language = PrinterLanguage.escpos,
   });
 
   final LanPrinterTarget target;
+
+  /// TSPL printerga `DLE EOT` yuborilmaydi (buyruq oqimini buzadi): holat `ESC !?` bilan so'raladi.
+  final PrinterLanguage language;
   final Duration connectTimeout;
   final Duration writeTimeout;
   final Duration statusTimeout;
@@ -110,7 +114,16 @@ class LanPrinterTransport implements PrinterTransport {
   Future<void> close() async {}
 
   /// `DLE EOT 2` (offline sababi) va `DLE EOT 4` (qog'oz sensori). Javob bo'lmasa — [PrinterStatus.unknown].
+  /// TSPL printerda — `ESC !?` (bitta bayt, [parseTsplStatus]).
   Future<PrinterStatus> _query(Socket socket, _Reader reader) async {
+    if (language == PrinterLanguage.tspl) {
+      socket.add(const <int>[0x1B, 0x21, 0x3F]);
+      await socket.flush();
+      final List<int>? answer = await reader.take(1, statusTimeout);
+      return answer == null
+          ? PrinterStatus.unknown
+          : parseTsplStatus(answer[0]);
+    }
     socket.add(
       (EscPosBuilder()
             ..statusRequest(2)
@@ -130,6 +143,15 @@ class LanPrinterTransport implements PrinterTransport {
       socket.destroy();
     }
   }
+}
+
+/// TSPL `ESC !?` javobi (bitta bayt, bitlar): 0x00 tayyor; 0x01 bosh ochiq; 0x02 qog'oz tiqilgan; 0x04 qog'oz tugadi;
+/// 0x08 lenta tugadi; 0x10 to'xtatilgan; 0x20 chop etilmoqda; 0x40 qopqoq ochiq; 0x80 boshqa xato.
+PrinterStatus parseTsplStatus(int status) {
+  if (status & 0x04 != 0) return PrinterStatus.paperOut;
+  if (status & 0x41 != 0) return PrinterStatus.coverOpen;
+  if (status & 0x8A != 0) return PrinterStatus.error;
+  return PrinterStatus.ready;
 }
 
 /// `DLE EOT 2` va `DLE EOT 4` javoblaridan holat (Epson ESC/POS hujjati):

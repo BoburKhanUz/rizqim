@@ -4,49 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status4.dart';
-
 part 'data107.g.dart';
 
 @JsonSerializable()
 class Data107 {
   const Data107({
     required this.id,
-    required this.amount,
-    required this.card,
-    required this.status,
-    required this.notes,
-    required this.resolutionNotes,
-    required this.processedAt,
-    required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
+    required this.branchId,
+    required this.stationId,
+    required this.categoryId,
+    required this.categoryName,
+    required this.productId,
+    required this.productName,
   });
 
   factory Data107.fromJson(Map<String, Object?> json) =>
       _$Data107FromJson(json);
 
   final int id;
-  final String amount;
-  final String card;
-  final Status4 status;
-  final String? notes;
-  @JsonKey(name: 'resolution_notes')
-  final String? resolutionNotes;
-  @JsonKey(name: 'processed_at')
-  final String? processedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'station_id')
+  final int stationId;
+  @JsonKey(name: 'category_id')
+  final int? categoryId;
+  @JsonKey(name: 'category_name')
+  final String? categoryName;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  @JsonKey(name: 'product_name')
+  final String? productName;
 
   Map<String, Object?> toJson() => _$Data107ToJson(this);
 }

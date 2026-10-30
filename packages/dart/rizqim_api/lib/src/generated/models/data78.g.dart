@@ -6,22 +6,9 @@ part of 'data78.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data78 _$Data78FromJson(Map<String, dynamic> json) => Data78(
-  enabled: json['enabled'] as bool,
-  tinSet: json['tin_set'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  productsMissingMxik: (json['products_missing_mxik'] as List<dynamic>)
-      .map((e) => ProductsMissingMxik.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  chargesMissingMxik: (json['charges_missing_mxik'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-);
+Data78 _$Data78FromJson(Map<String, dynamic> json) =>
+    Data78(id: (json['id'] as num).toInt());
 
 Map<String, dynamic> _$Data78ToJson(Data78 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'tin_set': instance.tinSet,
-  'tax_regime': instance.taxRegime,
-  'products_missing_mxik': instance.productsMissingMxik,
-  'charges_missing_mxik': instance.chargesMissingMxik,
+  'id': instance.id,
 };

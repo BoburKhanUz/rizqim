@@ -1,6 +1,7 @@
 import 'package:pos_core/pos_core.dart';
 
 import '../catalog/catalog_models.dart';
+import '../catalog/combo_models.dart';
 import '../json.dart';
 import '../menu_day/menu_day_models.dart';
 import '../queue/online_order_models.dart';
@@ -442,6 +443,7 @@ class PosOrderItem {
     this.weightBasis,
     this.weighedBy,
     this.weighedAt,
+    this.comboParts,
   });
 
   factory PosOrderItem.fromJson(PosJson j) => PosOrderItem(
@@ -476,6 +478,7 @@ class PosOrderItem {
     weightBasis: PosWeightBasis.fromWire(j.strOrNull('weight_basis')),
     weighedBy: PosRef.maybe(j, 'weighed_by'),
     weighedAt: j.dateOrNull('weighed_at'),
+    comboParts: PosComboPart.listOf(j['combo_parts']),
   );
 
   final int id;
@@ -519,6 +522,12 @@ class PosOrderItem {
   /// Og'irlikni kiritgan xodim va payt.
   final PosRef? weighedBy;
   final DateTime? weighedAt;
+
+  /// P6-31: kombo qatorining tarkibi (sotuv paytidagi nusxa, narxsiz yorliqlari bilan; kombo emas — `null`). Qator
+  /// oshxona holati — tarkibiniki (hammasi tayyor bo'lsa tayyor).
+  final List<PosComboPart>? comboParts;
+
+  bool get isCombo => comboParts != null && comboParts!.isNotEmpty;
 
   /// Og'irligi hali kiritilmagan (miqdor taxminiy).
   bool get awaitingWeight =>
@@ -686,6 +695,7 @@ class PosLineInput {
     this.dueAt,
     this.courseNo,
     this.awaitingWeight,
+    this.combo,
   });
 
   /// Variant uuid'si (katalogdagi [PosVariant.uuid]).
@@ -707,6 +717,9 @@ class PosLineInput {
   /// P6-25: og'irlik keyin kiritiladi (`null` — mahsulotning `weight_mode` i hal qiladi).
   final bool? awaitingWeight;
 
+  /// P6-31: kombo tanlovlari (qoldirilgan majburiy slot — standart tanlov); kombo emas — `null`.
+  final List<PosComboPick>? combo;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'variant_id': variantUuid,
     // Satr: miqdor aniq ("1.500"), suzuvchi nuqtasiz
@@ -721,6 +734,10 @@ class PosLineInput {
     'due_at': ?dueAt?.toUtc().toIso8601String(),
     'course_no': ?courseNo,
     'awaiting_weight': ?awaitingWeight,
+    if (combo != null)
+      'combo': <Map<String, Object?>>[
+        for (final PosComboPick p in combo!) p.toJson(),
+      ],
   };
 }
 

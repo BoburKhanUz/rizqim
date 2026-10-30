@@ -4477,6 +4477,10 @@ export interface paths {
          *     `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without
          *     zones keep the branch radius rule and the store's delivery fee.
          *
+         *     P6-31 (docs/MENU.md "Kombo"): a combo line sends its picks in `items.*.combo`; 422 with `code` / `data.reason`
+         *     `combo_option_unavailable` (a stale pick: refresh the menu), `combo_slot_required`, `combo_slot_limit` or
+         *     `combo_option_invalid`.
+         *
          *     P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and
          *     `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already
          *     show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
@@ -4932,6 +4936,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/branches/{branch}/business-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Business days of a branch
+         * @description `from` / `to` (YYYY-MM-DD business dates, at most 31 days; default: the last 7 days to today's business day).
+         *     `orders`: POS orders by their business day, online ones by when they were placed (cancelled and rejected left
+         *     out); `revenue` the total of those not refunded; `after_midnight_orders`: opened after midnight (their calendar
+         *     date is the next day); `shifts`: opened on that business day (their Z is that day's, wherever it closed).
+         */
+        get: operations["branchBusinessDayReport.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/branches/{branch}/packaging-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's packaging rules
+         * @description In their order. `basis` (a PackagingBasis value): `order` — `quantity` per order; `item` — `quantity` per portion
+         *     of the dishes of `category_id` or `product_id`. `order_types`: PackagingOrderType values. `mxik` / `package_code`
+         *     null: the store's fiscal "packaging" code (fiscal settings).
+         */
+        get: operations["branchPackagingRules.index"];
+        put?: never;
+        /**
+         * Add a packaging rule
+         * @description At most 50 rules per branch (422). An `item` rule names exactly one of `category_id` and `product_id` (the
+         *     store's); an `order` rule none. Audited.
+         */
+        post: operations["branchPackagingRules.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/branches/{branch}/packaging-rules/{rule}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a packaging rule
+         * @description Send only what changes. Audited.
+         */
+        put: operations["branchPackagingRules.update"];
+        post?: never;
+        /**
+         * Delete a packaging rule
+         * @description The orders that already have its line keep it as it was (their snapshot); open orders lose it on their next
+         *     recalculation. Audited.
+         */
+        delete: operations["branchPackagingRules.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/branches/{branch}/pickup-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's pickup-time rules
+         * @description Every key with its default when nothing was saved (`configured: false`): `pickup_min_lead_minutes` (20),
+         *     `pickup_slot_minutes` (15), `pickup_max_days_ahead` (1; 0: today's business day only), `pickup_prep_minutes` (15:
+         *     the kitchen gets the order this long before the pickup time, or the longest `wait_minutes` of its dishes).
+         *     `round_the_clock`: the 24/7 module (times at any hour); `opening_hours`: the store's hours the times keep to.
+         */
+        get: operations["branchPickupSettings.show"];
+        /**
+         * Change the branch's pickup-time rules
+         * @description Send only what changes. Audited.
+         */
+        put: operations["branchPickupSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/branches/{branch}/terminal-flow": {
         parameters: {
             query?: never;
@@ -5017,6 +5123,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/branches/{id}/label-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's sticker and label settings
+         * @description Every key with its default when nothing was saved (`configured: false`): `size` (a LabelSize value, default
+         *     40x30; `width_mm` and `height_mm` follow), `scope` (a LabelScope value: all, or only `category_ids`), `per_unit`
+         *     (one sticker per piece, default true) and `bag_label` (a bag label for takeaway orders, default true). The till
+         *     reads the same block from GET /pos/bootstrap `labels`.
+         */
+        get: operations["branchLabelSettings.show"];
+        /**
+         * Change the branch's sticker and label settings
+         * @description Send only what changes. `scope` `categories` needs at least one entry in `category_ids` (existing category ids);
+         *     `all` clears them. Audited (settings.label_settings_changed).
+         */
+        put: operations["branchLabelSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/branches/{id}/pos-settings": {
         parameters: {
             query?: never;
@@ -5070,6 +5204,89 @@ export interface paths {
         put?: never;
         /** Create a new global category */
         post: operations["ownerCatalog.storeCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/combos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Combo list
+         * @description P6-31, module `combo`: the store's combos. A combo is a normal menu product (its price, MXIK code, channel prices
+         *     and daily menu are set in the menu like any dish's) whose buyer picks its parts in ordered slots. menu.view or
+         *     menu.manage.
+         */
+        get: operations["combo.index"];
+        put?: never;
+        /**
+         * Make a product a combo
+         * @description `product_id`: a product of the store sold by the piece (its price is the combo's base price); `slots` in order,
+         *     each `name` ("Asosiy", "Ichimlik", "Sous"), `min_picks` (0: optional; default 1), `max_picks` (1–10, default
+         *     max(1, min)), `allow_modifiers` (the buyer may change the part's own modifiers; their added deltas are charged)
+         *     and 1–20 `options`: `variant_id` (a dish sold by the piece), `quantity` (pieces, default 1), `price_delta` (0 or
+         *     more, added to the combo's price), `modifiers` (a preset: [{modifier_id, quantity?}] of the dish's own modifiers,
+         *     included in the option's price), `is_default` (one per slot: taken when the slot is left out) and `label` (the
+         *     receipt text, e.g. "Ichimlik — 0,4 l Pepsi"; default "<slot> — <dish> (<variant>), <modifiers>"). Up to 8 slots.
+         *     A part cannot be the combo itself, another combo or a kompleks; a kompleks product cannot be a combo. Saving a
+         *     product that already is a combo replaces its slots. Sold lines keep the parts they had (`combo_parts`). Audited
+         *     (`menu.combo_saved`).
+         */
+        post: operations["combo.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/combos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a combo
+         * @description Replaces the slots (sent in full) and/or switches the combo off (`is_active` false: it is sold as a plain product).
+         */
+        put: operations["combo.update"];
+        post?: never;
+        /**
+         * Delete a combo
+         * @description The product stays on the menu as a plain dish; lines already sold keep their parts. Audited (`menu.combo_deleted`).
+         */
+        delete: operations["combo.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/combos/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receipt preview of a combo
+         * @description What the guest's receipt and the fiscal receipt show for a pick (`picks` as on an order line: [{option_id,
+         *     quantity?, modifiers?}], left out: every slot's default) on a channel (`channel`, default `pos_takeaway`): the
+         *     ONE combo line (name, quantity 1, price = base + deltas), its parts without prices, and the fiscal lines in both
+         *     modes (`single`: the combo with its own MXIK; `split`: one line per part, the shares adding up to the price).
+         *     Availability is not asked (it is a preview). 422 like an order line's pick (`combo_slot_required`...).
+         */
+        post: operations["combo.preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5782,6 +5999,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/kds/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Time targets of a branch's kitchen
+         * @description The branch's stations with their target (`target_seconds`, null: none) and the kind's suggested one
+         *     (`default_target_seconds`), the store's dishes that have their own target, and whether the branch has the
+         *     module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range.
+         */
+        get: operations["kdsTargets.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/kds/targets/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set dishes' own time targets
+         * @description `items`: up to 200 `{product_id, target_seconds}` of the store's dishes; `target_seconds` 10–7200 seconds, or null
+         *     to drop the dish's own target (its station's applies again). A target is store-wide (every branch). Setting one
+         *     needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. Audited.
+         */
+        put: operations["kdsTargets.updateProducts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/kitchen-station-routes": {
         parameters: {
             query?: never;
@@ -5799,7 +6060,7 @@ export interface paths {
          * @description For `branch_id`: every category in `category_ids` and every product in `product_ids` goes to `station_id`; one
          *     that was routed to another station moves. `station_id: null` removes the routes of those categories and
          *     products. Send at least one list. Products must be the store's; the station must be the branch's (active or
-         *     not). `data` is the branch's routes afterwards.
+         *     not). `data` is the branch's routes afterwards. P6-33: an `expo` (assembly) station takes no dishes (422).
          */
         put: operations["kitchenStationRoute.assign"];
         post?: never;
@@ -5845,9 +6106,11 @@ export interface paths {
         put?: never;
         /**
          * Add a kitchen station
-         * @description `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other. `name` is unique within the branch.
-         *     `show_on_kds`: the station has a KDS screen. The station gets dishes through the routes
-         *     (PUT /owner/kitchen-station-routes).
+         * @description `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other; P6-33: grill, fryer, drinks, barista, or expo
+         *     (the assembly screen: it gets no dishes). `name` is unique within the branch. `show_on_kds`: the station has a
+         *     KDS screen. The station gets dishes through the routes (PUT /owner/kitchen-station-routes). P6-33:
+         *     `target_seconds` (10–7200, null: none) is the time target of its lines (an expo station: the assembly time);
+         *     setting one needs the module `kds_expo` on the branch (403 module_disabled), clearing never does.
          */
         post: operations["kitchenStation.store"];
         delete?: never;
@@ -5876,8 +6139,9 @@ export interface paths {
         head?: never;
         /**
          * Edit a kitchen station
-         * @description Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`. A deactivated station is not offered
-         *     to terminals and its routes are ignored: its dishes go to the default ticket printer.
+         * @description Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`, `target_seconds` (P6-33). A deactivated
+         *     station is not offered to terminals and its routes are ignored: its dishes go to the default ticket printer. A
+         *     station with dishes routed to it cannot become `expo`: 422 `station_has_routes`.
          */
         patch: operations["kitchenStation.update"];
         trace?: never;
@@ -5951,7 +6215,10 @@ export interface paths {
          * Create a modifier group with its modifiers
          * @description `max_select` null means any number; `is_required` raises the minimum to 1. `price_delta` is added to the item's
          *     price (per piece; once per line for items sold by weight). `product_variant_id` optionally links a modifier to a
-         *     variant of the store (for stock later).
+         *     variant of the store (for stock later). P6-32: `display_mode` (a ModifierDisplayMode value, default `dialog`) and
+         *     a modifier's `is_default` are hints for the till (the `quick_modifiers` module): `size` needs `max_select` 1, at
+         *     most `max_select` active modifiers may be defaults; setting a hint on a store whose branches all lack the module
+         *     is 403 `module_disabled`.
          */
         post: operations["modifierGroup.store"];
         delete?: never;
@@ -5971,7 +6238,8 @@ export interface paths {
         /**
          * Update a modifier group
          * @description `modifiers` replaces the list: an entry with `id` updates that modifier, one without creates it, and a modifier
-         *     left out is deleted (order history keeps its snapshot).
+         *     left out is deleted (order history keeps its snapshot). P6-32: `display_mode` and `is_default` left out keep what
+         *     is saved.
          */
         put: operations["modifierGroup.update"];
         post?: never;
@@ -6568,6 +6836,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/reports/kitchen-times": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Kitchen prep time report (tayyorlash vaqti)
+         * @description P6-33 (KDS v2): how long the kitchen took for the lines that reached it in the branch's business days `from`..`to`
+         *     (YYYY-MM-DD, default today; at most 31 days; the branch's day start, the store's time zone): `count`, `median_seconds`,
+         *     `p90_seconds`, and against the time targets `with_target`, `over_target`, `over_target_share` (percent, a string),
+         *     for the whole branch (`summary`), per station, per dish (busiest first) and per local hour (0–23, all 24 rows).
+         *     A line counts from when it reached the kitchen (`sent_at`; an online line: the order's acceptance) to its
+         *     `ready_at` bump; voided lines never. `orders`: each order's first line in to its kitchen done (the expo's
+         *     assembly, else its last line ready). `expo`: the expo station's assembly time (last line ready → assembled), null
+         *     without an expo station. `station_id` narrows the lines (not `orders`). Needs reports.view and the module `kds`.
+         */
+        get: operations["prepTimeReport.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/reports/sales": {
         parameters: {
             query?: never;
@@ -6602,6 +6897,9 @@ export interface paths {
          * Best sellers for a period
          * @description Among the delivered orders, by the name the item had when sold: `sort` quantity (default) or revenue, `limit`
          *     1–50 (default 10). `quantity` is a whole number for pieces and a decimal for kg / l.
+         *
+         *     P6-31: a combo is counted as the combo; `combo_parts` counts the dishes sold inside combos (`in_combos`), on their
+         *     own lines (`alone`) and both (`total`): "lavash 120 = 80 + 40". Empty without combos.
          */
         get: operations["report.topProducts"];
         put?: never;
@@ -8659,6 +8957,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/orders/{uuid}/packaging/{rule}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a packaging line off the order
+         * @description `reason` is required ("mijoz o'z paketini olib keldi"). The line stays on the order with `removed: true` and 0
+         *     so'm (charges.packaging_lines), the total goes down. 422 `packaging_not_found` (the order has no such line) or
+         *     `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited
+         *     (`pos.packaging_removed`).
+         */
+        post: operations["posTakeaway.removePackaging"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/packaging/{rule}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put a packaging line back
+         * @description 422 `not_removed`. Audited (`pos.packaging_restored`).
+         */
+        post: operations["posTakeaway.restorePackaging"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/pickup-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the pickup time of a takeaway
+         * @description `pickup_at` (ISO time): at least the branch's lead time from now (422 `pickup_too_soon`, `data.earliest_at`),
+         *     inside the window (422 `pickup_too_far`) and the opening hours (422 `pickup_closed`; the 24/7 module: any hour).
+         *     The lines not sent yet wait and go to the kitchen at `pickup.kitchen_fire_at` (pickup_at − the prep time) by
+         *     themselves. `pickup_at: null` takes the time off: the kitchen gets the order now. 409 `already_in_kitchen` once
+         *     it was sent. Audited.
+         */
+        put: operations["posTakeaway.setPickupTime"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/orders/{uuid}/ready": {
         parameters: {
             query?: never;
@@ -8820,6 +9185,27 @@ export interface paths {
          *     waiter. The waiter_transfer module (403 `module_disabled`).
          */
         post: operations["posOrderHandover.transfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/pickup-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pickup times the till may offer
+         * @description Every `slot_minutes` from the earliest allowed time to the end of the window, inside the opening hours (24/7: all
+         *     day). `at` UTC, `time` the store's "HH:MM", `business_date` the day it belongs to.
+         */
+        get: operations["posTakeaway.slots"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9451,6 +9837,11 @@ export interface paths {
          *
          *     P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
          *     listed (with `include_ready=1` also while `ready`) until the number is handed over.
+         *
+         *     P6-33 (KDS v2): each line carries its time target (`target_seconds`: the dish's own, else its station's; null:
+         *     none) and `late` (now − when it reached the kitchen > target; a done line: its ready time). With the module
+         *     `kds_expo` and an expo station, an order cooked on several stations carries `assembly` (the expo screen: which
+         *     stations are done, `waiting` once all are, `assembled_at`); it stays `preparing` until the expo bumps it.
          */
         get: operations["staffOrder.tickets"];
         put?: never;
@@ -9502,6 +9893,32 @@ export interface paths {
         get: operations["staffOrder.show"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/orders/{uuid}/assembled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assemble an order (expo bump)
+         * @description Every station cooked its part: the expo puts the order together and bumps it. A takeaway, pickup or delivery
+         *     order becomes `ready` (the customer is told, couriers of a delivery called), a counter order's number is called
+         *     (`queue.ready`: the board and the customer display); `kitchen.order_assembled` goes to the staff channels.
+         *     Only for an order that goes through the expo (the branch has the module and an active expo station, its lines
+         *     were cooked on two or more stations; otherwise 422 `assembly_not_required`: the last line bump made it ready);
+         *     422 `stations_not_ready` while a line is still cooking, `kitchen_status` once it left the kitchen. Assembled
+         *     already: 200 unchanged. A line recalled (or a new one bumped) undoes the assembly. Returns the ticket.
+         */
+        post: operations["kitchenExpo.assembled"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9643,6 +10060,29 @@ export interface paths {
          * @description One rating per order (400 when this order was already rated); returns the store's new average and count.
          */
         post: operations["storeRating.rate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stores/{store}/branches/{branch}/pickup-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pickup times of a branch
+         * @description `enabled: false` (and no slots) when the branch does not take orders for later. Otherwise every `slot_minutes`
+         *     from the earliest allowed time (`min_lead_minutes` from now) to the end of the window, inside the opening hours
+         *     (24/7: all day): `at` (UTC, send it back as `pickup_at`), `time` ("HH:MM", the store's), `business_date`. 404 for a
+         *     branch that is not the store's or not active.
+         */
+        get: operations["pickupSlots.index"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10151,6 +10591,12 @@ export interface components {
             variant?: components["schemas"]["ProductVariant"] | null;
             store?: components["schemas"]["Store"];
         };
+        /**
+         * ComboFiscalMode
+         * @description P6-31 (owner decision 30.10.2026): how a combo goes on the fiscal receipt (stores.fiscal_settings.combo_fiscal_mode). - `single` (default): ONE line, the combo product's own name, MXIK and package code, quantity and price; the parts    are printed under it without prices on the guest's receipt only;  - `split`: one line per part, each with its dish's own MXIK, whose amounts are shares of the combo line by the parts'    list prices (ComboFiscalSplit: largest remainder in tiyin, ties to the earlier part), so they add up exactly to    the combo line (after its discount share; the service charge stays its own line). For when the accountant asks.
+         * @enum {string}
+         */
+        ComboFiscalMode: "single" | "split";
         /** Complaint */
         Complaint: {
             id: number;
@@ -10401,6 +10847,24 @@ export interface components {
          * @enum {string}
          */
         KitchenItemStatus: "pending" | "ready" | "sent" | "served" | "void";
+        /**
+         * KitchenStationKind
+         * @description What a kitchen station is (kitchen_stations.kind): the choyxona's osh/qozon, mangal (grill), salat va bar, choy, or an ordinary kitchen. Clients pick the KDS layout from it (the mangal station counts skewers). P6-33 (KDS v2, docs/POS_SPEC.md "KDS v2"): the universal stations of a fast food or a coffee shop — `grill`, `fryer` (fritur), `drinks`, `barista` — and `expo`, the assembly screen: an order cooked on several stations is put together there and its bump makes the number ready (module `kds_expo`). An expo station gets no dishes of its own (its routes are refused); its time target is the assembly time.
+         * @enum {string}
+         */
+        KitchenStationKind: "osh" | "mangal" | "salad_bar" | "tea" | "kitchen" | "other" | "grill" | "fryer" | "drinks" | "barista" | "expo";
+        /**
+         * LabelScope
+         * @description P6-32 (B7): which items of an order get a cup sticker (branch_label_settings.scope): every item, or only the dishes of the categories the owner picked (the drinks category of a coffee shop).
+         * @enum {string}
+         */
+        LabelScope: "all" | "categories";
+        /**
+         * LabelSize
+         * @description P6-32 (B7): the label roll in the branch's label printer (branch_label_settings.size, width x height in mm). The cashier app lays the sticker out for this size (pos_core `LabelSize`, 203 dpi) and the TSPL driver sends it.
+         * @enum {string}
+         */
+        LabelSize: "40x30" | "58x40";
         /** LengthAwarePaginator */
         LengthAwarePaginator: {
             current_page: number;
@@ -10482,9 +10946,16 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            is_default: boolean;
             group?: components["schemas"]["ModifierGroup"];
             variant?: components["schemas"]["ProductVariant"] | null;
         };
+        /**
+         * ModifierDisplayMode
+         * @description P6-32 (B2): where a modifier group's options are shown on the cashier's tile (modifier_groups.display_mode). A hint for the till and the waiter app: the server sells the same options whichever way they were picked. - dialog: the modifier window, as before (the default);  - inline: the options as chips beside the menu tile, no window;  - size: a one-tap size selector ("Kichik / O'rta / Katta"); the group takes exactly one option (max_select 1).
+         * @enum {string}
+         */
+        ModifierDisplayMode: "dialog" | "inline" | "size";
         /** ModifierGroup */
         ModifierGroup: {
             id: number;
@@ -10505,6 +10976,7 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            display_mode: components["schemas"]["ModifierDisplayMode"];
             store?: components["schemas"]["Store"];
             modifiers?: components["schemas"]["Modifier"][];
             products?: components["schemas"]["Product"][];
@@ -10523,6 +10995,7 @@ export interface components {
             min_select?: number | null;
             max_select?: number | null;
             is_required?: boolean | null;
+            display_mode?: components["schemas"]["ModifierDisplayMode"] | null;
             sort_order?: number | null;
             is_active?: boolean | null;
             modifiers?: {
@@ -10533,6 +11006,8 @@ export interface components {
                 } | null;
                 price_delta?: number | null;
                 max_quantity?: number | null;
+                /** @description P6-32: the option the till preselects; left out: unchanged (a new option: false). */
+                is_default?: boolean | null;
                 product_variant_id?: number | null;
                 sort_order?: number | null;
                 is_active?: boolean | null;
@@ -10636,6 +11111,18 @@ export interface components {
             /** Format: date-time */
             pickup_handed_at: string | null;
             table_label: string | null;
+            assembled_at: string | null;
+            assembled_by: number | null;
+            packaging_amount: string;
+            packaging_lines: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Format: date-time */
+            pickup_at: string | null;
+            /** Format: date-time */
+            kitchen_fire_at: string | null;
+            /** Format: date-time */
+            kitchen_fired_at: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -10693,6 +11180,7 @@ export interface components {
             updated_at: string | null;
             seat_no: number | null;
             waiter_id: number | null;
+            packaging_amount: string;
             order?: components["schemas"]["Order"];
             items?: components["schemas"]["OrderBillItem"][];
             payments?: components["schemas"]["Payment"][];
@@ -10783,6 +11271,12 @@ export interface components {
             weighed_by: (number | null) | (components["schemas"]["User"] | null);
             /** Format: date-time */
             weighed_at: string | null;
+            combo_parts: {
+                [key: string]: unknown;
+            }[] | null;
+            combo_parent_id: number | null;
+            combo_children?: components["schemas"]["OrderItem"][];
+            combo_parent?: components["schemas"]["OrderItem"] | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -10980,6 +11474,7 @@ export interface components {
             quick_multipliers: number[] | null;
             wait_minutes: number | null;
             weight_mode: string | null;
+            kds_target_seconds: number | null;
             is_active: boolean;
             image_url: string | null;
             image_thumb_urls: {
@@ -24532,6 +25027,13 @@ export interface operations {
                         /** @description P1-21: a fraction for items sold by weight (0.5 kg, at most 3 decimals); pieces stay whole (checked per unit) */
                         quantity: number;
                         modifiers?: string[] | null;
+                        /** @description P6-31: a combo's picks ({option_id, quantity?, modifiers?}); a required slot left out takes its default */
+                        combo?: {
+                            /** Format: uuid */
+                            option_id: string;
+                            quantity?: number | null;
+                            modifiers?: string[] | null;
+                        }[] | null;
                     }[];
                     /**
                      * @description P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
@@ -24548,6 +25050,11 @@ export interface operations {
                     longitude?: number | null;
                     notes?: string | null;
                     promo_code?: string | null;
+                    /**
+                     * Format: date-time
+                     * @description P6-34: a pickup for later (module scheduled_pickup), an ISO time from GET /stores/{id}/branches/{branch}/pickup-slots
+                     */
+                    pickup_at?: string | null;
                 };
             };
         };
@@ -25950,6 +26457,312 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "branchBusinessDayReport.index": {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM-DD, the first business day. */
+                from?: string;
+                /** @description YYYY-MM-DD, the last business day (at most 31 days after from). */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            business_day: {
+                                business_date: string;
+                                starts_at: string;
+                                started_at: string;
+                                next_starts_at: string;
+                                round_the_clock: boolean;
+                            };
+                            days: {
+                                business_date: string;
+                                started_at: string;
+                                ends_at: string;
+                                orders: number;
+                                pos_orders: number;
+                                online_orders: number;
+                                revenue: string;
+                                packaging_amount: string;
+                                after_midnight_orders: number;
+                                first_order_at: string | null;
+                                last_order_at: string | null;
+                                shifts: {
+                                    uuid: string;
+                                    business_date: string;
+                                    z_number: number | null;
+                                    opened_at: string | null;
+                                    closed_at: string | null;
+                                    status: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "branchPackagingRules.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            basis: string;
+                            basis_label: string;
+                            category_id: number | null;
+                            product_id: number | null;
+                            quantity: number;
+                            unit_price: string;
+                            mxik: string | null;
+                            package_code: string | null;
+                            unit: string;
+                            order_types: string[];
+                            is_active: boolean;
+                            sort_order: number;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPackagingRules.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            basis: string;
+                            basis_label: string;
+                            category_id: number | null;
+                            product_id: number | null;
+                            quantity: number;
+                            unit_price: string;
+                            mxik: string | null;
+                            package_code: string | null;
+                            unit: string;
+                            order_types: string[];
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPackagingRules.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            branch_id: number;
+                            name: string;
+                            basis: string;
+                            basis_label: string;
+                            category_id: number | null;
+                            product_id: number | null;
+                            quantity: number;
+                            unit_price: string;
+                            mxik: string | null;
+                            package_code: string | null;
+                            unit: string;
+                            order_types: string[];
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPackagingRules.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPickupSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            pickup_min_lead_minutes: number;
+                            pickup_slot_minutes: number;
+                            pickup_max_days_ahead: number;
+                            pickup_prep_minutes: number;
+                            round_the_clock: boolean;
+                            opening_hours: {
+                                open: string | null;
+                                close: string | null;
+                            };
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchPickupSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    pickup_min_lead_minutes?: number;
+                    pickup_slot_minutes?: number;
+                    pickup_max_days_ahead?: number;
+                    pickup_prep_minutes?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            pickup_min_lead_minutes: number;
+                            pickup_slot_minutes: number;
+                            pickup_max_days_ahead: number;
+                            pickup_prep_minutes: number;
+                            round_the_clock: boolean;
+                            opening_hours: {
+                                open: string | null;
+                                close: string | null;
+                            };
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "terminalFlow.update": {
         parameters: {
             query?: never;
@@ -26265,6 +27078,95 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "branchLabelSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            size: string;
+                            size_label: string;
+                            width_mm: number;
+                            height_mm: number;
+                            scope: string;
+                            scope_label: string;
+                            category_ids: number[];
+                            per_unit: boolean;
+                            bag_label: boolean;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchLabelSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    size?: components["schemas"]["LabelSize"];
+                    scope?: components["schemas"]["LabelScope"];
+                    category_ids?: number[];
+                    per_unit?: boolean;
+                    bag_label?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            size: string;
+                            size_label: string;
+                            width_mm: number;
+                            height_mm: number;
+                            scope: string;
+                            scope_label: string;
+                            category_ids: number[];
+                            per_unit: boolean;
+                            bag_label: boolean;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "branchPosSettings.show": {
         parameters: {
             query?: never;
@@ -26456,6 +27358,293 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "combo.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            combos: {
+                                id: number;
+                                uuid: string;
+                                product_id: number;
+                                product_name: string | null;
+                                prices: string[];
+                                is_active: boolean;
+                                slots: {
+                                    id: number;
+                                    uuid: string;
+                                    name: string;
+                                    min_picks: number;
+                                    max_picks: number;
+                                    is_required: boolean;
+                                    allow_modifiers: boolean;
+                                    options: {
+                                        id: number;
+                                        uuid: string;
+                                        variant_id: number;
+                                        variant_uuid: string;
+                                        product_id: number | null;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        price_delta: string;
+                                        modifiers: {
+                                            id: number;
+                                            uuid: string;
+                                            group_id: number;
+                                            group_name: string | null;
+                                            name: string;
+                                            quantity: number;
+                                            price_delta: string;
+                                        }[];
+                                        is_default: boolean;
+                                        label: string | null;
+                                        receipt_label: string;
+                                    }[];
+                                }[];
+                            }[];
+                            fiscal_mode: components["schemas"]["ComboFiscalMode"];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "combo.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            product_id: number;
+                            product_name: string | null;
+                            prices: string[];
+                            is_active: boolean;
+                            slots: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                min_picks: number;
+                                max_picks: number;
+                                is_required: boolean;
+                                allow_modifiers: boolean;
+                                options: {
+                                    id: number;
+                                    uuid: string;
+                                    variant_id: number;
+                                    variant_uuid: string;
+                                    product_id: number | null;
+                                    name: string;
+                                    variant_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                    modifiers: {
+                                        id: number;
+                                        uuid: string;
+                                        group_id: number;
+                                        group_name: string | null;
+                                        name: string;
+                                        quantity: number;
+                                        price_delta: string;
+                                    }[];
+                                    is_default: boolean;
+                                    label: string | null;
+                                    receipt_label: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "combo.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            product_id: number;
+                            product_name: string | null;
+                            prices: string[];
+                            is_active: boolean;
+                            slots: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                min_picks: number;
+                                max_picks: number;
+                                is_required: boolean;
+                                allow_modifiers: boolean;
+                                options: {
+                                    id: number;
+                                    uuid: string;
+                                    variant_id: number;
+                                    variant_uuid: string;
+                                    product_id: number | null;
+                                    name: string;
+                                    variant_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                    modifiers: {
+                                        id: number;
+                                        uuid: string;
+                                        group_id: number;
+                                        group_name: string | null;
+                                        name: string;
+                                        quantity: number;
+                                        price_delta: string;
+                                    }[];
+                                    is_default: boolean;
+                                    label: string | null;
+                                    receipt_label: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "combo.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "combo.preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    channel?: components["schemas"]["OrderChannel"] | null;
+                    picks?: {
+                        /** Format: uuid */
+                        option_id: string;
+                        quantity?: number | null;
+                        modifiers?: string[] | null;
+                    }[] | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            name: string;
+                            quantity: number;
+                            base_price: string;
+                            delta: string;
+                            price: string;
+                            parts: {
+                                slot_name: string;
+                                name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                label: string;
+                            }[];
+                            fiscal_mode: components["schemas"]["ComboFiscalMode"];
+                            fiscal: {
+                                single: {
+                                    name: string;
+                                    mxik_code: string | null;
+                                    quantity: number;
+                                    amount: string;
+                                }[];
+                                split: {
+                                    name: string;
+                                    mxik_code: string | null;
+                                    quantity: number;
+                                    amount: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -28499,6 +29688,7 @@ export interface operations {
                                 };
                                 deposit_refund_receipt: boolean | null;
                                 retained_deposit_receipt: boolean | null;
+                                combo_fiscal_mode: components["schemas"]["ComboFiscalMode"];
                             };
                             drivers: string[];
                             tax_regimes: {
@@ -28593,6 +29783,7 @@ export interface operations {
                         };
                         deposit_refund_receipt?: boolean | null;
                         retained_deposit_receipt?: boolean | null;
+                        combo_fiscal_mode?: components["schemas"]["ComboFiscalMode"] | null;
                     };
                 };
             };
@@ -28673,6 +29864,7 @@ export interface operations {
                                 };
                                 deposit_refund_receipt: boolean | null;
                                 retained_deposit_receipt: boolean | null;
+                                combo_fiscal_mode: components["schemas"]["ComboFiscalMode"];
                             };
                             drivers: string[];
                             tax_regimes: {
@@ -29067,6 +30259,116 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "kdsTargets.show": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            enabled: boolean;
+                            limits: {
+                                min: number;
+                                max: number;
+                            };
+                            stations: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                                kind_label: string;
+                                is_active: boolean;
+                                target_seconds: number | null;
+                                default_target_seconds: number | null;
+                            }[];
+                            products: {
+                                product_id: number;
+                                name: string;
+                                category_id: number;
+                                target_seconds: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "kdsTargets.updateProducts": {
+        parameters: {
+            query?: {
+                /** @description The branch whose page to answer with (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    items: {
+                        product_id: number;
+                        target_seconds: number | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            enabled: boolean;
+                            limits: {
+                                min: number;
+                                max: number;
+                            };
+                            stations: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                                kind_label: string;
+                                is_active: boolean;
+                                target_seconds: number | null;
+                                default_target_seconds: number | null;
+                            }[];
+                            products: {
+                                product_id: number;
+                                name: string;
+                                category_id: number;
+                                target_seconds: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "kitchenStationRoute.index": {
         parameters: {
             query?: {
@@ -29205,6 +30507,7 @@ export interface operations {
                                 sort_order: number;
                                 is_active: boolean;
                                 show_on_kds: boolean;
+                                target_seconds: number | null;
                             }[];
                         };
                     };
@@ -29225,8 +30528,8 @@ export interface operations {
                 "application/json": {
                     branch_id?: number | null;
                     name: string;
-                    /** @enum {string} */
-                    kind?: "osh" | "mangal" | "salad_bar" | "tea" | "kitchen" | "other";
+                    kind?: components["schemas"]["KitchenStationKind"];
+                    target_seconds?: number | null;
                     sort_order?: number;
                     is_active?: boolean;
                     show_on_kds?: boolean;
@@ -29251,6 +30554,7 @@ export interface operations {
                             sort_order: number;
                             is_active: boolean;
                             show_on_kds: boolean;
+                            target_seconds: number | null;
                         };
                     };
                 };
@@ -29307,8 +30611,8 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
-                    /** @enum {string} */
-                    kind?: "osh" | "mangal" | "salad_bar" | "tea" | "kitchen" | "other";
+                    kind?: components["schemas"]["KitchenStationKind"];
+                    target_seconds?: number | null;
                     sort_order?: number;
                     is_active?: boolean;
                     show_on_kds?: boolean;
@@ -29333,6 +30637,7 @@ export interface operations {
                             sort_order: number;
                             is_active: boolean;
                             show_on_kds: boolean;
+                            target_seconds: number | null;
                         };
                     };
                 };
@@ -29521,6 +30826,7 @@ export interface operations {
                             min_select: number;
                             max_select: number | null;
                             is_required: boolean;
+                            display_mode: string;
                             sort_order: number;
                             is_active: boolean;
                             modifiers: {
@@ -29532,6 +30838,7 @@ export interface operations {
                                 } | null;
                                 price_delta: string;
                                 max_quantity: number;
+                                is_default: boolean;
                                 product_variant_id: number | null;
                                 sort_order: number;
                                 is_active: boolean;
@@ -29581,6 +30888,7 @@ export interface operations {
                             min_select: number;
                             max_select: number | null;
                             is_required: boolean;
+                            display_mode: string;
                             sort_order: number;
                             is_active: boolean;
                             modifiers: {
@@ -29592,6 +30900,7 @@ export interface operations {
                                 } | null;
                                 price_delta: string;
                                 max_quantity: number;
+                                is_default: boolean;
                                 product_variant_id: number | null;
                                 sort_order: number;
                                 is_active: boolean;
@@ -29644,6 +30953,7 @@ export interface operations {
                             min_select: number;
                             max_select: number | null;
                             is_required: boolean;
+                            display_mode: string;
                             sort_order: number;
                             is_active: boolean;
                             modifiers: {
@@ -29655,6 +30965,7 @@ export interface operations {
                                 } | null;
                                 price_delta: string;
                                 max_quantity: number;
+                                is_default: boolean;
                                 product_variant_id: number | null;
                                 sort_order: number;
                                 is_active: boolean;
@@ -31643,6 +32954,105 @@ export interface operations {
             };
         };
     };
+    "prepTimeReport.show": {
+        parameters: {
+            query?: {
+                /** @description Required unless the caller is bound to a branch. */
+                branch_id?: number;
+                /** @description First business day, YYYY-MM-DD (default: today). */
+                from?: string;
+                /** @description Last business day, YYYY-MM-DD (default: from; at most 31 days). */
+                to?: string;
+                /** @description Only this station's lines (a station of the branch). */
+                station_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            timezone: string;
+                            day_starts_at: string;
+                            station_id: number | null;
+                            summary: {
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            };
+                            orders: {
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            };
+                            stations: {
+                                station_id: number | null;
+                                name: string;
+                                kind: string | null;
+                                target_seconds: number | null;
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            }[];
+                            products: {
+                                product_id: number | null;
+                                name: string;
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            }[];
+                            hours: {
+                                hour: number;
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            }[];
+                            expo: {
+                                station_id: number;
+                                name: string;
+                                target_seconds: number | null;
+                                count: number;
+                                median_seconds: number | null;
+                                p90_seconds: number | null;
+                                with_target: number;
+                                over_target: number;
+                                over_target_share: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "report.sales": {
         parameters: {
             query?: {
@@ -31770,6 +33180,12 @@ export interface operations {
                                 quantity: number;
                                 revenue: string;
                                 orders: number;
+                            }[];
+                            combo_parts: {
+                                name: string;
+                                in_combos: number;
+                                alone: number;
+                                total: number;
                             }[];
                         };
                     };
@@ -34825,6 +36241,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -34892,6 +36316,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -35052,6 +36483,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -35119,6 +36558,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -35261,6 +36707,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -35328,6 +36782,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -37501,6 +38962,7 @@ export interface operations {
                                 sort_order: number;
                                 is_active: boolean;
                                 show_on_kds: boolean;
+                                target_seconds: number | null;
                             }[];
                             station_routes: {
                                 categories: {
@@ -37720,6 +39182,52 @@ export interface operations {
                                 deposit_required_to_confirm: boolean;
                                 updated_at: string | null;
                             } | null;
+                            labels: {
+                                branch_id: number;
+                                configured: boolean;
+                                size: string;
+                                size_label: string;
+                                width_mm: number;
+                                height_mm: number;
+                                scope: string;
+                                scope_label: string;
+                                category_ids: number[];
+                                per_unit: boolean;
+                                bag_label: boolean;
+                                updated_at: string | null;
+                            } | null;
+                            takeaway: {
+                                packaging: {
+                                    id: number;
+                                    branch_id: number;
+                                    name: string;
+                                    basis: string;
+                                    basis_label: string;
+                                    category_id: number | null;
+                                    product_id: number | null;
+                                    quantity: number;
+                                    unit_price: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    unit: string;
+                                    order_types: string[];
+                                    is_active: boolean;
+                                    sort_order: number;
+                                }[];
+                                pickup: {
+                                    min_lead_minutes: number;
+                                    slot_minutes: number;
+                                    max_days_ahead: number;
+                                    prep_minutes: number;
+                                } | null;
+                                business_day: {
+                                    business_date: string;
+                                    starts_at: string;
+                                    started_at: string;
+                                    next_starts_at: string;
+                                    round_the_clock: boolean;
+                                };
+                            };
                         };
                     };
                 };
@@ -39044,6 +40552,8 @@ export interface operations {
                                     course_no?: number | null;
                                     weight_status?: string | null;
                                     wait_minutes?: number | null;
+                                    target_seconds?: number | null;
+                                    late?: boolean;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -39102,9 +40612,21 @@ export interface operations {
                         /** @description P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later) */
                         course_no?: number | null;
                         awaiting_weight?: boolean | null;
+                        /** @description P6-31: a combo's picks ({option_id, quantity?, modifiers?}; docs/MENU.md "Kombo") */
+                        combo?: {
+                            /** Format: uuid */
+                            option_id: string;
+                            quantity?: number | null;
+                            modifiers?: string[] | null;
+                        }[] | null;
                     }[] | null;
                     /** @description P6-25: the table plate of a counter order carried to the table (module table_service) */
                     table_label?: string | null;
+                    /**
+                     * Format: date-time
+                     * @description P6-34: a takeaway picked up later (module scheduled_pickup): its lines wait for their kitchen time
+                     */
+                    pickup_at?: string | null;
                 };
             };
         };
@@ -39172,6 +40694,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -39190,6 +40720,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -39357,6 +40901,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -39375,6 +40927,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -39611,6 +41177,8 @@ export interface operations {
                                     course_no?: number | null;
                                     weight_status?: string | null;
                                     wait_minutes?: number | null;
+                                    target_seconds?: number | null;
+                                    late?: boolean;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -39698,6 +41266,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -39765,6 +41341,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -39977,6 +41560,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -40044,6 +41635,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -40307,6 +41905,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -40325,6 +41931,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -40503,6 +42123,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -40521,6 +42149,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -40700,6 +42342,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -40718,6 +42368,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -40878,6 +42542,14 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 service_charge_amount: string;
                                 place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -40945,6 +42617,13 @@ export interface operations {
                                     quantity: number;
                                     amount: string;
                                     discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
                                 }[];
                                 payments: {
                                     uuid: string;
@@ -41158,6 +42837,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -41176,6 +42863,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -41357,6 +43058,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -41375,6 +43084,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -41553,6 +43276,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -41571,6 +43302,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -41799,6 +43544,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -41817,6 +43570,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -42003,6 +43770,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -42021,6 +43796,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -42209,6 +43998,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -42227,6 +44024,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -42414,6 +44225,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -42432,6 +44251,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -42620,6 +44453,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -42638,6 +44479,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -42816,6 +44671,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -42834,6 +44697,673 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTakeaway.removePackaging": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTakeaway.restorePackaging": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                rule: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTakeaway.setPickupTime": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    /** Format: date-time */
+                    pickup_at: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -43132,6 +45662,8 @@ export interface operations {
                                     course_no?: number | null;
                                     weight_status?: string | null;
                                     wait_minutes?: number | null;
+                                    target_seconds?: number | null;
+                                    late?: boolean;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -43236,6 +45768,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -43254,6 +45794,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -43385,11 +45939,20 @@ export interface operations {
                         course_no?: number | null;
                         /** @description P6-21 */
                         awaiting_weight?: boolean | null;
+                        /** @description P6-25 */
+                        combo?: {
+                            /**
+                             * Format: uuid
+                             * @description P6-31
+                             */
+                            option_id: string;
+                            quantity?: number | null;
+                            modifiers?: string[] | null;
+                        }[] | null;
                     }[];
                     /** @enum {string|null} */
                     fire_mode?: "now" | "hold" | null;
                     send?: boolean | null;
-                    /** @description P6-25 */
                     approval_token?: string | null;
                 };
             };
@@ -43450,6 +46013,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -43468,6 +46039,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -43646,6 +46231,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -43664,6 +46257,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -43842,6 +46449,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -43860,6 +46475,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -44039,6 +46668,14 @@ export interface operations {
                             place_fee_amount: string;
                             room_fee_amount: string;
                             min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
                             total_price: string;
                             charges: {
                                 items_subtotal: string;
@@ -44057,6 +46694,20 @@ export interface operations {
                                 service_charge_rule: string;
                                 place_fee_kind: string;
                                 service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -44156,6 +46807,36 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTakeaway.slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            slots: {
+                                at: string;
+                                time: string;
+                                business_date: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "posQueue.board": {
@@ -44574,6 +47255,7 @@ export interface operations {
                                     min_spend_topup: string;
                                     service_charge: string;
                                     place_fee: string;
+                                    packaging: string;
                                     average_bill: string;
                                 };
                                 by_tender: {
@@ -44762,6 +47444,7 @@ export interface operations {
                                         min_spend_topup: string;
                                         service_charge: string;
                                         place_fee: string;
+                                        packaging: string;
                                         average_bill: string;
                                     };
                                     by_tender: {
@@ -44992,6 +47675,7 @@ export interface operations {
                                     min_spend_topup: string;
                                     service_charge: string;
                                     place_fee: string;
+                                    packaging: string;
                                     average_bill: string;
                                 };
                                 by_tender: {
@@ -45504,6 +48188,7 @@ export interface operations {
                                     min_spend_topup: string;
                                     service_charge: string;
                                     place_fee: string;
+                                    packaging: string;
                                     average_bill: string;
                                 };
                                 by_tender: {
@@ -45789,6 +48474,7 @@ export interface operations {
                                     min_spend_topup: string;
                                     service_charge: string;
                                     place_fee: string;
+                                    packaging: string;
                                     average_bill: string;
                                 };
                                 by_tender: {
@@ -47115,6 +49801,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47127,6 +49815,20 @@ export interface operations {
                             waiting_seconds: number;
                             queue_number: number | null;
                             pickup_status: components["schemas"]["PickupStatus"] | null;
+                            assembly: {
+                                station_id: number;
+                                required: boolean;
+                                waiting: boolean;
+                                assembled_at: string | null;
+                                stations: {
+                                    station_id: number | null;
+                                    name: string;
+                                    kind: string | null;
+                                    items_total: number;
+                                    items_ready: number;
+                                    done: boolean;
+                                }[];
+                            } | null;
                         }[];
                         meta: {
                             truncated: boolean;
@@ -47248,6 +49950,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47360,6 +50064,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47381,6 +50087,115 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "kitchenExpo.assembled": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            type: string;
+                            channel: string;
+                            branch_id: number | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            notes: string | null;
+                            items_total: number;
+                            items_ready: number;
+                            items: {
+                                id: number;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                modifiers: {
+                                    name: string;
+                                    group_name?: string;
+                                    quantity: number;
+                                    price_delta?: string;
+                                }[];
+                                kitchen_status: string;
+                                ready_at: string | null;
+                                round_no?: number | null;
+                                fire_mode?: string;
+                                station_id?: number | null;
+                                product_id?: number | null;
+                                category_id?: number | null;
+                                sent_at?: string | null;
+                                due_at?: string | null;
+                                seat_no?: number | null;
+                                note?: string | null;
+                                voided_at?: string | null;
+                                void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
+                                unit_price?: string;
+                                modifiers_total?: string;
+                                total_price?: string;
+                            }[];
+                            created_at: string | null;
+                            accepted_at: string | null;
+                            preparing_at: string | null;
+                            ready_at: string | null;
+                            canceled_at: string | null;
+                            waiting_seconds: number;
+                            queue_number: number | null;
+                            pickup_status: components["schemas"]["PickupStatus"] | null;
+                            assembly: {
+                                station_id: number;
+                                required: boolean;
+                                waiting: boolean;
+                                assembled_at: string | null;
+                                stations: {
+                                    station_id: number | null;
+                                    name: string;
+                                    kind: string | null;
+                                    items_total: number;
+                                    items_ready: number;
+                                    done: boolean;
+                                }[];
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description `assembly_not_required`, `stations_not_ready` yoki `kitchen_status` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "staffOrder.bumpItem": {
@@ -47446,6 +50261,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47458,6 +50275,20 @@ export interface operations {
                             waiting_seconds: number;
                             queue_number: number | null;
                             pickup_status: components["schemas"]["PickupStatus"] | null;
+                            assembly: {
+                                station_id: number;
+                                required: boolean;
+                                waiting: boolean;
+                                assembled_at: string | null;
+                                stations: {
+                                    station_id: number | null;
+                                    name: string;
+                                    kind: string | null;
+                                    items_total: number;
+                                    items_ready: number;
+                                    done: boolean;
+                                }[];
+                            } | null;
                         };
                     };
                 };
@@ -47536,6 +50367,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47548,6 +50381,20 @@ export interface operations {
                             waiting_seconds: number;
                             queue_number: number | null;
                             pickup_status: components["schemas"]["PickupStatus"] | null;
+                            assembly: {
+                                station_id: number;
+                                required: boolean;
+                                waiting: boolean;
+                                assembled_at: string | null;
+                                stations: {
+                                    station_id: number | null;
+                                    name: string;
+                                    kind: string | null;
+                                    items_total: number;
+                                    items_ready: number;
+                                    done: boolean;
+                                }[];
+                            } | null;
                         };
                     };
                 };
@@ -47662,6 +50509,8 @@ export interface operations {
                                 course_no?: number | null;
                                 weight_status?: string | null;
                                 wait_minutes?: number | null;
+                                target_seconds?: number | null;
+                                late?: boolean;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47812,6 +50661,49 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "pickupSlots.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                store: string;
+                branch: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enabled: boolean;
+                            min_lead_minutes: number;
+                            slot_minutes: number;
+                            slots: {
+                                at: string;
+                                time: string;
+                                business_date: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "deliveryZone.index": {

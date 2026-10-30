@@ -30,12 +30,12 @@ final class FormatProfileTemplates
             FormatProfile::KAFE, FormatProfile::RESTORAN => [$station('Oshxona', KitchenStationKind::KITCHEN), $station('Bar', KitchenStationKind::SALAD_BAR)],
             FormatProfile::KABOBXONA => [$station('Mangal', KitchenStationKind::MANGAL), $station('Oshxona', KitchenStationKind::KITCHEN), $station('Choy', KitchenStationKind::TEA)],
             FormatProfile::BALIQXONA => [$station('Mangal', KitchenStationKind::MANGAL), $station('Oshxona', KitchenStationKind::KITCHEN)],
-            // The universal kinds (grill, fryer, drinks, expo) come with KDS v2 (P6-33); until then "other"
+            // P6-33: the universal kinds of KDS v2 (an expo station assembles what the others cooked)
             FormatProfile::FAST_FOOD => [
-                $station('Grill', KitchenStationKind::OTHER), $station('Fritur', KitchenStationKind::OTHER),
-                $station('Ichimliklar', KitchenStationKind::OTHER), $station("Yig'ish", KitchenStationKind::OTHER),
+                $station('Grill', KitchenStationKind::GRILL), $station('Fritur', KitchenStationKind::FRYER),
+                $station('Ichimliklar', KitchenStationKind::DRINKS), $station("Yig'ish", KitchenStationKind::EXPO),
             ],
-            FormatProfile::QAHVAXONA => [$station('Barista', KitchenStationKind::OTHER)],
+            FormatProfile::QAHVAXONA => [$station('Barista', KitchenStationKind::BARISTA)],
             FormatProfile::SOMSAXONA, FormatProfile::TAMADDIXONA, FormatProfile::STOLOVAYA => [],
         };
     }

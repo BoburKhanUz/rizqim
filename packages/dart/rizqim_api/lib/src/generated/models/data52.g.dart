@@ -7,25 +7,39 @@ part of 'data52.dart';
 // **************************************************************************
 
 Data52 _$Data52FromJson(Map<String, dynamic> json) => Data52(
-  branchId: (json['branch_id'] as num).toInt(),
-  date: json['date'] as String?,
-  businessDate: json['business_date'] as String,
-  enforced: json['enforced'] as bool,
-  setValue: json['set'] as bool,
-  productIds: Map<String, int>.from(json['product_ids'] as Map),
-  previousDate: json['previous_date'] as String?,
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  address: json['address'] as String?,
+  regionId: (json['region_id'] as num?)?.toInt(),
+  districtId: (json['district_id'] as num?)?.toInt(),
+  latitude: json['latitude'] as num?,
+  longitude: json['longitude'] as num?,
+  radiusKm: json['radius_km'] as num,
+  status: json['status'] as String,
+  isActive: json['is_active'] as bool,
+  workingHours: WorkingHours4.fromJson(
+    json['working_hours'] as Map<String, dynamic>,
+  ),
+  isOpenNow: json['is_open_now'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data52ToJson(Data52 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'date': instance.date,
-  'business_date': instance.businessDate,
-  'enforced': instance.enforced,
-  'set': instance.setValue,
-  'product_ids': instance.productIds,
-  'previous_date': instance.previousDate,
-  'products': instance.products,
+  'id': instance.id,
+  'name': instance.name,
+  'phone': instance.phone,
+  'address': instance.address,
+  'region_id': instance.regionId,
+  'district_id': instance.districtId,
+  'latitude': instance.latitude,
+  'longitude': instance.longitude,
+  'radius_km': instance.radiusKm,
+  'status': instance.status,
+  'is_active': instance.isActive,
+  'working_hours': instance.workingHours,
+  'is_open_now': instance.isOpenNow,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

@@ -7,91 +7,73 @@ part of 'data260.dart';
 // **************************************************************************
 
 Data260 _$Data260FromJson(Map<String, dynamic> json) => Data260(
-  discount: json['discount'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  type: json['type'] as String,
-  channel: json['channel'] as String,
-  storeId: (json['store_id'] as num).toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  branchName: json['branch_name'] as String?,
-  paymentMethod: json['payment_method'] as String,
-  paymentStatus: json['payment_status'] as String,
-  subtotal: json['subtotal'] as String,
   uuid: json['uuid'] as String,
-  deliveryPrice: json['delivery_price'] as String,
-  serviceChargeAmount: json['service_charge_amount'] as String,
-  placeFeeAmount: json['place_fee_amount'] as String,
-  totalPrice: json['total_price'] as String,
-  notes: json['notes'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  cancelReason: json['cancel_reason'] as String?,
-  cancelNote: json['cancel_note'] as String?,
-  customer: json['customer'] == null
-      ? null
-      : Customer5.fromJson(json['customer'] as Map<String, dynamic>),
-  statusHistory: (json['status_history'] as List<dynamic>)
-      .map((e) => StatusHistory.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  businessDate: json['business_date'] as String,
+  source: Source.fromJson(json['source'] as String),
+  terminalRef: json['terminal_ref'] as String?,
+  shared: json['shared'] as bool,
+  finalValue: json['final'] as bool,
+  shifts: (json['shifts'] as List<dynamic>)
+      .map((e) => Shifts6.fromJson(e as Map<String, dynamic>))
       .toList(),
-  courier: json['courier'] == null
+  bankTotal: json['bank_total'] as String,
+  bankCount: (json['bank_count'] as num?)?.toInt(),
+  rizqimTotal: json['rizqim_total'] as String?,
+  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
+  rizqimBreakdown: json['rizqim_breakdown'] == null
       ? null
-      : Courier5.fromJson(json['courier'] as Map<String, dynamic>),
-  itemsTotal: (json['items_total'] as num).toInt(),
-  itemsReady: (json['items_ready'] as num).toInt(),
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items54.fromJson(e as Map<String, dynamic>))
+      : RizqimBreakdown4.fromJson(
+          json['rizqim_breakdown'] as Map<String, dynamic>,
+        ),
+  difference: json['difference'] as String?,
+  threshold: json['threshold'] as String?,
+  overThreshold: json['over_threshold'] as bool?,
+  transactions: (json['transactions'] as List<dynamic>?)
+      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
       .toList(),
+  unmatched: json['unmatched'] == null
+      ? null
+      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
+  history: (json['history'] as List<dynamic>)
+      .map((e) => History4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  note: json['note'] as String?,
+  enteredBy: json['entered_by'] == null
+      ? null
+      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
+  alertedAt: json['alerted_at'] as String?,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
-  acceptedAt: json['accepted_at'] as String?,
-  preparingAt: json['preparing_at'] as String?,
-  readyAt: json['ready_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
-  delivery: json['delivery'] == null
-      ? null
-      : Delivery8.fromJson(json['delivery'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data260ToJson(Data260 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'type': instance.type,
-  'channel': instance.channel,
-  'store_id': instance.storeId,
+  'shift_uuid': instance.shiftUuid,
+  'z_number': instance.zNumber,
   'branch_id': instance.branchId,
-  'branch_name': instance.branchName,
-  'payment_method': instance.paymentMethod,
-  'payment_status': instance.paymentStatus,
-  'subtotal': instance.subtotal,
-  'discount': instance.discount,
-  'delivery_price': instance.deliveryPrice,
-  'service_charge_amount': instance.serviceChargeAmount,
-  'place_fee_amount': instance.placeFeeAmount,
-  'total_price': instance.totalPrice,
-  'notes': instance.notes,
-  'guests_count': instance.guestsCount,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'cancel_reason': instance.cancelReason,
-  'cancel_note': instance.cancelNote,
-  'customer': instance.customer,
-  'delivery': instance.delivery,
-  'courier': instance.courier,
-  'items_total': instance.itemsTotal,
-  'items_ready': instance.itemsReady,
-  'items': instance.items,
+  'business_date': instance.businessDate,
+  'source': instance.source,
+  'terminal_ref': instance.terminalRef,
+  'shared': instance.shared,
+  'final': instance.finalValue,
+  'shifts': instance.shifts,
+  'bank_total': instance.bankTotal,
+  'bank_count': instance.bankCount,
+  'rizqim_total': instance.rizqimTotal,
+  'rizqim_count': instance.rizqimCount,
+  'rizqim_breakdown': instance.rizqimBreakdown,
+  'difference': instance.difference,
+  'threshold': instance.threshold,
+  'over_threshold': instance.overThreshold,
+  'transactions': instance.transactions,
+  'unmatched': instance.unmatched,
+  'history': instance.history,
+  'note': instance.note,
+  'entered_by': instance.enteredBy,
+  'alerted_at': instance.alertedAt,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,
-  'accepted_at': instance.acceptedAt,
-  'preparing_at': instance.preparingAt,
-  'ready_at': instance.readyAt,
-  'closed_at': instance.closedAt,
-  'waiting_seconds': instance.waitingSeconds,
-  'status_history': instance.statusHistory,
 };

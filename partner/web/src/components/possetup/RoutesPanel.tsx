@@ -67,7 +67,8 @@ export function RoutesPanel({ branchId }: { branchId: number }) {
       {(stationData) => (
         <Gate query={routes} count={2}>
           {() => {
-            const active = stationData.stations.filter((station) => station.is_active);
+            // P6-33: the expo (assembly) station cooks nothing of its own: no dishes go to it
+            const active = stationData.stations.filter((station) => station.is_active && station.kind !== 'expo');
             if (stationData.stations.length === 0) return <EmptyState icon={Route} title={t('pos_routes_noStations')} text={t('pos_routes_noStationsText')} />;
             return (
               <Card className="flex flex-col gap-4">

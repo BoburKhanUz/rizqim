@@ -14,7 +14,8 @@ use Throwable;
 
 /**
  * Builds the receipt lines of an online-paid order (P3-14) with FiscalLineBuilder (P3-11): one line per order line,
- * the order's promo discount spread over them, then the service charge and place fee. The line amounts in tiyin add
+ * the order's promo discount spread over them, then the service charge and place fee, then (P6-34) one line per
+ * packaging line. The line amounts in tiyin add
  * up exactly to the order total, so the provider's receipt equals the money it took.
  */
 class OnlineFiscalReceiptBuilder
@@ -90,25 +91,34 @@ class OnlineFiscalReceiptBuilder
         $shares = $this->allocate($items->map(fn (OrderItem $item) => Money::of($item->total_price)->toTiyin())->all(), $itemsAmount->toTiyin());
 
         $lines = [];
+        // P6-31: a combo is one line (its own MXIK) unless the store splits combos by their parts
+        $splitCombos = \App\Domain\Fiscal\FiscalSettings::of($store)->comboFiscalMode() === \App\Domain\Fiscal\ComboFiscalMode::SPLIT;
         foreach ($items->values() as $index => $item) {
-            $name = (string) $item->product_name;
+            $quantity = Quantity::of($item->getRawOriginal('quantity') ?? $item->quantity);
+            $receiptParts = $splitCombos && $item->isComboLine()
+                ? \App\Domain\Fiscal\ComboFiscalSplit::shares($item, $shares[$index], $quantity)
+                : [['item' => $item, 'amount' => $shares[$index], 'quantity' => $quantity]];
 
-            try {
-                $line = $builder->forOrderItem($item, Quantity::of($item->getRawOriginal('quantity') ?? $item->quantity), Money::fromTiyin($shares[$index]));
-            } catch (Throwable $e) {
-                // FiscalLineBuilder refuses a dish or service without MXIK in fiscal mode
-                $problems[] = 'mxik_missing';
-                $details['items'][] = $name;
+            foreach ($receiptParts as $part) {
+                $name = (string) $part['item']->product_name;
 
-                continue;
+                try {
+                    $line = $builder->forOrderItem($part['item'], $part['quantity'], Money::fromTiyin($part['amount']));
+                } catch (Throwable $e) {
+                    // FiscalLineBuilder refuses a dish or service without MXIK in fiscal mode
+                    $problems[] = 'mxik_missing';
+                    $details['items'][] = $name;
+
+                    continue;
+                }
+
+                $lineProblems = $this->lineProblems($line);
+                if ($lineProblems !== []) {
+                    $problems = [...$problems, ...$lineProblems];
+                    $details['items'][] = $name;
+                }
+                $lines[] = $this->withCommissioner($line, $tin);
             }
-
-            $lineProblems = $this->lineProblems($line);
-            if ($lineProblems !== []) {
-                $problems = [...$problems, ...$lineProblems];
-                $details['items'][] = $name;
-            }
-            $lines[] = $this->withCommissioner($line, $tin);
         }
 
         if ($items->isEmpty()) {
@@ -132,6 +142,19 @@ class OnlineFiscalReceiptBuilder
 
             $problems = [...$problems, ...$this->lineProblems($line)];
             $lines[] = $this->withCommissioner($line, $tin);
+        }
+
+        // P6-34: the packaging lines, each with its own MXIK (PackagingFiscal)
+        if (Money::of($order->getAttribute('packaging_amount'))->isPositive()) {
+            try {
+                foreach (\App\Domain\Pos\Takeaway\PackagingFiscal::linesOf($store, $order) as $line) {
+                    $problems = [...$problems, ...$this->lineProblems($line)];
+                    $lines[] = $this->withCommissioner($line, $tin);
+                }
+            } catch (Throwable $e) {
+                $problems[] = 'charge_mxik_missing';
+                $details['charges'][] = \App\Domain\Pos\Takeaway\PackagingFiscal::CHARGE;
+            }
         }
 
         $deliveryLine = null;

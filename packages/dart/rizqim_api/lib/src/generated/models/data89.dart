@@ -4,36 +4,93 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_fee3.dart';
-import 'tables4.dart';
+import 'source.dart';
+import 'shifts3.dart';
+import 'rizqim_breakdown2.dart';
+import 'transactions2.dart';
+import 'unmatched2.dart';
+import 'history2.dart';
+import 'entered_by2.dart';
 
 part 'data89.g.dart';
 
 @JsonSerializable()
 class Data89 {
   const Data89({
-    required this.id,
+    required this.uuid,
+    required this.shiftUuid,
+    required this.zNumber,
     required this.branchId,
-    required this.name,
-    required this.sortOrder,
-    required this.isActive,
-    required this.serviceFee,
-    required this.tables,
+    required this.businessDate,
+    required this.source,
+    required this.terminalRef,
+    required this.shared,
+    required this.finalValue,
+    required this.shifts,
+    required this.bankTotal,
+    required this.bankCount,
+    required this.rizqimTotal,
+    required this.rizqimCount,
+    required this.rizqimBreakdown,
+    required this.difference,
+    required this.threshold,
+    required this.overThreshold,
+    required this.transactions,
+    required this.unmatched,
+    required this.history,
+    required this.note,
+    required this.enteredBy,
+    required this.alertedAt,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data89.fromJson(Map<String, Object?> json) => _$Data89FromJson(json);
 
-  final int id;
+  final String uuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String name;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'service_fee')
-  final ServiceFee3? serviceFee;
-  final List<Tables4> tables;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final Source source;
+  @JsonKey(name: 'terminal_ref')
+  final String? terminalRef;
+  final bool shared;
+
+  /// The name has been replaced because it contains a keyword. Original name: `final`.
+  @JsonKey(name: 'final')
+  final bool finalValue;
+  final List<Shifts3> shifts;
+  @JsonKey(name: 'bank_total')
+  final String bankTotal;
+  @JsonKey(name: 'bank_count')
+  final int? bankCount;
+  @JsonKey(name: 'rizqim_total')
+  final String? rizqimTotal;
+  @JsonKey(name: 'rizqim_count')
+  final int? rizqimCount;
+  @JsonKey(name: 'rizqim_breakdown')
+  final RizqimBreakdown2? rizqimBreakdown;
+  final String? difference;
+  final String? threshold;
+  @JsonKey(name: 'over_threshold')
+  final bool? overThreshold;
+  final List<Transactions2>? transactions;
+  final Unmatched2? unmatched;
+  final List<History2> history;
+  final String? note;
+  @JsonKey(name: 'entered_by')
+  final EnteredBy2? enteredBy;
+  @JsonKey(name: 'alerted_at')
+  final String? alertedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data89ToJson(this);
 }

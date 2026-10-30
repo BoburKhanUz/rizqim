@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Menu\BatchPlanController;
 use App\Http\Controllers\Api\V1\Menu\BatchWriteOffController;
 use App\Http\Controllers\Api\V1\Menu\BatchYieldController;
 use App\Http\Controllers\Api\V1\Menu\ChannelPriceController;
+use App\Http\Controllers\Api\V1\Menu\ComboController;
 use App\Http\Controllers\Api\V1\Menu\DailyMenuController;
 use App\Http\Controllers\Api\V1\Menu\MealSetController;
 use App\Http\Controllers\Api\V1\Menu\ModifierGroupController;
@@ -66,6 +67,13 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     Route::post('/owner/meal-sets', [MealSetController::class, 'store'])->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
     Route::put('/owner/meal-sets/{id}', [MealSetController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
     Route::delete('/owner/meal-sets/{id}', [MealSetController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo_meal']);
+
+    // P6-31: the combo constructor (module combo)
+    Route::get('/owner/combos', [ComboController::class, 'index'])->middleware(['permission:menu.view,menu.manage', 'pos.module:combo']);
+    Route::post('/owner/combos', [ComboController::class, 'store'])->middleware(['permission:menu.manage', 'pos.module:combo']);
+    Route::put('/owner/combos/{id}', [ComboController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo']);
+    Route::delete('/owner/combos/{id}', [ComboController::class, 'destroy'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.manage', 'pos.module:combo']);
+    Route::post('/owner/combos/{id}/preview', [ComboController::class, 'preview'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:menu.view,menu.manage', 'pos.module:combo']);
 
     // The branch stop-list
     Route::get('/owner/stop-list', [StopListController::class, 'index'])->middleware('permission:stoplist.manage,menu.view');

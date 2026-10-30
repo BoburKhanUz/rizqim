@@ -4,29 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device25.dart';
-import 'store4.dart';
-import 'branch16.dart';
-import 'branches3.dart';
+import 'device23.dart';
+import 'errors2.dart';
 
 part 'data267.g.dart';
 
 @JsonSerializable()
 class Data267 {
   const Data267({
+    required this.serverTime,
     required this.device,
-    required this.store,
-    required this.branch,
-    required this.branches,
+    required this.errors,
+    required this.errorsCount,
   });
 
   factory Data267.fromJson(Map<String, Object?> json) =>
       _$Data267FromJson(json);
 
-  final Device25 device;
-  final Store4? store;
-  final Branch16? branch;
-  final List<Branches3> branches;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  final Device23 device;
+  final List<Errors2> errors;
+  @JsonKey(name: 'errors_count')
+  final int errorsCount;
 
   Map<String, Object?> toJson() => _$Data267ToJson(this);
 }

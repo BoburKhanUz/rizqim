@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/get_v1_pos_floor_response.dart';
 import '../models/get_v1_pos_orders_response.dart';
 import '../models/get_v1_pos_orders_uuid_response.dart';
+import '../models/get_v1_pos_pickup_slots_response.dart';
 import '../models/post_v1_pos_orders_response.dart';
 import '../models/post_v1_pos_orders_uuid_accept_response.dart';
 import '../models/post_v1_pos_orders_uuid_cancel_response.dart';
@@ -22,12 +23,15 @@ import '../models/post_v1_pos_orders_uuid_items_item_void_response.dart';
 import '../models/post_v1_pos_orders_uuid_items_item_weight_response.dart';
 import '../models/post_v1_pos_orders_uuid_merge_response.dart';
 import '../models/post_v1_pos_orders_uuid_move_response.dart';
+import '../models/post_v1_pos_orders_uuid_packaging_rule_remove_response.dart';
+import '../models/post_v1_pos_orders_uuid_packaging_rule_restore_response.dart';
 import '../models/post_v1_pos_orders_uuid_reject_response.dart';
 import '../models/post_v1_pos_orders_uuid_request_bill_response.dart';
 import '../models/post_v1_pos_orders_uuid_rounds_response.dart';
 import '../models/post_v1_pos_orders_uuid_send_response.dart';
 import '../models/post_v1_pos_orders_uuid_table_label_response.dart';
 import '../models/post_v1_pos_orders_uuid_transfer_response.dart';
+import '../models/put_v1_pos_orders_uuid_pickup_time_response.dart';
 import '../models/scope2.dart';
 import '../models/v1_pos_orders_request_body.dart';
 import '../models/v1_pos_orders_uuid_accept_request_body.dart';
@@ -43,6 +47,9 @@ import '../models/v1_pos_orders_uuid_items_item_void_request_body.dart';
 import '../models/v1_pos_orders_uuid_items_item_weight_request_body.dart';
 import '../models/v1_pos_orders_uuid_merge_request_body.dart';
 import '../models/v1_pos_orders_uuid_move_request_body.dart';
+import '../models/v1_pos_orders_uuid_packaging_rule_remove_request_body.dart';
+import '../models/v1_pos_orders_uuid_packaging_rule_restore_request_body.dart';
+import '../models/v1_pos_orders_uuid_pickup_time_request_body.dart';
 import '../models/v1_pos_orders_uuid_reject_request_body.dart';
 import '../models/v1_pos_orders_uuid_request_bill_request_body.dart';
 import '../models/v1_pos_orders_uuid_rounds_request_body.dart';
@@ -349,6 +356,53 @@ abstract class PosOrdersApi {
     @Body() required V1PosOrdersUuidMoveRequestBody body,
   });
 
+  /// Take a packaging line off the order.
+  ///
+  /// `reason` is required ("mijoz o'z paketini olib keldi"). The line stays on the order with `removed: true` and 0.
+  /// so'm (charges.packaging_lines), the total goes down. 422 `packaging_not_found` (the order has no such line) or.
+  /// `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited.
+  /// (`pos.packaging_removed`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/packaging/{rule}/remove')
+  Future<PostV1PosOrdersUuidPackagingRuleRemoveResponse>
+  posTakeawayRemovePackaging({
+    @Path('uuid') required String uuid,
+    @Path('rule') required String rule,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidPackagingRuleRemoveRequestBody body,
+  });
+
+  /// Put a packaging line back.
+  ///
+  /// 422 `not_removed`. Audited (`pos.packaging_restored`).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/orders/{uuid}/packaging/{rule}/restore')
+  Future<PostV1PosOrdersUuidPackagingRuleRestoreResponse>
+  posTakeawayRestorePackaging({
+    @Path('uuid') required String uuid,
+    @Path('rule') required String rule,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidPackagingRuleRestoreRequestBody body,
+  });
+
+  /// Set the pickup time of a takeaway.
+  ///
+  /// `pickup_at` (ISO time): at least the branch's lead time from now (422 `pickup_too_soon`, `data.earliest_at`),.
+  /// inside the window (422 `pickup_too_far`) and the opening hours (422 `pickup_closed`; the 24/7 module: any hour).
+  /// The lines not sent yet wait and go to the kitchen at `pickup.kitchen_fire_at` (pickup_at − the prep time) by.
+  /// themselves. `pickup_at: null` takes the time off: the kitchen gets the order now. 409 `already_in_kitchen` once.
+  /// it was sent. Audited.
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @PUT('/v1/pos/orders/{uuid}/pickup-time')
+  Future<PutV1PosOrdersUuidPickupTimeResponse> posTakeawaySetPickupTime({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() required V1PosOrdersUuidPickupTimeRequestBody body,
+  });
+
   /// Reject an online order.
   ///
   /// A new online order is rejected at the till: `new` → `rejected` (the customer is told; an online payment is.
@@ -442,4 +496,11 @@ abstract class PosOrdersApi {
     @Header('Idempotency-Key') required String idempotencyKey,
     @Body() required V1PosOrdersUuidTransferRequestBody body,
   });
+
+  /// Pickup times the till may offer.
+  ///
+  /// Every `slot_minutes` from the earliest allowed time to the end of the window, inside the opening hours (24/7: all.
+  /// day). `at` UTC, `time` the store's "HH:MM", `business_date` the day it belongs to.
+  @GET('/v1/pos/pickup-slots')
+  Future<GetV1PosPickupSlotsResponse> posTakeawaySlots();
 }

@@ -64,6 +64,8 @@ export interface OrderItem {
   modifiers?: OrderItemModifier[] | null;
   modifiers_total?: Decimal;
   total_price: Decimal;
+  // P6-31: a combo line's parts as sold; the label is how a part reads under the combo (no price)
+  combo_parts?: Array<{ slot_name: string; name: string; variant_name: string | null; quantity: number; label: string }> | null;
   created_at: string;
   updated_at: string;
   variant?: OrderItemVariant | null;
@@ -84,6 +86,15 @@ export interface ShippingAddress {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+}
+
+// P6-34: one packaging line of an order (a bag, a soup bowl): its own line on the receipt; a removed one is 0
+export interface OrderPackagingLine {
+  rule_id: number;
+  name: string;
+  quantity: number;
+  amount: Decimal;
+  removed?: boolean;
 }
 
 export interface Order {
@@ -117,6 +128,10 @@ export interface Order {
   // P6-13: the pickup number of the day (a branch with order numbers; null before it is accepted) and where it is
   queue_number?: number | null;
   pickup_status?: 'preparing' | 'ready' | 'handed' | null;
+  // P6-34: a pickup for later (the time the customer comes) and the packaging lines added by the branch's rules
+  pickup_at?: string | null;
+  packaging_amount?: Decimal;
+  packaging_lines?: OrderPackagingLine[] | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

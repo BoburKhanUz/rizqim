@@ -14,7 +14,7 @@ Items57 _$Items57FromJson(Map<String, dynamic> json) => Items57(
   unit: json['unit'] as String,
   quantityLabel: json['quantity_label'] as String,
   modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers33.fromJson(e as Map<String, dynamic>))
+      .map((e) => Modifiers35.fromJson(e as Map<String, dynamic>))
       .toList(),
   kitchenStatus: json['kitchen_status'] as String,
   readyAt: json['ready_at'] as String?,
@@ -32,6 +32,8 @@ Items57 _$Items57FromJson(Map<String, dynamic> json) => Items57(
   courseNo: (json['course_no'] as num?)?.toInt(),
   weightStatus: json['weight_status'] as String?,
   waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
+  lateValue: json['late'] as bool?,
   unitPrice: json['unit_price'] as String?,
   modifiersTotal: json['modifiers_total'] as String?,
   totalPrice: json['total_price'] as String?,
@@ -61,6 +63,8 @@ Map<String, dynamic> _$Items57ToJson(Items57 instance) => <String, dynamic>{
   'course_no': instance.courseNo,
   'weight_status': instance.weightStatus,
   'wait_minutes': instance.waitMinutes,
+  'target_seconds': instance.targetSeconds,
+  'late': instance.lateValue,
   'unit_price': instance.unitPrice,
   'modifiers_total': instance.modifiersTotal,
   'total_price': instance.totalPrice,

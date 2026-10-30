@@ -4,74 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'blocks2.dart';
+
 part 'data254.g.dart';
 
 @JsonSerializable()
 class Data254 {
   const Data254({
-    required this.uuid,
-    required this.branchId,
+    required this.numbers,
+    required this.calling,
     required this.businessDate,
-    required this.guestName,
-    required this.guestPhone,
-    required this.guestPhoneMasked,
-    required this.partySize,
-    required this.quotedWaitMinutes,
-    required this.note,
-    required this.status,
-    required this.statusLabel,
-    required this.position,
-    required this.waitedMinutes,
-    required this.diningTableId,
-    required this.tableName,
-    required this.orderUuid,
-    required this.notifiedAt,
-    required this.seatedAt,
-    required this.closedAt,
-    required this.version,
-    required this.createdAt,
+    required this.blockSize,
+    required this.lowWater,
+    required this.blocks,
+    required this.nextNumber,
   });
 
   factory Data254.fromJson(Map<String, Object?> json) =>
       _$Data254FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
+  final bool numbers;
+  final bool calling;
   @JsonKey(name: 'business_date')
   final String businessDate;
-  @JsonKey(name: 'guest_name')
-  final String guestName;
-  @JsonKey(name: 'guest_phone')
-  final String? guestPhone;
-  @JsonKey(name: 'guest_phone_masked')
-  final String? guestPhoneMasked;
-  @JsonKey(name: 'party_size')
-  final int partySize;
-  @JsonKey(name: 'quoted_wait_minutes')
-  final int? quotedWaitMinutes;
-  final String? note;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final int? position;
-  @JsonKey(name: 'waited_minutes')
-  final int waitedMinutes;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_name')
-  final String? tableName;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'notified_at')
-  final String? notifiedAt;
-  @JsonKey(name: 'seated_at')
-  final String? seatedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'block_size')
+  final int blockSize;
+  @JsonKey(name: 'low_water')
+  final int lowWater;
+  final List<Blocks2> blocks;
+  @JsonKey(name: 'next_number')
+  final int? nextNumber;
 
   Map<String, Object?> toJson() => _$Data254ToJson(this);
 }

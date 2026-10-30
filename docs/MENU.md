@@ -236,3 +236,83 @@ Mini App: sotuvda yo'q taom kartasida "Tugadi" ostida "Keyingi partiya 12:30".
 Migratsiyalar: `2026_11_10_400100_create_menu_batch_plans_table`, `..400200_create_menu_batch_writeoffs_table` (+ `menu_batches.written_off_quantity`),
 `..400300_create_daily_menus_tables` (+ `products.daily_rotation`, keyin `2026_11_11_300100_create_branch_product_rotation_table` bilan filial jadvaliga ko'chirildi), `..400400_create_daily_sets_tables` (+ `order_items.set_parts`).
 Testlar: `tests/Feature/PosMenu` (DailyMenuTest, DailyMenuBranchRotationTest, MealSetTest, BatchPlansTest, BatchWriteOffTest).
+
+## 13. Kombo (P6-31)
+
+Modul `combo` (fast_food va dark_kitchen profillarida o'zi yoqilgan, Start tarifida bor). Konstruktor `pos.module:combo` ortida;
+sotuv, chek, qaytarish modulga hech qachon qaramaydi (modul o'chsa ham bor kombo sotilaveradi).
+
+**Kompleks bilan farqi.** Kompleks (`combo_meal`, §12) — o'zgarmas to'plam, tanlov yo'q; u avvalgidek qoladi. Kombo — menyudagi
+oddiy mahsulot (narxi, MXIK, kanal narxlari, bugungi menyu o'zining), xaridor tarkibini **slotlarda** tanlaydi. Bitta mahsulot ham
+kompleks, ham kombo bo'lolmaydi; kombo tarkibida kombo yoki kompleks bo'lmaydi; tarkib — faqat dona bilan sotiladigan taom.
+
+**Jadvallar.** `combos` (do'kon, `product_id` unikal, `is_active`), `combo_slots` (tartibda: `name` "Asosiy"/"Ichimlik"/"Sous",
+`min_picks` — 0 ixtiyoriy, `max_picks` 1–10, `allow_modifiers`), `combo_slot_options` (`product_variant_id`, `quantity` — bitta
+komboda nechta dona, `price_delta` ≥ 0, `modifiers` — oldindan qo'yilgan [{modifier_id, quantity}], `is_default` — slotda bitta,
+`label` — chekdagi matn). 8 tagacha slot, slotda 20 tagacha tanlov.
+
+**Narx.** Bitta kombo = kombo mahsulotining kanal narxi + Σ(tanlov farqi × soni) + slot ruxsat bersa xaridor tarkibga **qo'shgan**
+modifikatorlar narxi (oldindan qo'yilgani tanlov narxiga kiradi; olib tashlansa pul qaytmaydi). Qatorda: `unit_price` — kombo narxi,
+`modifiers_total` — o'z modifikatorlari + tarkib farqlari, `total_price` = §3 formulasi (bir marta yaxlitlanadi). Pul — decimal satr.
+
+**Tanlov (server, POS va Telegram/Mini App bir xil — `Combos::resolve`).** Qator `combo: [{option_id, quantity?, modifiers?}]`:
+- tanlov shu komboniki (aks holda 422 `combo_option_invalid`), hozir sotiladi (stop-list, tugagan partiya, bugungi menyuda yo'q,
+  filialda o'chirilgan, oldindan qo'yilgan modifikator stopda — 422 `combo_option_unavailable`: eskirgan tanlov, menyuni yangilang);
+- slotdagi soni min/max ichida (`combo_slot_required` / `combo_slot_limit`); **qoldirilgan majburiy slot standart tanlovini oladi**
+  (kassada bir bosishda "Kombo 1"); ixtiyoriy slot qoldirilsa — bo'sh;
+- `allow_modifiers` slotida `modifiers` tarkib taomining o'z guruhlari bo'yicha tekshiriladi (qator modifikatorlari kabi).
+- Javob `{code, data: {reason, errors}}`, kalit `items.{i}.combo`. Kombo qatorlari hech qachon birlashtirilmaydi (`merge`).
+
+**Mavjudlik.** Majburiy slotida sotiladigan tanlov qolmagan kombo **yopiladi**: `MenuAvailability` va checkout stop-listida
+`stopped.products` ga tushadi (sabab: "Kombodagi "Ichimlik" tanlovida hozir mavjud taom yo'q"), kompleks kabi. Katalogda mahsulotning
+`combo` maydoni (`{id, uuid, product_id, slots[{id, uuid, name, min_picks, max_picks, is_required, allow_modifiers, options[{id, uuid,
+variant_id, variant_uuid, product_id, name, variant_name, quantity, price_delta, modifiers[], is_default, label, receipt_label}]}]}`,
+kombo emas — `null`); menyudan o'chirilgan taomli tanlov ko'rsatilmaydi. POS katalogida har tanlovda `is_available` (filial bo'yicha);
+Mini App `availability` dan o'zi hisoblaydi. Sotilmaydigan tanlov ko'rsatilmaydi.
+
+**Buyurtma qatori.** Kombo — BITTA narxli qator, `order_items.combo_parts` (sotuv paytidagi nusxa: slot, tanlov, variant, dona,
+modifikatorlar, `price_delta`, `list_price`, `label`, oshxona qatorining `item_id`). Har tarkib uchun **nol narxli oshxona qatori**
+(`combo_parent_id`): o'z sexiga yo'naltiriladi (taomning marshruti), KDS'da kombo nomi bilan (`combo: {item_id, name, quantity}`)
+ko'rinadi va o'sha yerda "tayyor" qilinadi. Bu qatorlar `OrderItem` global scope bilan **hamma boshqa so'rovdan yashirin** (schyot,
+chek, bo'lish, qaytarish, hisobotlar, Telegram kartasi kombo qatorini ko'radi) — pul ikki marta sanalmaydi. Oshxona ularni
+`OrderItem::withComboParts()` / `comboChildren()` bilan o'qiydi. Bog'lanish (`ComboKitchen`):
+- tarkib "tayyor"/"qaytarildi" → kombo qatori: hamma tarkib (o'chirilmagan) tayyor bo'lsa `ready` (oxirgi tarkib vaqti bilan),
+  biri qaytsa yana `sent`; buyurtmaning "hamma qator tayyor", navbat raqami va kurslar shu qatorni o'qiydi;
+- kombo qatori → tarkib: oshxonaga yuborildi (`sent_at`, sexlar), o'chirildi (sabab bilan), berildi, bir butun "tayyor"/qaytarildi,
+  boshqa buyurtmaga ko'chdi (birlashtirish), raund, kurs, o'rin o'zgardi. Ommaviy yangilashlar (OrderStatusService, PickupQueue)
+  tarkibni ham oladi. Kombo qatorining o'zi hech qaysi sexga bormaydi (`station_id` null).
+- **Tarkibni alohida o'chirib yoki qaytarib bo'lmaydi** (POS 404 `item_not_found`): kombo bir butun.
+- Tarkib taomlarining qoldig'i va qozon partiyasi kombo sotuvidan kamaymaydi (kompleks kabi; ochiq masala). Kombo mahsulotining
+  o'z varianti qoldig'i kamayadi.
+
+**Chek va fiskal (egasi qarori 30.10.2026).** Mijoz chekida va schyotda bitta qator — kombo nomi, soni, umumiy narxi; tagida tarkib
+narxsiz (`combo_parts[].label`: egasining yorlig'i, bo'lmasa "<slot> — <taom> (<variant>), <modifikatorlar>"). Schyot `items[]`
+elementida `combo_parts[{slot_name, name, variant_name, quantity, label}]` (narxsiz). Fiskal chek — do'kon sozlamasi
+`fiscal_settings.combo_fiscal_mode` (`ComboFiscalMode`):
+- `single` (standart): bitta qator, kombo mahsulotining o'z MXIK va qadoq kodi bilan;
+- `split` (buxgalter so'rasa): har tarkib o'z MXIK'i bilan alohida qator. **Qoldiq qoidasi:** qatorning (chegirmadan keyingi,
+  schyot ulushidagi) summasi tiyinda tarkiblarning `list_price` (taomning kanal narxi + modifikatorlari × dona) nisbatida
+  bo'linadi — eng katta qoldiq usuli, qolgan tiyinlar eng katta kasrli qismlarga birma-bir, teng bo'lsa oldingi slotga; hamma
+  `list_price` nol bo'lsa teng, qoldiq birinchiga. Yig'indi har doim kombo qatori summasiga teng; xizmat haqi o'z qatori (bo'linmaydi).
+  Miqdor — tarkib donasi × komboning soni. Onlayn to'lov cheki (Click/Payme) ham shu qoida bilan.
+
+**Qaytarish.** Qaytarish summa bo'yicha (to'lovdan); kombo qatori bir butun qaytariladi — REFUND cheki `split` rejimda ham
+tarkib qatorlariga shu nisbatda bo'linadi (yig'indi = qaytarilgan summa). Tarkibning bir qismini qaytarish — keyin.
+
+**Hisobot.** `GET /owner/reports/top-products`: kombo — kombo nomi bilan (`products`), tarkib oshxona qatorlari sanalmaydi;
+`combo_parts[{name, in_combos, alone, total}]` — taom komboda va o'zi sotilgani ("lavash 120 = 80 + 40"). Smena Z hisobotida
+o'chirilgan kombo bitta o'chirish.
+
+**Egasi.** `GET/POST /owner/combos`, `PUT/DELETE /owner/combos/{id}`, `POST /owner/combos/{id}/preview` (chek ko'rinishi),
+o'qish `menu.view`, yozish `menu.manage`; jurnal `menu.combo_saved`, `menu.combo_deleted`. Fiskal rejim — `PUT /owner/fiscal/settings`
+(`settings.manage`, `settings.fiscal_changed` jurnali). Panel: Menyu → Kombo (`/menu/combos`).
+
+**Internetsiz (pos_data).** Katalogdagi `combo` saqlanadi; `PosComboPricing.resolve` server bilan bir xil qoida va narx (standart,
+min/max, sotilmaydigan tanlov, qo'shilgan modifikator). `order.open`/`order.round` qatori `combo` (tanlovlar) va `combo_delta`
+(kassa hisoblagan farq) olib keladi; server tanlovni qayta tekshirmaydi (mavjudlik), lekin a'zolik va chegaralarni tekshiradi;
+farqni o'zi hisoblaydi va mos kelmasa `offline_price_mismatch` belgisi qo'yadi. Kassa ko'rinishida qator `combo_parts` bilan.
+
+Migratsiyalar: `2026_11_14_100100_create_combos_tables`, `2026_11_14_100200_add_combo_columns_to_order_items_table`
+(`order_items.combo_parts`, `order_items.combo_parent_id`). Testlar: `tests/Feature/PosFastFood/ComboTest.php`,
+`ComboReceiptTest.php`; `pos/packages/pos_data/test/combo_test.dart`; panel `src/components/combos`, `e2e/combos.spec.ts`;
+Mini App `ProductSheet.combo.test.tsx`.

@@ -7,29 +7,35 @@ part of 'data146.dart';
 // **************************************************************************
 
 Data146 _$Data146FromJson(Map<String, dynamic> json) => Data146(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  userId: (json['user_id'] as num?)?.toInt(),
-  userName: json['user_name'] as String?,
-  role: json['role'] as String?,
-  roleLabel: json['role_label'] as String?,
-  effectiveFrom: json['effective_from'] as String,
-  components: (json['components'] as List<dynamic>)
-      .map((e) => Components3.fromJson(e as Map<String, dynamic>))
+  period: Period2.fromJson(json['period'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  summary: Summary3.fromJson(json['summary'] as Map<String, dynamic>),
+  byStatus: Map<String, int>.from(json['by_status'] as Map),
+  series: (json['series'] as List<dynamic>)
+      .map((e) => Series.fromJson(e as Map<String, dynamic>))
       .toList(),
-  note: json['note'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  byChannel: (json['by_channel'] as List<dynamic>)
+      .map((e) => ByChannel2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byBranch: (json['by_branch'] as List<dynamic>)
+      .map((e) => ByBranch.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
+      .map((e) => ByPaymentMethod2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byOrderType: (json['by_order_type'] as List<dynamic>)
+      .map((e) => ByOrderType2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data146ToJson(Data146 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
+  'period': instance.period,
   'branch_id': instance.branchId,
-  'user_id': instance.userId,
-  'user_name': instance.userName,
-  'role': instance.role,
-  'role_label': instance.roleLabel,
-  'effective_from': instance.effectiveFrom,
-  'components': instance.components,
-  'note': instance.note,
-  'updated_at': instance.updatedAt,
+  'summary': instance.summary,
+  'by_status': instance.byStatus,
+  'series': instance.series,
+  'by_channel': instance.byChannel,
+  'by_branch': instance.byBranch,
+  'by_payment_method': instance.byPaymentMethod,
+  'by_order_type': instance.byOrderType,
 };

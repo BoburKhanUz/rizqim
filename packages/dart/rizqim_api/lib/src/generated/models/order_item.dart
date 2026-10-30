@@ -9,6 +9,7 @@ import 'kitchen_item_status.dart';
 import 'menu_batch.dart';
 import 'menu_unit.dart';
 import 'order.dart';
+import 'order_item.dart';
 import 'product_variant.dart';
 import 'weight_basis.dart';
 import 'weight_status.dart';
@@ -18,7 +19,7 @@ part 'order_item.g.dart';
 @JsonSerializable()
 class OrderItem {
   const OrderItem({
-    required this.modifiersTotal,
+    required this.batchId,
     required this.orderId,
     required this.productVariantId,
     required this.productName,
@@ -31,8 +32,8 @@ class OrderItem {
     required this.deletedAt,
     required this.unit,
     required this.modifiers,
+    required this.modifiersTotal,
     required this.id,
-    required this.batchId,
     required this.batchQuantity,
     required this.kitchenStatus,
     required this.readyAt,
@@ -43,10 +44,10 @@ class OrderItem {
     required this.dueAt,
     required this.addedBy,
     required this.voidedAt,
-    required this.weighedAt,
+    required this.voidedBy,
     required this.voidReason,
     required this.seatNo,
-    required this.note,
+    required this.comboParentId,
     required this.clientLineId,
     required this.priceSource,
     required this.setParts,
@@ -54,7 +55,11 @@ class OrderItem {
     required this.weightStatus,
     required this.weightBasis,
     required this.weighedBy,
-    required this.voidedBy,
+    required this.weighedAt,
+    required this.comboParts,
+    required this.note,
+    this.comboChildren,
+    this.comboParent,
     this.order,
     this.productVariant,
     this.batch,
@@ -132,6 +137,14 @@ class OrderItem {
   final dynamic weighedBy;
   @JsonKey(name: 'weighed_at')
   final DateTime? weighedAt;
+  @JsonKey(name: 'combo_parts')
+  final List<Map<String, dynamic>>? comboParts;
+  @JsonKey(name: 'combo_parent_id')
+  final int? comboParentId;
+  @JsonKey(name: 'combo_children')
+  final List<OrderItem>? comboChildren;
+  @JsonKey(name: 'combo_parent')
+  final OrderItem? comboParent;
   final Order? order;
   @JsonKey(name: 'product_variant')
   final ProductVariant? productVariant;

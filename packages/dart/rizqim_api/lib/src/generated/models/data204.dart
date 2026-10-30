@@ -4,33 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls2.dart';
-import 'untabled_orders.dart';
+import 'channel6.dart';
+import 'branch14.dart';
+import 'category.dart';
+import 'products.dart';
+import 'availability.dart';
 
 part 'data204.g.dart';
 
 @JsonSerializable()
 class Data204 {
   const Data204({
-    required this.branchId,
-    required this.generatedAt,
-    required this.overdueAfterHours,
-    required this.halls,
-    required this.untabledOrders,
+    required this.channel,
+    required this.menuVersion,
+    required this.branch,
+    required this.categories,
+    required this.products,
+    required this.availability,
   });
 
   factory Data204.fromJson(Map<String, Object?> json) =>
       _$Data204FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'generated_at')
-  final String generatedAt;
-  @JsonKey(name: 'overdue_after_hours')
-  final int overdueAfterHours;
-  final List<Halls2> halls;
-  @JsonKey(name: 'untabled_orders')
-  final List<UntabledOrders> untabledOrders;
+  final Channel6 channel;
+  @JsonKey(name: 'menu_version')
+  final String menuVersion;
+  final Branch14 branch;
+  final List<Category> categories;
+  final List<Products> products;
+  final Availability availability;
 
   Map<String, Object?> toJson() => _$Data204ToJson(this);
 }

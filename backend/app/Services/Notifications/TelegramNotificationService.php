@@ -360,6 +360,10 @@ class TelegramNotificationService
         foreach ($order->items as $item) {
             // P1-21: "2x Osh (Qazi)", "1.5 kg Somsa": weight and modifiers as sold
             $message .= "🍔 {$item->displayLine()}\n";
+            // P6-31: a combo's parts under it, without prices
+            foreach (\App\Domain\Pos\Menu\Combos::receiptParts($item->combo_parts) as $part) {
+                $message .= "   • {$part['label']}\n";
+            }
         }
 
         // P1-21: the POS hall's service charge and place fee, as their own lines when charged

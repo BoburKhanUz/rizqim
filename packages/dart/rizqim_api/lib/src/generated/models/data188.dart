@@ -4,35 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'channel6.dart';
-import 'branch14.dart';
-import 'category.dart';
-import 'products.dart';
-import 'availability.dart';
+import 'rooms.dart';
+import 'unassigned.dart';
 
 part 'data188.g.dart';
 
 @JsonSerializable()
 class Data188 {
   const Data188({
-    required this.channel,
-    required this.menuVersion,
-    required this.branch,
-    required this.categories,
-    required this.products,
-    required this.availability,
+    required this.branchId,
+    required this.from,
+    required this.to,
+    required this.timezone,
+    required this.rooms,
+    required this.unassigned,
   });
 
   factory Data188.fromJson(Map<String, Object?> json) =>
       _$Data188FromJson(json);
 
-  final Channel6 channel;
-  @JsonKey(name: 'menu_version')
-  final String menuVersion;
-  final Branch14 branch;
-  final List<Category> categories;
-  final List<Products> products;
-  final Availability availability;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String from;
+  final String to;
+  final String timezone;
+  final List<Rooms> rooms;
+  final List<Unassigned> unassigned;
 
   Map<String, Object?> toJson() => _$Data188ToJson(this);
 }

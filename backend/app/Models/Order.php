@@ -55,6 +55,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * P3-17: the booking the order was opened from ("Keldi") and when a pre-order is due
  * @property int|null $booking_id
  * @property \Illuminate\Support\Carbon|null $due_at
+ * @property numeric-string $packaging_amount P6-34
+ * @property array<int, array<string, mixed>>|null $packaging_lines P6-34: App\Domain\Pos\Takeaway\PackagingRules::LINE
+ * @property \Illuminate\Support\Carbon|null $pickup_at P6-34: a pickup for later (ScheduledPickup)
+ * @property \Illuminate\Support\Carbon|null $kitchen_fire_at
+ * @property \Illuminate\Support\Carbon|null $kitchen_fired_at
  *
  * P3 integration fix: when the owner was told the hall order is open too long (once per order, R20)
  * @property \Illuminate\Support\Carbon|null $long_open_alerted_at
@@ -165,6 +170,12 @@ class Order extends Model
             'pickup_called_at' => 'datetime',
             'pickup_call_count' => 'integer',
             'pickup_handed_at' => 'datetime',
+            // P6-34: packaging lines (App\Domain\Pos\Takeaway\PackagingRules) and the pickup time (ScheduledPickup)
+            'packaging_amount' => 'decimal:2',
+            'packaging_lines' => 'array',
+            'pickup_at' => 'datetime',
+            'kitchen_fire_at' => 'datetime',
+            'kitchen_fired_at' => 'datetime',
         ];
     }
 

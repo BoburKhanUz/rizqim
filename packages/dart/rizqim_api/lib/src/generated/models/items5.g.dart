@@ -14,6 +14,9 @@ Items5 _$Items5FromJson(Map<String, dynamic> json) => Items5(
   quantity: json['quantity'] as num,
   amount: json['amount'] as String,
   discountAmount: json['discount_amount'] as String,
+  comboParts: (json['combo_parts'] as List<dynamic>?)
+      ?.map((e) => ComboParts3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Items5ToJson(Items5 instance) => <String, dynamic>{
@@ -24,4 +27,5 @@ Map<String, dynamic> _$Items5ToJson(Items5 instance) => <String, dynamic>{
   'quantity': instance.quantity,
   'amount': instance.amount,
   'discount_amount': instance.discountAmount,
+  'combo_parts': instance.comboParts,
 };

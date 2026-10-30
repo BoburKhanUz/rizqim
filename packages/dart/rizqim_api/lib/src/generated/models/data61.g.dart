@@ -7,33 +7,23 @@ part of 'data61.dart';
 // **************************************************************************
 
 Data61 _$Data61FromJson(Map<String, dynamic> json) => Data61(
+  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  type: json['type'] as String,
-  name: json['name'] as String,
-  platform: json['platform'] as String?,
-  appVersion: json['app_version'] as String?,
-  storeId: (json['store_id'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  user: json['user'] == null
-      ? null
-      : User13.fromJson(json['user'] as Map<String, dynamic>),
-  hasPushToken: json['has_push_token'] as bool,
-  lastSeenAt: json['last_seen_at'] as String?,
-  revokedAt: json['revoked_at'] as String?,
-  createdAt: json['created_at'] as String?,
+  productId: (json['product_id'] as num).toInt(),
+  productName: json['product_name'] as String?,
+  prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
+  isActive: json['is_active'] as bool,
+  slots: (json['slots'] as List<dynamic>)
+      .map((e) => Slots3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data61ToJson(Data61 instance) => <String, dynamic>{
+  'id': instance.id,
   'uuid': instance.uuid,
-  'type': instance.type,
-  'name': instance.name,
-  'platform': instance.platform,
-  'app_version': instance.appVersion,
-  'store_id': instance.storeId,
-  'branch_id': instance.branchId,
-  'user': instance.user,
-  'has_push_token': instance.hasPushToken,
-  'last_seen_at': instance.lastSeenAt,
-  'revoked_at': instance.revokedAt,
-  'created_at': instance.createdAt,
+  'product_id': instance.productId,
+  'product_name': instance.productName,
+  'prices': instance.prices,
+  'is_active': instance.isActive,
+  'slots': instance.slots,
 };

@@ -7,7 +7,7 @@ part of 'order_item.dart';
 // **************************************************************************
 
 OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
-  modifiersTotal: json['modifiers_total'] as String,
+  batchId: (json['batch_id'] as num?)?.toInt(),
   orderId: (json['order_id'] as num).toInt(),
   productVariantId: (json['product_variant_id'] as num?)?.toInt(),
   productName: json['product_name'] as String,
@@ -28,8 +28,8 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   modifiers: (json['modifiers'] as List<dynamic>?)
       ?.map((e) => e as Map<String, dynamic>)
       .toList(),
+  modifiersTotal: json['modifiers_total'] as String,
   id: (json['id'] as num).toInt(),
-  batchId: (json['batch_id'] as num?)?.toInt(),
   batchQuantity: json['batch_quantity'] as String?,
   kitchenStatus: KitchenItemStatus.fromJson(json['kitchen_status'] as String),
   readyAt: json['ready_at'] == null
@@ -50,12 +50,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   voidedAt: json['voided_at'] == null
       ? null
       : DateTime.parse(json['voided_at'] as String),
-  weighedAt: json['weighed_at'] == null
-      ? null
-      : DateTime.parse(json['weighed_at'] as String),
+  voidedBy: json['voided_by'],
   voidReason: json['void_reason'] as String?,
   seatNo: (json['seat_no'] as num?)?.toInt(),
-  note: json['note'] as String?,
+  comboParentId: (json['combo_parent_id'] as num?)?.toInt(),
   clientLineId: json['client_line_id'] as String?,
   priceSource: json['price_source'] as String?,
   setParts: (json['set_parts'] as List<dynamic>?)
@@ -69,7 +67,19 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
       ? null
       : WeightBasis.fromJson(json['weight_basis'] as String),
   weighedBy: json['weighed_by'],
-  voidedBy: json['voided_by'],
+  weighedAt: json['weighed_at'] == null
+      ? null
+      : DateTime.parse(json['weighed_at'] as String),
+  comboParts: (json['combo_parts'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
+  note: json['note'] as String?,
+  comboChildren: (json['combo_children'] as List<dynamic>?)
+      ?.map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  comboParent: json['combo_parent'] == null
+      ? null
+      : OrderItem.fromJson(json['combo_parent'] as Map<String, dynamic>),
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -121,6 +131,10 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'weight_basis': instance.weightBasis,
   'weighed_by': instance.weighedBy,
   'weighed_at': instance.weighedAt?.toIso8601String(),
+  'combo_parts': instance.comboParts,
+  'combo_parent_id': instance.comboParentId,
+  'combo_children': instance.comboChildren,
+  'combo_parent': instance.comboParent,
   'order': instance.order,
   'product_variant': instance.productVariant,
   'batch': instance.batch,

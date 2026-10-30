@@ -1,0 +1,18 @@
+SIZE 58 mm,40 mm
+GAP 2 mm,0 mm
+DIRECTION 1,0
+REFERENCE 0,0
+DENSITY 8
+CLS
+BAR 8,77,448,2
+TEXT 8,16,"2",0,2,2,"#57"
+TEXT 9,16,"2",0,2,2,"#57"
+TEXT 8,96,"2",0,1,1,"Olib ketish"
+TEXT 9,96,"2",0,1,1,"Olib ketish"
+TEXT 8,124,"2",0,1,1,"Mahsulot: 3 ta"
+TEXT 8,152,"2",0,1,1,"Dilnoza"
+TEXT 8,180,"2",0,1,1,"Olib ketish: 12:40"
+TEXT 9,180,"2",0,1,1,"Olib ketish: 12:40"
+REVERSE 6,176,220,28
+TEXT 8,264,"2",0,1,1,"20.11.2026 12:15"
+PRINT 1,2

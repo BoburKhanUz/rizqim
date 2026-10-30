@@ -98,7 +98,7 @@ describe('AppShell', () => {
     renderShell();
 
     // reports.view also opens the shifts (X and Z reports) and the fiscal receipts
-    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Choy puli', 'Xodimlar', 'Filiallar', 'Fiskal', 'Hisobotlar']);
+    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Kombo', 'Bugungi menyu', 'Hosil hisoboti', 'Tayyorlash vaqti', 'Smenalar', 'Choy puli', 'Xodimlar', 'Filiallar', 'Fiskal', 'Hisobotlar']);
     expect(screen.getByText('page content')).toBeInTheDocument();
     expect(screen.getByText('Menejer')).toBeInTheDocument();
   });
@@ -112,7 +112,7 @@ describe('AppShell', () => {
     });
     renderShell();
     expect(await navLabels()).toEqual([
-      'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Choy puli', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
+      'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Kombo', 'Bugungi menyu', 'Hosil hisoboti', 'Tayyorlash vaqti', 'Smenalar', 'Choy puli', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
       'Kassa sozlamalari', 'Fiskal', 'Hisobotlar', 'Moliya', "Tarif va to'lov",
     ]);
   });
@@ -179,7 +179,7 @@ describe('AppShell', () => {
       'GET /api/v1/staff/orders': noOrders,
     });
     renderShell();
-    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Qozon']);
+    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Qozon', 'Kombo']);
     expect(screen.getByText('page content')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Qozon' })).toHaveAttribute('aria-current', 'page');
     expect(replace).not.toHaveBeenCalled();

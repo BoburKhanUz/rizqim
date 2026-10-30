@@ -54,11 +54,11 @@ class PosOrderController extends PosHallController
 {
     public const ITEM = 'array{id: int, round_no: int|null, product_variant_id: int|null, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, unit_price: string, modifiers: list<array{id: int, name: string, group_name: string|null, quantity: int, price_delta: string}>, modifiers_total: string, total_price: string, note: string|null, seat_no: int|null, fire_mode: string|null, due_at: string|null, kitchen_status: string, station_id: int|null, sent_at: string|null, ready_at: string|null, added_by: array{id: int, name: string|null}|null, added_at: string|null, voided_at: string|null, voided_by: array{id: int, name: string|null}|null, void_reason: string|null, course_no: int|null, weight_status: string|null, weight_basis: string|null, weighed_by: array{id: int, name: string|null}|null, weighed_at: string|null}';
 
-    public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
+    public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null, packaging_amount: string, packaging_lines: list<' . \App\Domain\Pos\Takeaway\PackagingRules::LINE . '>, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
 
     public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, queue: ' . PickupQueue::QUEUE . '|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, queue: ' . PickupQueue::QUEUE . '|null, rounds: int, courses: list<array{course_no: int, status: string, items: int, sent: int, ready: int, served: int}>, weight_pending: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, packaging_amount: string, pickup: ' . \App\Domain\Pos\Takeaway\ScheduledPickup::PICKUP . '|null, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, queue: ' . PickupQueue::QUEUE . '|null, rounds: int, courses: list<array{course_no: int, status: string, items: int, sent: int, ready: int, served: int}>, weight_pending: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -123,11 +123,29 @@ class PosOrderController extends PosHallController
             // P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later)
             'items.*.course_no' => 'nullable|integer|min:1|max:' . PosCourses::MAX_COURSE,
             'items.*.awaiting_weight' => 'nullable|boolean',
+            // P6-31: a combo's picks ({option_id, quantity?, modifiers?}; docs/MENU.md "Kombo")
+            'items.*.combo' => 'nullable|array|max:30',
+            'items.*.combo.*.option_id' => 'required|uuid',
+            'items.*.combo.*.quantity' => 'nullable|integer|min:1|max:10',
+            'items.*.combo.*.modifiers' => 'nullable|array|max:20',
             // P6-25: the table plate of a counter order carried to the table (module table_service)
             'table_label' => 'nullable|string|max:20',
+            // P6-34: a takeaway picked up later (module scheduled_pickup): its lines wait for their kitchen time
+            'pickup_at' => 'nullable|date',
         ]);
 
         $branch = $this->branchFor($request, $user, Permission::ORDERS_MANAGE);
+        $pickupAt = isset($data['pickup_at']) ? \Illuminate\Support\Carbon::parse($data['pickup_at'])->utc() : null;
+        if ($pickupAt !== null) {
+            if ($data['channel'] !== OrderChannel::POS_TAKEAWAY->value) {
+                throw ValidationException::withMessages(['pickup_at' => "Olib ketish vaqti faqat olib ketish buyurtmasiga beriladi."]);
+            }
+            try {
+                app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->assertForPos($branch, $pickupAt);
+            } catch (\App\Domain\Pos\Orders\PosOrderException $e) {
+                return $this->error($e->getMessage(), ['reason' => $e->reason] + $e->data, $e->status);
+            }
+        }
         $tableLabel = isset($data['table_label']) && trim((string) $data['table_label']) !== '' ? trim((string) $data['table_label']) : null;
         if ($tableLabel !== null) {
             app(PosModules::class)->assertEnabled($branch, PosModule::TABLE_SERVICE);
@@ -156,6 +174,7 @@ class PosOrderController extends PosHallController
             'note' => $data['note'] ?? null,
             'queue_number' => isset($data['queue_number']) ? (int) $data['queue_number'] : null,
             'table_label' => $tableLabel,
+            'pickup_at' => $pickupAt,
         ]), 'Buyurtma ochildi.', 201);
     }
 
@@ -188,6 +207,10 @@ class PosOrderController extends PosHallController
             'items.*.due_at' => 'nullable|date',
             'items.*.course_no' => 'nullable|integer|min:1|max:' . PosCourses::MAX_COURSE, // P6-21
             'items.*.awaiting_weight' => 'nullable|boolean', // P6-25
+            'items.*.combo' => 'nullable|array|max:30', // P6-31
+            'items.*.combo.*.option_id' => 'required|uuid',
+            'items.*.combo.*.quantity' => 'nullable|integer|min:1|max:10',
+            'items.*.combo.*.modifiers' => 'nullable|array|max:20',
             'approval_token' => 'nullable|string|max:255',
         ]);
 

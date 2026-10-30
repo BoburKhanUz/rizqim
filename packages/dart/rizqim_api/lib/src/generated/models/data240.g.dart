@@ -7,73 +7,115 @@ part of 'data240.dart';
 // **************************************************************************
 
 Data240 _$Data240FromJson(Map<String, dynamic> json) => Data240(
+  openedBy: (json['opened_by'] as num).toInt(),
+  shortCode: json['short_code'] as String?,
+  status: json['status'] as String,
+  channel: json['channel'] as String,
+  type: json['type'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  version: (json['version'] as num).toInt(),
+  hall: json['hall'] == null
+      ? null
+      : Hall15.fromJson(json['hall'] as Map<String, dynamic>),
+  table: json['table'] == null
+      ? null
+      : Table15.fromJson(json['table'] as Map<String, dynamic>),
+  hallRef: json['hall_ref'] as String?,
+  tableRef: json['table_ref'] as String?,
+  tableLabel: json['table_label'] as String?,
+  guestsCount: (json['guests_count'] as num?)?.toInt(),
+  waiter: json['waiter'] == null
+      ? null
+      : Waiter18.fromJson(json['waiter'] as Map<String, dynamic>),
   uuid: json['uuid'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  source: Source.fromJson(json['source'] as String),
-  terminalRef: json['terminal_ref'] as String?,
-  shared: json['shared'] as bool,
-  finalValue: json['final'] as bool,
-  shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  bankTotal: json['bank_total'] as String,
-  bankCount: (json['bank_count'] as num?)?.toInt(),
-  rizqimTotal: json['rizqim_total'] as String?,
-  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
-  rizqimBreakdown: json['rizqim_breakdown'] == null
-      ? null
-      : RizqimBreakdown4.fromJson(
-          json['rizqim_breakdown'] as Map<String, dynamic>,
-        ),
-  difference: json['difference'] as String?,
-  threshold: json['threshold'] as String?,
-  overThreshold: json['over_threshold'] as bool?,
-  transactions: (json['transactions'] as List<dynamic>?)
-      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  unmatched: json['unmatched'] == null
-      ? null
-      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
-  history: (json['history'] as List<dynamic>)
-      .map((e) => History4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  note: json['note'] as String?,
-  enteredBy: json['entered_by'] == null
-      ? null
-      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
-  alertedAt: json['alerted_at'] as String?,
-  createdAt: json['created_at'] as String?,
+  deviceId: (json['device_id'] as num?)?.toInt(),
+  bookingId: (json['booking_id'] as num?)?.toInt(),
+  bookingUuid: json['booking_uuid'] as String?,
+  depositAvailable: json['deposit_available'] as String,
+  billLocked: json['bill_locked'] as bool,
+  billRequestedAt: json['bill_requested_at'] as String?,
+  notes: json['notes'] as String?,
+  openedAt: json['opened_at'] as String?,
   updatedAt: json['updated_at'] as String?,
+  subtotal: json['subtotal'] as String,
+  discount: json['discount'] as String,
+  discountKind: json['discount_kind'] == null
+      ? null
+      : DiscountKind.fromJson(json['discount_kind'] as String?),
+  discountValue: json['discount_value'] as String?,
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items39.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  discountBy: (json['discount_by'] as num?)?.toInt(),
+  serviceChargeAmount: json['service_charge_amount'] as String,
+  placeFeeAmount: json['place_fee_amount'] as String,
+  roomFeeAmount: json['room_fee_amount'] as String,
+  minSpendTopupAmount: json['min_spend_topup_amount'] as String,
+  packagingAmount: json['packaging_amount'] as String,
+  pickup: json['pickup'] == null
+      ? null
+      : Pickup14.fromJson(json['pickup'] as Map<String, dynamic>),
+  totalPrice: json['total_price'] as String,
+  charges: Charges18.fromJson(json['charges'] as Map<String, dynamic>),
+  offline: json['offline'] == null
+      ? null
+      : Offline14.fromJson(json['offline'] as Map<String, dynamic>),
+  queue: json['queue'] == null
+      ? null
+      : Queue16.fromJson(json['queue'] as Map<String, dynamic>),
+  rounds: (json['rounds'] as num).toInt(),
+  courses: (json['courses'] as List<dynamic>)
+      .map((e) => Courses13.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  weightPending: (json['weight_pending'] as num).toInt(),
+  discountReason: json['discount_reason'] as String?,
 );
 
 Map<String, dynamic> _$Data240ToJson(Data240 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'shift_uuid': instance.shiftUuid,
-  'z_number': instance.zNumber,
+  'short_code': instance.shortCode,
+  'status': instance.status,
+  'channel': instance.channel,
+  'type': instance.type,
+  'store_id': instance.storeId,
   'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'source': instance.source,
-  'terminal_ref': instance.terminalRef,
-  'shared': instance.shared,
-  'final': instance.finalValue,
-  'shifts': instance.shifts,
-  'bank_total': instance.bankTotal,
-  'bank_count': instance.bankCount,
-  'rizqim_total': instance.rizqimTotal,
-  'rizqim_count': instance.rizqimCount,
-  'rizqim_breakdown': instance.rizqimBreakdown,
-  'difference': instance.difference,
-  'threshold': instance.threshold,
-  'over_threshold': instance.overThreshold,
-  'transactions': instance.transactions,
-  'unmatched': instance.unmatched,
-  'history': instance.history,
-  'note': instance.note,
-  'entered_by': instance.enteredBy,
-  'alerted_at': instance.alertedAt,
-  'created_at': instance.createdAt,
+  'version': instance.version,
+  'hall': instance.hall,
+  'table': instance.table,
+  'hall_ref': instance.hallRef,
+  'table_ref': instance.tableRef,
+  'table_label': instance.tableLabel,
+  'guests_count': instance.guestsCount,
+  'waiter': instance.waiter,
+  'opened_by': instance.openedBy,
+  'device_id': instance.deviceId,
+  'booking_id': instance.bookingId,
+  'booking_uuid': instance.bookingUuid,
+  'deposit_available': instance.depositAvailable,
+  'bill_locked': instance.billLocked,
+  'bill_requested_at': instance.billRequestedAt,
+  'notes': instance.notes,
+  'opened_at': instance.openedAt,
   'updated_at': instance.updatedAt,
+  'subtotal': instance.subtotal,
+  'discount': instance.discount,
+  'discount_kind': instance.discountKind,
+  'discount_value': instance.discountValue,
+  'discount_reason': instance.discountReason,
+  'discount_by': instance.discountBy,
+  'service_charge_amount': instance.serviceChargeAmount,
+  'place_fee_amount': instance.placeFeeAmount,
+  'room_fee_amount': instance.roomFeeAmount,
+  'min_spend_topup_amount': instance.minSpendTopupAmount,
+  'packaging_amount': instance.packagingAmount,
+  'pickup': instance.pickup,
+  'total_price': instance.totalPrice,
+  'charges': instance.charges,
+  'offline': instance.offline,
+  'queue': instance.queue,
+  'rounds': instance.rounds,
+  'courses': instance.courses,
+  'weight_pending': instance.weightPending,
+  'items': instance.items,
 };

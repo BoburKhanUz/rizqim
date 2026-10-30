@@ -14,7 +14,7 @@ Sets _$SetsFromJson(Map<String, dynamic> json) => Sets(
   prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
   isActive: json['is_active'] as bool,
   parts: (json['parts'] as List<dynamic>)
-      .map((e) => Parts.fromJson(e as Map<String, dynamic>))
+      .map((e) => Parts2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

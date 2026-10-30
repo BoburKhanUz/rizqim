@@ -7,7 +7,7 @@ part of 'order_bill.dart';
 // **************************************************************************
 
 OrderBill _$OrderBillFromJson(Map<String, dynamic> json) => OrderBill(
-  id: (json['id'] as num).toInt(),
+  minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   branchId: (json['branch_id'] as num?)?.toInt(),
@@ -18,7 +18,7 @@ OrderBill _$OrderBillFromJson(Map<String, dynamic> json) => OrderBill(
   subtotal: json['subtotal'] as String,
   discount: json['discount'] as String,
   roomFeeAmount: json['room_fee_amount'] as String,
-  minSpendTopupAmount: json['min_spend_topup_amount'] as String,
+  id: (json['id'] as num).toInt(),
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   total: json['total'] as String,
@@ -32,7 +32,7 @@ OrderBill _$OrderBillFromJson(Map<String, dynamic> json) => OrderBill(
       ? null
       : DateTime.parse(json['paid_at'] as String),
   shiftId: (json['shift_id'] as num?)?.toInt(),
-  fiscalReceiptUuid: json['fiscal_receipt_uuid'] as String?,
+  packagingAmount: json['packaging_amount'] as String,
   fiscalStatus: json['fiscal_status'] as String?,
   fiscalError: json['fiscal_error'] as String?,
   createdBy: (json['created_by'] as num?)?.toInt(),
@@ -47,6 +47,7 @@ OrderBill _$OrderBillFromJson(Map<String, dynamic> json) => OrderBill(
       : DateTime.parse(json['updated_at'] as String),
   seatNo: (json['seat_no'] as num?)?.toInt(),
   waiterId: (json['waiter_id'] as num?)?.toInt(),
+  fiscalReceiptUuid: json['fiscal_receipt_uuid'] as String?,
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -89,6 +90,7 @@ Map<String, dynamic> _$OrderBillToJson(OrderBill instance) => <String, dynamic>{
   'updated_at': instance.updatedAt?.toIso8601String(),
   'seat_no': instance.seatNo,
   'waiter_id': instance.waiterId,
+  'packaging_amount': instance.packagingAmount,
   'order': instance.order,
   'items': instance.items,
   'payments': instance.payments,

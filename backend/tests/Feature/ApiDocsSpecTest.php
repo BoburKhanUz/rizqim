@@ -123,6 +123,18 @@ class ApiDocsSpecTest extends TestCase
         }
     }
 
+    public function test_a_request_body_is_never_built_from_an_injected_class(): void
+    {
+        // Scramble reads a class injected into a controller method as part of the body (an `allOf` with its schema) and
+        // drops `required`: the generated Dart client then fails to compile. Resolve services inside the method instead.
+        foreach ($this->doc['paths'] as $path => $operations) {
+            foreach ($operations as $method => $operation) {
+                $schema = $operation['requestBody']['content']['application/json']['schema'] ?? [];
+                $this->assertArrayNotHasKey('allOf', $schema, "{$method} {$path}");
+            }
+        }
+    }
+
     public function test_paths_are_sorted_for_stable_diffs(): void
     {
         $paths = array_keys($this->doc['paths']);

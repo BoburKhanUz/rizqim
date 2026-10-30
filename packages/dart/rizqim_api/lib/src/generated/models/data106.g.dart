@@ -7,23 +7,21 @@ part of 'data106.dart';
 // **************************************************************************
 
 Data106 _$Data106FromJson(Map<String, dynamic> json) => Data106(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data105.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  enabled: json['enabled'] as bool,
+  limits: Limits2.fromJson(json['limits'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products5.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data106ToJson(Data106 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'branch_id': instance.branchId,
+  'enabled': instance.enabled,
+  'limits': instance.limits,
+  'stations': instance.stations,
+  'products': instance.products,
 };

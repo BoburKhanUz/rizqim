@@ -11,7 +11,7 @@ GetV1PosBookingsCalendarResponse _$GetV1PosBookingsCalendarResponseFromJson(
 ) => GetV1PosBookingsCalendarResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data172.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data188.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBookingsCalendarResponseToJson(

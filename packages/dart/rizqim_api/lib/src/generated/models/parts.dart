@@ -9,29 +9,21 @@ part 'parts.g.dart';
 @JsonSerializable()
 class Parts {
   const Parts({
-    required this.variantId,
-    required this.variantUuid,
-    required this.productId,
+    required this.slotName,
     required this.name,
     required this.variantName,
     required this.quantity,
-    required this.unit,
     required this.label,
   });
 
   factory Parts.fromJson(Map<String, Object?> json) => _$PartsFromJson(json);
 
-  @JsonKey(name: 'variant_id')
-  final int variantId;
-  @JsonKey(name: 'variant_uuid')
-  final String variantUuid;
-  @JsonKey(name: 'product_id')
-  final int productId;
+  @JsonKey(name: 'slot_name')
+  final String slotName;
   final String name;
   @JsonKey(name: 'variant_name')
   final String? variantName;
-  final String quantity;
-  final String unit;
+  final int quantity;
   final String label;
 
   Map<String, Object?> toJson() => _$PartsToJson(this);

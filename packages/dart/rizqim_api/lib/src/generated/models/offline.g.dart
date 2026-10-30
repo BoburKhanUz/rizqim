@@ -21,7 +21,7 @@ Offline _$OfflineFromJson(Map<String, dynamic> json) => Offline(
   guestItems: (json['guest_items'] as List<dynamic>)
       .map((e) => GuestItems.fromJson(e as Map<String, dynamic>))
       .toList(),
-  limits: Limits.fromJson(json['limits'] as Map<String, dynamic>),
+  limits: Limits3.fromJson(json['limits'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$OfflineToJson(Offline instance) => <String, dynamic>{

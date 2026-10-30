@@ -7,27 +7,31 @@ part of 'data235.dart';
 // **************************************************************************
 
 Data235 _$Data235FromJson(Map<String, dynamic> json) => Data235(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal16.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  orderUuid: json['order_uuid'] as String,
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
+      ? null
+      : PickupStatus.fromJson(json['status'] as String),
+  channel: json['channel'] as String,
+  orderStatus: json['order_status'] as String,
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data235ToJson(Data235 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
   'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
-  'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
+  'number': instance.number,
+  'business_date': instance.businessDate,
+  'status': instance.status,
+  'channel': instance.channel,
+  'order_status': instance.orderStatus,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
+  'opened_at': instance.openedAt,
 };

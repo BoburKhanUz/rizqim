@@ -113,7 +113,10 @@ typedef TransportFactory = PrinterTransport Function(PrinterConfig config);
 /// Standart transportlar: LAN, Windows spooler, Sunmi.
 PrinterTransport defaultTransportFor(PrinterConfig config) =>
     switch (config.target) {
-      final LanPrinterTarget t => LanPrinterTransport(t),
+      final LanPrinterTarget t => LanPrinterTransport(
+        t,
+        language: config.language,
+      ),
       final WindowsPrinterTarget t => WindowsPrinterTransport(t),
       SunmiPrinterTarget() => SunmiPrinterTransport(),
     };

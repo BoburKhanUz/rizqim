@@ -110,6 +110,18 @@ enum PrintTextMode {
   image,
 }
 
+/// Printer qaysi buyruq tilini biladi (P6-32): chek va marka printerlari ESC/POS, yorliq (stiker) printerlari TSPL.
+enum PrinterLanguage {
+  escpos,
+  tspl;
+
+  /// Sozlamadagi nom; noma'lum yoki yo'q — [escpos] (hamma eski sozlamalar).
+  static PrinterLanguage byName(String? name) => values.firstWhere(
+    (PrinterLanguage l) => l.name == name,
+    orElse: () => escpos,
+  );
+}
+
 /// Bitta printer sozlamasi.
 final class PrinterConfig {
   const PrinterConfig({
@@ -122,6 +134,7 @@ final class PrinterConfig {
     this.hasCutter = true,
     this.drawerPin = 0,
     this.fontFamily,
+    this.language = PrinterLanguage.escpos,
   });
 
   factory PrinterConfig.fromJson(Map<String, Object?> json) {
@@ -144,6 +157,7 @@ final class PrinterConfig {
       hasCutter: json['has_cutter'] as bool? ?? true,
       drawerPin: (json['drawer_pin'] as num?)?.toInt() ?? 0,
       fontFamily: json['font_family'] as String?,
+      language: PrinterLanguage.byName(json['language'] as String?),
     );
   }
 
@@ -166,6 +180,9 @@ final class PrinterConfig {
   /// Rasm rejimidagi shrift (ilovaga qo'shilgan monospace shrift tavsiya etiladi); `null` — platforma standarti.
   final String? fontFamily;
 
+  /// Buyruq tili (label printer — [PrinterLanguage.tspl]: holat `ESC !?` bilan so'raladi, `DLE EOT` yuborilmaydi).
+  final PrinterLanguage language;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'id': id,
     'name': name,
@@ -177,6 +194,7 @@ final class PrinterConfig {
     'has_cutter': hasCutter,
     'drawer_pin': drawerPin,
     if (fontFamily != null) 'font_family': fontFamily,
+    if (language != PrinterLanguage.escpos) 'language': language.name,
   };
 
   PrinterConfig copyWith({
@@ -197,6 +215,7 @@ final class PrinterConfig {
     hasCutter: hasCutter ?? this.hasCutter,
     drawerPin: drawerPin ?? this.drawerPin,
     fontFamily: fontFamily,
+    language: language,
   );
 }
 

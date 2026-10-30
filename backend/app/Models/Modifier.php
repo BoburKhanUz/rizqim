@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property array<string, string>|null $name_i18n
  * @property numeric-string $price_delta
  * @property int $max_quantity
+ * @property bool $is_default P6-32: preselected on the till's tile (a hint; the order carries explicit choices)
  * @property bool $is_active
  */
 class Modifier extends Model
@@ -26,6 +27,7 @@ class Modifier extends Model
         'name_i18n' => 'array',
         'price_delta' => 'decimal:2',
         'max_quantity' => 'integer',
+        'is_default' => 'boolean',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
@@ -33,6 +35,7 @@ class Modifier extends Model
     protected $attributes = [
         'price_delta' => '0.00',
         'max_quantity' => 1,
+        'is_default' => false,
         'is_active' => true,
         'sort_order' => 0,
     ];

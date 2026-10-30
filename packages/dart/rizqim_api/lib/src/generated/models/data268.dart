@@ -11,9 +11,8 @@ class Data268 {
   const Data268({
     required this.id,
     required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
+    required this.serviceState,
+    required this.serviceStateAt,
   });
 
   factory Data268.fromJson(Map<String, Object?> json) =>
@@ -21,11 +20,10 @@ class Data268 {
 
   final int id;
   final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  @JsonKey(name: 'service_state')
+  final String? serviceState;
+  @JsonKey(name: 'service_state_at')
+  final String? serviceStateAt;
 
   Map<String, Object?> toJson() => _$Data268ToJson(this);
 }

@@ -23,7 +23,7 @@ part 'products.g.dart';
 @JsonSerializable()
 class Products {
   const Products({
-    required this.createdAt,
+    required this.updatedAt,
     required this.uuid,
     required this.storeId,
     required this.categoryId,
@@ -35,8 +35,8 @@ class Products {
     required this.status,
     required this.sortOrder,
     required this.hasVariants,
+    required this.createdAt,
     required this.id,
-    required this.updatedAt,
     required this.deletedAt,
     required this.image,
     required this.batchTracked,
@@ -47,6 +47,7 @@ class Products {
     required this.quickAdd,
     required this.quickMultipliers,
     required this.waitMinutes,
+    required this.weightMode,
     required this.stationId,
     required this.isActive,
     required this.imageUrl,
@@ -54,7 +55,7 @@ class Products {
     required this.unavailableReason,
     required this.isAvailable,
     required this.variants,
-    required this.weightMode,
+    required this.kdsTargetSeconds,
     required this.modifierGroups,
     this.channelPrices,
     this.batches,
@@ -106,6 +107,8 @@ class Products {
   final int? waitMinutes;
   @JsonKey(name: 'weight_mode')
   final String? weightMode;
+  @JsonKey(name: 'kds_target_seconds')
+  final int? kdsTargetSeconds;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')

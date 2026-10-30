@@ -191,7 +191,7 @@ class FiscalApiTest extends TestCase
             ->assertJsonPath('data.tin_set', false)
             ->assertJsonPath('data.products_missing_mxik.0.id', $missing->id)
             ->assertJsonCount(1, 'data.products_missing_mxik')
-            ->assertJsonPath('data.charges_missing_mxik', ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery']);
+            ->assertJsonPath('data.charges_missing_mxik', ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery', 'packaging']);
         $this->as($this->customer, 'GET', '/api/v1/owner/fiscal/readiness')->assertForbidden();
     }
 

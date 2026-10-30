@@ -55,6 +55,9 @@ return [
         'credit' => ['name' => "Qarz to'lovi (nasiya)", 'mxik' => '10202002004000001', 'unit' => 'xizmat'],
         // Delivery of an online order (P3-14, Payme/Click receipts): group 10202002, exact code not published
         'delivery' => ['name' => 'Yetkazib berish', 'mxik' => null, 'unit' => 'xizmat'],
+        // P6-34 (B8): the packaging lines (a bag, a disposable container) whose rule has no code of its own; the owner
+        // sets the code from tasnif.soliq.uz (a goods code, not a service of group 10202002)
+        'packaging' => ['name' => 'Qadoq', 'mxik' => null, 'unit' => 'dona'],
     ],
 
 ];

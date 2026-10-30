@@ -7,25 +7,21 @@ part of 'summary3.dart';
 // **************************************************************************
 
 Summary3 _$Summary3FromJson(Map<String, dynamic> json) => Summary3(
-  total: (json['total'] as num).toInt(),
-  waiting: (json['waiting'] as num).toInt(),
-  seated: (json['seated'] as num).toInt(),
-  canceled: (json['canceled'] as num).toInt(),
-  noShow: (json['no_show'] as num).toInt(),
-  partySizeTotal: (json['party_size_total'] as num).toInt(),
-  avgQuotedWaitMinutes: (json['avg_quoted_wait_minutes'] as num?)?.toInt(),
-  avgSeatedWaitMinutes: (json['avg_seated_wait_minutes'] as num?)?.toInt(),
-  longestWaitingMinutes: (json['longest_waiting_minutes'] as num?)?.toInt(),
+  ordersCount: (json['orders_count'] as num).toInt(),
+  deliveredCount: (json['delivered_count'] as num).toInt(),
+  canceledCount: (json['canceled_count'] as num).toInt(),
+  refundedCount: (json['refunded_count'] as num).toInt(),
+  activeCount: (json['active_count'] as num).toInt(),
+  revenue: json['revenue'] as String,
+  averageCheck: json['average_check'] as String,
 );
 
 Map<String, dynamic> _$Summary3ToJson(Summary3 instance) => <String, dynamic>{
-  'total': instance.total,
-  'waiting': instance.waiting,
-  'seated': instance.seated,
-  'canceled': instance.canceled,
-  'no_show': instance.noShow,
-  'party_size_total': instance.partySizeTotal,
-  'avg_quoted_wait_minutes': instance.avgQuotedWaitMinutes,
-  'avg_seated_wait_minutes': instance.avgSeatedWaitMinutes,
-  'longest_waiting_minutes': instance.longestWaitingMinutes,
+  'orders_count': instance.ordersCount,
+  'delivered_count': instance.deliveredCount,
+  'canceled_count': instance.canceledCount,
+  'refunded_count': instance.refundedCount,
+  'active_count': instance.activeCount,
+  'revenue': instance.revenue,
+  'average_check': instance.averageCheck,
 };

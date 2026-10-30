@@ -11,7 +11,7 @@ PostV1PosOrdersUuidCloseResponse _$PostV1PosOrdersUuidCloseResponseFromJson(
 ) => PostV1PosOrdersUuidCloseResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data215.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data231.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidCloseResponseToJson(

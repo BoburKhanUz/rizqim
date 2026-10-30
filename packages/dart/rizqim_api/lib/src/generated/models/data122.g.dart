@@ -7,49 +7,31 @@ part of 'data122.dart';
 // **************************************************************************
 
 Data122 _$Data122FromJson(Map<String, dynamic> json) => Data122(
-  uuid: json['uuid'] as String,
-  method: json['method'] as String,
-  source: json['source'] as String?,
+  id: (json['id'] as num).toInt(),
   amount: json['amount'] as String,
-  originalAmount: json['original_amount'] as String,
-  mode: json['mode'] as String,
-  staff: json['staff'] == null
-      ? null
-      : Staff4.fromJson(json['staff'] as Map<String, dynamic>),
-  holders: (json['holders'] as List<dynamic>)
-      .map((e) => Holders2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  businessDate: json['business_date'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  shiftUuid: json['shift_uuid'] as String?,
-  recordedBy: json['recorded_by'] == null
-      ? null
-      : RecordedBy2.fromJson(json['recorded_by'] as Map<String, dynamic>),
-  closed: json['closed'] as bool,
-  corrections: (json['corrections'] as List<dynamic>)
-      .map((e) => Corrections3.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  createdAt: json['created_at'] as String?,
+  card: json['card'] as String,
+  status: Status4.fromJson(json['status'] as String),
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  cardNumber: json['card_number'] as String,
+  processedBy: (json['processed_by'] as num?)?.toInt(),
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data122ToJson(Data122 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'method': instance.method,
-  'source': instance.source,
+  'id': instance.id,
   'amount': instance.amount,
-  'original_amount': instance.originalAmount,
-  'mode': instance.mode,
-  'staff': instance.staff,
-  'holders': instance.holders,
-  'business_date': instance.businessDate,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'shift_uuid': instance.shiftUuid,
-  'recorded_by': instance.recordedBy,
-  'closed': instance.closed,
-  'corrections': instance.corrections,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
   'created_at': instance.createdAt,
+  'store_id': instance.storeId,
+  'card_number': instance.cardNumber,
+  'processed_by': instance.processedBy,
+  'updated_at': instance.updatedAt,
 };

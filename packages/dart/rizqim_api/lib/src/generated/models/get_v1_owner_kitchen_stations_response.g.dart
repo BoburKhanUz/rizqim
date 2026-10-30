@@ -11,7 +11,7 @@ GetV1OwnerKitchenStationsResponse _$GetV1OwnerKitchenStationsResponseFromJson(
 ) => GetV1OwnerKitchenStationsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data94.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data109.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerKitchenStationsResponseToJson(

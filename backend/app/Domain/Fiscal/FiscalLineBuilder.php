@@ -24,7 +24,9 @@ interface FiscalLineBuilder
      * The receipt line for a charge (FiscalSettings::CHARGES): `room_fee` (xona puli), `place_fee` (joy puli),
      * `min_spend_topup` (minimal summaga qo'shimcha), `service_charge` (xizmat haqi), `deposit` (booking advance, the
      * ADVANCE receipt's line), `booking_fee` (a retained deposit sold as the booking service), `credit` (a nasiya
-     * repayment, the CREDIT receipt's line) or `delivery` (an online order's delivery). Any other: UNKNOWN_CHARGE.
+     * repayment, the CREDIT receipt's line), `delivery` (an online order's delivery) or `packaging` (P6-34: the
+     * default packaging line; App\Domain\Pos\Takeaway\PackagingFiscal gives each packaging line its own code). Any
+     * other: UNKNOWN_CHARGE.
      */
     public function forCharge(Store $store, string $charge, Money $amount): FiscalLine;
 }

@@ -7,51 +7,31 @@ part of 'data154.dart';
 // **************************************************************************
 
 Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  period: json['period'] as String,
-  periodLabel: json['period_label'] as String,
-  periodFrom: json['period_from'] as String,
-  periodTo: json['period_to'] as String,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  grossTotal: json['gross_total'] as String,
-  payableTotal: json['payable_total'] as String,
-  paidTotal: json['paid_total'] as String,
-  linesCount: (json['lines_count'] as num).toInt(),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings7.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  serviceChargePercent: json['service_charge_percent'] as String,
+  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
+      ?.map((e) => e as String)
       .toList(),
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  version: (json['version'] as num).toInt(),
-  createdAt: json['created_at'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines13.fromJson(e as Map<String, dynamic>))
+  placeFeeAmount: json['place_fee_amount'] as String,
+  placeFeeMode: json['place_fee_mode'] as String,
+  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
+      ?.map((e) => e as String)
       .toList(),
-  openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts6.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  serviceChargeRules: ServiceChargeRules2.fromJson(
+    json['service_charge_rules'] as Map<String, dynamic>,
+  ),
+  serviceChargeNotice: json['service_charge_notice'] as String?,
 );
 
 Map<String, dynamic> _$Data154ToJson(Data154 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
   'branch_id': instance.branchId,
-  'period': instance.period,
-  'period_label': instance.periodLabel,
-  'period_from': instance.periodFrom,
-  'period_to': instance.periodTo,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'gross_total': instance.grossTotal,
-  'payable_total': instance.payableTotal,
-  'paid_total': instance.paidTotal,
-  'lines_count': instance.linesCount,
-  'warnings': instance.warnings,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'version': instance.version,
-  'created_at': instance.createdAt,
-  'lines': instance.lines,
-  'open_shifts': instance.openShifts,
+  'hall_id': instance.hallId,
+  'service_charge_percent': instance.serviceChargePercent,
+  'service_charge_channels': instance.serviceChargeChannels,
+  'place_fee_amount': instance.placeFeeAmount,
+  'place_fee_mode': instance.placeFeeMode,
+  'place_fee_channels': instance.placeFeeChannels,
+  'service_charge_rules': instance.serviceChargeRules,
+  'service_charge_notice': instance.serviceChargeNotice,
 };

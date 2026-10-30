@@ -47,7 +47,7 @@ Booking2 _$Booking2FromJson(Map<String, dynamic> json) => Booking2(
   depositRequired: json['deposit_required'] as String,
   depositMissing: json['deposit_missing'] as String,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items12.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items13.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdBy: (json['created_by'] as num?)?.toInt(),
 );

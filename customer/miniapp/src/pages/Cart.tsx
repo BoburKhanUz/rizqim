@@ -18,12 +18,14 @@ import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ProductSheet from '../components/ProductSheet';
 import { DeliveryQuoteNote } from '../components/catalog/DeliveryQuoteNote';
+import { PickupTimePicker } from '../components/catalog/PickupTimePicker';
 import { SoldOutBadge } from '../components/catalog/SoldOutBadge';
 import { useAuthStore } from '../store/authStore';
 import { getAddBlockedMessage, getVariantStock } from '../lib/stock';
 import { availabilityView, findCartIssues, isProductUnavailable } from '../lib/menuAvailability';
 import { addQuantities, formatQuantity, isMeasuredUnit, subtractQuantities, unitLabel } from '../lib/quantity';
 import { toOrderModifiers } from '../lib/modifiers';
+import { toOrderCombo } from '../lib/combo';
 import { createCheckoutAttempt, newIdempotencyKey } from '../lib/idempotency';
 import { currentLines } from '../lib/cartPricing';
 import { describeOrderFailure } from '../lib/orderErrors';
@@ -131,6 +133,8 @@ export default function Cart() {
   // copying the restaurant's coordinates into hand-typed addresses (see isOnAnyBranch)
   const [branchPoints, setBranchPoints] = useState<LatLng[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  // P6-34: a pickup for later (a slot's `at`); null: as soon as possible
+  const [pickupAt, setPickupAt] = useState<string | null>(null);
   // The store's own delivery fee: only used for a store that has drawn no delivery zones (the quote prices the others)
   const [storeDeliveryFee, setStoreDeliveryFee] = useState(0);
 
@@ -499,6 +503,8 @@ export default function Cart() {
           quantity: item.quantity, // a fraction for an item sold by weight (0.5 kg)
           // The chosen modifiers: [{id: uuid, quantity}]. Prices are never sent: the server prices every line itself
           ...(item.modifiers && item.modifiers.length > 0 ? { modifiers: toOrderModifiers(item.modifiers) } : {}),
+          // P6-31: a combo's picks (the server prices them and checks them again)
+          ...(item.combo && item.combo.length > 0 ? { combo: toOrderCombo(item.combo) } : {}),
         })),
         type: deliveryMethod, // 'delivery' or 'pickup'
         payment_method: effectivePaymentMethod === 'naqd' ? 'cash' : effectivePaymentMethod,
@@ -511,6 +517,8 @@ export default function Cart() {
         address: deliveryMethod === 'delivery' ? (selectedAddress?.address || "") : null,
         latitude: deliveryMethod === 'delivery' ? deliveryPoint?.lat ?? null : null,
         longitude: deliveryMethod === 'delivery' ? deliveryPoint?.lng ?? null : null,
+        // P6-34: the pickup time the customer picked (the server checks it again)
+        ...(deliveryMethod === 'pickup' && pickupAt ? { pickup_at: pickupAt } : {}),
       };
 
       // The same key for a retry of the same order, so a repeated tap or a dropped connection never places two
@@ -878,6 +886,9 @@ export default function Cart() {
             ) : (
               <p className="text-footnote text-danger-soft-fg">Faol filiallar topilmadi</p>
             )}
+            {selectedBranch && cartStoreId && (
+              <PickupTimePicker storeId={parseInt(cartStoreId)} branchId={selectedBranch.id} value={pickupAt} onChange={setPickupAt} />
+            )}
           </Card>
         </Section>
       )}
@@ -904,6 +915,13 @@ export default function Cart() {
                 <ProductImage src={item.image} className={cx('size-14 rounded-control', lineBlocked && 'opacity-50 grayscale')} />
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-body font-bold text-fg">{item.name}</p>
+                  {item.combo && item.combo.length > 0 && (
+                    <ul aria-label="Kombo tarkibi" className="mt-0.5 text-footnote text-fg-muted">
+                      {item.combo.map((part, index) => (
+                        <li key={`${part.optionUuid}-${index}`}>{part.label}</li>
+                      ))}
+                    </ul>
+                  )}
                   {priced.modifiers && priced.modifiers.length > 0 && (
                     <ul aria-label="Tanlangan qo'shimchalar" className="mt-0.5 text-footnote text-fg-muted">
                       {priced.modifiers.map((modifier) => (

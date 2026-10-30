@@ -7,13 +7,49 @@ part of 'data137.dart';
 // **************************************************************************
 
 Data137 _$Data137FromJson(Map<String, dynamic> json) => Data137(
-  channels: json['channels'] as List<dynamic>,
-  settings: (json['settings'] as List<dynamic>)
-      .map((e) => Settings3.fromJson(e as Map<String, dynamic>))
+  uuid: json['uuid'] as String,
+  method: json['method'] as String,
+  source: json['source'] as String?,
+  amount: json['amount'] as String,
+  originalAmount: json['original_amount'] as String,
+  mode: json['mode'] as String,
+  staff: json['staff'] == null
+      ? null
+      : Staff4.fromJson(json['staff'] as Map<String, dynamic>),
+  holders: (json['holders'] as List<dynamic>)
+      .map((e) => Holders2.fromJson(e as Map<String, dynamic>))
       .toList(),
+  businessDate: json['business_date'] as String,
+  orderUuid: json['order_uuid'] as String?,
+  billUuid: json['bill_uuid'] as String?,
+  paymentUuid: json['payment_uuid'] as String?,
+  shiftUuid: json['shift_uuid'] as String?,
+  recordedBy: json['recorded_by'] == null
+      ? null
+      : RecordedBy2.fromJson(json['recorded_by'] as Map<String, dynamic>),
+  closed: json['closed'] as bool,
+  corrections: (json['corrections'] as List<dynamic>)
+      .map((e) => Corrections3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data137ToJson(Data137 instance) => <String, dynamic>{
-  'channels': instance.channels,
-  'settings': instance.settings,
+  'uuid': instance.uuid,
+  'method': instance.method,
+  'source': instance.source,
+  'amount': instance.amount,
+  'original_amount': instance.originalAmount,
+  'mode': instance.mode,
+  'staff': instance.staff,
+  'holders': instance.holders,
+  'business_date': instance.businessDate,
+  'order_uuid': instance.orderUuid,
+  'bill_uuid': instance.billUuid,
+  'payment_uuid': instance.paymentUuid,
+  'shift_uuid': instance.shiftUuid,
+  'recorded_by': instance.recordedBy,
+  'closed': instance.closed,
+  'corrections': instance.corrections,
+  'created_at': instance.createdAt,
 };

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../escpos/code_page.dart';
 import '../escpos/esc_pos_decoder.dart';
+import '../tspl/tspl_decoder.dart';
 
 /// Emulyatorga kelgan bitta ulanish (bitta chop etish).
 class EmulatedPrint {
@@ -13,6 +14,9 @@ class EmulatedPrint {
   final EscPosCodePage codePage;
 
   EscPosDocument get document => EscPosDocument.parse(bytes, initial: codePage);
+
+  /// TSPL (label printer) sifatida: yorliq buyruqlari va emulyatorning "chizishi" ([TsplDocument.render]).
+  TsplDocument get label => TsplDocument.parse(bytes);
 }
 
 /// LAN (raw TCP 9100) ESC/POS printer emulyatori: testlarda va printer yo'q kompyuterda sinash uchun.
@@ -54,6 +58,9 @@ class LanPrinterEmulator {
   bool paperOut = false;
   bool paperNearEnd = false;
   bool coverOpen = false;
+
+  /// TSPL printer: qog'oz tiqilgan (`ESC !?` javobi, bit 0x02).
+  bool jammed = false;
   bool answerStatus = true;
   bool refuseConnections = false;
 
@@ -97,6 +104,13 @@ class LanPrinterEmulator {
   void _answerStatusRequests(Socket socket, Uint8List chunk) {
     if (!answerStatus) return;
     for (var i = 0; i + 2 < chunk.length; i++) {
+      // TSPL: ESC ! ? (bitta bayt)
+      if (chunk[i] == 0x1B && chunk[i + 1] == 0x21 && chunk[i + 2] == 0x3F) {
+        socket.add(<int>[
+          (paperOut ? 0x04 : 0) | (coverOpen ? 0x01 : 0) | (jammed ? 0x02 : 0),
+        ]);
+        continue;
+      }
       if (chunk[i] == 0x10 && chunk[i + 1] == 0x04) {
         final int? answer = statusByte(chunk[i + 2]);
         if (answer != null) socket.add(<int>[answer]);

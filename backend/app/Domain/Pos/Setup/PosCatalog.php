@@ -3,6 +3,7 @@
 namespace App\Domain\Pos\Setup;
 
 use App\Domain\Pos\Menu\MealSets;
+use App\Enums\ModifierDisplayMode;
 use App\Enums\OrderChannel;
 use App\Models\Branch;
 use App\Models\Category;
@@ -27,6 +28,9 @@ use Illuminate\Support\Collection;
  * null; a variant carries its own) and `set_parts` (the dishes of a kompleks, else null). P6-25 (review C6): a product's
  * `weight_mode` only while the branch's `weight_later` module is on (else null: sold by the quantity typed, as the
  * server sells it, PosWeights), so an offline till never holds a line for its weight on a branch without the module.
+ * P6-32 (quick_modifiers): a modifier group carries `display_mode` (dialog, inline, size: where the till shows its
+ * options) and a modifier `is_default` (preselected; false while it is stopped). A branch without the module is served
+ * `dialog` and no defaults, exactly the old behaviour. The order still carries the options chosen explicitly.
  */
 final class PosCatalog
 {
@@ -61,6 +65,9 @@ final class PosCatalog
         ];
 
         $this->annotate($products, $availability, (int) $branch->id, app(MealSets::class)->partsByProduct($storeId));
+        // P6-31: each combo option says whether the branch can sell it now (the till hides the ones it cannot)
+        \App\Domain\Pos\Menu\Combos::markAvailability($products, $availability);
+        $this->hintQuickModifiers($products, $this->modules->enabled($branch, PosModule::QUICK_MODIFIERS));
         if (!$this->modules->enabled($branch, PosModule::WEIGHT_LATER)) {
             $products->each(fn (Product $product) => $product->setAttribute('weight_mode', null));
         }
@@ -78,6 +85,24 @@ final class PosCatalog
             'products' => $products,
             'availability' => $availability,
         ];
+    }
+
+    /**
+     * P6-32: the display hints reach the till only while the branch has quick_modifiers; otherwise every group is a
+     * plain dialog and nothing is preselected. A stopped option is never preselected either.
+     *
+     * @param  Collection<int, Product>  $products
+     */
+    private function hintQuickModifiers(Collection $products, bool $enabled): void
+    {
+        $products->each(fn (Product $product) => $product->modifierGroups->each(function (ModifierGroup $group) use ($enabled) {
+            if (!$enabled) {
+                $group->setAttribute('display_mode', ModifierDisplayMode::DIALOG);
+            }
+            $group->modifiers->each(function (Modifier $modifier) use ($enabled) {
+                $modifier->setAttribute('is_default', $enabled && $modifier->is_default && $modifier->getAttribute('is_available') !== false);
+            });
+        }));
     }
 
     /**

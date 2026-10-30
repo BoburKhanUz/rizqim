@@ -112,9 +112,9 @@ enum FormatProfile: string
             // Phase 3 as it is: the quick counter button next to the hall map, the qozon panel
             self::CHOYXONA => [PosModule::QUICK_COUNTER, PosModule::ROOMS, PosModule::ROOM_FEE, PosModule::GUEST_ITEMS, PosModule::BOOKINGS, PosModule::CUSTOMER_ACCOUNTS, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::BATCHES],
             self::OSH_MARKAZI => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::BATCHES, PosModule::BATCH_WRITEOFF, PosModule::SERVICE_CHARGE],
-            self::LAGMONXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::SERVICE_CHARGE, PosModule::KDS],
-            self::SOMSAXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF, PosModule::BOOKINGS],
-            self::TAMADDIXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF],
+            self::LAGMONXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::PACKAGING],
+            self::SOMSAXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF, PosModule::BOOKINGS, PosModule::PACKAGING],
+            self::TAMADDIXONA => [PosModule::QUICK_COUNTER, PosModule::PHONE_MODE, PosModule::BATCHES, PosModule::BATCH_WRITEOFF, PosModule::PACKAGING],
             self::STOLOVAYA => [PosModule::QUICK_COUNTER, PosModule::DAILY_MENU, PosModule::COMBO_MEAL, PosModule::CUSTOMER_ACCOUNTS, PosModule::CUSTOMER_DISPLAY],
             // Wave 2: the counter order carried to the table plate, the service charge by zone (order type)
             self::KAFE => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::TABLE_SERVICE, PosModule::SERVICE_CHARGE_RULES, PosModule::WAITER_TRANSFER],
@@ -122,10 +122,11 @@ enum FormatProfile: string
             // The assorti is a kompleks (combo_meal, P6-15): one line, its parts listed for the grill
             self::KABOBXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::BOOKINGS, PosModule::SKEWER_BUTTONS, PosModule::COMBO_MEAL, PosModule::WAITER_TRANSFER],
             self::BALIQXONA => [PosModule::SERVICE_CHARGE, PosModule::KDS, PosModule::WEIGHT_LATER, PosModule::WAITER_TRANSFER],
-            self::FAST_FOOD => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::COMBO_MEAL, PosModule::KDS],
-            self::QAHVAXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::KDS],
+            // Wave 3: the combo, packaging, the expo screen and the pickup time; 24/7 is the owner's switch
+            self::FAST_FOOD => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::COMBO_MEAL, PosModule::KDS, PosModule::COMBO, PosModule::QUICK_MODIFIERS, PosModule::LABELS, PosModule::KDS_EXPO, PosModule::PACKAGING, PosModule::SCHEDULED_PICKUP],
+            self::QAHVAXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::KDS, PosModule::QUICK_MODIFIERS, PosModule::LABELS, PosModule::PACKAGING, PosModule::SCHEDULED_PICKUP],
             self::TOYXONA => [PosModule::BOOKINGS, PosModule::ROOMS, PosModule::CUSTOMER_ACCOUNTS],
-            self::DARK_KITCHEN => [PosModule::QUICK_COUNTER, PosModule::KDS],
+            self::DARK_KITCHEN => [PosModule::QUICK_COUNTER, PosModule::KDS, PosModule::COMBO, PosModule::PACKAGING, PosModule::KDS_EXPO],
         };
         $modules[] = PosModule::TERMINAL_CARD_FLOW;
 

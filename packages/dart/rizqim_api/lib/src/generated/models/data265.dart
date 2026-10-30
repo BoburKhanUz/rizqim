@@ -4,18 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'errors.dart';
+import 'meta2.dart';
+
 part 'data265.g.dart';
 
 @JsonSerializable()
 class Data265 {
-  const Data265({required this.rating, required this.reviewCount});
+  const Data265({required this.errors, required this.meta});
 
   factory Data265.fromJson(Map<String, Object?> json) =>
       _$Data265FromJson(json);
 
-  final String rating;
-  @JsonKey(name: 'review_count')
-  final int reviewCount;
+  final List<Errors> errors;
+  final Meta2 meta;
 
   Map<String, Object?> toJson() => _$Data265ToJson(this);
 }

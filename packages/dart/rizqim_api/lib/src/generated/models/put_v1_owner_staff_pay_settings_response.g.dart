@@ -11,7 +11,7 @@ PutV1OwnerStaffPaySettingsResponse _$PutV1OwnerStaffPaySettingsResponseFromJson(
 ) => PutV1OwnerStaffPaySettingsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data147.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data163.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerStaffPaySettingsResponseToJson(

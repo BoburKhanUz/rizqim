@@ -198,12 +198,21 @@ Route::prefix('v1')->group(function () {
     // P6-14: the customer display: state, pickup board for the display, the till's cart feed (docs/API.md)
     require __DIR__ . '/api_pos_display.php';
 
+    // P6-33: KDS v2: the expo station's bump, kitchen time targets, the prep time report (docs/API.md)
+    require __DIR__ . '/api_pos_kds.php';
+
     // P6-22: service charge variants and tips (choy puli): owner settings, report, corrections, pool split; /pos/tips
     require __DIR__ . '/api_pos_tips.php';
 
     // P6-23: staff pay: wage rules, work sessions, pay statements (owner) and the clock-in/out of the till (docs/API.md
     // "Ish haqi qoidalari")
     require __DIR__ . '/api_pos_staff_pay.php';
+
+    // P6-32: the branch's sticker and label settings (owner; the `labels` module)
+    require __DIR__ . '/api_pos_labels.php';
+
+    // P6-34: packaging rules, the pickup time, 24/7 business days (owner, till, Mini App pickup slots)
+    require __DIR__ . '/api_pos_takeaway.php';
 
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")

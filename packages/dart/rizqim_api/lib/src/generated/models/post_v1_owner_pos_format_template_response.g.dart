@@ -11,7 +11,7 @@ _$PostV1OwnerPosFormatTemplateResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerPosFormatTemplateResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data112.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data127.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerPosFormatTemplateResponseToJson(

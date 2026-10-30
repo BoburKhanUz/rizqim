@@ -4,48 +4,69 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pickup_status.dart';
+import 'type6.dart';
+import 'status5.dart';
+import 'payment_form.dart';
+import 'lines26.dart';
+import 'payments27.dart';
 
 part 'data219.g.dart';
 
 @JsonSerializable()
 class Data219 {
   const Data219({
-    required this.orderUuid,
-    required this.number,
-    required this.businessDate,
+    required this.uuid,
+    required this.type,
     required this.status,
-    required this.channel,
-    required this.orderStatus,
-    required this.readyAt,
-    required this.calledAt,
-    required this.callCount,
-    required this.handedAt,
-    required this.openedAt,
+    required this.paymentForm,
+    required this.nonFiscal,
+    required this.total,
+    required this.vatTotal,
+    required this.fiscalSign,
+    required this.receiptNumber,
+    required this.qrUrl,
+    required this.terminalId,
+    required this.error,
+    required this.issuedAt,
+    required this.createdAt,
+    required this.branchId,
+    required this.originalReceiptUuid,
+    required this.lines,
+    required this.payments,
   });
 
   factory Data219.fromJson(Map<String, Object?> json) =>
       _$Data219FromJson(json);
 
-  @JsonKey(name: 'order_uuid')
-  final String orderUuid;
-  final int number;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final PickupStatus? status;
-  final String channel;
-  @JsonKey(name: 'order_status')
-  final String orderStatus;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'called_at')
-  final String? calledAt;
-  @JsonKey(name: 'call_count')
-  final int callCount;
-  @JsonKey(name: 'handed_at')
-  final String? handedAt;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
+  final String uuid;
+  final Type6 type;
+  final Status5 status;
+  @JsonKey(name: 'payment_form')
+  final PaymentForm paymentForm;
+  @JsonKey(name: 'non_fiscal')
+  final bool nonFiscal;
+  final String total;
+  @JsonKey(name: 'vat_total')
+  final String vatTotal;
+  @JsonKey(name: 'fiscal_sign')
+  final String? fiscalSign;
+  @JsonKey(name: 'receipt_number')
+  final String? receiptNumber;
+  @JsonKey(name: 'qr_url')
+  final String? qrUrl;
+  @JsonKey(name: 'terminal_id')
+  final String? terminalId;
+  final String? error;
+  @JsonKey(name: 'issued_at')
+  final String? issuedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
+  final List<Lines26> lines;
+  final List<Payments27> payments;
 
   Map<String, Object?> toJson() => _$Data219ToJson(this);
 }

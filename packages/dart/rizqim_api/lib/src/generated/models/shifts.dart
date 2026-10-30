@@ -10,15 +10,24 @@ part 'shifts.g.dart';
 class Shifts {
   const Shifts({
     required this.uuid,
+    required this.businessDate,
     required this.zNumber,
+    required this.openedAt,
+    required this.closedAt,
     required this.status,
   });
 
   factory Shifts.fromJson(Map<String, Object?> json) => _$ShiftsFromJson(json);
 
   final String uuid;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
   @JsonKey(name: 'z_number')
   final int? zNumber;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
   final String status;
 
   Map<String, Object?> toJson() => _$ShiftsToJson(this);

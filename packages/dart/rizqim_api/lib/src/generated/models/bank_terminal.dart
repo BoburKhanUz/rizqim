@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'source.dart';
-import 'shifts4.dart';
+import 'shifts5.dart';
 import 'rizqim_breakdown3.dart';
 import 'transactions4.dart';
 import 'unmatched3.dart';
@@ -65,7 +65,7 @@ class BankTerminal {
   /// The name has been replaced because it contains a keyword. Original name: `final`.
   @JsonKey(name: 'final')
   final bool finalValue;
-  final List<Shifts4> shifts;
+  final List<Shifts5> shifts;
   @JsonKey(name: 'bank_total')
   final String bankTotal;
   @JsonKey(name: 'bank_count')

@@ -7,9 +7,7 @@ part of 'data222.dart';
 // **************************************************************************
 
 Data222 _$Data222FromJson(Map<String, dynamic> json) => Data222(
-  waiter: json['waiter'] == null
-      ? null
-      : Waiter16.fromJson(json['waiter'] as Map<String, dynamic>),
+  openedBy: (json['opened_by'] as num).toInt(),
   shortCode: json['short_code'] as String?,
   status: json['status'] as String,
   channel: json['channel'] as String,
@@ -19,16 +17,18 @@ Data222 _$Data222FromJson(Map<String, dynamic> json) => Data222(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall13.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall2.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table13.fromJson(json['table'] as Map<String, dynamic>),
+      : Table2.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   tableLabel: json['table_label'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
+  waiter: json['waiter'] == null
+      ? null
+      : Waiter5.fromJson(json['waiter'] as Map<String, dynamic>),
   uuid: json['uuid'] as String,
-  openedBy: (json['opened_by'] as num).toInt(),
   deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
   bookingUuid: json['booking_uuid'] as String?,
@@ -43,29 +43,33 @@ Data222 _$Data222FromJson(Map<String, dynamic> json) => Data222(
   discountKind: json['discount_kind'] == null
       ? null
       : DiscountKind.fromJson(json['discount_kind'] as String?),
+  discountValue: json['discount_value'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items36.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items21.fromJson(e as Map<String, dynamic>))
       .toList(),
-  discountReason: json['discount_reason'] as String?,
   discountBy: (json['discount_by'] as num?)?.toInt(),
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   roomFeeAmount: json['room_fee_amount'] as String,
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
+  packagingAmount: json['packaging_amount'] as String,
+  pickup: json['pickup'] == null
+      ? null
+      : Pickup2.fromJson(json['pickup'] as Map<String, dynamic>),
   totalPrice: json['total_price'] as String,
-  charges: Charges16.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges6.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null
       ? null
-      : Offline12.fromJson(json['offline'] as Map<String, dynamic>),
+      : Offline2.fromJson(json['offline'] as Map<String, dynamic>),
   queue: json['queue'] == null
       ? null
-      : Queue14.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue3.fromJson(json['queue'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   courses: (json['courses'] as List<dynamic>)
-      .map((e) => Courses11.fromJson(e as Map<String, dynamic>))
+      .map((e) => Courses.fromJson(e as Map<String, dynamic>))
       .toList(),
   weightPending: (json['weight_pending'] as num).toInt(),
-  discountValue: json['discount_value'] as String?,
+  discountReason: json['discount_reason'] as String?,
 );
 
 Map<String, dynamic> _$Data222ToJson(Data222 instance) => <String, dynamic>{
@@ -104,6 +108,8 @@ Map<String, dynamic> _$Data222ToJson(Data222 instance) => <String, dynamic>{
   'place_fee_amount': instance.placeFeeAmount,
   'room_fee_amount': instance.roomFeeAmount,
   'min_spend_topup_amount': instance.minSpendTopupAmount,
+  'packaging_amount': instance.packagingAmount,
+  'pickup': instance.pickup,
   'total_price': instance.totalPrice,
   'charges': instance.charges,
   'offline': instance.offline,

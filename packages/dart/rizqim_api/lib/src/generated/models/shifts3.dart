@@ -4,20 +4,23 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'shift3.dart';
-import 'report2.dart';
-
 part 'shifts3.g.dart';
 
 @JsonSerializable()
 class Shifts3 {
-  const Shifts3({required this.shift, required this.report});
+  const Shifts3({
+    required this.uuid,
+    required this.zNumber,
+    required this.status,
+  });
 
   factory Shifts3.fromJson(Map<String, Object?> json) =>
       _$Shifts3FromJson(json);
 
-  final Shift3 shift;
-  final Report2 report;
+  final String uuid;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  final String status;
 
   Map<String, Object?> toJson() => _$Shifts3ToJson(this);
 }

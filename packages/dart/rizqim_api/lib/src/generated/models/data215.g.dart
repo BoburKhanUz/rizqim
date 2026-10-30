@@ -7,17 +7,27 @@ part of 'data215.dart';
 // **************************************************************************
 
 Data215 _$Data215FromJson(Map<String, dynamic> json) => Data215(
-  order: Order10.fromJson(json['order'] as Map<String, dynamic>),
-  bills: (json['bills'] as List<dynamic>)
-      .map((e) => Bills4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  refunds: (json['refunds'] as List<dynamic>)
-      .map((e) => Refunds3.fromJson(e as Map<String, dynamic>))
+  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data215ToJson(Data215 instance) => <String, dynamic>{
-  'order': instance.order,
-  'bills': instance.bills,
-  'refunds': instance.refunds,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

@@ -8,29 +8,14 @@ part 'items3.g.dart';
 
 @JsonSerializable()
 class Items3 {
-  const Items3({
-    required this.orderItemId,
-    required this.productName,
-    required this.variantName,
-    required this.unit,
-    required this.quantity,
-    required this.amount,
-    required this.discountAmount,
-  });
+  const Items3({required this.productId, required this.targetSeconds});
 
   factory Items3.fromJson(Map<String, Object?> json) => _$Items3FromJson(json);
 
-  @JsonKey(name: 'order_item_id')
-  final int orderItemId;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
-  final String unit;
-  final num quantity;
-  final String amount;
-  @JsonKey(name: 'discount_amount')
-  final String discountAmount;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'target_seconds')
+  final int? targetSeconds;
 
   Map<String, Object?> toJson() => _$Items3ToJson(this);
 }

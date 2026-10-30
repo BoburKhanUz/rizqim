@@ -7,23 +7,31 @@ part of 'data172.dart';
 // **************************************************************************
 
 Data172 _$Data172FromJson(Map<String, dynamic> json) => Data172(
+  uuid: json['uuid'] as String,
   branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  timezone: json['timezone'] as String,
-  rooms: (json['rooms'] as List<dynamic>)
-      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  unassigned: (json['unassigned'] as List<dynamic>)
-      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  userId: (json['user_id'] as num).toInt(),
+  userName: json['user_name'] as String?,
+  businessDate: json['business_date'] as String,
+  clockInAt: json['clock_in_at'] as String,
+  clockOutAt: json['clock_out_at'] as String?,
+  abandoned: json['abandoned'] as bool,
+  open: json['open'] as bool,
+  minutes: (json['minutes'] as num).toInt(),
+  source: json['source'] as String,
+  note: json['note'] as String?,
 );
 
 Map<String, dynamic> _$Data172ToJson(Data172 instance) => <String, dynamic>{
+  'uuid': instance.uuid,
   'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'timezone': instance.timezone,
-  'rooms': instance.rooms,
-  'unassigned': instance.unassigned,
+  'user_id': instance.userId,
+  'user_name': instance.userName,
+  'business_date': instance.businessDate,
+  'clock_in_at': instance.clockInAt,
+  'clock_out_at': instance.clockOutAt,
+  'abandoned': instance.abandoned,
+  'open': instance.open,
+  'minutes': instance.minutes,
+  'source': instance.source,
+  'note': instance.note,
 };

@@ -4,38 +4,70 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'polygon5.dart';
+import 'staff22.dart';
+import 'device22.dart';
+import 'order12.dart';
+import 'resolved_by2.dart';
 
 part 'data266.g.dart';
 
 @JsonSerializable()
 class Data266 {
   const Data266({
-    required this.id,
-    required this.name,
-    required this.polygon,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
+    required this.opId,
+    required this.seq,
+    required this.type,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data266.fromJson(Map<String, Object?> json) =>
       _$Data266FromJson(json);
 
-  final int id;
-  final String name;
-  final Polygon5 polygon;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  final Staff22? staff;
+  final Device22? device;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order12? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data266ToJson(this);
 }

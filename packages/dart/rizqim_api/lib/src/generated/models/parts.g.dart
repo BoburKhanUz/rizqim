@@ -7,23 +7,17 @@ part of 'parts.dart';
 // **************************************************************************
 
 Parts _$PartsFromJson(Map<String, dynamic> json) => Parts(
-  variantId: (json['variant_id'] as num).toInt(),
-  variantUuid: json['variant_uuid'] as String,
-  productId: (json['product_id'] as num).toInt(),
+  slotName: json['slot_name'] as String,
   name: json['name'] as String,
   variantName: json['variant_name'] as String?,
-  quantity: json['quantity'] as String,
-  unit: json['unit'] as String,
+  quantity: (json['quantity'] as num).toInt(),
   label: json['label'] as String,
 );
 
 Map<String, dynamic> _$PartsToJson(Parts instance) => <String, dynamic>{
-  'variant_id': instance.variantId,
-  'variant_uuid': instance.variantUuid,
-  'product_id': instance.productId,
+  'slot_name': instance.slotName,
   'name': instance.name,
   'variant_name': instance.variantName,
   'quantity': instance.quantity,
-  'unit': instance.unit,
   'label': instance.label,
 };

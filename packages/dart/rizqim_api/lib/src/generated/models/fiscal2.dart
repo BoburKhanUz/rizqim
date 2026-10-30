@@ -8,13 +8,20 @@ part 'fiscal2.g.dart';
 
 @JsonSerializable()
 class Fiscal2 {
-  const Fiscal2({required this.status, required this.problems});
+  const Fiscal2({
+    required this.enabled,
+    required this.activeDriver,
+    required this.smartKassaDriver,
+  });
 
   factory Fiscal2.fromJson(Map<String, Object?> json) =>
       _$Fiscal2FromJson(json);
 
-  final String status;
-  final List<String> problems;
+  final bool enabled;
+  @JsonKey(name: 'active_driver')
+  final String activeDriver;
+  @JsonKey(name: 'smart_kassa_driver')
+  final String smartKassaDriver;
 
   Map<String, Object?> toJson() => _$Fiscal2ToJson(this);
 }

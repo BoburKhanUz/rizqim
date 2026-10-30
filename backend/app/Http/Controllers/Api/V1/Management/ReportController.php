@@ -52,13 +52,16 @@ class ReportController extends ManagementController
      *
      * Among the delivered orders, by the name the item had when sold: `sort` quantity (default) or revenue, `limit`
      * 1–50 (default 10). `quantity` is a whole number for pieces and a decimal for kg / l.
+     *
+     * P6-31: a combo is counted as the combo; `combo_parts` counts the dishes sold inside combos (`in_combos`), on their
+     * own lines (`alone`) and both (`total`): "lavash 120 = 80 + 40". Empty without combos.
      */
     #[QueryParameter('from', description: 'Birinchi kun (YYYY-MM-DD).', type: 'string')]
     #[QueryParameter('to', description: 'Oxirgi kun (YYYY-MM-DD), ko\'pi bilan 366 kun.', type: 'string')]
     #[QueryParameter('branch_id', description: 'Filial.', type: 'int', required: false)]
     #[QueryParameter('limit', description: '1–50, standart 10.', type: 'int', required: false)]
     #[QueryParameter('sort', description: 'quantity | revenue.', type: 'string', required: false)]
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{period: ' . self::PERIOD . ', branch_id: int|null, sort: string, products: list<array{name: string, quantity: int|float, revenue: string, orders: int}>}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{period: ' . self::PERIOD . ', branch_id: int|null, sort: string, products: list<array{name: string, quantity: int|float, revenue: string, orders: int}>, combo_parts: list<array{name: string, in_combos: int|float, alone: int|float, total: int|float}>}}')]
     public function topProducts(Request $request, SalesReportService $reports): JsonResponse
     {
         [$store, $branchId, $first, $last] = $this->scope($request, $reports, SalesReportService::MAX_RANGE_DAYS, [

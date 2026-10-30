@@ -237,6 +237,8 @@ class OwnerAnalyticsService
             ->join('order_items', 'order_items.order_id', '=', 'orders.id')
             ->where('orders.status', OrderStatus::DELIVERED->value)
             ->whereNull('order_items.deleted_at')
+            // P6-31: a combo counts as the combo; its parts' kitchen lines are not sales
+            ->whereNull('order_items.combo_parent_id')
             ->groupBy('order_items.product_name')
             ->selectRaw('order_items.product_name AS name, SUM(order_items.quantity) AS quantity, SUM(order_items.total_price) AS revenue, COUNT(DISTINCT orders.id) AS orders')
             ->orderByRaw($order)
@@ -250,6 +252,50 @@ class OwnerAnalyticsService
                 'orders' => (int) $row->orders,
             ])
             ->all();
+    }
+
+    /**
+     * P6-31: the dishes sold inside combos among the delivered orders, by the name they were sold under: how many went
+     * inside combos, how many on their own lines, and both together ("lavash: 120 = 80 in combos + 40 alone"). Voided
+     * lines are left out; the most sold first.
+     *
+     * @return list<array{name: string, in_combos: Quantity, alone: Quantity, total: Quantity}>
+     */
+    public function comboPartRows(Builder $orders, int $limit = self::TOP_LIMIT): array
+    {
+        $parts = (clone $orders)
+            ->join('order_items', 'order_items.order_id', '=', 'orders.id')
+            ->where('orders.status', OrderStatus::DELIVERED->value)
+            ->whereNull('order_items.deleted_at')
+            ->whereNotNull('order_items.combo_parent_id')
+            ->where('order_items.kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)
+            ->groupBy('order_items.product_name')
+            ->selectRaw('order_items.product_name AS name, SUM(order_items.quantity) AS quantity')
+            ->get()
+            ->mapWithKeys(fn (object $row) => [(string) $row->name => Quantity::of((string) $row->quantity)]);
+        if ($parts->isEmpty()) {
+            return [];
+        }
+
+        $alone = (clone $orders)
+            ->join('order_items', 'order_items.order_id', '=', 'orders.id')
+            ->where('orders.status', OrderStatus::DELIVERED->value)
+            ->whereNull('order_items.deleted_at')
+            ->whereNull('order_items.combo_parent_id')
+            ->where('order_items.kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)
+            ->whereIn('order_items.product_name', $parts->keys()->all())
+            ->groupBy('order_items.product_name')
+            ->selectRaw('order_items.product_name AS name, SUM(order_items.quantity) AS quantity')
+            ->get()
+            ->mapWithKeys(fn (object $row) => [(string) $row->name => Quantity::of((string) $row->quantity)]);
+
+        return $parts->map(fn (Quantity $inCombos, string $name) => [
+            'name' => $name,
+            'in_combos' => $inCombos,
+            'alone' => $alone->get($name) ?? Quantity::zero(),
+            'total' => $inCombos->plus($alone->get($name) ?? Quantity::zero()),
+        ])->sort(fn (array $a, array $b) => $b['total']->compareTo($a['total']) ?: strcmp($a['name'], $b['name']))
+            ->take($limit)->values()->all();
     }
 
     /**

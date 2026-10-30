@@ -36,7 +36,9 @@ use App\Support\Money;
  *                       when set, else dining_tables.min_spend (× guests, at least 1, when per_person) — the rule the
  *                       booking confirmation announces (DiningFeeCalculator::minimumSpend)
  *   min spend top-up  = max(0, minimum spend − after discount), whole so'm
- *   total             = after discount + service charge + place fee + room fee + top-up
+ *   packaging         = P6-34: the packaging lines of a takeaway (module packaging; PackagingRules: per order and per
+ *                       dish, each with its own MXIK and price; a line the cashier took off is 0)
+ *   total             = after discount + service charge + place fee + room fee + top-up + packaging
  *
  * P6-22 (C1): with the branch's `service_charge_rules` module, the row's service charge rules (ServiceChargeRules)
  * pick the percent — by the order's type (hall, table service, takeaway), the large-group rule — and may charge the
@@ -137,9 +139,12 @@ class PosChargesCalculator
             }
         }
 
-        $total = $after->plus($serviceCharge)->plus($placeFee)->plus($roomFee)->plus($topup);
+        // P6-34: the packaging lines of a takeaway (module packaging, PackagingRules), never discounted
+        $packaging = app(\App\Domain\Pos\Takeaway\PackagingRules::class)->forOrder($order);
 
-        return new PosCharges($items, $discount, $after, Money::of($percent)->toString(), $serviceCharge, $placeFee, $roomFee, $tariffId, $businessDate, $dayType, $minSpend, $topup, $waived, $total, $rule, $cover && $placeFee->isPositive() ? PosCharges::COVER : PosCharges::PLACE_FEE, $notice);
+        $total = $after->plus($serviceCharge)->plus($placeFee)->plus($roomFee)->plus($topup)->plus($packaging['amount']);
+
+        return new PosCharges($items, $discount, $after, Money::of($percent)->toString(), $serviceCharge, $placeFee, $roomFee, $tariffId, $businessDate, $dayType, $minSpend, $topup, $waived, $total, $rule, $cover && $placeFee->isPositive() ? PosCharges::COVER : PosCharges::PLACE_FEE, $notice, packaging: $packaging['amount'], packagingLines: $packaging['lines']);
     }
 
     /**
@@ -177,6 +182,8 @@ class PosChargesCalculator
                 'place_fee_amount' => $charges->placeFee->toString(),
                 'room_fee_amount' => $charges->roomFee->toString(),
                 'min_spend_topup_amount' => $charges->minSpendTopup->toString(),
+                'packaging_amount' => $charges->packagingAmount()->toString(),
+                'packaging_lines' => $charges->packagingLines !== [] ? $charges->packagingLines : null,
                 'total_price' => $charges->total->toString(),
                 'commission_amount' => '0.00',
             ])->save();

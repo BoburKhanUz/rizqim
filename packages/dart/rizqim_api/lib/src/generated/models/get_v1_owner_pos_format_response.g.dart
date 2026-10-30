@@ -11,7 +11,7 @@ GetV1OwnerPosFormatResponse _$GetV1OwnerPosFormatResponseFromJson(
 ) => GetV1OwnerPosFormatResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data110.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data125.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPosFormatResponseToJson(

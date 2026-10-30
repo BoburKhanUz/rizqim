@@ -7,23 +7,35 @@ part of 'options2.dart';
 // **************************************************************************
 
 Options2 _$Options2FromJson(Map<String, dynamic> json) => Options2(
-  modes: (json['modes'] as List<dynamic>)
-      .map((e) => Modes2.fromJson(e as Map<String, dynamic>))
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  variantId: (json['variant_id'] as num).toInt(),
+  variantUuid: json['variant_uuid'] as String,
+  productId: (json['product_id'] as num?)?.toInt(),
+  name: json['name'] as String,
+  variantName: json['variant_name'] as String?,
+  quantity: (json['quantity'] as num).toInt(),
+  priceDelta: json['price_delta'] as String,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  poolRules: (json['pool_rules'] as List<dynamic>)
-      .map((e) => PoolRules2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  poolPeriods: (json['pool_periods'] as List<dynamic>)
-      .map((e) => PoolPeriods2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  isDefault: json['is_default'] as bool,
+  label: json['label'] as String?,
+  receiptLabel: json['receipt_label'] as String,
 );
 
 Map<String, dynamic> _$Options2ToJson(Options2 instance) => <String, dynamic>{
-  'modes': instance.modes,
-  'pool_rules': instance.poolRules,
-  'pool_periods': instance.poolPeriods,
-  'roles': instance.roles,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'variant_id': instance.variantId,
+  'variant_uuid': instance.variantUuid,
+  'product_id': instance.productId,
+  'name': instance.name,
+  'variant_name': instance.variantName,
+  'quantity': instance.quantity,
+  'price_delta': instance.priceDelta,
+  'modifiers': instance.modifiers,
+  'is_default': instance.isDefault,
+  'label': instance.label,
+  'receipt_label': instance.receiptLabel,
 };

@@ -169,7 +169,7 @@ class FiscalLineBuilderTest extends TestCase
 
         $this->assertSame([$noCode->id, $badCode->id], array_column($readiness->missingMxik($this->store), 'id'));
         $this->assertSame('service', $readiness->missingMxik($this->store)[0]['kind']);
-        $this->assertSame(['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery'], $readiness->chargesWithoutMxik($this->store));
+        $this->assertSame(['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery', 'packaging'], $readiness->chargesWithoutMxik($this->store));
 
         // In an API request the refusal is a 422 in the standard error shape
         $response = $e->render(Request::create('/api/v1/pos/orders', 'POST'));

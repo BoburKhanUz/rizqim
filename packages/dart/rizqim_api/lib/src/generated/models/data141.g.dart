@@ -6,10 +6,16 @@ part of 'data141.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data141 _$Data141FromJson(Map<String, dynamic> json) =>
-    Data141(path: json['path'] as String, url: json['url'] as String);
+Data141 _$Data141FromJson(Map<String, dynamic> json) => Data141(
+  productId: (json['product_id'] as num).toInt(),
+  channels: json['channels'] as List<dynamic>,
+  prices: (json['prices'] as List<dynamic>)
+      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
 
 Map<String, dynamic> _$Data141ToJson(Data141 instance) => <String, dynamic>{
-  'path': instance.path,
-  'url': instance.url,
+  'product_id': instance.productId,
+  'channels': instance.channels,
+  'prices': instance.prices,
 };

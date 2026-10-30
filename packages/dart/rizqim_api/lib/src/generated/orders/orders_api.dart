@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/get_v1_stores_store_branches_branch_pickup_slots_response.dart';
 import '../models/post_v1_orders_response.dart';
 import '../models/post_v1_orders_uuid_assign_courier_response.dart';
 import '../models/post_v1_orders_uuid_cancel_response.dart';
@@ -65,6 +66,10 @@ abstract class OrdersApi {
   /// `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without.
   /// zones keep the branch radius rule and the store's delivery fee.
   ///
+  /// P6-31 (docs/MENU.md "Kombo"): a combo line sends its picks in `items.*.combo`; 422 with `code` / `data.reason`.
+  /// `combo_option_unavailable` (a stale pick: refresh the menu), `combo_slot_required`, `combo_slot_limit` or.
+  /// `combo_option_invalid`.
+  ///
   /// P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and.
   /// `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already.
   /// show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
@@ -113,5 +118,17 @@ abstract class OrdersApi {
   Future<PostV1OrdersUuidStatusResponse> orderUpdateStatus({
     @Path('uuid') required String uuid,
     @Body() required V1OrdersUuidStatusRequestBody body,
+  });
+
+  /// Pickup times of a branch.
+  ///
+  /// `enabled: false` (and no slots) when the branch does not take orders for later. Otherwise every `slot_minutes`.
+  /// from the earliest allowed time (`min_lead_minutes` from now) to the end of the window, inside the opening hours.
+  /// (24/7: all day): `at` (UTC, send it back as `pickup_at`), `time` ("HH:MM", the store's), `business_date`. 404 for a.
+  /// branch that is not the store's or not active.
+  @GET('/v1/stores/{store}/branches/{branch}/pickup-slots')
+  Future<GetV1StoresStoreBranchesBranchPickupSlotsResponse> pickupSlotsIndex({
+    @Path('store') required String store,
+    @Path('branch') required String branch,
   });
 }

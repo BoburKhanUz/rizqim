@@ -33,6 +33,10 @@ class CatalogPresenter
         $storeIds = $products->pluck('store_id')->unique()->map(fn ($id) => (int) $id)->values()->all();
         $products = ChannelMenu::for($storeIds, $channel)->apply($products);
 
+        // P6-31: a combo product carries its slots and options (`combo`, null on every other product)
+        $combos = app(\App\Domain\Pos\Menu\Combos::class)->catalogFor($products->pluck('id')->map(fn ($id) => (int) $id)->values()->all());
+        $products->each(fn (Product $product) => $product->setAttribute('combo', $combos[(int) $product->id] ?? null));
+
         $products->each(function (Product $product) {
             $product->modifierGroups->each(function (ModifierGroup $group) {
                 $pivot = $group->getRelation('pivot');

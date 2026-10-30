@@ -61,9 +61,10 @@ describe('a new modifier group', () => {
       is_required: true,
       sort_order: 0,
       is_active: true,
+      display_mode: 'dialog',
       modifiers: [
-        { name: 'Achchiq', name_i18n: { ru: 'Острый' }, price_delta: 3000, max_quantity: 1, sort_order: 0, is_active: true },
-        { name: 'Qatiq', name_i18n: null, price_delta: 0, max_quantity: 1, sort_order: 1, is_active: true },
+        { name: 'Achchiq', name_i18n: { ru: 'Острый' }, price_delta: 3000, max_quantity: 1, is_default: false, sort_order: 0, is_active: true },
+        { name: 'Qatiq', name_i18n: null, price_delta: 0, max_quantity: 1, is_default: false, sort_order: 1, is_active: true },
       ],
     });
   });
@@ -99,6 +100,69 @@ describe('an existing modifier group', () => {
     const body = (await calls.find((call) => call.method === 'PUT')!.json()) as { modifiers: Array<{ id: number }>; max_select: number };
     expect(body.modifiers.map((option) => option.id)).toEqual([31]);
     expect(body.max_select).toBe(2);
+  });
+
+  it('shows the saved hints and sends them back (P6-32)', async () => {
+    const saved = group({
+      max_select: 1,
+      display_mode: 'size',
+      modifiers: [
+        { ...group().modifiers[0], is_default: false },
+        { ...group().modifiers[1], is_default: true },
+      ],
+    });
+    const { calls } = mockFetch({
+      ...base,
+      'GET /api/v1/owner/modifier-groups': () => ok([saved]),
+      'PUT /api/v1/owner/modifier-groups/3': () => ok(saved),
+    });
+    renderPage(<ModifierGroupEditor id="3" />);
+    const user = userEvent.setup();
+
+    expect(await screen.findByLabelText("Variantlar qayerda ko'rinadi")).toHaveValue('size');
+    expect(screen.getByRole('switch', { name: 'Standart (oldindan belgilanadi): Achchiq' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Standart (oldindan belgilanadi): Qatiq' })).toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText("Variantlar qayerda ko'rinadi"), 'inline');
+    await user.click(screen.getByRole('switch', { name: 'Standart (oldindan belgilanadi): Achchiq' }));
+    // one pick per guest: choosing a new default clears the old one
+    expect(screen.getByRole('switch', { name: 'Standart (oldindan belgilanadi): Qatiq' })).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+
+    expect(await screen.findByText('Saqlandi.')).toBeInTheDocument();
+    const body = (await calls.find((call) => call.method === 'PUT')!.json()) as { display_mode: string; modifiers: Array<{ id: number; is_default: boolean }> };
+    expect(body.display_mode).toBe('inline');
+    expect(body.modifiers.map((option) => [option.id, option.is_default])).toEqual([[31, true], [32, false]]);
+  });
+
+  it('keeps the size selector for a group that takes one option only', async () => {
+    const { calls } = mockFetch({ ...base, 'PUT /api/v1/owner/modifier-groups/3': () => ok(group()) });
+    renderPage(<ModifierGroupEditor id="3" />);
+    const user = userEvent.setup();
+
+    await user.selectOptions(await screen.findByLabelText("Variantlar qayerda ko'rinadi"), 'size');
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText("Hajm tanlash uchun «Eng ko'p tanlov» 1 bo'lishi kerak.")).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+
+    await user.clear(screen.getByLabelText("Eng ko'p tanlov"));
+    await user.type(screen.getByLabelText("Eng ko'p tanlov"), '1');
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText('Saqlandi.')).toBeInTheDocument();
+    expect(((await calls.find((call) => call.method === 'PUT')!.json()) as { display_mode: string }).display_mode).toBe('size');
+  });
+
+  it("shows the server's refusal when the store has no quick modifiers module", async () => {
+    mockFetch({
+      ...base,
+      'PUT /api/v1/owner/modifier-groups/3': () => json({ success: false, message: "«Tez modifikatorlar» moduli bu formatda o'chiq.", code: 'module_disabled', data: { reason: 'module_disabled' } }, 403),
+    });
+    renderPage(<ModifierGroupEditor id="3" />);
+    const user = userEvent.setup();
+
+    await user.selectOptions(await screen.findByLabelText("Variantlar qayerda ko'rinadi"), 'inline');
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText(/moduli bu formatda o'chiq/)).toBeInTheDocument();
   });
 
   it('attaches the group to dishes, sending each changed dish its whole list', async () => {

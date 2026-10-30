@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'modifier.dart';
+import 'modifier_display_mode.dart';
 import 'product.dart';
 import 'store.dart';
 
@@ -26,6 +27,7 @@ class ModifierGroup {
     required this.createdAt,
     required this.updatedAt,
     required this.deletedAt,
+    required this.displayMode,
     this.store,
     this.modifiers,
     this.products,
@@ -57,6 +59,8 @@ class ModifierGroup {
   final DateTime? updatedAt;
   @JsonKey(name: 'deleted_at')
   final DateTime? deletedAt;
+  @JsonKey(name: 'display_mode')
+  final ModifierDisplayMode displayMode;
   final Store? store;
   final List<Modifier>? modifiers;
   final List<Product>? products;

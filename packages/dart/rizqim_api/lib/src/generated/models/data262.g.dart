@@ -8,54 +8,56 @@ part of 'data262.dart';
 
 Data262 _$Data262FromJson(Map<String, dynamic> json) => Data262(
   uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
   status: json['status'] as String,
-  type: json['type'] as String,
-  channel: json['channel'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  tableLabel: json['table_label'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  notes: json['notes'] as String?,
-  itemsTotal: (json['items_total'] as num).toInt(),
-  itemsReady: (json['items_ready'] as num).toInt(),
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items56.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  createdAt: json['created_at'] as String?,
-  acceptedAt: json['accepted_at'] as String?,
-  preparingAt: json['preparing_at'] as String?,
-  readyAt: json['ready_at'] as String?,
-  canceledAt: json['canceled_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
-  queueNumber: (json['queue_number'] as num?)?.toInt(),
-  pickupStatus: json['pickup_status'] == null
+  branchId: (json['branch_id'] as num).toInt(),
+  device: json['device'] == null
       ? null
-      : PickupStatus.fromJson(json['pickup_status'] as String),
+      : Device18.fromJson(json['device'] as Map<String, dynamic>),
+  businessDate: json['business_date'] as String,
+  openedAt: json['opened_at'] as String,
+  openedBy: json['opened_by'] == null
+      ? null
+      : OpenedBy7.fromJson(json['opened_by'] as Map<String, dynamic>),
+  openingCash: json['opening_cash'] as String,
+  closedAt: json['closed_at'] as String?,
+  closedBy: json['closed_by'] == null
+      ? null
+      : ClosedBy10.fromJson(json['closed_by'] as Map<String, dynamic>),
+  expectedCash: json['expected_cash'] as String?,
+  countedCash: json['counted_cash'] as String?,
+  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, (e as num).toInt()),
+  ),
+  difference: json['difference'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  forceClosed: json['force_closed'] as bool,
+  closeNote: json['close_note'] as String?,
+  summary: json['summary'] == null
+      ? null
+      : Summary6.fromJson(json['summary'] as Map<String, dynamic>),
+  bankTerminal: json['bank_terminal'] == null
+      ? null
+      : BankTerminal2.fromJson(json['bank_terminal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data262ToJson(Data262 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'short_code': instance.shortCode,
   'status': instance.status,
-  'type': instance.type,
-  'channel': instance.channel,
   'branch_id': instance.branchId,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'table_label': instance.tableLabel,
-  'guests_count': instance.guestsCount,
-  'notes': instance.notes,
-  'items_total': instance.itemsTotal,
-  'items_ready': instance.itemsReady,
-  'items': instance.items,
-  'created_at': instance.createdAt,
-  'accepted_at': instance.acceptedAt,
-  'preparing_at': instance.preparingAt,
-  'ready_at': instance.readyAt,
-  'canceled_at': instance.canceledAt,
-  'waiting_seconds': instance.waitingSeconds,
-  'queue_number': instance.queueNumber,
-  'pickup_status': instance.pickupStatus,
+  'device': instance.device,
+  'business_date': instance.businessDate,
+  'opened_at': instance.openedAt,
+  'opened_by': instance.openedBy,
+  'opening_cash': instance.openingCash,
+  'closed_at': instance.closedAt,
+  'closed_by': instance.closedBy,
+  'expected_cash': instance.expectedCash,
+  'counted_cash': instance.countedCash,
+  'counted_breakdown': instance.countedBreakdown,
+  'difference': instance.difference,
+  'z_number': instance.zNumber,
+  'force_closed': instance.forceClosed,
+  'close_note': instance.closeNote,
+  'summary': instance.summary,
+  'bank_terminal': instance.bankTerminal,
 };

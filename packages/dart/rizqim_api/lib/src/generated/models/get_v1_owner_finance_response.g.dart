@@ -11,7 +11,7 @@ GetV1OwnerFinanceResponse _$GetV1OwnerFinanceResponseFromJson(
 ) => GetV1OwnerFinanceResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data69.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data82.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerFinanceResponseToJson(

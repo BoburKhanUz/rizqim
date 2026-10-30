@@ -8,42 +8,28 @@ part of 'data118.dart';
 
 Data118 _$Data118FromJson(Map<String, dynamic> json) => Data118(
   uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  rule: json['rule'] as String,
-  roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
-  roleWeights: Map<String, String>.from(json['role_weights'] as Map),
-  poolAmount: json['pool_amount'] as String,
-  tipsCount: (json['tips_count'] as num).toInt(),
-  distributed: json['distributed'] as String,
+  provider: json['provider'] as String,
+  providerTransactionId: json['provider_transaction_id'] as String?,
   status: json['status'] as String,
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  closedBy: json['closed_by'] == null
+  amount: json['amount'] as String,
+  paidAt: json['paid_at'] as String?,
+  cancelledAt: json['cancelled_at'] as String?,
+  createdAt: json['created_at'] as String,
+  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
+  fiscal: json['fiscal'] == null
       ? null
-      : ClosedBy3.fromJson(json['closed_by'] as Map<String, dynamic>),
-  manualParticipants: json['manual_participants'] as bool,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines7.fromJson(e as Map<String, dynamic>))
-      .toList(),
+      : Fiscal3.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data118ToJson(Data118 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'shift_uuid': instance.shiftUuid,
-  'rule': instance.rule,
-  'roles': instance.roles,
-  'role_weights': instance.roleWeights,
-  'pool_amount': instance.poolAmount,
-  'tips_count': instance.tipsCount,
-  'distributed': instance.distributed,
+  'provider': instance.provider,
+  'provider_transaction_id': instance.providerTransactionId,
   'status': instance.status,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'closed_by': instance.closedBy,
-  'manual_participants': instance.manualParticipants,
-  'lines': instance.lines,
+  'amount': instance.amount,
+  'paid_at': instance.paidAt,
+  'cancelled_at': instance.cancelledAt,
+  'created_at': instance.createdAt,
+  'order': instance.order,
+  'fiscal': instance.fiscal,
 };

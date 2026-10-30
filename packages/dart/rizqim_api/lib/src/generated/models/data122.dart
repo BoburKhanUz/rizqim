@@ -4,63 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff4.dart';
-import 'holders2.dart';
-import 'recorded_by2.dart';
-import 'corrections3.dart';
+import 'status4.dart';
 
 part 'data122.g.dart';
 
 @JsonSerializable()
 class Data122 {
   const Data122({
-    required this.uuid,
-    required this.method,
-    required this.source,
+    required this.id,
     required this.amount,
-    required this.originalAmount,
-    required this.mode,
-    required this.staff,
-    required this.holders,
-    required this.businessDate,
-    required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.shiftUuid,
-    required this.recordedBy,
-    required this.closed,
-    required this.corrections,
+    required this.card,
+    required this.status,
+    required this.notes,
+    required this.resolutionNotes,
+    required this.processedAt,
     required this.createdAt,
+    required this.storeId,
+    required this.cardNumber,
+    required this.processedBy,
+    required this.updatedAt,
   });
 
   factory Data122.fromJson(Map<String, Object?> json) =>
       _$Data122FromJson(json);
 
-  final String uuid;
-  final String method;
-  final String? source;
+  final int id;
   final String amount;
-  @JsonKey(name: 'original_amount')
-  final String originalAmount;
-  final String mode;
-  final Staff4? staff;
-  final List<Holders2> holders;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'recorded_by')
-  final RecordedBy2? recordedBy;
-  final bool closed;
-  final List<Corrections3> corrections;
+  final String card;
+  final Status4 status;
+  final String? notes;
+  @JsonKey(name: 'resolution_notes')
+  final String? resolutionNotes;
+  @JsonKey(name: 'processed_at')
+  final String? processedAt;
   @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String createdAt;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'card_number')
+  final String cardNumber;
+  @JsonKey(name: 'processed_by')
+  final int? processedBy;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data122ToJson(this);
 }

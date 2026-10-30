@@ -4,8 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal14.dart';
-import 'items30.dart';
+import 'packaging_lines11.dart';
+import 'fiscal15.dart';
+import 'items31.dart';
 import 'payments35.dart';
 import 'tips8.dart';
 import 'ticket12.dart';
@@ -26,6 +27,8 @@ class Bills4 {
     required this.minSpendTopupAmount,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
+    required this.packagingAmount,
+    required this.packagingLines,
     required this.total,
     required this.paidAmount,
     required this.dueAmount,
@@ -64,6 +67,10 @@ class Bills4 {
   final String serviceChargeAmount;
   @JsonKey(name: 'place_fee_amount')
   final String placeFeeAmount;
+  @JsonKey(name: 'packaging_amount')
+  final String packagingAmount;
+  @JsonKey(name: 'packaging_lines')
+  final List<PackagingLines11> packagingLines;
   final String total;
   @JsonKey(name: 'paid_amount')
   final String paidAmount;
@@ -81,8 +88,8 @@ class Bills4 {
   final String? printedAt;
   @JsonKey(name: 'paid_at')
   final String? paidAt;
-  final Fiscal14 fiscal;
-  final List<Items30> items;
+  final Fiscal15 fiscal;
+  final List<Items31> items;
   final List<Payments35> payments;
   @JsonKey(name: 'tips_amount')
   final String tipsAmount;

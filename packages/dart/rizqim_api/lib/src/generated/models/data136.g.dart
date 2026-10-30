@@ -7,27 +7,11 @@ part of 'data136.dart';
 // **************************************************************************
 
 Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  settings: Settings2.fromJson(json['settings'] as Map<String, dynamic>),
+  options: Options5.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'settings': instance.settings,
+  'options': instance.options,
 };

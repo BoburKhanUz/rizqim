@@ -11,7 +11,7 @@ _$PutV1OwnerStaffPayRulesUuidResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerStaffPayRulesUuidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data146.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data162.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerStaffPayRulesUuidResponseToJson(

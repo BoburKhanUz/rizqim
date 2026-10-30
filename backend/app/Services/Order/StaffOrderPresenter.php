@@ -2,6 +2,8 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Kitchen\KitchenAssembly;
+use App\Domain\Pos\Kitchen\KitchenTargets;
 use App\Domain\Pos\Orders\PickupQueue;
 use App\Domain\Pos\Orders\PickupStatus;
 use App\Enums\OrderStatus;
@@ -133,7 +135,8 @@ class StaffOrderPresenter
         $times = $this->times($order);
         // P3-12: the kitchen sees a POS line once it was sent (a voided one struck through), and a held pre-order line
         // with its due time; a line still only on the order (not sent, or held for later) is not the kitchen's yet
-        $items = $order->items->sortBy('id')->filter(fn (OrderItem $item) => self::kitchenSees($item))->values();
+        // P6-31: a combo line is cooked as its parts: each on its own station, with the combo's name as context
+        $items = \App\Domain\Pos\Menu\ComboKitchen::forKitchen($order->items->sortBy('id'))->filter(fn (OrderItem $item) => self::kitchenSees($item))->values();
 
         return [
             'uuid' => (string) $order->uuid,
@@ -150,7 +153,7 @@ class StaffOrderPresenter
             'notes' => $this->maskedNotes($order->notes),
             'items_total' => $items->reject(fn (OrderItem $item) => $item->isVoid())->count(),
             'items_ready' => $this->doneCount($items),
-            'items' => $this->prefetchDishes($items)->map(fn (OrderItem $item) => $this->item($item, false))->all(),
+            'items' => $this->kitchenItems($order, $this->prefetchDishes($items), $times['accepted_at'], $now),
             'created_at' => $order->created_at?->toJSON(),
             'accepted_at' => $times['accepted_at']?->toJSON(),
             'preparing_at' => $times['preparing_at']?->toJSON(),
@@ -162,7 +165,52 @@ class StaffOrderPresenter
             // its number is still `preparing`): the kitchen display shows the number big and bumps it ready
             'queue_number' => $order->queue_number !== null ? (int) $order->queue_number : null,
             'pickup_status' => PickupQueue::statusOf($order),
+            // P6-33 (kds_expo): the expo (assembly) station's view of an order cooked on several stations; null when the
+            // order does not go through the expo
+            'assembly' => $this->kitchenContext($now)['assembly']->present($order, $items),
         ];
+    }
+
+    /** @var array{now: Carbon|null, targets: KitchenTargets, assembly: KitchenAssembly}|null */
+    private ?array $kitchen = null;
+
+    /**
+     * P6-33: what the ticket's targets and expo view read (stations, dishes, the module), kept for one ticket listing:
+     * the listing passes one `$now` for every ticket; a single ticket (null) reads afresh.
+     *
+     * @return array{now: Carbon|null, targets: KitchenTargets, assembly: KitchenAssembly}
+     */
+    private function kitchenContext(?Carbon $now): array
+    {
+        if ($this->kitchen === null || $now === null || $this->kitchen['now'] !== $now) {
+            $this->kitchen = ['now' => $now, 'targets' => new KitchenTargets(), 'assembly' => app(KitchenAssembly::class)];
+        }
+
+        return $this->kitchen;
+    }
+
+    /**
+     * The ticket's lines, each with its P6-33 time target (`target_seconds`, null: none) and `late` (an online line
+     * only when it has a target).
+     *
+     * @param  \Illuminate\Support\Collection<int, OrderItem>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function kitchenItems(Order $order, \Illuminate\Support\Collection $items, ?CarbonInterface $acceptedAt, ?Carbon $now): array
+    {
+        $targets = $this->kitchenContext($now)['targets'];
+        $targets->prefetch($items);
+
+        return $items->map(function (OrderItem $item) use ($targets, $order, $acceptedAt, $now) {
+            $data = $this->item($item, false);
+            $annotation = $targets->annotate($item, $order, $acceptedAt, $now);
+            // An online line keeps its P2-11 shape unless a target applies to it
+            if ($item->fire_mode !== null || $annotation['target_seconds'] !== null) {
+                $data += $annotation;
+            }
+
+            return $data;
+        })->values()->all();
     }
 
     /**
@@ -210,6 +258,15 @@ class StaffOrderPresenter
             'kitchen_status' => $item->kitchen_status->value,
             'ready_at' => $item->ready_at?->toJSON(),
         ];
+
+        // P6-31: a combo line lists its parts (no prices) on the board; a part's kitchen line names its combo
+        if ($item->isComboLine()) {
+            $data['combo_parts'] = \App\Domain\Pos\Menu\Combos::receiptParts($item->combo_parts);
+        }
+        if ($item->isComboPart()) {
+            $parent = $item->relationLoaded('comboParent') ? $item->getRelation('comboParent') : null;
+            $data['combo'] = ['item_id' => (int) $item->combo_parent_id, 'name' => $parent instanceof OrderItem ? (string) $parent->product_name : null, 'quantity' => $parent instanceof OrderItem ? $parent->quantity : null];
+        }
 
         // P6-15: the parts of a kompleks line: the kitchen prepares each (docs/POS_SPEC.md "Kompleks")
         if ($item->set_parts) {

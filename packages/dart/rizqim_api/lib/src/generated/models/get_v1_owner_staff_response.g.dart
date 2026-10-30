@@ -12,7 +12,7 @@ GetV1OwnerStaffResponse _$GetV1OwnerStaffResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data142.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data158.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

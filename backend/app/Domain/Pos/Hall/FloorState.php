@@ -187,6 +187,7 @@ class FloorState
         return DB::table('order_items')
             ->whereIn('order_id', $orderIds)
             ->whereNull('deleted_at')
+            ->whereNull('combo_parent_id') // P6-31: a combo is one line (its parts are the kitchen's)
             ->where('kitchen_status', '!=', KitchenItemStatus::VOID->value)
             ->groupBy('order_id')
             ->get([

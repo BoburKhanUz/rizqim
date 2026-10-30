@@ -22,7 +22,7 @@ Tables6 _$Tables6FromJson(Map<String, dynamic> json) => Tables6(
       ? null
       : Reservation.fromJson(json['reservation'] as Map<String, dynamic>),
   orders: (json['orders'] as List<dynamic>)
-      .map((e) => Orders.fromJson(e as Map<String, dynamic>))
+      .map((e) => Orders2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

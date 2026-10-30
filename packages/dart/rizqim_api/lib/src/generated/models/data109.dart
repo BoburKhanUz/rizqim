@@ -4,24 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'role3.dart';
+import 'kinds.dart';
+import 'stations3.dart';
 
 part 'data109.g.dart';
 
 @JsonSerializable()
 class Data109 {
-  const Data109({
-    required this.role,
-    required this.permission,
-    required this.allowed,
-  });
+  const Data109({required this.kinds, required this.stations});
 
   factory Data109.fromJson(Map<String, Object?> json) =>
       _$Data109FromJson(json);
 
-  final Role3 role;
-  final String permission;
-  final bool allowed;
+  final List<Kinds> kinds;
+  final List<Stations3> stations;
 
   Map<String, Object?> toJson() => _$Data109ToJson(this);
 }

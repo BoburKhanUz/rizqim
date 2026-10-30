@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers32.dart';
+import 'modifiers34.dart';
 
 part 'items56.g.dart';
 
@@ -34,6 +34,8 @@ class Items56 {
     this.courseNo,
     this.weightStatus,
     this.waitMinutes,
+    this.targetSeconds,
+    this.lateValue,
     this.unitPrice,
     this.modifiersTotal,
     this.totalPrice,
@@ -51,7 +53,7 @@ class Items56 {
   final String unit;
   @JsonKey(name: 'quantity_label')
   final String quantityLabel;
-  final List<Modifiers32> modifiers;
+  final List<Modifiers34> modifiers;
   @JsonKey(name: 'kitchen_status')
   final String kitchenStatus;
   @JsonKey(name: 'ready_at')
@@ -83,6 +85,12 @@ class Items56 {
   final String? weightStatus;
   @JsonKey(name: 'wait_minutes')
   final int? waitMinutes;
+  @JsonKey(name: 'target_seconds')
+  final int? targetSeconds;
+
+  /// The name has been replaced because it contains a keyword. Original name: `late`.
+  @JsonKey(name: 'late')
+  final bool? lateValue;
   @JsonKey(name: 'unit_price')
   final String? unitPrice;
   @JsonKey(name: 'modifiers_total')

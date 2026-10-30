@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property KitchenStationKind $kind
  * @property bool $is_active
  * @property bool $show_on_kds
+ * @property int|null $target_seconds P6-33: the line time target (an expo station: the assembly target)
  */
 class KitchenStation extends Model
 {
@@ -25,6 +26,7 @@ class KitchenStation extends Model
         'sort_order' => 'integer',
         'is_active' => 'boolean',
         'show_on_kds' => 'boolean',
+        'target_seconds' => 'integer',
     ];
 
     protected $attributes = [

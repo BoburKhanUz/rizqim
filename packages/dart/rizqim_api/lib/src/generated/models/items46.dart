@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers27.dart';
+import 'modifiers30.dart';
 import 'added_by19.dart';
 import 'voided_by19.dart';
 import 'weighed_by19.dart';
@@ -64,7 +64,7 @@ class Items46 {
   final String quantityLabel;
   @JsonKey(name: 'unit_price')
   final String unitPrice;
-  final List<Modifiers27> modifiers;
+  final List<Modifiers30> modifiers;
   @JsonKey(name: 'modifiers_total')
   final String modifiersTotal;
   @JsonKey(name: 'total_price')

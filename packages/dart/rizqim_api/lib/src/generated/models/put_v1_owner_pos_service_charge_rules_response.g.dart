@@ -11,7 +11,7 @@ _$PutV1OwnerPosServiceChargeRulesResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerPosServiceChargeRulesResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data114.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data129.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerPosServiceChargeRulesResponseToJson(

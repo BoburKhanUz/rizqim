@@ -6,7 +6,10 @@ use App\Domain\Fiscal\FiscalDocument;
 use App\Domain\Fiscal\FiscalException;
 use App\Domain\Fiscal\FiscalIssuer;
 use App\Domain\Fiscal\FiscalLine;
+use App\Domain\Fiscal\ComboFiscalMode;
+use App\Domain\Fiscal\ComboFiscalSplit;
 use App\Domain\Fiscal\FiscalLineBuilder;
+use App\Domain\Fiscal\FiscalSettings;
 use App\Domain\Fiscal\FiscalPayment;
 use App\Domain\Fiscal\FiscalPaymentForm;
 use App\Domain\Fiscal\FiscalReceiptType;
@@ -240,6 +243,9 @@ final class BillFiscalizer
         $parts = [];
         $shares = OrderBillItem::where('bill_id', $bill->id)->orderBy('order_item_id')->get();
         $items = OrderItem::withTrashed()->whereIn('id', $shares->pluck('order_item_id'))->get()->keyBy('id');
+        $store = Store::findOrFail($bill->store_id);
+        // P6-31: a combo is one line (its own MXIK) unless the store splits combos by their parts
+        $splitCombos = FiscalSettings::of($store)->comboFiscalMode() === ComboFiscalMode::SPLIT;
 
         foreach ($shares as $share) {
             $item = $items->get($share->order_item_id);
@@ -251,6 +257,17 @@ final class BillFiscalizer
             if ($quantity === 0 && $amount->isZero()) {
                 continue;
             }
+            if ($splitCombos && $item->isComboLine()) {
+                foreach (ComboFiscalSplit::shares($item, $amount->toTiyin(), BillableOrder::quantityOf(max(1, $quantity))) as $part) {
+                    $parts[] = [
+                        'amount' => $part['amount'],
+                        'quantity' => $part['quantity'],
+                        'line' => fn (Money $money, Quantity $qty) => $this->builder->forOrderItem($part['item'], $qty, $money),
+                    ];
+                }
+
+                continue;
+            }
             $parts[] = [
                 'amount' => $amount->toTiyin(),
                 'quantity' => BillableOrder::quantityOf(max(1, $quantity)),
@@ -258,9 +275,16 @@ final class BillFiscalizer
             ];
         }
 
-        $store = Store::findOrFail($bill->store_id);
         foreach (OrderBill::CHARGES as $charge => $column) {
             $amount = Money::of($bill->getAttribute($column));
+            // P6-34: the packaging share as one receipt line per packaging line, each with its own MXIK
+            if ($charge === \App\Domain\Pos\Takeaway\PackagingFiscal::CHARGE) {
+                $order = Order::find($bill->order_id);
+                if ($order !== null) {
+                    array_push($parts, ...\App\Domain\Pos\Takeaway\PackagingFiscal::parts($store, $order, $amount->toTiyin()));
+                }
+                continue;
+            }
             if ($amount->isPositive()) {
                 $parts[] = [
                     'amount' => $amount->toTiyin(),

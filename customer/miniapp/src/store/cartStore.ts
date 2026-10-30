@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { comboDelta, type CartComboPart } from '../lib/combo';
 import { lineTotal } from '../lib/linePrice';
 import { addQuantities, isMeasuredUnit, roundQuantity } from '../lib/quantity';
 import type { AttemptStorage, OpenAttempt } from '../lib/idempotency';
@@ -30,22 +31,28 @@ export interface CartItem {
   quantityStep?: number;
   minQuantity?: number;
   modifiers?: CartModifier[];
+  // P6-31: a combo's picked parts (the deltas are added to every piece, like modifiers)
+  combo?: CartComboPart[];
 }
 
 // The id of a cart line: lines of one variant with different modifier choices are different lines (the server keeps
 // them apart too); the same choices in any order are the same line.
-export function cartLineId(baseId: string, modifiers: readonly CartModifier[] | undefined): string {
-  if (!modifiers || modifiers.length === 0) return baseId;
+export function cartLineId(baseId: string, modifiers: readonly CartModifier[] | undefined, combo?: readonly CartComboPart[]): string {
+  // P6-31: a combo with other picks is another line
+  const base = combo && combo.length > 0 ? `${baseId}~${combo.map((part) => part.optionUuid).sort().join(',')}` : baseId;
+  if (!modifiers || modifiers.length === 0) return base;
   const choices = modifiers
     .map((modifier) => `${modifier.uuid}x${modifier.quantity}`)
     .sort()
     .join(',');
-  return `${baseId}+${choices}`;
+  return `${base}+${choices}`;
 }
 
 // What the customer pays for one line (exactly the server's rounding, see lib/linePrice.ts).
 export function cartLineTotal(item: CartItem): number {
-  return lineTotal({ price: item.price, quantity: item.quantity, unit: item.unit, modifiers: item.modifiers });
+  // P6-31: a combo's deltas count like a modifier on every piece (the server keeps them in the line's modifiers total)
+  const modifiers = item.combo && item.combo.length > 0 ? [...(item.modifiers ?? []), { priceDelta: comboDelta(item.combo), quantity: 1 }] : item.modifiers;
+  return lineTotal({ price: item.price, quantity: item.quantity, unit: item.unit, modifiers });
 }
 
 // How much of one variant the cart holds over all its lines (the stock is the variant's, whatever the modifiers).

@@ -1117,6 +1117,8 @@ final class PosSyncApplier
                 'client_line_id' => $lineId,
                 'unit_price' => isset($item['unit_price']) ? self::money((string) $item['unit_price']) : null,
                 'modifier_prices' => $prices,
+                // P6-31: what the till added to the combo's price for its picks (compared with the server's)
+                'combo_delta' => isset($item['combo_delta']) ? self::money((string) $item['combo_delta']) : null,
             ];
         }
 

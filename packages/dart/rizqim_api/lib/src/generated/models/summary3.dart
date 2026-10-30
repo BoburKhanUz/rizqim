@@ -9,34 +9,31 @@ part 'summary3.g.dart';
 @JsonSerializable()
 class Summary3 {
   const Summary3({
-    required this.total,
-    required this.waiting,
-    required this.seated,
-    required this.canceled,
-    required this.noShow,
-    required this.partySizeTotal,
-    required this.avgQuotedWaitMinutes,
-    required this.avgSeatedWaitMinutes,
-    required this.longestWaitingMinutes,
+    required this.ordersCount,
+    required this.deliveredCount,
+    required this.canceledCount,
+    required this.refundedCount,
+    required this.activeCount,
+    required this.revenue,
+    required this.averageCheck,
   });
 
   factory Summary3.fromJson(Map<String, Object?> json) =>
       _$Summary3FromJson(json);
 
-  final int total;
-  final int waiting;
-  final int seated;
-  final int canceled;
-  @JsonKey(name: 'no_show')
-  final int noShow;
-  @JsonKey(name: 'party_size_total')
-  final int partySizeTotal;
-  @JsonKey(name: 'avg_quoted_wait_minutes')
-  final int? avgQuotedWaitMinutes;
-  @JsonKey(name: 'avg_seated_wait_minutes')
-  final int? avgSeatedWaitMinutes;
-  @JsonKey(name: 'longest_waiting_minutes')
-  final int? longestWaitingMinutes;
+  @JsonKey(name: 'orders_count')
+  final int ordersCount;
+  @JsonKey(name: 'delivered_count')
+  final int deliveredCount;
+  @JsonKey(name: 'canceled_count')
+  final int canceledCount;
+  @JsonKey(name: 'refunded_count')
+  final int refundedCount;
+  @JsonKey(name: 'active_count')
+  final int activeCount;
+  final String revenue;
+  @JsonKey(name: 'average_check')
+  final String averageCheck;
 
   Map<String, Object?> toJson() => _$Summary3ToJson(this);
 }

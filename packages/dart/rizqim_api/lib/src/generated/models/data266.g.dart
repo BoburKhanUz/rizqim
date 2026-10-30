@@ -7,23 +7,55 @@ part of 'data266.dart';
 // **************************************************************************
 
 Data266 _$Data266FromJson(Map<String, dynamic> json) => Data266(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  polygon: Polygon5.fromJson(json['polygon'] as Map<String, dynamic>),
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
+  opId: json['op_id'] as String,
+  seq: (json['seq'] as num).toInt(),
+  type: json['type'] as String,
+  typeLabel: json['type_label'] as String,
+  status: json['status'] as String,
+  reason: json['reason'] as String?,
+  message: json['message'] as String?,
+  staff: json['staff'] == null
+      ? null
+      : Staff22.fromJson(json['staff'] as Map<String, dynamic>),
+  device: json['device'] == null
+      ? null
+      : Device22.fromJson(json['device'] as Map<String, dynamic>),
+  occurredAt: json['occurred_at'] as String?,
+  receivedAt: json['received_at'] as String?,
+  appliedAt: json['applied_at'] as String?,
+  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
+  order: json['order'] == null
+      ? null
+      : Order12.fromJson(json['order'] as Map<String, dynamic>),
+  payload: json['payload'] as Map<String, dynamic>,
+  refs: json['refs'] as Map<String, dynamic>,
+  resolvedAt: json['resolved_at'] as String?,
+  resolvedBy: json['resolved_by'] == null
+      ? null
+      : ResolvedBy2.fromJson(json['resolved_by'] as Map<String, dynamic>),
+  resolution: json['resolution'] as String?,
+  resolutionNote: json['resolution_note'] as String?,
 );
 
 Map<String, dynamic> _$Data266ToJson(Data266 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'polygon': instance.polygon,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
+  'op_id': instance.opId,
+  'seq': instance.seq,
+  'type': instance.type,
+  'type_label': instance.typeLabel,
+  'status': instance.status,
+  'reason': instance.reason,
+  'message': instance.message,
+  'staff': instance.staff,
+  'device': instance.device,
+  'occurred_at': instance.occurredAt,
+  'received_at': instance.receivedAt,
+  'applied_at': instance.appliedAt,
+  'clock_skew_seconds': instance.clockSkewSeconds,
+  'order': instance.order,
+  'payload': instance.payload,
+  'refs': instance.refs,
+  'resolved_at': instance.resolvedAt,
+  'resolved_by': instance.resolvedBy,
+  'resolution': instance.resolution,
+  'resolution_note': instance.resolutionNote,
 };

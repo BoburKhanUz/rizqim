@@ -29,7 +29,7 @@ export function useAddToCart({ storeInfoOf, availability = NO_AVAILABILITY }: Ad
   const [pending, setPending] = useState<PendingCartItem | null>(null);
   const [sheetProduct, setSheetProduct] = useState<Product | null>(null);
 
-  const addVariant = (product: Product, variant: ProductVariant | undefined, choice?: Pick<ProductChoice, 'quantity' | 'modifiers'>): boolean => {
+  const addVariant = (product: Product, variant: ProductVariant | undefined, choice?: Pick<ProductChoice, 'quantity' | 'modifiers' | 'combo'>): boolean => {
     if (variant && isVariantUnavailable(product, variant, availability)) {
       hapticFeedback('error');
       void showAlert(`Uzr, "${product.name}" hozir mavjud emas (tugadi).`);

@@ -58,6 +58,41 @@ export interface ModifierGroup {
   modifiers: Modifier[];
 }
 
+// P6-31: one option of a combo slot (App\Domain\Pos\Menu\Combos::present): a dish and what it adds to the combo's price.
+export interface ComboOption {
+  id: number;
+  uuid: string;
+  variant_id: number;
+  variant_uuid: string;
+  product_id: number | null;
+  name: string;
+  variant_name: string | null;
+  quantity: number; // pieces of the dish in one combo
+  price_delta: Decimal; // 0 or more, added to the combo's price
+  modifiers: Array<{ id: number; uuid: string; name: string; quantity: number; price_delta: Decimal }>; // the preset
+  is_default: boolean;
+  label: string | null;
+  receipt_label: string; // how the part reads under the combo (no price)
+}
+
+export interface ComboSlot {
+  id: number;
+  uuid: string;
+  name: string; // "Asosiy", "Ichimlik", "Sous"
+  min_picks: number; // 0: optional
+  max_picks: number;
+  is_required: boolean;
+  allow_modifiers: boolean;
+  options: ComboOption[];
+}
+
+export interface ProductCombo {
+  id: number;
+  uuid: string;
+  product_id: number;
+  slots: ComboSlot[];
+}
+
 // Mirrors the values the backend writes to products.status.
 export type ProductStatus = 'active' | 'inactive' | 'draft' | 'out_of_stock';
 
@@ -82,6 +117,7 @@ export interface Product {
   updated_at: string;
   variants: ProductVariant[];
   modifier_groups?: ModifierGroup[]; // active groups with their active modifiers; missing on an older backend
+  combo?: ProductCombo | null; // P6-31: a combo's slots and options (null on every other product)
   store?: StoreBase; // only on the global feed (GET /catalog without store_id)
   category?: Category | null; // only on the owner's list (GET /owner/products)
   price?: Decimal; // not sent by the API: the UI falls back to the cheapest variant

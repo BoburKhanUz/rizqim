@@ -103,6 +103,8 @@ class SalesReportService
     public function topProducts(Store $store, ?int $branchId, CarbonImmutable $first, CarbonImmutable $last, int $limit, string $sort): array
     {
         $rows = $this->analytics->topProductRows($this->analytics->ordersBetween((int) $store->id, $branchId, $first, $last), $limit, $sort);
+        // P6-31: a combo counts as the combo in `products`; its parts are counted here (in combos, alone, together)
+        $parts = $this->analytics->comboPartRows($this->analytics->ordersBetween((int) $store->id, $branchId, $first, $last), $limit);
 
         return [
             'period' => $this->period($store, $first, $last),
@@ -114,6 +116,12 @@ class SalesReportService
                 'revenue' => $row['revenue']->toString(),
                 'orders' => $row['orders'],
             ], $rows),
+            'combo_parts' => array_map(fn (array $row) => [
+                'name' => $row['name'],
+                'in_combos' => $row['in_combos']->toNumber(),
+                'alone' => $row['alone']->toNumber(),
+                'total' => $row['total']->toNumber(),
+            ], $parts),
         ];
     }
 

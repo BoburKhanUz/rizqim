@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Billing;
 
+use App\Domain\Pos\Menu\Combos;
 use App\Domain\Pos\Contracts\AdvanceLedger;
 use App\Domain\Pos\Orders\PickupQueue;
 use App\Domain\Pos\Tips\TipPresenter;
@@ -21,7 +22,7 @@ use App\Support\Quantity;
  */
 final class BillPresenter
 {
-    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, seat_no: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, tips_amount: string, tips: list<' . TipPresenter::TIP . '>, service_charge_notice: string|null, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
+    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, packaging_amount: string, packaging_lines: list<array{rule_id: int, name: string, quantity: int, unit: string, amount: string}>, total: string, paid_amount: string, due_amount: string, guests_share: int|null, seat_no: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string, combo_parts: list<array{slot_name: string, name: string, variant_name: string|null, quantity: int, label: string}>|null}>, payments: list<' . self::PAYMENT . '>, tips_amount: string, tips: list<' . TipPresenter::TIP . '>, service_charge_notice: string|null, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
 
     public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, status: string, paid_at: string|null, tip_amount: string}';
 
@@ -54,6 +55,15 @@ final class BillPresenter
             'min_spend_topup_amount' => Money::of($bill->min_spend_topup_amount)->toString(),
             'service_charge_amount' => Money::of($bill->service_charge_amount)->toString(),
             'place_fee_amount' => Money::of($bill->place_fee_amount)->toString(),
+            // P6-34: the bill's packaging and its lines (each its own line on the bill and the receipt)
+            'packaging_amount' => Money::of($bill->getAttribute('packaging_amount'))->toString(),
+            'packaging_lines' => $order !== null ? array_map(fn (array $line) => [
+                'rule_id' => (int) $line['rule_id'],
+                'name' => (string) $line['name'],
+                'quantity' => (int) $line['quantity'],
+                'unit' => (string) $line['unit'],
+                'amount' => (string) $line['amount'],
+            ], \App\Domain\Pos\Takeaway\PackagingRules::shareLines($order, Money::of($bill->getAttribute('packaging_amount'))->toTiyin())) : [],
             'total' => $total->toString(),
             'paid_amount' => $paid->toString(),
             'due_amount' => Money::max(Money::zero(), $total->minus($paid))->toString(),
@@ -78,6 +88,8 @@ final class BillPresenter
                     'quantity' => Quantity::of($share->quantity)->toNumber(),
                     'amount' => Money::of($share->amount)->toString(),
                     'discount_amount' => Money::of($share->discount_amount)->toString(),
+                    // P6-31 (owner decision 30.10.2026): a combo is one line; its parts are listed under it, never priced
+                    'combo_parts' => $item?->isComboLine() ? Combos::receiptParts($item->combo_parts) : null,
                 ];
             })->values()->all(),
             'payments' => $payments->map(fn (Payment $payment) => $this->payment($payment))->values()->all(),

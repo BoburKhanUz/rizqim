@@ -4,89 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
-import 'status5.dart';
-import 'payment_form.dart';
-import 'lines3.dart';
-import 'payments3.dart';
+import 'store_status.dart';
+import 'store_transaction.dart';
+import 'store_wallet_transaction.dart';
+import 'payout_requests.dart';
 
 part 'data82.g.dart';
 
 @JsonSerializable()
 class Data82 {
   const Data82({
-    required this.uuid,
-    required this.type,
+    required this.debtBalance,
+    required this.walletBalance,
+    required this.creditLimit,
+    required this.minPayoutReserve,
+    required this.paymentAccountType,
+    required this.commissionRate,
     required this.status,
-    required this.paymentForm,
-    required this.driver,
-    required this.provider,
-    required this.nonFiscal,
-    required this.taxRegime,
-    required this.total,
-    required this.vatTotal,
-    required this.fiscalSign,
-    required this.receiptNumber,
-    required this.qrUrl,
-    required this.terminalId,
-    required this.error,
-    required this.attempts,
-    required this.nextAttemptAt,
-    required this.issuedAt,
-    required this.createdAt,
-    required this.branchId,
-    required this.deviceId,
-    required this.subjectType,
-    required this.subjectId,
-    required this.originalReceiptUuid,
-    required this.lines,
-    required this.payments,
+    required this.isOrderLocked,
+    required this.ledgerTransactions,
+    required this.walletTransactions,
+    required this.payoutRequests,
   });
 
   factory Data82.fromJson(Map<String, Object?> json) => _$Data82FromJson(json);
 
-  final String uuid;
-  final Type6 type;
-  final Status5 status;
-  @JsonKey(name: 'payment_form')
-  final PaymentForm paymentForm;
-  final String driver;
-  final String? provider;
-  @JsonKey(name: 'non_fiscal')
-  final bool nonFiscal;
-  @JsonKey(name: 'tax_regime')
-  final String? taxRegime;
-  final String total;
-  @JsonKey(name: 'vat_total')
-  final String vatTotal;
-  @JsonKey(name: 'fiscal_sign')
-  final String? fiscalSign;
-  @JsonKey(name: 'receipt_number')
-  final String? receiptNumber;
-  @JsonKey(name: 'qr_url')
-  final String? qrUrl;
-  @JsonKey(name: 'terminal_id')
-  final String? terminalId;
-  final String? error;
-  final int attempts;
-  @JsonKey(name: 'next_attempt_at')
-  final String? nextAttemptAt;
-  @JsonKey(name: 'issued_at')
-  final String? issuedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'device_id')
-  final int? deviceId;
-  @JsonKey(name: 'subject_type')
-  final String? subjectType;
-  @JsonKey(name: 'subject_id')
-  final int? subjectId;
-  @JsonKey(name: 'original_receipt_uuid')
-  final String? originalReceiptUuid;
-  final List<Lines3> lines;
-  final List<Payments3> payments;
+  @JsonKey(name: 'debt_balance')
+  final num debtBalance;
+  @JsonKey(name: 'wallet_balance')
+  final num walletBalance;
+  @JsonKey(name: 'credit_limit')
+  final num creditLimit;
+  @JsonKey(name: 'min_payout_reserve')
+  final num minPayoutReserve;
+  @JsonKey(name: 'payment_account_type')
+  final String paymentAccountType;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final StoreStatus status;
+  @JsonKey(name: 'is_order_locked')
+  final bool isOrderLocked;
+  @JsonKey(name: 'ledger_transactions')
+  final List<StoreTransaction> ledgerTransactions;
+  @JsonKey(name: 'wallet_transactions')
+  final List<StoreWalletTransaction> walletTransactions;
+  @JsonKey(name: 'payout_requests')
+  final List<PayoutRequests> payoutRequests;
 
   Map<String, Object?> toJson() => _$Data82ToJson(this);
 }

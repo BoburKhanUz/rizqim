@@ -7,17 +7,13 @@ part of 'data134.dart';
 // **************************************************************************
 
 Data134 _$Data134FromJson(Map<String, dynamic> json) => Data134(
-  branchId: (json['branch_id'] as num).toInt(),
-  weekendDays: (json['weekend_days'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips.fromJson(e as Map<String, dynamic>))
       .toList(),
-  holidays: (json['holidays'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  truncated: json['truncated'] as bool,
 );
 
 Map<String, dynamic> _$Data134ToJson(Data134 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'weekend_days': instance.weekendDays,
-  'holidays': instance.holidays,
+  'tips': instance.tips,
+  'truncated': instance.truncated,
 };

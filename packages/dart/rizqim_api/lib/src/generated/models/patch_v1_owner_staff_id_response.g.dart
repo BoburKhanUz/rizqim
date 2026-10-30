@@ -11,7 +11,7 @@ PatchV1OwnerStaffIdResponse _$PatchV1OwnerStaffIdResponseFromJson(
 ) => PatchV1OwnerStaffIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data159.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data175.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerStaffIdResponseToJson(

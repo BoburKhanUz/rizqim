@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'layout12.dart';
 import 'reservation.dart';
-import 'orders.dart';
+import 'orders2.dart';
 
 part 'tables6.g.dart';
 
@@ -48,7 +48,7 @@ class Tables6 {
   @JsonKey(name: 'service_state')
   final String? serviceState;
   final Reservation? reservation;
-  final List<Orders> orders;
+  final List<Orders2> orders;
 
   Map<String, Object?> toJson() => _$Tables6ToJson(this);
 }

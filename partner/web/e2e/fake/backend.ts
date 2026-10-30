@@ -3,15 +3,18 @@
 // token). The feature areas live in their own modules; this one has the accounts, tokens and the routing.
 import { FakeBilling } from './billing'
 import { FakeBookings } from './bookings'
+import { FakeCombos } from './combos'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
 import { FakeHostess } from './hostess'
+import { FakeKds } from './kds'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
 import { FakePermissions } from './permissions'
 import { FakeReports } from './reports'
 import { FakeShifts } from './shifts'
+import { FakeTakeaway } from './takeaway'
 import { FakeStaffPay } from './staffpay'
 import { FakeTeam } from './team'
 import { FakeTerminal } from './terminal'
@@ -112,6 +115,9 @@ export class FakeBackend {
   terminal: FakeTerminal
   staffPay: FakeStaffPay
   tips: FakeTips
+  kds: FakeKds
+  combos: FakeCombos
+  takeaway: FakeTakeaway
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -130,6 +136,9 @@ export class FakeBackend {
     this.terminal = new FakeTerminal(this)
     this.staffPay = new FakeStaffPay(this)
     this.tips = new FakeTips(this)
+    this.kds = new FakeKds(this)
+    this.combos = new FakeCombos(this)
+    this.takeaway = new FakeTakeaway(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -291,7 +300,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips]) {
+    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

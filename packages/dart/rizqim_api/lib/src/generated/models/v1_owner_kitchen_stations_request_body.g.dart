@@ -11,7 +11,10 @@ V1OwnerKitchenStationsRequestBody _$V1OwnerKitchenStationsRequestBodyFromJson(
 ) => V1OwnerKitchenStationsRequestBody(
   name: json['name'] as String,
   branchId: (json['branch_id'] as num?)?.toInt(),
-  kind: json['kind'] == null ? null : Kind3.fromJson(json['kind'] as String),
+  kind: json['kind'] == null
+      ? null
+      : KitchenStationKind.fromJson(json['kind'] as String),
+  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
   sortOrder: (json['sort_order'] as num?)?.toInt(),
   isActive: json['is_active'] as bool?,
   showOnKds: json['show_on_kds'] as bool?,
@@ -23,6 +26,7 @@ Map<String, dynamic> _$V1OwnerKitchenStationsRequestBodyToJson(
   'branch_id': instance.branchId,
   'name': instance.name,
   'kind': instance.kind,
+  'target_seconds': instance.targetSeconds,
   'sort_order': instance.sortOrder,
   'is_active': instance.isActive,
   'show_on_kds': instance.showOnKds,

@@ -11,7 +11,7 @@ GetV1OwnerRoomTariffsResponse _$GetV1OwnerRoomTariffsResponseFromJson(
 ) => GetV1OwnerRoomTariffsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data132.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data148.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerRoomTariffsResponseToJson(

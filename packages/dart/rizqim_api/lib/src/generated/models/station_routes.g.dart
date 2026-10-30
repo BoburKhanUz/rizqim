@@ -12,7 +12,7 @@ StationRoutes _$StationRoutesFromJson(Map<String, dynamic> json) =>
           .map((e) => Categories.fromJson(e as Map<String, dynamic>))
           .toList(),
       products: (json['products'] as List<dynamic>)
-          .map((e) => Products5.fromJson(e as Map<String, dynamic>))
+          .map((e) => Products8.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
 

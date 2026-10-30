@@ -12,7 +12,7 @@ use App\Models\Printer;
 final class SetupPresenter
 {
     /**
-     * @return array{id: int, branch_id: int, name: string, kind: string, kind_label: string, sort_order: int, is_active: bool, show_on_kds: bool}
+     * @return array{id: int, branch_id: int, name: string, kind: string, kind_label: string, sort_order: int, is_active: bool, show_on_kds: bool, target_seconds: int|null}
      */
     public static function station(KitchenStation $station): array
     {
@@ -25,6 +25,8 @@ final class SetupPresenter
             'sort_order' => (int) $station->sort_order,
             'is_active' => (bool) $station->is_active,
             'show_on_kds' => (bool) $station->show_on_kds,
+            // P6-33: the line time target (an expo station: the assembly target); null: none
+            'target_seconds' => $station->target_seconds !== null ? (int) $station->target_seconds : null,
         ];
     }
 

@@ -11,7 +11,7 @@ GetV1OwnerInvoicesResponse _$GetV1OwnerInvoicesResponseFromJson(
 ) => GetV1OwnerInvoicesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data91.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data104.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerInvoicesResponseToJson(

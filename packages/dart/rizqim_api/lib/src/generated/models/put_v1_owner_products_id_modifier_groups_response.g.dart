@@ -12,7 +12,7 @@ _$PutV1OwnerProductsIdModifierGroupsResponseFromJson(
 ) => PutV1OwnerProductsIdModifierGroupsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data128.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data143.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerProductsIdModifierGroupsResponseToJson(

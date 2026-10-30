@@ -11,7 +11,7 @@ PutV1OwnerMealSetsIdResponse _$PutV1OwnerMealSetsIdResponseFromJson(
 ) => PutV1OwnerMealSetsIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data99.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data114.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerMealSetsIdResponseToJson(

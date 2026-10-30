@@ -48,7 +48,8 @@ class PosStationsPrintersApiTest extends TestCase
 
         $list = $this->as($this->owner, 'GET', "/api/v1/owner/kitchen-stations?branch_id={$this->branch->id}")->assertOk();
         $this->assertSame(['Osh va qozon', 'Mangal'], array_column($list->json('data.stations'), 'name'));
-        $this->assertSame(['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other'], array_column($list->json('data.kinds'), 'value'));
+        // P6-33: the universal kinds of KDS v2 after the choyxona's
+        $this->assertSame(['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other', 'grill', 'fryer', 'drinks', 'barista', 'expo'], array_column($list->json('data.kinds'), 'value'));
         $this->assertCount(3, $this->as($this->owner, 'GET', '/api/v1/owner/kitchen-stations')->json('data.stations'));
 
         $this->as($this->owner, 'PATCH', "/api/v1/owner/kitchen-stations/{$id}", ['name' => 'Osh', 'is_active' => false])

@@ -30,7 +30,10 @@ abstract class OwnerMenuModifiersApi {
   ///
   /// `max_select` null means any number; `is_required` raises the minimum to 1. `price_delta` is added to the item's.
   /// price (per piece; once per line for items sold by weight). `product_variant_id` optionally links a modifier to a.
-  /// variant of the store (for stock later).
+  /// variant of the store (for stock later). P6-32: `display_mode` (a ModifierDisplayMode value, default `dialog`) and.
+  /// a modifier's `is_default` are hints for the till (the `quick_modifiers` module): `size` needs `max_select` 1, at.
+  /// most `max_select` active modifiers may be defaults; setting a hint on a store whose branches all lack the module.
+  /// is 403 `module_disabled`.
   @POST('/v1/owner/modifier-groups')
   Future<PostV1OwnerModifierGroupsResponse> modifierGroupStore({
     @Body() required ModifierGroupRequest body,
@@ -39,7 +42,8 @@ abstract class OwnerMenuModifiersApi {
   /// Update a modifier group.
   ///
   /// `modifiers` replaces the list: an entry with `id` updates that modifier, one without creates it, and a modifier.
-  /// left out is deleted (order history keeps its snapshot).
+  /// left out is deleted (order history keeps its snapshot). P6-32: `display_mode` and `is_default` left out keep what.
+  /// is saved.
   @PUT('/v1/owner/modifier-groups/{id}')
   Future<PutV1OwnerModifierGroupsIdResponse> modifierGroupUpdate({
     @Path('id') required int id,

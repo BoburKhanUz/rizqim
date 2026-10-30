@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'stations4.dart';
+import 'stations6.dart';
 import 'dishes3.dart';
 
 part 'template3.g.dart';
@@ -21,7 +21,7 @@ class Template3 {
       _$Template3FromJson(json);
 
   final String profile;
-  final List<Stations4> stations;
+  final List<Stations6> stations;
   final List<Dishes3> dishes;
 
   Map<String, Object?> toJson() => _$Template3ToJson(this);

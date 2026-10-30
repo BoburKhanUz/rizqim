@@ -10,31 +10,28 @@ part 'stations.g.dart';
 class Stations {
   const Stations({
     required this.id,
-    required this.branchId,
     required this.name,
     required this.kind,
     required this.kindLabel,
-    required this.sortOrder,
     required this.isActive,
-    required this.showOnKds,
+    required this.targetSeconds,
+    required this.defaultTargetSeconds,
   });
 
   factory Stations.fromJson(Map<String, Object?> json) =>
       _$StationsFromJson(json);
 
   final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
   final String name;
   final String kind;
   @JsonKey(name: 'kind_label')
   final String kindLabel;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  @JsonKey(name: 'show_on_kds')
-  final bool showOnKds;
+  @JsonKey(name: 'target_seconds')
+  final int? targetSeconds;
+  @JsonKey(name: 'default_target_seconds')
+  final int? defaultTargetSeconds;
 
   Map<String, Object?> toJson() => _$StationsToJson(this);
 }

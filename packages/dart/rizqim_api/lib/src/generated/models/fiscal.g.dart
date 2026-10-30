@@ -7,13 +7,15 @@ part of 'fiscal.dart';
 // **************************************************************************
 
 Fiscal _$FiscalFromJson(Map<String, dynamic> json) => Fiscal(
-  enabled: json['enabled'] as bool,
-  activeDriver: json['active_driver'] as String,
-  smartKassaDriver: json['smart_kassa_driver'] as String,
+  single: (json['single'] as List<dynamic>)
+      .map((e) => Single.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  split: (json['split'] as List<dynamic>)
+      .map((e) => Split.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$FiscalToJson(Fiscal instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'active_driver': instance.activeDriver,
-  'smart_kassa_driver': instance.smartKassaDriver,
+  'single': instance.single,
+  'split': instance.split,
 };

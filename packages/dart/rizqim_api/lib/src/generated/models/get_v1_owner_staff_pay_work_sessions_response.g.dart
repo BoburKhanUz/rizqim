@@ -12,7 +12,7 @@ _$GetV1OwnerStaffPayWorkSessionsResponseFromJson(Map<String, dynamic> json) =>
       success: json['success'] as bool,
       message: json['message'] as String,
       data: (json['data'] as List<dynamic>)
-          .map((e) => Data156.fromJson(e as Map<String, dynamic>))
+          .map((e) => Data172.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
 

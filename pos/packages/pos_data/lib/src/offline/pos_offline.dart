@@ -8,6 +8,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import '../billing/billing_models.dart';
 import '../bootstrap/bootstrap_models.dart';
 import '../catalog/catalog_models.dart';
+import '../catalog/combo_models.dart';
 import '../floor/floor_models.dart';
 import '../format/format_models.dart';
 import '../http/connectivity.dart';
@@ -870,17 +871,29 @@ class PosOffline {
         'group_name': group,
       });
     }
+    // P6-31: a combo sold offline: its picks checked and priced as the server does (Combos::resolve); the server
+    // keeps the picks and compares the delta (`combo_delta`) with its own
+    final PosComboResolution? combo = _combo(cat, p, input);
     return <String, Object?>{
       'line_id': newUuid(),
       ...input.toJson(),
       'modifiers': mods,
       'unit_price': v.price.toApiString(),
+      if (combo != null) ...<String, Object?>{
+        'combo_delta': combo.delta.toApiString(),
+        'combo_parts': <Map<String, Object?>>[
+          for (final PosComboPart part in combo.parts) part.toJson(),
+        ],
+      },
       // For the till's own view and tickets
       'name': p.name,
       'variant_name': v.name,
       'unit': v.unit.wire,
       'unit_label': v.unitLabel,
       'product_variant_id': v.id,
+      // P6-34: the dish and its category, for the packaging rules (OfflinePackaging); the server ignores them
+      'product_id': p.id,
+      'category_id': p.categoryId,
       'station_id':
           p.stationId ??
           bootstrap()?.stationRoutes.stationFor(
@@ -895,6 +908,45 @@ class PosOffline {
           !p.batchTracked)
         'weight_basis': (p.weightMode ?? PosWeightBasis.raw).wire,
     };
+  }
+
+  /// P6-31: the combo of a line's dish, its picks checked against the cached menu (an option the catalog marked
+  /// unavailable is refused, as the server would); `null` for a plain dish.
+  PosComboResolution? _combo(PosCatalog cat, PosProduct p, PosLineInput input) {
+    final PosCombo? combo = p.combo;
+    if (combo == null) return null;
+    try {
+      return PosComboPricing.resolve(
+        combo,
+        input.combo ?? const <PosComboPick>[],
+        comboName: p.name,
+        available: (PosComboOption o) {
+          final PosVariant? part = cat.variantByUuid(o.variantUuid);
+          return o.isAvailable &&
+              (part == null || cat.isVariantAvailable(part));
+        },
+        partPrice: (PosComboOption o) =>
+            cat.variantByUuid(o.variantUuid)?.price ?? PosMoney.zero,
+        modifierInfo: (String uuid) {
+          for (final PosProduct x in cat.products) {
+            for (final PosModifierGroup g in x.modifierGroups) {
+              for (final PosModifier m in g.modifiers) {
+                if (m.uuid.toLowerCase() == uuid) {
+                  return (
+                    name: m.name,
+                    priceDelta: m.priceDelta,
+                    groupName: g.name,
+                  );
+                }
+              }
+            }
+          }
+          return null;
+        },
+      );
+    } on PosComboRejected catch (e) {
+      throw PosOfflineUnavailable(e.message);
+    }
   }
 
   List<Object?> _autoItems(PosCatalog cat, int? hallId, int guests) =>

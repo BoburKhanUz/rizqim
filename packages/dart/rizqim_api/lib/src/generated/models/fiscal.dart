@@ -4,23 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'single.dart';
+import 'split.dart';
+
 part 'fiscal.g.dart';
 
 @JsonSerializable()
 class Fiscal {
-  const Fiscal({
-    required this.enabled,
-    required this.activeDriver,
-    required this.smartKassaDriver,
-  });
+  const Fiscal({required this.single, required this.split});
 
   factory Fiscal.fromJson(Map<String, Object?> json) => _$FiscalFromJson(json);
 
-  final bool enabled;
-  @JsonKey(name: 'active_driver')
-  final String activeDriver;
-  @JsonKey(name: 'smart_kassa_driver')
-  final String smartKassaDriver;
+  final List<Single> single;
+  final List<Split> split;
 
   Map<String, Object?> toJson() => _$FiscalToJson(this);
 }

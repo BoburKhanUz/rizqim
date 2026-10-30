@@ -7,11 +7,13 @@ part of 'data265.dart';
 // **************************************************************************
 
 Data265 _$Data265FromJson(Map<String, dynamic> json) => Data265(
-  rating: json['rating'] as String,
-  reviewCount: (json['review_count'] as num).toInt(),
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  meta: Meta2.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data265ToJson(Data265 instance) => <String, dynamic>{
-  'rating': instance.rating,
-  'review_count': instance.reviewCount,
+  'errors': instance.errors,
+  'meta': instance.meta,
 };

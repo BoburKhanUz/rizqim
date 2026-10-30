@@ -4,26 +4,47 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order8.dart';
-import 'bills.dart';
-import 'refunds.dart';
-
 part 'data209.g.dart';
 
 @JsonSerializable()
 class Data209 {
   const Data209({
-    required this.order,
-    required this.bills,
-    required this.refunds,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
+    required this.branchId,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data209.fromJson(Map<String, Object?> json) =>
       _$Data209FromJson(json);
 
-  final Order8 order;
-  final List<Bills> bills;
-  final List<Refunds> refunds;
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data209ToJson(this);
 }

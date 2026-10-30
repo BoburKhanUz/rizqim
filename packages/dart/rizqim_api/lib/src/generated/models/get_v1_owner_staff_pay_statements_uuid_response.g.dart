@@ -11,7 +11,7 @@ _$GetV1OwnerStaffPayStatementsUuidResponseFromJson(Map<String, dynamic> json) =>
     GetV1OwnerStaffPayStatementsUuidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data150.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data166.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1OwnerStaffPayStatementsUuidResponseToJson(

@@ -7,29 +7,63 @@ part of 'summary6.dart';
 // **************************************************************************
 
 Summary6 _$Summary6FromJson(Map<String, dynamic> json) => Summary6(
-  count: (json['count'] as num).toInt(),
-  amount: json['amount'] as String,
-  byMethod: (json['by_method'] as List<dynamic>)
-      .map((e) => ByMethod12.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String,
+  generatedAt: json['generated_at'] as String,
+  period: Period7.fromJson(json['period'] as Map<String, dynamic>),
+  sales: Sales7.fromJson(json['sales'] as Map<String, dynamic>),
+  byTender: (json['by_tender'] as List<dynamic>)
+      .map((e) => ByTender4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  personal: json['personal'] as String,
-  pool: json['pool'] as String,
-  unassigned: json['unassigned'] as String,
-  byStaff: (json['by_staff'] as List<dynamic>)
-      .map((e) => ByStaff8.fromJson(e as Map<String, dynamic>))
+  cards: (json['cards'] as List<dynamic>)
+      .map((e) => Cards4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  corrections: Corrections15.fromJson(
-    json['corrections'] as Map<String, dynamic>,
+  byChannel: (json['by_channel'] as List<dynamic>)
+      .map((e) => ByChannel6.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byWaiter: (json['by_waiter'] as List<dynamic>)
+      .map((e) => ByWaiter4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  discounts: Discounts4.fromJson(json['discounts'] as Map<String, dynamic>),
+  voids: Voids4.fromJson(json['voids'] as Map<String, dynamic>),
+  batchWriteoffs: BatchWriteoffs4.fromJson(
+    json['batch_writeoffs'] as Map<String, dynamic>,
   ),
+  refunds: Refunds7.fromJson(json['refunds'] as Map<String, dynamic>),
+  deposits: Deposits4.fromJson(json['deposits'] as Map<String, dynamic>),
+  credit: Credit7.fromJson(json['credit'] as Map<String, dynamic>),
+  tips: Tips12.fromJson(json['tips'] as Map<String, dynamic>),
+  cash: Cash5.fromJson(json['cash'] as Map<String, dynamic>),
+  movements: (json['movements'] as List<dynamic>)
+      .map((e) => Movements4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  openOrders: (json['open_orders'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  pendingReceipts: json['pending_receipts'] == null
+      ? null
+      : PendingReceipts2.fromJson(
+          json['pending_receipts'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$Summary6ToJson(Summary6 instance) => <String, dynamic>{
-  'count': instance.count,
-  'amount': instance.amount,
-  'by_method': instance.byMethod,
-  'personal': instance.personal,
-  'pool': instance.pool,
-  'unassigned': instance.unassigned,
-  'by_staff': instance.byStaff,
-  'corrections': instance.corrections,
+  'shift_uuid': instance.shiftUuid,
+  'generated_at': instance.generatedAt,
+  'period': instance.period,
+  'sales': instance.sales,
+  'by_tender': instance.byTender,
+  'cards': instance.cards,
+  'by_channel': instance.byChannel,
+  'by_waiter': instance.byWaiter,
+  'discounts': instance.discounts,
+  'voids': instance.voids,
+  'batch_writeoffs': instance.batchWriteoffs,
+  'refunds': instance.refunds,
+  'deposits': instance.deposits,
+  'credit': instance.credit,
+  'tips': instance.tips,
+  'cash': instance.cash,
+  'movements': instance.movements,
+  'open_orders': instance.openOrders,
+  'pending_receipts': instance.pendingReceipts,
 };

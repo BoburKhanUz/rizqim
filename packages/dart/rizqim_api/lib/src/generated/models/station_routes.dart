@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'categories.dart';
-import 'products5.dart';
+import 'products8.dart';
 
 part 'station_routes.g.dart';
 
@@ -17,7 +17,7 @@ class StationRoutes {
       _$StationRoutesFromJson(json);
 
   final List<Categories> categories;
-  final List<Products5> products;
+  final List<Products8> products;
 
   Map<String, Object?> toJson() => _$StationRoutesToJson(this);
 }

@@ -4,46 +4,59 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'branch9.dart';
+import 'login_phone_proof.dart';
+
 part 'data158.g.dart';
 
 @JsonSerializable()
 class Data158 {
   const Data158({
-    required this.uuid,
-    required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.businessDate,
-    required this.clockInAt,
-    required this.clockOutAt,
-    required this.abandoned,
-    required this.open,
-    required this.minutes,
-    required this.source,
-    required this.note,
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.roleLabel,
+    required this.branch,
+    required this.courierType,
+    required this.phone,
+    required this.loginPhoneEnabled,
+    required this.loginPhoneProof,
+    required this.hasPin,
+    required this.staffCode,
+    required this.telegramLinked,
+    required this.invitePending,
+    required this.canEdit,
+    required this.createdAt,
   });
 
   factory Data158.fromJson(Map<String, Object?> json) =>
       _$Data158FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'clock_in_at')
-  final String clockInAt;
-  @JsonKey(name: 'clock_out_at')
-  final String? clockOutAt;
-  final bool abandoned;
-  final bool open;
-  final int minutes;
-  final String source;
-  final String? note;
+  final int id;
+  final String name;
+  final String role;
+  @JsonKey(name: 'role_label')
+  final String roleLabel;
+  final Branch9? branch;
+  @JsonKey(name: 'courier_type')
+  final String? courierType;
+  final String? phone;
+  @JsonKey(name: 'login_phone_enabled')
+  final bool loginPhoneEnabled;
+  @JsonKey(name: 'login_phone_proof')
+  final LoginPhoneProof? loginPhoneProof;
+  @JsonKey(name: 'has_pin')
+  final bool hasPin;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'telegram_linked')
+  final bool telegramLinked;
+  @JsonKey(name: 'invite_pending')
+  final bool invitePending;
+  @JsonKey(name: 'can_edit')
+  final bool canEdit;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data158ToJson(this);
 }

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data43.dart';
+import 'data50.dart';
 
 part 'put_v1_owner_branches_branch_terminal_flow_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerBranchesBranchTerminalFlowResponse {
 
   final bool success;
   final String message;
-  final Data43 data;
+  final Data50 data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerBranchesBranchTerminalFlowResponseToJson(this);

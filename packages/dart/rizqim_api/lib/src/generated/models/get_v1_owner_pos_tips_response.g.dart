@@ -11,7 +11,7 @@ GetV1OwnerPosTipsResponse _$GetV1OwnerPosTipsResponseFromJson(
 ) => GetV1OwnerPosTipsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data115.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data130.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPosTipsResponseToJson(

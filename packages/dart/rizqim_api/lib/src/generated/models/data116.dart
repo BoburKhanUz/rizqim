@@ -4,20 +4,54 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'distributions2.dart';
+import 'modifiers5.dart';
+import 'product_rules2.dart';
 
 part 'data116.g.dart';
 
 @JsonSerializable()
 class Data116 {
-  const Data116({required this.poolPeriod, required this.distributions});
+  const Data116({
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.displayMode,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
+  });
 
   factory Data116.fromJson(Map<String, Object?> json) =>
       _$Data116FromJson(json);
 
-  @JsonKey(name: 'pool_period')
-  final String poolPeriod;
-  final List<Distributions2> distributions;
+  final int id;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'display_mode')
+  final String displayMode;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers5> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules2 productRules;
 
   Map<String, Object?> toJson() => _$Data116ToJson(this);
 }

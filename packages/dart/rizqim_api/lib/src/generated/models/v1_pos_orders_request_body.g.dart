@@ -19,9 +19,12 @@ V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   send: json['send'] as bool?,
   queueNumber: (json['queue_number'] as num?)?.toInt(),
   items: (json['items'] as List<dynamic>?)
-      ?.map((e) => Items21.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Items22.fromJson(e as Map<String, dynamic>))
       .toList(),
   tableLabel: json['table_label'] as String?,
+  pickupAt: json['pickup_at'] == null
+      ? null
+      : DateTime.parse(json['pickup_at'] as String),
 );
 
 Map<String, dynamic> _$V1PosOrdersRequestBodyToJson(
@@ -38,4 +41,5 @@ Map<String, dynamic> _$V1PosOrdersRequestBodyToJson(
   'queue_number': instance.queueNumber,
   'items': instance.items,
   'table_label': instance.tableLabel,
+  'pickup_at': instance.pickupAt?.toIso8601String(),
 };

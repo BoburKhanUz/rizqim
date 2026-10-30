@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Orders;
 
+use App\Domain\Pos\Contracts\AssemblyTracker;
 use App\Domain\Pos\Contracts\PickupTracker;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
@@ -181,7 +182,8 @@ final class PickupQueue implements PickupTracker
         }
 
         $cooking = $this->cooking($order);
-        if ($status === PickupStatus::PREPARING && !$cooking && $this->hasKitchenLines($order)) {
+        // P6-33 (kds_expo): an order cooked on several stations is ready once the expo station assembled it
+        if ($status === PickupStatus::PREPARING && !$cooking && $this->hasKitchenLines($order) && !$this->awaitsAssembly($order)) {
             $this->move($order, $this->readyStep($order));
         } elseif ($status === PickupStatus::READY && $cooking) {
             $this->move($order, PickupStatus::PREPARING);
@@ -221,7 +223,8 @@ final class PickupQueue implements PickupTracker
 
         if (in_array($to, [OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)) {
             $this->numberOnline($order);
-            if ($status !== PickupStatus::PREPARING && $this->applies($order)) {
+            // P6-34: a pickup for later joins the board when the kitchen gets it (ScheduledPickup::fire)
+            if ($status !== PickupStatus::PREPARING && $this->applies($order) && !\App\Domain\Pos\Takeaway\ScheduledPickup::waiting($order)) {
                 $this->move($order, PickupStatus::PREPARING);
             }
         } elseif ($to === OrderStatus::READY && $status !== PickupStatus::READY && $this->applies($order)) {
@@ -274,7 +277,7 @@ final class PickupQueue implements PickupTracker
                 $order->refresh();
             }
             if (!in_array(self::statusOf($order), [PickupStatus::READY, PickupStatus::HANDED], true)) {
-                OrderItem::where('order_id', $order->id)->whereNotNull('sent_at')
+                OrderItem::withComboParts()->where('order_id', $order->id)->whereNotNull('sent_at') // P6-31: combo parts too
                     ->whereIn('kitchen_status', KitchenItemStatus::cookingValues())
                     ->update(['kitchen_status' => KitchenItemStatus::READY->value, 'ready_at' => now()]);
                 $this->move($order, $this->readyStep($order));
@@ -347,7 +350,7 @@ final class PickupQueue implements PickupTracker
                 return $order;
             }
 
-            OrderItem::where('order_id', $order->id)->whereNotNull('sent_at')
+            OrderItem::withComboParts()->where('order_id', $order->id)->whereNotNull('sent_at') // P6-31: combo parts too
                 ->whereIn('kitchen_status', [KitchenItemStatus::SENT->value, KitchenItemStatus::READY->value])
                 ->update(['kitchen_status' => KitchenItemStatus::SERVED->value]);
             $this->move($order, PickupStatus::HANDED);
@@ -416,6 +419,14 @@ final class PickupQueue implements PickupTracker
             PickupStatus::READY => 'queue.ready',
             PickupStatus::HANDED => 'queue.handed',
         }));
+    }
+
+    /**
+     * P6-33: the order waits on the expo station (AssemblyTracker; unbound: never).
+     */
+    private function awaitsAssembly(Order $order): bool
+    {
+        return app()->bound(AssemblyTracker::class) && app(AssemblyTracker::class)->awaitsAssembly($order);
     }
 
     /**

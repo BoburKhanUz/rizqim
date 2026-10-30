@@ -4,35 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'format.dart';
+import 'sets.dart';
 
 part 'data112.g.dart';
 
 @JsonSerializable()
 class Data112 {
-  const Data112({
-    required this.stationsCreated,
-    required this.stationsSkipped,
-    required this.categoriesCreated,
-    required this.dishesCreated,
-    required this.dishesSkipped,
-    required this.format,
-  });
+  const Data112({required this.sets});
 
   factory Data112.fromJson(Map<String, Object?> json) =>
       _$Data112FromJson(json);
 
-  @JsonKey(name: 'stations_created')
-  final List<String> stationsCreated;
-  @JsonKey(name: 'stations_skipped')
-  final List<String> stationsSkipped;
-  @JsonKey(name: 'categories_created')
-  final List<String> categoriesCreated;
-  @JsonKey(name: 'dishes_created')
-  final List<String> dishesCreated;
-  @JsonKey(name: 'dishes_skipped')
-  final List<String> dishesSkipped;
-  final Format format;
+  final List<Sets> sets;
 
   Map<String, Object?> toJson() => _$Data112ToJson(this);
 }

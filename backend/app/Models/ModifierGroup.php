@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ModifierDisplayMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $min_select
  * @property int|null $max_select
  * @property bool $is_required
+ * @property ModifierDisplayMode $display_mode P6-32: where the options are shown on the till's tile (a hint)
  * @property bool $is_active
  */
 class ModifierGroup extends Model
@@ -30,6 +32,7 @@ class ModifierGroup extends Model
         'min_select' => 'integer',
         'max_select' => 'integer',
         'is_required' => 'boolean',
+        'display_mode' => ModifierDisplayMode::class,
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
@@ -37,6 +40,7 @@ class ModifierGroup extends Model
     protected $attributes = [
         'min_select' => 0,
         'is_required' => false,
+        'display_mode' => 'dialog',
         'is_active' => true,
         'sort_order' => 0,
     ];

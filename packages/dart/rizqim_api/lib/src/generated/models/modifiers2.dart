@@ -11,13 +11,11 @@ class Modifiers2 {
   const Modifiers2({
     required this.id,
     required this.uuid,
+    required this.groupId,
+    required this.groupName,
     required this.name,
-    required this.nameI18n,
+    required this.quantity,
     required this.priceDelta,
-    required this.maxQuantity,
-    required this.productVariantId,
-    required this.sortOrder,
-    required this.isActive,
   });
 
   factory Modifiers2.fromJson(Map<String, Object?> json) =>
@@ -25,19 +23,14 @@ class Modifiers2 {
 
   final int id;
   final String uuid;
+  @JsonKey(name: 'group_id')
+  final int groupId;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
+  final int quantity;
   @JsonKey(name: 'price_delta')
   final String priceDelta;
-  @JsonKey(name: 'max_quantity')
-  final int maxQuantity;
-  @JsonKey(name: 'product_variant_id')
-  final int? productVariantId;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
 
   Map<String, Object?> toJson() => _$Modifiers2ToJson(this);
 }

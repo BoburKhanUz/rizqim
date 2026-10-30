@@ -14,7 +14,7 @@ part 'order_bill.g.dart';
 @JsonSerializable()
 class OrderBill {
   const OrderBill({
-    required this.id,
+    required this.minSpendTopupAmount,
     required this.uuid,
     required this.storeId,
     required this.branchId,
@@ -25,7 +25,7 @@ class OrderBill {
     required this.subtotal,
     required this.discount,
     required this.roomFeeAmount,
-    required this.minSpendTopupAmount,
+    required this.id,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.total,
@@ -35,7 +35,7 @@ class OrderBill {
     required this.printedAt,
     required this.paidAt,
     required this.shiftId,
-    required this.fiscalReceiptUuid,
+    required this.packagingAmount,
     required this.fiscalStatus,
     required this.fiscalError,
     required this.createdBy,
@@ -44,6 +44,7 @@ class OrderBill {
     required this.updatedAt,
     required this.seatNo,
     required this.waiterId,
+    required this.fiscalReceiptUuid,
     this.order,
     this.items,
     this.payments,
@@ -104,6 +105,8 @@ class OrderBill {
   final int? seatNo;
   @JsonKey(name: 'waiter_id')
   final int? waiterId;
+  @JsonKey(name: 'packaging_amount')
+  final String packagingAmount;
   final Order? order;
   final List<OrderBillItem>? items;
   final List<Payment>? payments;

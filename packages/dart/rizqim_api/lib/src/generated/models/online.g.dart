@@ -40,7 +40,7 @@ Online _$OnlineFromJson(Map<String, dynamic> json) => Online(
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items19.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items20.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,

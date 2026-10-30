@@ -18,7 +18,7 @@ import {
   type KitchenStation,
   type KitchenStationInput,
   type KitchenStationPatch,
-  type KitchenStations,
+  type KitchenStationList,
   type Printer,
   type PrinterInput,
   type PrinterPatch,
@@ -40,7 +40,7 @@ export const posSetupKeys = {
   allBranchSettings: ['owner', 'branch-pos-settings'] as const,
 };
 
-export function useKitchenStations(branchId: number | undefined, options: QueryExtras<KitchenStations> = {}) {
+export function useKitchenStations(branchId: number | undefined, options: QueryExtras<KitchenStationList> = {}) {
   const api = useStaffApi();
   return useQuery({ ...options, queryKey: posSetupKeys.stations(branchId), queryFn: () => fetchKitchenStations(api, branchId) });
 }

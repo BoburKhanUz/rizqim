@@ -7,23 +7,33 @@ part of 'data71.dart';
 // **************************************************************************
 
 Data71 _$Data71FromJson(Map<String, dynamic> json) => Data71(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data70.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  uuid: json['uuid'] as String,
+  type: json['type'] as String,
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
+      ? null
+      : User11.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data71ToJson(Data71 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
+  'created_at': instance.createdAt,
 };

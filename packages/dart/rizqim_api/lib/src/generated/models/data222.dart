@@ -4,22 +4,23 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall13.dart';
-import 'table13.dart';
-import 'waiter16.dart';
+import 'hall2.dart';
+import 'table2.dart';
+import 'waiter5.dart';
 import 'discount_kind.dart';
-import 'charges16.dart';
-import 'offline12.dart';
-import 'queue14.dart';
-import 'courses11.dart';
-import 'items36.dart';
+import 'pickup2.dart';
+import 'charges6.dart';
+import 'offline2.dart';
+import 'queue3.dart';
+import 'courses.dart';
+import 'items21.dart';
 
 part 'data222.g.dart';
 
 @JsonSerializable()
 class Data222 {
   const Data222({
-    required this.waiter,
+    required this.openedBy,
     required this.shortCode,
     required this.status,
     required this.channel,
@@ -33,8 +34,8 @@ class Data222 {
     required this.tableRef,
     required this.tableLabel,
     required this.guestsCount,
+    required this.waiter,
     required this.uuid,
-    required this.openedBy,
     required this.deviceId,
     required this.bookingId,
     required this.bookingUuid,
@@ -47,13 +48,15 @@ class Data222 {
     required this.subtotal,
     required this.discount,
     required this.discountKind,
+    required this.discountValue,
     required this.items,
-    required this.discountReason,
     required this.discountBy,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.roomFeeAmount,
     required this.minSpendTopupAmount,
+    required this.packagingAmount,
+    required this.pickup,
     required this.totalPrice,
     required this.charges,
     required this.offline,
@@ -61,7 +64,7 @@ class Data222 {
     required this.rounds,
     required this.courses,
     required this.weightPending,
-    required this.discountValue,
+    required this.discountReason,
   });
 
   factory Data222.fromJson(Map<String, Object?> json) =>
@@ -78,8 +81,8 @@ class Data222 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall13? hall;
-  final Table13? table;
+  final Hall2? hall;
+  final Table2? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -88,7 +91,7 @@ class Data222 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter16? waiter;
+  final Waiter5? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -126,16 +129,19 @@ class Data222 {
   final String roomFeeAmount;
   @JsonKey(name: 'min_spend_topup_amount')
   final String minSpendTopupAmount;
+  @JsonKey(name: 'packaging_amount')
+  final String packagingAmount;
+  final Pickup2? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges16 charges;
-  final Offline12? offline;
-  final Queue14? queue;
+  final Charges6 charges;
+  final Offline2? offline;
+  final Queue3? queue;
   final int rounds;
-  final List<Courses11> courses;
+  final List<Courses> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
-  final List<Items36> items;
+  final List<Items21> items;
 
   Map<String, Object?> toJson() => _$Data222ToJson(this);
 }

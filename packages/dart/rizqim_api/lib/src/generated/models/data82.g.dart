@@ -7,63 +7,35 @@ part of 'data82.dart';
 // **************************************************************************
 
 Data82 _$Data82FromJson(Map<String, dynamic> json) => Data82(
-  uuid: json['uuid'] as String,
-  type: Type6.fromJson(json['type'] as String),
-  status: Status5.fromJson(json['status'] as String),
-  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
-  driver: json['driver'] as String,
-  provider: json['provider'] as String?,
-  nonFiscal: json['non_fiscal'] as bool,
-  taxRegime: json['tax_regime'] as String?,
-  total: json['total'] as String,
-  vatTotal: json['vat_total'] as String,
-  fiscalSign: json['fiscal_sign'] as String?,
-  receiptNumber: json['receipt_number'] as String?,
-  qrUrl: json['qr_url'] as String?,
-  terminalId: json['terminal_id'] as String?,
-  error: json['error'] as String?,
-  attempts: (json['attempts'] as num).toInt(),
-  nextAttemptAt: json['next_attempt_at'] as String?,
-  issuedAt: json['issued_at'] as String?,
-  createdAt: json['created_at'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  deviceId: (json['device_id'] as num?)?.toInt(),
-  subjectType: json['subject_type'] as String?,
-  subjectId: (json['subject_id'] as num?)?.toInt(),
-  originalReceiptUuid: json['original_receipt_uuid'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines3.fromJson(e as Map<String, dynamic>))
+  debtBalance: json['debt_balance'] as num,
+  walletBalance: json['wallet_balance'] as num,
+  creditLimit: json['credit_limit'] as num,
+  minPayoutReserve: json['min_payout_reserve'] as num,
+  paymentAccountType: json['payment_account_type'] as String,
+  commissionRate: json['commission_rate'] as num,
+  status: StoreStatus.fromJson(json['status'] as String),
+  isOrderLocked: json['is_order_locked'] as bool,
+  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
+      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
       .toList(),
-  payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments3.fromJson(e as Map<String, dynamic>))
+  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
+      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  payoutRequests: (json['payout_requests'] as List<dynamic>)
+      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data82ToJson(Data82 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'type': instance.type,
+  'debt_balance': instance.debtBalance,
+  'wallet_balance': instance.walletBalance,
+  'credit_limit': instance.creditLimit,
+  'min_payout_reserve': instance.minPayoutReserve,
+  'payment_account_type': instance.paymentAccountType,
+  'commission_rate': instance.commissionRate,
   'status': instance.status,
-  'payment_form': instance.paymentForm,
-  'driver': instance.driver,
-  'provider': instance.provider,
-  'non_fiscal': instance.nonFiscal,
-  'tax_regime': instance.taxRegime,
-  'total': instance.total,
-  'vat_total': instance.vatTotal,
-  'fiscal_sign': instance.fiscalSign,
-  'receipt_number': instance.receiptNumber,
-  'qr_url': instance.qrUrl,
-  'terminal_id': instance.terminalId,
-  'error': instance.error,
-  'attempts': instance.attempts,
-  'next_attempt_at': instance.nextAttemptAt,
-  'issued_at': instance.issuedAt,
-  'created_at': instance.createdAt,
-  'branch_id': instance.branchId,
-  'device_id': instance.deviceId,
-  'subject_type': instance.subjectType,
-  'subject_id': instance.subjectId,
-  'original_receipt_uuid': instance.originalReceiptUuid,
-  'lines': instance.lines,
-  'payments': instance.payments,
+  'is_order_locked': instance.isOrderLocked,
+  'ledger_transactions': instance.ledgerTransactions,
+  'wallet_transactions': instance.walletTransactions,
+  'payout_requests': instance.payoutRequests,
 };

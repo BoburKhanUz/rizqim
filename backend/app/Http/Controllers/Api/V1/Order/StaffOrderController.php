@@ -46,13 +46,13 @@ class StaffOrderController extends Controller
 {
     use ApiResponse;
 
-    public const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, product_id?: int|null, category_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, course_no?: int|null, weight_status?: string|null, wait_minutes?: int|null, unit_price?: string, modifiers_total?: string, total_price?: string}';
+    public const ITEM = 'array{id: int, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, modifiers: list<array{name: string, group_name?: string, quantity: int, price_delta?: string}>, kitchen_status: string, ready_at: string|null, round_no?: int|null, fire_mode?: string, station_id?: int|null, product_id?: int|null, category_id?: int|null, sent_at?: string|null, due_at?: string|null, seat_no?: int|null, note?: string|null, voided_at?: string|null, void_reason?: string|null, course_no?: int|null, weight_status?: string|null, wait_minutes?: int|null, target_seconds?: int|null, late?: bool, unit_price?: string, modifiers_total?: string, total_price?: string}';
 
     public const ORDER = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int}';
 
     private const DETAIL = 'array{uuid: string, short_code: string|null, status: string, status_label: string, type: string, channel: string, store_id: int, branch_id: int|null, branch_name: string|null, payment_method: string, payment_status: string, subtotal: string, discount: string, delivery_price: string, service_charge_amount: string, place_fee_amount: string, total_price: string, notes: string|null, guests_count: int|null, hall_ref: string|null, table_ref: string|null, cancel_reason: string|null, cancel_note: string|null, customer: array{name: string|null, phone: string|null}|null, delivery: array{address: string|null, latitude: float|null, longitude: float|null, zone_name: string|null}|null, courier: array{id: int, name: string|null, phone: string|null}|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, updated_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, closed_at: string|null, waiting_seconds: int, status_history: list<array{from_status: string|null, status: string, created_at: string|null}>}';
 
-    private const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, canceled_at: string|null, waiting_seconds: int, queue_number: int|null, pickup_status: \\App\\Domain\\Pos\\Orders\\PickupStatus|null}';
+    protected const TICKET = 'array{uuid: string, short_code: string|null, status: string, type: string, channel: string, branch_id: int|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, notes: string|null, items_total: int, items_ready: int, items: list<' . self::ITEM . '>, created_at: string|null, accepted_at: string|null, preparing_at: string|null, ready_at: string|null, canceled_at: string|null, waiting_seconds: int, queue_number: int|null, pickup_status: \\App\\Domain\\Pos\\Orders\\PickupStatus|null, assembly: ' . \App\Domain\Pos\Kitchen\KitchenAssembly::SHAPE . '|null}';
 
     /** Longest look-back of `canceled_within` (minutes). */
     public const CANCELED_WITHIN_MAX = 60;
@@ -291,6 +291,11 @@ class StaffOrderController extends Controller
      *
      * P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
      * listed (with `include_ready=1` also while `ready`) until the number is handed over.
+     *
+     * P6-33 (KDS v2): each line carries its time target (`target_seconds`: the dish's own, else its station's; null:
+     * none) and `late` (now − when it reached the kitchen > target; a done line: its ready time). With the module
+     * `kds_expo` and an expo station, an order cooked on several stations carries `assembly` (the expo screen: which
+     * stations are done, `waiting` once all are, `assembled_at`); it stays `preparing` until the expo bumps it.
      */
     #[Group('Kitchen')]
     #[QueryParameter('branch_id', description: 'One branch; omit for every branch the caller works in (a branch terminal: its branch).', type: 'int')]
@@ -325,7 +330,8 @@ class StaffOrderController extends Controller
             $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::DELIVERED->value)
                 ->whereIn('orders.channel', [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value])
                 ->whereIn('orders.pickup_status', $includeReady ? ['preparing', 'ready'] : ['preparing'])
-                ->where('orders.closed_at', '>=', now()->subDay()));
+                // P6-34: or a pickup for later paid first that fired since
+                ->where(fn ($query) => $query->where('orders.closed_at', '>=', now()->subDay())->orWhere('orders.kitchen_fired_at', '>=', now()->subDay())));
             if (!$includeReady) {
                 $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::COURIER_ASSIGNED->value)
                     ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')
@@ -347,6 +353,8 @@ class StaffOrderController extends Controller
                     ->orWhere(fn ($line) => $line->where('order_items.fire_mode', \App\Enums\FireMode::HOLD->value)
                         ->whereNotNull('order_items.due_at')
                         ->where('order_items.kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)))));
+        // P6-34: an online pickup for later reaches the kitchen at its kitchen time (ScheduledPickup)
+        $query->where(fn ($query) => $query->whereNull('orders.kitchen_fire_at')->orWhereNotNull('orders.kitchen_fired_at')->orWhere('orders.kitchen_fire_at', '<=', now()));
 
         $rows = $query->with(StaffOrderPresenter::RELATIONS)
             ->orderBy('orders.created_at')
@@ -408,7 +416,8 @@ class StaffOrderController extends Controller
         $order = $this->find($user, $uuid, Permission::KITCHEN_MANAGE);
 
         $id = RowId::parse($itemId);
-        $item = $id !== null ? OrderItem::where('order_id', $order->id)->find($id) : null;
+        // P6-31: a combo part's kitchen line too (each part is bumped on its own station)
+        $item = $id !== null ? OrderItem::withComboParts()->where('order_id', $order->id)->find($id) : null;
         if (!$item) {
             return $this->error('Taom topilmadi.', [], 404);
         }

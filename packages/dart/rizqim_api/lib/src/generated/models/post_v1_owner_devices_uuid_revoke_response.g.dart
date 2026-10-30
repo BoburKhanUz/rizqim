@@ -11,7 +11,7 @@ _$PostV1OwnerDevicesUuidRevokeResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerDevicesUuidRevokeResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data61.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data74.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerDevicesUuidRevokeResponseToJson(

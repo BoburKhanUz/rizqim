@@ -137,6 +137,12 @@ export * from './hooks/bookings';
 // P6-24/P6-26: the table booking rules of a branch and the owner's view of the hostess' waitlist
 export * from './api/hostess';
 export * from './hooks/hostess';
+// P6-32: the branch's sticker and label settings
+export * from './api/labels';
+export * from './hooks/labels';
+// P6-34: packaging rules, the pickup-time rules and the 24/7 business-day report of a branch
+export * from './api/takeaway';
+export * from './hooks/takeaway';
 export * from './api/accounts';
 export * from './hooks/accounts';
 export * from './api/shifts';

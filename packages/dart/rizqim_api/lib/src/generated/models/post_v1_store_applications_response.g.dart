@@ -11,7 +11,7 @@ PostV1StoreApplicationsResponse _$PostV1StoreApplicationsResponseFromJson(
 ) => PostV1StoreApplicationsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data264.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data285.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1StoreApplicationsResponseToJson(

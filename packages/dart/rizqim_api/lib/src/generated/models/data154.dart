@@ -4,71 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings7.dart';
-import 'lines13.dart';
-import 'open_shifts6.dart';
+import 'service_charge_rules2.dart';
 
 part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
   const Data154({
-    required this.uuid,
     required this.branchId,
-    required this.period,
-    required this.periodLabel,
-    required this.periodFrom,
-    required this.periodTo,
-    required this.status,
-    required this.statusLabel,
-    required this.grossTotal,
-    required this.payableTotal,
-    required this.paidTotal,
-    required this.linesCount,
-    required this.warnings,
-    required this.computedAt,
-    required this.closedAt,
-    required this.version,
-    required this.createdAt,
-    required this.lines,
-    required this.openShifts,
+    required this.hallId,
+    required this.serviceChargePercent,
+    required this.serviceChargeChannels,
+    required this.placeFeeAmount,
+    required this.placeFeeMode,
+    required this.placeFeeChannels,
+    required this.serviceChargeRules,
+    required this.serviceChargeNotice,
   });
 
   factory Data154.fromJson(Map<String, Object?> json) =>
       _$Data154FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  @JsonKey(name: 'period_from')
-  final String periodFrom;
-  @JsonKey(name: 'period_to')
-  final String periodTo;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'gross_total')
-  final String grossTotal;
-  @JsonKey(name: 'payable_total')
-  final String payableTotal;
-  @JsonKey(name: 'paid_total')
-  final String paidTotal;
-  @JsonKey(name: 'lines_count')
-  final int linesCount;
-  final List<Warnings7> warnings;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  final List<Lines13> lines;
-  @JsonKey(name: 'open_shifts')
-  final List<OpenShifts6> openShifts;
+  final int? branchId;
+
+  /// P3-12: a hall's own row (null: the branch's or the store's)
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'service_charge_percent')
+  final String serviceChargePercent;
+  @JsonKey(name: 'service_charge_channels')
+  final List<String>? serviceChargeChannels;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'place_fee_mode')
+  final String placeFeeMode;
+  @JsonKey(name: 'place_fee_channels')
+  final List<String>? placeFeeChannels;
+
+  /// P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules)
+  @JsonKey(name: 'service_charge_rules')
+  final ServiceChargeRules2 serviceChargeRules;
+  @JsonKey(name: 'service_charge_notice')
+  final String? serviceChargeNotice;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

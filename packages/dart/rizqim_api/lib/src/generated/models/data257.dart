@@ -4,31 +4,67 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type10.dart';
+import 'device13.dart';
+import 'opened_by2.dart';
+import 'closed_by5.dart';
 
 part 'data257.g.dart';
 
 @JsonSerializable()
 class Data257 {
   const Data257({
-    required this.id,
-    required this.code,
-    required this.type,
-    required this.amount,
-    required this.discountAmount,
-    required this.description,
+    required this.uuid,
+    required this.status,
+    required this.branchId,
+    required this.device,
+    required this.businessDate,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
+    required this.closedAt,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
+    required this.difference,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
   });
 
   factory Data257.fromJson(Map<String, Object?> json) =>
       _$Data257FromJson(json);
 
-  final int id;
-  final String code;
-  final Type10 type;
-  final num amount;
-  @JsonKey(name: 'discount_amount')
-  final num? discountAmount;
-  final String description;
+  final String uuid;
+  final String status;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final Device13? device;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy2? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy5? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
+  final String? difference;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
 
   Map<String, Object?> toJson() => _$Data257ToJson(this);
 }

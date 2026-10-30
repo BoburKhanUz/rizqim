@@ -119,9 +119,10 @@ class PosOrderService implements PosOrderOpener
      * kept when allowed, else the order gets the next one, QueueNumbers), `business_date` (Y-m-d: the business day the
      * order belongs to when it is not today's — an order taken offline before the day's start and synced after it;
      * OrderStamp numbers it within that day). P6-25: `table_label` (the table plate of a counter order carried to the
-     * table, module table_service: checked by the caller).
+     * table, module table_service: checked by the caller). P6-34: `pickup_at` (a takeaway picked up later, module
+     * scheduled_pickup: checked by the caller; its lines are held until pickup_at − the prep time, ScheduledPickup).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string, pickup_at?: ?\DateTimeInterface}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -182,6 +183,8 @@ class PosOrderService implements PosOrderOpener
                 'business_date' => $options['business_date'] ?? null,
                 // P6-25: the plate number of a counter order carried to the table
                 'table_label' => $options['table_label'] ?? null,
+                // P6-34: a counter order for a later pickup (checked by the caller): its lines wait (ScheduledPickup)
+                'pickup_at' => $options['pickup_at'] ?? null,
             ], fn ($value) => $value !== null));
 
             OrderStatusHistory::create([
@@ -200,6 +203,9 @@ class PosOrderService implements PosOrderOpener
 
             if (!empty($options['send'])) {
                 $this->fire($order, $actor, null);
+            }
+            if (isset($options['pickup_at'])) {
+                app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->schedule($order, $branch);
             }
 
             $this->audit->record('pos.order_opened', $order, [], [], array_filter([
@@ -495,7 +501,8 @@ class PosOrderService implements PosOrderOpener
 
                 $offset = (int) $target->items()->max('round_no');
                 $sourceItems = $source->items()->pluck('id')->map(fn ($id) => (int) $id)->all();
-                OrderItem::where('order_id', $source->id)->update([
+                // P6-31: a combo's part lines move with it
+                OrderItem::withComboParts()->where('order_id', $source->id)->update([
                     'order_id' => $target->id,
                     'round_no' => DB::raw('COALESCE(round_no, 1) + ' . $offset),
                     'updated_at' => now(),

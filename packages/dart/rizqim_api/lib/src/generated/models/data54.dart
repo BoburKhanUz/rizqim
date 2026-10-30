@@ -4,55 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch3.dart';
-import 'polygon.dart';
-import 'bbox.dart';
-
 part 'data54.g.dart';
 
 @JsonSerializable()
 class Data54 {
   const Data54({
-    required this.id,
-    required this.name,
     required this.branchId,
-    required this.branch,
-    required this.polygon,
-    required this.bbox,
-    required this.areaKm2,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-    required this.active,
-    required this.createdAt,
+    required this.configured,
+    required this.tableSlotMinutes,
+    required this.roomSlotMinutes,
+    required this.tapchanSlotMinutes,
+    required this.tableMinAdvanceMinutes,
+    required this.roomMinAdvanceMinutes,
+    required this.tapchanMinAdvanceMinutes,
+    required this.maxAdvanceDays,
+    required this.depositMode,
+    required this.depositModeLabel,
+    required this.depositAmount,
+    required this.depositFromGuests,
+    required this.depositRequiredToConfirm,
     required this.updatedAt,
   });
 
   factory Data54.fromJson(Map<String, Object?> json) => _$Data54FromJson(json);
 
-  final int id;
-  final String name;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Branch3? branch;
-  final Polygon polygon;
-  final Bbox bbox;
-  @JsonKey(name: 'area_km2')
-  final String areaKm2;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
-  final bool active;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final int branchId;
+  final bool configured;
+  @JsonKey(name: 'table_slot_minutes')
+  final int tableSlotMinutes;
+  @JsonKey(name: 'room_slot_minutes')
+  final int? roomSlotMinutes;
+  @JsonKey(name: 'tapchan_slot_minutes')
+  final int? tapchanSlotMinutes;
+  @JsonKey(name: 'table_min_advance_minutes')
+  final int tableMinAdvanceMinutes;
+  @JsonKey(name: 'room_min_advance_minutes')
+  final int roomMinAdvanceMinutes;
+  @JsonKey(name: 'tapchan_min_advance_minutes')
+  final int tapchanMinAdvanceMinutes;
+  @JsonKey(name: 'max_advance_days')
+  final int? maxAdvanceDays;
+  @JsonKey(name: 'deposit_mode')
+  final String depositMode;
+  @JsonKey(name: 'deposit_mode_label')
+  final String depositModeLabel;
+  @JsonKey(name: 'deposit_amount')
+  final String depositAmount;
+  @JsonKey(name: 'deposit_from_guests')
+  final int depositFromGuests;
+  @JsonKey(name: 'deposit_required_to_confirm')
+  final bool depositRequiredToConfirm;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

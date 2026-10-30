@@ -11,7 +11,7 @@ GetV1OwnerDailyMenuResponse _$GetV1OwnerDailyMenuResponseFromJson(
 ) => GetV1OwnerDailyMenuResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data50.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data63.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerDailyMenuResponseToJson(

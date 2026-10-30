@@ -12,7 +12,7 @@ GetV1OwnerDiningTablesResponse _$GetV1OwnerDiningTablesResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data62.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data75.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

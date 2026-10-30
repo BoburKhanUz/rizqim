@@ -18,7 +18,7 @@ BankTerminal2 _$BankTerminal2FromJson(Map<String, dynamic> json) =>
       shared: json['shared'] as bool,
       finalValue: json['final'] as bool,
       shifts: (json['shifts'] as List<dynamic>)
-          .map((e) => Shifts6.fromJson(e as Map<String, dynamic>))
+          .map((e) => Shifts7.fromJson(e as Map<String, dynamic>))
           .toList(),
       bankTotal: json['bank_total'] as String,
       bankCount: (json['bank_count'] as num?)?.toInt(),

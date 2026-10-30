@@ -55,6 +55,14 @@ export const POS_MODULES = [
   'weight_later',
   'table_service',
   'service_charge_rules',
+  // Wave 3 "Fast food va qahvaxona"
+  'combo',
+  'quick_modifiers',
+  'labels',
+  'kds_expo',
+  'packaging',
+  'scheduled_pickup',
+  'round_the_clock',
 ] as const;
 export type PosModuleKey = (typeof POS_MODULES)[number];
 

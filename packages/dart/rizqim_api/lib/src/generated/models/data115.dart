@@ -4,40 +4,54 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'totals.dart';
-import 'by_day.dart';
-import 'by_staff2.dart';
-import 'staff.dart';
+import 'modifiers4.dart';
+import 'product_rules.dart';
 
 part 'data115.g.dart';
 
 @JsonSerializable()
 class Data115 {
   const Data115({
-    required this.branchId,
-    required this.from,
-    required this.to,
-    required this.totals,
-    required this.byDay,
-    required this.byStaff,
-    required this.undistributed,
-    required this.staff,
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.displayMode,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data115.fromJson(Map<String, Object?> json) =>
       _$Data115FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final Totals totals;
-  @JsonKey(name: 'by_day')
-  final List<ByDay> byDay;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff2> byStaff;
-  final String undistributed;
-  final List<Staff> staff;
+  final int id;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'display_mode')
+  final String displayMode;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers4> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules productRules;
 
   Map<String, Object?> toJson() => _$Data115ToJson(this);
 }

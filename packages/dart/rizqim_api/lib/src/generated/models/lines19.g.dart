@@ -7,7 +7,7 @@ part of 'lines19.dart';
 // **************************************************************************
 
 Lines19 _$Lines19FromJson(Map<String, dynamic> json) => Lines19(
-  kind: Kind5.fromJson(json['kind'] as String),
+  kind: Kind4.fromJson(json['kind'] as String),
   label: json['label'] as String,
   value: json['value'] as String,
 );

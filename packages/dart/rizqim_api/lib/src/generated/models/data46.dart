@@ -9,54 +9,49 @@ part 'data46.g.dart';
 @JsonSerializable()
 class Data46 {
   const Data46({
+    required this.id,
     required this.branchId,
-    required this.configured,
-    required this.tableSlotMinutes,
-    required this.roomSlotMinutes,
-    required this.tapchanSlotMinutes,
-    required this.tableMinAdvanceMinutes,
-    required this.roomMinAdvanceMinutes,
-    required this.tapchanMinAdvanceMinutes,
-    required this.maxAdvanceDays,
-    required this.depositMode,
-    required this.depositModeLabel,
-    required this.depositAmount,
-    required this.depositFromGuests,
-    required this.depositRequiredToConfirm,
-    required this.updatedAt,
+    required this.name,
+    required this.basis,
+    required this.basisLabel,
+    required this.categoryId,
+    required this.productId,
+    required this.quantity,
+    required this.unitPrice,
+    required this.mxik,
+    required this.packageCode,
+    required this.unit,
+    required this.orderTypes,
+    required this.isActive,
+    required this.sortOrder,
   });
 
   factory Data46.fromJson(Map<String, Object?> json) => _$Data46FromJson(json);
 
+  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final bool configured;
-  @JsonKey(name: 'table_slot_minutes')
-  final int tableSlotMinutes;
-  @JsonKey(name: 'room_slot_minutes')
-  final int? roomSlotMinutes;
-  @JsonKey(name: 'tapchan_slot_minutes')
-  final int? tapchanSlotMinutes;
-  @JsonKey(name: 'table_min_advance_minutes')
-  final int tableMinAdvanceMinutes;
-  @JsonKey(name: 'room_min_advance_minutes')
-  final int roomMinAdvanceMinutes;
-  @JsonKey(name: 'tapchan_min_advance_minutes')
-  final int tapchanMinAdvanceMinutes;
-  @JsonKey(name: 'max_advance_days')
-  final int? maxAdvanceDays;
-  @JsonKey(name: 'deposit_mode')
-  final String depositMode;
-  @JsonKey(name: 'deposit_mode_label')
-  final String depositModeLabel;
-  @JsonKey(name: 'deposit_amount')
-  final String depositAmount;
-  @JsonKey(name: 'deposit_from_guests')
-  final int depositFromGuests;
-  @JsonKey(name: 'deposit_required_to_confirm')
-  final bool depositRequiredToConfirm;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String name;
+  final String basis;
+  @JsonKey(name: 'basis_label')
+  final String basisLabel;
+  @JsonKey(name: 'category_id')
+  final int? categoryId;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  final int quantity;
+  @JsonKey(name: 'unit_price')
+  final String unitPrice;
+  final String? mxik;
+  @JsonKey(name: 'package_code')
+  final String? packageCode;
+  final String unit;
+  @JsonKey(name: 'order_types')
+  final List<String> orderTypes;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
 
   Map<String, Object?> toJson() => _$Data46ToJson(this);
 }

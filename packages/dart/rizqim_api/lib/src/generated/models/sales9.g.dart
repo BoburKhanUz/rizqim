@@ -18,6 +18,7 @@ Sales9 _$Sales9FromJson(Map<String, dynamic> json) => Sales9(
   minSpendTopup: json['min_spend_topup'] as String,
   serviceCharge: json['service_charge'] as String,
   placeFee: json['place_fee'] as String,
+  packaging: json['packaging'] as String,
   averageBill: json['average_bill'] as String,
 );
 
@@ -33,5 +34,6 @@ Map<String, dynamic> _$Sales9ToJson(Sales9 instance) => <String, dynamic>{
   'min_spend_topup': instance.minSpendTopup,
   'service_charge': instance.serviceCharge,
   'place_fee': instance.placeFee,
+  'packaging': instance.packaging,
   'average_bill': instance.averageBill,
 };

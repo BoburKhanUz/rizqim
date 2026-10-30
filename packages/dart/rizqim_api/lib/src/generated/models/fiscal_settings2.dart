@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'charges2.dart';
 import 'sandbox2.dart';
+import 'combo_fiscal_mode.dart';
 
 part 'fiscal_settings2.g.dart';
 
@@ -20,6 +21,7 @@ class FiscalSettings2 {
     required this.sandbox,
     required this.depositRefundReceipt,
     required this.retainedDepositReceipt,
+    required this.comboFiscalMode,
   });
 
   factory FiscalSettings2.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,8 @@ class FiscalSettings2 {
   final bool? depositRefundReceipt;
   @JsonKey(name: 'retained_deposit_receipt')
   final bool? retainedDepositReceipt;
+  @JsonKey(name: 'combo_fiscal_mode')
+  final ComboFiscalMode comboFiscalMode;
 
   Map<String, Object?> toJson() => _$FiscalSettings2ToJson(this);
 }

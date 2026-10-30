@@ -21,6 +21,66 @@ class _OwnerKitchenStationsApi implements OwnerKitchenStationsApi {
   final ParseErrorLogger? errorLogger;
 
   @override
+  Future<GetV1OwnerKdsTargetsResponse> kdsTargetsShow({int? branchId}) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'branch_id': branchId};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GetV1OwnerKdsTargetsResponse>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/owner/kds/targets',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GetV1OwnerKdsTargetsResponse _value;
+    try {
+      _value = GetV1OwnerKdsTargetsResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PutV1OwnerKdsTargetsProductsResponse> kdsTargetsUpdateProducts({
+    required V1OwnerKdsTargetsProductsRequestBody body,
+    int? branchId,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'branch_id': branchId};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PutV1OwnerKdsTargetsProductsResponse>(
+      Options(method: 'PUT', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/owner/kds/targets/products',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PutV1OwnerKdsTargetsProductsResponse _value;
+    try {
+      _value = PutV1OwnerKdsTargetsProductsResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<GetV1OwnerKitchenStationRoutesResponse> kitchenStationRouteIndex({
     int? branchId,
   }) async {

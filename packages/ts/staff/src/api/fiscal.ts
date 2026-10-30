@@ -17,7 +17,7 @@ export const isMxik = (value: string): boolean => MXIK_PATTERN.test(value);
 export const isPackageCode = (value: string): boolean => PACKAGE_CODE_PATTERN.test(value);
 
 // The services a receipt carries that are not on the menu (stores.fiscal_settings.charges)
-export const FISCAL_CHARGES = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'deposit', 'booking_fee', 'credit', 'delivery'] as const;
+export const FISCAL_CHARGES = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'deposit', 'booking_fee', 'credit', 'delivery', 'packaging'] as const;
 export type FiscalChargeKey = (typeof FISCAL_CHARGES)[number];
 
 export const TAX_REGIMES = ['vat', 'vat_simplified', 'turnover'] as const;
@@ -86,18 +86,23 @@ export async function saveProductFiscal(api: StaffApi, productId: number, fiscal
 
 // GET /owner/fiscal/settings (settings.manage, not from a terminal): TIN, tax regime, the fiscal settings with their defaults,
 // the drivers and regimes the server knows.
-export type FiscalSettingsView = OkData<'fiscalSettings.show'>;
+type GeneratedFiscalSettingsView = OkData<'fiscalSettings.show'>;
+type GeneratedFiscalCharges = GeneratedFiscalSettingsView['fiscal_settings']['charges'];
+// P6-34: the `packaging` charge (the default code of the packaging lines) is read here until the spec is regenerated with it
+export type FiscalSettingsView = Omit<GeneratedFiscalSettingsView, 'fiscal_settings'> & {
+  fiscal_settings: Omit<GeneratedFiscalSettingsView['fiscal_settings'], 'charges'> & { charges: GeneratedFiscalCharges & { packaging?: GeneratedFiscalCharges['delivery'] } };
+};
 export type FiscalSettings = FiscalSettingsView['fiscal_settings'];
 export type FiscalCharge = FiscalSettings['charges'][FiscalChargeKey];
 export type FiscalSettingsInput = JsonRequest<'fiscalSettings.update'>;
 
 export async function fetchFiscalSettings(api: StaffApi): Promise<FiscalSettingsView> {
-  return unwrap(await api.client.GET('/v1/owner/fiscal/settings')).data;
+  return unwrap(await api.client.GET('/v1/owner/fiscal/settings')).data as FiscalSettingsView;
 }
 
 // PUT: partial (what is not sent stays). A charge field sent as null goes back to the default. 422 `errors.tin` etc.
 export async function saveFiscalSettings(api: StaffApi, input: FiscalSettingsInput): Promise<FiscalSettingsView> {
-  return unwrap(await api.client.PUT('/v1/owner/fiscal/settings', { body: input })).data;
+  return unwrap(await api.client.PUT('/v1/owner/fiscal/settings', { body: input })).data as FiscalSettingsView;
 }
 
 // --- Receipts ----------------------------------------------------------------------------------------------------------------

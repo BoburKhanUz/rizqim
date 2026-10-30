@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'channel6.dart';
-import 'items21.dart';
+import 'items22.dart';
 
 part 'v1_pos_orders_request_body.g.dart';
 
@@ -23,6 +23,7 @@ class V1PosOrdersRequestBody {
     this.queueNumber,
     this.items,
     this.tableLabel,
+    this.pickupAt,
   });
 
   factory V1PosOrdersRequestBody.fromJson(Map<String, Object?> json) =>
@@ -45,11 +46,15 @@ class V1PosOrdersRequestBody {
   /// P6-13: the number the till took from its block (it prints the talon from it)
   @JsonKey(name: 'queue_number')
   final int? queueNumber;
-  final List<Items21>? items;
+  final List<Items22>? items;
 
   /// P6-25: the table plate of a counter order carried to the table (module table_service)
   @JsonKey(name: 'table_label')
   final String? tableLabel;
+
+  /// P6-34: a takeaway picked up later (module scheduled_pickup): its lines wait for their kitchen time
+  @JsonKey(name: 'pickup_at')
+  final DateTime? pickupAt;
 
   Map<String, Object?> toJson() => _$V1PosOrdersRequestBodyToJson(this);
 }

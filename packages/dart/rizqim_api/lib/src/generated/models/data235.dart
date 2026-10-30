@@ -4,43 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal16.dart';
+import 'pickup_status.dart';
 
 part 'data235.g.dart';
 
 @JsonSerializable()
 class Data235 {
   const Data235({
-    required this.uuid,
     required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.amount,
-    required this.method,
-    required this.reason,
-    required this.approvedBy,
-    required this.fiscal,
-    required this.createdAt,
+    required this.number,
+    required this.businessDate,
+    required this.status,
+    required this.channel,
+    required this.orderStatus,
+    required this.readyAt,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
+    required this.openedAt,
   });
 
   factory Data235.fromJson(Map<String, Object?> json) =>
       _$Data235FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  final String amount;
-  final String method;
-  final String reason;
-  @JsonKey(name: 'approved_by')
-  final int? approvedBy;
-  final Fiscal16 fiscal;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String orderUuid;
+  final int number;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  final PickupStatus? status;
+  final String channel;
+  @JsonKey(name: 'order_status')
+  final String orderStatus;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
 
   Map<String, Object?> toJson() => _$Data235ToJson(this);
 }

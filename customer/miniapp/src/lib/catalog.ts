@@ -1,5 +1,6 @@
 import { cartLineId, type CartItem, type CartModifier, type CartStoreInfo } from '../store/cartStore';
 import type { Amount, Product, ProductVariant } from '../types';
+import { isCombo, type CartComboPart } from './combo';
 import { formatMoney } from './format';
 import { parseAmount, toAmount } from './money';
 import { groupsOf } from './modifiers';
@@ -41,15 +42,17 @@ export function getStoreInfo(
 export interface CartSelection {
   quantity?: number;
   modifiers?: CartModifier[];
+  combo?: CartComboPart[];
 }
 
 // The cart line for one unit of a product (of `variant`, or of a product without variants), or for the quantity and
 // modifiers of `selection`. Lines of one variant with different modifiers get different ids.
 export function buildCartItem(product: Product, variant: ProductVariant | undefined, selection: CartSelection = {}): CartItem {
   const modifiers = selection.modifiers && selection.modifiers.length > 0 ? selection.modifiers : undefined;
+  const combo = selection.combo && selection.combo.length > 0 ? selection.combo : undefined;
   const measured = isMeasuredUnit(variant?.unit);
   return {
-    id: cartLineId(variant ? `${product.id}-${variant.uuid}` : `${product.id}`, modifiers),
+    id: cartLineId(variant ? `${product.id}-${variant.uuid}` : `${product.id}`, modifiers, combo),
     productId: product.id,
     variantId: variant?.uuid,
     storeId: product.store_id.toString(),
@@ -60,13 +63,15 @@ export function buildCartItem(product: Product, variant: ProductVariant | undefi
     variantDbId: variant?.id,
     ...(measured && variant ? { unit: variant.unit, quantityStep: quantityStepOf(variant), minQuantity: minQuantityOf(variant) } : {}),
     ...(modifiers ? { modifiers } : {}),
+    ...(combo ? { combo } : {}),
   };
 }
 
 // Whether adding the dish needs its sheet first: variants to choose from, modifier groups to fill in, or a weight to pick.
-export function needsProductSheet(product: Pick<Product, 'variants' | 'modifier_groups'>): boolean {
+export function needsProductSheet(product: Pick<Product, 'variants' | 'modifier_groups'> & Partial<Pick<Product, 'combo'>>): boolean {
   const variants = product.variants ?? [];
-  return variants.length > 1 || groupsOf(product).length > 0 || variants.some((variant) => isMeasuredUnit(variant.unit));
+  // P6-31: a combo opens its sheet to pick the parts
+  return variants.length > 1 || groupsOf(product).length > 0 || variants.some((variant) => isMeasuredUnit(variant.unit)) || isCombo({ combo: product.combo ?? null });
 }
 
 // "33 000 so'm / kg" for an item sold by weight, "33 000 so'm" otherwise.

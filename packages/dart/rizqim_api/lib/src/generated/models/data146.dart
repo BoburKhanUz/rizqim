@@ -4,44 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components3.dart';
+import 'period2.dart';
+import 'summary3.dart';
+import 'series.dart';
+import 'by_channel2.dart';
+import 'by_branch.dart';
+import 'by_payment_method2.dart';
+import 'by_order_type2.dart';
 
 part 'data146.g.dart';
 
 @JsonSerializable()
 class Data146 {
   const Data146({
-    required this.uuid,
+    required this.period,
     required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.role,
-    required this.roleLabel,
-    required this.effectiveFrom,
-    required this.components,
-    required this.note,
-    required this.updatedAt,
+    required this.summary,
+    required this.byStatus,
+    required this.series,
+    required this.byChannel,
+    required this.byBranch,
+    required this.byPaymentMethod,
+    required this.byOrderType,
   });
 
   factory Data146.fromJson(Map<String, Object?> json) =>
       _$Data146FromJson(json);
 
-  final String uuid;
+  final Period2 period;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'user_id')
-  final int? userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  final String? role;
-  @JsonKey(name: 'role_label')
-  final String? roleLabel;
-  @JsonKey(name: 'effective_from')
-  final String effectiveFrom;
-  final List<Components3> components;
-  final String? note;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final int? branchId;
+  final Summary3 summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  final List<Series> series;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel2> byChannel;
+  @JsonKey(name: 'by_branch')
+  final List<ByBranch> byBranch;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod2> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType2> byOrderType;
 
   Map<String, Object?> toJson() => _$Data146ToJson(this);
 }

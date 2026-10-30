@@ -36,7 +36,16 @@ enum PosModule {
   skewerButtons('skewer_buttons', 'Six tugmalari'),
   weightLater('weight_later', "Og'irlikni keyin kiritish"),
   tableService('table_service', 'Stolga olib kelish'),
-  serviceChargeRules('service_charge_rules', 'Xizmat haqi qoidalari');
+  serviceChargeRules('service_charge_rules', 'Xizmat haqi qoidalari'),
+
+  // 3-to'lqin "Fast food va qahvaxona"
+  combo('combo', 'Kombo'),
+  quickModifiers('quick_modifiers', 'Tez modifikatorlar'),
+  labels('labels', 'Stakan stikeri va yorliq'),
+  kdsExpo('kds_expo', "Yig'ish ekrani va sex vaqtlari"),
+  packaging('packaging', 'Qadoq'),
+  scheduledPickup('scheduled_pickup', 'Olib ketish vaqti'),
+  roundTheClock('round_the_clock', '24/7 ish');
 
   const PosModule(this.wire, this.label);
 

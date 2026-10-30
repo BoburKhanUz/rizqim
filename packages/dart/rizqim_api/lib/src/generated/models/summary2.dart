@@ -9,31 +9,28 @@ part 'summary2.g.dart';
 @JsonSerializable()
 class Summary2 {
   const Summary2({
-    required this.ordersCount,
-    required this.deliveredCount,
-    required this.canceledCount,
-    required this.refundedCount,
-    required this.activeCount,
-    required this.revenue,
-    required this.averageCheck,
+    required this.count,
+    required this.medianSeconds,
+    required this.p90Seconds,
+    required this.withTarget,
+    required this.overTarget,
+    required this.overTargetShare,
   });
 
   factory Summary2.fromJson(Map<String, Object?> json) =>
       _$Summary2FromJson(json);
 
-  @JsonKey(name: 'orders_count')
-  final int ordersCount;
-  @JsonKey(name: 'delivered_count')
-  final int deliveredCount;
-  @JsonKey(name: 'canceled_count')
-  final int canceledCount;
-  @JsonKey(name: 'refunded_count')
-  final int refundedCount;
-  @JsonKey(name: 'active_count')
-  final int activeCount;
-  final String revenue;
-  @JsonKey(name: 'average_check')
-  final String averageCheck;
+  final int count;
+  @JsonKey(name: 'median_seconds')
+  final int? medianSeconds;
+  @JsonKey(name: 'p90_seconds')
+  final int? p90Seconds;
+  @JsonKey(name: 'with_target')
+  final int withTarget;
+  @JsonKey(name: 'over_target')
+  final int overTarget;
+  @JsonKey(name: 'over_target_share')
+  final String? overTargetShare;
 
   Map<String, Object?> toJson() => _$Summary2ToJson(this);
 }

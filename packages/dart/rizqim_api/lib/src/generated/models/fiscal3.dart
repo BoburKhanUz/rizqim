@@ -4,27 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'receipt.dart';
-
 part 'fiscal3.g.dart';
 
 @JsonSerializable()
 class Fiscal3 {
-  const Fiscal3({
-    required this.status,
-    required this.receiptUuid,
-    required this.error,
-    required this.receipt,
-  });
+  const Fiscal3({required this.status, required this.problems});
 
   factory Fiscal3.fromJson(Map<String, Object?> json) =>
       _$Fiscal3FromJson(json);
 
-  final String? status;
-  @JsonKey(name: 'receipt_uuid')
-  final String? receiptUuid;
-  final String? error;
-  final Receipt? receipt;
+  final String status;
+  final List<String> problems;
 
   Map<String, Object?> toJson() => _$Fiscal3ToJson(this);
 }

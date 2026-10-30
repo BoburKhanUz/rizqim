@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 import 'package:pos_sync/pos_sync.dart';
 
 import '../json.dart';
+import '../takeaway/takeaway_models.dart';
 
 /// Bootstrap'ning `offline` qismi (P3-31): kassa internetsiz sotish uchun saqlaydigan oddiy narx qoidalari va
 /// chegaralar.
@@ -16,6 +17,7 @@ class PosOfflineSettings {
     this.guestItems = const <PosOfflineGuestItem>[],
     this.limits = const OfflineLimits(),
     this.serviceChargeLocked = false,
+    this.packaging = const <PosPackagingRule>[],
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -30,13 +32,31 @@ class PosOfflineSettings {
     serviceChargeLocked: j.boolean('service_charge_locked'),
   );
 
-  /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar).
+  /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar). P6-34: qadoq qoidalari `takeaway` qismidan.
   static PosOfflineSettings of(Map<String, Object?> bootstrapRaw) {
     final Object? o = bootstrapRaw['offline'];
-    return o is Map
+    final PosOfflineSettings base = o is Map
         ? PosOfflineSettings.fromJson(PosJson.of(o))
         : const PosOfflineSettings();
+    final List<PosPackagingRule> packaging = PosTakeaway.of(bootstrapRaw)
+        .packaging;
+    return packaging.isEmpty ? base : base.withPackaging(packaging);
   }
+
+  /// P6-34: shu sozlamalar qadoq qoidalari bilan.
+  PosOfflineSettings withPackaging(List<PosPackagingRule> rules) =>
+      PosOfflineSettings(
+        devicePrefix: devicePrefix,
+        nextLocalNumber: nextLocalNumber,
+        businessDate: businessDate,
+        dayType: dayType,
+        fees: fees,
+        places: places,
+        guestItems: guestItems,
+        limits: limits,
+        serviceChargeLocked: serviceChargeLocked,
+        packaging: rules,
+      );
 
   /// Lokal raqam prefiksi (`K1`); server bermagan bo'lsa `K`.
   final String? devicePrefix;
@@ -50,6 +70,9 @@ class PosOfflineSettings {
 
   /// P6-22: stolovaya qulfi (VM 75): xizmat haqi qoidalaridagi har foiz 0 (kuver qoladi).
   final bool serviceChargeLocked;
+
+  /// P6-34: filialning qadoq qoidalari (`packaging` moduli o'chiq — bo'sh; `OfflinePackaging`).
+  final List<PosPackagingRule> packaging;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {

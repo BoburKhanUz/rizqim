@@ -11,7 +11,7 @@ GetV1OwnerFiscalReadinessResponse _$GetV1OwnerFiscalReadinessResponseFromJson(
 ) => GetV1OwnerFiscalReadinessResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data78.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data91.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerFiscalReadinessResponseToJson(
