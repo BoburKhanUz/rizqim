@@ -6810,7 +6810,9 @@ export interface paths {
         };
         /**
          * Staff pay rules of a branch
-         * @description The branch's pay `period` (day, week, half_month, month: business days), the choices the rule editor offers,
+         * @description The branch's pay `period` (day, week, half_month, month: business days), its `sales_attribution` (at_payment:
+         *     a bill of a table handed to another waiter is the waiter's at payment time, the default; current_waiter: the
+         *     table's last waiter's), the choices the rule editor offers,
          *     the staff who can work in the branch, and every rule version, by subject and start date. A rule is a staff
          *     member's (`user_id`) or a role's (`role`); a person's own version wins over their role's; a version is in force
          *     from `effective_from` until the subject's next one. staff_pay.view or staff_pay.manage.
@@ -6869,9 +6871,14 @@ export interface paths {
         };
         get?: never;
         /**
-         * Change the pay period of a branch
-         * @description `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month — business days in the store's time
-         *     zone. Statements made from now on use it; existing ones keep theirs. Audited. staff_pay.manage.
+         * Change the staff pay settings of a branch
+         * @description Send what changes (at least one). `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month —
+         *     business days in the store's time zone; statements made from now on use it, existing ones keep theirs.
+         *     `sales_attribution`: whose sales a bill of a table handed to another waiter is — at_payment (the waiter at
+         *     payment time, the default, the same as tips: bills paid before the handover stay with the first waiter) or
+         *     current_waiter (the table's last waiter, every bill of the order); draft statements take it at their next
+         *     computation, closed ones keep their numbers. A refund follows the person of the refunded bill. Audited.
+         *     staff_pay.manage.
          */
         put: operations["staffPayRule.settings"];
         post?: never;
@@ -10667,6 +10674,7 @@ export interface components {
             /** Format: date-time */
             updated_at: string | null;
             seat_no: number | null;
+            waiter_id: number | null;
             order?: components["schemas"]["Order"];
             items?: components["schemas"]["OrderBillItem"][];
             payments?: components["schemas"]["Payment"][];
@@ -32556,6 +32564,12 @@ export interface operations {
                                 value: string;
                                 label: string;
                             }[];
+                            sales_attribution: string;
+                            sales_attribution_label: string;
+                            sales_attributions: {
+                                value: string;
+                                label: string;
+                            }[];
                             component_types: {
                                 value: string;
                                 label: string;
@@ -32766,12 +32780,14 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": {
                     branch_id?: number;
                     /** @description App\Domain\Pos\StaffPay\PayPeriod: day, week, half_month, month. */
-                    period: string;
+                    period?: string;
+                    /** @description App\Domain\Pos\StaffPay\SalesAttribution: at_payment, current_waiter. */
+                    sales_attribution?: string;
                 };
             };
         };
@@ -32787,6 +32803,8 @@ export interface operations {
                         data: {
                             period: string;
                             period_label: string;
+                            sales_attribution: string;
+                            sales_attribution_label: string;
                         };
                     };
                 };
@@ -37534,12 +37552,22 @@ export interface operations {
                                 next_local_number: number;
                                 business_date: string;
                                 day_type: string;
+                                service_charge_locked: boolean;
                                 fees: {
                                     hall_id: number | null;
                                     channel: string;
                                     service_charge_percent: string;
                                     place_fee_amount: string;
                                     place_fee_mode: string;
+                                    rules: {
+                                        by_order_type: {
+                                            [key: string]: string;
+                                        };
+                                        large_group_min_guests: number | null;
+                                        large_group_percent: string | null;
+                                        cover_amount: string | null;
+                                    } | null;
+                                    service_charge_notice: string | null;
                                 }[];
                                 places: {
                                     table_id: number;
@@ -38984,6 +39012,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -39548,6 +39579,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -43066,6 +43100,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -47015,6 +47052,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -47045,6 +47083,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47175,6 +47216,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47284,6 +47328,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47336,6 +47383,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -47366,6 +47414,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47422,6 +47473,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -47452,6 +47504,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -47575,6 +47630,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;

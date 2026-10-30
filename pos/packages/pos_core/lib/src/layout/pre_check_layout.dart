@@ -44,6 +44,7 @@ PrintLayout layoutPreCheck(PreCheck c, PaperWidth paper) {
   w.pair('Taomlar:', paperAmount(c.itemsTotal));
   for (final BillCharge charge in c.charges) {
     w.pair('${charge.title}:', paperAmount(charge.amount));
+    if (charge.note != null) w.text(charge.note!, indent: 2);
   }
   w.divider('=');
   w.pair('JAMI:', paperAmount(c.total), bold: true, size: PrintTextSize.tall);

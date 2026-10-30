@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 
 import '../../common/errors.dart';
+import 'courses.dart';
 
 /// Amalni (kerak bo'lsa menejer tasdig'i bilan) bajaradigan funksiya: sahifa uni `withApproval(context, ...)` bilan
 /// ulaydi.
@@ -330,6 +332,106 @@ class OrderController extends ChangeNotifier {
     ),
     success: "Buyurtma ko'chirildi.",
   );
+
+  // --- P6 2-to'lqin: kurslar, og'irlik, mehmon, ofitsiantni almashtirish -------------------------------------------
+
+  /// Buyurtma kurslari (serverning `courses[]`; eski javobda — qatorlardan).
+  List<PosCourse> get courses {
+    final PosOrder? o = order;
+    return o == null ? const <PosCourse>[] : coursesOf(o);
+  }
+
+  /// Og'irligi kutilayotgan qatorlar soni (schyot ular tortilguncha chiqmaydi).
+  int get weightPending {
+    final PosOrder? o = order;
+    if (o == null) return 0;
+    final int local = o.items
+        .where((PosOrderItem i) => i.awaitingWeight)
+        .length;
+    return o.weightPending > local ? o.weightPending : local;
+  }
+
+  /// Keyingi yuboriladigan kurs (eng kichik, yuboriladigani bor); yo'q — `null`.
+  PosCourse? get nextCourse {
+    for (final PosCourse c in courses) {
+      if (c.canSend) return c;
+    }
+    return null;
+  }
+
+  /// P6-21 "N-kursni yuborish": kursning ushlab turilgan qatorlari oshxonaga.
+  Future<bool> sendCourse(Approving approving, int courseNo) => _change(
+    approving,
+    'course:$courseNo',
+    (String? token, int version, String? key) => data.orders.sendCourse(
+      uuid,
+      courseNo,
+      version: version,
+      approvalToken: token,
+      idempotencyKey: key,
+    ),
+    success: '$courseNo-kurs oshxonaga yuborildi.',
+  );
+
+  /// P6-25: og'irlik kutayotgan qatorning haqiqiy og'irligi (qayta tortish — menejer tasdig'i bilan).
+  Future<bool> setWeight(
+    Approving approving,
+    int itemId,
+    PosQuantity quantity,
+  ) => _change(
+    approving,
+    'weight:$itemId:${quantity.toApiString()}',
+    (String? token, int version, String? key) => data.orders.setWeight(
+      uuid,
+      itemId,
+      version: version,
+      quantity: quantity,
+      approvalToken: token,
+      idempotencyKey: key,
+    ),
+    success: "Og'irlik kiritildi.",
+  );
+
+  /// P6-24: qatorning mehmoni (`null` — umumiy).
+  Future<bool> setSeat(Approving approving, int itemId, int? seatNo) => _change(
+    approving,
+    'seat:$itemId:${seatNo ?? ''}',
+    (String? token, int version, String? key) => data.hostess.setLineSeat(
+      uuid,
+      itemId,
+      version: version,
+      seatNo: seatNo,
+      approvalToken: token,
+      idempotencyKey: key,
+    ),
+    success: seatNo == null
+        ? 'Taom umumiy qilindi.'
+        : 'Taom $seatNo-mehmonga yozildi.',
+  );
+
+  /// P6-24: stolni boshqa ofitsiantga berish (`orders.transfer` yoki menejer PIN tasdig'i).
+  Future<bool> transferTo(
+    Approving approving,
+    PosStaffRef waiter, {
+    String? reason,
+  }) async {
+    final bool ok = await _change(
+      approving,
+      'transfer:${waiter.id}',
+      (String? token, int version, String? key) => data.hostess.transferOrder(
+        uuid,
+        version: version,
+        waiterId: waiter.id,
+        reason: reason,
+        approvalToken: token,
+        idempotencyKey: key,
+      ),
+      success: 'Stol berildi: ${waiter.name}.',
+    );
+    // The order is someone else's now: the page goes back to read-only
+    if (ok) editingForeign = false;
+    return ok;
+  }
 
   /// "Schyot so'rash" (P3-26: `POST /pos/orders/{uuid}/request-bill`): kassaga `order.bill_requested` boradi, zal
   /// xaritasida "Schyot so'raldi"; schyotni kassir tuzadi, chiqaradi va to'lovni oladi (ofitsiant ilovasida to'lov va

@@ -34,6 +34,9 @@ class PosLine {
     this.voidReason,
     this.product,
     this.category,
+    this.course,
+    this.weight,
+    this.waitMinutes,
   });
 
   final String name;
@@ -60,6 +63,15 @@ class PosLine {
   /// Taom va kategoriya id (`product_id`, `category_id`): sexsiz ushlab turilgan qator sexi yo'naltirishdan topiladi.
   final int? product;
   final int? category;
+
+  /// P6-21: kurs raqami (1–9); kurssiz qator — `null`.
+  final int? course;
+
+  /// P6-25: `awaiting` (og'irlik kutilmoqda) yoki `weighed`; oddiy qator — `null`.
+  final String? weight;
+
+  /// P6-25: mangal vaqti (daqiqa), mahsulotda belgilangan bo'lsa.
+  final int? waitMinutes;
 }
 
 class FakeKitchenState {
@@ -135,6 +147,9 @@ class FakeKitchenState {
 
   /// Buyurtmalar (chipta JSON'i, `accepted_at` DateTime sifatida).
   final List<Map<String, Object?>> orders = <Map<String, Object?>>[];
+
+  /// Courses the kitchen completed (order uuid, course): the backend sends `order.course_ready` for each.
+  final List<(String, int)> courseReady = <(String, int)>[];
   int _seq = 100;
   int _itemSeq = 1000;
 
@@ -253,6 +268,9 @@ class FakeKitchenState {
     String status = 'accepted',
     List<PosLine> lines = const <PosLine>[],
     String? notes,
+    String? tableLabel,
+    String type = 'dine_in',
+    String channel = 'pos_hall',
   }) {
     final int n = ++_seq;
     final String uuid =
@@ -262,11 +280,12 @@ class FakeKitchenState {
       'uuid': uuid,
       'short_code': 'P$n',
       'status': status,
-      'type': 'dine_in',
-      'channel': 'pos_hall',
+      'type': type,
+      'channel': channel,
       'branch_id': branchId,
-      'hall_ref': 'Xonalar',
-      'table_ref': table,
+      'hall_ref': type == 'dine_in' ? 'Xonalar' : null,
+      'table_ref': type == 'dine_in' ? table : null,
+      'table_label': tableLabel,
       'guests_count': 6,
       'notes': notes,
       'created_at': accepted.subtract(const Duration(minutes: 1)),
@@ -307,6 +326,9 @@ class FakeKitchenState {
       'void_reason': l.voidReason,
       'product_id': l.product,
       'category_id': l.category,
+      'course_no': l.course,
+      'weight_status': l.weight,
+      'wait_minutes': l.waitMinutes,
     };
   }
 
@@ -966,6 +988,20 @@ class FakeKitchenState {
         )) {
       order['status'] = 'ready';
       order['ready_at'] = now();
+    }
+    // Like the backend's CourseTracker: the last line of a course bumped ready completes the course
+    final Object? course = item['course_no'];
+    if (ready &&
+        course != null &&
+        items
+            .where((Map<String, Object?> i) => i['course_no'] == course)
+            .every(
+              (Map<String, Object?> i) =>
+                  i['kitchen_status'] == 'ready' ||
+                  i['kitchen_status'] == 'served' ||
+                  i['kitchen_status'] == 'void',
+            )) {
+      courseReady.add((uuid, course as int));
     }
     _event('kitchen.item_status_changed', uuid);
     return _ok(_ticket(order));

@@ -71,3 +71,18 @@ test('a statement is made, adjusted, closed and paid from the till', async ({ pa
   expect(calls[0].body).toEqual({ method: 'cash_drawer', shift_uuid: api.staffPay.openShifts[0].uuid, note: null })
   expect(api.callsTo('PUT', /\/lines\/[\w-]+$/)[0].body).toEqual({ adjustment: '-20000', reason: 'Kechikdi' })
 })
+
+test('the owner picks whose sales a handed-over table is', async ({ page, api, signIn, reverb }) => {
+  void reverb
+  await openSignedIn(page, signIn, '/staff-pay')
+  const select = page.getByLabel("Stol boshqa ofitsiantga o'tsa, sotuv")
+  await expect(select).toHaveValue('at_payment')
+  await expect(page.getByText("O'tkazishdan oldin to'langan schyotlar birinchi ofitsiantda qoladi (choy puli kabi).")).toBeVisible()
+  await select.selectOption('current_waiter')
+  await page.getByRole('button', { name: 'Saqlash' }).click()
+
+  await expect.poll(() => api.callsTo('PUT', '/v1/owner/staff-pay/settings').length).toBe(1)
+  expect(api.callsTo('PUT', '/v1/owner/staff-pay/settings')[0].body).toEqual({ branch_id: 1, period: 'month', sales_attribution: 'current_waiter' })
+  await expect(select).toHaveValue('current_waiter')
+  await expect(page.getByRole('button', { name: 'Saqlash' })).toBeDisabled()
+})

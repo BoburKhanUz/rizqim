@@ -250,6 +250,11 @@ Osh markazi, somsaxona, stolovaya kabi joylarda kassa tez kassadan boshlanadi (a
 2. Tepada tanlang: **Olib ketish** yoki **Zalda, stolsiz**.
 3. Taom qo'shing, **Yuborish** yoki **Saqlash** ni bosing. Buyurtma shundan keyin ochiladi. Bo'sh buyurtma qolmaydi.
 
+**Kafe: stolga olib kelish.** Filialda **Stolga olib kelish** moduli yoqilgan bo'lsa, tez kassada **Stol raqami** maydoni bor: mehmon
+oldindan to'laydi, taom shu raqamli stolga olib boriladi. Raqam talonda va oshxona chiptasida chiqadi ([restoran.md](restoran.md#8-kafe-stolga-olib-kelish)).
+
+<!-- TEKSHIRILMAGAN: kassadagi "Stol raqami" maydoni K2 ro'yxatida bor, kod hali yo'q -->
+
 ## 7. Taom qo'shish
 
 Buyurtma ekrani ikki qismdan iborat: **chapda menyu**, **o'ngda buyurtma**. Tor ekranda tepada **Menyu** va **Buyurtma (N)**
@@ -337,6 +342,18 @@ buyurtmani bilmaydi — printerni tekshiring ([19-bo'lim](#19-printer-sozlamalar
 
 **Berildi.** Taom mehmonga olib borilgach, qatorni bosing → **Berildi**. Choy kabi ekransiz sexdan keladigan taomni ham shunday
 belgilaysiz. Odatda buni ofitsiant telefonda qiladi.
+
+**Kurslar (restoran).** Filialda **Kurslar** moduli yoqilgan bo'lsa, qatorga kurs (1–9) qo'yiladi: keyingi kurs **Yuborish** bilan
+oshxonaga **ketmaydi**, buyurtma ekranidagi kurslar blokida **N-kursni yuborish** tugmasi bilan yuboriladi. Har kursning holati
+(**Kutmoqda**, **Yuborildi**, **Tayyor**, **Berildi**) shu yerda ko'rinadi. Batafsil — [restoran.md](restoran.md#2-kurslar).
+
+<!-- TEKSHIRILMAGAN: kassir ekranidagi kurslar bloki va "N-kursni yuborish" tugmasi (cashier restaurant_widgets.dart bor, K2 ekrani tugallanmagan) -->
+
+**Og'irligi keyin tortiladigan taom.** Qatorda **Og'irlik kutilmoqda** belgisi turadi. Tortgach qatorning menyusidan **Og'irlikni kiritish**:
+og'irlikni yozing (kg yoki l). **Og'irlik kutilmoqda (N)** turguncha schyot tuzib ham, chop etib ham bo'lmaydi
+([restoran.md](restoran.md#7-six-ogirlik-va-mangal-vaqti-kabobxona-baliqxona)).
+
+<!-- TEKSHIRILMAGAN: qator menyusidagi "Og'irlikni kiritish" (line_dialogs.dart) va "Og'irlik kutilmoqda (N)" (restaurant_widgets.dart) K2 kodidan o'qildi, ekran ko'rilmagan -->
 
 **Boshqa kassa o'zgartirgan bo'lsa.** Bir buyurtmani ikki joydan o'zgartirsangiz, ilova buyurtmani qayta yuklaydi. Bosqich,
 yuborish, "berildi" va mehmonlar soni o'zi takrorlanadi; qolganlarini qaytadan bajaring.
@@ -458,6 +475,7 @@ Telegram'ga xabar boradi.
 | **Bitta schyot** | Bitta odam to'laydi | Shunchaki **Schyot tuzish** |
 | **Teng bo'lish** | Hamma teng to'laydi | **Necha kishiga?** ni yozing. Har ulush ko'rinadi. Qoldiq tiyin birinchi schyotga qo'shiladi |
 | **Taom bo'yicha** | Har kim o'ziniki uchun | Schyotni tanlang, so'ng taomni bosing — u shu schyotga o'tadi. Kg taomni bo'lish uchun **Ulush** (masalan, 1.5 kg oshdan 0.5 va 1) |
+| **Mehmonlar bo'yicha** | Har mehmon o'z taomi uchun (restoran) | Ofitsiant qatorlarga mehmon raqamini qo'ygan bo'lishi kerak. Har mehmonga bitta schyot; mehmonsiz (umumiy) qatorlar hammaga teng bo'linadi. Faqat internet bor paytda. Batafsil — [restoran.md](restoran.md#3-mehmon-raqami-va-hisobni-mehmon-boyicha-bolish) |
 
 Xona puli, xizmat haqi va joy puli schyotlar orasida proporsional bo'linadi. Har bir schyot **alohida to'lanadi va alohida
 sotuv cheki oladi**.
@@ -491,6 +509,12 @@ Smena ochiq bo'lmasa, to'lov oynasida **Smenani ochish** tugmasi chiqadi.
 | **QR** | Mijoz do'konning QR kodi orqali to'laydi, pul kelganini o'zingiz tekshirasiz. **To'lov raqami** ixtiyoriy. Ilova to'lovni o'zi tasdiqlamaydi |
 | **Avans** | Bron avansidan ayiriladi. Avans bo'lsa, birinchi taklif qilinadi. Mavjud avansdan ko'p ayirib bo'lmaydi |
 | **Nasiya** | Qarzga yoziladi. [16-bo'lim](#16-nasiya-va-qarz-tolovi) |
+
+**Choy puli.** Filialda **Choy puli** moduli yoqilgan bo'lsa, to'lov oynasida **Choy puli** maydoni bor: summa schyotdan **tashqari**,
+ustiga qo'shiladi; naqdda **Qaytimni choy puli qilish** belgisi bor. Pastda **Chek: …, choy puli: …** alohida turadi: choy puli fiskal
+chekka kirmaydi va savdo hisobotida yo'q ([restoran.md](restoran.md#5-choy-puli-kassada)).
+
+<!-- TEKSHIRILMAGAN: payment_page.dart da "Choy puli", "Qaytimni choy puli qilish", "Chek: …, choy puli: …" yozuvlari bor; ekran ko'rilmagan -->
 
 P2P o'tkazma (kartadan kartaga) to'lov turi emas. Mijoz shunday to'lamoqchi bo'lsa, **QR** ni taklif qiling.
 
@@ -774,6 +798,11 @@ Kassadan pul chiqsa yoki kirsa — **albatta yozing**, aks holda kunlik hisob tu
     kamomadi "ish haqi" deb adashib ketmaydi.
   - **Boshqa chiqim** — **Inkassatsiya**, **Egaga berildi**, **Xo'jalik**, **Kommunal**, **Boshqa**.
 
+Naqd **choy pulini** ofitsiantga berish ham shu yerdan: **Ish haqi** turi, kategoriya **Choy puli**, **Kimga** — xodim. Buning uchun
+menejer huquqi yoki menejer PIN'i kerak; X va Z da u ish haqi qatoriga kirmaydi ([choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md#5-kassadan-tolash-va-choy-pulini-berish)).
+
+<!-- TEKSHIRILMAGAN: "Choy pulini berish" (smena ekrani) va X/Z dagi choy puli bo'limi K2 ro'yxatida, kod hali yo'q -->
+
 **Summa**ni yozing, **Boshqa** bo'lsa **Izoh** majburiy ("nimaga berildi"). Chiqim kassadagi naqddan oshmaydi.
 **Kirim qilish** / **Chiqim qilish** — kassir o'zi qiladi, menejer kerak emas. Kassa qutisi ochiladi. Har yozuv jurnalga
 tushadi (kim, qancha, nima uchun).
@@ -788,6 +817,11 @@ Egasi kirim-chiqim huquqini kassirdan olib qo'ygan bo'lsa, oldingidek menejer PI
 X — smenani yopmasdan oraliq hisobot. **X hisobot** tugmasi: savdo (cheklar, qaytarilgan, sof tushum), to'lov turlari va karta
 turlari, **Chegirmalar**, **Pul emas (bugun kassaga tushmagan)** — avans ofseti va nasiya, **Avans va nasiya**, kanallar, ofitsiantlar,
 **Kassa (naqd)** va oxirida **Kassada bo'lishi kerak**. **Chop etish** ni bosing. Istalgan vaqt olish mumkin.
+
+Choy puli yoqilgan filialda X va Z da **Choy puli** alohida bo'lim bor (soni, jami, usul bo'yicha, xodim bo'yicha). U savdo jamiga
+**kirmaydi**; naqd choy puli esa kassadagi kutilgan naqdga **qo'shiladi**.
+
+<!-- TEKSHIRILMAGAN: X/Z dagi choy puli bo'limi kassa ekranida va chop etishda (K2 ro'yxatida, kod hali yo'q); backendda X/Z `tips` bo'limi va `cash.tips` bor -->
 
 ### Z — smenani yopish
 

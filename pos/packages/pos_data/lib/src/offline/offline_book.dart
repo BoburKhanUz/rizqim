@@ -593,8 +593,20 @@ class OfflineOrderState {
     final int? tableId = (order['table'] as Map?)?['id'] as int?;
     final int? guests = (order['guests_count'] as num?)?.toInt();
     final PosOfflineFee? fee = _settings.feeFor(hallId, channel);
+    // P6-22 (C1): the row's service charge rules for this order (type, large group, cover), as PosChargesCalculator
+    final OfflineServiceCharge? resolved = fee == null
+        ? null
+        : OfflinePricing.serviceCharge(
+            fee,
+            orderType: OfflinePricing.orderType(
+              channel,
+              order['table_label'] as String?,
+            ),
+            guests: guests,
+            locked: _settings.serviceChargeLocked,
+          );
     final String percent =
-        fee?.serviceChargePercent ??
+        resolved?.percent ??
         (charges['service_charge_percent'] as String? ?? '0.00');
 
     final PosMoney service = waived.contains('service_charge')
@@ -602,8 +614,12 @@ class OfflineOrderState {
         : OfflinePricing.percentSom(after, percent);
     final PosMoney place = waived.contains('place_fee')
         ? PosMoney.zero
-        : fee != null
-        ? OfflinePricing.placeFee(fee.placeFeeAmount, fee.placeFeeMode, guests)
+        : resolved != null
+        ? OfflinePricing.placeFee(
+            resolved.placeFeeAmount,
+            resolved.placeFeeMode,
+            guests,
+          )
         : created
         ? PosMoney.zero
         : PosMoney.parse(order['place_fee_amount']);
@@ -647,6 +663,15 @@ class OfflineOrderState {
       'min_spend': minSpend.toApiString(),
       'min_spend_topup_amount': topup.toApiString(),
       'total': total.toApiString(),
+      if (resolved != null) ...<String, Object?>{
+        'service_charge_rule': !service.isPositive
+            ? 'none'
+            : (resolved.rule == 'none' ? 'base' : resolved.rule),
+        'place_fee_kind': resolved.cover && place.isPositive
+            ? 'cover'
+            : 'place_fee',
+        'service_charge_notice': fee!.serviceChargeNotice,
+      },
     };
     _syncBillingOrder();
   }
@@ -765,6 +790,9 @@ class OfflineOrderState {
       });
     }
     final int? guests = (order['guests_count'] as num?)?.toInt();
+    final Map<String, Object?> charges =
+        (order['charges'] as Map?)?.cast<String, Object?>() ??
+        const <String, Object?>{};
     final Map<String, Object?> bill = <String, Object?>{
       'uuid': op.payload['bill'],
       'order_uuid': order['uuid'],
@@ -801,6 +829,14 @@ class OfflineOrderState {
       'printed_at': null,
       'paid_at': null,
       'fiscal': <String, Object?>{'status': null},
+      // P6-22: the notice under the service charge (or cover) line, as the server's bill
+      'service_charge_notice':
+          PosMoney.parse(order['service_charge_amount']).isPositive ||
+              (charges['place_fee_kind'] == 'cover' &&
+                  PosMoney.parse(order['place_fee_amount']).isPositive)
+          ? charges['service_charge_notice']
+          : null,
+      'tips_amount': '0.00',
       'items': lines,
       'payments': <Object?>[],
       'created_at': op.occurredAt.toUtc().toIso8601String(),
@@ -833,14 +869,20 @@ class OfflineOrderState {
       final PosMoney? tendered = t['tendered_amount'] == null
           ? null
           : PosMoney.parse(t['tendered_amount']);
+      // P6-22: a tip on top of the tender (never part of the bill); the change is what is left after it
+      final PosMoney tip = PosMoney.parse(t['tip_amount']);
+      final PosMoney change = tendered == null
+          ? PosMoney.zero
+          : tendered - amount - tip;
       payments.add(<String, Object?>{
         'uuid': '${op.opId}-$i',
         'tender': t['tender'],
         'amount': amount.toApiString(),
+        'tip_amount': tip.toApiString(),
         'tendered_amount': tendered?.toApiString(),
         'change_amount': tendered == null
             ? null
-            : (tendered - amount).toApiString(),
+            : (change.isNegative ? PosMoney.zero : change).toApiString(),
         'card_type': t['card_type'],
         'transaction_id': t['transaction_id'],
         'card_last4': t['card_last4'],
@@ -854,6 +896,10 @@ class OfflineOrderState {
       for (final Map<String, Object?> p in _maps(payments))
         PosMoney.parse(p['amount']),
     ]);
+    b['tips_amount'] = PosMoney.sum(<PosMoney>[
+      for (final Map<String, Object?> p in _maps(payments))
+        PosMoney.parse(p['tip_amount']),
+    ]).toApiString();
     final PosMoney due = PosMoney.parse(b['total']) - paid;
     b['paid_amount'] = paid.toApiString();
     b['due_amount'] = (due.isPositive ? due : PosMoney.zero).toApiString();

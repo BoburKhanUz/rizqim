@@ -186,9 +186,13 @@ BoardView buildBoardView({
     // Hamma qator mehmonga berilgan: oshxonada ko'riladigan narsa qolmadi (stol yopilguncha doskada turmaydi)
     if (shown.every((KitchenLine l) => l.isServed)) continue;
     _byRound(shown);
-    final KitchenTicket visible = shown.length == t.lines.length && !routed
-        ? t
-        : t.copyWith(lines: shown);
+    // The ticket as it came, when nothing was hidden, re-routed or re-ordered (courses can mix the server's order)
+    final bool same =
+        shown.length == t.lines.length &&
+        !routed &&
+        Iterable<int>.generate(shown.length)
+            .every((int i) => identical(shown[i], t.lines[i]));
+    final KitchenTicket visible = same ? t : t.copyWith(lines: shown);
     active.add(_boardTicket(visible, t));
   }
 
@@ -218,16 +222,21 @@ BoardView buildBoardView({
   return BoardView(active: active, queue: queue, nextBoundary: boundary);
 }
 
-/// Bosqichlar tartibida (1, 2, ...), bosqich ichida server tartibi (qator id) saqlanadi. Server qatorlarni id bo'yicha
-/// beradi, shuning uchun odatda allaqachon shunday; faqat keyin qo'shilgan qator tartibni buzmasin.
+/// Bosqichlar tartibida (1, 2, ...), bosqich ichida kurslar tartibida (kurssiz qatorlar birinchi; P6-21), kurs ichida
+/// server tartibi (qator id) saqlanadi. Server qatorlarni id bo'yicha beradi, shuning uchun odatda allaqachon shunday;
+/// faqat keyin qo'shilgan qator yoki aralash kursli bosqich tartibni buzmasin.
 void _byRound(List<KitchenLine> lines) {
-  if (lines.every((KitchenLine l) => l.roundNo == null)) return;
+  if (lines.every((KitchenLine l) => l.roundNo == null && l.courseNo == null)) {
+    return;
+  }
   final Map<int, int> index = <int, int>{
     for (var i = 0; i < lines.length; i++) lines[i].id: i,
   };
   lines.sort((KitchenLine a, KitchenLine b) {
     final int byRound = (a.roundNo ?? 0).compareTo(b.roundNo ?? 0);
-    return byRound != 0 ? byRound : index[a.id]!.compareTo(index[b.id]!);
+    if (byRound != 0) return byRound;
+    final int byCourse = (a.courseNo ?? 0).compareTo(b.courseNo ?? 0);
+    return byCourse != 0 ? byCourse : index[a.id]!.compareTo(index[b.id]!);
   });
 }
 

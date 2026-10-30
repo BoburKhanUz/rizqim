@@ -1,24 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:pos_core/pos_core.dart';
+import 'package:pos_data/pos_data.dart' show PosWeightStatus;
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../common/sheet.dart';
 import 'draft_cart.dart';
+import 'order_widgets.dart';
 import 'quantity_sheet.dart';
+import 'slot_pickers.dart';
 
-/// Yangi bosqich savati: qatorlar, miqdorni o'zgartirish, izoh, olib tashlash.
-Future<void> showCartSheet(BuildContext context, DraftCart cart) =>
-    showWaiterSheet<void>(
-      context,
-      fullHeight: true,
-      builder: (BuildContext context) => CartSheet(cart: cart),
-    );
+/// Yangi bosqich savati: qatorlar, miqdorni o'zgartirish, izoh, olib tashlash. [courses] / [seats] — qatorning kursi
+/// va mehmonini o'zgartirish (modullar yoqilganda).
+Future<void> showCartSheet(
+  BuildContext context,
+  DraftCart cart, {
+  bool courses = false,
+  bool seats = false,
+  int? guests,
+}) => showWaiterSheet<void>(
+  context,
+  fullHeight: true,
+  builder: (BuildContext context) =>
+      CartSheet(cart: cart, courses: courses, seats: seats, guests: guests),
+);
 
 class CartSheet extends StatelessWidget {
-  const CartSheet({super.key, required this.cart});
+  const CartSheet({
+    super.key,
+    required this.cart,
+    this.courses = false,
+    this.seats = false,
+    this.guests,
+  });
 
   final DraftCart cart;
+  final bool courses;
+  final bool seats;
+  final int? guests;
+
+  Future<void> _editSlot(BuildContext context, DraftLine line) async {
+    final ({int? course, int? seat})? slot = await showSlotSheet(
+      context,
+      title: line.name,
+      course: courses,
+      seat: seats,
+      guests: guests,
+      initialCourse: line.courseNo,
+      initialSeat: line.seatNo,
+    );
+    if (slot != null) {
+      cart.setSlot(line, courseNo: slot.course, seatNo: slot.seat);
+    }
+  }
 
   Future<void> _editNote(BuildContext context, DraftLine line) async {
     final String? result = await showDialog<String>(
@@ -72,6 +106,9 @@ class CartSheet extends StatelessWidget {
                           onEditMeasured: () => _editMeasured(context, l),
                           onNote: () => _editNote(context, l),
                           onRemove: () => cart.remove(l),
+                          onSlot: courses || seats
+                              ? () => _editSlot(context, l)
+                              : null,
                         );
                       },
                     ),
@@ -122,6 +159,7 @@ class _CartRow extends StatelessWidget {
     required this.onEditMeasured,
     required this.onNote,
     required this.onRemove,
+    this.onSlot,
   });
 
   final DraftLine line;
@@ -129,6 +167,9 @@ class _CartRow extends StatelessWidget {
   final VoidCallback onEditMeasured;
   final VoidCallback onNote;
   final VoidCallback onRemove;
+
+  /// Kurs yoki mehmonni o'zgartirish (modullar o'chiq — `null`).
+  final VoidCallback? onSlot;
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +208,16 @@ class _CartRow extends StatelessWidget {
                 fontStyle: FontStyle.italic,
               ),
             ),
+          if (line.courseNo != null ||
+              line.seatNo != null ||
+              line.awaitingWeight) ...<Widget>[
+            const SizedBox(height: 4),
+            LineBadges(
+              courseNo: line.courseNo,
+              seatNo: line.seatNo,
+              weight: line.awaitingWeight ? PosWeightStatus.awaiting : null,
+            ),
+          ],
           const SizedBox(height: 6),
           Row(
             children: <Widget>[
@@ -189,6 +240,12 @@ class _CartRow extends StatelessWidget {
                   buttonSize: 52,
                 ),
               const Spacer(),
+              if (onSlot != null)
+                IconButton(
+                  tooltip: 'Kurs va mehmon',
+                  onPressed: onSlot,
+                  icon: Icon(Icons.event_seat_outlined, color: c.fgMuted),
+                ),
               IconButton(
                 tooltip: 'Izoh',
                 onPressed: onNote,

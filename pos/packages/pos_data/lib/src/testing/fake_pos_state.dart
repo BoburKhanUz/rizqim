@@ -1597,6 +1597,50 @@ class FakePosState {
         'total': _money(total),
         'waivers': charges['waivers'] ?? <Object?>[],
       };
+    restaurantSummary(order);
+  }
+
+  /// P6-21 / P6-25: the order's `courses[]` and `weight_pending`, as the server presents them (also for orders a test
+  /// seeds or edits by hand: call it after changing their lines).
+  static void restaurantSummary(Map<String, Object?> order) {
+    final Map<int, Map<String, int>> courses = <int, Map<String, int>>{};
+    var pending = 0;
+    for (final Map<String, Object?> i
+        in ((order['items'] as List<Object?>?) ?? const <Object?>[])
+            .whereType<Map<String, Object?>>()) {
+      if (i['kitchen_status'] == 'void') continue;
+      if (i['weight_status'] == 'awaiting') pending++;
+      final int? no = (i['course_no'] as num?)?.toInt();
+      if (no == null) continue;
+      final Map<String, int> c = courses[no] ??= <String, int>{
+        'items': 0,
+        'sent': 0,
+        'ready': 0,
+        'served': 0,
+      };
+      c['items'] = c['items']! + 1;
+      if (i['sent_at'] != null || i['kitchen_status'] != 'pending') {
+        c['sent'] = c['sent']! + 1;
+      }
+      if (i['kitchen_status'] == 'ready') c['ready'] = c['ready']! + 1;
+      if (i['kitchen_status'] == 'served') c['served'] = c['served']! + 1;
+    }
+    order['weight_pending'] = pending;
+    order['courses'] = <Object?>[
+      for (final int no in courses.keys.toList()..sort())
+        <String, Object?>{
+          'course_no': no,
+          'status': switch (courses[no]!) {
+            final Map<String, int> c when c['served'] == c['items'] => 'served',
+            final Map<String, int> c
+                when c['ready']! + c['served']! == c['items'] =>
+              'ready',
+            final Map<String, int> c when c['sent']! > 0 => 'sent',
+            _ => 'held',
+          },
+          ...courses[no]!,
+        },
+    ];
   }
 
   /// Chegirma summasi (tiyin) qatorlar jami [subtotal] dan: foiz — butun so'mga half-up, summa — jamidan ko'p emas.

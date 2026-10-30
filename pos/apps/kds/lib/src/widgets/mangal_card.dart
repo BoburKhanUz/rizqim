@@ -8,6 +8,7 @@ import '../board/board_view.dart';
 import '../board/skewer_groups.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
+import 'grill_timer_label.dart';
 import 'kds_type.dart';
 import 'line_marks.dart';
 
@@ -222,6 +223,8 @@ class MangalCard extends StatelessWidget {
                 ),
               ),
             _GroupRow(
+              ticket: ticket,
+              clock: clock,
               group: groups[i],
               busy: groups[i].lines.any((KitchenLine l) => isLineBusy(l.id)),
               enabled: canManage && !orderBusy && !entry.voided,
@@ -257,18 +260,25 @@ class MangalCard extends StatelessWidget {
     if (table != null && table.isNotEmpty) {
       return RegExp(r'^\d+$').hasMatch(table) ? 'Stol $table' : table;
     }
+    // P6-25: kassada to'langan buyurtmaning stol tablichkasi
+    final String? plate = t.tableLabel?.trim();
+    if (plate != null && plate.isNotEmpty) return TablePlate.text(plate);
     return OrderType.fromWire(t.type)?.shortLabel ?? t.type;
   }
 }
 
 class _GroupRow extends StatelessWidget {
   const _GroupRow({
+    required this.ticket,
+    required this.clock,
     required this.group,
     required this.busy,
     required this.enabled,
     required this.onTap,
   });
 
+  final KitchenTicket ticket;
+  final ValueListenable<DateTime> clock;
   final SkewerGroup group;
   final bool busy;
   final bool enabled;
@@ -293,7 +303,7 @@ class _GroupRow extends StatelessWidget {
     return Semantics(
       button: tappable,
       label:
-          '${group.title}, $count, ${voided
+          '${group.title}, $count${group.courseNo != null ? ', ${CourseTag.label(group.courseNo!)}' : ''}${group.awaitingWeight ? ", ${WeightBadge.label}" : ''}, ${voided
               ? "o'chirilgan"
               : served
               ? 'berilgan'
@@ -335,6 +345,26 @@ class _GroupRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                           decoration: strike,
                         ),
+                      ),
+                    if (group.courseNo != null && !voided)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: CourseTag(course: group.courseNo!),
+                        ),
+                      ),
+                    if (group.awaitingWeight && !voided && !done)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: WeightBadge(),
+                      ),
+                    if (group.timerLine case final KitchenLine timed)
+                      GrillTimerLabel(
+                        ticket: ticket,
+                        line: timed,
+                        clock: clock,
+                        large: true,
                       ),
                     if (voided) ...<Widget>[
                       const SizedBox(height: 4),

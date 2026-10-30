@@ -143,13 +143,14 @@ class _OwnerStaffPayApi implements OwnerStaffPayApi {
 
   @override
   Future<PutV1OwnerStaffPaySettingsResponse> staffPayRuleSettings({
-    required V1OwnerStaffPaySettingsRequestBody body,
+    V1OwnerStaffPaySettingsRequestBody? body,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
-    _data.addAll(body.toJson());
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<PutV1OwnerStaffPaySettingsResponse>(
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(

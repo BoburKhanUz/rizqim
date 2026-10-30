@@ -493,6 +493,67 @@ class OrderController extends ChangeNotifier {
     success: 'Berildi',
   );
 
+  /// P6-21: "N-kursni yuborish" — kursning ushlab turilgan taomlari oshxonaga (internetsiz ham, navbat orqali).
+  Future<bool> sendCourse(int courseNo, {required ApprovalRunner approve}) =>
+      _mutate(
+        (int v, String? t) => data.orders.sendCourse(
+          _uuid!,
+          courseNo,
+          version: v,
+          approvalToken: t,
+        ),
+        approve: approve,
+        reapply: true,
+        success: '$courseNo-kurs oshxonaga yuborildi',
+      );
+
+  /// P6-25: og'irligi keyin kiritiladigan taomning haqiqiy og'irligi (narx shunga). Qayta tortish — menejer tasdig'i
+  /// bilan (server so'raydi).
+  Future<bool> setWeight(
+    PosOrderItem item,
+    PosQuantity quantity, {
+    required ApprovalRunner approve,
+  }) => _mutate(
+    (int v, String? t) => data.orders.setWeight(
+      _uuid!,
+      item.id,
+      version: v,
+      quantity: quantity,
+      approvalToken: t,
+    ),
+    approve: approve,
+    success: "${item.displayName}: og'irlik ${quantity.label(item.unit)}",
+  );
+
+  /// P6-24: qatorga mehmon raqami ([seatNo] `null` — umumiy). Faqat internet bilan.
+  Future<bool> setSeat(
+    PosOrderItem item,
+    int? seatNo, {
+    required ApprovalRunner approve,
+  }) {
+    if (data.offline?.active ?? false) {
+      _emit(
+        "Internet yo'q: mehmon raqamini internet tiklangach yozing.",
+        error: true,
+      );
+      return Future<bool>.value(false);
+    }
+    return _mutate(
+      (int v, String? t) => data.hostess.setLineSeat(
+        _uuid!,
+        item.id,
+        version: v,
+        seatNo: seatNo,
+        approvalToken: t,
+      ),
+      approve: approve,
+      reapply: true,
+      success: seatNo == null
+          ? '${item.displayName}: umumiy'
+          : '${item.displayName}: $seatNo-mehmon',
+    );
+  }
+
   Future<bool> setGuests(int count, {required ApprovalRunner approve}) =>
       _mutate(
         (int v, String? t) => data.orders.setGuests(

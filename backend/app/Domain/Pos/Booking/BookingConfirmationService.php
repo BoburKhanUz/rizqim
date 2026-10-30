@@ -2,8 +2,13 @@
 
 namespace App\Domain\Pos\Booking;
 
+use App\Domain\Pos\Billing\ServiceChargeRule;
+use App\Domain\Pos\Billing\ServiceChargeRules;
+use App\Domain\Pos\Billing\ServiceOrderType;
 use App\Domain\Pos\Hall\BusinessCalendar;
 use App\Domain\Pos\Hall\RoomTariffResolver;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\DayType;
 use App\Enums\NotificationChannel;
@@ -40,8 +45,11 @@ use Throwable;
  * tariff (RoomTariffResolver) of the booked room for the day type (BusinessCalendar: holidays from pos_settings, the
  * weekend days) of the business date the booking starts on; the minimum spend is the booking's own (agreed with the
  * guest) or else the room's (× guests when per person); the service charge and the place fee are the room's hall's
- * settings, else the branch's or the store's (DiningFeeCalculator), as they apply to the hall channel. A booking
- * without a room yet says "keyin belgilanadi" and has no room fee or room minimum.
+ * settings, else the branch's or the store's (DiningFeeCalculator), as they apply to the hall channel. P6-22: with the
+ * branch's `service_charge_rules` module the row's rules (ServiceChargeRules) decide them as for the booking's hall
+ * order of its planned guests — the hall percent, the large-group percent from N guests, the cover per guest in place
+ * of the place fee ("Kuver"), a stolovaya's 0%; a large-group percent says so. A booking without a room yet says
+ * "keyin belgilanadi" and has no room fee or room minimum.
  *
  * Sending: `telegram` when the contact phone belongs to a customer of the store with a Telegram chat with the bot (and
  * order updates over Telegram not switched off), `sms` when the branch allows SMS (pos_settings.booking_confirmation.sms,
@@ -83,6 +91,7 @@ class BookingConfirmationService
         protected TelegramMessenger $telegram,
         protected NotificationPreferenceService $preferences,
         protected AuditLogger $audit,
+        protected PosModules $modules,
     ) {}
 
     /**
@@ -150,12 +159,25 @@ class BookingConfirmationService
         // The service charge and the place fee of the room's hall (else the branch's, the store's), in the hall channel
         $settings = $this->fees->settingsForHall((int) $booking->store_id, (int) $booking->branch_id, $main?->hall_id !== null ? (int) $main->hall_id : null);
         if ($settings !== null) {
+            // P6-22: the rules the hall order will use (PosChargesCalculator): percent by order type or large group,
+            // the cover per guest, a stolovaya's lock
+            $rules = $this->modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES) ? ServiceChargeRules::of($settings) : new ServiceChargeRules();
+            $locked = $this->modules->serviceChargeLocked((int) $branch->id);
+            $cover = false;
+            $largeGroup = false;
+            if (!$rules->isEmpty()) {
+                $resolved = $rules->resolve($settings, ServiceOrderType::HALL, OrderChannel::POS_HALL, $guests, $locked);
+                $settings = $resolved['settings'];
+                $cover = $resolved['cover'];
+                $largeGroup = $resolved['rule'] === ServiceChargeRule::LARGE_GROUP;
+            }
             $announced = $this->fees->announced($settings, OrderChannel::POS_HALL, $guests);
             if (Money::of($announced['service_charge_percent'])->isPositive()) {
-                $add('service_charge', 'Xizmat haqi', self::percent($announced['service_charge_percent']) . '%');
+                $add('service_charge', 'Xizmat haqi', self::percent($announced['service_charge_percent']) . '%'
+                    . ($largeGroup ? " ({$rules->largeGroupMinGuests} va undan ko'p mehmon)" : ''));
             }
             if ($announced['place_fee']->isPositive()) {
-                $add('place_fee', 'Joy narxi', $settings->place_fee_mode === PlaceFeeMode::PER_TABLE
+                $add('place_fee', $cover ? 'Kuver' : 'Joy narxi', $settings->place_fee_mode === PlaceFeeMode::PER_TABLE
                     ? self::money($announced['place_fee'])
                     : self::money(Money::of($settings->place_fee_amount)->roundTo(0)) . ' kishi boshiga (jami ' . self::money($announced['place_fee']) . ')');
             }

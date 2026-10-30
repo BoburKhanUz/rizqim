@@ -12,10 +12,15 @@ Future<PosQuantity?> showQuantitySheet(
   required PosProduct product,
   required PosVariant variant,
   PosQuantity? initial,
+  bool weighedLater = false,
 }) => showWaiterSheet<PosQuantity>(
   context,
-  builder: (BuildContext context) =>
-      QuantitySheet(product: product, variant: variant, initial: initial),
+  builder: (BuildContext context) => QuantitySheet(
+    product: product,
+    variant: variant,
+    initial: initial,
+    weighedLater: weighedLater,
+  ),
 );
 
 class QuantitySheet extends StatelessWidget {
@@ -24,11 +29,15 @@ class QuantitySheet extends StatelessWidget {
     required this.product,
     required this.variant,
     this.initial,
+    this.weighedLater = false,
   });
 
   final PosProduct product;
   final PosVariant variant;
   final PosQuantity? initial;
+
+  /// P6-25: miqdor taxminiy, haqiqiy og'irlik keyin tortiladi.
+  final bool weighedLater;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +56,9 @@ class QuantitySheet extends StatelessWidget {
           children: <Widget>[
             SheetHeader(
               title: product.name,
-              subtitle: '${variant.price.format()} / $unit',
+              subtitle: weighedLater
+                  ? "${variant.price.format()} / $unit · taxminiy miqdor: og'irligi keyin tortiladi"
+                  : '${variant.price.format()} / $unit',
             ),
             const SizedBox(height: 12),
             PosQuantityKeypad(

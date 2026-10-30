@@ -20,6 +20,7 @@ class Data261 {
     required this.branchId,
     required this.hallRef,
     required this.tableRef,
+    required this.tableLabel,
     required this.guestsCount,
     required this.notes,
     required this.itemsTotal,
@@ -50,6 +51,8 @@ class Data261 {
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
+  @JsonKey(name: 'table_label')
+  final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
   final String? notes;

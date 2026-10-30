@@ -35,6 +35,9 @@ export const COMPONENT_TYPES = ['shift_rate', 'hourly_rate', 'sales_percent', 's
 export type ComponentType = (typeof COMPONENT_TYPES)[number];
 export const PERIODS = ['day', 'week', 'half_month', 'month'] as const;
 export type PayPeriod = (typeof PERIODS)[number];
+// Whose sales a bill of a table handed to another waiter is: the waiter at payment time (default) or the table's last
+export const SALES_ATTRIBUTIONS = ['at_payment', 'current_waiter'] as const;
+export type SalesAttribution = (typeof SALES_ATTRIBUTIONS)[number];
 
 // One part of a rule; the fields a type does not use are absent
 export interface PayComponent {
@@ -79,6 +82,10 @@ export interface RulesPage {
   period: PayPeriod;
   period_label: string;
   periods: Option[];
+  // Absent from a server older than the setting: read as the default
+  sales_attribution?: SalesAttribution;
+  sales_attribution_label?: string;
+  sales_attributions?: Option[];
   component_types: Option[];
   guarantee_modes: Option[];
   guarantee_per: Option[];
@@ -108,8 +115,16 @@ const componentBody = (components: PayComponent[]) =>
 
 export const fetchRules = (api: StaffApi, branchId: number) => data<RulesPage>(door(api).GET('/v1/owner/staff-pay/rules', { params: { query: { branch_id: branchId } } }));
 
-export const savePeriod = (api: StaffApi, branchId: number, period: PayPeriod) =>
-  data<{ period: PayPeriod; period_label: string }>(door(api).PUT('/v1/owner/staff-pay/settings', { body: { branch_id: branchId, period } }));
+export interface PaySettingsInput {
+  branchId: number;
+  period: PayPeriod;
+  salesAttribution: SalesAttribution;
+}
+
+export const saveSettings = (api: StaffApi, input: PaySettingsInput) =>
+  data<{ period: PayPeriod; period_label: string; sales_attribution: SalesAttribution; sales_attribution_label: string }>(
+    door(api).PUT('/v1/owner/staff-pay/settings', { body: { branch_id: input.branchId, period: input.period, sales_attribution: input.salesAttribution } }),
+  );
 
 export const createRule = (api: StaffApi, input: RuleInput) =>
   data<PayRule>(

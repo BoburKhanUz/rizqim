@@ -65007,7 +65007,7 @@
         "/v1/owner/staff-pay/rules": {
             "get": {
                 "operationId": "staffPayRule.index",
-                "description": "The branch's pay `period` (day, week, half_month, month: business days), the choices the rule editor offers,\nthe staff who can work in the branch, and every rule version, by subject and start date. A rule is a staff\nmember's (`user_id`) or a role's (`role`); a person's own version wins over their role's; a version is in force\nfrom `effective_from` until the subject's next one. staff_pay.view or staff_pay.manage.",
+                "description": "The branch's pay `period` (day, week, half_month, month: business days), its `sales_attribution` (at_payment:\na bill of a table handed to another waiter is the waiter's at payment time, the default; current_waiter: the\ntable's last waiter's), the choices the rule editor offers,\nthe staff who can work in the branch, and every rule version, by subject and start date. A rule is a staff\nmember's (`user_id`) or a role's (`role`); a person's own version wins over their role's; a version is in force\nfrom `effective_from` until the subject's next one. staff_pay.view or staff_pay.manage.",
                 "summary": "Staff pay rules of a branch",
                 "tags": [
                     "Owner: staff pay"
@@ -65061,6 +65061,30 @@
                                                     "type": "string"
                                                 },
                                                 "periods": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "value": {
+                                                                "type": "string"
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "value",
+                                                            "label"
+                                                        ]
+                                                    }
+                                                },
+                                                "sales_attribution": {
+                                                    "type": "string"
+                                                },
+                                                "sales_attribution_label": {
+                                                    "type": "string"
+                                                },
+                                                "sales_attributions": {
                                                     "type": "array",
                                                     "items": {
                                                         "type": "object",
@@ -65329,6 +65353,9 @@
                                                 "period",
                                                 "period_label",
                                                 "periods",
+                                                "sales_attribution",
+                                                "sales_attribution_label",
+                                                "sales_attributions",
                                                 "component_types",
                                                 "guarantee_modes",
                                                 "guarantee_per",
@@ -65778,13 +65805,12 @@
         "/v1/owner/staff-pay/settings": {
             "put": {
                 "operationId": "staffPayRule.settings",
-                "description": "`period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month — business days in the store's time\nzone. Statements made from now on use it; existing ones keep theirs. Audited. staff_pay.manage.",
-                "summary": "Change the pay period of a branch",
+                "description": "Send what changes (at least one). `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month —\nbusiness days in the store's time zone; statements made from now on use it, existing ones keep theirs.\n`sales_attribution`: whose sales a bill of a table handed to another waiter is — at_payment (the waiter at\npayment time, the default, the same as tips: bills paid before the handover stay with the first waiter) or\ncurrent_waiter (the table's last waiter, every bill of the order); draft statements take it at their next\ncomputation, closed ones keep their numbers. A refund follows the person of the refunded bill. Audited.\nstaff_pay.manage.",
+                "summary": "Change the staff pay settings of a branch",
                 "tags": [
                     "Owner: staff pay"
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
@@ -65796,11 +65822,12 @@
                                     "period": {
                                         "type": "string",
                                         "description": "App\\Domain\\Pos\\StaffPay\\PayPeriod: day, week, half_month, month."
+                                    },
+                                    "sales_attribution": {
+                                        "type": "string",
+                                        "description": "App\\Domain\\Pos\\StaffPay\\SalesAttribution: at_payment, current_waiter."
                                     }
-                                },
-                                "required": [
-                                    "period"
-                                ]
+                                }
                             }
                         }
                     }
@@ -65827,11 +65854,19 @@
                                                 },
                                                 "period_label": {
                                                     "type": "string"
+                                                },
+                                                "sales_attribution": {
+                                                    "type": "string"
+                                                },
+                                                "sales_attribution_label": {
+                                                    "type": "string"
                                                 }
                                             },
                                             "required": [
                                                 "period",
-                                                "period_label"
+                                                "period_label",
+                                                "sales_attribution",
+                                                "sales_attribution_label"
                                             ]
                                         }
                                     },
@@ -84995,6 +85030,9 @@
                                                         "day_type": {
                                                             "type": "string"
                                                         },
+                                                        "service_charge_locked": {
+                                                            "type": "boolean"
+                                                        },
                                                         "fees": {
                                                             "type": "array",
                                                             "items": {
@@ -85017,6 +85055,50 @@
                                                                     },
                                                                     "place_fee_mode": {
                                                                         "type": "string"
+                                                                    },
+                                                                    "rules": {
+                                                                        "type": [
+                                                                            "object",
+                                                                            "null"
+                                                                        ],
+                                                                        "properties": {
+                                                                            "by_order_type": {
+                                                                                "type": "object",
+                                                                                "additionalProperties": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "large_group_min_guests": {
+                                                                                "type": [
+                                                                                    "integer",
+                                                                                    "null"
+                                                                                ]
+                                                                            },
+                                                                            "large_group_percent": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "null"
+                                                                                ]
+                                                                            },
+                                                                            "cover_amount": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "null"
+                                                                                ]
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "by_order_type",
+                                                                            "large_group_min_guests",
+                                                                            "large_group_percent",
+                                                                            "cover_amount"
+                                                                        ]
+                                                                    },
+                                                                    "service_charge_notice": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
                                                                     }
                                                                 },
                                                                 "required": [
@@ -85024,7 +85106,9 @@
                                                                     "channel",
                                                                     "service_charge_percent",
                                                                     "place_fee_amount",
-                                                                    "place_fee_mode"
+                                                                    "place_fee_mode",
+                                                                    "rules",
+                                                                    "service_charge_notice"
                                                                 ]
                                                             }
                                                         },
@@ -85139,6 +85223,7 @@
                                                         "next_local_number",
                                                         "business_date",
                                                         "day_type",
+                                                        "service_charge_locked",
                                                         "fees",
                                                         "places",
                                                         "guest_items",
@@ -90744,6 +90829,24 @@
                                                                                 "null"
                                                                             ]
                                                                         },
+                                                                        "course_no": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "weight_status": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "wait_minutes": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
                                                                         "unit_price": {
                                                                             "type": "string"
                                                                         },
@@ -93433,6 +93536,24 @@
                                                                     "void_reason": {
                                                                         "type": [
                                                                             "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "course_no": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "weight_status": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "wait_minutes": {
+                                                                        "type": [
+                                                                            "integer",
                                                                             "null"
                                                                         ]
                                                                     },
@@ -109844,6 +109965,24 @@
                                                                             "null"
                                                                         ]
                                                                     },
+                                                                    "course_no": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "weight_status": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "wait_minutes": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
                                                                     "unit_price": {
                                                                         "type": "string"
                                                                     },
@@ -126161,6 +126300,12 @@
                                                             "null"
                                                         ]
                                                     },
+                                                    "table_label": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
                                                     "guests_count": {
                                                         "type": [
                                                             "integer",
@@ -126301,6 +126446,24 @@
                                                                         "null"
                                                                     ]
                                                                 },
+                                                                "course_no": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "weight_status": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "wait_minutes": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
                                                                 "unit_price": {
                                                                     "type": "string"
                                                                 },
@@ -126383,6 +126546,7 @@
                                                     "branch_id",
                                                     "hall_ref",
                                                     "table_ref",
+                                                    "table_label",
                                                     "guests_count",
                                                     "notes",
                                                     "items_total",
@@ -126868,6 +127032,24 @@
                                                                 "void_reason": {
                                                                     "type": [
                                                                         "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "course_no": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "weight_status": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "wait_minutes": {
+                                                                    "type": [
+                                                                        "integer",
                                                                         "null"
                                                                     ]
                                                                 },
@@ -127361,6 +127543,24 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "course_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "weight_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "wait_minutes": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "unit_price": {
                                                                 "type": "string"
                                                             },
@@ -127587,6 +127787,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "table_label": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "guests_count": {
                                                     "type": [
                                                         "integer",
@@ -127727,6 +127933,24 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "course_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "weight_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "wait_minutes": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "unit_price": {
                                                                 "type": "string"
                                                             },
@@ -127809,6 +128033,7 @@
                                                 "branch_id",
                                                 "hall_ref",
                                                 "table_ref",
+                                                "table_label",
                                                 "guests_count",
                                                 "notes",
                                                 "items_total",
@@ -127929,6 +128154,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "table_label": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "guests_count": {
                                                     "type": [
                                                         "integer",
@@ -128069,6 +128300,24 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "course_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "weight_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "wait_minutes": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "unit_price": {
                                                                 "type": "string"
                                                             },
@@ -128151,6 +128400,7 @@
                                                 "branch_id",
                                                 "hall_ref",
                                                 "table_ref",
+                                                "table_label",
                                                 "guests_count",
                                                 "notes",
                                                 "items_total",
@@ -128587,6 +128837,24 @@
                                                             "void_reason": {
                                                                 "type": [
                                                                     "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "course_no": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "weight_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "wait_minutes": {
+                                                                "type": [
+                                                                    "integer",
                                                                     "null"
                                                                 ]
                                                             },
@@ -133495,6 +133763,12 @@
                             "null"
                         ]
                     },
+                    "waiter_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "order": {
                         "$ref": "#/components/schemas/Order"
                     },
@@ -133540,7 +133814,8 @@
                     "voided_at",
                     "created_at",
                     "updated_at",
-                    "seat_no"
+                    "seat_no",
+                    "waiter_id"
                 ],
                 "title": "OrderBill"
             },

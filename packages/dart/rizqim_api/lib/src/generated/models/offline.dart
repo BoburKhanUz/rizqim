@@ -18,6 +18,7 @@ class Offline {
     required this.nextLocalNumber,
     required this.businessDate,
     required this.dayType,
+    required this.serviceChargeLocked,
     required this.fees,
     required this.places,
     required this.guestItems,
@@ -35,6 +36,8 @@ class Offline {
   final String businessDate;
   @JsonKey(name: 'day_type')
   final String dayType;
+  @JsonKey(name: 'service_charge_locked')
+  final bool serviceChargeLocked;
   final List<Fees> fees;
   final List<Places> places;
   @JsonKey(name: 'guest_items')

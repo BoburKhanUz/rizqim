@@ -30,6 +30,10 @@ String describeError(Object error) {
     return "Bu buyurtmaning schyoti to'lana boshlagan: bu o'zgarish to'langan taomga yoki xizmat haqiga tegadi. "
         "Buyurtma o'zgarmadi — kassirga ayting: u avval to'lovni qaytaradi.";
   }
+  if (error is PosModuleDisabled) {
+    // P6: the button showed from an old bootstrap; the branch has the feature off now
+    return "Bu imkoniyat filialda o'chirilgan. Ilovani qayta oching yoki menejerga ayting.";
+  }
   if (error is PosValidationException) return error.firstError;
   if (error is ApiException) return error.message;
   return "Kutilmagan xato. Qayta urinib ko'ring.";

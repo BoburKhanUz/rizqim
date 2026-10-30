@@ -7,6 +7,7 @@ import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../counter/counter_format.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/destinations.dart';
 import '../../shell/feature_placeholder.dart';
@@ -162,6 +163,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
             id: i.id,
             name: i.displayName,
             unit: i.unit,
+            seatNo: i.seatNo,
             quantity: left,
             amount: i.quantity.isZero
                 ? i.totalPrice
@@ -556,6 +558,13 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
             total: _remainingTotal,
             guests: _order!.guestsCount,
             busy: _busy,
+            // P6-24: one bill per guest (seat) where the format has it
+            byGuest: _scope.session.hasModule(PosModule.guestSplit),
+            // P6-25: the server refuses a bill while a dish waits for its weight
+            blocked: _order!.weightPending > 0
+                ? "${_order!.weightPending} ta taomning og'irligi kiritilmagan: buyurtma ekranida taomni bosib "
+                      "og'irligini yozing, keyin schyot tuzing."
+                : null,
             onSubmit: _createBills,
             onCancel: _splitting && !_needsBills
                 ? () => setState(() => _splitting = false)
@@ -767,7 +776,10 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               amount: order.serviceChargeAmount,
             ),
           if (!order.placeFeeAmount.isZero)
-            AmountRow(label: 'Joy puli', amount: order.placeFeeAmount),
+            AmountRow(
+              label: order.placeFeeIsCover ? 'Kuver' : 'Joy puli',
+              amount: order.placeFeeAmount,
+            ),
           if (order.hasDiscount)
             AmountRow(
               label: discountLabel(order),
@@ -915,7 +927,9 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        '${b.number}-schyot',
+                        b.seatNo == null
+                            ? '${b.number}-schyot'
+                            : '${b.number}-schyot · ${b.seatNo}-mehmon',
                         style: RzType.headline.copyWith(color: c.fg),
                       ),
                       const SizedBox(height: 4),
@@ -984,7 +998,9 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               ),
             if (!_settled(bill) || bill.dueAmount.isPositive)
               RzButton(
-                label: bill.printedCount > 0
+                label: (_order?.weightPending ?? 0) > 0 && !_settled(bill)
+                    ? "Og'irlik kutilmoqda (${_order!.weightPending})"
+                    : bill.printedCount > 0
                     ? 'Nusxa chiqarish'
                     : 'Schyotni chiqarish',
                 icon: Icons.print_outlined,
@@ -992,6 +1008,7 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
                 variant: RzButtonVariant.secondary,
                 onPressed:
                     _busy ||
+                        (_order?.weightPending ?? 0) > 0 && !_settled(bill) ||
                         bill.printedCount > 0 &&
                             !session.can(PosPermissions.reprintBill) &&
                             !session.needsApproval(PosPermissions.reprintBill)
@@ -1102,7 +1119,9 @@ class BillPreview extends StatelessWidget {
         bill.perGuestAmount ??
         (guests != null && guests > 1 ? perPerson(bill.total, guests) : null);
     return PosCard(
-      title: billsCount > 1 ? 'Schyot ${bill.number}/$billsCount' : 'Schyot',
+      title:
+          (billsCount > 1 ? 'Schyot ${bill.number}/$billsCount' : 'Schyot') +
+          (bill.seatNo == null ? '' : ' · ${bill.seatNo}-mehmon'),
       trailing: Text(
         'Bu fiskal chek emas',
         style: RzType.footnote.copyWith(color: c.fgMuted),
@@ -1155,7 +1174,20 @@ class BillPreview extends StatelessWidget {
           if (!bill.serviceChargeAmount.isZero)
             AmountRow(label: 'Xizmat haqi', amount: bill.serviceChargeAmount),
           if (!bill.placeFeeAmount.isZero)
-            AmountRow(label: 'Joy puli', amount: bill.placeFeeAmount),
+            AmountRow(
+              label: (order?.placeFeeIsCover ?? false) ? 'Kuver' : 'Joy puli',
+              amount: bill.placeFeeAmount,
+            ),
+          // P6-22: the service charge notice, as on the printed bill
+          if (bill.serviceChargeNotice != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                bill.serviceChargeNotice!,
+                key: const ValueKey<String>('bill-notice'),
+                style: RzType.footnote.copyWith(color: c.fgMuted),
+              ),
+            ),
           if (!bill.discount.isZero)
             AmountRow(
               label: discountLabel(order),
@@ -1184,6 +1216,14 @@ class BillPreview extends StatelessWidget {
             AmountRow(
               label: 'Kishi boshiga (${guests ?? bill.guestsShare} kishi)',
               amount: each,
+              muted: true,
+            ),
+          // P6-22: tips are on top of the bill (never in its total or on the receipt)
+          if (bill.tipsAmount.isPositive)
+            AmountRow(
+              key: const ValueKey<String>('bill-tips'),
+              label: 'Choy puli (chekdan tashqari)',
+              amount: bill.tipsAmount,
               muted: true,
             ),
           if (bill.payments.isNotEmpty) ...<Widget>[

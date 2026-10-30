@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\PosBooking;
 
+use App\Domain\Pos\Setup\FormatProfile;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\Booking;
@@ -179,6 +181,45 @@ class PosBookingConfirmationTest extends TestCase
         $lines = $this->lines($this->confirmation($uuid));
         $this->assertArrayNotHasKey('service_charge', $lines);
         $this->assertArrayNotHasKey('place_fee', $lines);
+    }
+
+    public function test_the_service_charge_rules_decide_what_is_announced(): void
+    {
+        // P6-22 (J2 open item): hall 15%, 8 guests or more 20%, a cover of 10 000 per guest — the order's own rules
+        DB::table('service_fee_settings')->insert([
+            'store_id' => $this->store->id, 'branch_id' => null, 'service_charge_percent' => '10.00', 'place_fee_amount' => '5000.00',
+            'place_fee_mode' => 'per_person', 'created_at' => now(), 'updated_at' => now(),
+            'service_charge_rules' => json_encode(['by_order_type' => ['hall' => '15'], 'large_group_min_guests' => 8, 'large_group_percent' => '20', 'cover_amount' => '10000']),
+        ]);
+        $uuid = $this->booked(); // 12 guests
+        $profile = function (FormatProfile $profile, array $modules = []) {
+            $branch = $this->branch->fresh();
+            $branch->forceFill(['pos_settings' => PosSettings::withFormat($branch->pos_settings, $profile, $modules)])->save();
+        };
+        $profile(FormatProfile::RESTORAN);
+
+        $response = $this->confirmation($uuid)->assertOk();
+        $lines = $this->lines($response);
+        $this->assertSame("Xizmat haqi: 20% (8 va undan ko'p mehmon)", $lines['service_charge']);
+        $this->assertSame("Kuver: 10 000 so'm kishi boshiga (jami 120 000 so'm)", $lines['place_fee']);
+        $this->assertStringContainsString("💵 Xizmat haqi: 20% (8 va undan ko'p mehmon)", $response->json('data.text'));
+
+        // A smaller party: the hall percent
+        Booking::where('uuid', $uuid)->update(['guests_planned' => 4]);
+        $lines = $this->lines($this->confirmation($uuid));
+        $this->assertSame('Xizmat haqi: 15%', $lines['service_charge']);
+        $this->assertSame("Kuver: 10 000 so'm kishi boshiga (jami 40 000 so'm)", $lines['place_fee']);
+
+        // The module off: the row's own percent and place fee, as the order would charge
+        $profile(FormatProfile::RESTORAN, ['service_charge_rules' => false]);
+        $lines = $this->lines($this->confirmation($uuid));
+        $this->assertSame('Xizmat haqi: 10%', $lines['service_charge']);
+        $this->assertSame("Joy narxi: 5 000 so'm kishi boshiga (jami 20 000 so'm)", $lines['place_fee']);
+
+        // A stolovaya never charges a service charge (VM 75), whatever the rules
+        $profile(FormatProfile::STOLOVAYA, ['service_charge_rules' => true]);
+        $lines = $this->lines($this->confirmation($uuid));
+        $this->assertArrayNotHasKey('service_charge', $lines);
     }
 
     public function test_pre_orders_deposits_net_of_refunds_and_the_cancel_policy(): void

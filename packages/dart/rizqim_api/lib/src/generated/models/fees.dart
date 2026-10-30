@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'rules4.dart';
+
 part 'fees.g.dart';
 
 @JsonSerializable()
@@ -14,6 +16,8 @@ class Fees {
     required this.serviceChargePercent,
     required this.placeFeeAmount,
     required this.placeFeeMode,
+    required this.rules,
+    required this.serviceChargeNotice,
   });
 
   factory Fees.fromJson(Map<String, Object?> json) => _$FeesFromJson(json);
@@ -27,6 +31,9 @@ class Fees {
   final String placeFeeAmount;
   @JsonKey(name: 'place_fee_mode')
   final String placeFeeMode;
+  final Rules4? rules;
+  @JsonKey(name: 'service_charge_notice')
+  final String? serviceChargeNotice;
 
   Map<String, Object?> toJson() => _$FeesToJson(this);
 }

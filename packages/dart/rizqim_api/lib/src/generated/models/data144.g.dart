@@ -13,6 +13,11 @@ Data144 _$Data144FromJson(Map<String, dynamic> json) => Data144(
   periods: (json['periods'] as List<dynamic>)
       .map((e) => Periods.fromJson(e as Map<String, dynamic>))
       .toList(),
+  salesAttribution: json['sales_attribution'] as String,
+  salesAttributionLabel: json['sales_attribution_label'] as String,
+  salesAttributions: (json['sales_attributions'] as List<dynamic>)
+      .map((e) => SalesAttributions.fromJson(e as Map<String, dynamic>))
+      .toList(),
   componentTypes: (json['component_types'] as List<dynamic>)
       .map((e) => ComponentTypes.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -44,6 +49,9 @@ Map<String, dynamic> _$Data144ToJson(Data144 instance) => <String, dynamic>{
   'period': instance.period,
   'period_label': instance.periodLabel,
   'periods': instance.periods,
+  'sales_attribution': instance.salesAttribution,
+  'sales_attribution_label': instance.salesAttributionLabel,
+  'sales_attributions': instance.salesAttributions,
   'component_types': instance.componentTypes,
   'guarantee_modes': instance.guaranteeModes,
   'guarantee_per': instance.guaranteePer,

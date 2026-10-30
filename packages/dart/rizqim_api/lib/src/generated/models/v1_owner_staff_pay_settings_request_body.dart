@@ -9,8 +9,9 @@ part 'v1_owner_staff_pay_settings_request_body.g.dart';
 @JsonSerializable()
 class V1OwnerStaffPaySettingsRequestBody {
   const V1OwnerStaffPaySettingsRequestBody({
-    required this.period,
     this.branchId,
+    this.period,
+    this.salesAttribution,
   });
 
   factory V1OwnerStaffPaySettingsRequestBody.fromJson(
@@ -21,7 +22,11 @@ class V1OwnerStaffPaySettingsRequestBody {
   final int? branchId;
 
   /// App\Domain\Pos\StaffPay\PayPeriod: day, week, half_month, month.
-  final String period;
+  final String? period;
+
+  /// App\Domain\Pos\StaffPay\SalesAttribution: at_payment, current_waiter.
+  @JsonKey(name: 'sales_attribution')
+  final String? salesAttribution;
 
   Map<String, Object?> toJson() =>
       _$V1OwnerStaffPaySettingsRequestBodyToJson(this);

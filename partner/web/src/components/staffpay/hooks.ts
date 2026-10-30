@@ -15,10 +15,10 @@ import {
   payLine,
   removeSession,
   reopenStatement,
-  savePeriod,
+  saveSettings,
   statementAction,
   updateRule,
-  type PayPeriod,
+  type PaySettingsInput,
   type RuleInput,
   type SessionInput,
   type Statement,
@@ -48,11 +48,11 @@ export function useRules(branchId: number | null) {
   return useQuery({ queryKey: payKeys.rules(branchId ?? 0), queryFn: () => fetchRules(api, branchId as number), enabled: branchId !== null, retry: false });
 }
 
-export function useSavePeriod({ onSuccess }: Done = {}) {
+export function useSaveSettings({ onSuccess }: Done = {}) {
   const api = useStaffApi();
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (input: { branchId: number; period: PayPeriod }) => savePeriod(api, input.branchId, input.period),
+    mutationFn: (input: PaySettingsInput) => saveSettings(api, input),
     onSuccess: (result) => {
       invalidate();
       onSuccess?.(result);

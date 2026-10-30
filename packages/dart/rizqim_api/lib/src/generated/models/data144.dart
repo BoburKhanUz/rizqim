@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'branch11.dart';
 import 'periods.dart';
+import 'sales_attributions.dart';
 import 'component_types.dart';
 import 'guarantee_modes.dart';
 import 'guarantee_per.dart';
@@ -24,6 +25,9 @@ class Data144 {
     required this.period,
     required this.periodLabel,
     required this.periods,
+    required this.salesAttribution,
+    required this.salesAttributionLabel,
+    required this.salesAttributions,
     required this.componentTypes,
     required this.guaranteeModes,
     required this.guaranteePer,
@@ -42,6 +46,12 @@ class Data144 {
   @JsonKey(name: 'period_label')
   final String periodLabel;
   final List<Periods> periods;
+  @JsonKey(name: 'sales_attribution')
+  final String salesAttribution;
+  @JsonKey(name: 'sales_attribution_label')
+  final String salesAttributionLabel;
+  @JsonKey(name: 'sales_attributions')
+  final List<SalesAttributions> salesAttributions;
   @JsonKey(name: 'component_types')
   final List<ComponentTypes> componentTypes;
   @JsonKey(name: 'guarantee_modes')

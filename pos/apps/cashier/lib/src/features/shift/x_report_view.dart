@@ -122,6 +122,17 @@ class ShiftReportBody extends StatelessWidget {
               trailing: 'xizmat ${w.service.formatAmount()}',
             ),
         ],
+        // P6-22: tips are not revenue — their own section, never in the sales above
+        if (v.tipLines.isNotEmpty) ...<Widget>[
+          title('Choy puli (tushum emas)'),
+          for (final ReportAmount t in v.tipLines)
+            AmountRow(
+              label: t.count == null ? t.label : '${t.label} (${t.count})',
+              amount: t.amount,
+              bold: t.label == 'Jami',
+              muted: t.label.startsWith('  '),
+            ),
+        ],
         if (v.report.batchWriteoffs.items.isNotEmpty) ...<Widget>[
           title('Hisobdan chiqarilgan taomlar'),
           ShiftWriteOffsList(writeOffs: v.report.batchWriteoffs),
@@ -134,6 +145,12 @@ class ShiftReportBody extends StatelessWidget {
         if (v.cashRepayments.isPositive)
           AmountRow(label: "Naqd qarz to'lovi", amount: v.cashRepayments),
         if (v.cashIn.isPositive) AmountRow(label: 'Kirim', amount: v.cashIn),
+        if (v.cashTips.isPositive)
+          AmountRow(
+            key: const ValueKey<String>('x-cash-tips'),
+            label: 'Choy puli (naqd)',
+            amount: v.cashTips,
+          ),
         if (v.cashRefunds.isPositive)
           AmountRow(
             label: 'Naqd qaytarish',
@@ -150,6 +167,13 @@ class ShiftReportBody extends StatelessWidget {
           AmountRow(label: 'Bozorlik', amount: v.purchases, negative: true),
         if (v.wages.isPositive)
           AmountRow(label: 'Ish haqi', amount: v.wages, negative: true),
+        if (v.tipPayouts.isPositive)
+          AmountRow(
+            key: const ValueKey<String>('x-tip-payouts'),
+            label: 'Choy puli berildi',
+            amount: v.tipPayouts,
+            negative: true,
+          ),
         if (v.cashOut.isPositive)
           AmountRow(label: 'Chiqim', amount: v.cashOut, negative: true),
         const Divider(height: 20),

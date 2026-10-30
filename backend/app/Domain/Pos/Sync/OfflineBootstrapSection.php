@@ -2,9 +2,12 @@
 
 namespace App\Domain\Pos\Sync;
 
+use App\Domain\Pos\Billing\ServiceChargeRules;
 use App\Domain\Pos\Hall\BusinessCalendar;
 use App\Domain\Pos\Hall\RoomTariffResolver;
 use App\Domain\Pos\Setup\PosBootstrapContributor;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\MinSpendMode;
 use App\Enums\OrderChannel;
 use App\Models\AutoGuestItem;
@@ -23,6 +26,11 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * outage with the simple price rules only — the service charge and place fee in force per hall and channel, today's
  * room fee and minimum spend of each place, the per-guest "choy-non" items — plus its local order number prefix
  * (`K1`, unique in the store, given once) and the next number, and the limits of the limited mode.
+ *
+ * P6-22 (C1): each fee row also carries its service charge rules (`rules`, only with the branch's
+ * `service_charge_rules` module, else null) and the bill notice, and the section the stolovaya lock
+ * (`service_charge_locked`), so the till prices an offline order as PosChargesCalculator does (order type, large group,
+ * cover) and its bills stop coming back with `amount_mismatch`.
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -43,6 +51,7 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
         private readonly DiningFeeCalculator $fees,
         private readonly BusinessCalendar $calendar,
         private readonly RoomTariffResolver $tariffs,
+        private readonly PosModules $modules,
     ) {}
 
     /**
@@ -54,9 +63,12 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
         $dayType = $this->calendar->dayType($branch, $businessDate);
 
         $halls = Hall::where('branch_id', $branch->id)->orderBy('id')->pluck('id')->all();
+        $withRules = $this->modules->enabled($branch, PosModule::SERVICE_CHARGE_RULES);
+        $locked = $this->modules->serviceChargeLocked((int) $branch->id);
         $fees = [];
         foreach ([null, ...$halls] as $hallId) {
             $settings = $this->fees->settingsForHall((int) $branch->store_id, (int) $branch->id, $hallId !== null ? (int) $hallId : null);
+            $rules = $withRules ? ServiceChargeRules::of($settings) : new ServiceChargeRules();
             foreach ([OrderChannel::POS_HALL, OrderChannel::POS_TAKEAWAY] as $channel) {
                 $applies = fn (?array $channels) => in_array($channel->value, $channels ?? DiningFeeCalculator::DEFAULT_CHANNELS, true);
                 $fees[] = [
@@ -65,6 +77,8 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
                     'service_charge_percent' => $settings !== null && $applies($settings->service_charge_channels) ? Money::of((string) $settings->service_charge_percent)->toString() : '0.00',
                     'place_fee_amount' => $settings !== null && $applies($settings->place_fee_channels) ? Money::of((string) $settings->place_fee_amount)->toString() : '0.00',
                     'place_fee_mode' => $settings?->place_fee_mode->value ?? 'per_person',
+                    'rules' => $settings !== null && !$rules->isEmpty() ? $rules->toArray() : null,
+                    'service_charge_notice' => $rules->notice($settings, $locked),
                 ];
             }
         }
@@ -102,6 +116,7 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             'next_local_number' => $device !== null ? $this->nextNumber($device) : 1,
             'business_date' => $businessDate,
             'day_type' => $dayType->value,
+            'service_charge_locked' => $locked,
             'fees' => $fees,
             'places' => $places,
             'guest_items' => $guestItems,

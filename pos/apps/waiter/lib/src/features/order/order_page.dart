@@ -7,14 +7,18 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../common/connection_banner.dart';
 import '../../common/errors.dart';
+import '../../common/modules.dart';
 import '../../common/notices.dart';
 import '../../services.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/waiter_scope.dart';
 import 'add_items_sheet.dart';
+import 'courses.dart';
 import 'order_controller.dart';
 import 'order_widgets.dart';
 import 'place_sheets.dart';
+import 'restaurant_sheets.dart';
+import 'slot_pickers.dart';
 
 /// Buyurtma ekrani: bosqichlar (qatorlar holati bilan), "Taom qo'shish", "Yuborish", "Berildi", "Schyot so'rash".
 /// Boshqa ofitsiantning buyurtmasi avval faqat ko'rish uchun; tahrirlash menejer tasdig'ini so'raydi.
@@ -118,6 +122,54 @@ class _OrderPageState extends State<OrderPage> {
     if (tableId != null) await _ctl.moveTo(_approving, tableId);
   }
 
+  /// P6-25: og'irlikni kiritish (birinchi marta — `orders.manage`; qayta tortish menejer tasdig'i bilan).
+  Future<void> _weigh(PosOrderItem item) async {
+    final PosQuantity? q = await showWeightSheet(context, item: item);
+    if (q != null) await _ctl.setWeight(_approving, item.id, q);
+  }
+
+  /// P6-24: qatorning mehmoni.
+  Future<void> _seat(PosOrderItem item) async {
+    final ({int? course, int? seat})? slot = await showSlotSheet(
+      context,
+      title: item.displayName,
+      course: false,
+      seat: true,
+      guests: _ctl.order?.guestsCount,
+      initialSeat: item.seatNo,
+    );
+    if (slot != null) await _ctl.setSeat(_approving, item.id, slot.seat);
+  }
+
+  /// P6-24: stolni boshqa ofitsiantga berish (ruxsat bo'lmasa server tasdiq so'raydi, oyna o'zi ochiladi).
+  Future<void> _transfer() async {
+    final PosOrder? o = _ctl.order;
+    if (o == null) return;
+    final List<PosStaffRef> waiters = <PosStaffRef>[
+      for (final PosStaffRef s
+          in _ctl.session.bootstrap?.staff ?? const <PosStaffRef>[])
+        if (s.isWaiter && s.id != o.waiter?.id) s,
+    ];
+    final ({PosStaffRef waiter, String? reason})? pick =
+        await showTransferSheet(
+          context,
+          waiters: waiters,
+          placeTitle: <String>[_title, ?_hall].join(' · '),
+        );
+    if (pick == null) return;
+    await _ctl.transferTo(_approving, pick.waiter, reason: pick.reason);
+  }
+
+  /// Menyuda "Boshqa ofitsiantga berish" (modul yoqilgan, ochiq stol buyurtmasi, buyurtma bilan ishlay oladi).
+  bool get _canTransfer {
+    final PosOrder? o = _ctl.order;
+    return o != null &&
+        !_ctl.closed &&
+        o.table != null &&
+        _ctl.session.transferOn &&
+        _ctl.session.can(PosPermissions.ordersManage);
+  }
+
   Future<void> _requestBill() async {
     final bool? yes = await showDialog<bool>(
       context: context,
@@ -175,31 +227,43 @@ class _OrderPageState extends State<OrderPage> {
                 onPressed: () => unawaited(_ctl.refresh()),
                 icon: const Icon(Icons.refresh_rounded),
               ),
-              if (_ctl.editable)
+              if (_ctl.editable || _canTransfer)
                 PopupMenuButton<String>(
                   tooltip: 'Menyu',
-                  enabled: _ctl.canAct,
+                  enabled: _ctl.editable ? _ctl.canAct : _ctl.online,
                   onSelected: (String v) {
                     if (v == 'guests') unawaited(_changeGuests());
                     if (v == 'move') unawaited(_move());
+                    if (v == 'transfer') unawaited(_transfer());
                   },
                   itemBuilder: (BuildContext context) =>
                       <PopupMenuEntry<String>>[
-                        const PopupMenuItem<String>(
-                          value: 'guests',
-                          height: 52,
-                          child: ListTile(
-                            leading: Icon(Icons.people_outline),
-                            title: Text('Mehmonlar soni'),
+                        if (_ctl.editable)
+                          const PopupMenuItem<String>(
+                            value: 'guests',
+                            height: 52,
+                            child: ListTile(
+                              leading: Icon(Icons.people_outline),
+                              title: Text('Mehmonlar soni'),
+                            ),
                           ),
-                        ),
-                        if (order?.table != null)
+                        if (_ctl.editable && order?.table != null)
                           const PopupMenuItem<String>(
                             value: 'move',
                             height: 52,
                             child: ListTile(
                               leading: Icon(Icons.swap_horiz_rounded),
                               title: Text("Boshqa joyga ko'chirish"),
+                            ),
+                          ),
+                        // P6-24: hand the table to another waiter (orders.transfer or a manager's PIN)
+                        if (_canTransfer)
+                          const PopupMenuItem<String>(
+                            value: 'transfer',
+                            height: 52,
+                            child: ListTile(
+                              leading: Icon(Icons.badge_outlined),
+                              title: Text('Boshqa ofitsiantga berish'),
                             ),
                           ),
                       ],
@@ -244,6 +308,10 @@ class _OrderPageState extends State<OrderPage> {
     final List<int> numbers = rounds.keys.toList()..sort();
     final bool editable = _ctl.editable;
     final List<PosOrderItem> ready = _ctl.readyItems.toList();
+    final List<PosCourse> courses = _ctl.courses;
+    final int weightPending = _ctl.weightPending;
+    final bool seats = _ctl.session.guestSplitOn;
+    final bool weighs = _ctl.session.can(PosPermissions.ordersManage);
     return RefreshIndicator(
       onRefresh: _ctl.refresh,
       child: ListView(
@@ -273,6 +341,21 @@ class _OrderPageState extends State<OrderPage> {
               showAll: editable && !_ctl.isForeign && ready.length > 1,
             ),
           ],
+          // P6-25: no bill until every "weight later" dish is weighed
+          if (weightPending > 0) ...<Widget>[
+            const SizedBox(height: 12),
+            _WeightPendingCard(count: weightPending),
+          ],
+          // P6-21: an order with courses always shows them (even if the module was switched off since)
+          if (courses.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            CoursesCard(
+              courses: courses,
+              editable: editable,
+              enabled: _ctl.canAct,
+              onSend: (int n) => unawaited(_ctl.sendCourse(_approving, n)),
+            ),
+          ],
           const SizedBox(height: 12),
           if (numbers.isEmpty)
             const Padding(
@@ -295,6 +378,8 @@ class _OrderPageState extends State<OrderPage> {
                 onServed: () => unawaited(_ctl.markServed(_approving, item.id)),
                 onSend: () => unawaited(_ctl.sendLine(_approving, item.id)),
                 onVoid: () => unawaited(_ctl.voidPending(_approving, item.id)),
+                onWeigh: weighs ? () => unawaited(_weigh(item)) : null,
+                onSeat: seats ? () => unawaited(_seat(item)) : null,
               ),
             ),
             const SizedBox(height: 12),
@@ -583,6 +668,39 @@ class _HeaderCard extends StatelessWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// P6-25: "Og'irlik kutilmoqda (N)": oshpaz yoki menejer tortmaguncha kassir schyot chiqara olmaydi.
+class _WeightPendingCard extends StatelessWidget {
+  const _WeightPendingCard({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.warningSoft,
+        borderRadius: BorderRadius.circular(RzRadius.card),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: <Widget>[
+            Icon(Icons.scale_outlined, color: c.warningSoftFg),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Og'irlik kutilmoqda ($count): taom tortilgach schyot chiqadi.",
+                style: RzType.body.copyWith(color: c.warningSoftFg),
+              ),
+            ),
           ],
         ),
       ),

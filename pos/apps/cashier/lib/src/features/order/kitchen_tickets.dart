@@ -110,7 +110,12 @@ StationTicket buildStationTicket(
   return StationTicket(
     stationName: stationName,
     sentAt: sentAt.toLocal(),
-    tableLabel: order.table?.name,
+    // P6-25: a counter order carried to the guest's table plate
+    tableLabel:
+        order.table?.name ??
+        (order.tableLabel?.trim().isNotEmpty ?? false
+            ? 'Stol ${order.tableLabel!.trim()}'
+            : null),
     orderLabel: order.table == null
         ? (channel == PosChannel.takeaway ? 'Olib ketish' : 'Zalda, stolsiz')
         : null,

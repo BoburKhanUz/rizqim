@@ -97,6 +97,9 @@ String? placeLabel(PosOrder? order) {
   if (order == null) return null;
   if (order.table != null) return order.table!.name;
   if (order.tableRef != null) return order.tableRef;
+  // P6-25: a counter order carried to the guest's table plate
+  final String? plate = order.tableLabel?.trim();
+  if (plate != null && plate.isNotEmpty) return 'Stol $plate';
   return order.posChannel == PosChannel.takeaway ? 'Olib ketish' : 'Zal';
 }
 
@@ -140,7 +143,13 @@ PreCheck preCheckOf({
     if (!bill.roomFeeAmount.isZero)
       BillCharge(BillChargeKind.roomFee, bill.roomFeeAmount),
     if (!bill.placeFeeAmount.isZero)
-      BillCharge(BillChargeKind.placeFee, bill.placeFeeAmount),
+      BillCharge(
+        BillChargeKind.placeFee,
+        bill.placeFeeAmount,
+        // P6-22: the restaurant cover per guest
+        label: (order?.placeFeeIsCover ?? false) ? 'Kuver' : null,
+        note: bill.serviceChargeAmount.isZero ? bill.serviceChargeNotice : null,
+      ),
     if (!bill.minSpendTopupAmount.isZero)
       BillCharge(BillChargeKind.minSpendTopUp, bill.minSpendTopupAmount),
     if (!bill.serviceChargeAmount.isZero)
@@ -148,6 +157,8 @@ PreCheck preCheckOf({
         BillChargeKind.serviceCharge,
         bill.serviceChargeAmount,
         percent: _percent(order?.charges.serviceChargePercent),
+        // P6-22: the public notice under the service charge line
+        note: bill.serviceChargeNotice,
       ),
     // P3-37: a percent discount shows its percent ("Chegirma 10%")
     if (!bill.discount.isZero)

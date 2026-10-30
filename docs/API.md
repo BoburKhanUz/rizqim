@@ -952,7 +952,10 @@ haqi" bo'limi):
   ham xuddi shu qoida bilan hisoblaydi ("Xona puli, minimal summa va xizmat haqi"): bronning summasi buyurtmaga tushadi.
 - **Xizmat haqi** va **joy narxi** — xona zalining sozlamasi, bo'lmasa filial yoki do'konniki
   (`service_fee_settings`), faqat `pos_hall` kanaliga qo'llansa. Joy narxi `per_person` — "kishi boshiga (jami …)",
-  `per_table` — summa.
+  `per_table` — summa. P6-22: filialda `service_charge_rules` moduli bo'lsa, qatorning qoidalari (`ServiceChargeRules`)
+  bronning `guests_planned` mehmonli zal buyurtmasiga qo'llanadi — buyurtma hisobi bilan bir xil: zal turi foizi, katta
+  guruh foizi ("Xizmat haqi: 20% (8 va undan ko'p mehmon)"), kuver joy narxi o'rniga ("Kuver: 10 000 so'm kishi boshiga
+  (jami …)"), stolovaya — 0% (qator yo'q).
 - **Oldindan buyurtma** — bron qatorlari: "Nom (variant) 3 kg", "Somsa 10 dona".
 - **Bo'nak olindi** — bron avanslari yig'indisi, qaytarilganlari ayirilgan (`amount − refunded_amount`); 0 bo'lsa
   qator yo'q.
@@ -1802,8 +1805,10 @@ ham. Har qator: `op_id`, `seq`, `type`, `type_label`, `status`, `reason`, `messa
 ### Bootstrap `offline` qismi
 
 `GET /pos/bootstrap` da `offline`: `device_prefix` (kassaga bir marta beriladi: `K1`, `K2`…), `next_local_number`,
-`business_date`, `day_type`, `fees[]` (`hall_id`, `channel`, `service_charge_percent`, `place_fee_amount`,
-`place_fee_mode`), `places[]` (`table_id`, `hall_id`, `room_fee`, `min_spend`, `min_spend_mode`), `guest_items[]`
+`business_date`, `day_type`, `service_charge_locked` (P6-22: stolovaya qulfi — xizmat haqi qoidalaridagi har foiz 0),
+`fees[]` (`hall_id`, `channel`, `service_charge_percent`, `place_fee_amount`, `place_fee_mode`; P6-22: `rules` — shu
+qatorning xizmat haqi qoidalari `{by_order_type, large_group_min_guests, large_group_percent, cover_amount}`, faqat
+`service_charge_rules` moduli bilan, aks holda `null`; `service_charge_notice` — schyotdagi e'lon), `places[]` (`table_id`, `hall_id`, `room_fee`, `min_spend`, `min_spend_mode`), `guest_items[]`
 (`hall_id`, `variant_uuid`, `quantity_per_guest`, `sort_order`) va `limits` (`batch_size` 50, `warn_after_minutes` 15,
 `alert_after_minutes` 120, `max_queued_orders` 500, `menu_max_age_hours` 24, `contact_max_age_hours` 24,
 `fiscal_warn_hours` [24, 40], `fiscal_limit_hours` 48, `clock_skew_warn_seconds` 300).
@@ -3780,8 +3785,8 @@ filialga biriktirilgan xodim faqat o'z filialida. Pul — o'nlik satr, sanalar �
 
 | Yo'l | Ruxsat | Qisqacha |
 |---|---|---|
-| `GET /owner/staff-pay/rules?branch_id` | `staff_pay.view` yoki `.manage` | `{branch, period, period_label, periods[], component_types[], guarantee_modes[], guarantee_per[], percent_bases[], event_types[], roles[], staff[{id, name, role, role_label, branch_id}], rules[]}` |
-| `PUT /owner/staff-pay/settings {branch_id, period}` | `staff_pay.manage` | davr: `day` \| `week` \| `half_month` \| `month`. Audit `staff_pay.settings_changed` |
+| `GET /owner/staff-pay/rules?branch_id` | `staff_pay.view` yoki `.manage` | `{branch, period, period_label, periods[], sales_attribution, sales_attribution_label, sales_attributions[], component_types[], guarantee_modes[], guarantee_per[], percent_bases[], event_types[], roles[], staff[{id, name, role, role_label, branch_id}], rules[]}` |
+| `PUT /owner/staff-pay/settings {branch_id, period?, sales_attribution?}` | `staff_pay.manage` | o'zgaradiganini yuboring (kamida bittasi, aks holda 422). Davr: `day` \| `week` \| `half_month` \| `month`. `sales_attribution` (stol boshqa ofitsiantga o'tganda sotuv kimniki, POS_SPEC §17.3): `at_payment` (standart — to'lov paytidagi ofitsiant, `order_bills.waiter_id`) \| `current_waiter` (stolning oxirgi ofitsianti). Javob `{period, period_label, sales_attribution, sales_attribution_label}`. Audit `staff_pay.settings_changed` |
 | `POST /owner/staff-pay/rules {branch_id, user_id \| role, effective_from, components[], note?}` | `staff_pay.manage` | qoida versiyasi; shu sanadan versiya bor — 422 `effective_from`. Qism: `{type, ...}` — `shift_rate {amount}`, `hourly_rate {amount}`, `sales_percent {percent}`, `service_charge_percent {percent}`, `guarantee {amount, per: shift\|period, mode: max\|plus, percent, base: sales\|service_charge}`, `event_rate {amount, event_types[]}`, `tips {}`; summa 0–100 000 000, foiz 0–100 (2 xona), tur bir marta, 10 tagacha. Audit `staff_pay.rule_created` |
 | `PUT /owner/staff-pay/rules/{uuid} {effective_from?, components?, note?}`, `DELETE /owner/staff-pay/rules/{uuid}` | `staff_pay.manage` | Audit `staff_pay.rule_changed`, `staff_pay.rule_deleted` |
 | `GET /owner/staff-pay/work-sessions?branch_id&from&to&user_id` | `staff_pay.view` yoki `.manage` | ish vaqtlari (standart oxirgi 7 kun, 500 tagacha): `{uuid, user_id, user_name, business_date, clock_in_at, clock_out_at, abandoned, open, minutes, source: pin\|manual, note}` |
@@ -3801,6 +3806,10 @@ Mavjud endpointlarga qo'shimchalar:
 - Ruxsatlar: `staff_pay.view` (ega, menejer), `staff_pay.manage` (ega; boshqa rolga berilishi mumkin).
 - Migratsiyalar: `2026_11_12_300100` (`staff_pay_settings`, `staff_pay_rules`), `300200` (`staff_work_sessions`, bitta ochiq
   ish vaqti uchun qisman unikal indeks), `300300` (`staff_pay_statements`, `staff_pay_statement_lines`).
+- Egasining qarori (30.10.2026): `order_bills.waiter_id` — schyot to'lovlar uni qoplagan paytdagi buyurtma ofitsianti (to'lovsiz
+  yopilgan schyotda — fiskal chek chiqqan paytdagisi). Migratsiyalar `2026_11_13_100100` (ustun; eski to'langan schyotlarga
+  buyurtmaning ofitsianti yoziladi), `100200` (`staff_pay_settings.sales_attribution`, standart `at_payment`). Choy puli
+  qozonining `sales` qoidasi ham shu sozlamaga amal qiladi.
 
 ## Hostes, ofitsiantni almashtirish va stol broni (P6-24, P6-26)
 

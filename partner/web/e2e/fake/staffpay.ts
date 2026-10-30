@@ -58,6 +58,7 @@ interface Statement {
 }
 
 const option = (value: string, label: string) => ({ value, label })
+const attributionLabel = (value: string) => (value === 'current_waiter' ? 'Stolning oxirgi ofitsianti' : "To'lov paytidagi ofitsiant")
 const LABELS: Record<string, string> = { shift_rate: 'Smena stavkasi', hourly_rate: 'Soatbay stavka', sales_percent: 'Sotuvdan foiz', service_charge_percent: 'Xizmat haqidan foiz', guarantee: 'Garant + foiz', event_rate: 'Tadbir stavkasi', tips: 'Choy puli' }
 const STATUS: Record<Statement['status'], string> = { draft: 'Qoralama', closed: 'Yopilgan', paid: "To'langan" }
 const ROLES = [option('manager', 'Menejer'), option('cashier', 'Kassir'), option('waiter', 'Ofitsiant'), option('cook', 'Oshpaz'), option('hostess', 'Hostes'), option('courier', 'Kuryer')]
@@ -66,6 +67,7 @@ const money = (n: number) => n.toFixed(2)
 
 export class FakeStaffPay {
   period = 'month'
+  salesAttribution = 'at_payment'
   rules: Rule[] = []
   statements: Statement[] = []
   openShifts = [{ uuid: 'aaaaaaaa-0000-4000-8000-000000000001', device_name: 'Kassa 1', business_date: '2026-11-30', opened_at: '2026-11-30T04:00:00+00:00', expected_cash: '1000000.00' }]
@@ -136,6 +138,9 @@ export class FakeStaffPay {
         period: this.period,
         period_label: this.period === 'month' ? 'Oylik' : this.period,
         periods: [option('day', 'Kunlik'), option('week', 'Haftalik'), option('half_month', 'Yarim oylik'), option('month', 'Oylik')],
+        sales_attribution: this.salesAttribution,
+        sales_attribution_label: attributionLabel(this.salesAttribution),
+        sales_attributions: [option('at_payment', attributionLabel('at_payment')), option('current_waiter', attributionLabel('current_waiter'))],
         component_types: Object.entries(LABELS).map(([value, label]) => option(value, label)),
         guarantee_modes: [option('max', 'Garant yoki foiz (qaysi katta)'), option('plus', 'Garant + foiz')],
         guarantee_per: [option('shift', 'Har smena uchun'), option('period', 'Butun davr uchun')],
@@ -147,8 +152,9 @@ export class FakeStaffPay {
       })
     }
     if (req.method === 'PUT' && path === '/settings') {
-      this.period = String(body?.period ?? 'month')
-      return ok({ period: this.period, period_label: this.period })
+      this.period = String(body?.period ?? this.period)
+      this.salesAttribution = String(body?.sales_attribution ?? this.salesAttribution)
+      return ok({ period: this.period, period_label: this.period, sales_attribution: this.salesAttribution, sales_attribution_label: attributionLabel(this.salesAttribution) })
     }
     if (req.method === 'POST' && path === '/rules') {
       const role = typeof body?.role === 'string' ? body.role : null

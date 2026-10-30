@@ -657,6 +657,17 @@ class KitchenBoardController extends ChangeNotifier {
     }
   }
 
+  /// P6-21: bitta kursning qolgan hamma qatorlari tayyor. Yangi endpoint yo'q: qatorlar [bumpAll] kabi ketma-ket
+  /// tayyor qilinadi; kursning oxirgi taomi tayyor bo'lganda server o'zi `order.course_ready` yuboradi
+  /// (`KitchenService` -> `CourseTracker`) va ofitsiant "N-kurs tayyor" deb eshitadi.
+  Future<void> bumpCourse(KitchenTicket ticket, int courseNo) => bumpAll(
+    ticket.copyWith(
+      lines: ticket.lines
+          .where((KitchenLine l) => l.courseNo == courseNo)
+          .toList(),
+    ),
+  );
+
   /// Butun buyurtma tayyor (`status = ready`). Masalan, zal buyurtmasi: qatorlar tayyor bo'lsa ham server uni o'zi
   /// `ready` qilmaydi (docs/API.md 9.1).
   Future<void> markOrderReady(KitchenTicket ticket) async {
@@ -709,7 +720,7 @@ class KitchenBoardController extends ChangeNotifier {
   }
 
   /// Server qaytargan chipta ro'yxatdagi eskisining o'rniga. Amal javobi yaratilgan model orqali o'qiladi va qatorning
-  /// taom/kategoriyasini (sex yo'naltirishi uchun) bermasligi mumkin: ular eskisidan olinadi.
+  /// taom/kategoriyasini (sex yo'naltirishi uchun), kursini va og'irlik holatini bermasligi mumkin: ular eskisidan olinadi.
   void _replace(KitchenTicket? updated) {
     if (updated == null) return;
     final int i = _server.indexWhere(
@@ -723,11 +734,23 @@ class KitchenBoardController extends ChangeNotifier {
       // P6-14: amal javobi (yaratilgan model) navbat raqamini bermasligi mumkin: eskisidan olinadi
       queueNumber: _server[i].queueNumber,
       pickupStatus: updated.pickupStatus ?? _server[i].pickupStatus,
+      // P6-25: stol tablichkasi ham yaratilgan modelda bo'lmasligi mumkin
+      tableLabel: _server[i].tableLabel,
       lines: <KitchenLine>[
         for (final KitchenLine l in updated.lines)
-          if (was[l.id] case final KitchenLine old
-              when l.productId == null && l.categoryId == null)
-            l.copyWith(productId: old.productId, categoryId: old.categoryId)
+          if (was[l.id] case final KitchenLine old)
+            // P6-21/P6-25: kurs, og'irlik holati va mangal vaqti ham eskisidan (tayyor deyish ularni o'zgartirmaydi)
+            (l.productId == null && l.categoryId == null
+                    ? l.copyWith(
+                        productId: old.productId,
+                        categoryId: old.categoryId,
+                      )
+                    : l)
+                .copyWith(
+                  courseNo: old.courseNo,
+                  weightStatus: old.weightStatus,
+                  waitMinutes: old.waitMinutes,
+                )
           else
             l,
       ],

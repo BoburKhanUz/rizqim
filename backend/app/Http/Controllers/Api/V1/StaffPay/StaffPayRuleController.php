@@ -9,6 +9,7 @@ use App\Domain\Pos\StaffPay\PayComponents;
 use App\Domain\Pos\StaffPay\PayComponentType;
 use App\Domain\Pos\StaffPay\PayPeriod;
 use App\Domain\Pos\StaffPay\PercentBase;
+use App\Domain\Pos\StaffPay\SalesAttribution;
 use App\Domain\Pos\StaffPay\StaffPayPresenter;
 use App\Domain\Pos\StaffPay\StaffPayRules;
 use App\Domain\Pos\StaffPay\StaffPaySettings;
@@ -35,12 +36,14 @@ class StaffPayRuleController extends StaffPayOwnerController
 {
     public const OPTION = 'array{value: string, label: string}';
 
-    public const OVERVIEW = 'array{branch: array{id: int, name: string}, period: string, period_label: string, periods: list<' . self::OPTION . '>, component_types: list<' . self::OPTION . '>, guarantee_modes: list<' . self::OPTION . '>, guarantee_per: list<' . self::OPTION . '>, percent_bases: list<' . self::OPTION . '>, event_types: list<' . self::OPTION . '>, roles: list<' . self::OPTION . '>, staff: list<array{id: int, name: string, role: string, role_label: string, branch_id: int|null}>, rules: list<' . StaffPayPresenter::RULE . '>}';
+    public const OVERVIEW = 'array{branch: array{id: int, name: string}, period: string, period_label: string, periods: list<' . self::OPTION . '>, sales_attribution: string, sales_attribution_label: string, sales_attributions: list<' . self::OPTION . '>, component_types: list<' . self::OPTION . '>, guarantee_modes: list<' . self::OPTION . '>, guarantee_per: list<' . self::OPTION . '>, percent_bases: list<' . self::OPTION . '>, event_types: list<' . self::OPTION . '>, roles: list<' . self::OPTION . '>, staff: list<array{id: int, name: string, role: string, role_label: string, branch_id: int|null}>, rules: list<' . StaffPayPresenter::RULE . '>}';
 
     /**
      * Staff pay rules of a branch
      *
-     * The branch's pay `period` (day, week, half_month, month: business days), the choices the rule editor offers,
+     * The branch's pay `period` (day, week, half_month, month: business days), its `sales_attribution` (at_payment:
+     * a bill of a table handed to another waiter is the waiter's at payment time, the default; current_waiter: the
+     * table's last waiter's), the choices the rule editor offers,
      * the staff who can work in the branch, and every rule version, by subject and start date. A rule is a staff
      * member's (`user_id`) or a role's (`role`); a person's own version wins over their role's; a version is in force
      * from `effective_from` until the subject's next one. staff_pay.view or staff_pay.manage.
@@ -54,6 +57,7 @@ class StaffPayRuleController extends StaffPayOwnerController
         $staff = $rules->staff($branch)->get(['id', 'name', 'role', 'branch_id']);
         $names = $staff->pluck('name', 'id')->all();
         $period = $settings->period($branch);
+        $attribution = $settings->salesAttribution($branch);
         $options = fn (array $cases) => array_map(fn ($case) => ['value' => (string) $case->value, 'label' => $case->label()], $cases);
 
         return $this->success([
@@ -61,6 +65,9 @@ class StaffPayRuleController extends StaffPayOwnerController
             'period' => $period->value,
             'period_label' => $period->label(),
             'periods' => $options(PayPeriod::cases()),
+            'sales_attribution' => $attribution->value,
+            'sales_attribution_label' => $attribution->label(),
+            'sales_attributions' => $options(SalesAttribution::cases()),
             'component_types' => $options(PayComponentType::cases()),
             'guarantee_modes' => $options(GuaranteeMode::cases()),
             'guarantee_per' => $options(GuaranteePer::cases()),
@@ -79,27 +86,47 @@ class StaffPayRuleController extends StaffPayOwnerController
     }
 
     /**
-     * Change the pay period of a branch
+     * Change the staff pay settings of a branch
      *
-     * `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month — business days in the store's time
-     * zone. Statements made from now on use it; existing ones keep theirs. Audited. staff_pay.manage.
+     * Send what changes (at least one). `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month —
+     * business days in the store's time zone; statements made from now on use it, existing ones keep theirs.
+     * `sales_attribution`: whose sales a bill of a table handed to another waiter is — at_payment (the waiter at
+     * payment time, the default, the same as tips: bills paid before the handover stay with the first waiter) or
+     * current_waiter (the table's last waiter, every bill of the order); draft statements take it at their next
+     * computation, closed ones keep their numbers. A refund follows the person of the refunded bill. Audited.
+     * staff_pay.manage.
      */
     #[BodyParameter('branch_id', type: 'int', required: false)]
-    #[BodyParameter('period', type: 'string', required: true, description: 'App\Domain\Pos\StaffPay\PayPeriod: day, week, half_month, month.')]
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{period: string, period_label: string}}')]
+    #[BodyParameter('period', type: 'string', required: false, description: 'App\Domain\Pos\StaffPay\PayPeriod: day, week, half_month, month.')]
+    #[BodyParameter('sales_attribution', type: 'string', required: false, description: 'App\Domain\Pos\StaffPay\SalesAttribution: at_payment, current_waiter.')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{period: string, period_label: string, sales_attribution: string, sales_attribution_label: string}}')]
     public function settings(Request $request, StaffPaySettings $settings): JsonResponse
     {
         $data = $request->validate([
             'branch_id' => UzValidation::rowId(),
-            'period' => ['required', 'string', Rule::in(PayPeriod::values())],
-        ], UzValidation::messages(['period.in' => "Davr noto'g'ri: day, week, half_month yoki month."]), ['period' => 'Hisob davri']);
+            'period' => ['required_without:sales_attribution', 'string', Rule::in(PayPeriod::values())],
+            'sales_attribution' => ['required_without:period', 'string', Rule::in(SalesAttribution::values())],
+        ], UzValidation::messages([
+            'period.in' => "Davr noto'g'ri: day, week, half_month yoki month.",
+            'sales_attribution.in' => "Sotuvni yozish tartibi noto'g'ri: at_payment yoki current_waiter.",
+        ]), ['period' => 'Hisob davri', 'sales_attribution' => 'Sotuvni yozish tartibi']);
         $branch = $this->moduleBranch($request, Permission::STAFF_PAY_MANAGE);
         /** @var User $user */
         $user = $request->user();
 
-        $period = $settings->setPeriod($branch, PayPeriod::from((string) $data['period']), $user);
+        $saved = $settings->update(
+            $branch,
+            isset($data['period']) ? PayPeriod::from((string) $data['period']) : null,
+            isset($data['sales_attribution']) ? SalesAttribution::from((string) $data['sales_attribution']) : null,
+            $user,
+        );
 
-        return $this->success(['period' => $period->value, 'period_label' => $period->label()], 'Saqlandi.');
+        return $this->success([
+            'period' => $saved['period']->value,
+            'period_label' => $saved['period']->label(),
+            'sales_attribution' => $saved['sales_attribution']->value,
+            'sales_attribution_label' => $saved['sales_attribution']->label(),
+        ], 'Saqlandi.');
     }
 
     /**

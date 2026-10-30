@@ -40,8 +40,10 @@ final class BatchYieldReport
         $store = Store::find($branch->store_id);
         $zone = StoreTimezone::of($store);
         $dayStart = PosSettings::timeOf($branch->getAttribute('business_day_starts_at'));
-        $start = CarbonImmutable::parse("{$from} {$dayStart}", $zone);
-        $end = CarbonImmutable::parse("{$to} {$dayStart}", $zone)->addDay();
+        // started_at is stored in UTC: the local day start is compared as its UTC moment (bound as local wall time it
+        // dropped every batch started before 05:00 UTC, i.e. the Tashkent morning)
+        $start = CarbonImmutable::parse("{$from} {$dayStart}", $zone)->utc();
+        $end = CarbonImmutable::parse("{$to} {$dayStart}", $zone)->addDay()->utc();
 
         $batches = MenuBatch::query()
             ->where('branch_id', $branch->id)

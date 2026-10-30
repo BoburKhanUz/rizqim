@@ -150,6 +150,30 @@ describe('Ish haqi qoidalari', () => {
     expect(screen.queryByRole('button', { name: "Qoida qo'shish" })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tahrirlash' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Davr')).toBeDisabled();
+    expect(screen.getByLabelText("Stol boshqa ofitsiantga o'tsa, sotuv")).toBeDisabled();
+  });
+
+  it('saves whose sales a handed-over table is together with the period', async () => {
+    const { calls } = mockFetch(
+      routes(['staff_pay.view', 'staff_pay.manage'], {
+        'PUT /api/v1/owner/staff-pay/settings': () => ok({ period: 'month', period_label: 'Oylik', sales_attribution: 'current_waiter', sales_attribution_label: 'Stolning oxirgi ofitsianti' }),
+      }),
+    );
+    renderPage(<StaffPayView />);
+
+    const select = await screen.findByLabelText("Stol boshqa ofitsiantga o'tsa, sotuv");
+    expect(select).toHaveValue('at_payment');
+    expect(screen.getByText("O'tkazishdan oldin to'langan schyotlar birinchi ofitsiantda qoladi (choy puli kabi).")).toBeInTheDocument();
+    const save = screen.getByRole('button', { name: 'Saqlash' });
+    expect(save).toBeDisabled();
+
+    const user = userEvent.setup();
+    await user.selectOptions(select, 'current_waiter');
+    expect(screen.getByText("Buyurtmaning hamma schyoti stolni oxirgi olgan ofitsiantga yoziladi.")).toBeInTheDocument();
+    await user.click(save);
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await calls.find((call) => call.method === 'PUT')!.json()).toEqual({ branch_id: 1, period: 'month', sales_attribution: 'current_waiter' });
   });
 });
 

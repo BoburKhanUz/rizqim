@@ -217,7 +217,9 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
   **xona puli** (xona tarifi bron kunining turi bo'yicha — hafta ichi, dam olish, bayram; bayramlar filial
   sozlamasidan; buyurtma keyin xuddi shu qoida bilan hisoblaydi), minimal buyurtma (bronniki, bo'lmasa xonaniki;
   buyurtma ham shu summani oladi),
-  xizmat haqi foizi va joy narxi (xona zalining sozlamasi), oldindan buyurtma, olingan bo'nak (qaytarilgani ayirilib),
+  xizmat haqi foizi va joy narxi (xona zalining sozlamasi; `service_charge_rules` moduli yoqilgan bo'lsa — bron
+  mehmonlari soni bilan zal buyurtmasi qoidalari bo'yicha, 18.1: zal foizi, katta guruh foizi "20% (8 va undan ko'p
+  mehmon)", joy narxi o'rniga "Kuver", stolovaya 0%), oldindan buyurtma, olingan bo'nak (qaytarilgani ayirilib),
   filialning bekor qilish qoidasi, filial telefoni va bron raqami. Xona hali belgilanmagan bo'lsa "Xona: keyin
   belgilanadi", xona puli aytilmaydi. Yuborish: mehmon do'kon botida bo'lsa Telegram, bo'lmasa filial yoqqan bo'lsa SMS
   (pulli, standart o'chiq), aks holda kassir matnni nusxalab o'zi yuboradi yoki chop etadi. Bron tasdiqlanganda o'zi
@@ -858,7 +860,9 @@ almashinuvi, yangi xodimning kirishi, smenani yopish va Z-hisobot.
   raqam ham serverdan (`next_local_number`). Server shu raqamni saqlaydi, takror bo'lmaydi.
 - Narx: qurilmadagi oxirgi menyu nusxasi (snapshot) bo'yicha. Ilova offline'da faqat oddiy narx qoidalarini qo'llaydi:
   qator narxi, modifikatorlar, xizmat haqi, joy narxi, xona puli, minimal summa va choy-non (bootstrap'ning `offline`
-  qismidan). Offline chegirma, schyotni bo'lish, qaytarish, mehmon sonini o'zgartirish, ko'chirish, birlashtirish va
+  qismidan). P6-22: xizmat haqi qoidalari ham (18.1: buyurtma turi, katta guruh, kuver, stolovaya qulfi) — kassa ularni
+  PosChargesCalculator bilan bir xil qo'llaydi (`OfflinePricing.serviceCharge`), shuning uchun oflayn schyot
+  `amount_mismatch` bilan qaytmaydi. Offline chegirma, schyotni bo'lish, qaytarish, mehmon sonini o'zgartirish, ko'chirish, birlashtirish va
   bekor qilish **yo'q** (sababi bilan o'chirilgan tugma). Server sinxronlashda narxni o'zi hisoblaydi.
 - Internet qaytgach navbat **tartib bilan** `POST /pos/sync` ga yuboriladi (bir paketda ko'pi bilan 50 amal, kassa
   terminal tokeni bilan). Har bir amal idempotent (`op_id`): ikki marta yuborilsa ham bir marta qo'llanadi. Oflaynda
@@ -1442,11 +1446,17 @@ soliq, ijtimoiy to'lov yo'q) — faqat ofitsiant va xodim pul hisobi. Modul `sta
      yozilgan kun.
    - *Ish vaqti* — yopilgan ish vaqtlari (pastda) va xodim ochgan kassa smenasining vaqti, ustma-ust qismi bir marta, har biri
      ko'pi bilan 24 soat.
-   - *Sotuv* — xodimga yozilgan to'langan schyotlar: buyurtmaning ofitsianti, ofitsianti yo'q buyurtmada schyotni tuzgan
-     xodim; schyot to'langan smenaning biznes kuni (02:15 da to'langan schyot — oldingi kunniki). Sotuv = qatorlar −
-     chegirma (xizmat haqi, xona puli, joy puli, choy puli kirmaydi). Davrdagi qaytarish schyot nisbatida sotuvdan va xizmat
-     haqidan ayriladi. Stol boshqa ofitsiantga o'tkazilsa (P6-24, `orders.waiter_id` almashadi), buyurtmaning hamma
-     schyoti hisoblash paytidagi (yangi) ofitsiantga yoziladi; o'tkazishdan oldin to'langan schyotlar ham.
+   - *Sotuv* — xodimga yozilgan to'langan schyotlar: ofitsiantning, ofitsianti yo'q buyurtmada schyotni tuzgan xodimning;
+     schyot to'langan smenaning biznes kuni (02:15 da to'langan schyot — oldingi kunniki). Sotuv = qatorlar − chegirma
+     (xizmat haqi, xona puli, joy puli, choy puli kirmaydi). Davrdagi qaytarish qaytarilgan schyot kimga yozilgan bo'lsa,
+     o'shandan, schyot nisbatida sotuvdan va xizmat haqidan ayriladi.
+   - *Stol boshqa ofitsiantga o'tkazilsa* (P6-24; egasining qarori 30.10.2026, moslashuvchan): filial sozlamasi
+     `sales_attribution`. `at_payment` (standart, choy puli kabi) — schyot to'langan paytdagi ofitsiantniki: to'lovlar
+     schyotni qoplaganda buyurtmaning ofitsianti schyotga yoziladi (`order_bills.waiter_id`), o'tkazishdan oldin to'langan
+     schyotlar birinchi ofitsiantda qoladi, keyingilari yangisiga. `current_waiter` — buyurtmaning hamma schyoti hisoblash
+     paytidagi (oxirgi) ofitsiantga, o'tkazishdan oldin to'langanlari ham. Sozlama o'zgarsa qoralama keyingi hisoblashda
+     yangisini oladi, yopilgan hisob-kitob o'zgarmaydi. Choy puli qozonining "sotuv ulushi" qoidasi ham shu sozlamaga
+     amal qiladi.
    - *Tadbir* — filialning yopilgan broni, buyurtmasining ofitsianti shu xodim, bron boshlangan biznes kun.
    - *Avans* — davrda filial kassasidan xodimga berilgan `wage` chiqimi (`advance`, `daily_wage`): to'lanadigan summadan
      ayriladi. `bonus` — qo'shimcha, ayrilmaydi; hisob-kitob to'lovi (`payroll`) avans emas.
@@ -1576,7 +1586,8 @@ modulga qaramaydi. Endpointlar: [API.md](API.md), "Hostes, ofitsiantni almashtir
   zal `order.items_changed` (`waiter_changed`) bilan qayta o'qiladi.
 - **Keyingi daromad yangi ofitsiantga:** buyurtmaning ofitsianti `orders.waiter_id`; choy puli (shaxsiy rejim) va ish haqi
   uchun sotuv shundan o'qiydi, shuning uchun o'tkazishdan keyingi to'lov yangi ofitsiantga yoziladi. Allaqachon to'langan
-  schyotlarning yozuvlari o'zgarmaydi (kim kimga o'tkazgani audit jurnalida).
+  schyotlarning yozuvlari o'zgarmaydi (kim kimga o'tkazgani audit jurnalida). Schyot to'langan paytdagi ofitsiant
+  `order_bills.waiter_id` da saqlanadi; ish haqi sotuvi uni filial sozlamasi `sales_attribution` bo'yicha o'qiydi (17.3).
 
 ### 19.3. Hostes
 

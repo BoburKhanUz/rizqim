@@ -9,9 +9,9 @@ import { describeError, unplacedMessages } from '../menu/serverError';
 import { DateField } from '../pos/fields';
 import { formatDay } from '../reports/format';
 import { DataTable, Td, Th } from '../reports/ui';
-import { COMPONENT_TYPES, PERIODS, type ComponentType, type PayComponent, type PayPeriod, type PayRule, type RulesPage } from './api';
+import { COMPONENT_TYPES, PERIODS, SALES_ATTRIBUTIONS, type ComponentType, type PayComponent, type PayPeriod, type PayRule, type RulesPage, type SalesAttribution } from './api';
 import { describeComponent, parseAmountInput, todayIso } from './describe';
-import { useDeleteRule, useRules, useSavePeriod, useSaveRule } from './hooks';
+import { useDeleteRule, useRules, useSaveRule, useSaveSettings } from './hooks';
 
 // "Ish haqi qoidalari": the branch's pay period and its wage rules, one version per person or role and start date
 export function RulesPanel({ branchId, canManage }: { branchId: number; canManage: boolean }) {
@@ -27,7 +27,7 @@ export function RulesPanel({ branchId, canManage }: { branchId: number; canManag
 
   return (
     <div className="flex flex-col gap-4">
-      <PeriodCard key={page.period} page={page} branchId={branchId} canManage={canManage} />
+      <SettingsCard key={`${page.period}:${page.sales_attribution ?? ''}`} page={page} branchId={branchId} canManage={canManage} />
 
       <Card className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -107,10 +107,14 @@ export function RulesPanel({ branchId, canManage }: { branchId: number; canManag
   );
 }
 
-function PeriodCard({ page, branchId, canManage }: { page: RulesPage; branchId: number; canManage: boolean }) {
+// The pay period and whose sales a bill of a table handed to another waiter is, saved together
+function SettingsCard({ page, branchId, canManage }: { page: RulesPage; branchId: number; canManage: boolean }) {
   const { t } = useI18n();
+  const savedAttribution: SalesAttribution = page.sales_attribution ?? 'at_payment';
   const [period, setPeriod] = useState<PayPeriod>(page.period);
-  const save = useSavePeriod();
+  const [attribution, setAttribution] = useState<SalesAttribution>(savedAttribution);
+  const save = useSaveSettings();
+  const changed = period !== page.period || attribution !== savedAttribution;
 
   return (
     <Card className="flex flex-col gap-3">
@@ -128,8 +132,19 @@ function PeriodCard({ page, branchId, canManage }: { page: RulesPage; branchId: 
             </select>
           )}
         </Field>
+        <Field label={t('sp_salesAttribution')} hint={t(`sp_salesAttribution_${attribution}_hint`)} className="min-w-64">
+          {(control) => (
+            <select {...control} className={fieldClass} value={attribution} disabled={!canManage} onChange={(event) => setAttribution(event.target.value as SalesAttribution)}>
+              {SALES_ATTRIBUTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`sp_salesAttribution_${value}`)}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         {canManage && (
-          <Button variant="secondary" loading={save.isPending} disabled={period === page.period} onClick={() => save.mutate({ branchId, period })}>
+          <Button variant="secondary" loading={save.isPending} disabled={!changed} onClick={() => save.mutate({ branchId, period, salesAttribution: attribution })}>
             {t('sp_save')}
           </Button>
         )}

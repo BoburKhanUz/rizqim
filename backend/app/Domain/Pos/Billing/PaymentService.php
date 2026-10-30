@@ -185,7 +185,9 @@ final class PaymentService
 
             $covered = $paid->plus($sum)->isGreaterThanOrEqualTo($total);
             if ($covered) {
-                $bill->forceFill(['shift_id' => $shift->id, 'fiscal_status' => 'pending'])->save();
+                // Owner decision 30.10.2026: the bill is the sales of the order's waiter at payment time (staff pay
+                // `sales_attribution` at_payment), whoever has the table later
+                $bill->forceFill(['shift_id' => $shift->id, 'fiscal_status' => 'pending', 'waiter_id' => $order->waiter_id])->save();
             }
             if ($order->getAttribute('shift_id') === null) {
                 $order->forceFill(['shift_id' => $shift->id]);

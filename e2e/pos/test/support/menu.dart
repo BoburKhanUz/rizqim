@@ -10,6 +10,7 @@ class Dish {
     this.fireMode,
     this.note,
     this.seatNo,
+    this.courseNo,
   });
 
   /// `Dish('Osh', '1.5')`, `Dish('Shashlik', 10)`.
@@ -20,6 +21,7 @@ class Dish {
     PosFireMode? fireMode,
     String? note,
     int? seatNo,
+    int? courseNo,
   }) => Dish(
     name,
     PosQuantity.parse(quantity),
@@ -27,6 +29,7 @@ class Dish {
     fireMode: fireMode,
     note: note,
     seatNo: seatNo,
+    courseNo: courseNo,
   );
 
   final String name;
@@ -35,6 +38,9 @@ class Dish {
   final PosFireMode? fireMode;
   final String? note;
   final int? seatNo;
+
+  /// P6-21: the course the line belongs to (1–9; `null`: an ordinary line that goes to the kitchen at once).
+  final int? courseNo;
 }
 
 /// The POS menu of the hall channel by name (what the apps show), with the prices the test checks the server against.
@@ -63,6 +69,7 @@ class Menu {
     fireMode: dish.fireMode,
     note: dish.note,
     seatNo: dish.seatNo,
+    courseNo: dish.courseNo,
   );
 
   List<PosLineInput> inputs(Iterable<Dish> dishes) => <PosLineInput>[

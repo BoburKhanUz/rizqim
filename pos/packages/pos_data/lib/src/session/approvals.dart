@@ -27,6 +27,9 @@ abstract final class PosPermissions {
   /// P6-24/P6-26: hostes stoli (kutish ro'yxati, stol belgisi); hostes, menejer va ega.
   static const String hostessManage = 'hostess.manage';
 
+  /// P6-22: choy pulini tuzatish va kassadan xodimga berish (menejer, ega; kassir menejer PIN'i bilan).
+  static const String tipsManage = 'tips.manage';
+
   /// P6-15/P6-19: qozon yoki partiyani hisobdan chiqarish (kassirda yo'q — menejer PIN'i bilan).
   static const String batchesManage = 'batches.manage';
   static const String devicesManage = 'devices.manage';
@@ -50,6 +53,7 @@ abstract final class PosPermissions {
     customerAccountsManage,
     batchesManage,
     ordersTransfer,
+    tipsManage,
   };
 
   /// Ruxsatning o'zbekcha nomi (tasdiq oynasi sarlavhasi uchun).
@@ -70,6 +74,7 @@ abstract final class PosPermissions {
     batchesManage => 'Taomni hisobdan chiqarish',
     ordersTransfer => "Stolni boshqa ofitsiantga o'tkazish",
     hostessManage => "Hostes stoli",
+    tipsManage => 'Choy puli',
     _ => permission,
   };
 }

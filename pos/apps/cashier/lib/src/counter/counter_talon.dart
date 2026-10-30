@@ -12,9 +12,12 @@ import '../features/billing/receipts.dart';
 import '../shell/pos_scope.dart';
 import 'counter_controller.dart';
 
-/// "Olib ketish" / "Zalda" (talon va ekrandagi raqam uchun).
-String counterOrderLabel(PosChannel channel) =>
-    channel == PosChannel.hall ? 'Zalda' : 'Olib ketish';
+/// "Olib ketish" / "Zalda" (talon va ekrandagi raqam uchun). P6-25: stol tablichkasi bo'lsa — "Olib ketish · Stol 12".
+String counterOrderLabel(PosChannel channel, {String? tableLabel}) {
+  final String base = channel == PosChannel.hall ? 'Zalda' : 'Olib ketish';
+  final String? plate = tableLabel?.trim();
+  return plate == null || plate.isEmpty ? base : 'Stol $plate';
+}
 
 /// Navbat talonini chek printeriga chiqaradi (`pos_core` `QueueSlip`, P6-13): serverning talon matni bo'lsa — u, bo'lmasa
 /// kassa olgan raqam. Printer yo'q bo'lsa [quiet] da jim (telefon rejimi: raqam ekranda ko'rsatiladi), aks holda xabar.
@@ -29,21 +32,33 @@ Future<bool> printTalon(
   final ReceiptPrinter printer = ReceiptPrinter.of(context);
   if (printer.config == null && quiet) return false;
   final PosChannel channel = r.order.posChannel ?? PosChannel.takeaway;
-  final QueueSlip slip =
-      r.ticket?.slip(
-        header: printer.header,
-        createdAt: r.paidAt,
-        orderCode: r.order.shortCode,
-        items: r.lines,
-      ) ??
-      QueueSlip(
-        header: printer.header,
-        number: '$number',
-        createdAt: r.paidAt,
-        orderCode: r.order.shortCode,
-        orderLabel: counterOrderLabel(channel),
-        items: r.lines,
-      );
+  final String? plate = r.order.tableLabel?.trim();
+  final QueueSlip? server = r.ticket?.slip(
+    header: printer.header,
+    createdAt: r.paidAt,
+    orderCode: r.order.shortCode,
+    items: r.lines,
+  );
+  // P6-25: the table plate goes on the talon (the dish is carried to it)
+  final QueueSlip slip = plate == null || plate.isEmpty
+      ? server ??
+            QueueSlip(
+              header: printer.header,
+              number: '$number',
+              createdAt: r.paidAt,
+              orderCode: r.order.shortCode,
+              orderLabel: counterOrderLabel(channel),
+              items: r.lines,
+            )
+      : QueueSlip(
+          header: printer.header,
+          number: server?.number ?? '$number',
+          createdAt: r.paidAt,
+          orderCode: r.order.shortCode,
+          orderLabel: 'Stol $plate',
+          items: r.lines,
+          message: 'Taomingiz $plate-stolga olib kelinadi.',
+        );
   return printer.print(
     context,
     (PaperWidth paper) => layoutQueueSlip(slip, paper),

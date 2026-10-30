@@ -6,6 +6,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../storage/shell_settings.dart';
+import 'clock_button.dart';
 import 'connection_indicator.dart';
 import 'destinations.dart';
 import 'pos_scope.dart';
@@ -65,6 +66,8 @@ class PosTopBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 8),
         SyncBadge(connectivity: scope.data.connectivity),
         const SizedBox(width: 8),
+        // P6-23: "Ishga keldim" / "Ishdan ketdim" (bootstrap `staff_pay.clock`; phone: in the staff menu)
+        if (!compact) const ClockButton(),
         StaffMenuButton(
           session: session,
           settings: scope.services.settings,
@@ -194,6 +197,14 @@ class StaffMenuButton extends StatelessWidget {
           ),
         ),
         const PopupMenuDivider(),
+        if (compact && (session.bootstrap?.staffPay?.clock ?? false))
+          const PopupMenuItem<String>(
+            value: 'clock',
+            child: ListTile(
+              leading: Icon(Icons.badge_outlined),
+              title: Text('Ish vaqti'),
+            ),
+          ),
         const PopupMenuItem<String>(
           value: 'lock',
           child: ListTile(
@@ -261,6 +272,7 @@ class StaffMenuButton extends StatelessWidget {
 
   Future<void> _onSelected(BuildContext context, String value) async {
     if (value == 'lock') return session.lock();
+    if (value == 'clock') return showClockDialog(context);
     if (value == 'unpair') return confirmUnpair(context, session);
     if (value.startsWith('theme:')) {
       final String name = value.substring(6);

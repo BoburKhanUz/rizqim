@@ -14,6 +14,9 @@ class SkewerGroup {
     required this.voided,
     required this.held,
     required this.quantityLabel,
+    this.courseNo,
+    this.awaitingWeight = false,
+    this.timerLine,
   });
 
   final int? round;
@@ -36,13 +39,22 @@ class SkewerGroup {
   /// Donasiz taomda server yorlig'i ("1.5 kg").
   final String quantityLabel;
 
+  /// P6-21: guruhning kursi (guruh faqat bir kursning qatorlaridan iborat); kurssiz — `null`.
+  final int? courseNo;
+
+  /// P6-25: guruhning tortilmagan ("og'irlik kutilmoqda") qatori bor.
+  final bool awaitingWeight;
+
+  /// P6-25: mangal taymeri uchun qator: pishayotgan, vaqti belgilangan qatorlarning eng eski yuborilgani; yo'q — `null`.
+  final KitchenLine? timerLine;
+
   /// Bosib "tayyor" qilinadigan qatorlar.
   List<KitchenLine> get bumpable =>
       lines.where((KitchenLine l) => l.canBeReady).toList();
 }
 
 /// [lines] ni (bosqich, taom, variant, modifikatorlar, izoh, holat guruhi) bo'yicha guruhlaydi; tartib birinchi
-/// uchragan qator bo'yicha.
+/// uchragan qator bo'yicha. Bir xil taomning boshqa kursdagi qatorlari birlashmaydi (P6-21).
 ///
 /// O'chirilgan qatorlar alohida guruh bo'ladi (sanoqqa qo'shilmaydi). Donali bo'lmagan taom (kg, l) birlashtirilmaydi:
 /// uning miqdor yorlig'i qatorniki. "Achchiq" yoki "yaxshi pishgan" qator oddiyidan alohida: guruh izohi hamma qatoriga
@@ -52,7 +64,7 @@ List<SkewerGroup> groupSkewers(List<KitchenLine> lines) {
   for (final KitchenLine l in lines) {
     final String kind = l.isVoid ? 'void' : 'live';
     final String key = l.isPiece
-        ? '${l.roundNo}|${l.productName}|${l.variantName}|${_extras(l)}|$kind'
+        ? '${l.roundNo}|${l.courseNo}|${l.productName}|${l.variantName}|${_extras(l)}|$kind'
         : '${l.roundNo}|line${l.id}';
     buckets.putIfAbsent(key, () => <KitchenLine>[]).add(l);
   }
@@ -94,7 +106,20 @@ SkewerGroup _group(List<KitchenLine> g) {
         pending.isNotEmpty &&
         pending.every((KitchenLine l) => l.isHeld && l.dueAt == null),
     quantityLabel: first.quantityLabel,
+    courseNo: first.courseNo,
+    awaitingWeight: g.any((KitchenLine l) => !l.isVoid && l.awaitingWeight),
+    timerLine: _oldestTimed(pending),
   );
+}
+
+/// Mangal vaqti belgilangan va yuborilgan qatorlardan eng eskisi.
+KitchenLine? _oldestTimed(List<KitchenLine> lines) {
+  KitchenLine? oldest;
+  for (final KitchenLine l in lines) {
+    if ((l.waitMinutes ?? 0) <= 0 || l.sentAt == null) continue;
+    if (oldest == null || l.sentAt!.isBefore(oldest.sentAt!)) oldest = l;
+  }
+  return oldest;
 }
 
 /// Chiptadagi jami donalar (o'chirilgan va tayyorlari sanalmaydi): sarlavhada "10 six".

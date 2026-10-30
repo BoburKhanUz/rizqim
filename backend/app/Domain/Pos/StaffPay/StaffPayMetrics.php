@@ -17,11 +17,14 @@ use Illuminate\Support\Facades\DB;
  *
  *  - worked: the person clocked in that day, opened a till shift of it, or had a paid bill attributed to them;
  *  - minutes: their work time (WorkTime::byDay);
- *  - sales and service charge: their paid bills — attributed to the order's waiter, or to whoever made the bill for an
- *    order without one — on the business day of the shift they were paid in; sales are the lines less the discount
- *    (no service charge, room fee, place fee or tips). The waiter is the order's as it is when the statement is
- *    computed: a table handed to another waiter (P6-24 changes orders.waiter_id) counts wholly for the new one. A refund made in the period takes its share off both, in the
- *    proportion of the refunded bill (on the refund's business day);
+ *  - sales and service charge: their paid bills — attributed to the waiter, or to whoever made the bill for an order
+ *    without one — on the business day of the shift they were paid in; sales are the lines less the discount (no
+ *    service charge, room fee, place fee or tips). The waiter follows the branch's SalesAttribution (owner decision
+ *    30.10.2026): `at_payment` (default) — the order's waiter when the bill was paid (order_bills.waiter_id, else the
+ *    order's for a bill stamped before it existed), so after a table is handed to another waiter (P6-24) the bills
+ *    paid before stay with the first one; `current_waiter` — the order's waiter when the statement is computed, the
+ *    whole order for the new one. A refund made in the period takes its share off both from the same person as the
+ *    refunded bill, in the proportion of that bill (on the refund's business day);
  *  - events: completed bookings of the branch whose order the person served, by kind (BookingEventType), on the
  *    business day the booking started;
  *  - tips: StaffTipsSource (P6-22);
@@ -36,6 +39,7 @@ final class StaffPayMetrics
     public function __construct(
         private readonly WorkTime $workTime,
         private readonly StaffTipsSource $tips,
+        private readonly StaffPaySettings $settings,
     ) {}
 
     /**
@@ -63,6 +67,9 @@ final class StaffPayMetrics
         }
 
         $businessDate = $this->businessDateOf($branch);
+        $atPayment = $this->settings->salesAttribution($branch) === SalesAttribution::AT_PAYMENT;
+        // The person of a bill: its waiter (at payment, else the order's now), else the bill's maker
+        $personOf = fn (object $row) => (int) (($atPayment ? ($row->bill_waiter_id ?? $row->waiter_id) : $row->waiter_id) ?? $row->created_by ?? 0);
 
         // Paid bills: the shift's business day (a bill paid outside a shift: its paid_at's)
         $bills = DB::table('order_bills')
@@ -72,9 +79,9 @@ final class StaffPayMetrics
             ->where('order_bills.status', BillStatus::PAID->value)
             ->where(fn ($query) => $query->whereBetween('pos_shifts.business_date', [$from, $to])
                 ->orWhere(fn ($query) => $query->whereNull('order_bills.shift_id')->whereBetween('order_bills.paid_at', $this->window($from, $to))))
-            ->get(['order_bills.subtotal', 'order_bills.discount', 'order_bills.service_charge_amount', 'order_bills.paid_at', 'order_bills.created_by', 'orders.waiter_id', 'pos_shifts.business_date']);
+            ->get(['order_bills.subtotal', 'order_bills.discount', 'order_bills.service_charge_amount', 'order_bills.paid_at', 'order_bills.created_by', 'order_bills.waiter_id as bill_waiter_id', 'orders.waiter_id', 'pos_shifts.business_date']);
         foreach ($bills as $bill) {
-            $userId = (int) ($bill->waiter_id ?? $bill->created_by ?? 0);
+            $userId = $personOf($bill);
             $date = $bill->business_date !== null ? substr((string) $bill->business_date, 0, 10) : ($bill->paid_at !== null ? $businessDate((string) $bill->paid_at) : null);
             if ($userId === 0 || $date === null || $date < $from || $date > $to) {
                 continue;
@@ -95,9 +102,9 @@ final class StaffPayMetrics
             ->join('pos_shifts', 'pos_shifts.id', '=', 'pos_refunds.shift_id')
             ->where('pos_refunds.branch_id', $branch->id)
             ->whereBetween('pos_shifts.business_date', [$from, $to])
-            ->get(['pos_refunds.amount', 'orders.waiter_id', 'order_bills.created_by', 'order_bills.subtotal', 'order_bills.discount', 'order_bills.service_charge_amount', 'order_bills.total', 'pos_shifts.business_date']);
+            ->get(['pos_refunds.amount', 'orders.waiter_id', 'order_bills.waiter_id as bill_waiter_id', 'order_bills.created_by', 'order_bills.subtotal', 'order_bills.discount', 'order_bills.service_charge_amount', 'order_bills.total', 'pos_shifts.business_date']);
         foreach ($refunds as $refund) {
-            $userId = (int) ($refund->waiter_id ?? $refund->created_by ?? 0);
+            $userId = $personOf($refund);
             if ($userId === 0) {
                 continue;
             }

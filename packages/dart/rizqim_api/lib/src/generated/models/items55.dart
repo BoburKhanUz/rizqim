@@ -31,6 +31,9 @@ class Items55 {
     this.note,
     this.voidedAt,
     this.voidReason,
+    this.courseNo,
+    this.weightStatus,
+    this.waitMinutes,
     this.unitPrice,
     this.modifiersTotal,
     this.totalPrice,
@@ -74,6 +77,12 @@ class Items55 {
   final String? voidedAt;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
+  @JsonKey(name: 'course_no')
+  final int? courseNo;
+  @JsonKey(name: 'weight_status')
+  final String? weightStatus;
+  @JsonKey(name: 'wait_minutes')
+  final int? waitMinutes;
   @JsonKey(name: 'unit_price')
   final String? unitPrice;
   @JsonKey(name: 'modifiers_total')

@@ -188,6 +188,9 @@ class KitchenLine {
     int? stationId,
     int? productId,
     int? categoryId,
+    int? courseNo,
+    String? weightStatus,
+    int? waitMinutes,
   }) => KitchenLine(
     id: id,
     productName: productName,
@@ -209,9 +212,9 @@ class KitchenLine {
     voidReason: voidReason ?? this.voidReason,
     productId: productId ?? this.productId,
     categoryId: categoryId ?? this.categoryId,
-    courseNo: courseNo,
-    weightStatus: weightStatus,
-    waitMinutes: waitMinutes,
+    courseNo: courseNo ?? this.courseNo,
+    weightStatus: weightStatus ?? this.weightStatus,
+    waitMinutes: waitMinutes ?? this.waitMinutes,
   );
 }
 
@@ -356,6 +359,7 @@ class KitchenTicket {
     String? status,
     int? queueNumber,
     String? pickupStatus,
+    String? tableLabel,
   }) => KitchenTicket(
     uuid: uuid,
     shortCode: shortCode,
@@ -375,7 +379,7 @@ class KitchenTicket {
     canceledAt: canceledAt,
     queueNumber: queueNumber ?? this.queueNumber,
     pickupStatus: pickupStatus ?? this.pickupStatus,
-    tableLabel: tableLabel,
+    tableLabel: tableLabel ?? this.tableLabel,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
   );

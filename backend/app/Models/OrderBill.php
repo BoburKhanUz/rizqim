@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $printed_at
  * @property \Illuminate\Support\Carbon|null $paid_at
  * @property \Illuminate\Support\Carbon|null $voided_at
+ * @property int|null $waiter_id the order's waiter when the bill was paid (staff pay sales attribution)
  */
 class OrderBill extends Model
 {
@@ -54,6 +55,7 @@ class OrderBill extends Model
             'total' => 'decimal:2',
             'guests_share' => 'integer',
             'seat_no' => 'integer',
+            'waiter_id' => 'integer',
             'printed_count' => 'integer',
             'printed_at' => 'datetime',
             'paid_at' => 'datetime',

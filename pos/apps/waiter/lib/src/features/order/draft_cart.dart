@@ -21,6 +21,9 @@ class DraftLine {
     required this.quantity,
     this.modifiers = const <DraftModifier>[],
     this.note,
+    this.courseNo,
+    this.seatNo,
+    this.awaitingWeight = false,
   });
 
   final PosProduct product;
@@ -29,14 +32,28 @@ class DraftLine {
   final List<DraftModifier> modifiers;
   final String? note;
 
-  /// Bir xil qatorlar (taom, variant, qo'shimchalar, izoh) birlashadi.
+  /// P6-21: qator kursi (1–9; `null` — kurssiz, darhol oshxonaga).
+  final int? courseNo;
+
+  /// P6-24: qaysi mehmonniki (1..N; `null` — umumiy).
+  final int? seatNo;
+
+  /// P6-25: og'irlik keyin kiritiladi (miqdor taxminiy, oshpaz yoki menejer tortadi). Faqat ko'rsatish uchun: server
+  /// mahsulotning `weight_mode` i bo'yicha o'zi belgilaydi.
+  final bool awaitingWeight;
+
+  /// Bir xil qatorlar (taom, variant, qo'shimchalar, izoh, kurs, mehmon) birlashadi.
   String get key {
     final List<String> mods = <String>[
       for (final DraftModifier m in modifiers)
         '${m.modifier.uuid}x${m.quantity}',
     ]..sort();
-    return '${variant.uuid}|${mods.join(',')}|${note?.trim() ?? ''}';
+    return '${variant.uuid}|${mods.join(',')}|${note?.trim() ?? ''}|'
+        '${courseNo ?? ''}|${seatNo ?? ''}';
   }
+
+  /// Kurs va mehmon shu bo'lgan qator.
+  bool inSlot(int? course, int? seat) => courseNo == course && seatNo == seat;
 
   bool get hasOptions =>
       modifiers.isNotEmpty || (note?.trim().isNotEmpty ?? false);
@@ -60,7 +77,23 @@ class DraftLine {
     quantity: quantity ?? this.quantity,
     modifiers: modifiers,
     note: note ?? this.note,
+    courseNo: courseNo,
+    seatNo: seatNo,
+    awaitingWeight: awaitingWeight,
   );
+
+  /// Kursi yoki mehmoni boshqa qator (`null` — tozalash).
+  DraftLine withSlot({required int? courseNo, required int? seatNo}) =>
+      DraftLine(
+        product: product,
+        variant: variant,
+        quantity: quantity,
+        modifiers: modifiers,
+        note: note,
+        courseNo: courseNo,
+        seatNo: seatNo,
+        awaitingWeight: awaitingWeight,
+      );
 
   PosLineInput toInput() => PosLineInput(
     variantUuid: variant.uuid,
@@ -70,12 +103,37 @@ class DraftLine {
         PosModifierChoice(m.modifier.uuid, quantity: m.quantity),
     ],
     note: note,
+    courseNo: courseNo,
+    seatNo: seatNo,
+    // awaiting_weight is not sent: the product's weight_mode decides on the server (an explicit true on a dish
+    // without it would be a 422)
   );
 }
 
 /// Yangi bosqich savati: qatorlar, miqdorlar, izohlar. Faqat xotirada: yuborilguncha serverga hech narsa ketmaydi.
 class DraftCart extends ChangeNotifier {
   final List<DraftLine> _lines = <DraftLine>[];
+
+  int? _course;
+  int? _seat;
+
+  /// P6-21: hozir qo'shilayotgan taomlarning kursi (tanlagich; `null` — kurssiz).
+  int? get course => _course;
+
+  /// P6-24: hozir qo'shilayotgan taomlar qaysi mehmonniki (`null` — umumiy).
+  int? get seat => _seat;
+
+  set course(int? value) {
+    if (_course == value) return;
+    _course = value;
+    notifyListeners();
+  }
+
+  set seat(int? value) {
+    if (_seat == value) return;
+    _seat = value;
+    notifyListeners();
+  }
 
   List<DraftLine> get lines => List<DraftLine>.unmodifiable(_lines);
 
@@ -90,10 +148,14 @@ class DraftCart extends ChangeNotifier {
       .where((DraftLine l) => l.variant.uuid == v.uuid)
       .fold(PosQuantity.zero, (PosQuantity a, DraftLine l) => a + l.quantity);
 
-  /// Variantning qo'shimchasiz, izohsiz qatori miqdori (yo'q — nol).
+  /// Variantning qo'shimchasiz, izohsiz qatori miqdori (yo'q — nol): hozirgi kurs va mehmon uchun.
   PosQuantity plainQuantityOf(PosVariant v) {
     for (final DraftLine l in _lines) {
-      if (l.variant.uuid == v.uuid && !l.hasOptions) return l.quantity;
+      if (l.variant.uuid == v.uuid &&
+          !l.hasOptions &&
+          l.inSlot(_course, _seat)) {
+        return l.quantity;
+      }
     }
     return PosQuantity.zero;
   }
@@ -115,12 +177,20 @@ class DraftCart extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Oddiy (qo'shimchasiz, izohsiz) qatorning miqdorini o'rnatadi; nol — olib tashlaydi.
-  void setPlainQuantity(PosProduct p, PosVariant v, PosQuantity quantity) {
+  /// Oddiy (qo'shimchasiz, izohsiz) qatorning miqdorini o'rnatadi (hozirgi kurs va mehmon); nol — olib tashlaydi.
+  void setPlainQuantity(
+    PosProduct p,
+    PosVariant v,
+    PosQuantity quantity, {
+    bool awaitingWeight = false,
+  }) {
     final DraftLine plain = DraftLine(
       product: p,
       variant: v,
       quantity: quantity,
+      courseNo: _course,
+      seatNo: _seat,
+      awaitingWeight: awaitingWeight,
     );
     final int i = _lines.indexWhere((DraftLine l) => l.key == plain.key);
     if (!quantity.isPositive) {
@@ -156,7 +226,22 @@ class DraftCart extends ChangeNotifier {
       quantity: line.quantity,
       modifiers: line.modifiers,
       note: clean,
+      courseNo: line.courseNo,
+      seatNo: line.seatNo,
+      awaitingWeight: line.awaitingWeight,
     );
+    _replace(i, line, next);
+  }
+
+  /// P6-21 / P6-24: qatorning kursi yoki mehmoni (savatda, yuborishdan oldin).
+  void setSlot(DraftLine line, {required int? courseNo, required int? seatNo}) {
+    final int i = _lines.indexOf(line);
+    if (i < 0) return;
+    _replace(i, line, line.withSlot(courseNo: courseNo, seatNo: seatNo));
+  }
+
+  /// [i]-qator [next] bo'ladi; bir xil qator bo'lsa ular birlashadi.
+  void _replace(int i, DraftLine line, DraftLine next) {
     final int same = _lines.indexWhere(
       (DraftLine l) => !identical(l, line) && l.key == next.key,
     );

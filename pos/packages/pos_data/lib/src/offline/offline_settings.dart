@@ -15,6 +15,7 @@ class PosOfflineSettings {
     this.places = const <PosOfflinePlace>[],
     this.guestItems = const <PosOfflineGuestItem>[],
     this.limits = const OfflineLimits(),
+    this.serviceChargeLocked = false,
   });
 
   factory PosOfflineSettings.fromJson(PosJson j) => PosOfflineSettings(
@@ -26,6 +27,7 @@ class PosOfflineSettings {
     places: j.objects('places', PosOfflinePlace.fromJson),
     guestItems: j.objects('guest_items', PosOfflineGuestItem.fromJson),
     limits: OfflineLimits.fromJson(j.objOrNull('limits')?.map),
+    serviceChargeLocked: j.boolean('service_charge_locked'),
   );
 
   /// Bootstrap javobidan (`offline` bo'lmasa — standart qiymatlar).
@@ -45,6 +47,9 @@ class PosOfflineSettings {
   final List<PosOfflinePlace> places;
   final List<PosOfflineGuestItem> guestItems;
   final OfflineLimits limits;
+
+  /// P6-22: stolovaya qulfi (VM 75): xizmat haqi qoidalaridagi har foiz 0 (kuver qoladi).
+  final bool serviceChargeLocked;
 
   /// Zal va kanal bo'yicha xizmat haqi va joy narxi (zalniki bo'lmasa — filialniki).
   PosOfflineFee? feeFor(int? hallId, String channel) {
@@ -94,6 +99,8 @@ class PosOfflineFee {
     this.serviceChargePercent = '0.00',
     this.placeFeeAmount = PosMoney.zero,
     this.placeFeeMode = 'per_person',
+    this.rules,
+    this.serviceChargeNotice,
   });
 
   factory PosOfflineFee.fromJson(PosJson j) => PosOfflineFee(
@@ -102,6 +109,10 @@ class PosOfflineFee {
     serviceChargePercent: j.strOrNull('service_charge_percent') ?? '0.00',
     placeFeeAmount: j.money('place_fee_amount'),
     placeFeeMode: j.strOrNull('place_fee_mode') ?? 'per_person',
+    rules: j.map['rules'] is Map
+        ? PosServiceChargeRules.fromJson(j.obj('rules'))
+        : null,
+    serviceChargeNotice: j.strOrNull('service_charge_notice'),
   );
 
   final int? hallId;
@@ -109,6 +120,49 @@ class PosOfflineFee {
   final String serviceChargePercent;
   final PosMoney placeFeeAmount;
   final String placeFeeMode;
+
+  /// P6-22 (C1): shu qatorning xizmat haqi qoidalari (`service_charge_rules` moduli bilan; yo'q — `null`).
+  final PosServiceChargeRules? rules;
+
+  /// Schyotdagi xizmat haqi e'loni (server matni).
+  final String? serviceChargeNotice;
+}
+
+/// P6-22 (C1): xizmat haqi qoidalari (backend `ServiceChargeRules`): buyurtma turi bo'yicha foiz (`hall`,
+/// `table_service`, `takeaway`), katta guruh qoidasi va restoran kuveri (mehmon boshiga).
+class PosServiceChargeRules {
+  const PosServiceChargeRules({
+    this.byOrderType = const <String, String>{},
+    this.largeGroupMinGuests,
+    this.largeGroupPercent,
+    this.coverAmount,
+  });
+
+  factory PosServiceChargeRules.fromJson(PosJson j) {
+    // PHP sends an empty map as `[]`
+    final Object? types = j.map['by_order_type'];
+    return PosServiceChargeRules(
+      byOrderType: <String, String>{
+        if (types is Map)
+          for (final MapEntry<Object?, Object?> e in types.entries)
+            if (e.value != null) '${e.key}': '${e.value}',
+      },
+      largeGroupMinGuests: j.intOrNull('large_group_min_guests'),
+      largeGroupPercent: j.strOrNull('large_group_percent'),
+      coverAmount: j.strOrNull('cover_amount') == null
+          ? null
+          : j.money('cover_amount'),
+    );
+  }
+
+  /// Turi → foiz (`"15.00"`; `"0.00"` — olinmaydi). Berilmagan tur qatorning o'z foizini oladi.
+  final Map<String, String> byOrderType;
+  final int? largeGroupMinGuests;
+  final String? largeGroupPercent;
+  final PosMoney? coverAmount;
+
+  bool get isEmpty =>
+      byOrderType.isEmpty && largeGroupMinGuests == null && coverAmount == null;
 }
 
 class PosOfflinePlace {

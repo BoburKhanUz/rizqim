@@ -415,15 +415,37 @@ class _LineEditorState extends State<_LineEditor> {
 }
 
 /// Bosqichdagi (serverdagi) qator amallari.
-enum LineAction { sendNow, served, voidLine }
+enum LineAction { sendNow, served, voidLine, weigh, seat }
 
+/// Qator amallari. P6-25: [weigh] — og'irlik kutayotgan (yoki qayta tortiladigan) qatorga "Og'irlikni kiritish";
+/// P6-24: [seat] — "Mehmon raqami" (`guest_split` moduli).
 Future<LineAction?> showLineActions(
   BuildContext context, {
   required PosOrderItem item,
   required bool open,
+  bool weigh = false,
+  bool seat = false,
 }) {
   final List<(LineAction, String, IconData, RzButtonVariant)> actions =
       <(LineAction, String, IconData, RzButtonVariant)>[
+        if (open && weigh && !item.isVoid)
+          (
+            LineAction.weigh,
+            item.awaitingWeight ? "Og'irlikni kiritish" : 'Qayta tortish',
+            Icons.scale_outlined,
+            item.awaitingWeight
+                ? RzButtonVariant.primary
+                : RzButtonVariant.secondary,
+          ),
+        if (open && seat && !item.isVoid)
+          (
+            LineAction.seat,
+            item.seatNo == null
+                ? 'Mehmon raqami'
+                : 'Mehmon raqami (${item.seatNo})',
+            Icons.event_seat_outlined,
+            RzButtonVariant.secondary,
+          ),
         if (open && item.kitchenStatus == PosKitchenStatus.pending)
           (
             LineAction.sendNow,

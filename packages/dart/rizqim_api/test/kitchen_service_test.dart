@@ -147,6 +147,56 @@ void main() {
     expect(list.receivedAt, now);
   });
 
+  test('a POS line keeps its course, weight state and grill time, and the ticket its table plate', () async {
+    adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+      'success': true,
+      'message': '',
+      'data': <Object?>[
+        <String, Object?>{
+          ...ticketJson(
+            items: <Map<String, Object?>>[
+              <String, Object?>{
+                ...itemJson(id: 41, name: 'Sazan', unit: 'kg', label: '1.2 kg'),
+                'round_no': 1,
+                'fire_mode': 'now',
+                'station_id': 1,
+                'sent_at': '2026-10-20T12:00:00+05:00',
+                'due_at': null,
+                'seat_no': null,
+                'note': null,
+                'voided_at': null,
+                'void_reason': null,
+                'product_id': 9,
+                'category_id': 2,
+                'course_no': 2,
+                'weight_status': 'awaiting',
+                'wait_minutes': 25,
+              },
+              itemJson(id: 42, name: 'Non'),
+            ],
+          ),
+          'table_label': '12',
+        },
+      ],
+      'meta': <String, Object?>{'truncated': false},
+    });
+    final KitchenTicket ticket =
+        (await client.kitchen.tickets()).tickets.single;
+    expect(ticket.tableLabel, '12');
+    final KitchenLine fish = ticket.lines.first;
+    expect(fish.courseNo, 2);
+    expect(fish.weightStatus, 'awaiting');
+    expect(fish.awaitingWeight, isTrue);
+    expect(fish.waitMinutes, 25);
+    final KitchenLine bread = ticket.lines.last;
+    expect(bread.courseNo, isNull);
+    expect(bread.awaitingWeight, isFalse);
+    expect(bread.waitMinutes, isNull);
+    // copyWith keeps them (a bump changes the status only)
+    expect(fish.copyWith(status: 'ready').courseNo, 2);
+    expect(ticket.copyWith(status: 'ready').tableLabel, '12');
+  });
+
   test('the HTTP Date header is read as UTC; anything else is null', () {
     expect(
       parseHttpDate('Thu, 22 Oct 2026 07:05:09 GMT'),

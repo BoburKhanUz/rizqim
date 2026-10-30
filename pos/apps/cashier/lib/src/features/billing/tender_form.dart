@@ -17,6 +17,8 @@ class TenderDraft {
     this.transactionId = '',
     this.cardLast4 = '',
     this.reference = '',
+    this.tip,
+    this.tipFromChange = false,
   });
 
   PosTender tender;
@@ -31,12 +33,33 @@ class TenderDraft {
   String cardLast4;
   String reference;
 
-  /// Naqd qaytim.
-  PosMoney get change {
+  /// P6-22: shu to'lov ustiga choy puli (schyotdan tashqari, chekka kirmaydi); `null` — yo'q.
+  PosMoney? tip;
+
+  /// P6-22: naqd qaytim (yoki uning [tip] qismi) choy puliga qoladi.
+  bool tipFromChange;
+
+  /// Berilgan puldan to'lovdan ortgani (choy pulidan oldin).
+  PosMoney get _overpaid {
     final PosMoney? a = amount;
     final PosMoney? t = tendered;
     if (a == null || t == null || t <= a) return PosMoney.zero;
     return t - a;
+  }
+
+  /// Haqiqiy choy puli: qaytimdan bo'lsa va summa berilmagan bo'lsa — butun qaytim.
+  PosMoney get effectiveTip {
+    if (tender == PosTender.cash && tipFromChange && tip == null) {
+      return _overpaid;
+    }
+    final PosMoney? t = tip;
+    return t == null || !t.isPositive ? PosMoney.zero : t;
+  }
+
+  /// Naqd qaytim (choy puli ayirilgan).
+  PosMoney get change {
+    final PosMoney left = _overpaid - effectiveTip;
+    return left.isPositive ? left : PosMoney.zero;
   }
 
   /// Xato matni (to'g'ri bo'lsa `null`). [max] — eng ko'p summa (qoldiq, qarz).
@@ -48,6 +71,14 @@ class TenderDraft {
       case PosTender.cash:
         if (tendered != null && tendered! < a) {
           return 'Berilgan pul summadan kam.';
+        }
+        if (tipFromChange && tendered == null) {
+          return "Qaytimni choy puli qilish uchun mijoz bergan pulni kiriting.";
+        }
+        if (tendered != null &&
+            effectiveTip.isPositive &&
+            tendered! < a + effectiveTip) {
+          return "Berilgan pul to'lov va choy pulini qoplamaydi.";
         }
       case PosTender.card:
         if (cardType == null) return 'Karta turini tanlang.';
@@ -62,20 +93,31 @@ class TenderDraft {
     return null;
   }
 
-  /// API uchun (naqd, karta, QR).
-  PosTenderInput toInput() => switch (tender) {
-    PosTender.card => PosTenderInput.card(
-      amount!,
-      cardType: cardType!,
-      transactionId: transactionId.trim(),
-      cardLast4: cardLast4.trim().isEmpty ? null : cardLast4.trim(),
-    ),
-    PosTender.qr => PosTenderInput.qr(
-      amount!,
-      reference: reference.trim().isEmpty ? null : reference.trim(),
-    ),
-    _ => PosTenderInput.cash(amount!, tendered: tendered),
-  };
+  /// API uchun (naqd, karta, QR). P6-22: choy puli summasi doim aniq yuboriladi (qaytimdan bo'lsa ham — internetsiz
+  /// navbat ham shu summani yozadi).
+  PosTenderInput toInput() {
+    final PosMoney? t = effectiveTip.isPositive ? effectiveTip : null;
+    return switch (tender) {
+      PosTender.card => PosTenderInput.card(
+        amount!,
+        cardType: cardType!,
+        transactionId: transactionId.trim(),
+        cardLast4: cardLast4.trim().isEmpty ? null : cardLast4.trim(),
+        tip: t,
+      ),
+      PosTender.qr => PosTenderInput.qr(
+        amount!,
+        reference: reference.trim().isEmpty ? null : reference.trim(),
+        tip: t,
+      ),
+      _ => PosTenderInput.cash(
+        amount!,
+        tendered: tendered,
+        tip: t,
+        tipFromChange: tipFromChange && t != null,
+      ),
+    };
+  }
 }
 
 /// Naqd uchun tez summalar: aniq summa va undan katta yaxlit pullar (10 000, 50 000, 100 000 ...).
@@ -228,13 +270,20 @@ class _TenderFormState extends State<TenderForm> {
           Row(
             children: <Widget>[
               Text('Qaytim', style: RzType.headline.copyWith(color: c.fgMuted)),
-              const Spacer(),
-              Text(
-                d.change.format(),
-                key: const ValueKey<String>('tender-change'),
-                style: RzType.display.copyWith(
-                  color: d.change.isZero ? c.fgMuted : c.successSoftFg,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(width: 12),
+              // A narrow (phone) screen scales the big amount down instead of overflowing
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    d.change.format(),
+                    key: const ValueKey<String>('tender-change'),
+                    style: RzType.display.copyWith(
+                      color: d.change.isZero ? c.fgMuted : c.successSoftFg,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
             ],

@@ -408,6 +408,9 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                                     ),
                                     onBumpAll: () =>
                                         unawaited(board.bumpAll(e.ticket)),
+                                    onBumpCourse: (int course) => unawaited(
+                                      board.bumpCourse(e.ticket, course),
+                                    ),
                                     onMarkReady: () => unawaited(
                                       board.markOrderReady(e.ticket),
                                     ),

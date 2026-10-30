@@ -4,6 +4,8 @@ namespace App\Domain\Pos\Tips;
 
 use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Billing\PosActionException;
+use App\Domain\Pos\StaffPay\SalesAttribution;
+use App\Domain\Pos\StaffPay\StaffPaySettings;
 use App\Enums\UserRole;
 use App\Models\Branch;
 use App\Models\PosShift;
@@ -23,7 +25,8 @@ use Illuminate\Support\Facades\DB;
  *
  * People: those of the settings' `roles` who worked in the period (TipWorkTime), or the manager's own list
  * (`participants`: staff ids with optional minutes). Basis per person: `equal` 1; `hours` minutes worked; `sales` the
- * paid bills of the orders they served (orders.waiter_id; tiyin); `role_weights` their role's weight. When every
+ * paid bills of the orders they served (tiyin; whose a bill is follows the staff pay `sales_attribution`: the waiter at
+ * payment time, order_bills.waiter_id, by default, else orders.waiter_id); `role_weights` their role's weight. When every
  * basis is 0 (nobody clocked any time, nobody sold) the pool is split equally instead (the stored `rule` says
  * `equal`).
  *
@@ -40,6 +43,7 @@ final class TipPoolDistributor
         private readonly TipSettings $settings,
         private readonly TipWorkTime $workTime,
         private readonly AuditLogger $audit,
+        private readonly StaffPaySettings $staffPay,
     ) {}
 
     /**
@@ -282,10 +286,14 @@ final class TipPoolDistributor
             return [];
         }
         $shiftIds = $shift !== null ? [$shift->id] : PosShift::where('branch_id', $branch->id)->whereDate('business_date', $date)->pluck('id')->all();
+        // The same person as in the pay statements (StaffPayMetrics): the waiter at payment time by default
+        $waiter = $this->staffPay->salesAttribution($branch) === SalesAttribution::AT_PAYMENT
+            ? 'coalesce(order_bills.waiter_id, orders.waiter_id)'
+            : 'orders.waiter_id';
         $rows = DB::table('order_bills')->join('orders', 'orders.id', '=', 'order_bills.order_id')
             ->whereIn('order_bills.shift_id', $shiftIds)->where('order_bills.status', BillStatus::PAID->value)
-            ->whereIn('orders.waiter_id', $ids)
-            ->groupBy('orders.waiter_id')->selectRaw('orders.waiter_id as staff_id, sum(order_bills.total) as total')->get();
+            ->whereIn(DB::raw($waiter), $ids)
+            ->groupBy(DB::raw($waiter))->selectRaw("{$waiter} as staff_id, sum(order_bills.total) as total")->get();
 
         $sales = [];
         foreach ($rows as $row) {
