@@ -4,18 +4,37 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'pickup_status.dart';
+
 part 'queue19.g.dart';
 
 @JsonSerializable()
 class Queue19 {
-  const Queue19({this.size, this.oldestAt});
+  const Queue19({
+    required this.number,
+    required this.businessDate,
+    required this.status,
+    required this.readyAt,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
+  });
 
   factory Queue19.fromJson(Map<String, Object?> json) =>
       _$Queue19FromJson(json);
 
-  final int? size;
-  @JsonKey(name: 'oldest_at')
-  final DateTime? oldestAt;
+  final int number;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  final PickupStatus? status;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
 
   Map<String, Object?> toJson() => _$Queue19ToJson(this);
 }

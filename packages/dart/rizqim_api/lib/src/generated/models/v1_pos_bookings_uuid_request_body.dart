@@ -23,6 +23,7 @@ class V1PosBookingsUuidRequestBody {
     this.source,
     this.minSpend,
     this.note,
+    this.skipLeadTime,
     this.version,
   });
 
@@ -49,6 +50,8 @@ class V1PosBookingsUuidRequestBody {
   @JsonKey(name: 'min_spend')
   final num? minSpend;
   final String? note;
+  @JsonKey(name: 'skip_lead_time')
+  final bool? skipLeadTime;
   final int? version;
 
   Map<String, Object?> toJson() => _$V1PosBookingsUuidRequestBodyToJson(this);

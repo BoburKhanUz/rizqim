@@ -11,7 +11,7 @@ PostV1OwnerPrintersResponse _$PostV1OwnerPrintersResponseFromJson(
 ) => PostV1OwnerPrintersResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data112.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data124.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerPrintersResponseToJson(

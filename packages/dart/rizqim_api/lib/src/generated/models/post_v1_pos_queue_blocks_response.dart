@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data197.dart';
+import 'data234.dart';
 
 part 'post_v1_pos_queue_blocks_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1PosQueueBlocksResponse {
 
   final bool success;
   final String message;
-  final Data197 data;
+  final Data234 data;
 
   Map<String, Object?> toJson() => _$PostV1PosQueueBlocksResponseToJson(this);
 }

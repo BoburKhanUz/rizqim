@@ -1,3 +1,5 @@
+import 'package:pos_core/pos_core.dart';
+
 import '../catalog/catalog_models.dart';
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
@@ -155,6 +157,7 @@ class PosOrderRepository {
     String? approvalToken,
     String? idempotencyKey,
     int? queueNumber,
+    String? tableLabel,
   }) => _either(
     () => _http.mutate(
       'POST',
@@ -170,6 +173,7 @@ class PosOrderRepository {
         'external_id': ?externalId,
         'note': ?note,
         'queue_number': ?queueNumber,
+        'table_label': ?tableLabel,
         if (items.isNotEmpty)
           'items': <Map<String, Object?>>[
             for (final PosLineInput i in items) i.toJson(),
@@ -188,6 +192,7 @@ class PosOrderRepository {
       send: send,
       idempotencyKey: key,
       queueNumber: queueNumber,
+      tableLabel: tableLabel,
     ),
     idempotencyKey: idempotencyKey,
   );
@@ -239,6 +244,67 @@ class PosOrderRepository {
     (String? key) => offline!.send(uuid, itemIds: itemIds, idempotencyKey: key),
     idempotencyKey: idempotencyKey,
   );
+
+  /// P6-21 `POST /pos/orders/{uuid}/courses/{n}/send`: "N-kursni yuborish" — kursning ushlab turilgan qatorlari
+  /// oshxonaga. Yuboriladigan taom yo'q — [PosRejected] `nothing_to_send`. Internetsiz ham (navbat orqali).
+  Future<PosOrder> sendCourse(
+    String uuid,
+    int courseNo, {
+    required int version,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) => _either(
+    () => _post(
+      uuid,
+      'courses/$courseNo/send',
+      idempotencyKey,
+      <String, Object?>{'version': version, 'approval_token': ?approvalToken},
+    ),
+    (String? key) => offline!.sendCourse(uuid, courseNo, idempotencyKey: key),
+    idempotencyKey: idempotencyKey,
+  );
+
+  /// P6-25 `POST /pos/orders/{uuid}/items/{id}/weight`: "og'irlikni keyin kiritish" qatorining haqiqiy og'irligi
+  /// (narx shunga qarab). Tortilgan qatorni qayta tortish — `orders.void_item` yoki menejer tasdig'i
+  /// ([PosApprovalRequired]). Internetsiz ham birinchi og'irlik (navbat orqali).
+  Future<PosOrder> setWeight(
+    String uuid,
+    int itemId, {
+    required int version,
+    required PosQuantity quantity,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) => _either(
+    () => _post(uuid, 'items/$itemId/weight', idempotencyKey, <String, Object?>{
+      'version': version,
+      'quantity': quantity.toApiString(),
+      'approval_token': ?approvalToken,
+    }),
+    (String? key) => offline!.setWeight(
+      uuid,
+      itemId,
+      quantity: quantity,
+      idempotencyKey: key,
+    ),
+    idempotencyKey: idempotencyKey,
+  );
+
+  /// P6-25 `POST /pos/orders/{uuid}/table-label` (`table_service` moduli): kassada to'langan buyurtmaning stol
+  /// tablichkasi raqami; `null` — olib tashlash.
+  Future<PosOrder> setTableLabel(
+    String uuid, {
+    required int version,
+    required String? tableLabel,
+    String? approvalToken,
+    String? idempotencyKey,
+  }) async {
+    _onlineOnly('stol raqamini yozish');
+    return _post(uuid, 'table-label', idempotencyKey, <String, Object?>{
+      'version': version,
+      'table_label': tableLabel,
+      'approval_token': ?approvalToken,
+    });
+  }
 
   /// `POST /pos/orders/{uuid}/items/{id}/void`. Yuborilgan qator yoki schyot chiqqan buyurtmada [reason] majburiy va
   /// `orders.void_item` yoki tasdiq kerak. [restock] — yuborilgan qatorning qoldig'ini qaytarish (pishmagan bo'lsa).

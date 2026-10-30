@@ -4,26 +4,28 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account3.dart';
-import 'entry2.dart';
-import 'fiscal9.dart';
+import 'approved_by.dart';
 
 part 'data166.g.dart';
 
 @JsonSerializable()
 class Data166 {
   const Data166({
-    required this.account,
-    required this.entry,
-    required this.fiscal,
+    required this.token,
+    required this.permission,
+    required this.expiresAt,
+    required this.approvedBy,
   });
 
   factory Data166.fromJson(Map<String, Object?> json) =>
       _$Data166FromJson(json);
 
-  final Account3 account;
-  final Entry2 entry;
-  final Fiscal9 fiscal;
+  final String token;
+  final String permission;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  @JsonKey(name: 'approved_by')
+  final ApprovedBy approvedBy;
 
   Map<String, Object?> toJson() => _$Data166ToJson(this);
 }

@@ -22,6 +22,7 @@ class V1PosOrdersRequestBody {
     this.send,
     this.queueNumber,
     this.items,
+    this.tableLabel,
   });
 
   factory V1PosOrdersRequestBody.fromJson(Map<String, Object?> json) =>
@@ -45,6 +46,10 @@ class V1PosOrdersRequestBody {
   @JsonKey(name: 'queue_number')
   final int? queueNumber;
   final List<Items21>? items;
+
+  /// P6-25: the table plate of a counter order carried to the table (module table_service)
+  @JsonKey(name: 'table_label')
+  final String? tableLabel;
 
   Map<String, Object?> toJson() => _$V1PosOrdersRequestBodyToJson(this);
 }

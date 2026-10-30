@@ -17,6 +17,7 @@ Tables6 _$Tables6FromJson(Map<String, dynamic> json) => Tables6(
   minSpendMode: json['min_spend_mode'] as String,
   status: json['status'] as String,
   billRequested: json['bill_requested'] as bool,
+  serviceState: json['service_state'] as String?,
   reservation: json['reservation'] == null
       ? null
       : Reservation.fromJson(json['reservation'] as Map<String, dynamic>),
@@ -36,6 +37,7 @@ Map<String, dynamic> _$Tables6ToJson(Tables6 instance) => <String, dynamic>{
   'min_spend_mode': instance.minSpendMode,
   'status': instance.status,
   'bill_requested': instance.billRequested,
+  'service_state': instance.serviceState,
   'reservation': instance.reservation,
   'orders': instance.orders,
 };

@@ -18,6 +18,7 @@ Payments35 _$Payments35FromJson(Map<String, dynamic> json) => Payments35(
   reference: json['reference'] as String?,
   status: json['status'] as String,
   paidAt: json['paid_at'] as String?,
+  tipAmount: json['tip_amount'] as String,
 );
 
 Map<String, dynamic> _$Payments35ToJson(Payments35 instance) =>
@@ -33,4 +34,5 @@ Map<String, dynamic> _$Payments35ToJson(Payments35 instance) =>
       'reference': instance.reference,
       'status': instance.status,
       'paid_at': instance.paidAt,
+      'tip_amount': instance.tipAmount,
     };

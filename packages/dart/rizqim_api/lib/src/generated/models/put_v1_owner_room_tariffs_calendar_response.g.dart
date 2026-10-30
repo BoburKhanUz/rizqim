@@ -11,7 +11,7 @@ _$PutV1OwnerRoomTariffsCalendarResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerRoomTariffsCalendarResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data121.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data134.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerRoomTariffsCalendarResponseToJson(

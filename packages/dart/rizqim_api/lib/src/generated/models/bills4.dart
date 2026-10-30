@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'fiscal14.dart';
 import 'items30.dart';
 import 'payments35.dart';
+import 'tips8.dart';
 import 'ticket12.dart';
 
 part 'bills4.g.dart';
@@ -29,6 +30,7 @@ class Bills4 {
     required this.paidAmount,
     required this.dueAmount,
     required this.guestsShare,
+    required this.seatNo,
     required this.perGuestAmount,
     required this.printedCount,
     required this.printedAt,
@@ -36,6 +38,9 @@ class Bills4 {
     required this.fiscal,
     required this.items,
     required this.payments,
+    required this.tipsAmount,
+    required this.tips,
+    required this.serviceChargeNotice,
     required this.ticket,
     required this.createdAt,
   });
@@ -66,6 +71,8 @@ class Bills4 {
   final String dueAmount;
   @JsonKey(name: 'guests_share')
   final int? guestsShare;
+  @JsonKey(name: 'seat_no')
+  final int? seatNo;
   @JsonKey(name: 'per_guest_amount')
   final String? perGuestAmount;
   @JsonKey(name: 'printed_count')
@@ -77,6 +84,11 @@ class Bills4 {
   final Fiscal14 fiscal;
   final List<Items30> items;
   final List<Payments35> payments;
+  @JsonKey(name: 'tips_amount')
+  final String tipsAmount;
+  final List<Tips8> tips;
+  @JsonKey(name: 'service_charge_notice')
+  final String? serviceChargeNotice;
   final Ticket12? ticket;
   @JsonKey(name: 'created_at')
   final String? createdAt;

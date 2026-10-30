@@ -47,7 +47,7 @@ class PosBookingArriveTest extends TestCase
         $this->api($this->cashier, 'POST', $items, ['product_variant_id' => $osh->id, 'quantity' => '4.5', 'modifiers' => [['modifier_id' => $kazi->id]], 'note' => 'Sergo\'sht', 'due_at' => '2026-11-05T20:00:00+05:00'])->assertCreated();
         $this->api($this->cashier, 'POST', $items, ['product_variant_id' => $this->variant->id, 'quantity' => 6])->assertCreated();
         $this->takeDeposit($uuid, '1000000', 'qr')->assertCreated();
-        $this->takeDeposit($uuid, '500000', 'cash')->assertCreated();
+        $this->takeDeposit($uuid, '500000', 'qr')->assertCreated();
 
         $terminal = $this->terminalSession($this->cashier, $this->branch);
         $response = $this->apiToken($terminal['token'], 'POST', "/api/v1/pos/bookings/{$uuid}/arrive", ['guests' => 10], ['Idempotency-Key' => 'arrive-1'])
@@ -180,7 +180,7 @@ class PosBookingArriveTest extends TestCase
     {
         $uuid = $this->booked();
         foreach ($amounts as $amount) {
-            $this->takeDeposit($uuid, $amount, 'cash')->assertCreated();
+            $this->takeDeposit($uuid, $amount, 'qr')->assertCreated();
         }
         $orderUuid = $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/arrive")->assertOk()->json('data.order.uuid');
 

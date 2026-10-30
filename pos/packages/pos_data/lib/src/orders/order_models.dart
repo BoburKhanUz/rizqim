@@ -4,6 +4,7 @@ import '../catalog/catalog_models.dart';
 import '../json.dart';
 import '../menu_day/menu_day_models.dart';
 import '../queue/online_order_models.dart';
+import 'course_models.dart';
 
 /// POS qatorining oshxona holati: `pending` (faqat buyurtmada) → `sent` → `ready` → `served`; `void` — o'chirilgan.
 enum PosKitchenStatus {
@@ -149,6 +150,9 @@ class PosOrder {
     this.minSpendTopupAmount = PosMoney.zero,
     this.totalPrice = PosMoney.zero,
     this.rounds = 0,
+    this.tableLabel,
+    this.courses = const <PosCourse>[],
+    this.weightPending = 0,
     this.raw = const <String, Object?>{},
   });
 
@@ -192,6 +196,9 @@ class PosOrder {
         ? PosOrderCharges.fromJson(j.obj('charges'))
         : const PosOrderCharges(),
     rounds: j.intOrNull('rounds') ?? 0,
+    tableLabel: j.strOrNull('table_label'),
+    courses: j.objects('courses', PosCourse.fromJson),
+    weightPending: j.intOrNull('weight_pending') ?? 0,
     items: j.objects('items', PosOrderItem.fromJson),
     raw: j.map,
   );
@@ -263,10 +270,27 @@ class PosOrder {
 
   /// Nechta bosqich bor.
   final int rounds;
+
+  /// P6-25 (kafe "stolga olib kelish"): kassada to'langan buyurtmaning stol tablichkasi raqami.
+  final String? tableLabel;
+
+  /// P6-21: buyurtma kurslari (kurssiz buyurtmada bo'sh).
+  final List<PosCourse> courses;
+
+  /// P6-25: og'irligi hali kiritilmagan qatorlar soni (0 bo'lmasa schyot chiqmaydi).
+  final int weightPending;
   final List<PosOrderItem> items;
   final Map<String, Object?> raw;
 
   PosChannel? get posChannel => PosChannel.fromWire(channel);
+
+  /// P6-21: [courseNo] kursi (yo'q bo'lsa `null`).
+  PosCourse? course(int courseNo) {
+    for (final PosCourse c in courses) {
+      if (c.courseNo == courseNo) return c;
+    }
+    return null;
+  }
 
   bool get isOpen => status != 'delivered' && status != 'canceled';
 
@@ -413,6 +437,11 @@ class PosOrderItem {
     this.voidedBy,
     this.voidReason,
     this.setParts,
+    this.courseNo,
+    this.weightStatus,
+    this.weightBasis,
+    this.weighedBy,
+    this.weighedAt,
   });
 
   factory PosOrderItem.fromJson(PosJson j) => PosOrderItem(
@@ -442,6 +471,11 @@ class PosOrderItem {
     voidedBy: PosRef.maybe(j, 'voided_by'),
     voidReason: j.strOrNull('void_reason'),
     setParts: PosSetPart.listOf(j['set_parts']),
+    courseNo: j.intOrNull('course_no'),
+    weightStatus: PosWeightStatus.fromWire(j.strOrNull('weight_status')),
+    weightBasis: PosWeightBasis.fromWire(j.strOrNull('weight_basis')),
+    weighedBy: PosRef.maybe(j, 'weighed_by'),
+    weighedAt: j.dateOrNull('weighed_at'),
   );
 
   final int id;
@@ -474,6 +508,21 @@ class PosOrderItem {
 
   /// P6-15: kompleks qatorining tarkibi (sotuv paytidagi nusxa; kompleks emas — `null`).
   final List<PosSetPart>? setParts;
+
+  /// P6-21: qator kursi (kurssiz — `null`).
+  final int? courseNo;
+
+  /// P6-25: "og'irlikni keyin kiritish" qatori (oddiy qatorda `null`).
+  final PosWeightStatus? weightStatus;
+  final PosWeightBasis? weightBasis;
+
+  /// Og'irlikni kiritgan xodim va payt.
+  final PosRef? weighedBy;
+  final DateTime? weighedAt;
+
+  /// Og'irligi hali kiritilmagan (miqdor taxminiy).
+  bool get awaitingWeight =>
+      weightStatus == PosWeightStatus.awaiting && !isVoid;
 
   bool get isVoid => kitchenStatus == PosKitchenStatus.voided;
 
@@ -542,6 +591,7 @@ class PosOpenOrder {
     this.closedAt,
     this.updatedAt,
     this.online,
+    this.tableLabel,
     this.raw = const <String, Object?>{},
   });
 
@@ -574,6 +624,7 @@ class PosOpenOrder {
     online: j.objOrNull('online') == null
         ? null
         : PosOnlineOrder.fromJson(j.obj('online')),
+    tableLabel: j.strOrNull('table_label'),
     raw: j.map,
   );
 
@@ -615,6 +666,9 @@ class PosOpenOrder {
 
   /// Onlayn buyurtma kartasi (mijoz, manzil, qatorlar, to'lov); POS buyurtmasida `null` (P3-26).
   final PosOnlineOrder? online;
+
+  /// P6-25: stol tablichkasi raqami (kafe).
+  final String? tableLabel;
   final Map<String, Object?> raw;
 
   bool get isPos => PosChannel.fromWire(channel) != null;
@@ -630,6 +684,8 @@ class PosLineInput {
     this.seatNo,
     this.fireMode,
     this.dueAt,
+    this.courseNo,
+    this.awaitingWeight,
   });
 
   /// Variant uuid'si (katalogdagi [PosVariant.uuid]).
@@ -645,6 +701,12 @@ class PosLineInput {
   /// Oldindan buyurtma vaqti.
   final DateTime? dueAt;
 
+  /// P6-21: qator kursi (1–9); keyingi kurs server tomonda ushlab turiladi.
+  final int? courseNo;
+
+  /// P6-25: og'irlik keyin kiritiladi (`null` — mahsulotning `weight_mode` i hal qiladi).
+  final bool? awaitingWeight;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'variant_id': variantUuid,
     // Satr: miqdor aniq ("1.500"), suzuvchi nuqtasiz
@@ -657,6 +719,8 @@ class PosLineInput {
     'seat_no': ?seatNo,
     'fire_mode': ?fireMode?.wire,
     'due_at': ?dueAt?.toUtc().toIso8601String(),
+    'course_no': ?courseNo,
+    'awaiting_weight': ?awaitingWeight,
   };
 }
 

@@ -11,7 +11,7 @@ DeleteV1OwnerHallsIdResponse _$DeleteV1OwnerHallsIdResponseFromJson(
 ) => DeleteV1OwnerHallsIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data86.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data88.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$DeleteV1OwnerHallsIdResponseToJson(

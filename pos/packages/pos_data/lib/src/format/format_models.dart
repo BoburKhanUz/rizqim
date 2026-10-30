@@ -23,7 +23,20 @@ enum PosModule {
   bookings('bookings', 'Bron va oldindan buyurtma'),
   customerAccounts('customer_accounts', 'Nasiya'),
   serviceCharge('service_charge', 'Xizmat haqi'),
-  kds('kds', 'Oshxona ekrani (KDS)');
+  kds('kds', 'Oshxona ekrani (KDS)'),
+
+  // 2-to'lqin "Restoran va kafe"
+  courses('courses', 'Kurslar'),
+  tips('tips', 'Choy puli'),
+  staffPay('staff_pay', 'Ofitsiant ish haqi'),
+  guestSplit('guest_split', "Mehmon bo'yicha bo'lish"),
+  waiterTransfer('waiter_transfer', "Stolni boshqa ofitsiantga o'tkazish"),
+  hostess('hostess', 'Hostes'),
+  tableBooking('table_booking', 'Stol broni'),
+  skewerButtons('skewer_buttons', 'Six tugmalari'),
+  weightLater('weight_later', "Og'irlikni keyin kiritish"),
+  tableService('table_service', 'Stolga olib kelish'),
+  serviceChargeRules('service_charge_rules', 'Xizmat haqi qoidalari');
 
   const PosModule(this.wire, this.label);
 

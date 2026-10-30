@@ -9,42 +9,21 @@ part 'lines7.g.dart';
 @JsonSerializable()
 class Lines7 {
   const Lines7({
+    required this.staffId,
     required this.name,
-    required this.mxikCode,
-    required this.packageCode,
-    required this.unit,
-    required this.quantity,
-    required this.unitPrice,
+    required this.role,
+    required this.basis,
     required this.amount,
-    required this.vatRate,
-    required this.vatAmount,
-    required this.noVat,
-    required this.commissionerTin,
-    required this.markingCode,
   });
 
   factory Lines7.fromJson(Map<String, Object?> json) => _$Lines7FromJson(json);
 
-  final String name;
-  @JsonKey(name: 'mxik_code')
-  final String mxikCode;
-  @JsonKey(name: 'package_code')
-  final String? packageCode;
-  final String unit;
-  final String quantity;
-  @JsonKey(name: 'unit_price')
-  final String unitPrice;
+  @JsonKey(name: 'staff_id')
+  final int? staffId;
+  final String? name;
+  final String? role;
+  final String basis;
   final String amount;
-  @JsonKey(name: 'vat_rate')
-  final String vatRate;
-  @JsonKey(name: 'vat_amount')
-  final String vatAmount;
-  @JsonKey(name: 'no_vat')
-  final bool noVat;
-  @JsonKey(name: 'commissioner_tin')
-  final String? commissionerTin;
-  @JsonKey(name: 'marking_code')
-  final String? markingCode;
 
   Map<String, Object?> toJson() => _$Lines7ToJson(this);
 }

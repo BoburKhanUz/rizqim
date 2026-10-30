@@ -4,47 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'subscription.dart';
+import 'terminals.dart';
+import 'next_invoice.dart';
+
 part 'data164.g.dart';
 
 @JsonSerializable()
 class Data164 {
   const Data164({
-    required this.uuid,
-    required this.name,
-    required this.phone,
-    required this.groupName,
-    required this.branchId,
-    required this.creditLimit,
-    required this.balance,
-    required this.availableCredit,
-    required this.isBlocked,
-    required this.note,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.subscription,
+    required this.commissionRate,
+    required this.terminals,
+    required this.nextInvoice,
   });
 
   factory Data164.fromJson(Map<String, Object?> json) =>
       _$Data164FromJson(json);
 
-  final String uuid;
-  final String name;
-  final String? phone;
-  @JsonKey(name: 'group_name')
-  final String? groupName;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'credit_limit')
-  final String? creditLimit;
-  final String balance;
-  @JsonKey(name: 'available_credit')
-  final String? availableCredit;
-  @JsonKey(name: 'is_blocked')
-  final bool isBlocked;
-  final String? note;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final Subscription? subscription;
+  @JsonKey(name: 'commission_rate')
+  final num commissionRate;
+  final Terminals terminals;
+  @JsonKey(name: 'next_invoice')
+  final NextInvoice? nextInvoice;
 
   Map<String, Object?> toJson() => _$Data164ToJson(this);
 }

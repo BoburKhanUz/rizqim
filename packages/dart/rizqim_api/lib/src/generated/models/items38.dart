@@ -5,8 +5,9 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'modifiers20.dart';
-import 'added_by12.dart';
-import 'voided_by12.dart';
+import 'added_by13.dart';
+import 'voided_by13.dart';
+import 'weighed_by13.dart';
 
 part 'items38.g.dart';
 
@@ -38,6 +39,11 @@ class Items38 {
     required this.voidedAt,
     required this.voidedBy,
     required this.voidReason,
+    required this.courseNo,
+    required this.weightStatus,
+    required this.weightBasis,
+    required this.weighedBy,
+    required this.weighedAt,
   });
 
   factory Items38.fromJson(Map<String, Object?> json) =>
@@ -79,15 +85,25 @@ class Items38 {
   @JsonKey(name: 'ready_at')
   final String? readyAt;
   @JsonKey(name: 'added_by')
-  final AddedBy12? addedBy;
+  final AddedBy13? addedBy;
   @JsonKey(name: 'added_at')
   final String? addedAt;
   @JsonKey(name: 'voided_at')
   final String? voidedAt;
   @JsonKey(name: 'voided_by')
-  final VoidedBy12? voidedBy;
+  final VoidedBy13? voidedBy;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
+  @JsonKey(name: 'course_no')
+  final int? courseNo;
+  @JsonKey(name: 'weight_status')
+  final String? weightStatus;
+  @JsonKey(name: 'weight_basis')
+  final String? weightBasis;
+  @JsonKey(name: 'weighed_by')
+  final WeighedBy13? weighedBy;
+  @JsonKey(name: 'weighed_at')
+  final String? weighedAt;
 
   Map<String, Object?> toJson() => _$Items38ToJson(this);
 }

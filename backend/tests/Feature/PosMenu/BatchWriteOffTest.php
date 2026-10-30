@@ -337,6 +337,18 @@ class BatchWriteOffTest extends TestCase
         $this->assertTrue($first->json('success'));
     }
 
+    public function test_a_batch_of_the_tashkent_morning_is_in_its_business_day(): void
+    {
+        // 07:10 in Tashkent (02:10 UTC) on the 14th: after the 05:00 day start, so the 14th's batch
+        Carbon::setTestNow(Carbon::parse('2026-11-14 02:10:00', 'UTC'));
+        $this->openBatch('5');
+
+        $url = "/api/v1/owner/batch-yield?branch_id={$this->branch->id}";
+        $this->actingAs($this->owner, 'sanctum')->getJson("{$url}&from=2026-11-14&to=2026-11-14")->assertOk()
+            ->assertJsonCount(1, 'data.batches')->assertJsonPath('data.batches.0.business_date', '2026-11-14');
+        $this->actingAs($this->owner, 'sanctum')->getJson("{$url}&from=2026-11-13&to=2026-11-13")->assertOk()->assertJsonCount(0, 'data.batches');
+    }
+
     public function test_the_yield_report_covers_business_days_and_checks_the_period(): void
     {
         // A batch cooked on the 13th (late evening local) and one on the 14th

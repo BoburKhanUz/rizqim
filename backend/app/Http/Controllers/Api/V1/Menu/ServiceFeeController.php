@@ -134,6 +134,9 @@ class ServiceFeeController extends MenuStaffController
             'place_fee_amount' => $setting->place_fee_amount,
             'place_fee_mode' => $setting->place_fee_mode->value,
             'place_fee_channels' => $setting->place_fee_channels,
+            // P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules)
+            'service_charge_rules' => \App\Domain\Pos\Billing\ServiceChargeRules::of($setting)->toArray(),
+            'service_charge_notice' => $setting->service_charge_notice,
         ];
     }
 }

@@ -6,11 +6,13 @@ import {
   ChartColumn,
   CookingPot,
   ClipboardList,
+  Coins,
   HandCoins,
   History,
   LayoutDashboard,
   Map,
   PackageX,
+  PiggyBank,
   Printer,
   ReceiptText,
   Scale,
@@ -33,6 +35,7 @@ import type { MessageKey } from '@/i18n';
 //   batches    the batches (kazan) of a branch, /stoplist/batches (batches.manage: cooks have it without the stop-list)
 //   dailymenu  "Bugungi menyu" and kompleks (menu.manage, or stoplist.manage for the manager who runs the day; P6-15)
 //   yield      the yield report and the write-offs (reports.view; P6-15)
+//   staffpay   wage rules, work time and pay statements, "Ish haqi" (staff_pay.view / staff_pay.manage; P6-23)
 //   branches   edit a branch (branches.manage, a branch-bound manager their own) or create/delete (settings.manage)
 //   zones      draw delivery zones (zones.manage, owner only)
 //   floor      halls, places, the floor map, room tariffs, per-guest items (tables.manage; tariffs and guest items inside need
@@ -40,6 +43,8 @@ import type { MessageKey } from '@/i18n';
 //   bookings   the booking calendar (bookings.manage)
 //   accounts   customer accounts, nasiya (customer_accounts.manage)
 //   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
+//   tips       tips (choy puli): report, pool split, tip settings, service charge rules (reports.view / tips.manage /
+//              settings.manage; P6-22)
 //   possetup   kitchen stations, routes, printers, branch POS settings (settings.manage)
 //   permissions what each role may do alone, the "Huquqlar" page (permissions.manage, the owner)
 //   audit      the store's harakatlar jurnali (audit.view, the owner by default; P4-32, the old store panel's log)
@@ -56,7 +61,9 @@ export type NavKey =
   | 'batches'
   | 'dailymenu'
   | 'yield'
+  | 'staffpay'
   | 'shifts'
+  | 'tips'
   | 'accounts'
   | 'staff'
   | 'branches'
@@ -88,7 +95,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'batches', href: '/stoplist/batches', label: 'nav_batches', anyOf: ['batches.manage'], icon: CookingPot },
   { key: 'dailymenu', href: '/daily-menu', label: 'nav_dailymenu', anyOf: ['menu.manage', 'stoplist.manage'], icon: CalendarCheck },
   { key: 'yield', href: '/yield', label: 'nav_yield', anyOf: ['reports.view'], icon: Scale },
+  { key: 'staffpay', href: '/staff-pay', label: 'nav_staffpay', anyOf: ['staff_pay.view', 'staff_pay.manage'], icon: Coins },
   { key: 'shifts', href: '/shifts', label: 'nav_shifts', anyOf: ['pos.close_shift', 'reports.view'], icon: Timer },
+  { key: 'tips', href: '/tips', label: 'nav_tips', anyOf: ['reports.view', 'tips.manage', 'settings.manage'], icon: PiggyBank },
   { key: 'accounts', href: '/accounts', label: 'nav_accounts', anyOf: ['customer_accounts.manage'], icon: HandCoins },
   { key: 'staff', href: '/staff', label: 'nav_staff', anyOf: ['staff.view'], icon: Users },
   { key: 'branches', href: '/branches', label: 'nav_branches', anyOf: ['branches.manage', 'settings.manage'], icon: Store },

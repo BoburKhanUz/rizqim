@@ -31,6 +31,31 @@ ofitsiantning buyurtmasida menejer tasdig'i. Ofitsiantda to'lov va chek chiqaris
   bo'lsa ham server uni bir marta bajaradi (bosqich ikki marta tushmaydi). Server javob bersa (rad etdi, versiya
   to'qnashuvi) keyingisi yangi so'rov.
 
+## Restoran va kafe (P6, 2-to'lqin)
+
+Har tugma faqat filialning samarali moduli yoqilganda ko'rinadi (`bootstrap.format.modules`, `lib/src/common/modules.dart`);
+modul o'chiq bo'lsa choyxona oqimi o'zgarmaydi, server 403 `module_disabled` bersa oddiy matn chiqadi.
+
+- **Kurslar** (`courses`): taom qo'shishda "Kurs: Kurssiz · 1 · 2 · 3 · Yana (4–9)" — qatorning kursi; kurssiz qator darhol
+  oshxonaga. Buyurtma ekranida "Kurslar" bloki: har kurs holati (kutmoqda, yuborildi · tayyorlanmoqda, tayyor, berildi) va
+  "N-kursni yuborish". Oshxona kursni tugatsa (`order.course_ready`, faqat o'z buyurtmam) — "2-kurs tayyor — 5-stol" xabari,
+  tovush va tebranish bilan, "Ochish" (`lib/src/features/alerts`).
+- **Mehmon raqami** (`guest_split`): qo'shishda "Mehmon: Umumiy · 1 … N" (N — stol mehmonlari), savatda va yuborilgan qatorda
+  belgini bosib o'zgartiriladi (`POST …/items/{id}/seat`).
+- **Six ×N** (`skewer_buttons`): taom ostida ×2 … ×10 tugmalari, mangal vaqti ("~15 daq").
+- **Og'irlikni keyin kiritish** (`weight_later`): qatorda "Tortiladi", buyurtmada "Og'irlik kutilmoqda (N)"; `orders.manage`
+  bo'lsa "Og'irlikni kiritish" (birinchi tortish; qayta tortishni kassir yoki menejer qiladi).
+- **Boshqa ofitsiantga berish** (`waiter_transfer`): buyurtma menyusida; `orders.transfer` bo'lmasa menejer PIN'i so'raladi.
+  Eski ofitsiantga "… boshqa ofitsiantga o'tkazildi", yangisiga "… sizga berildi" (`order.transferred`).
+- **Mening choy pulim** (`tips`): bosh menyuda; bugungi (yoki shu smenadagi) o'z choy pullari (`GET /pos/tips`).
+- **Ishga keldim / Ishdan ketdim** (`bootstrap.staff_pay.clock`): kelmagan bo'lsa tepada lenta, ketish — menyuda. Internetsiz
+  belgilanmaydi ("internet kerak").
+- **Hostes stoli** (`hostess` moduli, hostes roli yoki `hostess.manage`; `lib/src/features/hostess`): hostesning bosh
+  sahifasi, menejerga pastda "Hostes" yorlig'i. Kutish ro'yxati (yozish, chaqirish, joylashtirish — stol tanlab, `orders.manage`
+  bo'lsa buyurtmani ham ochib, ketdi, kelmadi; `waitlist.changed` bilan jonli), stollar ("Tozalash" → "Tayyor"), bugungi
+  bronlar (bo'nak yetmasa belgi) va "Bron qo'shish" (ega/menejer "yo'lda kelayotgan mehmon" — `skip_lead_time`). Telefonda uch
+  yorliq, planshetda ikki ustun.
+
 ## Schyot so'rash
 
 "Schyot so'rash" — `POST /pos/orders/{uuid}/request-bill` (P3-26, `OrderController.requestBill`): kassaga
@@ -69,3 +94,7 @@ cd pos/apps/waiter && flutter test
 Widget testlari soxta backend ustida butun ilovani ishga tushiradi (`test/support/harness.dart`): yorliqlar va filtrlar,
 joyni ochish, bosqich (dona, kg, qo'shimchalar), yuborish, berildi, schyot so'rash, boshqa ofitsiantning buyurtmasi va
 tasdiq, aloqa yo'q lentasi.
+
+Restoran qismi: `test/restaurant_test.dart` (soxta backend'ning restoran yo'llari — `test/support/restaurant.dart`) va
+suratlar `test/restaurant_goldens_test.dart` (`test/goldens/restaurant_*.png`; o'qiladigan suratlar uchun
+`WAITER_SHOTS=<papka> flutter test --update-goldens test/restaurant_goldens_test.dart`).

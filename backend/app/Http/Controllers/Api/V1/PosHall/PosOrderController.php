@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api\V1\PosHall;
 
 use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Orders\PickupQueue;
+use App\Domain\Pos\Orders\PosCourses;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Orders\PosCharge;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOnlineOrders;
@@ -49,13 +52,13 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 #[Group('POS: orders', "Kassa va ofitsiant: zal buyurtmasi, bosqichlar, oshxonaga yuborish, o'chirish, ko'chirish, birlashtirish, xona puli va xizmat haqi (P3-12).")]
 class PosOrderController extends PosHallController
 {
-    public const ITEM = 'array{id: int, round_no: int|null, product_variant_id: int|null, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, unit_price: string, modifiers: list<array{id: int, name: string, group_name: string|null, quantity: int, price_delta: string}>, modifiers_total: string, total_price: string, note: string|null, seat_no: int|null, fire_mode: string|null, due_at: string|null, kitchen_status: string, station_id: int|null, sent_at: string|null, ready_at: string|null, added_by: array{id: int, name: string|null}|null, added_at: string|null, voided_at: string|null, voided_by: array{id: int, name: string|null}|null, void_reason: string|null}';
+    public const ITEM = 'array{id: int, round_no: int|null, product_variant_id: int|null, product_name: string, variant_name: string|null, quantity: int|float, unit: string, quantity_label: string, unit_price: string, modifiers: list<array{id: int, name: string, group_name: string|null, quantity: int, price_delta: string}>, modifiers_total: string, total_price: string, note: string|null, seat_no: int|null, fire_mode: string|null, due_at: string|null, kitchen_status: string, station_id: int|null, sent_at: string|null, ready_at: string|null, added_by: array{id: int, name: string|null}|null, added_at: string|null, voided_at: string|null, voided_by: array{id: int, name: string|null}|null, void_reason: string|null, course_no: int|null, weight_status: string|null, weight_basis: string|null, weighed_by: array{id: int, name: string|null}|null, weighed_at: string|null}';
 
-    public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
+    public const CHARGES = 'array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null, waivers: list<array{charge: string, reason: string, waived_by: int|null, approved_by: int|null, waived_at: string|null}>}';
 
-    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, queue: ' . PickupQueue::QUEUE . '|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
+    public const LIST_ITEM = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, branch_id: int, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, items_count: int, subtotal: string, total_price: string, payment_status: string, bill_locked: bool, bill_requested: bool, fiscal_pending: bool, booking_id: int|null, business_date: string|null, queue: ' . PickupQueue::QUEUE . '|null, opened_at: string|null, closed_at: string|null, updated_at: string|null, online: ' . StaffOrderController::ORDER . '|null}';
 
-    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, queue: ' . PickupQueue::QUEUE . '|null, rounds: int, items: list<' . self::ITEM . '>}';
+    public const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, type: string, store_id: int, branch_id: int|null, version: int, hall: array{id: int, name: string|null}|null, table: array{id: int, name: string, kind: string}|null, hall_ref: string|null, table_ref: string|null, table_label: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, opened_by: int, device_id: int|null, booking_id: int|null, booking_uuid: string|null, deposit_available: string, bill_locked: bool, bill_requested_at: string|null, notes: string|null, opened_at: string|null, updated_at: string|null, subtotal: string, discount: string, discount_kind: \'percent\'|\'amount\'|null, discount_value: string|null, discount_reason: string|null, discount_by: int|null, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, min_spend_topup_amount: string, total_price: string, charges: ' . self::CHARGES . ', offline: array{local_number: string|null, created_at: string|null, synced_at: string|null, flags: list<array{flag: string, op_id: string|null, amount: string|null, name: string|null}>}|null, queue: ' . PickupQueue::QUEUE . '|null, rounds: int, courses: list<array{course_no: int, status: string, items: int, sent: int, ready: int, served: int}>, weight_pending: int, items: list<' . self::ITEM . '>}';
 
     /**
      * One POS order
@@ -84,6 +87,12 @@ class PosOrderController extends PosHallController
      * P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block
      * (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise
      * the order gets the next number; the answer's `queue.number` is the one to print.
+     *
+     * P6-21 / P6-25: a line's `course_no` (module `courses`: a later course is held until POST
+     * /pos/orders/{uuid}/courses/{n}/send) and `awaiting_weight` (module `weight_later`: the quantity is the estimate,
+     * the real kg comes with POST /pos/orders/{uuid}/items/{item}/weight; default: the product's `weight_mode`);
+     * `table_label` the table plate of a counter order carried to the table (module `table_service`). A module that is
+     * off: 403 `module_disabled`.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -111,9 +120,18 @@ class PosOrderController extends PosHallController
             'items.*.seat_no' => 'nullable|integer|min:1|max:500',
             'items.*.fire_mode' => 'nullable|string|in:now,hold',
             'items.*.due_at' => 'nullable|date',
+            // P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later)
+            'items.*.course_no' => 'nullable|integer|min:1|max:' . PosCourses::MAX_COURSE,
+            'items.*.awaiting_weight' => 'nullable|boolean',
+            // P6-25: the table plate of a counter order carried to the table (module table_service)
+            'table_label' => 'nullable|string|max:20',
         ]);
 
         $branch = $this->branchFor($request, $user, Permission::ORDERS_MANAGE);
+        $tableLabel = isset($data['table_label']) && trim((string) $data['table_label']) !== '' ? trim((string) $data['table_label']) : null;
+        if ($tableLabel !== null) {
+            app(PosModules::class)->assertEnabled($branch, PosModule::TABLE_SERVICE);
+        }
         $channel = OrderChannel::from($data['channel']);
         $table = null;
         if (isset($data['table_id'])) {
@@ -137,6 +155,7 @@ class PosOrderController extends PosHallController
             'send' => (bool) ($data['send'] ?? false),
             'note' => $data['note'] ?? null,
             'queue_number' => isset($data['queue_number']) ? (int) $data['queue_number'] : null,
+            'table_label' => $tableLabel,
         ]), 'Buyurtma ochildi.', 201);
     }
 
@@ -146,7 +165,8 @@ class PosOrderController extends PosHallController
      * A new round (`round_no`, who added it, when): lines priced by the order's channel, with the menu's rules (kg and
      * fractions in steps, modifiers, stop-list, kazan portions, stock; in fiscal mode the MXIK code). `fire_mode`
      * `now` (default) goes with the next send, `hold` only when sent by id; `due_at` for a pre-order; `seat_no` and
-     * `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage.
+     * `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage. P6-21 / P6-25:
+     * `course_no` and `awaiting_weight` per line as on opening (a course after the one in the kitchen is held).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ORDER . '}')]
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per action, the same one when retrying it (428 without).', type: 'string')]
@@ -166,6 +186,8 @@ class PosOrderController extends PosHallController
             'items.*.seat_no' => 'nullable|integer|min:1|max:500',
             'items.*.fire_mode' => 'nullable|string|in:now,hold',
             'items.*.due_at' => 'nullable|date',
+            'items.*.course_no' => 'nullable|integer|min:1|max:' . PosCourses::MAX_COURSE, // P6-21
+            'items.*.awaiting_weight' => 'nullable|boolean', // P6-25
             'approval_token' => 'nullable|string|max:255',
         ]);
 
@@ -578,6 +600,7 @@ class PosOrderController extends PosHallController
             'table' => $order->diningTable !== null ? ['id' => (int) $order->diningTable->id, 'name' => $order->diningTable->name, 'kind' => $order->diningTable->kind->value] : null,
             'hall_ref' => $order->hall_ref,
             'table_ref' => $order->table_ref,
+            'table_label' => $order->table_label, // P6-25
             'guests_count' => $order->guests_count,
             'waiter' => $order->waiter ? ['id' => (int) $order->waiter->id, 'name' => $order->waiter->name] : null,
             'items_count' => (int) $order->getAttribute('items_count'),

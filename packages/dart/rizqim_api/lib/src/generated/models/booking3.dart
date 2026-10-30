@@ -34,9 +34,9 @@ class Booking3 {
     required this.depositAvailable,
     required this.depositUnsettled,
     required this.itemsCount,
-    required this.payments,
+    required this.cancelReason,
     required this.version,
-    required this.createdBy,
+    required this.payments,
     required this.confirmedAt,
     required this.arrivedAt,
     required this.completedAt,
@@ -45,8 +45,10 @@ class Booking3 {
     required this.confirmationChannel,
     required this.createdAt,
     required this.updatedAt,
+    required this.depositRequired,
+    required this.depositMissing,
     required this.items,
-    required this.cancelReason,
+    required this.createdBy,
   });
 
   factory Booking3.fromJson(Map<String, Object?> json) =>
@@ -113,6 +115,10 @@ class Booking3 {
   final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
+  @JsonKey(name: 'deposit_required')
+  final String depositRequired;
+  @JsonKey(name: 'deposit_missing')
+  final String depositMissing;
   final List<Items13> items;
   final List<Payments18> payments;
 

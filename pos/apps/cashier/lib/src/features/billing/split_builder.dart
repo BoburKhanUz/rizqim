@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
+import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import 'cashier_ui.dart';
@@ -14,6 +15,7 @@ class SplitLine {
     required this.quantity,
     required this.amount,
     this.unit = PosUnit.piece,
+    this.seatNo,
   });
 
   final int id;
@@ -21,6 +23,9 @@ class SplitLine {
   final PosQuantity quantity;
   final PosMoney amount;
   final PosUnit unit;
+
+  /// P6-24: qaysi mehmonniki (`null` — umumiy).
+  final int? seatNo;
 
   /// [share] miqdorning taxminiy summasi.
   PosMoney amountOf(PosQuantity share) => quantity.isZero
@@ -41,7 +46,52 @@ List<PosMoney> equalShares(PosMoney total, int parts) {
 PosMoney perPerson(PosMoney total, int guests) =>
     PosMoney.som((total.tiyin / guests / 100).ceil());
 
-enum SplitMode { single, equal, items }
+enum SplitMode { single, equal, items, byGuest }
+
+/// P6-24: mehmon bo'yicha schyotlarning taxminiy ko'rinishi (backend qoidasi): har mehmonga o'z qatorlari to'liq,
+/// mehmonsiz qatorlar hamma mehmonga teng (qoldiq birinchisiga); xizmatlar sof summaga mutanosib. Mehmon raqami →
+/// (o'z taomlari, umumiydan ulushi, jami).
+List<({int seat, PosMoney own, PosMoney shared, PosMoney total})> guestShares(
+  List<SplitLine> lines,
+  PosMoney total,
+) {
+  final List<int> seats = <int>{
+    for (final SplitLine l in lines)
+      if (l.seatNo != null) l.seatNo!,
+  }.toList()..sort();
+  if (seats.isEmpty) {
+    return const <
+      ({int seat, PosMoney own, PosMoney shared, PosMoney total})
+    >[];
+  }
+  final PosMoney items = PosMoney.sum(lines.map((SplitLine l) => l.amount));
+  final List<PosMoney> shared = equalShares(
+    PosMoney.sum(<PosMoney>[
+      for (final SplitLine l in lines)
+        if (l.seatNo == null) l.amount,
+    ]),
+    seats.length,
+  );
+  final List<({int seat, PosMoney own, PosMoney shared, PosMoney total})> out =
+      <({int seat, PosMoney own, PosMoney shared, PosMoney total})>[];
+  var left = total;
+  for (var k = 0; k < seats.length; k++) {
+    final PosMoney own = PosMoney.sum(<PosMoney>[
+      for (final SplitLine l in lines)
+        if (l.seatNo == seats[k]) l.amount,
+    ]);
+    final PosMoney net = own + shared[k];
+    // The charges follow each bill's net (the last bill takes what is left, as the server's remainder)
+    final PosMoney share = k == seats.length - 1
+        ? left
+        : (items.isZero
+              ? PosMoney.zero
+              : PosMoney((total.tiyin * net.tiyin / items.tiyin).round()));
+    left = left - share;
+    out.add((seat: seats[k], own: own, shared: shared[k], total: share));
+  }
+  return out;
+}
 
 /// Schyot tuzish: bitta, teng N ulush yoki taom bo'yicha (kg ulushi bilan). Xizmat haqi va xona puli schyotlar
 /// orasida summasiga qarab server tomonidan bo'linadi — bu yerda taomlar summasi taxminiy ko'rsatiladi.
@@ -54,6 +104,8 @@ class SplitBuilder extends StatefulWidget {
     this.guests,
     this.busy = false,
     this.onCancel,
+    this.byGuest = false,
+    this.blocked,
   });
 
   final List<SplitLine> lines;
@@ -66,6 +118,12 @@ class SplitBuilder extends StatefulWidget {
 
   /// Mavjud schyotlarga qaytish.
   final VoidCallback? onCancel;
+
+  /// P6-24: "Mehmonlar bo'yicha" (`guest_split` moduli).
+  final bool byGuest;
+
+  /// Schyot tuzib bo'lmaydi: sababi (P6-25: og'irlik kutilmoqda); `null` — mumkin.
+  final String? blocked;
 
   @override
   State<SplitBuilder> createState() => _SplitBuilderState();
@@ -167,8 +225,12 @@ class _SplitBuilderState extends State<SplitBuilder> {
             b.values.any((PosQuantity q) => q.isPositive),
       );
 
+  bool get _guestValid => widget.lines.any((SplitLine l) => l.seatNo != null);
+
   void _submit() {
     switch (_mode) {
+      case SplitMode.byGuest:
+        widget.onSubmit(const PosSplit.byGuest());
       case SplitMode.single:
         widget.onSubmit(const PosSplit.single());
       case SplitMode.equal:
@@ -186,7 +248,10 @@ class _SplitBuilderState extends State<SplitBuilder> {
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
-    final bool valid = _mode != SplitMode.items || _itemsValid;
+    final bool valid =
+        widget.blocked == null &&
+        (_mode != SplitMode.items || _itemsValid) &&
+        (_mode != SplitMode.byGuest || _guestValid);
     return PosCard(
       title: 'Schyot tuzish',
       trailing: widget.onCancel == null
@@ -199,36 +264,71 @@ class _SplitBuilderState extends State<SplitBuilder> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          SegmentedButton<SplitMode>(
-            segments: const <ButtonSegment<SplitMode>>[
-              ButtonSegment<SplitMode>(
-                value: SplitMode.single,
-                label: Text('Bitta schyot'),
-                icon: Icon(Icons.receipt_outlined),
-              ),
-              ButtonSegment<SplitMode>(
-                value: SplitMode.equal,
-                label: Text("Teng bo'lish"),
-                icon: Icon(Icons.people_outline_rounded),
-              ),
-              ButtonSegment<SplitMode>(
-                value: SplitMode.items,
-                label: Text("Taom bo'yicha"),
-                icon: Icon(Icons.call_split_rounded),
-              ),
-            ],
-            selected: <SplitMode>{_mode},
-            showSelectedIcon: false,
-            style: SegmentedButton.styleFrom(minimumSize: const Size(0, 52)),
-            onSelectionChanged: (Set<SplitMode> s) =>
-                setState(() => _mode = s.first),
+          // A phone has no room for four segments: the same choice as chips
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints box) {
+              if (box.maxWidth < 560) {
+                return ChoiceRow<SplitMode>(
+                  options: <SplitMode, String>{
+                    SplitMode.single: 'Bitta schyot',
+                    SplitMode.equal: "Teng bo'lish",
+                    SplitMode.items: "Taom bo'yicha",
+                    if (widget.byGuest) SplitMode.byGuest: "Mehmonlar bo'yicha",
+                  },
+                  selected: _mode,
+                  onSelected: (SplitMode m) => setState(() => _mode = m),
+                );
+              }
+              return SegmentedButton<SplitMode>(
+                segments: <ButtonSegment<SplitMode>>[
+                  const ButtonSegment<SplitMode>(
+                    value: SplitMode.single,
+                    label: Text('Bitta schyot'),
+                    icon: Icon(Icons.receipt_outlined),
+                  ),
+                  const ButtonSegment<SplitMode>(
+                    value: SplitMode.equal,
+                    label: Text("Teng bo'lish"),
+                    icon: Icon(Icons.people_outline_rounded),
+                  ),
+                  const ButtonSegment<SplitMode>(
+                    value: SplitMode.items,
+                    label: Text("Taom bo'yicha"),
+                    icon: Icon(Icons.call_split_rounded),
+                  ),
+                  if (widget.byGuest)
+                    const ButtonSegment<SplitMode>(
+                      value: SplitMode.byGuest,
+                      label: Text("Mehmonlar bo'yicha"),
+                      icon: Icon(Icons.event_seat_outlined),
+                    ),
+                ],
+                selected: <SplitMode>{_mode},
+                showSelectedIcon: false,
+                style: SegmentedButton.styleFrom(
+                  minimumSize: const Size(0, 52),
+                ),
+                onSelectionChanged: (Set<SplitMode> s) =>
+                    setState(() => _mode = s.first),
+              );
+            },
           ),
           const SizedBox(height: 16),
           switch (_mode) {
             SplitMode.single => _single(c),
             SplitMode.equal => _equal(c),
             SplitMode.items => _items(c),
+            SplitMode.byGuest => _guests(c),
           },
+          if (widget.blocked != null) ...<Widget>[
+            const SizedBox(height: 12),
+            NoticeBanner(
+              key: const ValueKey<String>('split-blocked'),
+              icon: Icons.scale_outlined,
+              tone: StatusTone.warning,
+              message: widget.blocked!,
+            ),
+          ],
           const SizedBox(height: 16),
           RzButton(
             label: 'Schyot tuzish',
@@ -286,6 +386,52 @@ class _SplitBuilderState extends State<SplitBuilder> {
         AmountRow(label: 'Jami', amount: widget.total, bold: true),
         Text(
           "Qoldiq tiyin birinchi schyotga qo'shiladi. Har schyot alohida to'lanadi va alohida chek oladi.",
+          style: RzType.footnote.copyWith(color: c.fgMuted),
+        ),
+      ],
+    );
+  }
+
+  Widget _guests(RzColors c) {
+    final List<({int seat, PosMoney own, PosMoney shared, PosMoney total})>
+    shares = guestShares(widget.lines, widget.total);
+    if (shares.isEmpty) {
+      return const NoticeBanner(
+        key: ValueKey<String>('guest-split-empty'),
+        tone: StatusTone.info,
+        message:
+            "Qatorlarda mehmon raqami yo'q. Buyurtma ekranida taomni bosib «Mehmon raqami» ni tanlang, keyin "
+            "mehmonlar bo'yicha bo'ling.",
+      );
+    }
+    final PosMoney shared = PosMoney.sum(shares.map((r) => r.shared));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (final ({int seat, PosMoney own, PosMoney shared, PosMoney total}) r
+            in shares) ...<Widget>[
+          AmountRow(
+            key: ValueKey<String>('guest-share-${r.seat}'),
+            label: '${r.seat}-mehmon',
+            amount: r.total,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              r.shared.isZero
+                  ? 'taomlari ${r.own.formatAmount()}'
+                  : 'taomlari ${r.own.formatAmount()} + umumiydan ${r.shared.formatAmount()}',
+              style: RzType.footnote.copyWith(color: c.fgMuted),
+            ),
+          ),
+        ],
+        const Divider(height: 20),
+        AmountRow(label: 'Jami', amount: widget.total, bold: true),
+        Text(
+          shared.isZero
+              ? "Har mehmonga bitta schyot. Xizmat haqi schyot summasiga mutanosib bo'linadi; aniq summani server hisoblaydi."
+              : "Har mehmonga bitta schyot. Umumiy taomlar (non, choy, salat) hamma mehmonga teng bo'linadi, qoldiq birinchi "
+                    "mehmonga. Xizmat haqi schyot summasiga mutanosib; aniq summani server hisoblaydi.",
           style: RzType.footnote.copyWith(color: c.fgMuted),
         ),
       ],

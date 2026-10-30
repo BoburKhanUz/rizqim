@@ -4,28 +4,59 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pos_settings.dart';
-
 part 'data46.g.dart';
 
 @JsonSerializable()
 class Data46 {
   const Data46({
     required this.branchId,
-    required this.timezone,
-    required this.businessDayStartsAt,
-    required this.posSettings,
+    required this.configured,
+    required this.tableSlotMinutes,
+    required this.roomSlotMinutes,
+    required this.tapchanSlotMinutes,
+    required this.tableMinAdvanceMinutes,
+    required this.roomMinAdvanceMinutes,
+    required this.tapchanMinAdvanceMinutes,
+    required this.maxAdvanceDays,
+    required this.depositMode,
+    required this.depositModeLabel,
+    required this.depositAmount,
+    required this.depositFromGuests,
+    required this.depositRequiredToConfirm,
+    required this.updatedAt,
   });
 
   factory Data46.fromJson(Map<String, Object?> json) => _$Data46FromJson(json);
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String timezone;
-  @JsonKey(name: 'business_day_starts_at')
-  final String businessDayStartsAt;
-  @JsonKey(name: 'pos_settings')
-  final PosSettings posSettings;
+  final bool configured;
+  @JsonKey(name: 'table_slot_minutes')
+  final int tableSlotMinutes;
+  @JsonKey(name: 'room_slot_minutes')
+  final int? roomSlotMinutes;
+  @JsonKey(name: 'tapchan_slot_minutes')
+  final int? tapchanSlotMinutes;
+  @JsonKey(name: 'table_min_advance_minutes')
+  final int tableMinAdvanceMinutes;
+  @JsonKey(name: 'room_min_advance_minutes')
+  final int roomMinAdvanceMinutes;
+  @JsonKey(name: 'tapchan_min_advance_minutes')
+  final int tapchanMinAdvanceMinutes;
+  @JsonKey(name: 'max_advance_days')
+  final int? maxAdvanceDays;
+  @JsonKey(name: 'deposit_mode')
+  final String depositMode;
+  @JsonKey(name: 'deposit_mode_label')
+  final String depositModeLabel;
+  @JsonKey(name: 'deposit_amount')
+  final String depositAmount;
+  @JsonKey(name: 'deposit_from_guests')
+  final int depositFromGuests;
+  @JsonKey(name: 'deposit_required_to_confirm')
+  final bool depositRequiredToConfirm;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data46ToJson(this);
 }

@@ -8,12 +8,16 @@ part of 'data134.dart';
 
 Data134 _$Data134FromJson(Map<String, dynamic> json) => Data134(
   branchId: (json['branch_id'] as num).toInt(),
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries.fromJson(e as Map<String, dynamic>))
+  weekendDays: (json['weekend_days'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  holidays: (json['holidays'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
 );
 
 Map<String, dynamic> _$Data134ToJson(Data134 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'entries': instance.entries,
+  'weekend_days': instance.weekendDays,
+  'holidays': instance.holidays,
 };

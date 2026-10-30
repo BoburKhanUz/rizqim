@@ -14,7 +14,9 @@ import '../../shell/routes.dart';
 import '../../terminal/bank_terminal_view.dart';
 import '../billing/cashier_ui.dart';
 import 'cash_movement_dialog.dart';
+import '../../counter/counter_format.dart';
 import 'shift_report_mapping.dart';
+import 'tip_payout_dialog.dart';
 import 'x_report_view.dart';
 import 'z_close_page.dart';
 
@@ -115,6 +117,30 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
       expectedCash: cur.report == null
           ? null
           : ShiftReportView(cur.report!).expectedCash,
+    );
+    if (m != null && mounted) await refresh();
+  }
+
+  /// P6-22: kassadagi naqd choy pulini xodimga berish — `tips.manage` yoki menejer PIN'i.
+  Future<void> _tipPayout() async {
+    final PosShiftWithReport? cur = _current;
+    final PosShift? shift = cur?.shift;
+    if (shift == null || cur?.report == null) return;
+    final PosSession session = _scope.session;
+    ApprovalToken? approval;
+    if (!session.can(PosPermissions.tipsManage)) {
+      approval = await showManagerApproval(
+        context,
+        permission: PosPermissions.tipsManage,
+      );
+      if (approval == null || !mounted) return;
+    }
+    // Review P6 wave 2 (S2): the manager's approval goes with the payout (the server checks and uses it once)
+    final PosCashMovement? m = await showTipPayoutDialog(
+      context,
+      shiftUuid: shift.uuid,
+      report: ShiftReportView(cur!.report!),
+      approvalToken: approval?.token,
     );
     if (m != null && mounted) await refresh();
   }
@@ -351,6 +377,20 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
               variant: RzButtonVariant.secondary,
               onPressed: cashOps ? () => _movement(incoming: false) : null,
             ),
+            // P6-22: the cash tips in the drawer go to the staff (wage / tips, apart from wages on the X/Z)
+            if (session.hasModule(PosModule.tips) &&
+                v != null &&
+                (v.cashTips.isPositive || v.tipPayouts.isPositive))
+              RzButton(
+                key: const ValueKey<String>('tip-payout'),
+                label: 'Choy pulini berish',
+                icon: Icons.volunteer_activism_outlined,
+                size: RzButtonSize.lg,
+                variant: RzButtonVariant.secondary,
+                onPressed: cashOps && v.cashTipsLeft.isPositive
+                    ? () => unawaited(_tipPayout())
+                    : null,
+              ),
           ],
         ),
         const SizedBox(height: 16),

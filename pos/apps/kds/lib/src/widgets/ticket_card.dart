@@ -7,6 +7,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../board/board_view.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
+import 'grill_timer_label.dart';
 import 'kds_type.dart';
 import 'line_marks.dart';
 
@@ -24,6 +25,7 @@ class TicketCard extends StatelessWidget {
     required this.orderBusy,
     required this.onLineTap,
     required this.onBumpAll,
+    required this.onBumpCourse,
     required this.onMarkReady,
   });
 
@@ -41,6 +43,10 @@ class TicketCard extends StatelessWidget {
   final bool orderBusy;
   final void Function(KitchenLine line) onLineTap;
   final VoidCallback onBumpAll;
+
+  /// P6-21: bitta kursning qolgan hamma qatorlari tayyor (kursning oxirgi taomi tayyor bo'lganda server ofitsiantga
+  /// "N-kurs tayyor" deydi: yangi endpoint yo'q, qatorlar birma-bir tayyor qilinadi).
+  final void Function(int course) onBumpCourse;
   final VoidCallback onMarkReady;
 
   KitchenTicket get ticket => entry.ticket;
@@ -62,6 +68,14 @@ class TicketCard extends StatelessWidget {
       for (final KitchenLine l in ticket.lines)
         if (l.roundNo != null) l.roundNo!,
     };
+    // P6-21: kursli chipta (kamida bitta qatorda kurs bor): kurs sarlavhalari; kurslar bir nechta bo'lsagina har
+    // kursning o'z tugmasi (bitta kursda u "Hammasi tayyor" bilan bir xil)
+    final List<KitchenLine> live = ticket.lines
+        .where((KitchenLine l) => !l.isVoid)
+        .toList();
+    final bool coursed = live.any((KitchenLine l) => l.courseNo != null);
+    final bool manyCourses =
+        coursed && live.map((KitchenLine l) => l.courseNo).toSet().length > 1;
     return ValueListenableBuilder<DateTime>(
       valueListenable: clock,
       builder: (BuildContext context, DateTime now, Widget? body) {
@@ -137,7 +151,29 @@ class TicketCard extends StatelessWidget {
                     newRounds.contains(ticket.lines[i].roundNo) &&
                     !rounds.every(newRounds.contains),
               ),
+            if (coursed &&
+                (i == 0 ||
+                    ticket.lines[i].roundNo != ticket.lines[i - 1].roundNo ||
+                    ticket.lines[i].courseNo != ticket.lines[i - 1].courseNo))
+              _CourseHeading(
+                course: ticket.lines[i].courseNo,
+                lines: ticket.lines
+                    .where(
+                      (KitchenLine l) =>
+                          l.courseNo == ticket.lines[i].courseNo && !l.isVoid,
+                    )
+                    .toList(),
+                showButton:
+                    manyCourses &&
+                    canManage &&
+                    !entry.voided &&
+                    ticket.lines[i].courseNo != null,
+                busy: orderBusy,
+                onBump: () => onBumpCourse(ticket.lines[i].courseNo!),
+              ),
             _LineRow(
+              ticket: ticket,
+              clock: clock,
               line: ticket.lines[i],
               busy: isLineBusy(ticket.lines[i].id),
               enabled: canManage && !orderBusy && !entry.voided,
@@ -233,6 +269,75 @@ class _RoundHeading extends StatelessWidget {
   }
 }
 
+/// Kurs sarlavhasi (P6-21): "2-kurs · 1/3 tayyor" va (chiptada bir nechta kurs bo'lsa) "2-kurs tayyor" tugmasi.
+/// Kurssiz qatorlar (darhol yuborilgan) "Kurssiz" ostida turadi.
+class _CourseHeading extends StatelessWidget {
+  const _CourseHeading({
+    required this.course,
+    required this.lines,
+    required this.showButton,
+    required this.busy,
+    required this.onBump,
+  });
+
+  final int? course;
+
+  /// Shu kursning o'chirilmagan qatorlari (chiptada ko'rinadiganlari).
+  final List<KitchenLine> lines;
+  final bool showButton;
+  final bool busy;
+  final VoidCallback onBump;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    final int done = lines.where((KitchenLine l) => l.isDone).length;
+    final bool pending = lines.any(TicketCard.canBump);
+    return Padding(
+      key: ValueKey<String>('course-${course ?? 'none'}'),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              if (course != null)
+                CourseTag(course: course!)
+              else
+                Text(
+                  'Kurssiz',
+                  style: RzType.footnote.copyWith(
+                    color: c.fgMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Text(
+                '$done/${lines.length} tayyor',
+                style: RzType.footnote.copyWith(color: c.fgMuted),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Divider(height: 1, color: c.line)),
+            ],
+          ),
+          if (showButton && pending) ...<Widget>[
+            const SizedBox(height: 6),
+            RzButton(
+              key: ValueKey<String>('bump-course-$course'),
+              label: '${CourseTag.label(course!)} tayyor',
+              icon: Icons.done_rounded,
+              variant: RzButtonVariant.success,
+              fullWidth: true,
+              loading: busy,
+              onPressed: onBump,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   const _Header({
     required this.ticket,
@@ -289,6 +394,11 @@ class _Header extends StatelessWidget {
         // Xona, tapchan va nomli joy o'z nomi bilan ("Xona 3"), raqam bo'lsa "Stol 7"
         RegExp(r'^\d+$').hasMatch(table) ? 'Stol $table' : table,
     ];
+    // P6-25 (kafe): kassada to'langan buyurtmaning stol tablichkasi — yuguruvchi shu stolga olib boradi
+    final String? plate = switch (ticket.tableLabel?.trim()) {
+      final String t when t.isNotEmpty => t,
+      _ => null,
+    };
     final String channel =
         OrderChannel.fromWire(ticket.channel)?.label ?? ticket.channel;
     // P6-14: avval to'langan kassa buyurtmasi yopilgan ("Yetkazildi" emas), raqami hali oshxonada
@@ -301,7 +411,7 @@ class _Header extends StatelessWidget {
     return Semantics(
       container: true,
       label:
-          '${ticket.code}, ${place.join(', ')}, kutish ${formatDuration(waiting)}${label != null ? ', $label' : ''}',
+          '${ticket.code}, ${place.join(', ')}${plate != null ? ', ${TablePlate.text(plate)}' : ''}, kutish ${formatDuration(waiting)}${label != null ? ', $label' : ''}',
       child: Container(
         color: bg,
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -330,6 +440,10 @@ class _Header extends StatelessWidget {
                       if (isNew) ...<Widget>[
                         const SizedBox(width: 8),
                         const NewBadge(),
+                      ],
+                      if (plate != null) ...<Widget>[
+                        const SizedBox(width: 10),
+                        TablePlate(label: plate, color: fg),
                       ],
                     ],
                   ),
@@ -378,12 +492,16 @@ class _Header extends StatelessWidget {
 
 class _LineRow extends StatelessWidget {
   const _LineRow({
+    required this.ticket,
+    required this.clock,
     required this.line,
     required this.busy,
     required this.enabled,
     required this.onTap,
   });
 
+  final KitchenTicket ticket;
+  final ValueListenable<DateTime> clock;
   final KitchenLine line;
   final bool busy;
   final bool enabled;
@@ -422,7 +540,7 @@ class _LineRow extends StatelessWidget {
     return Semantics(
       button: actionable,
       label:
-          '${line.title}, $quantity, $stateLabel${actionable ? (line.isReady ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
+          '${line.title}, $quantity, $stateLabel${line.courseNo != null ? ', ${CourseTag.label(line.courseNo!)}' : ''}${line.awaitingWeight ? ", ${WeightBadge.label}" : ''}${actionable ? (line.isReady ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
       excludeSemantics: true,
       child: InkWell(
         onTap: tappable ? onTap : null,
@@ -471,6 +589,12 @@ class _LineRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    if (line.awaitingWeight && !voided && !done)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: WeightBadge(),
+                      ),
+                    GrillTimerLabel(ticket: ticket, line: line, clock: clock),
                     if (voided) ...<Widget>[
                       const SizedBox(height: 4),
                       const Align(

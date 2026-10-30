@@ -77,6 +77,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $pickup_called_at
  * @property int $pickup_call_count
  * @property \Illuminate\Support\Carbon|null $pickup_handed_at
+ * @property string|null $table_label P6-25: the table plate of a counter order carried to the table (kafe)
  */
 class Order extends Model
 {

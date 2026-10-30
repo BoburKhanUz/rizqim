@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Orders;
 
+use App\Domain\Pos\Billing\ServiceChargeRule;
 use App\Enums\DayType;
 use App\Support\Money;
 
@@ -10,6 +11,9 @@ use App\Support\Money;
  * (zero when it does not apply or was waived), with what it was based on.
  *
  *   total = max(0, items − discount) + service charge + place fee + room fee + minimum spend top-up
+ *
+ * P6-22: which rule set the service charge percent (`serviceChargeRule`), whether the place fee line is the
+ * restaurant cover (`placeFeeKind` cover) and the notice the bill prints (`serviceChargeNotice`).
  */
 final class PosCharges
 {
@@ -31,7 +35,16 @@ final class PosCharges
         public readonly Money $minSpendTopup,
         public readonly array $waived,
         public readonly Money $total,
+        public readonly ServiceChargeRule $serviceChargeRule = ServiceChargeRule::NONE,
+        public readonly string $placeFeeKind = self::PLACE_FEE,
+        public readonly ?string $serviceChargeNotice = null,
     ) {}
+
+    /** P6-22: the place fee line is the branch's "joy narxi"... */
+    public const PLACE_FEE = 'place_fee';
+
+    /** ...or the restaurant cover per guest (ServiceChargeRules::$coverAmount). */
+    public const COVER = 'cover';
 
     public static function none(Money $itemsSubtotal, Money $discount): self
     {
@@ -51,7 +64,7 @@ final class PosCharges
     }
 
     /**
-     * @return array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string}
+     * @return array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null}
      */
     public function toArray(): array
     {
@@ -69,6 +82,10 @@ final class PosCharges
             'min_spend_topup_amount' => $this->minSpendTopup->toString(),
             'waived' => array_map(fn (PosCharge $charge) => $charge->value, $this->waived),
             'total' => $this->total->toString(),
+            // P6-22: base|order_type|large_group|none (ServiceChargeRule); place_fee|cover; the bill's notice
+            'service_charge_rule' => $this->serviceChargeRule->value,
+            'place_fee_kind' => $this->placeFeeKind,
+            'service_charge_notice' => $this->serviceChargeNotice,
         ];
     }
 }

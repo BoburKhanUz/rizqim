@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data62.dart';
+import 'data64.dart';
 
 part 'put_v1_owner_dining_tables_layout_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerDiningTablesLayoutResponse {
 
   final bool success;
   final String message;
-  final List<Data62> data;
+  final List<Data64> data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerDiningTablesLayoutResponseToJson(this);

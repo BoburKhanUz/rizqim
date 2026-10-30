@@ -8,14 +8,14 @@ part of 'data50.dart';
 
 Data50 _$Data50FromJson(Map<String, dynamic> json) => Data50(
   branchId: (json['branch_id'] as num).toInt(),
-  date: json['date'] as String?,
+  date: json['date'] as String,
   businessDate: json['business_date'] as String,
   enforced: json['enforced'] as bool,
   setValue: json['set'] as bool,
   productIds: Map<String, int>.from(json['product_ids'] as Map),
   previousDate: json['previous_date'] as String?,
   products: (json['products'] as List<dynamic>)
-      .map((e) => Products3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

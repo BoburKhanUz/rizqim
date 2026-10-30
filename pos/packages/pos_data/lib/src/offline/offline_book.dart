@@ -197,6 +197,10 @@ class OfflineOrderBook {
         s.pay(op);
       case SyncOpType.orderClose:
         s.closeIfSettled(op.occurredAt);
+      case SyncOpType.orderCourseSend:
+        s.sendCourse(op);
+      case SyncOpType.orderWeight:
+        s.weigh(op);
     }
     s.recalculate();
     s.touch(op);
@@ -256,6 +260,7 @@ class OfflineOrderState {
       'bill_locked': false,
       'bill_requested_at': null,
       'notes': p['note'],
+      'table_label': p['table_label'],
       'opened_at': opened,
       'updated_at': opened,
       'subtotal': '0.00',
@@ -339,8 +344,13 @@ class OfflineOrderState {
           PosMoney.parse(m['price_delta']) *
               ((m['quantity'] as num?)?.toInt() ?? 1),
       ]);
-      final String fire = line['fire_mode'] as String? ?? roundMode ?? 'now';
+      final int? course = (line['course_no'] as num?)?.toInt();
+      // P6-21: a course after the one the kitchen has is held, as on the server
+      final String fire = course != null && course > firedCourse
+          ? 'hold'
+          : line['fire_mode'] as String? ?? roundMode ?? 'now';
       final bool sendNow = send && fire == 'now';
+      final String? weightBasis = line['weight_basis'] as String?;
       target.add(<String, Object?>{
         'id': -(op.seq * 1000 + i),
         'client_line_id': line['line_id'],
@@ -385,6 +395,11 @@ class OfflineOrderState {
         'voided_at': null,
         'voided_by': null,
         'void_reason': null,
+        'course_no': course,
+        'weight_status': weightBasis == null ? null : 'awaiting',
+        'weight_basis': weightBasis,
+        'weighed_by': null,
+        'weighed_at': null,
         'offline': true,
         'auto': line['line_id'] == null,
       });
@@ -408,6 +423,100 @@ class OfflineOrderState {
       any = true;
     }
     if (any) _started();
+  }
+
+  /// P6-21 / P6-25: the order's courses and its lines waiting for a weight, as the server shows them.
+  void _restaurantSummary() {
+    final Map<int, Map<String, int>> courses = <int, Map<String, int>>{};
+    var pendingWeight = 0;
+    for (final Map<String, Object?> item in items) {
+      if (item['kitchen_status'] == 'void') continue;
+      if (item['weight_status'] == 'awaiting') pendingWeight++;
+      final int? course = (item['course_no'] as num?)?.toInt();
+      if (course == null) continue;
+      final Map<String, int> row = courses[course] ??= <String, int>{
+        'items': 0,
+        'sent': 0,
+        'ready': 0,
+        'served': 0,
+      };
+      row['items'] = row['items']! + 1;
+      if (item['sent_at'] != null) row['sent'] = row['sent']! + 1;
+      if (item['kitchen_status'] == 'ready') row['ready'] = row['ready']! + 1;
+      if (item['kitchen_status'] == 'served') {
+        row['served'] = row['served']! + 1;
+      }
+    }
+    final List<int> numbers = courses.keys.toList()..sort();
+    order['courses'] = <Object?>[
+      for (final int no in numbers)
+        <String, Object?>{
+          'course_no': no,
+          'status': switch (courses[no]!) {
+            final Map<String, int> r when r['served'] == r['items'] => 'served',
+            final Map<String, int> r
+                when r['ready']! + r['served']! == r['items'] =>
+              'ready',
+            final Map<String, int> r when r['sent']! > 0 => 'sent',
+            _ => 'held',
+          },
+          ...courses[no]!,
+        },
+    ];
+    order['weight_pending'] = pendingWeight;
+  }
+
+  /// P6-21: the last course the kitchen has (at least 1).
+  int get firedCourse {
+    var fired = 1;
+    for (final Map<String, Object?> item in items) {
+      final int? course = (item['course_no'] as num?)?.toInt();
+      if (course != null &&
+          item['sent_at'] != null &&
+          item['kitchen_status'] != 'void' &&
+          course > fired) {
+        fired = course;
+      }
+    }
+    return fired;
+  }
+
+  /// P6-21: "N-kursni yuborish".
+  void sendCourse(SyncOperation op) {
+    final int? course = (op.payload['course_no'] as num?)?.toInt();
+    final String at = op.occurredAt.toUtc().toIso8601String();
+    var any = false;
+    for (final Map<String, Object?> item in items) {
+      if (item['kitchen_status'] != 'pending' || item['course_no'] != course) {
+        continue;
+      }
+      item['kitchen_status'] = 'sent';
+      item['sent_at'] = at;
+      any = true;
+    }
+    if (any) _started();
+  }
+
+  /// P6-25: the real weight of a line weighed later: its quantity and total at its own price.
+  void weigh(SyncOperation op) {
+    final Map<String, Object?>? item = line(op.payload['line']);
+    if (item == null || item['kitchen_status'] == 'void') return;
+    final PosQuantity qty = PosQuantity.parse(op.payload['quantity']);
+    final PosUnit unit = PosUnit.fromWire(item['unit'] as String?);
+    item['quantity'] = qty.toApiString();
+    item['quantity_label'] = qty.label(unit);
+    item['total_price'] = OfflinePricing.lineTotal(
+      PosMoney.parse(item['unit_price']),
+      qty,
+      PosMoney.parse(item['modifiers_total']),
+      unit,
+    ).toApiString();
+    item['weight_status'] = 'weighed';
+    item['weighed_by'] = <String, Object?>{
+      'id': op.staffId,
+      'name': (op.payload['view'] as Map?)?['staff_name'],
+    };
+    item['weighed_at'] = op.occurredAt.toUtc().toIso8601String();
   }
 
   void voidLine(SyncOperation op) {
@@ -463,6 +572,7 @@ class OfflineOrderState {
 
   /// Xizmat qatorlari va jami (docs/POS_SPEC.md 2.7, oddiy qoidalar).
   void recalculate() {
+    _restaurantSummary();
     final PosMoney itemsTotal = PosMoney.sum(<PosMoney>[
       for (final Map<String, Object?> i in items)
         if (i['kitchen_status'] != 'void') PosMoney.parse(i['total_price']),
@@ -483,8 +593,20 @@ class OfflineOrderState {
     final int? tableId = (order['table'] as Map?)?['id'] as int?;
     final int? guests = (order['guests_count'] as num?)?.toInt();
     final PosOfflineFee? fee = _settings.feeFor(hallId, channel);
+    // P6-22 (C1): the row's service charge rules for this order (type, large group, cover), as PosChargesCalculator
+    final OfflineServiceCharge? resolved = fee == null
+        ? null
+        : OfflinePricing.serviceCharge(
+            fee,
+            orderType: OfflinePricing.orderType(
+              channel,
+              order['table_label'] as String?,
+            ),
+            guests: guests,
+            locked: _settings.serviceChargeLocked,
+          );
     final String percent =
-        fee?.serviceChargePercent ??
+        resolved?.percent ??
         (charges['service_charge_percent'] as String? ?? '0.00');
 
     final PosMoney service = waived.contains('service_charge')
@@ -492,8 +614,12 @@ class OfflineOrderState {
         : OfflinePricing.percentSom(after, percent);
     final PosMoney place = waived.contains('place_fee')
         ? PosMoney.zero
-        : fee != null
-        ? OfflinePricing.placeFee(fee.placeFeeAmount, fee.placeFeeMode, guests)
+        : resolved != null
+        ? OfflinePricing.placeFee(
+            resolved.placeFeeAmount,
+            resolved.placeFeeMode,
+            guests,
+          )
         : created
         ? PosMoney.zero
         : PosMoney.parse(order['place_fee_amount']);
@@ -537,6 +663,15 @@ class OfflineOrderState {
       'min_spend': minSpend.toApiString(),
       'min_spend_topup_amount': topup.toApiString(),
       'total': total.toApiString(),
+      if (resolved != null) ...<String, Object?>{
+        'service_charge_rule': !service.isPositive
+            ? 'none'
+            : (resolved.rule == 'none' ? 'base' : resolved.rule),
+        'place_fee_kind': resolved.cover && place.isPositive
+            ? 'cover'
+            : 'place_fee',
+        'service_charge_notice': fee!.serviceChargeNotice,
+      },
     };
     _syncBillingOrder();
   }
@@ -655,6 +790,9 @@ class OfflineOrderState {
       });
     }
     final int? guests = (order['guests_count'] as num?)?.toInt();
+    final Map<String, Object?> charges =
+        (order['charges'] as Map?)?.cast<String, Object?>() ??
+        const <String, Object?>{};
     final Map<String, Object?> bill = <String, Object?>{
       'uuid': op.payload['bill'],
       'order_uuid': order['uuid'],
@@ -691,6 +829,14 @@ class OfflineOrderState {
       'printed_at': null,
       'paid_at': null,
       'fiscal': <String, Object?>{'status': null},
+      // P6-22: the notice under the service charge (or cover) line, as the server's bill
+      'service_charge_notice':
+          PosMoney.parse(order['service_charge_amount']).isPositive ||
+              (charges['place_fee_kind'] == 'cover' &&
+                  PosMoney.parse(order['place_fee_amount']).isPositive)
+          ? charges['service_charge_notice']
+          : null,
+      'tips_amount': '0.00',
       'items': lines,
       'payments': <Object?>[],
       'created_at': op.occurredAt.toUtc().toIso8601String(),
@@ -723,14 +869,20 @@ class OfflineOrderState {
       final PosMoney? tendered = t['tendered_amount'] == null
           ? null
           : PosMoney.parse(t['tendered_amount']);
+      // P6-22: a tip on top of the tender (never part of the bill); the change is what is left after it
+      final PosMoney tip = PosMoney.parse(t['tip_amount']);
+      final PosMoney change = tendered == null
+          ? PosMoney.zero
+          : tendered - amount - tip;
       payments.add(<String, Object?>{
         'uuid': '${op.opId}-$i',
         'tender': t['tender'],
         'amount': amount.toApiString(),
+        'tip_amount': tip.toApiString(),
         'tendered_amount': tendered?.toApiString(),
         'change_amount': tendered == null
             ? null
-            : (tendered - amount).toApiString(),
+            : (change.isNegative ? PosMoney.zero : change).toApiString(),
         'card_type': t['card_type'],
         'transaction_id': t['transaction_id'],
         'card_last4': t['card_last4'],
@@ -744,6 +896,10 @@ class OfflineOrderState {
       for (final Map<String, Object?> p in _maps(payments))
         PosMoney.parse(p['amount']),
     ]);
+    b['tips_amount'] = PosMoney.sum(<PosMoney>[
+      for (final Map<String, Object?> p in _maps(payments))
+        PosMoney.parse(p['tip_amount']),
+    ]).toApiString();
     final PosMoney due = PosMoney.parse(b['total']) - paid;
     b['paid_amount'] = paid.toApiString();
     b['due_amount'] = (due.isPositive ? due : PosMoney.zero).toApiString();

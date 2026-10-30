@@ -151,7 +151,7 @@ void main() {
     final PosDepositResult taken = await till.pos.bookings.takeDeposit(
       booking!.uuid,
       amount: const PosMoney.som(200000),
-      tender: 'cash',
+      tender: 'qr', // a cash deposit needs a shift open on the till (409 deposit_needs_shift)
       idempotencyKey: till.pos.http.newKey(),
     );
     deposit = taken.payment;

@@ -77,6 +77,44 @@ class ShiftReportView {
   PosMoney get cashRepayments => _cash.repayments;
   PosMoney get expectedCash => report.expectedCash;
 
+  /// P6-22: smenaning choy puli (tushum emas: savdodan alohida).
+  PosTipsSummary get tips => report.tips;
+
+  /// Kassadagi naqd choy puli (kutilgan naqdga qo'shiladi).
+  PosMoney get cashTips => report.cashTips;
+
+  /// Xodimga berilgan choy puli (`wage` / `tips` chiqimi; `wages` ga kirmaydi).
+  PosMoney get tipPayouts => report.tipPayouts;
+
+  /// Kassada xodimlarga berilmagan naqd choy puli (ko'pi bilan kassadagi naqd).
+  PosMoney get cashTipsLeft {
+    final PosMoney left = cashTips - tipPayouts;
+    if (!left.isPositive) return PosMoney.zero;
+    return left > expectedCash ? expectedCash : left;
+  }
+
+  /// X/Z dagi choy puli qatorlari (chop etish va ekran uchun).
+  List<ReportAmount> get tipLines {
+    final PosTipsSummary t = tips;
+    if (t.count == 0 && !t.amount.isPositive && !tipPayouts.isPositive) {
+      return const <ReportAmount>[];
+    }
+    return <ReportAmount>[
+      ReportAmount('Jami', t.amount, count: t.count),
+      for (final MapEntry<String, PosMoney> m in t.byMethod.entries)
+        if (m.value.isPositive) ReportAmount(tenderLabel(m.key), m.value),
+      if (t.personal.isPositive) ReportAmount('Shaxsiy', t.personal),
+      if (t.pool.isPositive) ReportAmount('Umumiy qozon', t.pool),
+      if (t.unassigned.isPositive)
+        ReportAmount('Biriktirilmagan', t.unassigned),
+      for (final PosTipStaffTotal s in t.byStaff)
+        if (s.amount.isPositive)
+          ReportAmount('  ${s.name ?? 'Xodim #${s.staffId}'}', s.amount),
+      if (!t.corrections.isZero) ReportAmount('Tuzatishlar', t.corrections),
+      if (tipPayouts.isPositive) ReportAmount('Xodimlarga berildi', tipPayouts),
+    ];
+  }
+
   /// `pos_core` hujjati (chop etish uchun). [counted] va [denominations] — Z uchun.
   ShiftReport toDocument({
     required ShiftReportKind kind,
@@ -124,12 +162,17 @@ class ShiftReportView {
       cashRefunds: cashRefunds + cashDepositRefunds,
       cashIn: <ReportAmount>[
         if (cashIn.isPositive) ReportAmount('Kirim', cashIn),
+        // P6-22: the cash tips stay in the drawer (in the expected cash), apart from the sales
+        if (cashTips.isPositive) ReportAmount('Choy puli (naqd)', cashTips),
       ],
       cashOut: <ReportAmount>[
         if (purchases.isPositive) ReportAmount('Bozorlik', purchases),
         if (wages.isPositive) ReportAmount('Ish haqi', wages),
+        if (tipPayouts.isPositive)
+          ReportAmount('Choy puli berildi', tipPayouts),
         if (cashOut.isPositive) ReportAmount('Chiqim', cashOut),
       ],
+      tips: tipLines,
       countedCash: counted,
       denominations: <CashDenomination>[
         if (denominations != null)
@@ -173,6 +216,13 @@ const Map<PosCashMovementType, Map<String, String>> movementCategories =
       },
     };
 
+/// Faqat hisobotda ko'rinadigan kategoriyalar (qo'lda chiqim ro'yxatida yo'q): P6-22 choy pulini berish (shift
+/// ekranidagi "Choy pulini berish" yozadi), P6-23 ish haqi hisob-kitobi (panel yozadi).
+const Map<String, String> reportOnlyCategories = <String, String>{
+  'tips': 'Choy puli',
+  'payroll': 'Ish haqi (hisob-kitob)',
+};
+
 /// Harakat nomi: "Bozorlik · Go'sht".
 String movementLabel(PosCashMovement m) {
   final PosCashMovementType? type = PosCashMovementType.values
@@ -186,7 +236,8 @@ String movementLabel(PosCashMovement m) {
   };
   final String? cat = type == null
       ? null
-      : movementCategories[type]?[m.category];
+      : movementCategories[type]?[m.category] ??
+            reportOnlyCategories[m.category];
   return cat == null || cat == base ? base : '$base · $cat';
 }
 

@@ -14,7 +14,7 @@ use App\Models\OrderItem;
  */
 class PosOrderPresenter
 {
-    public const RELATIONS = ['items.addedBy:id,name', 'items.voidedBy:id,name', 'waiter:id,name', 'diningTable', 'hall', 'chargeWaivers'];
+    public const RELATIONS = ['items.addedBy:id,name', 'items.voidedBy:id,name', 'items.weighedBy:id,name', 'waiter:id,name', 'diningTable', 'hall', 'chargeWaivers'];
 
     public function __construct(
         protected PosChargesCalculator $charges,
@@ -43,6 +43,8 @@ class PosOrderPresenter
             'table' => $table !== null ? ['id' => (int) $table->id, 'name' => $table->name, 'kind' => $table->kind->value] : null,
             'hall_ref' => $order->hall_ref,
             'table_ref' => $order->table_ref,
+            // P6-25: the table plate of a counter order carried to the table (kafe "stolga olib kelish")
+            'table_label' => $order->table_label,
             'guests_count' => $order->guests_count,
             'waiter' => $order->waiter ? ['id' => (int) $order->waiter->id, 'name' => $order->waiter->name] : null,
             'opened_by' => (int) $order->user_id,
@@ -92,6 +94,10 @@ class PosOrderPresenter
             // P6-13: the queue number and where it is in the pickup queue (preparing, ready, handed); null without one
             'queue' => PickupQueue::present($order),
             'rounds' => $items->max('round_no') !== null ? (int) $items->max('round_no') : 0,
+            // P6-21: the order's courses and where each is (held, sent, ready, served); [] without courses
+            'courses' => PosCourses::summary($items),
+            // P6-25: lines waiting for their real weight (no bill until they are weighed)
+            'weight_pending' => $items->filter(fn (OrderItem $item) => $item->awaitingWeight() && !$item->isVoid())->count(),
             'items' => $items->map(fn (OrderItem $item) => $this->item($item))->all(),
         ];
     }
@@ -133,6 +139,13 @@ class PosOrderPresenter
             'voided_at' => $item->voided_at?->toJSON(),
             'voided_by' => $item->voidedBy ? ['id' => (int) $item->voidedBy->id, 'name' => $item->voidedBy->name] : null,
             'void_reason' => $item->void_reason,
+            // P6-21: the line's course (null: no courses)
+            'course_no' => $item->course_no,
+            // P6-25: "weight later": awaiting (the quantity is the estimate) | weighed (the real weight) | null
+            'weight_status' => $item->weight_status?->value,
+            'weight_basis' => $item->weight_basis?->value,
+            'weighed_by' => $item->weighedBy ? ['id' => (int) $item->weighedBy->id, 'name' => $item->weighedBy->name] : null,
+            'weighed_at' => $item->weighed_at?->toJSON(),
         ];
 
         // P6-15: the parts of a kompleks line (the kitchen prepares these), only on such lines

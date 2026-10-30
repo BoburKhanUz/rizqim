@@ -35,7 +35,12 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
+  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
   stationId: (json['station_id'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
   imageUrl: json['image_url'] as String?,
   imageThumbUrls: ImageThumbUrls2.fromJson(
     json['image_thumb_urls'] as Map<String, dynamic>,
@@ -49,7 +54,7 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   variants: (json['variants'] as List<dynamic>)
       .map((e) => ProductsVariants.fromJson(e as Map<String, dynamic>))
       .toList(),
-  isActive: json['is_active'] as bool,
+  weightMode: json['weight_mode'] as String?,
   modifierGroups: (json['modifier_groups'] as List<dynamic>)
       .map((e) => ProductsModifierGroups.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -93,6 +98,9 @@ Map<String, dynamic> _$ProductsToJson(Products instance) => <String, dynamic>{
   'package_code': instance.packageCode,
   'vat_rate': instance.vatRate,
   'quick_add': instance.quickAdd,
+  'quick_multipliers': instance.quickMultipliers,
+  'wait_minutes': instance.waitMinutes,
+  'weight_mode': instance.weightMode,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

@@ -27,6 +27,7 @@ import 'owner_billing/owner_billing_api.dart';
 import 'owner_branch_availability/owner_branch_availability_api.dart';
 import 'owner_branches/owner_branches_api.dart';
 import 'owner_fiscal/owner_fiscal_api.dart';
+import 'owner_table_booking/owner_table_booking_api.dart';
 import 'owner_pos_settings/owner_pos_settings_api.dart';
 import 'owner_catalog/owner_catalog_api.dart';
 import 'owner_daily_menu/owner_daily_menu_api.dart';
@@ -40,22 +41,29 @@ import 'owner_kitchen_stations/owner_kitchen_stations_api.dart';
 import 'owner_menu_modifiers/owner_menu_modifiers_api.dart';
 import 'owner_staff_access/owner_staff_access_api.dart';
 import 'owner_pos_format/owner_pos_format_api.dart';
+import 'owner_service_charge_rules/owner_service_charge_rules_api.dart';
+import 'owner_tips/owner_tips_api.dart';
 import 'owner_printers/owner_printers_api.dart';
 import 'owner_channel_prices/owner_channel_prices_api.dart';
+import 'owner_menu/owner_menu_api.dart';
 import 'owner_reports/owner_reports_api.dart';
 import 'owner_room_tariffs/owner_room_tariffs_api.dart';
 import 'owner_service_fees/owner_service_fees_api.dart';
 import 'owner_settings/owner_settings_api.dart';
 import 'owner_staff/owner_staff_api.dart';
+import 'owner_staff_pay/owner_staff_pay_api.dart';
 import 'owner_stop_list/owner_stop_list_api.dart';
 import 'pos_billing/pos_billing_api.dart';
 import 'pos_bookings/pos_bookings_api.dart';
 import 'pos_bootstrap/pos_bootstrap_api.dart';
+import 'pos_staff_pay/pos_staff_pay_api.dart';
 import 'pos_customer_accounts/pos_customer_accounts_api.dart';
 import 'pos_customer_display/pos_customer_display_api.dart';
 import 'pos_orders/pos_orders_api.dart';
 import 'pos_queue_numbers/pos_queue_numbers_api.dart';
 import 'pos_sync/pos_sync_api.dart';
+import 'pos_hostess/pos_hostess_api.dart';
+import 'pos_tips/pos_tips_api.dart';
 import 'promo_codes/promo_codes_api.dart';
 import 'reports/reports_api.dart';
 import 'kitchen/kitchen_api.dart';
@@ -105,6 +113,7 @@ class RizqimApi {
   OwnerBranchAvailabilityApi? _ownerBranchAvailability;
   OwnerBranchesApi? _ownerBranches;
   OwnerFiscalApi? _ownerFiscal;
+  OwnerTableBookingApi? _ownerTableBooking;
   OwnerPosSettingsApi? _ownerPosSettings;
   OwnerCatalogApi? _ownerCatalog;
   OwnerDailyMenuApi? _ownerDailyMenu;
@@ -118,22 +127,29 @@ class RizqimApi {
   OwnerMenuModifiersApi? _ownerMenuModifiers;
   OwnerStaffAccessApi? _ownerStaffAccess;
   OwnerPosFormatApi? _ownerPosFormat;
+  OwnerServiceChargeRulesApi? _ownerServiceChargeRules;
+  OwnerTipsApi? _ownerTips;
   OwnerPrintersApi? _ownerPrinters;
   OwnerChannelPricesApi? _ownerChannelPrices;
+  OwnerMenuApi? _ownerMenu;
   OwnerReportsApi? _ownerReports;
   OwnerRoomTariffsApi? _ownerRoomTariffs;
   OwnerServiceFeesApi? _ownerServiceFees;
   OwnerSettingsApi? _ownerSettings;
   OwnerStaffApi? _ownerStaff;
+  OwnerStaffPayApi? _ownerStaffPay;
   OwnerStopListApi? _ownerStopList;
   PosBillingApi? _posBilling;
   PosBookingsApi? _posBookings;
   PosBootstrapApi? _posBootstrap;
+  PosStaffPayApi? _posStaffPay;
   PosCustomerAccountsApi? _posCustomerAccounts;
   PosCustomerDisplayApi? _posCustomerDisplay;
   PosOrdersApi? _posOrders;
   PosQueueNumbersApi? _posQueueNumbers;
   PosSyncApi? _posSync;
+  PosHostessApi? _posHostess;
+  PosTipsApi? _posTips;
   PromoCodesApi? _promoCodes;
   ReportsApi? _reports;
   KitchenApi? _kitchen;
@@ -209,6 +225,9 @@ class RizqimApi {
   OwnerFiscalApi get ownerFiscal =>
       _ownerFiscal ??= OwnerFiscalApi(_dio, baseUrl: _baseUrl);
 
+  OwnerTableBookingApi get ownerTableBooking =>
+      _ownerTableBooking ??= OwnerTableBookingApi(_dio, baseUrl: _baseUrl);
+
   OwnerPosSettingsApi get ownerPosSettings =>
       _ownerPosSettings ??= OwnerPosSettingsApi(_dio, baseUrl: _baseUrl);
 
@@ -248,11 +267,23 @@ class RizqimApi {
   OwnerPosFormatApi get ownerPosFormat =>
       _ownerPosFormat ??= OwnerPosFormatApi(_dio, baseUrl: _baseUrl);
 
+  OwnerServiceChargeRulesApi get ownerServiceChargeRules =>
+      _ownerServiceChargeRules ??= OwnerServiceChargeRulesApi(
+        _dio,
+        baseUrl: _baseUrl,
+      );
+
+  OwnerTipsApi get ownerTips =>
+      _ownerTips ??= OwnerTipsApi(_dio, baseUrl: _baseUrl);
+
   OwnerPrintersApi get ownerPrinters =>
       _ownerPrinters ??= OwnerPrintersApi(_dio, baseUrl: _baseUrl);
 
   OwnerChannelPricesApi get ownerChannelPrices =>
       _ownerChannelPrices ??= OwnerChannelPricesApi(_dio, baseUrl: _baseUrl);
+
+  OwnerMenuApi get ownerMenu =>
+      _ownerMenu ??= OwnerMenuApi(_dio, baseUrl: _baseUrl);
 
   OwnerReportsApi get ownerReports =>
       _ownerReports ??= OwnerReportsApi(_dio, baseUrl: _baseUrl);
@@ -269,6 +300,9 @@ class RizqimApi {
   OwnerStaffApi get ownerStaff =>
       _ownerStaff ??= OwnerStaffApi(_dio, baseUrl: _baseUrl);
 
+  OwnerStaffPayApi get ownerStaffPay =>
+      _ownerStaffPay ??= OwnerStaffPayApi(_dio, baseUrl: _baseUrl);
+
   OwnerStopListApi get ownerStopList =>
       _ownerStopList ??= OwnerStopListApi(_dio, baseUrl: _baseUrl);
 
@@ -280,6 +314,9 @@ class RizqimApi {
 
   PosBootstrapApi get posBootstrap =>
       _posBootstrap ??= PosBootstrapApi(_dio, baseUrl: _baseUrl);
+
+  PosStaffPayApi get posStaffPay =>
+      _posStaffPay ??= PosStaffPayApi(_dio, baseUrl: _baseUrl);
 
   PosCustomerAccountsApi get posCustomerAccounts =>
       _posCustomerAccounts ??= PosCustomerAccountsApi(_dio, baseUrl: _baseUrl);
@@ -294,6 +331,11 @@ class RizqimApi {
       _posQueueNumbers ??= PosQueueNumbersApi(_dio, baseUrl: _baseUrl);
 
   PosSyncApi get posSync => _posSync ??= PosSyncApi(_dio, baseUrl: _baseUrl);
+
+  PosHostessApi get posHostess =>
+      _posHostess ??= PosHostessApi(_dio, baseUrl: _baseUrl);
+
+  PosTipsApi get posTips => _posTips ??= PosTipsApi(_dio, baseUrl: _baseUrl);
 
   PromoCodesApi get promoCodes =>
       _promoCodes ??= PromoCodesApi(_dio, baseUrl: _baseUrl);

@@ -25,6 +25,7 @@ class V1PosBookingsRequestBody {
     this.minSpend,
     this.note,
     this.confirm,
+    this.skipLeadTime,
     this.version,
   });
 
@@ -54,6 +55,8 @@ class V1PosBookingsRequestBody {
   final num? minSpend;
   final String? note;
   final bool? confirm;
+  @JsonKey(name: 'skip_lead_time')
+  final bool? skipLeadTime;
   final int? version;
 
   Map<String, Object?> toJson() => _$V1PosBookingsRequestBodyToJson(this);

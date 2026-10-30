@@ -7,23 +7,35 @@ part of 'data69.dart';
 // **************************************************************************
 
 Data69 _$Data69FromJson(Map<String, dynamic> json) => Data69(
-  data: (json['data'] as List<dynamic>)
-      .map((e) => Data68.fromJson(e as Map<String, dynamic>))
+  debtBalance: json['debt_balance'] as num,
+  walletBalance: json['wallet_balance'] as num,
+  creditLimit: json['credit_limit'] as num,
+  minPayoutReserve: json['min_payout_reserve'] as num,
+  paymentAccountType: json['payment_account_type'] as String,
+  commissionRate: json['commission_rate'] as num,
+  status: StoreStatus.fromJson(json['status'] as String),
+  isOrderLocked: json['is_order_locked'] as bool,
+  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
+      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
       .toList(),
-  currentPage: (json['current_page'] as num).toInt(),
-  lastPage: (json['last_page'] as num).toInt(),
-  perPage: (json['per_page'] as num).toInt(),
-  total: (json['total'] as num).toInt(),
-  from: (json['from'] as num?)?.toInt(),
-  to: (json['to'] as num?)?.toInt(),
+  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
+      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  payoutRequests: (json['payout_requests'] as List<dynamic>)
+      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data69ToJson(Data69 instance) => <String, dynamic>{
-  'data': instance.data,
-  'current_page': instance.currentPage,
-  'last_page': instance.lastPage,
-  'per_page': instance.perPage,
-  'total': instance.total,
-  'from': instance.from,
-  'to': instance.to,
+  'debt_balance': instance.debtBalance,
+  'wallet_balance': instance.walletBalance,
+  'credit_limit': instance.creditLimit,
+  'min_payout_reserve': instance.minPayoutReserve,
+  'payment_account_type': instance.paymentAccountType,
+  'commission_rate': instance.commissionRate,
+  'status': instance.status,
+  'is_order_locked': instance.isOrderLocked,
+  'ledger_transactions': instance.ledgerTransactions,
+  'wallet_transactions': instance.walletTransactions,
+  'payout_requests': instance.payoutRequests,
 };

@@ -83,22 +83,26 @@ class LostRequest {
     _token = null;
   }
 
+  /// [approvalToken] — sahifa oldindan so'ragan menejer tasdig'i: birinchi urinish u bilan ketadi (bir marta).
   Future<T> run<T>(
     BuildContext context,
     String signature,
-    Future<T> Function(String? approvalToken, String? idempotencyKey) action,
-  ) async {
+    Future<T> Function(String? approvalToken, String? idempotencyKey) action, {
+    String? approvalToken,
+  }) async {
     if (_signature != signature) clear();
     _signature = signature;
     final String? lostKey = _key;
     final String? lostToken = _token;
     String? sentToken;
+    String? granted = approvalToken;
     try {
       final T result = lostKey != null && lostToken != null
           ? await action(lostToken, lostKey)
           : await withApproval<T>(context, (String? token) {
-              sentToken = token;
-              return action(token, lostKey);
+              sentToken = token ?? granted;
+              granted = null;
+              return action(sentToken, lostKey);
             });
       clear();
       return result;

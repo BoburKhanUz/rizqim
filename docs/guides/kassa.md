@@ -110,6 +110,8 @@ Tasdiq kerak bo'ladigan va kerak bo'lmaydigan amallar (egasi 24.10.2026 da shund
 | Kassaga kirim | **o'zingiz**, menejersiz |
 | Kassadan chiqim (sabab bilan) | **o'zingiz**, menejersiz; katta chiqim haqida egaga xabar boradi |
 | Pulni qaytarish | menejer tasdig'i |
+| Kassadan naqd **choy pulini** ofitsiantga berish (**Choy pulini berish**) | menejer tasdig'i (choy pulini boshqarish huquqi bo'lmasa) |
+| Choy pulini buyurtmaning ofitsiantidan **boshqa** xodimga yozish (to'lov oynasida) | menejer tasdig'i |
 | Nasiyaga yopish | **doim** menejer tasdig'i |
 | Bron avansini qaytarish yoki ushlab qolish | menejer tasdig'i |
 | Smenani majburan yopish | menejer tasdig'i |
@@ -250,6 +252,11 @@ Osh markazi, somsaxona, stolovaya kabi joylarda kassa tez kassadan boshlanadi (a
 2. Tepada tanlang: **Olib ketish** yoki **Zalda, stolsiz**.
 3. Taom qo'shing, **Yuborish** yoki **Saqlash** ni bosing. Buyurtma shundan keyin ochiladi. Bo'sh buyurtma qolmaydi.
 
+**Kafe: stolga olib kelish.** Filialda **Stolga olib kelish** moduli yoqilgan bo'lsa, tez kassada savat tagida, **Jami** tepasida **Stol raqami**
+maydoni bor ("Tablichka raqami (ixtiyoriy)", 20 belgigacha): mehmon oldindan to'laydi, taom shu raqamli stolga olib boriladi. Raqamni
+**to'lashdan oldin** yozasiz; to'langandan keyin u ekranda **Stol 12** bo'lib turadi va kassa ekranidan o'zgartirilmaydi. Raqam talonda
+(**Stol 12**, "Taomingiz 12-stolga olib kelinadi."), schyotda va oshxona chiptasida chiqadi ([restoran.md](restoran.md#8-kafe-stolga-olib-kelish)).
+
 ## 7. Taom qo'shish
 
 Buyurtma ekrani ikki qismdan iborat: **chapda menyu**, **o'ngda buyurtma**. Tor ekranda tepada **Menyu** va **Buyurtma (N)**
@@ -337,6 +344,18 @@ buyurtmani bilmaydi — printerni tekshiring ([19-bo'lim](#19-printer-sozlamalar
 
 **Berildi.** Taom mehmonga olib borilgach, qatorni bosing → **Berildi**. Choy kabi ekransiz sexdan keladigan taomni ham shunday
 belgilaysiz. Odatda buni ofitsiant telefonda qiladi.
+
+**Kurslar (restoran).** Qatorga kurs (1–9) ofitsiant ilovasida qo'yiladi (kassadagi qator oynasida kurs tanlash yo'q). Kurslari bor
+buyurtmani kassada ochsangiz, buyurtma ro'yxati tagida **kurslar paneli** turadi: har kurs holati bilan (**1-kurs: Oshxonada**,
+**2-kurs: Kutmoqda** ...) va keyingi kurs uchun **2-kursni yuborish** tugmasi. Keyingi kurs oddiy **Yuborish** bilan oshxonaga
+**ketmaydi**, shu tugma bilan yuboriladi. Holatlar: **Kutmoqda**, **Oshxonada**, **Tayyor**, **Berildi**. **N-kursni yuborish** internetsiz
+ham ishlaydi (navbatga yoziladi). Batafsil — [restoran.md](restoran.md#2-kurslar).
+
+**Og'irligi keyin tortiladigan taom.** Qatorda **Og'irlik kutilmoqda** belgisi turadi. Tortgach qatorni bosing → **Og'irlikni kiritish**:
+ochilgan oynada (**Xom og'irlik (kg)** yoki **Pishgan og'irlik**) tarozidagi og'irlikni terib **Og'irlikni yozish** ni bosing. Tarozi
+kassaga ulanmagan: og'irlik qo'lda teriladi. **Og'irlik kutilmoqda (N)** turguncha schyot tuzib ham, chop etib ham bo'lmaydi: schyot
+tugmasi o'rniga shu yozuv turadi ([restoran.md](restoran.md#7-six-ogirlik-va-mangal-vaqti-kabobxona-baliqxona)). Birinchi og'irlik internetsiz ham
+yoziladi (navbatga). Tortilgan qatorni qayta tortish (**Qayta tortish**) internet va menejer tasdig'ini talab qiladi.
 
 **Boshqa kassa o'zgartirgan bo'lsa.** Bir buyurtmani ikki joydan o'zgartirsangiz, ilova buyurtmani qayta yuklaydi. Bosqich,
 yuborish, "berildi" va mehmonlar soni o'zi takrorlanadi; qolganlarini qaytadan bajaring.
@@ -458,6 +477,7 @@ Telegram'ga xabar boradi.
 | **Bitta schyot** | Bitta odam to'laydi | Shunchaki **Schyot tuzish** |
 | **Teng bo'lish** | Hamma teng to'laydi | **Necha kishiga?** ni yozing. Har ulush ko'rinadi. Qoldiq tiyin birinchi schyotga qo'shiladi |
 | **Taom bo'yicha** | Har kim o'ziniki uchun | Schyotni tanlang, so'ng taomni bosing — u shu schyotga o'tadi. Kg taomni bo'lish uchun **Ulush** (masalan, 1.5 kg oshdan 0.5 va 1) |
+| **Mehmonlar bo'yicha** | Har mehmon o'z taomi uchun (restoran) | Ofitsiant qatorlarga mehmon raqamini qo'ygan bo'lishi kerak. Har mehmonga bitta schyot; mehmonsiz (umumiy) qatorlar hammaga teng bo'linadi. Faqat internet bor paytda. Batafsil — [restoran.md](restoran.md#3-mehmon-raqami-va-hisobni-mehmon-boyicha-bolish) |
 
 Xona puli, xizmat haqi va joy puli schyotlar orasida proporsional bo'linadi. Har bir schyot **alohida to'lanadi va alohida
 sotuv cheki oladi**.
@@ -491,6 +511,17 @@ Smena ochiq bo'lmasa, to'lov oynasida **Smenani ochish** tugmasi chiqadi.
 | **QR** | Mijoz do'konning QR kodi orqali to'laydi, pul kelganini o'zingiz tekshirasiz. **To'lov raqami** ixtiyoriy. Ilova to'lovni o'zi tasdiqlamaydi |
 | **Avans** | Bron avansidan ayiriladi. Avans bo'lsa, birinchi taklif qilinadi. Mavjud avansdan ko'p ayirib bo'lmaydi |
 | **Nasiya** | Qarzga yoziladi. [16-bo'lim](#16-nasiya-va-qarz-tolovi) |
+
+**Choy puli.** Filialda **Choy puli** moduli yoqilgan bo'lsa, **Naqd**, **Karta** va **QR** oynasining tagida **Choy puli** bo'limi bor
+("chekka kirmaydi"): **Choy puli summasi** maydoni — summa schyotdan **tashqari**, ustiga qo'shiladi; naqdda **Qaytimni choy puli qilish**
+belgisi ham bor. Shaxsiy rejimda yana **Kimga** tanlovi chiqadi: boshida buyurtmaning ofitsianti; ro'yxatda faqat choy puli
+rollaridagi xodimlar (standart — ofitsiantlar) turadi. Boshqa xodimni tanlasangiz, tagida "Buyurtma ofitsiantidan boshqa xodimga —
+menejer tasdig'i bilan." yozuvi chiqadi va **To'lash** bosilganda ilova **menejer PIN'i**ni so'raydi (choy pulini boshqarish huquqi
+bor menejer o'zi kirgan bo'lsa, so'ramaydi); tasdiq bir marta ishlaydi. Server ruxsatsiz yoki noto'g'ri xodimni to'lovni
+**olishdan oldin** aniq xabar bilan to'xtatadi: pul olinmaydi. To'lov oynasi pastida **Chek: …, choy puli: …** alohida turadi: choy puli
+fiskal chekka kirmaydi va savdo hisobotida yo'q ([restoran.md](restoran.md#5-choy-puli-kassada)). Internetsiz to'lov hech qachon
+rad etilmaydi: internetda menejer tasdig'ini olib bo'lmagani uchun boshqa xodim tanlangan bo'lsa, ilova "Internetsiz menejer tasdig'i
+yo'q: choy puli buyurtma ofitsiantiga yoziladi." deydi va choy puli buyurtmaning ofitsiantiga yoziladi.
 
 P2P o'tkazma (kartadan kartaga) to'lov turi emas. Mijoz shunday to'lamoqchi bo'lsa, **QR** ni taklif qiling.
 
@@ -662,7 +693,10 @@ ushlab qolish va schyotga ayirish ishlayveradi.
 
 Bron sahifasida **Avans** bo'limi:
 
-1. **Avans olish** → **Avans summasi** → to'lov turi (naqd, karta, QR; karta bo'lsa tur va tranzaksiya raqami).
+1. **Avans olish** → **Avans summasi** → to'lov turi (naqd, karta, QR; karta bo'lsa tur va tranzaksiya raqami). Avans — to'lov:
+   uni **to'lov olish huquqi** bor xodim oladi (yoki menejer PIN'i bilan). **Naqd** avans pul kassa qutisiga tushgani uchun faqat **ochiq
+   smena** bor kassada olinadi (smena yo'q bo'lsa "Bo'nakni kassada oling: naqd bo'nak ochiq smenali kassada olinadi" deydi: avval smenani
+   oching) va shu smenaning X/Z ida chiqadi. Hostes avans olmaydi.
 2. **Avansni olish**. **Bo'nak cheki** chiqadi (QR va fiskal belgisiz). Bron "So'rov" bo'lsa, tasdiqlanadi.
 3. Avans bron sahifasida ko'rinadi: **Olingan**, **Mavjud (ayiriladi)**.
 
@@ -774,6 +808,14 @@ Kassadan pul chiqsa yoki kirsa — **albatta yozing**, aks holda kunlik hisob tu
     kamomadi "ish haqi" deb adashib ketmaydi.
   - **Boshqa chiqim** — **Inkassatsiya**, **Egaga berildi**, **Xo'jalik**, **Kommunal**, **Boshqa**.
 
+Naqd **choy pulini** ofitsiantga berish esa **Chiqim** dan emas, **Smena** ekranidagi alohida **Choy pulini berish** tugmasidan (u **Kirim** va
+**Chiqim** yonida turadi; **Choy puli** moduli yoqilgan va kassada naqd choy puli bor bo'lsa ko'rinadi). Buning uchun menejer huquqi
+(**tips.manage**) yoki **menejer PIN'i** kerak (kirim-chiqim huquqiga qo'shimcha: tugma bosilganda ilova PIN so'raydi). Oynada **Kassadagi naqd choy puli**, **Oldin berilgan**
+va **Berilmagan** ko'rinadi; **Kimga** — xodim, **Summa**, **Izoh**, keyin **Berish**. Berilgan summa kassadagi berilmagan naqd choy
+pulidan va xodimga shu kun uchun tegishli naqd choy pulidan (shaxsiy choy puli + yopilgan qozondagi ulushi − allaqachon berilgani) oshmaydi. Qoidada choy puli ish haqiga kirsa, berilgani hisob-kitobdan ayriladi. X va Z da u
+ish haqi qatoriga kirmaydi ([choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md#5-kassadan-tolash-va-choy-pulini-berish)). Internetsiz
+rejimda kirim-chiqim kabi bu tugma ham ishlamaydi.
+
 **Summa**ni yozing, **Boshqa** bo'lsa **Izoh** majburiy ("nimaga berildi"). Chiqim kassadagi naqddan oshmaydi.
 **Kirim qilish** / **Chiqim qilish** — kassir o'zi qiladi, menejer kerak emas. Kassa qutisi ochiladi. Har yozuv jurnalga
 tushadi (kim, qancha, nima uchun).
@@ -788,6 +830,14 @@ Egasi kirim-chiqim huquqini kassirdan olib qo'ygan bo'lsa, oldingidek menejer PI
 X — smenani yopmasdan oraliq hisobot. **X hisobot** tugmasi: savdo (cheklar, qaytarilgan, sof tushum), to'lov turlari va karta
 turlari, **Chegirmalar**, **Pul emas (bugun kassaga tushmagan)** — avans ofseti va nasiya, **Avans va nasiya**, kanallar, ofitsiantlar,
 **Kassa (naqd)** va oxirida **Kassada bo'lishi kerak**. **Chop etish** ni bosing. Istalgan vaqt olish mumkin.
+
+Choy puli yoqilgan filialda X va Z da **Choy puli (tushum emas)** alohida bo'lim bor, **Ofitsiantlar** dan keyin: **Jami (N)**, to'lov usullari,
+**Shaxsiy**, **Umumiy qozon**, **Biriktirilmagan**, xodimlar, **Tuzatishlar**, **Xodimlarga berildi**. U savdo jamiga **kirmaydi**.
+Naqd choy puli esa **Kassa (naqd)** bo'limida **Choy puli (naqd)** qatori bilan kassadagi kutilgan naqdga **qo'shiladi**, xodimga berilgani
+**Choy puli berildi** qatorida (minus) ayriladi. Chop etilgan X va Z da ham shu qatorlar bor. Tuzatish kutilgan naqdga tegmaydi.
+
+**Ofitsiantlar** bo'limida har ofitsiantning smenadagi sotuvi turadi. Stol boshqa ofitsiantga o'tgan bo'lsa, sotuv eganing **Stol boshqa
+ofitsiantga o'tsa, sotuv** sozlamasi bo'yicha yoziladi ([choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md#stol-boshqa-ofitsiantga-otsa-sotuv-kimga)).
 
 ### Z — smenani yopish
 

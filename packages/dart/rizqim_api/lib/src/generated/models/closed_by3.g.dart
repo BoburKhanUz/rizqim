@@ -7,7 +7,7 @@ part of 'closed_by3.dart';
 // **************************************************************************
 
 ClosedBy3 _$ClosedBy3FromJson(Map<String, dynamic> json) =>
-    ClosedBy3(id: (json['id'] as num).toInt(), name: json['name'] as String);
+    ClosedBy3(id: (json['id'] as num).toInt(), name: json['name'] as String?);
 
 Map<String, dynamic> _$ClosedBy3ToJson(ClosedBy3 instance) => <String, dynamic>{
   'id': instance.id,

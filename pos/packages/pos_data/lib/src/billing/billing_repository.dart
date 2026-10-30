@@ -139,7 +139,9 @@ class BillingRepository {
   }
 
   /// `POST /pos/bills/{uuid}/payments`: bir yoki bir nechta to'lov turi. Jami qoldiqdan oshsa [PosRejected]
-  /// `overpayment` (`data.due`); ochiq smena bo'lmasa [PosConflict] `shift_not_open`.
+  /// `overpayment` (`data.due`); ochiq smena bo'lmasa [PosConflict] `shift_not_open`. Choy puli buyurtma
+  /// ofitsiantidan boshqa xodimga ([tipStaffId]) — filialning choy puli lavozimidan va `tips.manage` yoki menejer
+  /// tasdig'i ([tipApprovalToken]) bilan; internetsiz tasdiq yo'q: server uni ofitsiantga yozadi.
   Future<PosBillResult> pay(
     String billUuid, {
     required List<PosTenderInput> tenders,
@@ -147,6 +149,8 @@ class BillingRepository {
     int? version,
     String? approvalToken,
     String? idempotencyKey,
+    int? tipStaffId,
+    String? tipApprovalToken,
   }) async {
     final PosOffline? o = offline;
     if (o != null && o.active) {
@@ -155,6 +159,7 @@ class BillingRepository {
         tenders: tenders,
         shiftUuid: shiftUuid,
         idempotencyKey: idempotencyKey,
+        tipStaffId: tipStaffId,
       );
     }
     return _http.mutate(
@@ -169,6 +174,10 @@ class BillingRepository {
         'shift_uuid': ?shiftUuid,
         'version': ?version,
         'approval_token': ?approvalToken,
+        // P6-22: whom the tips go to (personal mode; else the order's waiter)
+        'tip_staff_id': ?tipStaffId,
+        // Review P6 wave 2 (S5): someone other than the order's waiter needs tips.manage or a manager's approval
+        'tip_approval_token': ?tipApprovalToken,
       },
     );
   }

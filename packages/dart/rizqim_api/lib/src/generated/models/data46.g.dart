@@ -8,16 +8,37 @@ part of 'data46.dart';
 
 Data46 _$Data46FromJson(Map<String, dynamic> json) => Data46(
   branchId: (json['branch_id'] as num).toInt(),
-  timezone: json['timezone'] as String,
-  businessDayStartsAt: json['business_day_starts_at'] as String,
-  posSettings: PosSettings.fromJson(
-    json['pos_settings'] as Map<String, dynamic>,
-  ),
+  configured: json['configured'] as bool,
+  tableSlotMinutes: (json['table_slot_minutes'] as num).toInt(),
+  roomSlotMinutes: (json['room_slot_minutes'] as num?)?.toInt(),
+  tapchanSlotMinutes: (json['tapchan_slot_minutes'] as num?)?.toInt(),
+  tableMinAdvanceMinutes: (json['table_min_advance_minutes'] as num).toInt(),
+  roomMinAdvanceMinutes: (json['room_min_advance_minutes'] as num).toInt(),
+  tapchanMinAdvanceMinutes: (json['tapchan_min_advance_minutes'] as num)
+      .toInt(),
+  maxAdvanceDays: (json['max_advance_days'] as num?)?.toInt(),
+  depositMode: json['deposit_mode'] as String,
+  depositModeLabel: json['deposit_mode_label'] as String,
+  depositAmount: json['deposit_amount'] as String,
+  depositFromGuests: (json['deposit_from_guests'] as num).toInt(),
+  depositRequiredToConfirm: json['deposit_required_to_confirm'] as bool,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data46ToJson(Data46 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'timezone': instance.timezone,
-  'business_day_starts_at': instance.businessDayStartsAt,
-  'pos_settings': instance.posSettings,
+  'configured': instance.configured,
+  'table_slot_minutes': instance.tableSlotMinutes,
+  'room_slot_minutes': instance.roomSlotMinutes,
+  'tapchan_slot_minutes': instance.tapchanSlotMinutes,
+  'table_min_advance_minutes': instance.tableMinAdvanceMinutes,
+  'room_min_advance_minutes': instance.roomMinAdvanceMinutes,
+  'tapchan_min_advance_minutes': instance.tapchanMinAdvanceMinutes,
+  'max_advance_days': instance.maxAdvanceDays,
+  'deposit_mode': instance.depositMode,
+  'deposit_mode_label': instance.depositModeLabel,
+  'deposit_amount': instance.depositAmount,
+  'deposit_from_guests': instance.depositFromGuests,
+  'deposit_required_to_confirm': instance.depositRequiredToConfirm,
+  'updated_at': instance.updatedAt,
 };

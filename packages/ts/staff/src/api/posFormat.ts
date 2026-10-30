@@ -43,6 +43,18 @@ export const POS_MODULES = [
   'customer_accounts',
   'service_charge',
   'kds',
+  // Wave 2 "Restoran va kafe"
+  'courses',
+  'tips',
+  'staff_pay',
+  'guest_split',
+  'waiter_transfer',
+  'hostess',
+  'table_booking',
+  'skewer_buttons',
+  'weight_later',
+  'table_service',
+  'service_charge_rules',
 ] as const;
 export type PosModuleKey = (typeof POS_MODULES)[number];
 

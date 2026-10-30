@@ -7,15 +7,13 @@ part of 'data137.dart';
 // **************************************************************************
 
 Data137 _$Data137FromJson(Map<String, dynamic> json) => Data137(
-  token: json['token'] as String,
-  permission: json['permission'] as String,
-  expiresAt: json['expires_at'] as String,
-  approvedBy: ApprovedBy.fromJson(json['approved_by'] as Map<String, dynamic>),
+  channels: json['channels'] as List<dynamic>,
+  settings: (json['settings'] as List<dynamic>)
+      .map((e) => Settings3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data137ToJson(Data137 instance) => <String, dynamic>{
-  'token': instance.token,
-  'permission': instance.permission,
-  'expires_at': instance.expiresAt,
-  'approved_by': instance.approvedBy,
+  'channels': instance.channels,
+  'settings': instance.settings,
 };

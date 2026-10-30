@@ -4,18 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bookings.dart';
-
 part 'data141.g.dart';
 
 @JsonSerializable()
 class Data141 {
-  const Data141({required this.bookings});
+  const Data141({required this.path, required this.url});
 
   factory Data141.fromJson(Map<String, Object?> json) =>
       _$Data141FromJson(json);
 
-  final List<Bookings> bookings;
+  final String path;
+  final String url;
 
   Map<String, Object?> toJson() => _$Data141ToJson(this);
 }

@@ -8,22 +8,72 @@ part of 'data75.dart';
 
 Data75 _$Data75FromJson(Map<String, dynamic> json) => Data75(
   uuid: json['uuid'] as String,
-  name: json['name'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  smartKassa: json['smart_kassa'] as bool,
-  fiscalKassaId: json['fiscal_kassa_id'] as String?,
-  kassaStatus: json['kassa_status'] == null
+  shiftUuid: json['shift_uuid'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  businessDate: json['business_date'] as String,
+  source: Source.fromJson(json['source'] as String),
+  terminalRef: json['terminal_ref'] as String?,
+  shared: json['shared'] as bool,
+  finalValue: json['final'] as bool,
+  shifts: (json['shifts'] as List<dynamic>)
+      .map((e) => Shifts.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  bankTotal: json['bank_total'] as String,
+  bankCount: (json['bank_count'] as num?)?.toInt(),
+  rizqimTotal: json['rizqim_total'] as String?,
+  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
+  rizqimBreakdown: json['rizqim_breakdown'] == null
       ? null
-      : KassaStatus.fromJson(json['kassa_status'] as Map<String, dynamic>),
-  lastSeenAt: json['last_seen_at'] as String?,
+      : RizqimBreakdown.fromJson(
+          json['rizqim_breakdown'] as Map<String, dynamic>,
+        ),
+  difference: json['difference'] as String?,
+  threshold: json['threshold'] as String?,
+  overThreshold: json['over_threshold'] as bool?,
+  transactions: (json['transactions'] as List<dynamic>?)
+      ?.map((e) => Transactions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unmatched: json['unmatched'] == null
+      ? null
+      : Unmatched.fromJson(json['unmatched'] as Map<String, dynamic>),
+  history: (json['history'] as List<dynamic>)
+      .map((e) => History.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  note: json['note'] as String?,
+  enteredBy: json['entered_by'] == null
+      ? null
+      : EnteredBy.fromJson(json['entered_by'] as Map<String, dynamic>),
+  alertedAt: json['alerted_at'] as String?,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data75ToJson(Data75 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'name': instance.name,
+  'shift_uuid': instance.shiftUuid,
+  'z_number': instance.zNumber,
   'branch_id': instance.branchId,
-  'smart_kassa': instance.smartKassa,
-  'fiscal_kassa_id': instance.fiscalKassaId,
-  'kassa_status': instance.kassaStatus,
-  'last_seen_at': instance.lastSeenAt,
+  'business_date': instance.businessDate,
+  'source': instance.source,
+  'terminal_ref': instance.terminalRef,
+  'shared': instance.shared,
+  'final': instance.finalValue,
+  'shifts': instance.shifts,
+  'bank_total': instance.bankTotal,
+  'bank_count': instance.bankCount,
+  'rizqim_total': instance.rizqimTotal,
+  'rizqim_count': instance.rizqimCount,
+  'rizqim_breakdown': instance.rizqimBreakdown,
+  'difference': instance.difference,
+  'threshold': instance.threshold,
+  'over_threshold': instance.overThreshold,
+  'transactions': instance.transactions,
+  'unmatched': instance.unmatched,
+  'history': instance.history,
+  'note': instance.note,
+  'entered_by': instance.enteredBy,
+  'alerted_at': instance.alertedAt,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

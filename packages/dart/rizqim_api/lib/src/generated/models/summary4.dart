@@ -4,21 +4,22 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period7.dart';
-import 'sales7.dart';
-import 'by_tender4.dart';
-import 'cards4.dart';
-import 'by_channel6.dart';
-import 'by_waiter4.dart';
-import 'discounts4.dart';
-import 'voids4.dart';
-import 'batch_writeoffs4.dart';
-import 'refunds7.dart';
-import 'deposits4.dart';
-import 'credit7.dart';
-import 'cash5.dart';
-import 'movements4.dart';
-import 'pending_receipts2.dart';
+import 'period6.dart';
+import 'sales5.dart';
+import 'by_tender3.dart';
+import 'cards3.dart';
+import 'by_channel5.dart';
+import 'by_waiter3.dart';
+import 'discounts3.dart';
+import 'voids3.dart';
+import 'batch_writeoffs3.dart';
+import 'refunds6.dart';
+import 'deposits3.dart';
+import 'credit6.dart';
+import 'tips11.dart';
+import 'cash4.dart';
+import 'movements3.dart';
+import 'pending_receipts.dart';
 
 part 'summary4.g.dart';
 
@@ -39,6 +40,7 @@ class Summary4 {
     required this.refunds,
     required this.deposits,
     required this.credit,
+    required this.tips,
     required this.cash,
     required this.movements,
     this.openOrders,
@@ -52,28 +54,29 @@ class Summary4 {
   final String shiftUuid;
   @JsonKey(name: 'generated_at')
   final String generatedAt;
-  final Period7 period;
-  final Sales7 sales;
+  final Period6 period;
+  final Sales5 sales;
   @JsonKey(name: 'by_tender')
-  final List<ByTender4> byTender;
-  final List<Cards4> cards;
+  final List<ByTender3> byTender;
+  final List<Cards3> cards;
   @JsonKey(name: 'by_channel')
-  final List<ByChannel6> byChannel;
+  final List<ByChannel5> byChannel;
   @JsonKey(name: 'by_waiter')
-  final List<ByWaiter4> byWaiter;
-  final Discounts4 discounts;
-  final Voids4 voids;
+  final List<ByWaiter3> byWaiter;
+  final Discounts3 discounts;
+  final Voids3 voids;
   @JsonKey(name: 'batch_writeoffs')
-  final BatchWriteoffs4 batchWriteoffs;
-  final Refunds7 refunds;
-  final Deposits4 deposits;
-  final Credit7 credit;
-  final Cash5 cash;
-  final List<Movements4> movements;
+  final BatchWriteoffs3 batchWriteoffs;
+  final Refunds6 refunds;
+  final Deposits3 deposits;
+  final Credit6 credit;
+  final Tips11 tips;
+  final Cash4 cash;
+  final List<Movements3> movements;
   @JsonKey(name: 'open_orders')
   final List<String>? openOrders;
   @JsonKey(name: 'pending_receipts')
-  final PendingReceipts2? pendingReceipts;
+  final PendingReceipts? pendingReceipts;
 
   Map<String, Object?> toJson() => _$Summary4ToJson(this);
 }

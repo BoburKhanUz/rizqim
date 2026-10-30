@@ -28,6 +28,8 @@ class PosBooking {
     this.depositTotal = PosMoney.zero,
     this.depositAvailable = PosMoney.zero,
     this.depositUnsettled = false,
+    this.depositRequired = PosMoney.zero,
+    this.depositMissing = PosMoney.zero,
     this.itemsCount = 0,
     this.cancelReason,
     this.confirmationSentAt,
@@ -59,6 +61,8 @@ class PosBooking {
     depositTotal: j.money('deposit_total'),
     depositAvailable: j.money('deposit_available'),
     depositUnsettled: j.boolean('deposit_unsettled'),
+    depositRequired: j.money('deposit_required'),
+    depositMissing: j.money('deposit_missing'),
     itemsCount: j.intOrNull('items_count') ?? 0,
     cancelReason: j.strOrNull('cancel_reason'),
     confirmationSentAt: j.dateOrNull('confirmation_sent_at'),
@@ -94,6 +98,11 @@ class PosBooking {
   final PosMoney depositTotal;
   final PosMoney depositAvailable;
   final bool depositUnsettled;
+
+  /// P6-26: filialning stol broni qoidasi so'raydigan avans (`0` — so'ramaydi) va undan hali olinmagani; faqat
+  /// bitta bronni o'qiganda (`GET /pos/bookings/{uuid}`) keladi.
+  final PosMoney depositRequired;
+  final PosMoney depositMissing;
   final int itemsCount;
   final String? cancelReason;
 

@@ -19,10 +19,6 @@ class Data105 {
     required this.resolutionNotes,
     required this.processedAt,
     required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
   });
 
   factory Data105.fromJson(Map<String, Object?> json) =>
@@ -39,14 +35,6 @@ class Data105 {
   final String? processedAt;
   @JsonKey(name: 'created_at')
   final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data105ToJson(this);
 }

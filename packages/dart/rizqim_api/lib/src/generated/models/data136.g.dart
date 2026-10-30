@@ -7,19 +7,27 @@ part of 'data136.dart';
 // **************************************************************************
 
 Data136 _$Data136FromJson(Map<String, dynamic> json) => Data136(
-  subscription: json['subscription'] == null
-      ? null
-      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
-  commissionRate: json['commission_rate'] as num,
-  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
-  nextInvoice: json['next_invoice'] == null
-      ? null
-      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data136ToJson(Data136 instance) => <String, dynamic>{
-  'subscription': instance.subscription,
-  'commission_rate': instance.commissionRate,
-  'terminals': instance.terminals,
-  'next_invoice': instance.nextInvoice,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
+  'hall_id': instance.hallId,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

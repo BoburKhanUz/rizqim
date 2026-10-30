@@ -31,11 +31,11 @@ Booking2 _$Booking2FromJson(Map<String, dynamic> json) => Booking2(
   depositAvailable: json['deposit_available'] as String,
   depositUnsettled: json['deposit_unsettled'] as bool,
   itemsCount: (json['items_count'] as num).toInt(),
+  cancelReason: json['cancel_reason'] as String?,
+  version: (json['version'] as num).toInt(),
   payments: (json['payments'] as List<dynamic>)
       .map((e) => Payments16.fromJson(e as Map<String, dynamic>))
       .toList(),
-  version: (json['version'] as num).toInt(),
-  createdBy: (json['created_by'] as num?)?.toInt(),
   confirmedAt: json['confirmed_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,
   completedAt: json['completed_at'] as String?,
@@ -44,10 +44,12 @@ Booking2 _$Booking2FromJson(Map<String, dynamic> json) => Booking2(
   confirmationChannel: json['confirmation_channel'] as String?,
   createdAt: json['created_at'] as String?,
   updatedAt: json['updated_at'] as String?,
+  depositRequired: json['deposit_required'] as String,
+  depositMissing: json['deposit_missing'] as String,
   items: (json['items'] as List<dynamic>)
       .map((e) => Items12.fromJson(e as Map<String, dynamic>))
       .toList(),
-  cancelReason: json['cancel_reason'] as String?,
+  createdBy: (json['created_by'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Booking2ToJson(Booking2 instance) => <String, dynamic>{
@@ -84,6 +86,8 @@ Map<String, dynamic> _$Booking2ToJson(Booking2 instance) => <String, dynamic>{
   'confirmation_channel': instance.confirmationChannel,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,
+  'deposit_required': instance.depositRequired,
+  'deposit_missing': instance.depositMissing,
   'items': instance.items,
   'payments': instance.payments,
 };

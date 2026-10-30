@@ -4,36 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_fee2.dart';
-import 'tables3.dart';
+import 'fiscal.dart';
+import 'card_modes.dart';
+import 'checklist_items.dart';
+import 'branches2.dart';
 
 part 'data85.g.dart';
 
 @JsonSerializable()
 class Data85 {
   const Data85({
-    required this.id,
-    required this.branchId,
-    required this.name,
-    required this.sortOrder,
-    required this.isActive,
-    required this.serviceFee,
-    required this.tables,
+    required this.fiscal,
+    required this.cardModes,
+    required this.checklistItems,
+    required this.branches,
   });
 
   factory Data85.fromJson(Map<String, Object?> json) => _$Data85FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'service_fee')
-  final ServiceFee2? serviceFee;
-  final List<Tables3> tables;
+  final Fiscal fiscal;
+  @JsonKey(name: 'card_modes')
+  final List<CardModes> cardModes;
+  @JsonKey(name: 'checklist_items')
+  final List<ChecklistItems> checklistItems;
+  final List<Branches2> branches;
 
   Map<String, Object?> toJson() => _$Data85ToJson(this);
 }

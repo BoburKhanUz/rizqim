@@ -17,6 +17,8 @@ Cash2 _$Cash2FromJson(Map<String, dynamic> json) => Cash2(
   deposits: json['deposits'] as String,
   depositRefunds: json['deposit_refunds'] as String,
   repayments: json['repayments'] as String,
+  tips: json['tips'] as String,
+  tipPayouts: json['tip_payouts'] as String,
   expected: json['expected'] as String,
 );
 
@@ -31,5 +33,7 @@ Map<String, dynamic> _$Cash2ToJson(Cash2 instance) => <String, dynamic>{
   'deposits': instance.deposits,
   'deposit_refunds': instance.depositRefunds,
   'repayments': instance.repayments,
+  'tips': instance.tips,
+  'tip_payouts': instance.tipPayouts,
   'expected': instance.expected,
 };

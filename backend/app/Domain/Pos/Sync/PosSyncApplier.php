@@ -277,6 +277,8 @@ final class PosSyncApplier
             PosSyncOperationType::BILL_CREATE => $this->bill($device, $staff, $payload),
             PosSyncOperationType::BILL_PAY => $this->pay($device, $staff, $payload, $occurredAt),
             PosSyncOperationType::ORDER_CLOSE => $this->close($device, $staff, $payload),
+            PosSyncOperationType::ORDER_COURSE_SEND => $this->courseSend($device, $staff, $payload),
+            PosSyncOperationType::ORDER_WEIGHT => $this->weight($device, $staff, $payload),
         };
     }
 
@@ -284,7 +286,8 @@ final class PosSyncApplier
 
     /**
      * order.open: {order (the device's uuid, stored as external_id), local_number, queue_number? (P6-13), channel, table_id?, guests_count?,
-     * waiter_id?, note?, items?, send?, menu_taken_at?}
+     * waiter_id?, note?, table_label? (P6-25), items?, send?, menu_taken_at?}; items may carry course_no and
+     * awaiting_weight (P6-21 / P6-25)
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -317,6 +320,8 @@ final class PosSyncApplier
         $guests = max($channel === OrderChannel::POS_HALL ? 1 : 0, (int) ($payload['guests_count'] ?? 0));
         $waiterId = isset($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
         $options = ['external_id' => $clientId, 'note' => $this->text($payload['note'] ?? null, 500)];
+        // P6-25: the table plate of a counter order carried to the table (kept as the till took it)
+        $options['table_label'] = $this->text($payload['table_label'] ?? null, 20);
         // P6-13: the queue number the till printed from its block (QueueNumbers keeps it when it is allowed); without
         // the queue_numbers module there are no blocks and no talon: a proposed number is ignored (review P6 C#L4)
         $queueNumber = isset($payload['queue_number']) && is_int($payload['queue_number']) && $payload['queue_number'] > 0 && $payload['queue_number'] <= 999999
@@ -468,6 +473,50 @@ final class PosSyncApplier
     }
 
     /**
+     * P6-21 order.course_send: {order, course_no} — the held lines of the course still waiting; nothing left (sent from
+     * another device meanwhile, voided): applied, nothing to do.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function courseSend(Device $device, User $staff, array $payload): array
+    {
+        $order = $this->openOrder($device, $payload);
+        $course = isset($payload['course_no']) && is_numeric($payload['course_no']) ? (int) $payload['course_no'] : 0;
+        if ($course < 1 || $course > \App\Domain\Pos\Orders\PosCourses::MAX_COURSE) {
+            throw new PosSyncException('course_invalid', 'Kurs raqami noto\'g\'ri.');
+        }
+        if (app(\App\Domain\Pos\Orders\PosCourses::class)->heldLines($order, $course) === []) {
+            return $this->finish($order, [], $payload, ['sent' => []]);
+        }
+
+        $order = $this->orders->sendCourse($order, (int) $order->version, $staff, $course);
+
+        return $this->finish($order, [], $payload);
+    }
+
+    /**
+     * P6-25 order.weight: {order, line, quantity} — the real weight the till entered offline. A line weighed meanwhile on
+     * the server keeps the server's weight (a manager re-weighs it online): rejected `line_weighed`.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function weight(Device $device, User $staff, array $payload): array
+    {
+        $order = $this->openOrder($device, $payload);
+        $item = $this->item($order, $payload['line'] ?? null);
+        if ($item->weight_status === \App\Domain\Pos\Orders\WeightStatus::WEIGHED) {
+            throw new PosSyncException('line_weighed', "Taom shu orada boshqa qurilmada tortilgan: og'irlikni menejer onlayn tuzatsin.", ['item_id' => (int) $item->id]);
+        }
+        $weight = \App\Domain\Pos\Orders\PosWeights::parseWeight($payload['quantity'] ?? null);
+
+        $order = $this->orders->setWeight($order, (int) $order->version, $staff, (int) $item->id, $weight);
+
+        return $this->finish($order, [], $payload);
+    }
+
+    /**
      * bill.create: {order, bill (the device's id), expected_total?} — one bill of what is left to bill.
      *
      * @param  array<string, mixed>  $payload
@@ -490,8 +539,12 @@ final class PosSyncApplier
     }
 
     /**
-     * bill.pay: {order, bill (the device's id or a server bill uuid), shift_uuid?, tenders: [{tender: cash|card, amount,
-     * tendered_amount?, card_type?, transaction_id?, card_last4?}]} — the money as the till took it.
+     * bill.pay: {order, bill (the device's id or a server bill uuid), shift_uuid?, tip_staff_id?, waiter_id?, tenders:
+     * [{tender: cash|card, amount, tendered_amount?, card_type?, transaction_id?, card_last4?, tip_amount?}]} — the
+     * money as the till took it (P6-22: a tip on top of a tender is recorded as taken; review P6 wave 2: a tip to
+     * someone other than the order's waiter, or outside the tip roles, goes to the waiter — no approval offline).
+     * Review P6 wave 2 (C10): `waiter_id` is the order's waiter as the till saw it: the bill is that waiter's sales (and
+     * the personal tip theirs) even when the table was handed over before the sync; without it, the waiter now.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -530,7 +583,9 @@ final class PosSyncApplier
             $flags[] = self::clampFlag($paidAt, $shift->opened_at->copy());
             $paidAt = $shift->opened_at->copy();
         }
-        $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt);
+        $tipStaff = isset($payload['tip_staff_id']) && is_numeric($payload['tip_staff_id']) ? (int) $payload['tip_staff_id'] : null;
+        $tillWaiter = isset($payload['waiter_id']) && is_numeric($payload['waiter_id']) ? (int) $payload['waiter_id'] : null;
+        $bill = $this->payments->pay($staff, $bill, $applied, null, $shift?->uuid, null, $device, null, $paidAt, $tipStaff, offlineWaiterId: $tillWaiter);
         $paymentUuids = Payment::where('bill_id', $bill->id)->where('offline_paid_at', '!=', null)->orderBy('id')->pluck('uuid')->all();
 
         return $this->finish(Order::findOrFail($order->id), $flags, $payload, [
@@ -657,6 +712,8 @@ final class PosSyncApplier
         'bill.create' => 'pos.bills.create',
         'bill.pay' => 'pos.bills.pay',
         'order.close' => 'pos.orders.close',
+        'order.course_send' => 'pos.orders.course_send',
+        'order.weight' => 'pos.orders.weight',
     ];
 
     /**
@@ -979,6 +1036,14 @@ final class PosSyncApplier
             $row = ['tender' => $kind, 'amount' => $amount->toString()];
             if ($kind === PosTender::CASH->value && isset($tender['tendered_amount']) && self::money((string) $tender['tendered_amount']) !== null) {
                 $row['tendered_amount'] = Money::of((string) $tender['tendered_amount'])->toString();
+            }
+            // P6-22: the tip the till took with the tender (kept whatever the module says now: the money was taken)
+            $tip = isset($tender['tip_amount']) && is_scalar($tender['tip_amount']) ? self::money((string) $tender['tip_amount']) : null;
+            if ($tip !== null && $tip->isPositive()) {
+                $row['tip_amount'] = $tip->toString();
+                if (isset($row['tendered_amount']) && Money::of($row['tendered_amount'])->isLessThan($amount->plus($tip))) {
+                    unset($row['tendered_amount']); // never refused for it: the change is then not recorded
+                }
             }
             if ($kind === PosTender::CARD->value) {
                 // Review P3-35: what the columns hold (a card type the till does not know is `other`)

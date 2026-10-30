@@ -16,7 +16,13 @@ enum BillChargeKind {
 
 /// Schyotdagi qo'shimcha qator: xona puli, xizmat haqi, minimal summaga to'ldirish, chegirma (manfiy).
 final class BillCharge {
-  const BillCharge(this.kind, this.amount, {this.percent, this.label});
+  const BillCharge(
+    this.kind,
+    this.amount, {
+    this.percent,
+    this.label,
+    this.note,
+  });
 
   final BillChargeKind kind;
 
@@ -28,6 +34,9 @@ final class BillCharge {
 
   /// Turdan boshqa nom kerak bo'lsa ("Xona puli (dam olish kuni)").
   final String? label;
+
+  /// Qator ostidagi izoh (P6-22: xizmat haqi e'loni, "Xizmat haqi: zalda 15%...").
+  final String? note;
 
   String get title {
     final String base = label ?? kind.label;

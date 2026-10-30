@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data137.dart';
+import 'data166.dart';
 
 part 'post_v1_pos_approvals_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1PosApprovalsResponse {
 
   final bool success;
   final String message;
-  final Data137 data;
+  final Data166 data;
 
   Map<String, Object?> toJson() => _$PostV1PosApprovalsResponseToJson(this);
 }

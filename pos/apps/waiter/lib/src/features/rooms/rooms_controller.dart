@@ -94,7 +94,10 @@ class RoomsController extends ChangeNotifier {
           e is PosOrderBillChanged ||
           e is PosOrderBillRequested ||
           e is PosKitchenItemChanged ||
-          e is PosBookingChanged,
+          e is PosBookingChanged ||
+          // P6-24/P6-26: a table handed to another waiter, a table marked as being cleaned
+          e is PosOrderTransferred ||
+          e is PosTableStateChanged,
       onRefresh: (PosRefreshReason _) => load(),
     )..start();
     unawaited(load());

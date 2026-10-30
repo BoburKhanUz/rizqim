@@ -30,6 +30,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $void_reason
  * @property int|null $seat_no
  * @property string|null $note
+ *
+ * P6-21 / P6-25: courses and "weight later"
+ * @property int|null $course_no
+ * @property \App\Domain\Pos\Orders\WeightStatus|null $weight_status
+ * @property \App\Domain\Pos\Orders\WeightBasis|null $weight_basis
+ * @property int|null $weighed_by
+ * @property \Illuminate\Support\Carbon|null $weighed_at
  */
 class OrderItem extends Model
 {
@@ -55,6 +62,12 @@ class OrderItem extends Model
         'voided_at' => 'datetime',
         'voided_by' => 'integer',
         'seat_no' => 'integer',
+        // P6-21 / P6-25
+        'course_no' => 'integer',
+        'weight_status' => \App\Domain\Pos\Orders\WeightStatus::class,
+        'weight_basis' => \App\Domain\Pos\Orders\WeightBasis::class,
+        'weighed_by' => 'integer',
+        'weighed_at' => 'datetime',
     ];
 
     protected $attributes = [
@@ -157,11 +170,29 @@ class OrderItem extends Model
     }
 
     /**
+     * P6-25: who entered the real weight of a "weight later" line.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function weighedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'weighed_by');
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    /**
+     * P6-25: a "weight later" line whose real weight is not entered yet (no bill while one waits).
+     */
+    public function awaitingWeight(): bool
+    {
+        return $this->weight_status === \App\Domain\Pos\Orders\WeightStatus::AWAITING;
     }
 
     public function isVoid(): bool

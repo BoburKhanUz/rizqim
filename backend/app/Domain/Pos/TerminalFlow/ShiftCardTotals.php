@@ -15,13 +15,17 @@ use Illuminate\Support\Facades\DB;
  * (the same rows the X/Z report counts), less card refunds of bills and card deposit refunds made on the shift.
  * `transactions` are the money-in rows with the terminal's transaction (RRN) number, to match an imported bank
  * report against.
+ *
+ * P6-22: a card tip is charged on the terminal with the bill it was given with: its payment's transaction is the bill
+ * share plus the tip (as taken; a manager's later correction does not change what the terminal charged), and
+ * `breakdown.tips` sums them.
  */
 final class ShiftCardTotals
 {
-    public const BREAKDOWN = 'array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string}';
+    public const BREAKDOWN = 'array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string, tips: string}';
 
     /**
-     * @return array{total: Money, count: int, breakdown: array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string}, transactions: list<array{rrn: string|null, amount: string, kind: string}>}
+     * @return array{total: Money, count: int, breakdown: array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string, tips: string}, transactions: list<array{rrn: string|null, amount: string, kind: string}>}
      */
     public function of(PosShift $shift): array
     {
@@ -32,9 +36,14 @@ final class ShiftCardTotals
         $transactions = [];
 
         $payments = Payment::where('shift_id', $shift->id)->where('provider', $card)->whereIn('status', ['paid', 'refunded'])
-            ->orderBy('id')->get(['amount', 'transaction_id']);
+            ->orderBy('id')->get(['id', 'amount', 'transaction_id']);
+        $tips = DB::table('pos_tips')->whereIn('payment_id', $payments->pluck('id'))->where('kind', 'tip')->where('method', $card)
+            ->groupBy('payment_id')->selectRaw('payment_id, sum(amount) as amount')->pluck('amount', 'payment_id');
+        $tipTotal = Money::zero();
         foreach ($payments as $payment) {
-            $transactions[] = ['rrn' => $this->rrn($payment->getAttribute('transaction_id')), 'amount' => Money::of($payment->amount)->toString(), 'kind' => 'payment'];
+            $tip = Money::of(is_numeric($tips[$payment->id] ?? null) ? (string) $tips[$payment->id] : '0');
+            $tipTotal = $tipTotal->plus($tip);
+            $transactions[] = ['rrn' => $this->rrn($payment->getAttribute('transaction_id')), 'amount' => Money::of($payment->amount)->plus($tip)->toString(), 'kind' => 'payment'];
         }
 
         $deposits = $shift->device_id === null ? collect() : DB::table('booking_payments')
@@ -68,6 +77,8 @@ final class ShiftCardTotals
                 'repayments' => $sumOf('repayment')->toString(),
                 'refunds' => $refunds->toString(),
                 'deposit_refunds' => $depositRefunds->toString(),
+                // P6-22: card tips inside the payments' transactions
+                'tips' => $tipTotal->toString(),
             ],
             'transactions' => $transactions,
         ];
@@ -78,13 +89,13 @@ final class ShiftCardTotals
      * counts and the breakdown summed, the transactions of all of them.
      *
      * @param  iterable<PosShift>  $shifts
-     * @return array{total: Money, count: int, breakdown: array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string}, transactions: list<array{rrn: string|null, amount: string, kind: string}>}
+     * @return array{total: Money, count: int, breakdown: array{payments: string, deposits: string, repayments: string, refunds: string, deposit_refunds: string, tips: string}, transactions: list<array{rrn: string|null, amount: string, kind: string}>}
      */
     public function ofShifts(iterable $shifts): array
     {
         $total = Money::zero();
         $count = 0;
-        $breakdown = ['payments' => Money::zero(), 'deposits' => Money::zero(), 'repayments' => Money::zero(), 'refunds' => Money::zero(), 'deposit_refunds' => Money::zero()];
+        $breakdown = ['payments' => Money::zero(), 'deposits' => Money::zero(), 'repayments' => Money::zero(), 'refunds' => Money::zero(), 'deposit_refunds' => Money::zero(), 'tips' => Money::zero()];
         $transactions = [];
         foreach ($shifts as $shift) {
             $one = $this->of($shift);

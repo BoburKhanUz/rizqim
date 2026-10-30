@@ -7,13 +7,23 @@ part of 'queue19.dart';
 // **************************************************************************
 
 Queue19 _$Queue19FromJson(Map<String, dynamic> json) => Queue19(
-  size: (json['size'] as num?)?.toInt(),
-  oldestAt: json['oldest_at'] == null
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
       ? null
-      : DateTime.parse(json['oldest_at'] as String),
+      : PickupStatus.fromJson(json['status'] as String),
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
 );
 
 Map<String, dynamic> _$Queue19ToJson(Queue19 instance) => <String, dynamic>{
-  'size': instance.size,
-  'oldest_at': instance.oldestAt?.toIso8601String(),
+  'number': instance.number,
+  'business_date': instance.businessDate,
+  'status': instance.status,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
 };

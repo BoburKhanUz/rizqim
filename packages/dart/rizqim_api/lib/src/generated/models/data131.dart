@@ -4,59 +4,28 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch11.dart';
-import 'login_phone_proof.dart';
+import 'period3.dart';
+import 'products4.dart';
 
 part 'data131.g.dart';
 
 @JsonSerializable()
 class Data131 {
   const Data131({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
-    required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
-    required this.createdAt,
+    required this.period,
+    required this.branchId,
+    required this.sort,
+    required this.products,
   });
 
   factory Data131.fromJson(Map<String, Object?> json) =>
       _$Data131FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch11? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
-  final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final Period3 period;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final String sort;
+  final List<Products4> products;
 
   Map<String, Object?> toJson() => _$Data131ToJson(this);
 }

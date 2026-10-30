@@ -4,59 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch9.dart';
-import 'login_phone_proof.dart';
+import 'weight_basis.dart';
 
 part 'data129.g.dart';
 
 @JsonSerializable()
 class Data129 {
   const Data129({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
-    required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
-    required this.createdAt,
+    required this.productId,
+    required this.quickMultipliers,
+    required this.waitMinutes,
+    required this.weightMode,
   });
 
   factory Data129.fromJson(Map<String, Object?> json) =>
       _$Data129FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch9? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
-  final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'quick_multipliers')
+  final List<int>? quickMultipliers;
+  @JsonKey(name: 'wait_minutes')
+  final int? waitMinutes;
+  @JsonKey(name: 'weight_mode')
+  final WeightBasis? weightMode;
 
   Map<String, Object?> toJson() => _$Data129ToJson(this);
 }

@@ -104,10 +104,12 @@ class KitchenService {
     );
   }
 
-  /// Chiptaning spetsifikatsiyada (hali) yo'q maydonlari (P6-14: navbat raqami va olib ketish holati) xom javobdan.
+  /// Chiptaning spetsifikatsiyada (hali) yo'q maydonlari (P6-14: navbat raqami va olib ketish holati; P6-25: stol tablichkasi) xom javobdan.
   static const List<String> _rawTicketFields = <String>[
     'queue_number',
     'pickup_status',
+    // P6-25: kafe stol tablichkasi
+    'table_label',
   ];
 
   static Map<String, Object?> _withRawTicketFields(
@@ -125,6 +127,10 @@ class KitchenService {
   static const List<String> _rawItemFields = <String>[
     'product_id',
     'category_id',
+    // P6-21 kurs, P6-25 og'irlik kutilmoqda va mangal vaqti
+    'course_no',
+    'weight_status',
+    'wait_minutes',
   ];
 
   static Map<String, Object?> _withRawItemFields(

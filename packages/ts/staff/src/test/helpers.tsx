@@ -132,6 +132,7 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     fiscalized_by: null,
     // Counter-order pickup queue (P6-13): empty on online orders
     pickup_status: null,
+    table_label: null,
     pickup_ready_at: null,
     pickup_called_at: null,
     pickup_call_count: 0,

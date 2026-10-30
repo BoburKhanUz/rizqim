@@ -69,6 +69,7 @@ final class ShiftReport {
     this.voidedAmount = PosMoney.zero,
     this.fiscalPending = 0,
     this.openOrders = 0,
+    this.tips = const <ReportAmount>[],
   });
 
   final ShiftReportKind kind;
@@ -130,6 +131,9 @@ final class ShiftReport {
 
   /// Yopilmagan buyurtmalar (X hisobotda ogohlantirish).
   final int openOrders;
+
+  /// P6-22: choy puli qatorlari (jami, usul, shaxsiy/qozon, xodim bo'yicha) — tushum emas, savdodan alohida bo'limda.
+  final List<ReportAmount> tips;
 
   PosMoney get netSales => sales - refunds;
 

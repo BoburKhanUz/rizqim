@@ -7,17 +7,17 @@ part of 'lines5.dart';
 // **************************************************************************
 
 Lines5 _$Lines5FromJson(Map<String, dynamic> json) => Lines5(
-  type: json['type'] as String,
-  label: json['label'] as String,
-  quantity: (json['quantity'] as num).toInt(),
-  unitPrice: json['unit_price'] as num,
-  amount: json['amount'] as num,
+  staffId: (json['staff_id'] as num?)?.toInt(),
+  name: json['name'] as String?,
+  role: json['role'] as String?,
+  basis: json['basis'] as String,
+  amount: json['amount'] as String,
 );
 
 Map<String, dynamic> _$Lines5ToJson(Lines5 instance) => <String, dynamic>{
-  'type': instance.type,
-  'label': instance.label,
-  'quantity': instance.quantity,
-  'unit_price': instance.unitPrice,
+  'staff_id': instance.staffId,
+  'name': instance.name,
+  'role': instance.role,
+  'basis': instance.basis,
   'amount': instance.amount,
 };

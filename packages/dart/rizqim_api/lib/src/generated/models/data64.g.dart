@@ -13,7 +13,7 @@ Data64 _$Data64FromJson(Map<String, dynamic> json) => Data64(
   name: json['name'] as String,
   kind: json['kind'] as String,
   seats: (json['seats'] as num?)?.toInt(),
-  layout: Layout6.fromJson(json['layout'] as Map<String, dynamic>),
+  layout: Layout4.fromJson(json['layout'] as Map<String, dynamic>),
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
   minSpend: json['min_spend'] as String?,

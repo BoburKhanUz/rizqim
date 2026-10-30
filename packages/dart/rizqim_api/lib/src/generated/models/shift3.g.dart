@@ -22,7 +22,7 @@ Shift3 _$Shift3FromJson(Map<String, dynamic> json) => Shift3(
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy4.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy7.fromJson(json['closed_by'] as Map<String, dynamic>),
   expectedCash: json['expected_cash'] as String?,
   countedCash: json['counted_cash'] as String?,
   countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(

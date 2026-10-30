@@ -11,7 +11,7 @@ GetV1OwnerMealSetsResponse _$GetV1OwnerMealSetsResponseFromJson(
 ) => GetV1OwnerMealSetsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data95.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data97.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerMealSetsResponseToJson(

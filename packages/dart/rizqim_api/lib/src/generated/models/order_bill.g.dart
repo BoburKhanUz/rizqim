@@ -45,6 +45,8 @@ OrderBill _$OrderBillFromJson(Map<String, dynamic> json) => OrderBill(
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
+  seatNo: (json['seat_no'] as num?)?.toInt(),
+  waiterId: (json['waiter_id'] as num?)?.toInt(),
   order: json['order'] == null
       ? null
       : Order.fromJson(json['order'] as Map<String, dynamic>),
@@ -85,6 +87,8 @@ Map<String, dynamic> _$OrderBillToJson(OrderBill instance) => <String, dynamic>{
   'voided_at': instance.voidedAt?.toIso8601String(),
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
+  'seat_no': instance.seatNo,
+  'waiter_id': instance.waiterId,
   'order': instance.order,
   'items': instance.items,
   'payments': instance.payments,

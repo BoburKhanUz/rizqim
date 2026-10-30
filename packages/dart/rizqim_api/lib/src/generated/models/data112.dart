@@ -4,48 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'format.dart';
+
 part 'data112.g.dart';
 
 @JsonSerializable()
 class Data112 {
   const Data112({
-    required this.id,
-    required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
+    required this.stationsCreated,
+    required this.stationsSkipped,
+    required this.categoriesCreated,
+    required this.dishesCreated,
+    required this.dishesSkipped,
+    required this.format,
   });
 
   factory Data112.fromJson(Map<String, Object?> json) =>
       _$Data112FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  @JsonKey(name: 'stations_created')
+  final List<String> stationsCreated;
+  @JsonKey(name: 'stations_skipped')
+  final List<String> stationsSkipped;
+  @JsonKey(name: 'categories_created')
+  final List<String> categoriesCreated;
+  @JsonKey(name: 'dishes_created')
+  final List<String> dishesCreated;
+  @JsonKey(name: 'dishes_skipped')
+  final List<String> dishesSkipped;
+  final Format format;
 
   Map<String, Object?> toJson() => _$Data112ToJson(this);
 }

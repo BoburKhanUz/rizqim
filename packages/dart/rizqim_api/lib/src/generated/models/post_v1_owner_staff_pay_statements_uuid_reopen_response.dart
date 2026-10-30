@@ -1,0 +1,29 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data155.dart';
+
+part 'post_v1_owner_staff_pay_statements_uuid_reopen_response.g.dart';
+
+@JsonSerializable()
+class PostV1OwnerStaffPayStatementsUuidReopenResponse {
+  const PostV1OwnerStaffPayStatementsUuidReopenResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1OwnerStaffPayStatementsUuidReopenResponse.fromJson(
+    Map<String, Object?> json,
+  ) => _$PostV1OwnerStaffPayStatementsUuidReopenResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data155 data;
+
+  Map<String, Object?> toJson() =>
+      _$PostV1OwnerStaffPayStatementsUuidReopenResponseToJson(this);
+}

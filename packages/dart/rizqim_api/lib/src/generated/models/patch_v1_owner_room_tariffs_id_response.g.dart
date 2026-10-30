@@ -11,7 +11,7 @@ PatchV1OwnerRoomTariffsIdResponse _$PatchV1OwnerRoomTariffsIdResponseFromJson(
 ) => PatchV1OwnerRoomTariffsIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data123.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data136.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerRoomTariffsIdResponseToJson(

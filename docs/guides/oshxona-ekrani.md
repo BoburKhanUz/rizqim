@@ -5,7 +5,8 @@ bitta doskada ko'rinadi. Oshpaz taom tayyor bo'lganda uni bosib belgilaydi, belg
 
 Choyxona va katta oshxonada ekran **sexlar** bo'yicha ishlaydi: osh, mangal, salat va bar, choy. Har sexning oshpazi faqat o'z
 taomlarini ko'radi. Mangal sexida taomlar six sanog'i bilan chiqadi. Oldindan buyurtmalar (nahor oshi, N kg osh) o'z vaqt
-navbatida turadi. Osh qoldig'i uchun **Qozon** paneli bor.
+navbatida turadi. Osh qoldig'i uchun **Qozon** paneli bor. Restoran va kafede chiptada yana **kurs**, **og'irlik kutilmoqda**, **mangal vaqti** va **stol raqami** chiqadi
+([14-bo'lim](#14-restoran-va-kafe-kurslar-ogirlik-mangal-vaqti-stol-raqami)).
 
 Bu qo'llanma ikki kishi uchun:
 
@@ -96,6 +97,10 @@ Doskada qabul qilingan va tayyorlanayotgan buyurtmalar (chiptalar) turadi.
 | Kanal | Qayerdan kelgani: Telegram, ilova, kassa |
 | `2/5 tayyor` | 5 ta taomdan 2 tasi tayyor |
 | Izoh (sariq qutida) | Mijozning izohi, masalan "achchiq qilmang". Doim o'qing |
+| **1-kurs**, **2-kurs** sarlavhalari | Restoranda taomlar kurslarga bo'lingan ([14-bo'lim](#14-restoran-va-kafe-kurslar-ogirlik-mangal-vaqti-stol-raqami)) |
+| **Og'irlik kutilmoqda** belgisi | Taom hali tortilmagan: miqdori taxminiy (14-bo'lim) |
+| `Mangal 12 daq · 7:42 qoldi` | Taomning mangal vaqti va qancha qolgani (14-bo'lim) |
+| **Stol 12** belgisi raqam yonida | Kassada to'langan buyurtma shu stolga olib boriladi (14-bo'lim) |
 | Taom qatori | Miqdor (`2×`) yoki vazn (`1.5 kg`), taom nomi, qo'shimchalar (`+ Achchiq`) |
 
 Narx va mijoz ma'lumoti oshxona ekranida ko'rsatilmaydi.
@@ -340,7 +345,68 @@ kassada yopilgan bo'lsa ham oshxona ekranida **oddiy chipta** bo'lib turadi, raq
 
 [Mijoz ekrani qo'llanmasi](mijoz-ekrani.md): raqamlar taxtasini qanday ulash va sozlash.
 
-## 14. Muammolar va yechimlar
+## 14. Restoran va kafe: kurslar, og'irlik, mangal vaqti, stol raqami
+
+Bu belgilar faqat ega tegishli modulni yoqqan filialda chiqadi (**Kurslar**, **Six tugmalari**, **Og'irlikni keyin kiritish**, **Stolga olib kelish**);
+ularsiz oshxona ekrani yuqoridagidek ishlaydi. Ofitsiant va kassir tomoni — [restoran.md](restoran.md).
+
+### Kurslar
+
+Kurs — taomlarning ketma-ketligi: 1-kurs salat, 2-kurs asosiy taom, 3-kurs shirinlik. Ofitsiant keyingi kursni mehmonlar oldingisini yeb
+bo'lgach **yuboradi**. Shuning uchun:
+
+- Oshxona ekrani faqat **yuborilgan** taomlarni ko'radi. Hali yuborilmagan kurs (masalan, 2-kurs) chiptada **yo'q**: u ofitsiant
+  yuborganda paydo bo'ladi. Oldindan pishirmang.
+- Kursli chiptada qatorlar kurslar bo'yicha guruhlangan. Har kursning sarlavhasi: **1-kurs** belgisi va **0/2 tayyor** (shu kursning nechta
+  taomi tayyor). Kurssiz taomlar (darhol yuborilgan) **Kurssiz** sarlavhasi ostida turadi.
+- Bosqichlar bo'lsa (**1-bosqich**, **2-bosqich**), avval bosqich, ichida kurs tartibida.
+
+**Kursni tayyor deb belgilash.** Taomlarni bittalab bosib ham belgilash mumkin (4-bo'lim). Chiptada **bir nechta kurs** bo'lsa, har kurs
+sarlavhasi ostida **2-kurs tayyor** tugmasi chiqadi: u shu kursning qolgan hamma taomini birdan belgilaydi (**Hammasi tayyor** esa chiptadagi
+hamma kursni). Bitta kurs bo'lsa, alohida tugma yo'q: **Hammasi tayyor** o'sha ish.
+
+Kursning oxirgi taomi tayyor bo'lganda **ofitsiantning telefoniga "2-kurs tayyor — 5-stol" xabari boradi** (oshxona buning uchun boshqa
+hech narsa qilmaydi). Kursning taomlari bir necha sexda bo'lsa, xabar **oxirgi sex** tugatganda ketadi: siz faqat o'z sexingiz taomlarini
+ko'rasiz va **2-kurs tayyor** o'zingizniki uchun. Xato bosgan bo'lsangiz, taomni qayta bosing yoki **Yaqinda tayyor** dan **Qaytarish**
+(4-bo'lim): xabar qaytib ketmaydi, lekin kurs yana tugaganda yangisi boradi.
+
+### Og'irlik kutilmoqda
+
+Baliq yoki go'sht kabi taom **tortilgach** hisoblanadi. Ofitsiant yoki kassir taomni qo'shganda uning og'irligini keyin kiritadi. Shu
+paytgacha qatorda sariq **Og'irlik kutilmoqda** belgisi turadi, miqdori ("1.2 kg") esa **taxminiy**.
+
+- Taomni odatdagidek pishiravering va tayyor bo'lganda belgilang: belgi bunga to'sqinlik qilmaydi. Tayyor bo'lgach belgi yo'qoladi.
+- Og'irlikni oshxona ekranida kiritib **bo'lmaydi**: uni kassir yoki ofitsiant kiritadi. Tarozida tortilganini ularga ayting. Og'irlik
+  kiritilmaguncha mehmonga schyot chiqmaydi, shuning uchun kechiktirmang.
+
+### Mangal vaqti
+
+Ega taomga mangal vaqtini belgilagan bo'lsa (masalan, 12 daqiqa), qator ostida **taymer** chiqadi: taom oshxonaga **yuborilgandan** boshlab
+sanaydi.
+
+| Ko'rinish | Ma'nosi |
+|---|---|
+| `Mangal 12 daq · 7:42 qoldi` (kulrang, olov belgisi) | Hali vaqt bor |
+| Sariq, oxirgi daqiqa | Tez orada olish kerak |
+| `Mangal 12 daq · vaqti o'tdi +1:20` (qizil, ogohlantirish belgisi) | Taom kerakli vaqtdan oshdi |
+
+Taymer taom tayyor deb belgilanganda yo'qoladi. U faqat eslatma: chipta rangi (**Shoshiling**, **Kechikdi**) avvalgidek buyurtma kutishiga qarab
+o'zgaradi. Vaqt belgilanmagan taomda taymer yo'q. Mangal ko'rinishida ([9-bo'lim](#9-mangal-korinishi-six-sanogi)) taymer taom nomi ostida
+katta yozuvda chiqadi.
+
+### Stol raqami (kafe)
+
+Kafeda mehmon kassada oldindan to'laydi, taom esa **stolga olib boriladi**. Kassir buyurtmaga stol tablichkasi raqamini yozsa, chipta
+sarlavhasida raqam yonida **Stol 12** belgisi chiqadi (mangal ko'rinishida chiptaning katta sarlavhasi — **Stol 12**). Taomni tayyor qilgach,
+yuguruvchi shu raqamli stolga olib boradi.
+
+### Mangal ko'rinishida
+
+Mangal ko'rinishida ham kurs belgisi (**2-kurs**), **Og'irlik kutilmoqda** va taymer qatorda chiqadi. Bir taomning boshqa kursdagi sixlari
+**alohida qatorda** turadi (1-kursdagi 6 six va 2-kursdagi 4 six — ikki qator). Bu ko'rinishda kurs tugmasi yo'q: qatorni bosing yoki
+**Hammasi tayyor**.
+
+## 15. Muammolar va yechimlar
 
 | Muammo | Nima qilish kerak |
 |---|---|
@@ -369,3 +435,8 @@ kassada yopilgan bo'lsa ham oshxona ekranida **oddiy chipta** bo'lib turadi, raq
 | Tepada sariq, qizil yoki ko'k lenta (**To'lov muddati o'tdi**, **Sozlamalar yopiq**, **KDS … tarifda bor**) | Tarif yoki hisob-faktura haqida xabar. Ekran ishlayveradi; egaga ayting ([lenta haqida](#tarif-va-tolov-lentasi)) |
 | Kod yaratilmayapti yoki planshet ulanmayapti: "Oshxona ekrani (KDS) Asosiy tarifda bor" yoki "tarifdagidan ortiq qurilma ulab bo'lmaydi" | Tarif oshxona ekranini o'z ichiga olmaydi yoki to'lanmagan hisob-faktura sababli limit to'lgan. Egaga ayting ([1-bo'lim](#1-planshetni-ulash-bir-marta)) |
 | Qizil **O'CHIRILDI** chipta chiqdi | Buyurtma yoki taom o'chirildi. Pishirmang; pishgan bo'lsa menejerga ayting |
+| 2-kurs chiptada yo'q | Ofitsiant hali yubormagan: u mehmonlar oldingi kursni yeb bo'lgach yuboradi ([14-bo'lim](#kurslar)) |
+| **2-kurs tayyor** tugmasi yo'q | Chiptada bitta kurs bor yoki sizda oshxona ruxsati yo'q (ekran faqat ko'rish uchun). Bitta kurs bo'lsa **Hammasi tayyor** ni bosing |
+| Qatorda **Og'irlik kutilmoqda** turibdi | Taom hali tortilmagan. Pishirishda davom eting; og'irlikni kassir yoki ofitsiant kiritadi, shuning uchun ularga ayting |
+| Taymer ko'rinmayapti | Taomga mangal vaqti belgilanmagan (ega menyuda **Mangal vaqti**ni yozadi) yoki taom hali yuborilmagan/tayyor |
+| Chiptada **Stol 12** bor, zalda bunday stol yo'q | Bu kafe stol tablichkasi raqami, zal xaritasidagi stol emas. Taomni shu raqamli tablichkali stolga olib boring |

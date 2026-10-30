@@ -11,7 +11,7 @@ _$GetV1OwnerFiscalTerminalFlowResponseFromJson(Map<String, dynamic> json) =>
     GetV1OwnerFiscalTerminalFlowResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data83.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data85.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1OwnerFiscalTerminalFlowResponseToJson(

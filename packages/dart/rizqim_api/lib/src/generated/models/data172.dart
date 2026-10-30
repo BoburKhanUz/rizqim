@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls2.dart';
-import 'untabled_orders.dart';
+import 'rooms.dart';
+import 'unassigned.dart';
 
 part 'data172.g.dart';
 
@@ -13,10 +13,11 @@ part 'data172.g.dart';
 class Data172 {
   const Data172({
     required this.branchId,
-    required this.generatedAt,
-    required this.overdueAfterHours,
-    required this.halls,
-    required this.untabledOrders,
+    required this.from,
+    required this.to,
+    required this.timezone,
+    required this.rooms,
+    required this.unassigned,
   });
 
   factory Data172.fromJson(Map<String, Object?> json) =>
@@ -24,13 +25,11 @@ class Data172 {
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'generated_at')
-  final String generatedAt;
-  @JsonKey(name: 'overdue_after_hours')
-  final int overdueAfterHours;
-  final List<Halls2> halls;
-  @JsonKey(name: 'untabled_orders')
-  final List<UntabledOrders> untabledOrders;
+  final String from;
+  final String to;
+  final String timezone;
+  final List<Rooms> rooms;
+  final List<Unassigned> unassigned;
 
   Map<String, Object?> toJson() => _$Data172ToJson(this);
 }

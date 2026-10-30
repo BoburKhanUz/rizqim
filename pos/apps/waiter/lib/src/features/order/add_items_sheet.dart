@@ -6,12 +6,14 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../common/modules.dart';
 import '../../common/sheet.dart';
 import 'cart_sheet.dart';
 import 'draft_cart.dart';
 import 'options_sheet.dart';
 import 'order_controller.dart';
 import 'quantity_sheet.dart';
+import 'slot_pickers.dart';
 
 /// "Taom qo'shish": toifalar + qidiruv + taomlar ro'yxati, savat, "hozir / ushlab turish" va "Yuborish".
 /// Bosqich yuborilsa `true` bilan yopiladi.
@@ -64,6 +66,15 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
   StreamSubscription<PosEvent>? _events;
 
   OrderController get _ctl => widget.controller;
+
+  PosSession get _session => _ctl.session;
+
+  /// P6-25: shu taom og'irligi keyin tortiladigan qator bo'ladi (modul yoqilgan).
+  bool _weighedLater(PosProduct p) => _session.weightLaterOn && p.weighedLater;
+
+  /// P6-25: ×N tez tugmalari (`skewer_buttons` moduli).
+  List<int> _multipliers(PosProduct p) =>
+      _session.skewersOn ? p.quickMultipliers : const <int>[];
 
   @override
   void initState() {
@@ -133,8 +144,16 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
           initial: _cart.plainQuantityOf(single).isPositive
               ? _cart.plainQuantityOf(single)
               : null,
+          weighedLater: _weighedLater(p),
         );
-        if (q != null) _cart.setPlainQuantity(p, single, q);
+        if (q != null) {
+          _cart.setPlainQuantity(
+            p,
+            single,
+            q,
+            awaitingWeight: _weighedLater(p),
+          );
+        }
       } else {
         _cart.setPlainQuantity(
           p,
@@ -147,30 +166,46 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
     await _chooseOptions(p);
   }
 
-  Future<void> _chooseOptions(PosProduct p) async {
+  /// P6-25: "×N" — oddiy taomga N dona qo'shiladi, variantli yoki qo'shimchali taomda tanlovdan keyin N dona.
+  Future<void> _multiply(PosProduct p, int times) async {
+    if (!_catalog.isProductAvailable(p)) return;
+    final PosQuantity n = PosQuantity.whole(times);
+    final PosVariant? single = p.singleVariant;
+    if (single != null && !p.hasModifiers && !single.unit.isMeasured) {
+      _cart.setPlainQuantity(p, single, _cart.plainQuantityOf(single) + n);
+      return;
+    }
+    await _chooseOptions(p, quantity: n);
+  }
+
+  Future<void> _chooseOptions(PosProduct p, {PosQuantity? quantity}) async {
     final ItemChoice? choice = await showOptionsSheet(
       context,
       product: p,
       catalog: _catalog,
     );
     if (choice == null || !mounted) return;
-    PosQuantity quantity = PosQuantity.one;
+    PosQuantity count = quantity ?? PosQuantity.one;
     if (choice.variant.unit.isMeasured) {
       final PosQuantity? q = await showQuantitySheet(
         context,
         product: p,
         variant: choice.variant,
+        weighedLater: _weighedLater(p),
       );
       if (q == null) return;
-      quantity = q;
+      count = q;
     }
     _cart.add(
       DraftLine(
         product: p,
         variant: choice.variant,
-        quantity: quantity,
+        quantity: count,
         modifiers: choice.modifiers,
         note: (choice.note ?? '').isEmpty ? null : choice.note,
+        courseNo: _cart.course,
+        seatNo: _cart.seat,
+        awaitingWeight: _weighedLater(p) && choice.variant.unit.isMeasured,
       ),
     );
   }
@@ -246,6 +281,18 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
                   ),
                 ),
               ),
+              // P6-21 / P6-24: the course and the guest the next dishes go to (only with the modules on)
+              if (_session.coursesOn)
+                CourseChips(
+                  value: _cart.course,
+                  onChanged: (int? v) => _cart.course = v,
+                ),
+              if (_session.guestSplitOn)
+                SeatChips(
+                  guests: _ctl.order?.guestsCount,
+                  value: _cart.seat,
+                  onChanged: (int? v) => _cart.seat = v,
+                ),
               if (!searching) ...<Widget>[
                 _QuickRow(products: _quick, cart: _cart, onTap: _tap),
                 SizedBox(
@@ -290,6 +337,11 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
                               product: products[i],
                               catalog: _catalog,
                               cart: _cart,
+                              multipliers: _multipliers(products[i]),
+                              showWait: _session.skewersOn,
+                              weighedLater: _weighedLater(products[i]),
+                              onMultiply: (int n) =>
+                                  unawaited(_multiply(products[i], n)),
                               onTap: () => unawaited(_tap(products[i])),
                               onOptions: () =>
                                   unawaited(_chooseOptions(products[i])),
@@ -368,7 +420,15 @@ class _AddItemsSheetState extends State<AddItemsSheet> {
                     excludeSemantics: true,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(RzRadius.card),
-                      onTap: () => unawaited(showCartSheet(context, _cart)),
+                      onTap: () => unawaited(
+                        showCartSheet(
+                          context,
+                          _cart,
+                          courses: _session.coursesOn,
+                          seats: _session.guestSplitOn,
+                          guests: _ctl.order?.guestsCount,
+                        ),
+                      ),
                       child: SizedBox(
                         height: 52,
                         child: Row(
@@ -499,6 +559,10 @@ class _ProductRow extends StatelessWidget {
     required this.onTap,
     required this.onOptions,
     required this.onRemoveOne,
+    this.multipliers = const <int>[],
+    this.showWait = false,
+    this.weighedLater = false,
+    this.onMultiply,
   });
 
   final PosProduct product;
@@ -507,6 +571,16 @@ class _ProductRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onOptions;
   final ValueChanged<PosVariant> onRemoveOne;
+
+  /// P6-25: ×N tugmalari (bo'sh — yo'q).
+  final List<int> multipliers;
+
+  /// P6-25: mangal vaqti ("~15 daq") ko'rsatiladi.
+  final bool showWait;
+
+  /// P6-25: og'irligi keyin tortiladi.
+  final bool weighedLater;
+  final ValueChanged<int>? onMultiply;
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +609,12 @@ class _ProductRow extends StatelessWidget {
     final PosBatch? batch = product.batchTracked && single != null
         ? catalog.batchFor(single)
         : null;
+    final List<String> extras = <String>[
+      if (showWait && (product.waitMinutes ?? 0) > 0)
+        '~${product.waitMinutes} daq',
+      if (weighedLater)
+        "og'irligi keyin tortiladi (${product.weightMode!.label})",
+    ];
     String? reason;
     if (!available) {
       reason = catalog.availability.stoppedProducts.contains(product.id)
@@ -595,8 +675,8 @@ class _ProductRow extends StatelessWidget {
       );
     }
 
-    return Semantics(
-      label: <String>[product.name, subtitle, ?reason].join(', '),
+    final Widget row = Semantics(
+      label: <String>[product.name, subtitle, ...extras, ?reason].join(', '),
       container: true,
       child: InkWell(
         onTap: available ? onTap : null,
@@ -624,6 +704,13 @@ class _ProductRow extends StatelessWidget {
                         subtitle,
                         style: RzType.footnote.copyWith(color: c.fgMuted),
                       ),
+                      if (extras.isNotEmpty)
+                        Text(
+                          extras.join(' · '),
+                          style: RzType.footnote.copyWith(
+                            color: weighedLater ? c.infoSoftFg : c.fgMuted,
+                          ),
+                        ),
                       if (batch != null && available)
                         Text(
                           'Qoldi: ${batch.quantityLeft.format()}',
@@ -644,6 +731,42 @@ class _ProductRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (multipliers.isEmpty || !available || onMultiply == null) return row;
+    // P6-25: skewers by the dozen in one tap ("×10"), under the dish
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        row,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: <Widget>[
+              for (final int n in multipliers)
+                Semantics(
+                  button: true,
+                  label: "${product.name}: $n dona qo'shish",
+                  excludeSemantics: true,
+                  child: OutlinedButton(
+                    onPressed: () => onMultiply!(n),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(56, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      foregroundColor: c.brandSoftFg,
+                      side: BorderSide(color: c.line),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(RzRadius.control),
+                      ),
+                    ),
+                    child: Text('×$n', style: RzType.headline),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -11,7 +11,7 @@ GetV1TerminalResponse _$GetV1TerminalResponseFromJson(
 ) => GetV1TerminalResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data221.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data267.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1TerminalResponseToJson(

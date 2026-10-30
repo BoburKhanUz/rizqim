@@ -4,27 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user_role.dart';
-
 part 'data133.g.dart';
 
 @JsonSerializable()
 class Data133 {
   const Data133({
     required this.id,
-    required this.name,
-    required this.role,
     required this.branchId,
+    required this.diningTableId,
+    required this.diningTableName,
+    required this.hallId,
+    required this.tableKind,
+    required this.dayType,
+    required this.price,
+    required this.validFrom,
+    required this.validTo,
   });
 
   factory Data133.fromJson(Map<String, Object?> json) =>
       _$Data133FromJson(json);
 
   final int id;
-  final String name;
-  final UserRole role;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
+  final int branchId;
+  @JsonKey(name: 'dining_table_id')
+  final int? diningTableId;
+  @JsonKey(name: 'dining_table_name')
+  final String? diningTableName;
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'table_kind')
+  final String? tableKind;
+  @JsonKey(name: 'day_type')
+  final String dayType;
+  final String price;
+  @JsonKey(name: 'valid_from')
+  final String? validFrom;
+  @JsonKey(name: 'valid_to')
+  final String? validTo;
 
   Map<String, Object?> toJson() => _$Data133ToJson(this);
 }

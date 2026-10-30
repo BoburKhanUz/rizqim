@@ -21,6 +21,7 @@ export const en: Messages = {
   nav_bookings: 'Bookings',
   nav_accounts: 'Credit accounts',
   nav_shifts: 'Shifts',
+  nav_tips: 'Tips',
   nav_possetup: 'POS setup',
   nav_permissions: 'Permissions',
   nav_audit: 'Audit log',
@@ -106,6 +107,7 @@ export const en: Messages = {
   role_cashier: 'Cashier',
   role_waiter: 'Waiter',
   role_cook: 'Cook',
+  role_hostess: 'Hostess',
   role_courier: 'Courier',
   role_customer: 'Customer',
 };

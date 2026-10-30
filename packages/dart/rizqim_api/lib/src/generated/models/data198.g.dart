@@ -7,27 +7,13 @@ part of 'data198.dart';
 // **************************************************************************
 
 Data198 _$Data198FromJson(Map<String, dynamic> json) => Data198(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal16.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  account: Account3.fromJson(json['account'] as Map<String, dynamic>),
+  entry: Entry2.fromJson(json['entry'] as Map<String, dynamic>),
+  fiscal: Fiscal9.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data198ToJson(Data198 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
+  'account': instance.account,
+  'entry': instance.entry,
   'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
 };

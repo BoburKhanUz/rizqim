@@ -11,7 +11,7 @@ PostV1OwnerHallsResponse _$PostV1OwnerHallsResponseFromJson(
 ) => PostV1OwnerHallsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data85.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data87.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerHallsResponseToJson(

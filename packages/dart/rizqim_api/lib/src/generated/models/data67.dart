@@ -4,52 +4,82 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'store_status.dart';
-import 'store_transaction.dart';
-import 'store_wallet_transaction.dart';
-import 'payout_requests.dart';
+import 'user_role.dart';
+import 'courier_type.dart';
+import 'branch7.dart';
 
 part 'data67.g.dart';
 
 @JsonSerializable()
 class Data67 {
   const Data67({
-    required this.debtBalance,
-    required this.walletBalance,
-    required this.creditLimit,
-    required this.minPayoutReserve,
-    required this.paymentAccountType,
-    required this.commissionRate,
-    required this.status,
-    required this.isOrderLocked,
-    required this.ledgerTransactions,
-    required this.walletTransactions,
-    required this.payoutRequests,
+    required this.id,
+    required this.uuid,
+    required this.storeId,
+    required this.name,
+    required this.email,
+    required this.telegramId,
+    required this.telegramUsername,
+    required this.telegramPhotoUrl,
+    required this.phone,
+    required this.role,
+    required this.emailVerifiedAt,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.deletedAt,
+    required this.address,
+    required this.phoneVerifiedAt,
+    required this.branchId,
+    required this.referredBy,
+    required this.balance,
+    required this.pinSetAt,
+    required this.staffCode,
+    required this.courierType,
+    required this.branch,
+    required this.telegramInviteToken,
   });
 
   factory Data67.fromJson(Map<String, Object?> json) => _$Data67FromJson(json);
 
-  @JsonKey(name: 'debt_balance')
-  final num debtBalance;
-  @JsonKey(name: 'wallet_balance')
-  final num walletBalance;
-  @JsonKey(name: 'credit_limit')
-  final num creditLimit;
-  @JsonKey(name: 'min_payout_reserve')
-  final num minPayoutReserve;
-  @JsonKey(name: 'payment_account_type')
-  final String paymentAccountType;
-  @JsonKey(name: 'commission_rate')
-  final num commissionRate;
-  final StoreStatus status;
-  @JsonKey(name: 'is_order_locked')
-  final bool isOrderLocked;
-  @JsonKey(name: 'ledger_transactions')
-  final List<StoreTransaction> ledgerTransactions;
-  @JsonKey(name: 'wallet_transactions')
-  final List<StoreWalletTransaction> walletTransactions;
-  @JsonKey(name: 'payout_requests')
-  final List<PayoutRequests> payoutRequests;
+  final int id;
+  final String uuid;
+  @JsonKey(name: 'store_id')
+  final int? storeId;
+  final String name;
+  final String? email;
+  @JsonKey(name: 'telegram_id')
+  final String? telegramId;
+  @JsonKey(name: 'telegram_username')
+  final String? telegramUsername;
+  @JsonKey(name: 'telegram_photo_url')
+  final String? telegramPhotoUrl;
+  final String? phone;
+  final UserRole role;
+  @JsonKey(name: 'email_verified_at')
+  final String? emailVerifiedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
+  @JsonKey(name: 'deleted_at')
+  final String? deletedAt;
+  final String? address;
+  @JsonKey(name: 'phone_verified_at')
+  final String? phoneVerifiedAt;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'referred_by')
+  final int? referredBy;
+  final String balance;
+  @JsonKey(name: 'pin_set_at')
+  final String? pinSetAt;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'courier_type')
+  final CourierType courierType;
+  final Branch7? branch;
+  @JsonKey(name: 'telegram_invite_token')
+  final String? telegramInviteToken;
 
   Map<String, Object?> toJson() => _$Data67ToJson(this);
 }

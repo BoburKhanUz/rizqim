@@ -7,49 +7,27 @@ part of 'data199.dart';
 // **************************************************************************
 
 Data199 _$Data199FromJson(Map<String, dynamic> json) => Data199(
-  uuid: json['uuid'] as String,
-  status: json['status'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  device: json['device'] == null
-      ? null
-      : Device12.fromJson(json['device'] as Map<String, dynamic>),
-  businessDate: json['business_date'] as String,
-  openedAt: json['opened_at'] as String,
-  openedBy: json['opened_by'] == null
-      ? null
-      : OpenedBy.fromJson(json['opened_by'] as Map<String, dynamic>),
-  openingCash: json['opening_cash'] as String,
-  closedAt: json['closed_at'] as String?,
-  closedBy: json['closed_by'] == null
-      ? null
-      : ClosedBy.fromJson(json['closed_by'] as Map<String, dynamic>),
-  expectedCash: json['expected_cash'] as String?,
-  countedCash: json['counted_cash'] as String?,
-  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, (e as num).toInt()),
-  ),
-  difference: json['difference'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  forceClosed: json['force_closed'] as bool,
-  closeNote: json['close_note'] as String?,
+  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries4.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data199ToJson(Data199 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'status': instance.status,
-  'branch_id': instance.branchId,
-  'device': instance.device,
-  'business_date': instance.businessDate,
-  'opened_at': instance.openedAt,
-  'opened_by': instance.openedBy,
-  'opening_cash': instance.openingCash,
-  'closed_at': instance.closedAt,
-  'closed_by': instance.closedBy,
-  'expected_cash': instance.expectedCash,
-  'counted_cash': instance.countedCash,
-  'counted_breakdown': instance.countedBreakdown,
-  'difference': instance.difference,
-  'z_number': instance.zNumber,
-  'force_closed': instance.forceClosed,
-  'close_note': instance.closeNote,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

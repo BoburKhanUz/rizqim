@@ -11,7 +11,7 @@ PatchV1OwnerDiningTablesIdResponse _$PatchV1OwnerDiningTablesIdResponseFromJson(
 ) => PatchV1OwnerDiningTablesIdResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data64.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data66.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1OwnerDiningTablesIdResponseToJson(

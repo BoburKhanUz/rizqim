@@ -22,6 +22,10 @@ return [
     App\Domain\Pos\Sync\PosSyncServiceProvider::class,
     // P6-13: order numbers and calling (PickupTracker, the bootstrap's queue section)
     App\Domain\Pos\Orders\PosQueueServiceProvider::class,
+    // P6-23: staff pay (the tips source of the tips component, the bootstrap's staff_pay section)
+    App\Domain\Pos\StaffPay\StaffPayServiceProvider::class,
+    // P6-22: tips (choy puli): the bootstrap's tips section
+    App\Domain\Pos\Tips\PosTipsServiceProvider::class,
     // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
     App\Providers\AdminMonitoringServiceProvider::class,
     // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh

@@ -292,6 +292,45 @@ class _PosOrdersApi implements PosOrdersApi {
   }
 
   @override
+  Future<PostV1PosOrdersUuidCoursesCourseSendResponse> posCourseSend({
+    required String uuid,
+    required String course,
+    required String idempotencyKey,
+    required V1PosOrdersUuidCoursesCourseSendRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options =
+        _setStreamType<PostV1PosOrdersUuidCoursesCourseSendResponse>(
+          Options(method: 'POST', headers: _headers, extra: _extra)
+              .compose(
+                _dio.options,
+                '/v1/pos/orders/${uuid}/courses/${course}/send',
+                queryParameters: queryParameters,
+                data: _data,
+              )
+              .copyWith(
+                baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl),
+              ),
+        );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidCoursesCourseSendResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidCoursesCourseSendResponse.fromJson(
+        _result.data!,
+      );
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1PosOrdersUuidDiscountResponse> posOrderDiscount({
     required String uuid,
     required String idempotencyKey,
@@ -350,6 +389,40 @@ class _PosOrdersApi implements PosOrdersApi {
     late PostV1PosOrdersUuidGuestsResponse _value;
     try {
       _value = PostV1PosOrdersUuidGuestsResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidItemsItemSeatResponse> posOrderHandoverSeat({
+    required String uuid,
+    required String item,
+    required String idempotencyKey,
+    required V1PosOrdersUuidItemsItemSeatRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidItemsItemSeatResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/items/${item}/seat',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidItemsItemSeatResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidItemsItemSeatResponse.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -420,6 +493,42 @@ class _PosOrdersApi implements PosOrdersApi {
     late PostV1PosOrdersUuidItemsItemVoidResponse _value;
     try {
       _value = PostV1PosOrdersUuidItemsItemVoidResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidItemsItemWeightResponse> posCourseWeight({
+    required String uuid,
+    required String item,
+    required String idempotencyKey,
+    required V1PosOrdersUuidItemsItemWeightRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidItemsItemWeightResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/items/${item}/weight',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidItemsItemWeightResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidItemsItemWeightResponse.fromJson(
+        _result.data!,
+      );
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -619,6 +728,72 @@ class _PosOrdersApi implements PosOrdersApi {
     late PostV1PosOrdersUuidSendResponse _value;
     try {
       _value = PostV1PosOrdersUuidSendResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidTableLabelResponse> posCourseTableLabel({
+    required String uuid,
+    required String idempotencyKey,
+    required V1PosOrdersUuidTableLabelRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidTableLabelResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/table-label',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidTableLabelResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidTableLabelResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostV1PosOrdersUuidTransferResponse> posOrderHandoverTransfer({
+    required String uuid,
+    required String idempotencyKey,
+    required V1PosOrdersUuidTransferRequestBody body,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostV1PosOrdersUuidTransferResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/pos/orders/${uuid}/transfer',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1PosOrdersUuidTransferResponse _value;
+    try {
+      _value = PostV1PosOrdersUuidTransferResponse.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

@@ -31,6 +31,10 @@ sealed class PosEvent {
           _order(j),
           j,
         ),
+        'order.course_ready' => PosCourseReady._(name, data, _order(j), j),
+        'order.transferred' => PosOrderTransferred._(name, data, _order(j), j),
+        'waitlist.changed' => PosWaitlistChanged._(name, data, j),
+        'table.state_changed' => PosTableStateChanged._(name, data, j),
         'kitchen.item_status_changed' => PosKitchenItemChanged._(
           name,
           data,
@@ -111,6 +115,93 @@ class PosOrderBillRequested extends PosEvent {
   String? get orderUuid => order.uuid;
 }
 
+/// `order.course_ready` (P6-21): buyurtma kursining oshxonaga yuborilgan hamma taomi tayyor ("2-kurs tayyor"). Ofitsiant
+/// telefoni [waiterId] o'zi bo'lsa (yoki buyurtmada ofitsiant yo'q bo'lsa) xabar ko'rsatadi.
+class PosCourseReady extends PosEvent {
+  PosCourseReady._(super.name, super.data, this.order, PosJson j)
+    : courseNo = j.integer('course_no'),
+      version = j.intOrNull('version'),
+      tableId = j.intOrNull('table_id'),
+      waiterId = j.intOrNull('waiter_id'),
+      itemIds = <int>[
+        for (final Object? id
+            in (j['item_ids'] as List<Object?>?) ?? const <Object?>[])
+          if (id is num) id.toInt(),
+      ];
+
+  final PosEventOrder order;
+  final int courseNo;
+  final int? version;
+  final int? tableId;
+  final int? waiterId;
+
+  /// Kursning taomlari (server id'lari).
+  final List<int> itemIds;
+
+  /// Shu ofitsiantga tegishli xabar: buyurtma uniki yoki ofitsiantsiz.
+  bool isFor(int staffId) => waiterId == null || waiterId == staffId;
+
+  @override
+  String? get orderUuid => order.uuid;
+}
+
+/// `order.transferred` (P6-24): ochiq stol boshqa ofitsiantga berildi. Eski ofitsiant telefoni "stol 5 boshqa
+/// ofitsiantga o'tkazildi", yangisiniki "stol 5 sizga berildi" deydi ([isFromMe], [isToMe]); qolganlar zalni qayta
+/// o'qiydi. Xabar `user.{id}` kanallariga ham boradi, shuning uchun terminal ham filial kanalidan o'qiy oladi.
+class PosOrderTransferred extends PosEvent {
+  PosOrderTransferred._(super.name, super.data, this.order, PosJson j)
+    : version = j.intOrNull('version'),
+      tableRef = j.strOrNull('table_ref'),
+      fromWaiterId = j.intOrNull('from_waiter_id'),
+      toWaiterId = j.intOrNull('to_waiter_id');
+
+  final PosEventOrder order;
+  final int? version;
+
+  /// Stol nomi ("Stol 5"), xabar matni uchun.
+  final String? tableRef;
+  final int? fromWaiterId;
+  final int? toWaiterId;
+
+  bool isFromMe(int staffId) => fromWaiterId == staffId;
+  bool isToMe(int staffId) => toWaiterId == staffId;
+
+  @override
+  String get orderUuid => order.uuid;
+}
+
+/// `waitlist.changed` (P6-24): kutish ro'yxatiga yozuv qo'shildi yoki o'zgardi; hostes ekrani `GET /pos/waitlist` ni
+/// qayta o'qiydi.
+class PosWaitlistChanged extends PosEvent {
+  PosWaitlistChanged._(super.name, super.data, PosJson j)
+    : entryUuid = j.obj('entry').strOrNull('uuid'),
+      entryStatus = j.obj('entry').strOrNull('status'),
+      branchId = j.obj('entry').intOrNull('branch_id'),
+      version = j.obj('entry').intOrNull('version');
+
+  final String? entryUuid;
+
+  /// `waiting`, `seated`, `canceled`, `no_show`.
+  final String? entryStatus;
+  final int? branchId;
+  final int? version;
+}
+
+/// `table.state_changed` (P6-26): hostes stolni "tozalanmoqda" deb belgiladi yoki belgini olib tashladi; zal xaritasi
+/// qayta o'qiladi.
+class PosTableStateChanged extends PosEvent {
+  PosTableStateChanged._(super.name, super.data, PosJson j)
+    : tableId = j.obj('table').intOrNull('id'),
+      branchId = j.obj('table').intOrNull('branch_id'),
+      serviceState = j.obj('table').strOrNull('service_state');
+
+  final int? tableId;
+  final int? branchId;
+
+  /// `cleaning` yoki `null`.
+  final String? serviceState;
+}
+
 /// `order.created`, `order.status_changed`, `order.assigned`.
 class PosOrderEvent extends PosEvent {
   const PosOrderEvent._(super.name, super.data, this.order);
@@ -135,7 +226,8 @@ class PosOrderItemsChanged extends PosEvent {
   final int? version;
   final int? tableId;
 
-  /// `round_added`, `sent`, `voided`, `guests_changed`, `moved`, `merged`, `charges_changed`, `served`, `cancelled`.
+  /// `round_added`, `sent`, `voided`, `guests_changed`, `moved`, `merged`, `charges_changed`, `served`, `cancelled`,
+  /// `waiter_changed`, `seat_changed` (P6-24).
   final String? change;
   final List<int> itemIds;
 

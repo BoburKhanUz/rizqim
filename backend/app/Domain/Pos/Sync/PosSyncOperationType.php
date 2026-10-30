@@ -7,7 +7,7 @@ use App\Enums\Permission;
 /**
  * What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync:
  * open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make
- * one bill, take cash or card for it, close the order.
+ * one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight.
  */
 enum PosSyncOperationType: string
 {
@@ -19,6 +19,9 @@ enum PosSyncOperationType: string
     case BILL_CREATE = 'bill.create';
     case BILL_PAY = 'bill.pay';
     case ORDER_CLOSE = 'order.close';
+    // P6-21 / P6-25: send a held course, the real weight of a "weight later" line
+    case ORDER_COURSE_SEND = 'order.course_send';
+    case ORDER_WEIGHT = 'order.weight';
 
     /**
      * The permissions the staff member must hold (any of them).
@@ -53,6 +56,8 @@ enum PosSyncOperationType: string
             self::BILL_CREATE => 'Schyot tuzildi',
             self::BILL_PAY => "To'lov olindi",
             self::ORDER_CLOSE => 'Buyurtma yopildi',
+            self::ORDER_COURSE_SEND => 'Kurs oshxonaga yuborildi',
+            self::ORDER_WEIGHT => "Og'irlik kiritildi",
         };
     }
 }

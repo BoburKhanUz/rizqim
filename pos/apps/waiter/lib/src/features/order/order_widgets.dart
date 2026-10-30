@@ -24,6 +24,15 @@ class LineStatusChip extends StatelessWidget {
         c.dangerSoft,
         c.dangerSoftFg,
       ),
+      // P6-21: a later course waits for "N-kursni yuborish"
+      PosKitchenStatus.pending
+          when item.fireMode == PosFireMode.hold && item.courseNo != null =>
+        (
+          '${item.courseNo}-kurs kutmoqda',
+          Icons.pause_circle_outline,
+          c.infoSoft,
+          c.infoSoftFg,
+        ),
       PosKitchenStatus.pending when item.fireMode == PosFireMode.hold => (
         'Ushlab turilgan',
         Icons.pause_circle_outline,
@@ -103,6 +112,8 @@ class OrderLineTile extends StatelessWidget {
     this.onServed,
     this.onSend,
     this.onVoid,
+    this.onWeigh,
+    this.onSeat,
   });
 
   final PosOrderItem item;
@@ -113,6 +124,12 @@ class OrderLineTile extends StatelessWidget {
   final VoidCallback? onServed;
   final VoidCallback? onSend;
   final VoidCallback? onVoid;
+
+  /// P6-25: og'irlik kutayotgan qatorning og'irligini kiritish (ruxsat yo'q — `null`: faqat ko'rinadi).
+  final VoidCallback? onWeigh;
+
+  /// P6-24: qatorning mehmonini o'zgartirish (`guest_split` o'chiq — `null`).
+  final VoidCallback? onSeat;
 
   String get _quantityText =>
       item.quantityLabel ?? item.quantity.label(item.unit);
@@ -176,7 +193,22 @@ class OrderLineTile extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: 6),
-                      LineStatusChip(item: item),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          LineStatusChip(item: item),
+                          if (!voided)
+                            LineBadges(
+                              courseNo: item.courseNo,
+                              seatNo: item.seatNo,
+                              weight: item.weightStatus,
+                              onSeat: editable && enabled ? onSeat : null,
+                              seatEditable: editable && onSeat != null,
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -190,6 +222,17 @@ class OrderLineTile extends StatelessWidget {
                 ),
               ],
             ),
+            if (editable && item.awaitingWeight && onWeigh != null) ...<Widget>[
+              const SizedBox(height: 10),
+              RzButton(
+                label: "Og'irlikni kiritish",
+                icon: Icons.scale_outlined,
+                variant: RzButtonVariant.secondary,
+                size: RzButtonSize.lg,
+                fullWidth: true,
+                onPressed: enabled ? onWeigh : null,
+              ),
+            ],
             if (editable && ready) ...<Widget>[
               const SizedBox(height: 10),
               RzButton(
@@ -234,6 +277,113 @@ class OrderLineTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Qatorning restoran belgilari: kurs ("2-kurs"), mehmon ("3-mehmon", bosilsa o'zgaradi), og'irlik ("Tortiladi" /
+/// "Tortildi"). Hech biri bo'lmasa — bo'sh.
+class LineBadges extends StatelessWidget {
+  const LineBadges({
+    super.key,
+    this.courseNo,
+    this.seatNo,
+    this.weight,
+    this.onSeat,
+    this.seatEditable = false,
+  });
+
+  final int? courseNo;
+  final int? seatNo;
+  final PosWeightStatus? weight;
+  final VoidCallback? onSeat;
+
+  /// Mehmon belgisi ko'rinadi ("Umumiy" ham), bosib o'zgartiriladi.
+  final bool seatEditable;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    Widget badge(
+      IconData icon,
+      String text,
+      Color bg,
+      Color fg, {
+      VoidCallback? onTap,
+      String? semantics,
+    }) {
+      final Widget body = DecoratedBox(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(RzRadius.control),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, size: 14, color: fg),
+              const SizedBox(width: 5),
+              Text(text, style: RzType.caption.copyWith(color: fg)),
+              if (onTap != null) ...<Widget>[
+                const SizedBox(width: 3),
+                Icon(Icons.edit_outlined, size: 13, color: fg),
+              ],
+            ],
+          ),
+        ),
+      );
+      if (onTap == null) return body;
+      return Semantics(
+        button: true,
+        label: semantics ?? text,
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(RzRadius.control),
+          // A small badge, a finger-sized target
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 40),
+            child: Center(widthFactor: 1, child: body),
+          ),
+        ),
+      );
+    }
+
+    final Color soft = Color.alphaBlend(c.surface2, c.surface);
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        if (courseNo != null)
+          badge(
+            Icons.layers_outlined,
+            '$courseNo-kurs',
+            c.brandSoft,
+            c.brandSoftFg,
+          ),
+        if (seatNo != null || seatEditable)
+          badge(
+            Icons.event_seat_outlined,
+            seatNo == null ? 'Umumiy' : '$seatNo-mehmon',
+            soft,
+            c.fg,
+            onTap: onSeat,
+            semantics: seatNo == null
+                ? "Mehmon: umumiy, o'zgartirish"
+                : "Mehmon: $seatNo, o'zgartirish",
+          ),
+        if (weight == PosWeightStatus.awaiting)
+          badge(
+            Icons.scale_outlined,
+            'Tortiladi',
+            c.warningSoft,
+            c.warningSoftFg,
+          ),
+        if (weight == PosWeightStatus.weighed)
+          badge(Icons.scale_outlined, 'Tortildi', soft, c.fgMuted),
+      ],
     );
   }
 }

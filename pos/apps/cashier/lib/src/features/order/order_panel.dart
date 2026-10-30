@@ -11,6 +11,7 @@ import 'discount_dialog.dart';
 import 'order_controller.dart';
 import 'order_draft.dart';
 import 'order_format.dart';
+import 'restaurant_widgets.dart';
 
 /// Buyurtmaning o'ng paneli: bosqichlar (raqami, vaqti, kim qo'shgani, qatorlar holati bilan), yangi bosqich
 /// qoralamasi, choy-non tez tugmalari, jami (xizmat qatorlari bilan) va amallar.
@@ -27,6 +28,7 @@ class OrderPanel extends StatefulWidget {
     required this.onBill,
     required this.onCharge,
     this.onRemoveDiscount,
+    this.onSendCourse,
   });
 
   final OrderController controller;
@@ -47,6 +49,9 @@ class OrderPanel extends StatefulWidget {
 
   /// P3-37: chegirmani olib tashlash (`null` — amal yo'q: internetsiz yoki ruxsat yo'q).
   final VoidCallback? onRemoveDiscount;
+
+  /// P6-21: "N-kursni yuborish" (`null` — kurslar paneli yo'q).
+  final ValueChanged<int>? onSendCourse;
 
   @override
   State<OrderPanel> createState() => _OrderPanelState();
@@ -156,6 +161,15 @@ class _OrderPanelState extends State<OrderPanel> {
               children: children,
             ),
           ),
+          // P6-21: the order's courses and the next one to fire
+          if (open &&
+              widget.onSendCourse != null &&
+              (order?.courses.isNotEmpty ?? false))
+            CourseBar(
+              courses: order!.courses,
+              enabled: !ctl.busy,
+              onSend: widget.onSendCourse!,
+            ),
           if (open && held.isNotEmpty)
             Material(
               color: Color.alphaBlend(c.warningSoft, c.surface),
@@ -254,13 +268,24 @@ class _OrderPanelState extends State<OrderPanel> {
                   ],
                 ),
                 const SizedBox(height: 8),
+                // P6-25: no bill while a dish waits for its weight (the server refuses it: weight_pending)
                 RzButton(
-                  label: 'Schyot',
-                  icon: Icons.receipt_long_outlined,
+                  key: const ValueKey<String>('order-bill'),
+                  label: (order?.weightPending ?? 0) > 0
+                      ? weightPendingLabel(order!.weightPending)
+                      : 'Schyot',
+                  icon: (order?.weightPending ?? 0) > 0
+                      ? Icons.scale_outlined
+                      : Icons.receipt_long_outlined,
                   size: RzButtonSize.lg,
                   variant: RzButtonVariant.success,
                   fullWidth: true,
-                  onPressed: order != null && !ctl.busy ? widget.onBill : null,
+                  onPressed:
+                      order != null &&
+                          !ctl.busy &&
+                          (order.weightPending == 0 || !order.isOpen)
+                      ? widget.onBill
+                      : null,
                 ),
               ],
             ),
@@ -341,7 +366,7 @@ class _RoundSection extends StatelessWidget {
             amount: i.totalPrice,
             voided: i.isVoid,
             voidReason: i.voidReason,
-            status: kitchenStatusChip(i),
+            status: restaurantStatusChip(i),
             onTap: () => onItemTap(i),
           ),
       ],
@@ -522,7 +547,11 @@ class _Totals extends StatelessWidget {
         'Xizmat haqi ${formatPercent(ch.serviceChargePercent)}%',
         o.serviceChargeAmount,
       ),
-      ?charge(PosChargeKind.placeFee, 'Joy narxi', o.placeFeeAmount),
+      ?charge(
+        PosChargeKind.placeFee,
+        o.placeFeeIsCover ? 'Kuver' : 'Joy narxi',
+        o.placeFeeAmount,
+      ),
     ];
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -1,0 +1,29 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'data117.dart';
+
+part 'post_v1_owner_pos_tips_distributions_response.g.dart';
+
+@JsonSerializable()
+class PostV1OwnerPosTipsDistributionsResponse {
+  const PostV1OwnerPosTipsDistributionsResponse({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory PostV1OwnerPosTipsDistributionsResponse.fromJson(
+    Map<String, Object?> json,
+  ) => _$PostV1OwnerPosTipsDistributionsResponseFromJson(json);
+
+  final bool success;
+  final String message;
+  final Data117 data;
+
+  Map<String, Object?> toJson() =>
+      _$PostV1OwnerPosTipsDistributionsResponseToJson(this);
+}

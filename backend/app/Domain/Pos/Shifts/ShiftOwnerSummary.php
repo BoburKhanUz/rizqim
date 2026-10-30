@@ -112,6 +112,10 @@ final class ShiftOwnerSummary
             $report['cash']['wages'] ?? 0,
             $report['cash']['purchases'] ?? 0,
         )->toString());
+        // P6-22: tips on their own line (not revenue, not on the receipts)
+        if (Money::of(is_numeric($report['tips']['amount'] ?? null) ? (string) $report['tips']['amount'] : 0)->isPositive()) {
+            $lines[] = 'Choy puli: ' . $uzs($report['tips']['amount']) . ' (naqd ' . $uzs($report['cash']['tips'] ?? 0) . ', berildi ' . $uzs($report['cash']['tip_payouts'] ?? 0) . ')';
+        }
         $lines[] = 'Kutilgan naqd: ' . $uzs($shift->expected_cash) . ', sanaldi: ' . $uzs($shift->counted_cash);
         $difference = Money::of($shift->difference);
         $lines[] = 'Farq: ' . ($difference->isNegative() ? '-' : ($difference->isPositive() ? '+' : '')) . $uzs($difference->abs()->toString());

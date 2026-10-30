@@ -14,7 +14,7 @@ class ClosedBy {
       _$ClosedByFromJson(json);
 
   final int id;
-  final String name;
+  final String? name;
 
   Map<String, Object?> toJson() => _$ClosedByToJson(this);
 }

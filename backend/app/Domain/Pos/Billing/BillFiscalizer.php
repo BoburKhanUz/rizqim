@@ -128,7 +128,9 @@ final class BillFiscalizer
                 'fiscal_error' => $status === 'issued' ? null : ($error !== null ? mb_substr($error, 0, 500) : null),
             ]);
             if ($status === 'issued') {
-                $bill->forceFill(['status' => BillStatus::PAID->value, 'paid_at' => now()]);
+                // The waiter at payment time: PaymentService stamps it when the payments cover the bill; a bill paid
+                // without one (nothing to pay) takes the order's waiter now
+                $bill->forceFill(['status' => BillStatus::PAID->value, 'paid_at' => now(), 'waiter_id' => $bill->getAttribute('waiter_id') ?? $order->waiter_id]);
             }
             $bill->save();
 

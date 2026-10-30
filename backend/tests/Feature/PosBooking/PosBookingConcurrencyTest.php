@@ -69,7 +69,7 @@ class PosBookingConcurrencyTest extends TestCase
     public function test_two_bills_racing_for_one_deposit_take_it_once(): void
     {
         $uuid = $this->booked();
-        $this->takeDeposit($uuid, '1000000', 'cash')->assertCreated();
+        $this->takeDeposit($uuid, '1000000', 'qr')->assertCreated();
         $order = Order::where('uuid', $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/arrive")->assertOk()->json('data.order.uuid'))->firstOrFail();
         $bookingId = (int) $order->booking_id;
 

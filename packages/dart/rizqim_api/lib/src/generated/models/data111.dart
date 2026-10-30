@@ -4,48 +4,45 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'locks2.dart';
+import 'module_rows2.dart';
+import 'profiles2.dart';
+import 'template2.dart';
+
 part 'data111.g.dart';
 
 @JsonSerializable()
 class Data111 {
   const Data111({
-    required this.id,
     required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
+    required this.profile,
+    required this.profileLabel,
+    required this.mode,
+    required this.firstScreen,
+    required this.modules,
+    required this.locks,
+    required this.moduleRows,
+    required this.profiles,
+    required this.template,
   });
 
   factory Data111.fromJson(Map<String, Object?> json) =>
       _$Data111FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  final String profile;
+  @JsonKey(name: 'profile_label')
+  final String profileLabel;
+  final String mode;
+  @JsonKey(name: 'first_screen')
+  final String firstScreen;
+  final List<String> modules;
+  final Locks2 locks;
+  @JsonKey(name: 'module_rows')
+  final List<ModuleRows2> moduleRows;
+  final List<Profiles2> profiles;
+  final Template2 template;
 
   Map<String, Object?> toJson() => _$Data111ToJson(this);
 }

@@ -12,6 +12,7 @@ import 'catalog/catalog_repository.dart';
 import 'display/display_feed.dart';
 import 'display/display_repository.dart';
 import 'floor/floor_repository.dart';
+import 'hostess/hostess_repository.dart';
 import 'http/connectivity.dart';
 import 'http/pos_http.dart';
 import 'menu_day/batch_repository.dart';
@@ -20,6 +21,8 @@ import 'orders/order_repository.dart';
 import 'session/approvals.dart';
 import 'session/pos_session.dart';
 import 'shift/shift_repository.dart';
+import 'staffpay/staff_pay_repository.dart';
+import 'tips/tip_repository.dart';
 
 /// Kassa va ofitsiant ilovalari uchun bitta kirish nuqtasi: hamma repozitoriy bitta [RizqimClient] (bitta Dio, token
 /// va 401 boshqaruvi) ustida.
@@ -77,6 +80,9 @@ class PosData {
     display = PosDisplayRepository(http);
     displayFeed = DisplayFeed(display);
     batches = PosBatchRepository(http);
+    hostess = HostessRepository(http);
+    staffClock = StaffClockRepository(http);
+    tips = PosTipsRepository(http);
     final PosOffline? o = offline;
     if (o != null) {
       o
@@ -122,6 +128,15 @@ class PosData {
 
   /// P6-15: qozon/partiya hisobdan chiqarish.
   late final PosBatchRepository batches;
+
+  /// P6-24/P6-26: hostes stoli (kutish ro'yxati, stol belgisi), stolni boshqa ofitsiantga berish, qatorga mehmon raqami.
+  late final HostessRepository hostess;
+
+  /// P6-23: kirgan xodimning ish vaqti ("Ishga keldim" / "Ishdan ketdim").
+  late final StaffClockRepository staffClock;
+
+  /// P6-22: smenaning choy pullari va menejer tuzatishi (choy puli to'lov bilan olinadi).
+  late final PosTipsRepository tips;
 
   AuthSession get auth => client.auth;
   PosConnectivity get connectivity => http.connectivity;

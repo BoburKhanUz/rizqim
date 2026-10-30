@@ -19,6 +19,8 @@ class Tenders {
     this.cardLast4,
     this.reference,
     this.accountUuid,
+    this.tipAmount,
+    this.tipFromChange,
   });
 
   factory Tenders.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,12 @@ class Tenders {
   final String? reference;
   @JsonKey(name: 'account_uuid')
   final String? accountUuid;
+
+  /// P6-22: a tip on top of the tender, or the cash change left as one
+  @JsonKey(name: 'tip_amount')
+  final num? tipAmount;
+  @JsonKey(name: 'tip_from_change')
+  final bool? tipFromChange;
 
   Map<String, Object?> toJson() => _$TendersToJson(this);
 }

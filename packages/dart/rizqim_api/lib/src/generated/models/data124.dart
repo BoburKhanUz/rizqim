@@ -4,19 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings.dart';
-
 part 'data124.g.dart';
 
 @JsonSerializable()
 class Data124 {
-  const Data124({required this.channels, required this.settings});
+  const Data124({
+    required this.id,
+    required this.branchId,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
+  });
 
   factory Data124.fromJson(Map<String, Object?> json) =>
       _$Data124FromJson(json);
 
-  final List<dynamic> channels;
-  final List<Settings> settings;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data124ToJson(this);
 }

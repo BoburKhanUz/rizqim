@@ -38,6 +38,14 @@ enum Type9 {
   @JsonValue('order.close')
   undefined7('order.close'),
 
+  /// Incorrect name has been replaced. Original name: `order.course_send`.
+  @JsonValue('order.course_send')
+  undefined8('order.course_send'),
+
+  /// Incorrect name has been replaced. Original name: `order.weight`.
+  @JsonValue('order.weight')
+  undefined9('order.weight'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

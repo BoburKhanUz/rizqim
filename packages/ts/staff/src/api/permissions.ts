@@ -15,7 +15,7 @@ export type RolePermissionSaved = OkData<'staffAccess.updatePermission'>;
 
 // The roles whose permissions a store may change (RolePermissions::overridableRoles), in the order the panel shows them.
 // The owner's own set is fixed and the server never lets it be edited.
-export const PERMISSION_ROLES = ['manager', 'cashier', 'waiter', 'cook', 'courier'] as const;
+export const PERMISSION_ROLES = ['manager', 'cashier', 'waiter', 'cook', 'hostess', 'courier'] as const;
 export type PermissionRole = (typeof PERMISSION_ROLES)[number];
 
 export interface PermissionState {

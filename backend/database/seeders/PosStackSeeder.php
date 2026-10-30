@@ -2,11 +2,15 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Pos\Setup\FormatProfile;
+use App\Domain\Pos\Setup\PosSettings;
+use App\Domain\Pos\StaffPay\StaffPayRules;
 use App\Enums\BranchStatus;
 use App\Enums\DeviceType;
 use App\Enums\UserRole;
 use App\Models\AutoGuestItem;
 use App\Models\Branch;
+use App\Models\BranchBookingRules;
 use App\Models\BranchProductRotation;
 use App\Models\Category;
 use App\Models\CustomerAccount;
@@ -16,10 +20,12 @@ use App\Models\KitchenStation;
 use App\Models\KitchenStationRoute;
 use App\Models\MenuBatch;
 use App\Models\ModifierGroup;
+use App\Models\PosTipSetting;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\RoomTariff;
 use App\Models\ServiceFeeSetting;
+use App\Models\StaffPaySetting;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Auth\DevicePairingService;
@@ -43,6 +49,15 @@ use RuntimeException;
  * both on the kitchen display), a counter menu (to'y oshi by the portion from kazans the cook opens, achichuk, non, choy
  * and two daily dishes), its owner, manager, two cashiers and a cook with PINs, and four paired devices: two tills, the
  * kitchen display and a customer display (the "ready numbers" board). In the seed file under `osh`.
+ *
+ * P6-29: a third store, a restaurant ("Rizqim Restoran", e2e/pos/test/friday_restaurant_test.dart): fiscal on the
+ * sandbox driver, a branch on the `restoran` profile (skewer buttons and weight-later switched on over it) with 20
+ * tables in two halls, a kitchen of four stations (cold, hot and grill on the kitchen display, the bar without one), a
+ * restaurant menu (salads, hot dishes, desserts, skewers with ×2…×10 buttons, a fish weighed after it is chosen,
+ * drinks), the service charge rules (12% in the hall, 15% from 8 guests), the tip pool split by role weights (waiter 2,
+ * cook 1), table booking rules (a deposit of 50 000 per guest from 6 guests, needed to confirm), the staff pay rules
+ * (daily period) and its staff with PINs: owner, manager, cashier, four waiters, a hostess and a cook; seven paired
+ * devices (the till, four waiters' phones, the hostess tablet, the kitchen display). In the seed file under `restoran`.
  *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
@@ -71,6 +86,20 @@ class PosStackSeeder extends Seeder
     public const OSH_CASHIER_2_PIN = '3159';
 
     public const OSH_COOK_PIN = '1648';
+
+    /** P6-29: the restaurant of the "juma kechasi" end-to-end test (its own store) */
+    public const RESTORAN_TIN = '301234569';
+
+    public const RESTORAN_PINS = [
+        'manager' => '6271',
+        'cashier' => '7182',
+        'waiter1' => '1539',
+        'waiter2' => '2864',
+        'waiter3' => '3579',
+        'waiter4' => '4680',
+        'hostess' => '5791',
+        'cook' => '6802',
+    ];
 
     private Store $store;
 
@@ -196,6 +225,7 @@ class PosStackSeeder extends Seeder
             ],
             'account' => ['uuid' => $account->uuid, 'name' => $account->name, 'credit_limit' => '3000000.00'],
             'osh' => $this->oshMarkazi(),
+            'restoran' => $this->restaurant(),
         ]);
     }
 
@@ -347,6 +377,239 @@ class PosStackSeeder extends Seeder
                 'cashier2' => ['id' => $cashier2->id, 'name' => $cashier2->name, 'pin' => self::OSH_CASHIER_2_PIN],
                 'cook' => ['id' => $cook->id, 'name' => $cook->name, 'pin' => self::OSH_COOK_PIN],
             ],
+            'terminals' => $terminals,
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+        ];
+    }
+
+    /**
+     * P6-29: the restaurant of the Friday-evening test, with its own staff, menu, rules and devices.
+     *
+     * @return array<string, mixed> the seed file's `restoran` section (the same shape as the top level)
+     */
+    private function restaurant(): array
+    {
+        $store = Store::forceCreate([
+            'name' => 'Rizqim Restoran',
+            'slug' => 'rizqim-restoran',
+            'status' => 'active',
+            'is_open' => true,
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::RESTORAN_TIN,
+            'tax_regime' => 'vat',
+            'payment_settings' => ['cash' => ['enabled' => true], 'delivery_enabled' => false, 'pickup_enabled' => true, 'delivery_fee' => 0],
+            'fiscal_settings' => [
+                'enabled' => true,
+                'driver' => 'sandbox',
+                'charges' => [
+                    'place_fee' => ['mxik' => '10202002002000002'],
+                    'service_charge' => ['mxik' => '10202002005000002'],
+                ],
+            ],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => 'Yunusobod restorani',
+            'latitude' => 41.366,
+            'longitude' => 69.288,
+            'radius_km' => 8,
+            'status' => BranchStatus::ACTIVE->value,
+            'business_day_starts_at' => '05:00:00',
+        ]);
+        // The restaurant profile (courses, tips, staff pay, guest split, waiter transfer, hostess, table booking,
+        // service charge rules), with the grill's skewer buttons and the fish weighed after it is chosen
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(null, FormatProfile::RESTORAN, ['skewer_buttons' => true, 'weight_later' => true])])->save();
+
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $pins = self::RESTORAN_PINS;
+        $staff = [
+            'owner' => $person(UserRole::OWNER, 'Shavkat Restoranov', '+998901000041', null),
+            'manager' => $person(UserRole::MANAGER, 'Feruza Menejer', '+998901000042', $pins['manager']),
+            'cashier' => $person(UserRole::CASHIER, 'Laylo Kassir', '+998901000043', $pins['cashier']),
+            'waiter1' => $person(UserRole::WAITER, 'Akmal Ofitsiant', '+998901000044', $pins['waiter1']),
+            'waiter2' => $person(UserRole::WAITER, 'Bekzod Ofitsiant', '+998901000045', $pins['waiter2']),
+            'waiter3' => $person(UserRole::WAITER, 'Jasur Ofitsiant', '+998901000046', $pins['waiter3']),
+            'waiter4' => $person(UserRole::WAITER, 'Otabek Ofitsiant', '+998901000047', $pins['waiter4']),
+            'hostess' => $person(UserRole::HOSTESS, 'Madina Hostes', '+998901000048', $pins['hostess']),
+            'cook' => $person(UserRole::COOK, 'Rustam Oshpaz', '+998901000049', $pins['cook']),
+        ];
+
+        // Cold, hot and grill cook from the kitchen display; the bar pours without one (the waiter serves at once)
+        $stations = [];
+        foreach ([
+            'cold' => ['Sovuq sex', 'salad_bar', true],
+            'hot' => ['Issiq sex', 'kitchen', true],
+            'grill' => ['Mangal', 'mangal', true],
+            'bar' => ['Bar', 'other', false],
+        ] as $key => [$name, $kind, $kds]) {
+            $stations[$key] = KitchenStation::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'name' => $name,
+                'kind' => $kind,
+                'sort_order' => count($stations) + 1,
+                'show_on_kds' => $kds,
+            ]);
+        }
+
+        $categories = [];
+        foreach (['Salatlar' => 'rs-salatlar', 'Issiq taomlar' => 'rs-issiq', 'Mangal' => 'rs-mangal', 'Desertlar' => 'rs-desert', 'Ichimliklar' => 'rs-ichimlik'] as $name => $slug) {
+            $categories[$name] = Category::create(['name' => $name, 'slug' => 'pos-e2e-' . $slug, 'is_active' => true]);
+        }
+        $make = function (string $name, string $category, string $mxik, string $variant, string $price, array $variantAttributes = [], array $productAttributes = []) use ($store, $categories): ProductVariant {
+            $product = Product::create($productAttributes + [
+                'store_id' => $store->id,
+                'category_id' => $categories[$category]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-rs-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+
+            return ProductVariant::create($variantAttributes + ['product_id' => $product->id, 'name' => $variant, 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+        };
+        $menu = [
+            'Sezar salati' => $make('Sezar salati', 'Salatlar', '10202001008000011', 'Porsiya', '68000'),
+            'Achchiq-chuchuk' => $make('Achchiq-chuchuk', 'Salatlar', '10202001008000012', 'Porsiya', '24000'),
+            "Mol go'shti steyk" => $make("Mol go'shti steyk", 'Issiq taomlar', '10202001002000011', 'Porsiya', '165000'),
+            "Lag'mon" => $make("Lag'mon", 'Issiq taomlar', '10202001002000012', 'Porsiya', '48000'),
+            // The grill: a skewer with the ×2…×10 buttons and its waiting time; a fish by the kg, weighed raw after it is chosen
+            "Qo'y kabob" => $make("Qo'y kabob", 'Mangal', '10202001007000011', 'Six', '26000', [], ['quick_multipliers' => [2, 3, 5, 10], 'wait_minutes' => 15]),
+            'Sazan' => $make('Sazan', 'Mangal', '10202001007000012', 'Mangalda', '240000', [
+                'unit' => 'kg', 'unit_label' => 'kg', 'quantity_step' => '0.05', 'min_quantity' => '0.5',
+            ], ['weight_mode' => 'raw', 'wait_minutes' => 25]),
+            'Medovik' => $make('Medovik', 'Desertlar', '10202001009000011', 'Bo\'lak', '34000'),
+            'Chizkeyk' => $make('Chizkeyk', 'Desertlar', '10202001009000012', 'Bo\'lak', '42000'),
+            'Limonad' => $make('Limonad', 'Ichimliklar', '10202001005000011', 'Grafin', '28000'),
+            'Choy' => $make('Choy', 'Ichimliklar', '10202001005000012', 'Choynak', '15000', [], ['quick_add' => true]),
+        ];
+        foreach ([
+            'cold' => ['Salatlar', 'Desertlar'],
+            'hot' => ['Issiq taomlar'],
+            'grill' => ['Mangal'],
+            'bar' => ['Ichimliklar'],
+        ] as $station => $names) {
+            foreach ($names as $name) {
+                KitchenStationRoute::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'station_id' => $stations[$station]->id, 'category_id' => $categories[$name]->id, 'product_id' => null]);
+            }
+        }
+
+        // 20 tables: 16 of four in the main hall, 4 of ten in the VIP hall
+        $main = Hall::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'Asosiy zal', 'sort_order' => 1]);
+        $vip = Hall::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'VIP zal', 'sort_order' => 2]);
+        foreach (range(1, 20) as $number) {
+            DiningTable::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'hall_id' => $number <= 16 ? $main->id : $vip->id,
+                'name' => "Stol {$number}",
+                'kind' => 'table',
+                'seats' => $number <= 16 ? 4 : 10,
+                'sort_order' => $number,
+                'layout_x' => (($number - 1) % 5) * 5,
+                'layout_y' => intdiv($number - 1, 5) * 4,
+                'layout_w' => 4,
+                'layout_h' => 3,
+            ]);
+        }
+
+        // Service charge: 10% on the row, 12% for a hall order by the rules, 15% for a table of 8 guests or more
+        ServiceFeeSetting::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'service_charge_percent' => '10',
+            'place_fee_amount' => '0',
+            'place_fee_mode' => 'per_person',
+            'service_charge_rules' => ['by_order_type' => ['hall' => '12.00'], 'large_group_min_guests' => 8, 'large_group_percent' => '15.00', 'cover_amount' => null],
+        ]);
+        // Tips go to one pool for the day, split by role weights: a waiter 2 parts, the cook 1
+        PosTipSetting::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'mode' => 'pool',
+            'pool_rule' => 'role_weights',
+            'pool_period' => 'day',
+            'roles' => ['waiter', 'cook'],
+            'role_weights' => ['waiter' => '2', 'cook' => '1'],
+        ]);
+        // Table bookings: at least an hour ahead, 2 hours a table, 50 000 deposit per guest from 6 guests, needed to confirm
+        BranchBookingRules::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'table_slot_minutes' => 120,
+            'table_min_advance_minutes' => 60,
+            'deposit_mode' => 'per_guest',
+            'deposit_amount' => '50000',
+            'deposit_from_guests' => 6,
+            'deposit_required_to_confirm' => true,
+        ]);
+        // Staff pay by the business day, sales to the waiter at payment time; one rule per role
+        StaffPaySetting::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'period' => 'day', 'sales_attribution' => 'at_payment', 'updated_by' => $staff['owner']->id]);
+        $rules = app(StaffPayRules::class);
+        foreach ([
+            'waiter' => [['type' => 'shift_rate', 'amount' => '100000'], ['type' => 'sales_percent', 'percent' => '5'], ['type' => 'service_charge_percent', 'percent' => '30'], ['type' => 'tips']],
+            'cook' => [['type' => 'shift_rate', 'amount' => '180000'], ['type' => 'tips']],
+            'hostess' => [['type' => 'shift_rate', 'amount' => '120000']],
+            'cashier' => [['type' => 'shift_rate', 'amount' => '110000']],
+        ] as $role => $components) {
+            $rules->create($branch, ['role' => $role, 'effective_from' => '2026-01-01', 'components' => $components], $staff['owner']);
+        }
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        foreach ([
+            'cashier' => [DeviceType::POS, 'Kassa'],
+            'waiter1' => [DeviceType::POS, 'Ofitsiant 1 telefoni'],
+            'waiter2' => [DeviceType::POS, 'Ofitsiant 2 telefoni'],
+            'waiter3' => [DeviceType::POS, 'Ofitsiant 3 telefoni'],
+            'waiter4' => [DeviceType::POS, 'Ofitsiant 4 telefoni'],
+            'hostess' => [DeviceType::POS, 'Hostes planshet'],
+            'kds' => [DeviceType::KDS, 'Oshxona ekrani'],
+        ] as $key => [$type, $name]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'])['code'];
+            $paired = $pairing->pair($code, ['platform' => 'linux']);
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => [
+                    'uuid' => $paired['device']->uuid,
+                    'type' => $type->value,
+                    'name' => $name,
+                    'platform' => 'linux',
+                    'app_version' => null,
+                    'store_id' => $store->id,
+                    'branch_id' => $branch->id,
+                ],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-restoran-owner')->plainTextToken;
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::RESTORAN_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
             'terminals' => $terminals,
             'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
         ];

@@ -4,48 +4,61 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period2.dart';
-import 'summary2.dart';
-import 'series.dart';
-import 'by_channel2.dart';
-import 'by_branch.dart';
-import 'by_payment_method2.dart';
-import 'by_order_type2.dart';
+import 'closed_by2.dart';
+import 'lines6.dart';
 
 part 'data117.g.dart';
 
 @JsonSerializable()
 class Data117 {
   const Data117({
-    required this.period,
+    required this.uuid,
     required this.branchId,
-    required this.summary,
-    required this.byStatus,
-    required this.series,
-    required this.byChannel,
-    required this.byBranch,
-    required this.byPaymentMethod,
-    required this.byOrderType,
+    required this.businessDate,
+    required this.shiftUuid,
+    required this.rule,
+    required this.roles,
+    required this.roleWeights,
+    required this.poolAmount,
+    required this.tipsCount,
+    required this.distributed,
+    required this.status,
+    required this.computedAt,
+    required this.closedAt,
+    required this.closedBy,
+    required this.manualParticipants,
+    required this.lines,
   });
 
   factory Data117.fromJson(Map<String, Object?> json) =>
       _$Data117FromJson(json);
 
-  final Period2 period;
+  final String uuid;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Summary2 summary;
-  @JsonKey(name: 'by_status')
-  final Map<String, int> byStatus;
-  final List<Series> series;
-  @JsonKey(name: 'by_channel')
-  final List<ByChannel2> byChannel;
-  @JsonKey(name: 'by_branch')
-  final List<ByBranch> byBranch;
-  @JsonKey(name: 'by_payment_method')
-  final List<ByPaymentMethod2> byPaymentMethod;
-  @JsonKey(name: 'by_order_type')
-  final List<ByOrderType2> byOrderType;
+  final int branchId;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  final String rule;
+  final List<String> roles;
+  @JsonKey(name: 'role_weights')
+  final Map<String, String> roleWeights;
+  @JsonKey(name: 'pool_amount')
+  final String poolAmount;
+  @JsonKey(name: 'tips_count')
+  final int tipsCount;
+  final String distributed;
+  final String status;
+  @JsonKey(name: 'computed_at')
+  final String? computedAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy2? closedBy;
+  @JsonKey(name: 'manual_participants')
+  final bool manualParticipants;
+  final List<Lines6> lines;
 
   Map<String, Object?> toJson() => _$Data117ToJson(this);
 }

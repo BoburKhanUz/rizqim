@@ -30,6 +30,7 @@ V1PosBookingsRequestBody _$V1PosBookingsRequestBodyFromJson(
   minSpend: json['min_spend'] as num?,
   note: json['note'] as String?,
   confirm: json['confirm'] as bool?,
+  skipLeadTime: json['skip_lead_time'] as bool?,
   version: (json['version'] as num?)?.toInt(),
 );
 
@@ -49,5 +50,6 @@ Map<String, dynamic> _$V1PosBookingsRequestBodyToJson(
   'min_spend': instance.minSpend,
   'note': instance.note,
   'confirm': instance.confirm,
+  'skip_lead_time': instance.skipLeadTime,
   'version': instance.version,
 };

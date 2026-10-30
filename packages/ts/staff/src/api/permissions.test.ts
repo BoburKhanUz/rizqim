@@ -78,6 +78,6 @@ describe('overrideFor', () => {
   });
 
   it('lists the roles an owner can change, without the owner', () => {
-    expect(PERMISSION_ROLES).toEqual(['manager', 'cashier', 'waiter', 'cook', 'courier']);
+    expect(PERMISSION_ROLES).toEqual(['manager', 'cashier', 'waiter', 'cook', 'hostess', 'courier']);
   });
 });

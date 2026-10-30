@@ -38,6 +38,7 @@ void main() {
   test('StaffRole labels', () {
     expect(StaffRole.labelOf('cook'), 'Oshpaz');
     expect(StaffRole.labelOf('manager'), 'Menejer');
+    expect(StaffRole.labelOf('hostess'), 'Hostes');
     expect(StaffRole.labelOf('chef_de_partie'), 'chef_de_partie');
     expect(StaffRole.fromWire('waiter'), StaffRole.waiter);
   });

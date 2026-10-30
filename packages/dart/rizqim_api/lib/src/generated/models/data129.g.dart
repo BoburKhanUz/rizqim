@@ -7,41 +7,19 @@ part of 'data129.dart';
 // **************************************************************************
 
 Data129 _$Data129FromJson(Map<String, dynamic> json) => Data129(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: json['role'] as String,
-  roleLabel: json['role_label'] as String,
-  branch: json['branch'] == null
+  productId: (json['product_id'] as num).toInt(),
+  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  weightMode: json['weight_mode'] == null
       ? null
-      : Branch9.fromJson(json['branch'] as Map<String, dynamic>),
-  courierType: json['courier_type'] as String?,
-  phone: json['phone'] as String?,
-  loginPhoneEnabled: json['login_phone_enabled'] as bool,
-  loginPhoneProof: json['login_phone_proof'] == null
-      ? null
-      : LoginPhoneProof.fromJson(json['login_phone_proof'] as String?),
-  hasPin: json['has_pin'] as bool,
-  staffCode: json['staff_code'] as String?,
-  telegramLinked: json['telegram_linked'] as bool,
-  invitePending: json['invite_pending'] as bool,
-  canEdit: json['can_edit'] as bool,
-  createdAt: json['created_at'] as String?,
+      : WeightBasis.fromJson(json['weight_mode'] as String),
 );
 
 Map<String, dynamic> _$Data129ToJson(Data129 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'role_label': instance.roleLabel,
-  'branch': instance.branch,
-  'courier_type': instance.courierType,
-  'phone': instance.phone,
-  'login_phone_enabled': instance.loginPhoneEnabled,
-  'login_phone_proof': instance.loginPhoneProof,
-  'has_pin': instance.hasPin,
-  'staff_code': instance.staffCode,
-  'telegram_linked': instance.telegramLinked,
-  'invite_pending': instance.invitePending,
-  'can_edit': instance.canEdit,
-  'created_at': instance.createdAt,
+  'product_id': instance.productId,
+  'quick_multipliers': instance.quickMultipliers,
+  'wait_minutes': instance.waitMinutes,
+  'weight_mode': instance.weightMode,
 };

@@ -7,13 +7,13 @@ part of 'data160.dart';
 // **************************************************************************
 
 Data160 _$Data160FromJson(Map<String, dynamic> json) => Data160(
-  accounts: (json['accounts'] as List<dynamic>)
-      .map((e) => Accounts.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  meta: Meta.fromJson(json['meta'] as Map<String, dynamic>),
+  userId: (json['user_id'] as num).toInt(),
+  staffCode: json['staff_code'] as String?,
+  pinSetAt: json['pin_set_at'] as String?,
 );
 
 Map<String, dynamic> _$Data160ToJson(Data160 instance) => <String, dynamic>{
-  'accounts': instance.accounts,
-  'meta': instance.meta,
+  'user_id': instance.userId,
+  'staff_code': instance.staffCode,
+  'pin_set_at': instance.pinSetAt,
 };

@@ -29,6 +29,9 @@ final class RolePermissions
                 P::BRANCHES_MANAGE, // P2-12: their own branch's hours and details
                 P::BOOKINGS_MANAGE, P::CUSTOMER_ACCOUNTS_MANAGE, // P3-17
                 P::POS_REFUND, // P3-18: refunds within the shift (cashiers ask a manager's PIN)
+                P::ORDERS_TRANSFER, P::HOSTESS_MANAGE, // P6-24/P6-26
+                P::STAFF_PAY_VIEW, // P6-23: sees the work sessions and pay statements; the rules and payouts stay the owner's (grantable)
+                P::TIPS_MANAGE, // P6-22: corrects a tip with a reason, splits and closes the tip pool
             ],
             // Closes bills and takes payment; cancelling, refunds and voids need a manager. A discount up to the
             // branch's pos_settings.cashier_discount_max_percent comes with pos.take_payment (P3-37, PosOrderService)
@@ -45,6 +48,10 @@ final class RolePermissions
             UserRole::COOK->value => [
                 P::ORDERS_VIEW, P::KITCHEN_MANAGE, P::MENU_VIEW,
                 P::BATCHES_MANAGE, // P1-21: the cook opens and closes the kazan
+            ],
+            // P6-24: books tables, keeps the waitlist and marks table states; sees orders and the menu, takes no payment
+            UserRole::HOSTESS->value => [
+                P::ORDERS_VIEW, P::TABLES_MANAGE, P::MENU_VIEW, P::BOOKINGS_MANAGE, P::HOSTESS_MANAGE,
             ],
             UserRole::COURIER->value => [
                 P::DELIVERIES_MANAGE,
@@ -72,6 +79,6 @@ final class RolePermissions
      */
     public static function overridableRoles(): array
     {
-        return [UserRole::MANAGER, UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::COURIER];
+        return [UserRole::MANAGER, UserRole::CASHIER, UserRole::WAITER, UserRole::COOK, UserRole::HOSTESS, UserRole::COURIER];
     }
 }

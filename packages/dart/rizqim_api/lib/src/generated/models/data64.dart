@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'layout6.dart';
+import 'layout4.dart';
 
 part 'data64.g.dart';
 
@@ -34,7 +34,7 @@ class Data64 {
   final String name;
   final String kind;
   final int? seats;
-  final Layout6 layout;
+  final Layout4 layout;
   @JsonKey(name: 'sort_order')
   final int sortOrder;
   @JsonKey(name: 'is_active')

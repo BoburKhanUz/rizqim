@@ -46,6 +46,12 @@ abstract class PosBootstrapApi {
   /// P6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to.
   /// ask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the.
   /// terminal_card_flow module.
+  /// P6-26: `booking_rules`, the branch's table booking rules (slot by place kind, lead time, deposit; null without the.
+  /// table_booking module).
+  /// P6-23: `staff_pay`, the clock-in/out for the signed-in person (`clock`, their open work `session`); null without.
+  /// the staff_pay module.
+  /// P6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`.
+  /// (personal|pool), `pool_rule` and `pool_period`.
   /// P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,.
   /// quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's.
   /// switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;.
@@ -63,7 +69,9 @@ abstract class PosBootstrapApi {
   /// the POS `channel` (default pos_hall) with its prices and hidden dishes applied, each variant's unit, step and.
   /// minimum, the modifiers, and what is unavailable on the branch now (`is_available`, `unavailable_reason`:.
   /// stopped | sold_out; `availability`: stop-list and kazan batches); each product's `station_id` (kitchen routing),.
-  /// `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button). Refetch when the bootstrap's.
+  /// `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button); P6-25: `quick_multipliers` (the ×N.
+  /// buttons of a skewer dish), `wait_minutes` (the grill's time), `weight_mode` (raw|cooked: weighed after it is.
+  /// chosen; null: sold by the quantity typed). Refetch when the bootstrap's.
   /// `menu_version` changes or on menu.availability_changed. Needs menu.view; `branch_id` for an owner.
   ///
   /// [storeId] - Optional: the caller's own store (id or uuid); another one is 404.

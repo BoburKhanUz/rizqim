@@ -7,13 +7,33 @@ part of 'data124.dart';
 // **************************************************************************
 
 Data124 _$Data124FromJson(Map<String, dynamic> json) => Data124(
-  channels: json['channels'] as List<dynamic>,
-  settings: (json['settings'] as List<dynamic>)
-      .map((e) => Settings.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  purpose: json['purpose'] as String,
+  connection: json['connection'] as String,
+  address: json['address'] as String?,
+  port: (json['port'] as num?)?.toInt(),
+  paperWidth: (json['paper_width'] as num).toInt(),
+  stationId: (json['station_id'] as num?)?.toInt(),
+  deviceId: json['device_id'] as String?,
+  isActive: json['is_active'] as bool,
+  encoding: json['encoding'] as String?,
+  printAsImage: json['print_as_image'] as bool,
 );
 
 Map<String, dynamic> _$Data124ToJson(Data124 instance) => <String, dynamic>{
-  'channels': instance.channels,
-  'settings': instance.settings,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'name': instance.name,
+  'purpose': instance.purpose,
+  'connection': instance.connection,
+  'address': instance.address,
+  'port': instance.port,
+  'paper_width': instance.paperWidth,
+  'station_id': instance.stationId,
+  'device_id': instance.deviceId,
+  'is_active': instance.isActive,
+  'encoding': instance.encoding,
+  'print_as_image': instance.printAsImage,
 };

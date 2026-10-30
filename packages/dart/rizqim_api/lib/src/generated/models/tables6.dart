@@ -23,6 +23,7 @@ class Tables6 {
     required this.minSpendMode,
     required this.status,
     required this.billRequested,
+    required this.serviceState,
     required this.reservation,
     required this.orders,
   });
@@ -44,6 +45,8 @@ class Tables6 {
   final String status;
   @JsonKey(name: 'bill_requested')
   final bool billRequested;
+  @JsonKey(name: 'service_state')
+  final String? serviceState;
   final Reservation? reservation;
   final List<Orders> orders;
 

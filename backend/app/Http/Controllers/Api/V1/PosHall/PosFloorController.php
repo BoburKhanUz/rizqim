@@ -15,7 +15,7 @@ class PosFloorController extends PosHallController
 {
     private const ORDER = 'array{uuid: string, short_code: string|null, status: string, channel: string, version: int, opened_at: string|null, open_minutes: int, overdue: bool, bill_printed: bool, bill_requested: bool, bill_requested_at: string|null, guests_count: int|null, waiter: array{id: int, name: string|null}|null, total_price: string, items_count: int, unsent_count: int, ready_count: int}';
 
-    private const TABLE = 'array{id: int, name: string, kind: string, seats: int|null, layout: array{x: string|null, y: string|null, w: string|null, h: string|null}, is_active: bool, min_spend: string|null, min_spend_mode: string, status: string, bill_requested: bool, reservation: array{booking_uuid: string, starts_at: string, guests: int|null, contact_name: string|null, contact_phone: string|null}|null, orders: list<' . self::ORDER . '>}';
+    private const TABLE = 'array{id: int, name: string, kind: string, seats: int|null, layout: array{x: string|null, y: string|null, w: string|null, h: string|null}, is_active: bool, min_spend: string|null, min_spend_mode: string, status: string, bill_requested: bool, service_state: string|null, reservation: array{booking_uuid: string, starts_at: string, guests: int|null, contact_name: string|null, contact_phone: string|null}|null, orders: list<' . self::ORDER . '>}';
 
     /**
      * Floor map of a branch
@@ -25,7 +25,8 @@ class PosFloorController extends PosHallController
      * `bill_printed`, and the open orders on it (opened_at, guests, waiter, total, `unsent_count`: lines not sent to the
      * kitchen yet, `ready_count`: lines the kitchen marked ready and nobody served yet, `bill_requested`: a waiter asked
      * for the bill, "Schyot so'raldi"; the place's own `bill_requested` while no bill is printed yet). A place's
-     * `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage
+     * `service_state` (P6-26): the hostess' mark, `cleaning` while a free place waits to be cleaned (a separate key,
+     * `status` is unchanged). `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage
      * (null for others, e.g. a kitchen screen). `layout`: grid cells of the floor plan (40 columns x 24 rows, x/y the
      * top-left cell, w/h the size in cells; null: not placed yet). Closed seasonal halls
      * and inactive places are left out unless an order is still open there. `untabled_orders`: open POS orders without

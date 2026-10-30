@@ -10,7 +10,7 @@ Refunds7 _$Refunds7FromJson(Map<String, dynamic> json) => Refunds7(
   count: (json['count'] as num).toInt(),
   amount: json['amount'] as String,
   byMethod: (json['by_method'] as List<dynamic>)
-      .map((e) => ByMethod4.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByMethod8.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -102,6 +102,22 @@ class CounterController extends ChangeNotifier {
       StreamController<OrderNotice>.broadcast();
 
   PosChannel get channel => _channel;
+
+  /// P6-25 (`table_service`): mijozning stol tablichkasi raqami (taom stolga olib boriladi); `null` — yo'q.
+  String? get tableLabel => _order?.tableLabel ?? _tableLabel;
+  String? _tableLabel;
+
+  /// Stol raqamini yozadi (buyurtma ochilguncha; bo'sh — olib tashlash, 20 belgigacha).
+  void setTableLabel(String? label) {
+    if (_order != null || _receipt != null) return;
+    final String? next = label == null || label.trim().isEmpty
+        ? null
+        : label.trim();
+    if (next == _tableLabel) return;
+    _tableLabel = next;
+    _touch();
+  }
+
   PosCatalog? get catalog => _catalog;
   PosException? get loadError => _loadError;
   bool get loading => _loading;
@@ -401,6 +417,7 @@ class CounterController extends ChangeNotifier {
           items: items,
           send: true,
           queueNumber: _number,
+          tableLabel: _tableLabel,
           approvalToken: token,
           idempotencyKey: token == null ? _key('open:$_revision') : null,
         ),
@@ -556,6 +573,7 @@ class CounterController extends ChangeNotifier {
     _receipt = null;
     _number = null;
     _numberTaken = false;
+    _tableLabel = null;
     _externalId = null;
     _openUnknown = false;
     _resetKeys();

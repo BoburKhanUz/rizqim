@@ -65,6 +65,9 @@ class KitchenLine {
     this.voidReason,
     this.productId,
     this.categoryId,
+    this.courseNo,
+    this.weightStatus,
+    this.waitMinutes,
   });
 
   factory KitchenLine.fromJson(Map<String, Object?> json) => KitchenLine(
@@ -88,6 +91,9 @@ class KitchenLine {
     voidReason: json['void_reason'] as String?,
     productId: (json['product_id'] as num?)?.toInt(),
     categoryId: (json['category_id'] as num?)?.toInt(),
+    courseNo: (json['course_no'] as num?)?.toInt(),
+    weightStatus: json['weight_status'] as String?,
+    waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
   );
 
   final int id;
@@ -130,6 +136,19 @@ class KitchenLine {
   final int? productId;
   final int? categoryId;
 
+  /// P6-21: qator kursi ("2-kurs"); kurssiz buyurtmada `null`.
+  final int? courseNo;
+
+  /// P6-25: "og'irlikni keyin kiritish" qatori: `awaiting` (og'irlik hali kiritilmagan, miqdor taxminiy) yoki
+  /// `weighed`; oddiy qatorda `null`.
+  final String? weightStatus;
+
+  /// P6-25: taom mangalda qancha pishadi (daqiqa), mahsulotda belgilangan bo'lsa.
+  final int? waitMinutes;
+
+  /// Og'irligi hali tortilmagan qator (oshxona "og'irlik kutilmoqda" deb ko'rsatadi).
+  bool get awaitingWeight => weightStatus == 'awaiting';
+
   bool get isReady => status == KitchenLineStatus.ready;
 
   bool get isServed => status == KitchenLineStatus.served;
@@ -169,6 +188,9 @@ class KitchenLine {
     int? stationId,
     int? productId,
     int? categoryId,
+    int? courseNo,
+    String? weightStatus,
+    int? waitMinutes,
   }) => KitchenLine(
     id: id,
     productName: productName,
@@ -190,6 +212,9 @@ class KitchenLine {
     voidReason: voidReason ?? this.voidReason,
     productId: productId ?? this.productId,
     categoryId: categoryId ?? this.categoryId,
+    courseNo: courseNo ?? this.courseNo,
+    weightStatus: weightStatus ?? this.weightStatus,
+    waitMinutes: waitMinutes ?? this.waitMinutes,
   );
 }
 
@@ -216,6 +241,7 @@ class KitchenTicket {
     this.canceledAt,
     this.queueNumber,
     this.pickupStatus,
+    this.tableLabel,
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -242,6 +268,7 @@ class KitchenTicket {
     canceledAt: _date(json['canceled_at']),
     queueNumber: (json['queue_number'] as num?)?.toInt(),
     pickupStatus: json['pickup_status'] as String?,
+    tableLabel: json['table_label'] as String?,
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
     receivedAt: receivedAt,
   );
@@ -275,6 +302,9 @@ class KitchenTicket {
   /// `handed`). Raqamsiz buyurtmada `null`.
   final int? queueNumber;
   final String? pickupStatus;
+
+  /// P6-25 (kafe "stolga olib kelish"): kassada to'langan buyurtmaning stol tablichkasi raqami ("12"); yo'q bo'lsa `null`.
+  final String? tableLabel;
 
   /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
   final DateTime? canceledAt;
@@ -329,6 +359,7 @@ class KitchenTicket {
     String? status,
     int? queueNumber,
     String? pickupStatus,
+    String? tableLabel,
   }) => KitchenTicket(
     uuid: uuid,
     shortCode: shortCode,
@@ -348,6 +379,7 @@ class KitchenTicket {
     canceledAt: canceledAt,
     queueNumber: queueNumber ?? this.queueNumber,
     pickupStatus: pickupStatus ?? this.pickupStatus,
+    tableLabel: tableLabel ?? this.tableLabel,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
   );

@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'state.dart';
-import 'lines14.dart';
+import 'lines24.dart';
 import 'payment4.dart';
 
 part 'v1_pos_display_cart_request_body.g.dart';
@@ -30,7 +30,7 @@ class V1PosDisplayCartRequestBody {
   final State state;
   final int seq;
   final String? session;
-  final List<Lines14> lines;
+  final List<Lines24> lines;
   final String subtotal;
   final String? discount;
   final String total;

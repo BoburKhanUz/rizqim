@@ -4,45 +4,27 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'locks.dart';
-import 'module_rows.dart';
-import 'profiles.dart';
-import 'template.dart';
+import 'roles.dart';
+import 'permissions.dart';
 
 part 'data108.g.dart';
 
 @JsonSerializable()
 class Data108 {
   const Data108({
-    required this.branchId,
-    required this.profile,
-    required this.profileLabel,
-    required this.mode,
-    required this.firstScreen,
-    required this.modules,
-    required this.locks,
-    required this.moduleRows,
-    required this.profiles,
-    required this.template,
+    required this.roles,
+    required this.permissions,
+    required this.matrix,
+    required this.defaults,
   });
 
   factory Data108.fromJson(Map<String, Object?> json) =>
       _$Data108FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String profile;
-  @JsonKey(name: 'profile_label')
-  final String profileLabel;
-  final String mode;
-  @JsonKey(name: 'first_screen')
-  final String firstScreen;
-  final List<String> modules;
-  final Locks locks;
-  @JsonKey(name: 'module_rows')
-  final List<ModuleRows> moduleRows;
-  final List<Profiles> profiles;
-  final Template template;
+  final List<Roles> roles;
+  final List<Permissions> permissions;
+  final Map<String, Map<String, bool>> matrix;
+  final Map<String, Map<String, bool>> defaults;
 
   Map<String, Object?> toJson() => _$Data108ToJson(this);
 }

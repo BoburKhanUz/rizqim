@@ -7,33 +7,39 @@ part of 'data56.dart';
 // **************************************************************************
 
 Data56 _$Data56FromJson(Map<String, dynamic> json) => Data56(
-  uuid: json['uuid'] as String,
-  type: json['type'] as String,
+  id: (json['id'] as num).toInt(),
   name: json['name'] as String,
-  platform: json['platform'] as String?,
-  appVersion: json['app_version'] as String?,
-  storeId: (json['store_id'] as num?)?.toInt(),
   branchId: (json['branch_id'] as num?)?.toInt(),
-  user: json['user'] == null
+  branch: json['branch'] == null
       ? null
-      : User11.fromJson(json['user'] as Map<String, dynamic>),
-  hasPushToken: json['has_push_token'] as bool,
-  lastSeenAt: json['last_seen_at'] as String?,
-  revokedAt: json['revoked_at'] as String?,
+      : Branch5.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon3.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox3.fromJson(json['bbox'] as Map<String, dynamic>),
+  areaKm2: json['area_km2'] as String,
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+  active: json['active'] as bool,
   createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data56ToJson(Data56 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'type': instance.type,
+  'id': instance.id,
   'name': instance.name,
-  'platform': instance.platform,
-  'app_version': instance.appVersion,
-  'store_id': instance.storeId,
   'branch_id': instance.branchId,
-  'user': instance.user,
-  'has_push_token': instance.hasPushToken,
-  'last_seen_at': instance.lastSeenAt,
-  'revoked_at': instance.revokedAt,
+  'branch': instance.branch,
+  'polygon': instance.polygon,
+  'bbox': instance.bbox,
+  'area_km2': instance.areaKm2,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
+  'active': instance.active,
   'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

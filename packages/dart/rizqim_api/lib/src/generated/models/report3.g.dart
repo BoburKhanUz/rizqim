@@ -31,6 +31,7 @@ Report3 _$Report3FromJson(Map<String, dynamic> json) => Report3(
   refunds: Refunds8.fromJson(json['refunds'] as Map<String, dynamic>),
   deposits: Deposits5.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit8.fromJson(json['credit'] as Map<String, dynamic>),
+  tips: Tips13.fromJson(json['tips'] as Map<String, dynamic>),
   cash: Cash6.fromJson(json['cash'] as Map<String, dynamic>),
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements5.fromJson(e as Map<String, dynamic>))
@@ -52,6 +53,7 @@ Map<String, dynamic> _$Report3ToJson(Report3 instance) => <String, dynamic>{
   'refunds': instance.refunds,
   'deposits': instance.deposits,
   'credit': instance.credit,
+  'tips': instance.tips,
   'cash': instance.cash,
   'movements': instance.movements,
 };

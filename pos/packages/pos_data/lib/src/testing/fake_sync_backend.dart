@@ -203,6 +203,7 @@ class FakeSyncBackend {
             'guests_count': ?p['guests_count'],
             'external_id': ref,
             'note': ?p['note'],
+            'table_label': ?p['table_label'],
             'items': _items(p['items']),
             if (p['send'] == true) 'send': true,
           },
@@ -256,6 +257,23 @@ class FakeSyncBackend {
           'POST',
           '/api/v1/pos/orders/$orderUuid/items/${_line(p['line'])}/served',
           <String, Object?>{'version': _version(orderUuid!)},
+        );
+      case 'order.course_send':
+        res = state.handleAsStaff(
+          staff,
+          'POST',
+          '/api/v1/pos/orders/$orderUuid/courses/${p['course_no']}/send',
+          <String, Object?>{'version': _version(orderUuid!)},
+        );
+      case 'order.weight':
+        res = state.handleAsStaff(
+          staff,
+          'POST',
+          '/api/v1/pos/orders/$orderUuid/items/${_line(p['line'])}/weight',
+          <String, Object?>{
+            'version': _version(orderUuid!),
+            'quantity': p['quantity'],
+          },
         );
       case 'bill.create':
         res = state.handleAsStaff(
@@ -399,6 +417,8 @@ class FakeSyncBackend {
     'bill.create': 'Schyot tuzildi',
     'bill.pay': "To'lov olindi",
     'order.close': 'Buyurtma yopildi',
+    'order.course_send': 'Kurs oshxonaga yuborildi',
+    'order.weight': "Og'irlik kiritildi",
   };
 
   Map<String, Object?> _device() => <String, Object?>{
@@ -432,6 +452,8 @@ class FakeSyncBackend {
           'note': ?i['note'],
           'seat_no': ?i['seat_no'],
           'fire_mode': ?i['fire_mode'],
+          'course_no': ?i['course_no'],
+          'awaiting_weight': ?i['awaiting_weight'],
         },
   ];
 

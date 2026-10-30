@@ -8,14 +8,26 @@ part of 'data133.dart';
 
 Data133 _$Data133FromJson(Map<String, dynamic> json) => Data133(
   id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: UserRole.fromJson(json['role'] as String),
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data133ToJson(Data133 instance) => <String, dynamic>{
   'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
   'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
+  'hall_id': instance.hallId,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

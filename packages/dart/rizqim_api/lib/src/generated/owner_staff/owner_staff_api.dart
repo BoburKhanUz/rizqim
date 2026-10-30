@@ -28,7 +28,7 @@ abstract class OwnerStaffApi {
 
   /// Add a staff member.
   ///
-  /// `role`: one the caller may give (a manager: cashier, waiter, cook, courier); `branch_id`: a branch of the store.
+  /// `role`: one the caller may give (a manager: cashier, waiter, cook, hostess, courier); `branch_id`: a branch of the store.
   /// (a branch manager: their own). `phone` (+998XXXXXXXXX, optional) becomes their login phone for the partner panel.
   /// and the staff apps; one staff account per phone in a store. The response carries the Telegram invite link.
   @POST('/v1/owner/staff')

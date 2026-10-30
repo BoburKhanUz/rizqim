@@ -78,6 +78,14 @@ class _PaymentPageState extends State<PaymentPage> {
   PosBillResult? _pending;
   PosException? _blocking;
 
+  // P6-22: choy puli (shu formadagi to'lov ustiga) va kimga (shaxsiy rejim)
+  late final TextEditingController _tip = TextEditingController();
+  int? _tipStaffId;
+
+  /// Review P6 wave 2 (S5): the manager's approval for giving the tip to [_tipApprovalFor] (not the order's waiter).
+  String? _tipApproval;
+  int? _tipApprovalFor;
+
   // Avans
   late final TextEditingController _prepay = TextEditingController();
 
@@ -91,6 +99,27 @@ class _PaymentPageState extends State<PaymentPage> {
   PosScope get _scope => PosScope.of(context);
 
   PosMoney get _added => PosMoney.sum(_parts.map((_Part p) => p.input.amount));
+
+  /// P6-22: choy puli olinadimi (`tips` moduli, bootstrap `tips.enabled`).
+  PosTipSettings get _tips {
+    final PosSession session = _scope.session;
+    final PosTipSettings t = session.bootstrap?.tips ?? const PosTipSettings();
+    return t.enabled && session.hasModule(PosModule.tips)
+        ? t
+        : const PosTipSettings();
+  }
+
+  /// Qo'shilgan to'lovlar va joriy formadagi choy puli (chekka kirmaydi).
+  PosMoney get _tipsTotal => PosMoney.sum(<PosMoney>[
+    for (final _Part p in _parts) p.input.tip ?? PosMoney.zero,
+    if (_tabTakesTip) _draft.effectiveTip,
+  ]);
+
+  bool get _tabTakesTip =>
+      _tips.enabled &&
+      (_tab == PosTender.cash ||
+          _tab == PosTender.card ||
+          _tab == PosTender.qr);
 
   PosMoney get _remaining {
     final PosMoney r = _bill.dueAmount - _added;
@@ -108,6 +137,7 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
+    _tipStaffId = widget.order?.waiter?.id;
     if (_depositAvailable.isPositive) {
       // Avans bo'lsa birinchi taklif qilinadi (POS_SPEC 2.9)
       _tab = PosTender.prepayment;
@@ -117,6 +147,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   void dispose() {
+    _tip.dispose();
     _prepay.dispose();
     _accountQuery.dispose();
     _accountAmount.dispose();
@@ -131,7 +162,11 @@ class _PaymentPageState extends State<PaymentPage> {
       _formError = null;
       switch (t) {
         case PosTender.cash || PosTender.card || PosTender.qr:
-          _draft = TenderDraft(tender: t, amount: _remaining);
+          _draft = TenderDraft(
+            tender: t,
+            amount: _remaining,
+            tip: parseMoney(_tip.text),
+          );
         case PosTender.prepayment:
           _prepay.text = moneyText(_min(_depositAvailable, _remaining));
         case PosTender.account:
@@ -163,7 +198,11 @@ class _PaymentPageState extends State<PaymentPage> {
             'Naqd · berildi ${_draft.tendered!.formatAmount()}, qaytim ${_draft.change.formatAmount()}',
           _ => _tab.label,
         };
-        return _Part(_draft.toInput(), label);
+        final PosMoney tip = _draft.effectiveTip;
+        return _Part(
+          _draft.toInput(),
+          tip.isPositive ? '$label · choy puli ${tip.formatAmount()}' : label,
+        );
       case PosTender.prepayment:
         final PosMoney? amount = parseMoney(_prepay.text);
         if (amount == null || !amount.isPositive) {
@@ -242,6 +281,7 @@ class _PaymentPageState extends State<PaymentPage> {
       }
       _parts.add(part);
       _resetForms();
+      _tip.clear();
     });
   }
 
@@ -281,9 +321,43 @@ class _PaymentPageState extends State<PaymentPage> {
     final List<PosTenderInput> tenders = <PosTenderInput>[
       for (final _Part p in parts) p.input,
     ];
-    final String signature = tenders
-        .map((PosTenderInput t) => t.toJson().toString())
-        .join('|');
+    // P6-22: whom the tips go to (personal mode: the picked staff member, by default the order's waiter)
+    final bool anyTip = tenders.any(
+      (PosTenderInput t) => t.tip?.isPositive ?? false,
+    );
+    int? tipStaff = anyTip && _tips.picksStaff ? _tipStaffId : null;
+    // Review P6 wave 2 (S5): someone other than the order's waiter needs tips.manage or a manager's PIN; offline
+    // there is no approval — the tip goes to the waiter
+    final int? waiterId = widget.order?.waiter?.id;
+    String? tipToken;
+    if (tipStaff != null &&
+        tipStaff != waiterId &&
+        !_scope.session.can(PosPermissions.tipsManage)) {
+      if (limitedMode(context)) {
+        tipStaff = waiterId;
+        showPosMessage(
+          context,
+          "Internetsiz menejer tasdig'i yo'q: choy puli buyurtma ofitsiantiga yoziladi.",
+        );
+      } else {
+        if (_tipApproval == null || _tipApprovalFor != tipStaff) {
+          final ApprovalToken? ok = await showManagerApproval(
+            context,
+            permission: PosPermissions.tipsManage,
+            reason: "Choy pulini buyurtma ofitsiantidan boshqa xodimga berish uchun menejer tasdig'i kerak.",
+          );
+          if (ok == null || !mounted) return;
+          _tipApproval = ok.token;
+          _tipApprovalFor = tipStaff;
+        }
+        tipToken = _tipApproval;
+      }
+    }
+    final PosMoney tipped = PosMoney.sum(<PosMoney>[
+      for (final PosTenderInput t in tenders) t.tip ?? PosMoney.zero,
+    ]);
+    final String signature =
+        '${tenders.map((PosTenderInput t) => t.toJson().toString()).join('|')}|$tipStaff|$tipToken';
     setState(() {
       _busy = true;
       _blocking = null;
@@ -298,11 +372,22 @@ class _PaymentPageState extends State<PaymentPage> {
           shiftUuid: _scope.session.shift?.uuid,
           approvalToken: token,
           idempotencyKey: key,
+          tipStaffId: tipStaff,
+          tipApprovalToken: tipToken,
         ),
       );
+      _tipApproval = null;
+      _tipApprovalFor = null;
       if (!mounted) return;
       _bill = r.bill;
       _parts.clear();
+      _tip.clear();
+      if (tipped.isPositive) {
+        showPosMessage(
+          context,
+          "Choy puli ${tipped.format()} yozildi (chekka kirmaydi).",
+        );
+      }
       final bool cash = tenders.any(
         (PosTenderInput t) => t.tender == PosTender.cash,
       );
@@ -323,6 +408,11 @@ class _PaymentPageState extends State<PaymentPage> {
         showPosError(context, e);
       }
     } on Object catch (e) {
+      // An expired or used approval is asked for again on the next try
+      if (e is PosApprovalRejected) {
+        _tipApproval = null;
+        _tipApprovalFor = null;
+      }
       if (mounted) showPosError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -554,6 +644,20 @@ class _PaymentPageState extends State<PaymentPage> {
                   muted: true,
                 ),
               AmountRow(label: 'Schyot jami', amount: _bill.total, muted: true),
+              // P6-22: tips are on top of the bill and never on the receipt: shown apart
+              if (_tipsTotal.isPositive) ...<Widget>[
+                AmountRow(
+                  label: 'Choy puli (chekka kirmaydi)',
+                  amount: _tipsTotal,
+                  tone: StatusTone.info,
+                ),
+                Text(
+                  'Chek: ${(_added + (_formHasAmount && remaining.isPositive ? _formAmount : PosMoney.zero)).format()}, '
+                  'choy puli: ${_tipsTotal.format()}',
+                  key: const ValueKey<String>('payment-tip-summary'),
+                  style: RzType.footnote.copyWith(color: c.fgMuted),
+                ),
+              ],
               if (_parts.isNotEmpty) ...<Widget>[
                 const Divider(height: 24),
                 for (var i = 0; i < _parts.length; i++)
@@ -674,6 +778,7 @@ class _PaymentPageState extends State<PaymentPage> {
             PosTender.prepayment => _prepaymentForm(c),
             PosTender.account => _accountForm(c),
           },
+          if (_tabTakesTip) _tipSection(c),
           const SizedBox(height: 16),
           if (mixedReady)
             RzButton(
@@ -685,6 +790,116 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
         ],
       ),
+    );
+  }
+
+  /// P6-22: choy puli — summa, (naqd) "Qaytimni choy puli qilish", shaxsiy rejimda kimga (sukut — buyurtma
+  /// ofitsianti). Choy puli schyotdan tashqari: fiskal chekka kirmaydi.
+  Widget _tipSection(RzColors c) {
+    final PosTipSettings settings = _tips;
+    final bool cash = _tab == PosTender.cash;
+    final PosMoney tip = _draft.effectiveTip;
+    // Review P6 wave 2 (S5): only the branch's tip roles (waiters by default) may take a tip
+    final List<PosStaffRef> staff = <PosStaffRef>[
+      ...?_scope.session.bootstrap?.staff.where(
+        (PosStaffRef s) => s.role == 'waiter' && settings.takes(s.role),
+      ),
+      ...?_scope.session.bootstrap?.staff.where(
+        (PosStaffRef s) =>
+            s.role != 'waiter' && s.role != 'owner' && settings.takes(s.role),
+      ),
+    ];
+    final PosRef? waiter = widget.order?.waiter;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Divider(height: 32),
+        Row(
+          children: <Widget>[
+            Icon(Icons.volunteer_activism_outlined, color: c.fgMuted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Choy puli',
+                style: RzType.headline.copyWith(color: c.fg),
+              ),
+            ),
+            Flexible(
+              child: Text(
+                'chekka kirmaydi',
+                textAlign: TextAlign.right,
+                style: RzType.footnote.copyWith(color: c.fgMuted),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        MoneyField(
+          fieldKey: const ValueKey<String>('tip-amount'),
+          controller: _tip,
+          label: 'Choy puli summasi',
+          helperText: cash && _draft.tipFromChange && _draft.tip == null
+              ? "Bo'sh — butun qaytim choy puliga"
+              : null,
+          onChanged: (PosMoney? m) => setState(() {
+            _draft.tip = m;
+            _formError = null;
+          }),
+        ),
+        if (cash)
+          SwitchListTile(
+            key: const ValueKey<String>('tip-from-change'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Qaytimni choy puli qilish'),
+            subtitle: _draft.tendered == null
+                ? const Text('Mijoz bergan pulni kiriting')
+                : null,
+            value: _draft.tipFromChange,
+            onChanged: (bool v) => setState(() {
+              _draft.tipFromChange = v;
+              _formError = null;
+            }),
+          ),
+        if (tip.isPositive && settings.mode == PosTipMode.pool)
+          Text(
+            "Umumiy qozonga: kun (smena) oxirida qoidaga ko'ra bo'linadi.",
+            style: RzType.footnote.copyWith(color: c.fgMuted),
+          ),
+        if (tip.isPositive && settings.picksStaff) ...<Widget>[
+          const SizedBox(height: 8),
+          Text('Kimga', style: RzType.footnote.copyWith(color: c.fgMuted)),
+          const SizedBox(height: 6),
+          ChoiceRow<int>(
+            key: const ValueKey<String>('tip-staff'),
+            options: <int, String>{
+              if (waiter != null &&
+                  !staff.any((PosStaffRef s) => s.id == waiter.id))
+                waiter.id: waiter.name ?? 'Ofitsiant',
+              for (final PosStaffRef s in staff) s.id: s.name,
+            },
+            selected: _tipStaffId,
+            onSelected: (int id) => setState(() => _tipStaffId = id),
+          ),
+          if (_tipStaffId == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                "Xodim tanlanmasa choy puli hech kimga biriktirilmaydi (menejer keyin beradi).",
+                style: RzType.footnote.copyWith(color: c.warningSoftFg),
+              ),
+            )
+          else if (_tipStaffId != waiter?.id &&
+              !_scope.session.can(PosPermissions.tipsManage))
+            Padding(
+              key: const ValueKey<String>('tip-staff-approval-hint'),
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                "Buyurtma ofitsiantidan boshqa xodimga — menejer tasdig'i bilan.",
+                style: RzType.footnote.copyWith(color: c.fgMuted),
+              ),
+            ),
+        ],
+      ],
     );
   }
 

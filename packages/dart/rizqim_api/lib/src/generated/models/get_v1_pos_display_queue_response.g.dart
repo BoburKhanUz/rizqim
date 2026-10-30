@@ -11,7 +11,7 @@ GetV1PosDisplayQueueResponse _$GetV1PosDisplayQueueResponseFromJson(
 ) => GetV1PosDisplayQueueResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data169.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data201.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosDisplayQueueResponseToJson(

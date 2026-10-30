@@ -7,23 +7,29 @@ part of 'data103.dart';
 // **************************************************************************
 
 Data103 _$Data103FromJson(Map<String, dynamic> json) => Data103(
-  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  provider: json['provider'] as String,
+  providerTransactionId: json['provider_transaction_id'] as String?,
+  status: json['status'] as String,
   amount: json['amount'] as String,
-  card: json['card'] as String,
-  status: Status4.fromJson(json['status'] as String),
-  notes: json['notes'] as String?,
-  resolutionNotes: json['resolution_notes'] as String?,
-  processedAt: json['processed_at'] as String?,
+  paidAt: json['paid_at'] as String?,
+  cancelledAt: json['cancelled_at'] as String?,
   createdAt: json['created_at'] as String,
+  order: Order3.fromJson(json['order'] as Map<String, dynamic>),
+  fiscal: json['fiscal'] == null
+      ? null
+      : Fiscal2.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data103ToJson(Data103 instance) => <String, dynamic>{
-  'id': instance.id,
-  'amount': instance.amount,
-  'card': instance.card,
+  'uuid': instance.uuid,
+  'provider': instance.provider,
+  'provider_transaction_id': instance.providerTransactionId,
   'status': instance.status,
-  'notes': instance.notes,
-  'resolution_notes': instance.resolutionNotes,
-  'processed_at': instance.processedAt,
+  'amount': instance.amount,
+  'paid_at': instance.paidAt,
+  'cancelled_at': instance.cancelledAt,
   'created_at': instance.createdAt,
+  'order': instance.order,
+  'fiscal': instance.fiscal,
 };

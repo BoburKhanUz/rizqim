@@ -55,7 +55,19 @@ class _CounterPageState extends State<CounterPage> {
   StreamSubscription<PosEvent>? _menuSub;
   bool _openingShift = false;
 
+  /// P6-25: "Stol raqami" maydoni (savat bilan tozalanadi).
+  final TextEditingController _plate = TextEditingController();
+
   PosScope get _scope => PosScope.of(context);
+
+  void _syncPlate() {
+    final String text = _ctl?.tableLabel ?? '';
+    if (_ctl?.stage == CounterStage.cart &&
+        text.isEmpty &&
+        _plate.text.isNotEmpty) {
+      _plate.clear();
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -80,6 +92,7 @@ class _CounterPageState extends State<CounterPage> {
       PosModule.customerDisplay,
     );
     ctl.addListener(_publishDisplay);
+    ctl.addListener(_syncPlate);
     unawaited(ctl.load());
     unawaited(ctl.queue.topUp());
     if (scope.session.queueCalling) {
@@ -160,6 +173,8 @@ class _CounterPageState extends State<CounterPage> {
   @override
   void dispose() {
     _ctl?.removeListener(_publishDisplay);
+    _ctl?.removeListener(_syncPlate);
+    _plate.dispose();
     unawaited(_noticeSub?.cancel());
     unawaited(_boardErrors?.cancel());
     unawaited(_menuSub?.cancel());
@@ -717,7 +732,10 @@ class _CounterPageState extends State<CounterPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: PosQueueNumberCard(
                 number: '${ctl.number}',
-                orderLabel: counterOrderLabel(ctl.channel),
+                orderLabel: counterOrderLabel(
+                  ctl.channel,
+                  tableLabel: ctl.tableLabel,
+                ),
                 dense: true,
               ),
             ),
@@ -766,6 +784,48 @@ class _CounterPageState extends State<CounterPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              // P6-25 (`table_service`): the guest's table plate — the dish is carried to that table
+              if (_scope.session.hasModule(PosModule.tableService)) ...<Widget>[
+                if (waiting)
+                  (ctl.tableLabel ?? '').isEmpty
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.table_restaurant_outlined,
+                                color: c.fgMuted,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Stol ${ctl.tableLabel}',
+                                key: const ValueKey<String>('counter-plate'),
+                                style: RzType.headline.copyWith(color: c.fg),
+                              ),
+                            ],
+                          ),
+                        )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TextField(
+                      key: const ValueKey<String>('counter-table-label'),
+                      controller: _plate,
+                      enabled: ctl.editable,
+                      maxLength: 20,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Stol raqami',
+                        hintText: "Tablichka raqami (ixtiyoriy)",
+                        prefixIcon: Icon(Icons.table_restaurant_outlined),
+                        counterText: '',
+                        isDense: true,
+                      ),
+                      onChanged: ctl.setTableLabel,
+                    ),
+                  ),
+              ],
               AmountRow(
                 label: waiting ? "To'lanadi" : 'Jami (taxminan)',
                 amount: ctl.total,
@@ -865,12 +925,17 @@ class _CounterPageState extends State<CounterPage> {
           PosQueueNumberCard(
             number: '${r.number}',
             label: 'Navbat raqami',
-            orderLabel:
-                r.ticket?.orderLabel ??
-                counterOrderLabel(r.order.posChannel ?? ctl.channel),
-            message:
-                r.ticket?.message ??
-                "Buyurtma tayyor bo'lganda raqam chaqiriladi.",
+            orderLabel: (r.order.tableLabel ?? '').trim().isNotEmpty
+                ? counterOrderLabel(
+                    r.order.posChannel ?? ctl.channel,
+                    tableLabel: r.order.tableLabel,
+                  )
+                : r.ticket?.orderLabel ??
+                      counterOrderLabel(r.order.posChannel ?? ctl.channel),
+            message: (r.order.tableLabel ?? '').trim().isNotEmpty
+                ? 'Taom ${r.order.tableLabel!.trim()}-stolga olib boriladi.'
+                : r.ticket?.message ??
+                      "Buyurtma tayyor bo'lganda raqam chaqiriladi.",
           ),
         const SizedBox(height: 16),
         RzButton(

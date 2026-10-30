@@ -11,7 +11,7 @@ PostV1PosQueueBlocksResponse _$PostV1PosQueueBlocksResponseFromJson(
 ) => PostV1PosQueueBlocksResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data197.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data234.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosQueueBlocksResponseToJson(

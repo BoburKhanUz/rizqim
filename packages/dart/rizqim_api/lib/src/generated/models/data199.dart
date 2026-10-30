@@ -4,67 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device12.dart';
-import 'opened_by.dart';
-import 'closed_by.dart';
+import 'account4.dart';
+import 'entries4.dart';
 
 part 'data199.g.dart';
 
 @JsonSerializable()
 class Data199 {
   const Data199({
-    required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
-    required this.businessDate,
-    required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.account,
+    required this.from,
+    required this.to,
+    required this.openingBalance,
+    required this.closingBalance,
+    required this.chargesTotal,
+    required this.repaymentsTotal,
+    required this.adjustmentsTotal,
+    required this.entries,
   });
 
   factory Data199.fromJson(Map<String, Object?> json) =>
       _$Data199FromJson(json);
 
-  final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device12? device;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  final Account4 account;
+  final String from;
+  final String to;
+  @JsonKey(name: 'opening_balance')
+  final String openingBalance;
+  @JsonKey(name: 'closing_balance')
+  final String closingBalance;
+  @JsonKey(name: 'charges_total')
+  final String chargesTotal;
+  @JsonKey(name: 'repayments_total')
+  final String repaymentsTotal;
+  @JsonKey(name: 'adjustments_total')
+  final String adjustmentsTotal;
+  final List<Entries4> entries;
 
   Map<String, Object?> toJson() => _$Data199ToJson(this);
 }

@@ -59,20 +59,20 @@ class PosBookingDepositTest extends TestCase
     {
         $uuid = $this->booked();
 
-        $first = $this->takeDeposit($uuid, '500000', 'cash', 'same-key')->assertCreated();
-        $again = $this->takeDeposit($uuid, '500000', 'cash', 'same-key')->assertCreated()->assertHeader('Idempotent-Replayed', 'true');
+        $first = $this->takeDeposit($uuid, '500000', 'qr', 'same-key')->assertCreated();
+        $again = $this->takeDeposit($uuid, '500000', 'qr', 'same-key')->assertCreated()->assertHeader('Idempotent-Replayed', 'true');
         $this->assertSame($first->json('data.payment.uuid'), $again->json('data.payment.uuid'));
 
         // Even past the stored response (another actor's replay window): the deposit row is keyed too
         DB::table('idempotency_keys')->delete();
-        $third = $this->takeDeposit($uuid, '500000', 'cash', 'same-key')->assertCreated();
+        $third = $this->takeDeposit($uuid, '500000', 'qr', 'same-key')->assertCreated();
         $this->assertSame($first->json('data.payment.uuid'), $third->json('data.payment.uuid'));
 
         $this->assertSame(1, BookingPayment::count());
         $this->assertCount(1, $this->fiscal->documents());
 
         // The same key with another amount is another request: 409
-        $this->takeDeposit($uuid, '600000', 'cash', 'same-key')->assertStatus(409);
+        $this->takeDeposit($uuid, '600000', 'qr', 'same-key')->assertStatus(409);
 
         // No key: refused (money)
         $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/deposits", ['amount' => '1000', 'tender' => 'cash'])
@@ -114,7 +114,7 @@ class PosBookingDepositTest extends TestCase
     public function test_a_cashier_refunds_a_deposit_only_with_a_managers_approval(): void
     {
         $uuid = $this->booked();
-        $payment = $this->takeDeposit($uuid, '1000000', 'cash')->json('data.payment.uuid');
+        $payment = $this->takeDeposit($uuid, '1000000', 'qr')->json('data.payment.uuid');
         $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/cancel", ['reason' => 'Mijoz kasal'])->assertOk()
             ->assertJsonPath('data.deposit_unsettled', true);
 
@@ -203,7 +203,7 @@ class PosBookingDepositTest extends TestCase
     {
         DB::table('stores')->where('id', $this->store->id)->update(['fiscal_settings' => json_encode(['retained_deposit_receipt' => false])]);
         $uuid = $this->booked();
-        $payment = $this->takeDeposit($uuid, '100000', 'cash')->json('data.payment.uuid');
+        $payment = $this->takeDeposit($uuid, '100000', 'qr')->json('data.payment.uuid');
         $this->api($this->manager, 'POST', "/api/v1/pos/bookings/{$uuid}/cancel", ['reason' => 'Kech bekor qildi'])->assertOk();
 
         $this->api($this->manager, 'POST', "/api/v1/pos/bookings/{$uuid}/deposits/{$payment}/retain", ['reason' => 'Kech bekor qildi'])->assertOk()
@@ -215,7 +215,7 @@ class PosBookingDepositTest extends TestCase
     public function test_no_refund_while_the_guests_are_seated(): void
     {
         $uuid = $this->booked();
-        $payment = $this->takeDeposit($uuid, '100000', 'cash')->json('data.payment.uuid');
+        $payment = $this->takeDeposit($uuid, '100000', 'qr')->json('data.payment.uuid');
         $this->api($this->cashier, 'POST', "/api/v1/pos/bookings/{$uuid}/arrive")->assertOk();
 
         $this->api($this->manager, 'POST', "/api/v1/pos/bookings/{$uuid}/deposits/{$payment}/refund", ['reason' => 'x'])->assertStatus(422)

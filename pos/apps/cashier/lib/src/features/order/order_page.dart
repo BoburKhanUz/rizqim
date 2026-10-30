@@ -22,6 +22,7 @@ import 'order_draft.dart';
 import 'order_format.dart';
 import 'order_opener.dart';
 import 'order_panel.dart';
+import 'restaurant_widgets.dart';
 
 /// Buyurtma muharriri: chapda menyu (kategoriyalar, katta tugmalar, qozon qoldig'i, qidiruv, "tez-tez"), o'ngda
 /// buyurtma (bosqichlar, yangi bosqich, choy-non tugmalari, jami, amallar).
@@ -229,10 +230,20 @@ class _OrderPageState extends State<OrderPage> {
 
   Future<void> _onItemTap(PosOrderItem item) async {
     final OrderController ctl = _ctl!;
+    final PosSession session = _scope.session;
     final LineAction? a = await showLineActions(
       context,
       item: item,
       open: ctl.isOpen,
+      // P6-25: a waiting line is always weighed (the module only gates new ones); a weighed one again with the module
+      weigh:
+          item.awaitingWeight ||
+          (item.weightStatus == PosWeightStatus.weighed &&
+              session.hasModule(PosModule.weightLater)),
+      // P6-24: the guest (seat) of the line, for the split by guest
+      seat:
+          session.hasModule(PosModule.guestSplit) &&
+          ctl.channel == PosChannel.hall,
     );
     if (a == null || !mounted) return;
     switch (a) {
@@ -242,6 +253,18 @@ class _OrderPageState extends State<OrderPage> {
         await ctl.markServed(item, approve: _approve);
       case LineAction.voidLine:
         await _void(item);
+      case LineAction.weigh:
+        final PosQuantity? q = await showWeightDialog(context, item: item);
+        if (q == null || !mounted) return;
+        await ctl.setWeight(item, q, approve: _approve);
+      case LineAction.seat:
+        final (int?,)? picked = await showSeatPicker(
+          context,
+          item: item,
+          guests: ctl.order?.guestsCount,
+        );
+        if (picked == null || !mounted || picked.$1 == item.seatNo) return;
+        await ctl.setSeat(item, picked.$1, approve: _approve);
     }
   }
 
@@ -657,6 +680,8 @@ class _OrderPageState extends State<OrderPage> {
           DiscountRules.of(_scope.session).allowed && !limitedMode(context)
           ? () => unawaited(_removeDiscount())
           : null,
+      // P6-21: a course order always fires its courses (the module only gates new course numbers)
+      onSendCourse: (int n) => unawaited(ctl.sendCourse(n, approve: _approve)),
     );
     final RzColors c = context.rz;
     return Column(

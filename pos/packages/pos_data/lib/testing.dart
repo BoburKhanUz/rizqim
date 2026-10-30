@@ -9,4 +9,5 @@ export 'src/testing/fake_pos_adapter.dart';
 export 'src/testing/fake_pos_server.dart';
 export 'src/testing/fake_pos_state.dart';
 export 'src/testing/fake_realtime.dart';
+export 'src/testing/fake_restaurant_backend.dart';
 export 'src/testing/fake_sync_backend.dart';

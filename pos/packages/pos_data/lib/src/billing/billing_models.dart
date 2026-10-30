@@ -89,6 +89,7 @@ class PosBill {
     this.paidAmount = PosMoney.zero,
     this.dueAmount = PosMoney.zero,
     this.guestsShare,
+    this.seatNo,
     this.perGuestAmount,
     this.printedCount = 0,
     this.printedAt,
@@ -116,6 +117,7 @@ class PosBill {
     paidAmount: j.money('paid_amount'),
     dueAmount: j.money('due_amount'),
     guestsShare: j.intOrNull('guests_share'),
+    seatNo: j.intOrNull('seat_no'),
     perGuestAmount: j.moneyOrNull('per_guest_amount'),
     printedCount: j.intOrNull('printed_count') ?? 0,
     printedAt: j.dateOrNull('printed_at'),
@@ -148,6 +150,9 @@ class PosBill {
   final PosMoney paidAmount;
   final PosMoney dueAmount;
   final int? guestsShare;
+
+  /// P6-24: `by_guest` schyoti shu mehmonniki (qatorlardagi `seat_no`); boshqa schyotlarda `null`.
+  final int? seatNo;
 
   /// "Kishi boshiga" (butun so'mga yuqoriga yaxlitlangan).
   final PosMoney? perGuestAmount;
@@ -383,6 +388,11 @@ sealed class PosSplit {
   /// Taom bo'yicha: har schyotga qatorlar va miqdori (kasr ham).
   const factory PosSplit.items(List<PosSplitBill> bills) = _ItemsSplit;
 
+  /// P6-24: mehmon bo'yicha — har mehmonga bitta schyot (qatorlardagi `seat_no`, kichigidan boshlab); mehmonsiz
+  /// qator hamma mehmonga teng bo'linadi (qoldiq birinchisiga). Hech bir qatorda mehmon raqami bo'lmasa — 422
+  /// `no_seat_lines`; `guest_split` moduli kerak.
+  const factory PosSplit.byGuest() = _ByGuestSplit;
+
   Map<String, Object?> toJson();
 }
 
@@ -391,6 +401,13 @@ class _SingleSplit extends PosSplit {
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{'mode': 'single'};
+}
+
+class _ByGuestSplit extends PosSplit {
+  const _ByGuestSplit();
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'mode': 'by_guest'};
 }
 
 class _EqualSplit extends PosSplit {
@@ -448,16 +465,31 @@ sealed class PosTenderInput {
   /// Naqdda mijoz bergan pul (bo'lsa); boshqa to'lov turlarida `null`.
   PosMoney? get tendered => null;
 
-  /// Qaytim: mijoz bergan puldan [amount] ayirilgani (berilmagan bo'lsa — nol).
+  /// P6-22: shu to'lov ustiga berilgan choy puli (naqd, karta, QR; `null` — yo'q). Schyotga ham, chekka ham kirmaydi.
+  PosMoney? get tip => null;
+
+  /// P6-22: naqd qaytim choy puliga qoldirildi ([tip] berilmasa — butun qaytim).
+  bool get tipFromChange => false;
+
+  /// Qaytim: mijoz bergan puldan [amount] va choy puli ayirilgani (berilmagan bo'lsa — nol).
   PosMoney get change {
     final PosMoney? given = tendered;
     if (given == null || !(given > amount)) return PosMoney.zero;
-    return given - amount;
+    final PosMoney left = given - amount;
+    if (tipFromChange && tip == null) return PosMoney.zero;
+    final PosMoney? kept = tip;
+    if (kept == null) return left;
+    return kept > left ? PosMoney.zero : left - kept;
   }
 
-  /// Naqd; [tendered] — mijoz bergan pul (qaytim server hisoblaydi).
-  const factory PosTenderInput.cash(PosMoney amount, {PosMoney? tendered}) =
-      _Cash;
+  /// Naqd; [tendered] — mijoz bergan pul (qaytim server hisoblaydi). P6-22: [tip] — ustiga choy puli;
+  /// [tipFromChange] — qaytim (yoki uning [tip] qismi) choy puliga qoldi ([tendered] kerak).
+  const factory PosTenderInput.cash(
+    PosMoney amount, {
+    PosMoney? tendered,
+    PosMoney? tip,
+    bool tipFromChange,
+  }) = _Cash;
 
   /// Karta (alohida bank terminali): [cardType] (`uzcard`, `humo`, `visa`, `mastercard`, `unionpay`, `mir`,
   /// `other`) va [transactionId] (terminal chekidagi RRN) majburiy. P6-16: [cardLast4] — kartaning oxirgi 4 raqami
@@ -467,9 +499,15 @@ sealed class PosTenderInput {
     required String cardType,
     required String transactionId,
     String? cardLast4,
+    PosMoney? tip,
   }) = _Card;
 
-  const factory PosTenderInput.qr(PosMoney amount, {String? reference}) = _Qr;
+  /// P6-22: [tip] — QR bilan birga olingan choy puli.
+  const factory PosTenderInput.qr(
+    PosMoney amount, {
+    String? reference,
+    PosMoney? tip,
+  }) = _Qr;
 
   /// Bron avansidan.
   const factory PosTenderInput.prepayment(PosMoney amount) = _Prepayment;
@@ -484,16 +522,29 @@ sealed class PosTenderInput {
     'tender': tender.wire,
     'amount': amount.toApiString(),
     ..._extra(),
+    'tip_amount': ?tip?.toApiString(),
+    if (tipFromChange) 'tip_from_change': true,
   };
 
   Map<String, Object?> _extra();
 }
 
 class _Cash extends PosTenderInput {
-  const _Cash(PosMoney amount, {this.tendered}) : super(PosTender.cash, amount);
+  const _Cash(
+    PosMoney amount, {
+    this.tendered,
+    this.tip,
+    this.tipFromChange = false,
+  }) : super(PosTender.cash, amount);
 
   @override
   final PosMoney? tendered;
+
+  @override
+  final PosMoney? tip;
+
+  @override
+  final bool tipFromChange;
 
   @override
   Map<String, Object?> _extra() => <String, Object?>{
@@ -507,7 +558,11 @@ class _Card extends PosTenderInput {
     required this.cardType,
     required this.transactionId,
     this.cardLast4,
+    this.tip,
   }) : super(PosTender.card, amount);
+
+  @override
+  final PosMoney? tip;
 
   final String cardType;
   final String transactionId;
@@ -522,7 +577,11 @@ class _Card extends PosTenderInput {
 }
 
 class _Qr extends PosTenderInput {
-  const _Qr(PosMoney amount, {this.reference}) : super(PosTender.qr, amount);
+  const _Qr(PosMoney amount, {this.reference, this.tip})
+    : super(PosTender.qr, amount);
+
+  @override
+  final PosMoney? tip;
 
   final String? reference;
 

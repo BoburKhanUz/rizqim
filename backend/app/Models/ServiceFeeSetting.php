@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property PlaceFeeMode $place_fee_mode
  * @property list<string>|null $place_fee_channels
  * @property int|null $hall_id P3-12: a hall's own row (DiningFeeCalculator::settingsForHall)
+ * @property array<string, mixed>|null $service_charge_rules P6-22: App\Domain\Pos\Billing\ServiceChargeRules
+ * @property string|null $service_charge_notice P6-22: the owner's notice text for the bill (null: worked out)
  */
 class ServiceFeeSetting extends Model
 {
@@ -27,6 +29,7 @@ class ServiceFeeSetting extends Model
         'place_fee_amount' => 'decimal:2',
         'place_fee_mode' => PlaceFeeMode::class,
         'place_fee_channels' => 'array',
+        'service_charge_rules' => 'array',
     ];
 
     protected $attributes = [

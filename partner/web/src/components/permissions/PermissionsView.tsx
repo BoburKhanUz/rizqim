@@ -46,7 +46,7 @@ export function PermissionsView() {
 function RoleChecklists({ table }: { table: RolePermissionTable }) {
   const { t } = useI18n();
   const save = useSaveRolePermission();
-  const editable = new Set(table.roles.filter((role) => role.editable).map((role) => role.role));
+  const editable = new Set<string>(table.roles.filter((role) => role.editable).map((role) => role.role));
   const roles = PERMISSION_ROLES.filter((role) => editable.has(role));
   const [role, setRole] = useState<PermissionRole>(roles[0] ?? 'manager');
   const [notice, setNotice] = useState<string | null>(null);

@@ -7,31 +7,19 @@ part of 'data164.dart';
 // **************************************************************************
 
 Data164 _$Data164FromJson(Map<String, dynamic> json) => Data164(
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  phone: json['phone'] as String?,
-  groupName: json['group_name'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  creditLimit: json['credit_limit'] as String?,
-  balance: json['balance'] as String,
-  availableCredit: json['available_credit'] as String?,
-  isBlocked: json['is_blocked'] as bool,
-  note: json['note'] as String?,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  subscription: json['subscription'] == null
+      ? null
+      : Subscription.fromJson(json['subscription'] as Map<String, dynamic>),
+  commissionRate: json['commission_rate'] as num,
+  terminals: Terminals.fromJson(json['terminals'] as Map<String, dynamic>),
+  nextInvoice: json['next_invoice'] == null
+      ? null
+      : NextInvoice.fromJson(json['next_invoice'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data164ToJson(Data164 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'phone': instance.phone,
-  'group_name': instance.groupName,
-  'branch_id': instance.branchId,
-  'credit_limit': instance.creditLimit,
-  'balance': instance.balance,
-  'available_credit': instance.availableCredit,
-  'is_blocked': instance.isBlocked,
-  'note': instance.note,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'subscription': instance.subscription,
+  'commission_rate': instance.commissionRate,
+  'terminals': instance.terminals,
+  'next_invoice': instance.nextInvoice,
 };

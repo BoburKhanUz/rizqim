@@ -11,7 +11,7 @@ _$PutV1OwnerBranchesIdPosSettingsResponseFromJson(Map<String, dynamic> json) =>
     PutV1OwnerBranchesIdPosSettingsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data47.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data49.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1OwnerBranchesIdPosSettingsResponseToJson(

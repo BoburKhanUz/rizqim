@@ -4,6 +4,7 @@ namespace App\Domain\Pos\Billing;
 
 use App\Domain\Pos\Contracts\AdvanceLedger;
 use App\Domain\Pos\Orders\PickupQueue;
+use App\Domain\Pos\Tips\TipPresenter;
 use App\Models\Booking;
 use App\Models\Order;
 use App\Models\OrderBill;
@@ -20,9 +21,9 @@ use App\Support\Quantity;
  */
 final class BillPresenter
 {
-    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
+    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, total: string, paid_amount: string, due_amount: string, guests_share: int|null, seat_no: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string}>, payments: list<' . self::PAYMENT . '>, tips_amount: string, tips: list<' . TipPresenter::TIP . '>, service_charge_notice: string|null, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
 
-    public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, status: string, paid_at: string|null}';
+    public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, status: string, paid_at: string|null, tip_amount: string}';
 
     public const REFUND = 'array{uuid: string, order_uuid: string|null, bill_uuid: string|null, payment_uuid: string|null, amount: string, method: string, reason: string, approved_by: int|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', created_at: string|null}';
 
@@ -57,6 +58,8 @@ final class BillPresenter
             'paid_amount' => $paid->toString(),
             'due_amount' => Money::max(Money::zero(), $total->minus($paid))->toString(),
             'guests_share' => $guests !== null ? (int) $guests : null,
+            // P6-24: the guest a by_guest bill is for (order_items.seat_no); null on every other bill
+            'seat_no' => $bill->getAttribute('seat_no') !== null ? (int) $bill->getAttribute('seat_no') : null,
             // "Kishi boshiga" on the printed bill: whole so'm, rounded up so the guests never come short
             'per_guest_amount' => $guests ? Money::fromTiyin(intdiv($total->toTiyin() + (int) $guests * 100 - 1, (int) $guests * 100) * 100)->toString() : null,
             'printed_count' => (int) $bill->printed_count,
@@ -78,6 +81,13 @@ final class BillPresenter
                 ];
             })->values()->all(),
             'payments' => $payments->map(fn (Payment $payment) => $this->payment($payment))->values()->all(),
+            // P6-22: the tips given with this bill's payments — on top of the bill, never on its receipt (what the
+            // guest handed over = total + tips_amount); the service charge notice when the bill has a service charge
+            // or a cover
+            'tips_amount' => TipPresenter::billTotal((int) $bill->id)->toString(),
+            'tips' => app(TipPresenter::class)->ofBill((int) $bill->id),
+            'service_charge_notice' => $order !== null && (Money::of($bill->service_charge_amount)->isPositive() || Money::of($bill->place_fee_amount)->isPositive())
+                ? ServiceChargeRules::noticeFor($order) : null,
             // P6-13: the queue number printed on the receipt and its talon (a counter order with the queue_numbers module)
             'ticket' => $order !== null ? PickupQueue::ticket($order) : null,
             'created_at' => $bill->created_at?->toIso8601String(),
@@ -101,6 +111,8 @@ final class BillPresenter
             'reference' => $payment->getAttribute('reference'),
             'status' => $payment->status->value,
             'paid_at' => $payment->paid_at?->toIso8601String(),
+            // P6-22: the tip taken with this payment, as taken (not part of `amount`)
+            'tip_amount' => TipPresenter::paymentTip((int) $payment->id)->toString(),
         ];
     }
 

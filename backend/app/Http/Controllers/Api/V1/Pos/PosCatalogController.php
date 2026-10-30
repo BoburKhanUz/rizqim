@@ -32,7 +32,7 @@ class PosCatalogController extends MenuStaffController
 
     private const VARIANT = 'ProductVariant&array{price: string, base_price: string, is_available: bool, unavailable_reason: \'stopped\'|\'sold_out\'|null}';
 
-    private const PRODUCT = 'Product&array{batch_tracked: bool, quick_add: bool, is_available: bool, unavailable_reason: \'stopped\'|\'sold_out\'|null, station_id: int|null, variants: list<' . self::VARIANT . '>, modifier_groups: list<ModifierGroup&array{min_select: int, max_select: int|null, is_required: bool, sort_order: int, modifiers: list<' . self::MODIFIER . '>}>}';
+    private const PRODUCT = 'Product&array{batch_tracked: bool, quick_add: bool, quick_multipliers: list<int>|null, wait_minutes: int|null, weight_mode: string|null, is_available: bool, unavailable_reason: \'stopped\'|\'sold_out\'|null, station_id: int|null, variants: list<' . self::VARIANT . '>, modifier_groups: list<ModifierGroup&array{min_select: int, max_select: int|null, is_required: bool, sort_order: int, modifiers: list<' . self::MODIFIER . '>}>}';
 
     private const AVAILABILITY = 'array{branch_id: int, stopped: array{products: list<int>, variants: list<int>, modifiers: list<int>}, sold_out: array{variants: list<int>}, stop_list: list<array{id: int|null, type: string, subject_id: int, reason: string|null, until: string|null}>, batches: list<array{id: int, uuid: string, product_id: int, product_variant_id: int|null, label: string|null, quantity_produced: int|float|null, quantity_left: int|float|null, started_at: string}>}';
 
@@ -59,7 +59,9 @@ class PosCatalogController extends MenuStaffController
      * the POS `channel` (default pos_hall) with its prices and hidden dishes applied, each variant's unit, step and
      * minimum, the modifiers, and what is unavailable on the branch now (`is_available`, `unavailable_reason`:
      * stopped | sold_out; `availability`: stop-list and kazan batches); each product's `station_id` (kitchen routing),
-     * `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button). Refetch when the bootstrap's
+     * `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button); P6-25: `quick_multipliers` (the ×N
+     * buttons of a skewer dish), `wait_minutes` (the grill's time), `weight_mode` (raw|cooked: weighed after it is
+     * chosen; null: sold by the quantity typed). Refetch when the bootstrap's
      * `menu_version` changes or on menu.availability_changed. Needs menu.view; `branch_id` for an owner.
      */
     #[QueryParameter('store_id', description: "Optional: the caller's own store (id or uuid); another one is 404.", type: 'string', required: false)]

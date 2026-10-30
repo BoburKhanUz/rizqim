@@ -11,7 +11,7 @@ PostV1OwnerDeliveryZonesResponse _$PostV1OwnerDeliveryZonesResponseFromJson(
 ) => PostV1OwnerDeliveryZonesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data53.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data55.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerDeliveryZonesResponseToJson(

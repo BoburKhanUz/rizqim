@@ -21,6 +21,7 @@ export const ru: Messages = {
   nav_bookings: 'Брони',
   nav_accounts: 'Долги (насия)',
   nav_shifts: 'Смены',
+  nav_tips: 'Чаевые',
   nav_possetup: 'Настройки кассы',
   nav_permissions: 'Права',
   nav_audit: 'Журнал действий',
@@ -106,6 +107,7 @@ export const ru: Messages = {
   role_cashier: 'Кассир',
   role_waiter: 'Официант',
   role_cook: 'Повар',
+  role_hostess: 'Хостес',
   role_courier: 'Курьер',
   role_customer: 'Клиент',
 };

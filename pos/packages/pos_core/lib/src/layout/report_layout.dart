@@ -66,6 +66,14 @@ PrintLayout layoutShiftReport(ShiftReport r, PaperWidth paper) {
     amount("Nasiya to'lovlari (kredit)", r.creditRepayments);
   }
 
+  if (r.tips.isNotEmpty) {
+    // P6-22: tips are not revenue: their own section, never part of the sales above
+    section('CHOY PULI (tushum emas)');
+    for (final ReportAmount t in r.tips) {
+      amount(t.label, t.amount, count: t.count);
+    }
+  }
+
   section('KASSA (NAQD)');
   amount("Boshlang'ich qoldiq", r.openingCash);
   amount('Naqd tushum', r.cashSales);

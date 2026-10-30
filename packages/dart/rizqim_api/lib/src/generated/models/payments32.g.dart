@@ -18,6 +18,7 @@ Payments32 _$Payments32FromJson(Map<String, dynamic> json) => Payments32(
   reference: json['reference'] as String?,
   status: json['status'] as String,
   paidAt: json['paid_at'] as String?,
+  tipAmount: json['tip_amount'] as String,
 );
 
 Map<String, dynamic> _$Payments32ToJson(Payments32 instance) =>
@@ -33,4 +34,5 @@ Map<String, dynamic> _$Payments32ToJson(Payments32 instance) =>
       'reference': instance.reference,
       'status': instance.status,
       'paid_at': instance.paidAt,
+      'tip_amount': instance.tipAmount,
     };

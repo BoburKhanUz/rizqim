@@ -13,6 +13,7 @@ RizqimBreakdown _$RizqimBreakdownFromJson(Map<String, dynamic> json) =>
       repayments: json['repayments'] as String,
       refunds: json['refunds'] as String,
       depositRefunds: json['deposit_refunds'] as String,
+      tips: json['tips'] as String,
     );
 
 Map<String, dynamic> _$RizqimBreakdownToJson(RizqimBreakdown instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$RizqimBreakdownToJson(RizqimBreakdown instance) =>
       'repayments': instance.repayments,
       'refunds': instance.refunds,
       'deposit_refunds': instance.depositRefunds,
+      'tips': instance.tips,
     };

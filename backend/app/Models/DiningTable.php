@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property bool $is_active
  * @property numeric-string|null $min_spend
  * @property MinSpendMode $min_spend_mode
+ * @property string|null $service_state P6-26: the hostess' mark, `cleaning` (App\Domain\Pos\Hall\TableStates)
+ * @property \Illuminate\Support\Carbon|null $service_state_at
  */
 class DiningTable extends Model
 {
@@ -42,6 +44,7 @@ class DiningTable extends Model
         'is_active' => 'boolean',
         'min_spend' => 'decimal:2',
         'min_spend_mode' => MinSpendMode::class,
+        'service_state_at' => 'datetime',
     ];
 
     protected $attributes = [

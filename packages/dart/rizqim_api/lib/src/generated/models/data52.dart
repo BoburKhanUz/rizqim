@@ -4,57 +4,40 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch3.dart';
-import 'polygon.dart';
-import 'bbox.dart';
+import 'products3.dart';
 
 part 'data52.g.dart';
 
 @JsonSerializable()
 class Data52 {
   const Data52({
-    required this.id,
-    required this.name,
     required this.branchId,
-    required this.branch,
-    required this.polygon,
-    required this.bbox,
-    required this.areaKm2,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-    required this.active,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.date,
+    required this.businessDate,
+    required this.enforced,
+    required this.setValue,
+    required this.productIds,
+    required this.previousDate,
+    required this.products,
   });
 
   factory Data52.fromJson(Map<String, Object?> json) => _$Data52FromJson(json);
 
-  final int id;
-  final String name;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Branch3? branch;
-  final Polygon polygon;
-  final Bbox bbox;
-  @JsonKey(name: 'area_km2')
-  final String areaKm2;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
-  final bool active;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final int branchId;
+  final String? date;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final bool enforced;
+
+  /// The name has been replaced because it contains a keyword. Original name: `set`.
+  @JsonKey(name: 'set')
+  final bool setValue;
+  @JsonKey(name: 'product_ids')
+  final Map<String, int> productIds;
+  @JsonKey(name: 'previous_date')
+  final String? previousDate;
+  final List<Products3> products;
 
   Map<String, Object?> toJson() => _$Data52ToJson(this);
 }

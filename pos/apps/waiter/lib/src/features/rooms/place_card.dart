@@ -189,6 +189,20 @@ class PlaceCard extends StatelessWidget {
             ),
             const SizedBox(width: 16),
           ],
+          // P6-26: the hostess' mark; opening the table is never blocked by it
+          if (t?.isCleaning ?? false) ...<Widget>[
+            Icon(
+              Icons.cleaning_services_outlined,
+              size: 18,
+              color: c.warningSoftFg,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Tozalanmoqda',
+              style: RzType.body.copyWith(color: c.warningSoftFg),
+            ),
+            const SizedBox(width: 16),
+          ],
           if (r != null && r.startsAt != null)
             Flexible(
               child: Text(

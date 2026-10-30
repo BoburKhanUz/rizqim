@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'by_method4.dart';
+import 'by_method8.dart';
 
 part 'refunds7.g.dart';
 
@@ -22,7 +22,7 @@ class Refunds7 {
   final int count;
   final String amount;
   @JsonKey(name: 'by_method')
-  final List<ByMethod4> byMethod;
+  final List<ByMethod8> byMethod;
 
   Map<String, Object?> toJson() => _$Refunds7ToJson(this);
 }

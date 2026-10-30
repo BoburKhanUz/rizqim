@@ -38,6 +38,13 @@ Items34 _$Items34FromJson(Map<String, dynamic> json) => Items34(
       ? null
       : VoidedBy9.fromJson(json['voided_by'] as Map<String, dynamic>),
   voidReason: json['void_reason'] as String?,
+  courseNo: (json['course_no'] as num?)?.toInt(),
+  weightStatus: json['weight_status'] as String?,
+  weightBasis: json['weight_basis'] as String?,
+  weighedBy: json['weighed_by'] == null
+      ? null
+      : WeighedBy9.fromJson(json['weighed_by'] as Map<String, dynamic>),
+  weighedAt: json['weighed_at'] as String?,
 );
 
 Map<String, dynamic> _$Items34ToJson(Items34 instance) => <String, dynamic>{
@@ -66,4 +73,9 @@ Map<String, dynamic> _$Items34ToJson(Items34 instance) => <String, dynamic>{
   'voided_at': instance.voidedAt,
   'voided_by': instance.voidedBy,
   'void_reason': instance.voidReason,
+  'course_no': instance.courseNo,
+  'weight_status': instance.weightStatus,
+  'weight_basis': instance.weightBasis,
+  'weighed_by': instance.weighedBy,
+  'weighed_at': instance.weighedAt,
 };

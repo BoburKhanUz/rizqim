@@ -5,7 +5,8 @@ buyurtma ochasiz, taom qo'shasiz, oshxonaga yuborasiz, tayyor taomni "Berildi" d
 
 **To'lov va chek chiqarish ofitsiant ilovasida yo'q.** Pulni kassir oladi. Schyotni ham kassir chiqaradi, siz faqat so'raysiz.
 
-Kassir ishi — [kassa qo'llanmasi](kassa.md). Oshxona — [oshxona ekrani qo'llanmasi](oshxona-ekrani.md).
+Kassir ishi — [kassa qo'llanmasi](kassa.md). Oshxona — [oshxona ekrani qo'llanmasi](oshxona-ekrani.md). Restoran va kafede (kurslar, mehmon
+bo'yicha schyot, stolni boshqa ofitsiantga berish, choy puli) — [restoran.md](restoran.md); hostes ishi — [hostes.md](hostes.md).
 
 ## Mundarija
 
@@ -19,7 +20,8 @@ Kassir ishi — [kassa qo'llanmasi](kassa.md). Oshxona — [oshxona ekrani qo'll
 8. [Mehmonlar soni va ko'chirish](#8-mehmonlar-soni-va-kochirish)
 9. [Boshqa ofitsiantning buyurtmasi](#9-boshqa-ofitsiantning-buyurtmasi)
 10. [Aloqa yo'qolganda](#10-aloqa-yoqolganda)
-11. [Muammolar va yechimlar](#11-muammolar-va-yechimlar)
+11. [Restoran va kafe: kurslar, mehmon, choy puli](#11-restoran-va-kafe-kurslar-mehmon-choy-puli)
+12. [Muammolar va yechimlar](#12-muammolar-va-yechimlar)
 
 ## 1. Telefonni ulash va kirish
 
@@ -50,7 +52,8 @@ Muammolar:
 - Ismingiz ro'yxatda yo'q — sizga PIN qo'yilmagan yoki siz boshqa filial xodimisiz.
 
 **Ekran qulfi.** Telefonga bir necha daqiqa (filial sozlamasi, standart 5 daqiqa) tegilmasa, ilova PIN so'raydi. Tepada
-qulf tugmasi bor — ishdan ketayotganda uni bosing. (Menejer yoki ega kirsa, tepada menyu (⋮) ham chiqadi: **Terminalni uzish**. Ofitsiantda bu tugma yo'q.)
+qulf tugmasi bor — ishdan ketayotganda uni bosing. Tepada menyu (⋮) ham bo'lishi mumkin: unda **Terminalni uzish** (faqat menejer yoki ega kirsa; ofitsiantda bu tugma yo'q), **Mening choy pulim** (choy puli
+moduli yoqilgan bo'lsa) va **Ishga keldim / Ishdan ketdim** (ish vaqti belgilash yoqilgan bo'lsa) turadi. Menyuda hech narsa bo'lmasa, uning o'zi ko'rinmaydi.
 
 ### Tarif va to'lov lentasi
 
@@ -244,7 +247,35 @@ Muhim:
 - "Buyurtmani boshqa qurilma o'zgartirdi. Ro'yxat yangilandi, amalni qayta bajaring" chiqsa, kassir yoki hamkasbingiz shu buyurtmani
   o'zgartirgan. Buyurtmani qayta ko'ring va amalni takrorlang.
 
-## 11. Muammolar va yechimlar
+## 11. Restoran va kafe: kurslar, mehmon, choy puli
+
+Quyidagi imkoniyatlar faqat ega filialda tegishli modulni yoqqan bo'lsa ko'rinadi (**Kassa sozlamalari → Format**). Modul o'chiq
+bo'lsa, tugma yo'q va ish yuqoridagidek ketadi. Batafsil — [restoran.md](restoran.md).
+
+- **Kurslar.** Taom qo'shish oynasida qidiruv maydoni tagida **Kurs** qatori bor (**Kurssiz**, **1-kurs**, **2-kurs**, **3-kurs**, **Yana** — 4–9): tanlangan kurs
+  keyin qo'shadigan taomlaringizga qo'yiladi. Keyingi kurs buyurtmada **ushlab turiladi**; mehmonlar oldingisini yeb bo'lgach, buyurtma
+  ekranidagi **Kurslar** blokida **N-kursni yuborish** ni bosasiz.
+  Kurs tayyor bo'lganda telefonda **"2-kurs tayyor — 5-stol"** xabari chiqadi ([2-bo'lim](restoran.md#2-kurslar)).
+- **Mehmon raqami.** Taom qo'shish oynasida **Mehmon** qatori (1, 2, ...; **Umumiy** — hech kimniki emas) yoki yuborilgan qatorda **3-mehmon**
+  belgisi: shuni qo'ysangiz, kassir schyotni **Mehmonlar bo'yicha** bo'la oladi
+  ([3-bo'lim](restoran.md#3-mehmon-raqami-va-hisobni-mehmon-boyicha-bolish)).
+- **Boshqa ofitsiantga berish.** Buyurtma ekranida menyu (⋮) → **Boshqa ofitsiantga berish** (faqat ochiq stol buyurtmasida va internet bor
+  paytda): stol hamkasbingizga o'tadi, ikkalangizga xabar boradi. Bu menejer huquqi: ruxsat bo'lmasa menejer PIN'ini so'raydi
+  ([4-bo'lim](restoran.md#4-stolni-boshqa-ofitsiantga-berish)). Bu **ko'chirish** emas: stol joyida qoladi.
+- **Six tugmalari ×2 … ×10** va **og'irligi keyin tortiladigan** taom ("og'irligi keyin tortiladi"): qator **Tortiladi** belgisi bilan turadi,
+  tortgach qator kartasidagi **Og'irlikni kiritish** → **Saqlash**; og'irlik kiritilmaguncha schyot chiqmaydi
+  ([7-bo'lim](restoran.md#7-six-ogirlik-va-mangal-vaqti-kabobxona-baliqxona)).
+- **Mening choy pulim.** Bosh ekranda menyu (⋮) → **Mening choy pulim**: bugungi (kassa smenasi bo'lsa — shu smenaning) choy pulingiz,
+  tepada jami. Faqat o'zingiznikini ko'rasiz (boshqa xodimning nomi va summasi ko'rinmaydi). Choy pulini kassir to'lovda yozadi,
+  naqdini kassadan kassir yoki menejer beradi ([5-bo'lim](restoran.md#5-choy-puli-kassada)). Buyurtma sizniki bo'lsa, choy puli odatda
+  sizga yoziladi; kassir uni boshqa xodimga yozishi uchun menejer PIN'i kerak.
+- **Ishga keldim / Ishdan ketdim.** Ega ish haqi qoidalarini va ish vaqti belgilashni yoqqan bo'lsa, ishga kirgach tepada "Ish vaqtingiz
+  belgilanmagan — Ishga keldim" lentasi chiqadi; menyuda (⋮) ham shu tugma bor. Ketishda menyuda **Ishdan ketdim** (ilova "Ishdan ketdingizmi?"
+  deb so'raydi va ochiq stollaringizni boshqa ofitsiantga berishni eslatadi; ishda bo'lsangiz menyuda "… dan ishdasiz" yoziladi). Ish haqi va
+  choy puli qozoni shu vaqtdan hisoblanadi. Internet kerak: aloqa bo'lmasa "Ish vaqtini belgilash uchun internet kerak" deydi, aloqa
+  qaytgach qayta bosing.
+
+## 12. Muammolar va yechimlar
 
 | Muammo | Nima qilish kerak |
 |---|---|
@@ -266,3 +297,5 @@ Muhim:
 | "Bu buyurtmaning schyoti to'lana boshlagan" | Schyotning bir qismi to'langan, o'zgarish unga tegadi. Kassirga ayting: u avval to'lovni qaytaradi ([8-bo'lim](#8-mehmonlar-soni-va-kochirish)) |
 | Ekran qulflanib qoldi | PIN bilan oching. Yuborilmagan savat yo'qolgan bo'lishi mumkin: qayta qo'shing |
 | Tepada sariq yoki qizil lenta (**To'lov muddati o'tdi**, **Sozlamalar yopiq**) | Do'kon hisob-fakturasi to'lanmagan. Ishlashda davom eting, egaga ayting ([lenta haqida](#tarif-va-tolov-lentasi)) |
+| **Kurs**, **Mehmon** yoki **Mening choy pulim** yo'q | Filialda tegishli modul o'chiq (kurslar, mehmon bo'yicha bo'lish, choy puli). Egaga ayting ([restoran.md](restoran.md#1-qaysi-tugma-qaysi-modulga-bogliq)) |
+| "2-kurs tayyor" xabari kelmadi | Buyurtma sizniki emas yoki aloqa uzilgan; **Kurslar** blokida holat yangilanadi ([restoran.md](restoran.md#10-muammolar-va-yechimlar)) |

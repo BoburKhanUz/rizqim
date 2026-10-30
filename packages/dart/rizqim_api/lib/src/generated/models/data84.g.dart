@@ -7,25 +7,23 @@ part of 'data84.dart';
 // **************************************************************************
 
 Data84 _$Data84FromJson(Map<String, dynamic> json) => Data84(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  serviceFee: json['service_fee'] == null
+  tin: json['tin'] as String?,
+  taxRegime: json['tax_regime'] == null
       ? null
-      : ServiceFee.fromJson(json['service_fee'] as Map<String, dynamic>),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables2.fromJson(e as Map<String, dynamic>))
+      : TaxRegime.fromJson(json['tax_regime'] as String?),
+  fiscalSettings: FiscalSettings2.fromJson(
+    json['fiscal_settings'] as Map<String, dynamic>,
+  ),
+  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
+  taxRegimes: (json['tax_regimes'] as List<dynamic>)
+      .map((e) => TaxRegimes2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data84ToJson(Data84 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'name': instance.name,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'service_fee': instance.serviceFee,
-  'tables': instance.tables,
+  'tin': instance.tin,
+  'tax_regime': instance.taxRegime,
+  'fiscal_settings': instance.fiscalSettings,
+  'drivers': instance.drivers,
+  'tax_regimes': instance.taxRegimes,
 };

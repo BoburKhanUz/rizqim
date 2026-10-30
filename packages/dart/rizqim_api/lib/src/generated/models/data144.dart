@@ -4,117 +4,67 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items7.dart';
-import 'payments11.dart';
+import 'branch11.dart';
+import 'periods.dart';
+import 'sales_attributions.dart';
+import 'component_types.dart';
+import 'guarantee_modes.dart';
+import 'guarantee_per.dart';
+import 'percent_bases.dart';
+import 'event_types.dart';
+import 'roles4.dart';
+import 'staff7.dart';
+import 'rules3.dart';
 
 part 'data144.g.dart';
 
 @JsonSerializable()
 class Data144 {
   const Data144({
-    required this.sourceLabel,
-    required this.branchId,
-    required this.diningTableId,
-    required this.tableIds,
-    required this.startsAt,
-    required this.endsAt,
-    required this.guestsPlanned,
-    required this.eventType,
-    required this.eventTypeLabel,
-    required this.contactName,
-    required this.contactPhone,
-    required this.source,
-    required this.uuid,
-    required this.status,
-    required this.statusLabel,
-    required this.minSpend,
-    required this.note,
-    required this.orderUuid,
-    required this.depositTotal,
-    required this.depositAvailable,
-    required this.depositUnsettled,
-    required this.itemsCount,
-    required this.payments,
-    required this.version,
-    required this.createdBy,
-    required this.confirmedAt,
-    required this.arrivedAt,
-    required this.completedAt,
-    required this.canceledAt,
-    required this.confirmationSentAt,
-    required this.confirmationChannel,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.items,
-    required this.cancelReason,
+    required this.branch,
+    required this.period,
+    required this.periodLabel,
+    required this.periods,
+    required this.salesAttribution,
+    required this.salesAttributionLabel,
+    required this.salesAttributions,
+    required this.componentTypes,
+    required this.guaranteeModes,
+    required this.guaranteePer,
+    required this.percentBases,
+    required this.eventTypes,
+    required this.roles,
+    required this.staff,
+    required this.rules,
   });
 
   factory Data144.fromJson(Map<String, Object?> json) =>
       _$Data144FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_ids')
-  final List<int> tableIds;
-  @JsonKey(name: 'starts_at')
-  final String startsAt;
-  @JsonKey(name: 'ends_at')
-  final String endsAt;
-  @JsonKey(name: 'guests_planned')
-  final int guestsPlanned;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
-  @JsonKey(name: 'contact_name')
-  final String contactName;
-  @JsonKey(name: 'contact_phone')
-  final String? contactPhone;
-  final String source;
-  @JsonKey(name: 'source_label')
-  final String sourceLabel;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  final String? note;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'deposit_total')
-  final String depositTotal;
-  @JsonKey(name: 'deposit_available')
-  final String depositAvailable;
-  @JsonKey(name: 'deposit_unsettled')
-  final bool depositUnsettled;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  final int version;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-  @JsonKey(name: 'confirmed_at')
-  final String? confirmedAt;
-  @JsonKey(name: 'arrived_at')
-  final String? arrivedAt;
-  @JsonKey(name: 'completed_at')
-  final String? completedAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'confirmation_sent_at')
-  final String? confirmationSentAt;
-  @JsonKey(name: 'confirmation_channel')
-  final String? confirmationChannel;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final List<Items7> items;
-  final List<Payments11> payments;
+  final Branch11 branch;
+  final String period;
+  @JsonKey(name: 'period_label')
+  final String periodLabel;
+  final List<Periods> periods;
+  @JsonKey(name: 'sales_attribution')
+  final String salesAttribution;
+  @JsonKey(name: 'sales_attribution_label')
+  final String salesAttributionLabel;
+  @JsonKey(name: 'sales_attributions')
+  final List<SalesAttributions> salesAttributions;
+  @JsonKey(name: 'component_types')
+  final List<ComponentTypes> componentTypes;
+  @JsonKey(name: 'guarantee_modes')
+  final List<GuaranteeModes> guaranteeModes;
+  @JsonKey(name: 'guarantee_per')
+  final List<GuaranteePer> guaranteePer;
+  @JsonKey(name: 'percent_bases')
+  final List<PercentBases> percentBases;
+  @JsonKey(name: 'event_types')
+  final List<EventTypes> eventTypes;
+  final List<Roles4> roles;
+  final List<Staff7> staff;
+  final List<Rules3> rules;
 
   Map<String, Object?> toJson() => _$Data144ToJson(this);
 }

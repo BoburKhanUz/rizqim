@@ -11,7 +11,7 @@ PutV1OwnerStaffIdPinResponse _$PutV1OwnerStaffIdPinResponseFromJson(
 ) => PutV1OwnerStaffIdPinResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data132.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data160.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerStaffIdPinResponseToJson(

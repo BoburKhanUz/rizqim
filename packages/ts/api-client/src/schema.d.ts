@@ -4986,6 +4986,37 @@ export interface paths {
         patch: operations["branch.update"];
         trace?: never;
     };
+    "/v1/owner/branches/{id}/booking-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's table booking rules
+         * @description Every key with its default when nothing was saved (`configured: false`): `table_slot_minutes` (30-480, 120) and
+         *     `room_slot_minutes` / `tapchan_slot_minutes` (null: the branch's `booking_slot_minutes`, 5 hours); the least time
+         *     ahead a booking may be made per place kind (`*_min_advance_minutes` 0-1440, 0: no limit; the choyxona's "kamida
+         *          * 3 soat" is 180 for rooms) and `max_advance_days` (null: no limit); the deposit: `deposit_mode` (a BookingDepositMode
+         *     value), `deposit_amount`, `deposit_from_guests` (a party of this many or more) and `deposit_required_to_confirm`.
+         */
+        get: operations["branchBookingRules.show"];
+        /**
+         * Change the branch's table booking rules
+         * @description Send only what changes. The deposit applies to table bookings only (rooms and tapchans keep taking deposits by
+         *     hand) and is taken as the existing booking deposit with its advance receipt. With `deposit_required_to_confirm` a
+         *     booking stays a request (409 `deposit_required` on confirm) until the deposits taken add up to the amount.
+         *     Audited.
+         */
+        put: operations["branchBookingRules.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/branches/{id}/pos-settings": {
         parameters: {
             query?: never;
@@ -6098,6 +6129,199 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/pos/service-charge-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's service charge rules
+         * @description The rows in force in the branch: the store's default (`branch_id` null), the branch's own and its halls' own,
+         *     each with its base percent, its `rules` (`by_order_type` {hall|table_service|takeaway: percent},
+         *     `large_group_min_guests` with `large_group_percent`, `cover_amount` per guest), the owner's `notice` and
+         *     `notice_preview` (the text the bill prints). `enabled`: the branch has the `service_charge_rules` module;
+         *     `locked`: a stolovaya (0%, VM 75).
+         */
+        get: operations["serviceChargeRules.show"];
+        /**
+         * Set the service charge rules
+         * @description For the branch (or, with `hall_id`, one of its halls). Send the whole set: `by_order_type` ({hall,
+         *     table_service, takeaway}: percent 0-30; a type left out keeps the row's own percent), `large_group_min_guests`
+         *     (2-500) with `large_group_percent` (0-30) — both or neither, `cover_amount` (per guest, 0 or null: none),
+         *     `notice` (up to 300 characters; null: worked out). A row the branch or hall did not have yet is made from the
+         *     one in force there (the base percent and place fee unchanged). A stolovaya takes no positive percent (422
+         *     service_charge_locked); without the `service_charge_rules` module: 403 module_disabled. Audited
+         *     (settings.service_charge_rules_changed).
+         */
+        put: operations["serviceChargeRules.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tips report
+         * @description The branch's tips for business days `from`..`to` (at most 92 days; default: today's business day): `totals`
+         *     (count, amount, by method, personal, pool, unassigned personal tips, by person, corrections), `by_day` (each
+         *     day's amount, personal, pool, cash/card/qr, its pool splits and what of the pool is not split yet), `by_staff`
+         *     (personal tips, pool shares of the splits so far and of the closed ones, total). Tips are not revenue: they are
+         *     never in the sales reports.
+         */
+        get: operations["tips.report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips/distributions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pool splits
+         * @description The branch's pool splits of business days `from`..`to`, each with its rule, pool, lines (person, role, basis —
+         *     1, minutes, sales in so'm or the role weight — and amount in whole so'm) and status. `pool_period`: the branch's
+         *     period now (day: one split per business day; shift: one per shift, computed with `shift_uuid`).
+         */
+        get: operations["tips.distributions"];
+        put?: never;
+        /**
+         * Compute the pool split
+         * @description Splits the pool tips of `business_date` (or of the shift `shift_uuid`) by the branch's rule among the people of
+         *     its roles who worked then (clock-in sessions, the till shifts they opened, else the orders they served), or
+         *     among `participants` ([{staff_id, minutes?}], the manager's own list: people of the branch whose role is one of
+         *     the pool's `roles` — else 422 `staff_not_in_pool` / `staff_not_found` — and never the caller unless the owner:
+         *     403 `tips_pool_self`). The branch's `pool_period` decides the period: `day` refuses `shift_uuid` (422
+         *     `tips_pool_period_day`), `shift` requires it (422 `tips_pool_period_shift`, pick a shift of the day); a day split
+         *     and shift splits of one date never both exist (409 `tips_pool_period_conflict`). Stored; computing again
+         *     replaces it until it is closed (409 `tips_distribution_closed`); two first computes at once: 409
+         *     `tips_distribution_busy` for the second (try again). Every basis 0: split equally. Shares are whole so'm: the
+         *     so'm left over go to the largest remainders, any tiyin to the largest share — the lines add up to the pool.
+         *     Staff pay counts a split once it is closed. tips.manage. Audited (pos.tips_distribution_computed, with the
+         *     people and their shares).
+         */
+        post: operations["tips.compute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips/distributions/{uuid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close the pool split
+         * @description Freezes the split: no more recomputing and no more corrections of the tips it covers. The pool changed since
+         *     it was computed (a tip came, a correction): 409 `tips_distribution_stale` (compute again first); a pool nobody
+         *     takes (no people in the split): 409 `tips_distribution_unassigned`; already closed: 409
+         *     `tips_distribution_closed`. From then on the pay statements count its shares. tips.manage. Audited
+         *     (pos.tips_distribution_closed).
+         */
+        post: operations["tips.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tips taken
+         * @description Each tip of business days `from`..`to` (newest first, at most 500) with what it gives whom now, its corrections
+         *     and the bill, payment and shift it came with. `staff_id`: one person's (whom a tip goes to now). `closed`: a
+         *     closed pool split covers it (no more corrections).
+         */
+        get: operations["tips.entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's tip settings
+         * @description `mode` personal (to the order's waiter, or the one picked at payment) or pool; `pool_rule` equal, hours, sales
+         *     or role_weights; `pool_period` day or shift; `roles` taking part in the pool; `role_weights` per role ("1.00"
+         *     unless set). `enabled`: the branch has the `tips` module. `options`: the choices with their labels.
+         */
+        get: operations["tips.settings"];
+        /**
+         * Change the branch's tip settings
+         * @description Send what changes: `mode`, `pool_rule`, `pool_period`, `roles` (at least one; owner is never one), `role_weights`
+         *     ({role: 0.01-100}). Applies to tips taken from now on (a tip keeps the mode it was taken in). Needs the `tips`
+         *     module (403 module_disabled); a locked subscription changes nothing (403 subscription_locked). Audited
+         *     (settings.tips_changed).
+         */
+        put: operations["tips.updateSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/tips/{uuid}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a tip
+         * @description A manager's correction (tips.manage) with a `reason`: the tip now gives `amount` (null: as now) to `mode`
+         *     personal (`staff_id`; null: unassigned) or pool. Written as signed rows next to the tip (the original stays);
+         *     a refund never does this by itself. 409 `tips_period_closed` when a closed pool split covers the tip; 422
+         *     `nothing_to_correct`, `reason_required`, `staff_not_found`. Audited (pos.tip_corrected).
+         */
+        post: operations["tips.correct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/printers": {
         parameters: {
             query?: never;
@@ -6295,6 +6519,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/products/{id}/pos-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * A dish's skewer buttons, grill time and weight rule
+         * @description Only what is sent changes; null clears it. `quick_multipliers`: the ×N buttons (2–10, each once, up to 9; module
+         *     `skewer_buttons`), `wait_minutes`: the grill's time (0–240; module `skewer_buttons`), `weight_mode`: `raw` |
+         *     `cooked` — the dish is weighed after it is chosen and its kg price is for that weight (module `weight_later`; only
+         *     a kg/l dish not sold from a kazan batch). Setting a value whose module is off for every branch of the store: 403
+         *     `module_disabled` (clearing never is). Audited. menu.manage.
+         */
+        patch: operations["productPosService.update"];
         trace?: never;
     };
     "/v1/owner/reports/export": {
@@ -6551,12 +6799,318 @@ export interface paths {
         put?: never;
         /**
          * Add a staff member
-         * @description `role`: one the caller may give (a manager: cashier, waiter, cook, courier); `branch_id`: a branch of the store
+         * @description `role`: one the caller may give (a manager: cashier, waiter, cook, hostess, courier); `branch_id`: a branch of the store
          *     (a branch manager: their own). `phone` (+998XXXXXXXXX, optional) becomes their login phone for the partner panel
          *     and the staff apps; one staff account per phone in a store. The response carries the Telegram invite link.
          */
         post: operations["staff.store"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff pay rules of a branch
+         * @description The branch's pay `period` (day, week, half_month, month: business days), its `sales_attribution` (at_payment:
+         *     a bill of a table handed to another waiter is the waiter's at payment time, the default; current_waiter: the
+         *     table's last waiter's), the choices the rule editor offers,
+         *     the staff who can work in the branch, and every rule version, by subject and start date. A rule is a staff
+         *     member's (`user_id`) or a role's (`role`); a person's own version wins over their role's; a version is in force
+         *     from `effective_from` until the subject's next one. staff_pay.view or staff_pay.manage.
+         */
+        get: operations["staffPayRule.index"];
+        put?: never;
+        /**
+         * Add a wage rule (version)
+         * @description For one staff member (`user_id`) or a role (`role`: manager, cashier, waiter, cook, hostess, courier), in force
+         *     from `effective_from` (a business date). `components`: one or more parts that add up — each `{type, ...}`:
+         *     shift_rate {amount}; hourly_rate {amount}; sales_percent {percent}; service_charge_percent {percent};
+         *     guarantee {amount, per: shift|period, mode: max|plus, percent, base: sales|service_charge}; event_rate {amount,
+         *     event_types: booking kinds, empty for all but "other"}; tips {} (the person's tips, only when this part is
+         *     there). Amounts so'm (0–100 000 000), percents 0–100; a type once per rule; an empty list means no pay from that
+         *     date. 422 when the subject already has a version from that date. Audited. staff_pay.manage.
+         */
+        post: operations["staffPayRule.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/rules/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a wage rule (version)
+         * @description Send what changes: `effective_from`, `components` (the whole list, as when adding), `note`. A closed statement
+         *     keeps what it used. Audited. staff_pay.manage.
+         */
+        put: operations["staffPayRule.update"];
+        post?: never;
+        /**
+         * Delete a wage rule (version)
+         * @description The subject's previous version (if any) is in force again from this one's date. Closed statements keep what
+         *     they used. Audited. staff_pay.manage.
+         */
+        delete: operations["staffPayRule.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the staff pay settings of a branch
+         * @description Send what changes (at least one). `period`: day | week (Monday–Sunday) | half_month (1–15, 16–end) | month —
+         *     business days in the store's time zone; statements made from now on use it, existing ones keep theirs.
+         *     `sales_attribution`: whose sales a bill of a table handed to another waiter is — at_payment (the waiter at
+         *     payment time, the default, the same as tips: bills paid before the handover stay with the first waiter) or
+         *     current_waiter (the table's last waiter, every bill of the order); draft statements take it at their next
+         *     computation, closed ones keep their numbers. A refund follows the person of the refunded bill. Audited.
+         *     staff_pay.manage.
+         */
+        put: operations["staffPayRule.settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pay statements
+         * @description Newest period first: the branches the caller sees (`branch_id` narrows to one), periods overlapping `from`–`to`
+         *     (business dates), `status` (draft, closed, paid), at most `limit` (50, up to 200). staff_pay.view or
+         *     staff_pay.manage.
+         */
+        get: operations["staffPayStatement.index"];
+        put?: never;
+        /**
+         * Make a pay statement
+         * @description A draft for the branch's pay period holding `date` (default: the branch's business day today): a line per staff
+         *     member with a rule and any work, sales or events in the period. 409 `statement_exists` (the period has one:
+         *     `statement_uuid`) or `statement_overlaps` (the pay period changed and another statement covers some of these
+         *     days). Audited. staff_pay.manage.
+         */
+        post: operations["staffPayStatement.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A pay statement
+         * @description Its lines: per person the components with what each gave and how (`detail`), the work and sales behind them
+         *     (`metrics`: shifts, minutes, bills, sales, service charge, events, tips, sessions not counted), the wage money
+         *     already given from the till in the period (`advances`), the adjustment and what is to pay; `warnings` (worked
+         *     without a rule, sessions left open); `open_shifts`: the branch's open till shifts a line can be paid from.
+         *     staff_pay.view or staff_pay.manage.
+         */
+        get: operations["staffPayStatement.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a draft
+         * @description 409 `statement_not_draft`. Audited. staff_pay.manage.
+         */
+        delete: operations["staffPayStatement.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a statement
+         * @description Recomputed one last time and frozen; its lines can then be paid. 409 `statement_not_draft`. Audited.
+         *     staff_pay.manage.
+         */
+        post: operations["staffPayStatement.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}/lines/{line}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Adjust a line of a draft
+         * @description `adjustment` (so'm, + or −, e.g. "-50000" for a fine, "100000" for a bonus) with a `reason` (required unless 0);
+         *     it stays through recomputes. 409 `statement_not_draft`. Audited. staff_pay.manage.
+         */
+        put: operations["staffPayStatement.adjust"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}/lines/{line}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay a line
+         * @description Of a closed statement, once. `method`: `cash_drawer` — from an open till shift of the branch (`shift_uuid`,
+         *     one of the statement's `open_shifts`): a `wage` cash movement (category payroll) of the line's amount for that
+         *     person, which the drawer must hold (409 `not_enough_cash`) and which shows in the shift's X/Z; or `other`
+         *     (bank transfer, card...) — only marked paid. An Idempotency-Key is required (428 without). 409 `statement_not_closed`,
+         *     `line_already_paid`; 422 `nothing_to_pay`, `shift_not_found`. Audited. staff_pay.manage (the till movement also
+         *     pos.cash_in_out).
+         */
+        post: operations["staffPayStatement.pay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recompute a draft
+         * @description From the rules and the work and sales as they are now; adjustments stay. 409 `statement_not_draft`. Audited.
+         *     staff_pay.manage.
+         */
+        post: operations["staffPayStatement.recompute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/statements/{uuid}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen a closed statement
+         * @description Back to a draft (`reason` required) while no line is paid: 409 `statement_not_closed`, `statement_has_payments`.
+         *     Audited. staff_pay.manage.
+         */
+        post: operations["staffPayStatement.reopen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/work-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Work sessions
+         * @description Of a branch, by business date (`from`–`to`, YYYY-MM-DD, default: the last 7 days), optionally one person's
+         *     (`user_id`); newest first, at most 500. `open`: still clocked in; `abandoned`: left open on an earlier day and
+         *     set aside (not counted until it has an end). staff_pay.view or staff_pay.manage.
+         */
+        get: operations["staffWorkSession.index"];
+        put?: never;
+        /**
+         * Add a work session
+         * @description For a staff member of the branch who did not clock in: `clock_in_at`, `clock_out_at` (ISO 8601 moments; without
+         *     an end it is open), `reason`. At most 24 hours, never overlapping another of the person's sessions, not in the
+         *     future (422). Audited. staff_pay.manage.
+         */
+        post: operations["staffWorkSession.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/staff-pay/work-sessions/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Correct a work session
+         * @description Its `clock_in_at` and `clock_out_at` (null: still open) with a `reason`; a set-aside session gets its end this
+         *     way. Same limits as adding. Audited. staff_pay.manage.
+         */
+        put: operations["staffWorkSession.update"];
+        post?: never;
+        /**
+         * Remove a work session
+         * @description With a `reason`. Audited. staff_pay.manage.
+         */
+        delete: operations["staffWorkSession.destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6676,6 +7230,29 @@ export interface paths {
          *     `subscription` is null for a store on no plan (commission at the store's own rate, no monthly fee)
          */
         get: operations["ownerBilling.subscription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The waitlist, by day
+         * @description The branch's entries from `from` to `to` (business days, Y-m-d, `to` inclusive, at most 31 days, default
+         *     today), newest first, with the guest's number masked, and a `summary` (how many were seated, left or never
+         *     came, the wait quoted against the wait the seated parties had). Filter by `status`. At most 500 entries. Needs
+         *     reports.view; the hostess module (403 `module_disabled`).
+         */
+        get: operations["ownerWaitlist.index"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6829,7 +7406,15 @@ export interface paths {
          *     once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
          *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
          *     covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
-         *     order is closed (delivered, paid, table free) once all its bills are. A receipt not issued yet leaves the bill
+         *     order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
+         *     carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,
+         *     `tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to
+         *     (personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip
+         *     roles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's
+         *     `tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is
+         *     taken. Tips are never on the receipt nor part of the bill (`tips_amount`
+         *     on the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,
+         *     `tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill
          *     "fiskal kutmoqda" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422
          *     `mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.
          */
@@ -6883,7 +7468,10 @@ export interface paths {
          * Create a booking
          * @description A room or table of the branch (`dining_table_id`; a banquet adds the merged rooms in `extra_table_ids`) for
          *     `starts_at`–`ends_at` (ISO 8601; without an offset: the store's time zone; without `ends_at`: the branch's default
-         *     slot, 5 hours). 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`
+         *     slot: 5 hours, or the slot of the place's kind in the branch's table booking rules, P6-26). 422
+         *     `booking_too_soon` / `booking_too_far` when the rules (minimum lead time, furthest day) refuse the start —
+         *     `skip_lead_time: true` lets an owner or a manager book a walk-in; 409 `deposit_required` when `confirm: true`
+         *     and the rule keeps unconfirmed bookings until the deposit is taken. 409 `booking_conflict` with `data.conflicts` when a room is already booked then. `confirm: true`
          *     creates it confirmed. The phone is stored as +998XXXXXXXXX.
          */
         post: operations["booking.store"];
@@ -7063,7 +7651,10 @@ export interface paths {
          * Take a deposit
          * @description `amount`, `tender` cash|card|qr (`card_type`, `transaction_id` for card and QR). Issues an ADVANCE receipt
          *     (`fiscal_receipt_uuid`, `fiscal_status`). The `Idempotency-Key` header is required: a retry returns the same
-         *     deposit and never a second receipt. A requested booking becomes confirmed.
+         *     deposit and never a second receipt. A requested booking becomes confirmed. A deposit is a payment: it needs
+         *     pos.take_payment, or a manager's one-time `approval_token` for it (POST /pos/approvals; the hostess desk). A cash
+         *     deposit goes into a drawer: it is taken on a terminal with an open shift in the booking's branch (its X/Z counts
+         *     it), else 409 `deposit_needs_shift` ("Bo'nakni kassada oling"); card and QR need no shift.
          */
         post: operations["booking.takeDeposit"];
         delete?: never;
@@ -7215,6 +7806,12 @@ export interface paths {
          *     P6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to
          *     ask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the
          *     terminal_card_flow module.
+         *     P6-26: `booking_rules`, the branch's table booking rules (slot by place kind, lead time, deposit; null without the
+         *     table_booking module).
+         *     P6-23: `staff_pay`, the clock-in/out for the signed-in person (`clock`, their open work `session`); null without
+         *     the staff_pay module.
+         *     P6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`
+         *     (personal|pool), `pool_rule` and `pool_period`.
          *     P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,
          *     quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's
          *     switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;
@@ -7242,12 +7839,77 @@ export interface paths {
          *     the POS `channel` (default pos_hall) with its prices and hidden dishes applied, each variant's unit, step and
          *     minimum, the modifiers, and what is unavailable on the branch now (`is_available`, `unavailable_reason`:
          *     stopped | sold_out; `availability`: stop-list and kazan batches); each product's `station_id` (kitchen routing),
-         *     `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button). Refetch when the bootstrap's
+         *     `batch_tracked` (sold from kazan batches) and `quick_add` (a one-tap button); P6-25: `quick_multipliers` (the ×N
+         *     buttons of a skewer dish), `wait_minutes` (the grill's time), `weight_mode` (raw|cooked: weighed after it is
+         *     chosen; null: sold by the quantity typed). Refetch when the bootstrap's
          *     `menu_version` changes or on menu.availability_changed. Needs menu.view; `branch_id` for an owner.
          */
         get: operations["posCatalog.index"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My work time
+         * @description The caller's open session (null when not clocked in) and the minutes of their closed sessions of the branch's
+         *     business day today.
+         */
+        get: operations["posClock.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/clock/in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clock in
+         * @description From the caller's PIN session on a paired terminal (403 `terminal_required` otherwise). 409
+         *     `already_clocked_in`; a session the person left open on an earlier business day is set aside for a manager.
+         */
+        post: operations["posClock.in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/clock/out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clock out
+         * @description Ends the caller's open session (409 `not_clocked_in`). A session longer than 24 hours is set aside for a manager
+         *     instead of counted.
+         */
+        post: operations["posClock.out"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7493,7 +8155,8 @@ export interface paths {
          *     `bill_printed`, and the open orders on it (opened_at, guests, waiter, total, `unsent_count`: lines not sent to the
          *     kitchen yet, `ready_count`: lines the kitchen marked ready and nobody served yet, `bill_requested`: a waiter asked
          *     for the bill, "Schyot so'raldi"; the place's own `bill_requested` while no bill is printed yet). A place's
-         *     `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage
+         *     `service_state` (P6-26): the hostess' mark, `cleaning` while a free place waits to be cleaned (a separate key,
+         *     `status` is unchanged). `reservation` names the guest (`contact_name`, `contact_phone`) for staff with orders.manage or bookings.manage
          *     (null for others, e.g. a kitchen screen). `layout`: grid cells of the floor plan (40 columns x 24 rows, x/y the
          *     top-left cell, w/h the size in cells; null: not placed yet). Closed seasonal halls
          *     and inactive places are left out unless an order is still open there. `untabled_orders`: open POS orders without
@@ -7545,6 +8208,12 @@ export interface paths {
          *     P6-13: `queue_number` (optional, with the `queue_numbers` module) is the number the till took from its block
          *     (GET /pos/bootstrap `queue`): kept when it lies in this till's blocks of today and no order has it, otherwise
          *     the order gets the next number; the answer's `queue.number` is the one to print.
+         *
+         *     P6-21 / P6-25: a line's `course_no` (module `courses`: a later course is held until POST
+         *     /pos/orders/{uuid}/courses/{n}/send) and `awaiting_weight` (module `weight_later`: the quantity is the estimate,
+         *     the real kg comes with POST /pos/orders/{uuid}/items/{item}/weight; default: the product's `weight_mode`);
+         *     `table_label` the table plate of a counter order carried to the table (module `table_service`). A module that is
+         *     off: 403 `module_disabled`.
          */
         post: operations["posOrder.store"];
         delete?: never;
@@ -7621,7 +8290,10 @@ export interface paths {
          *     the first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of
          *     1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and
          *     the charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are
-         *     exact to the tiyin. `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
+         *     exact to the tiyin. `by_guest` (P6-24, the guest_split module, 403 `module_disabled`): one bill per guest
+         *     (`seat_no` of the lines, lowest first, `seat_no` on the bill); a line with no seat is shared equally among those
+         *     guests (the remainder on the first guest's bill); 422 `no_seat_lines` when no line has a guest number.
+         *     `version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or
          *     pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
          *     (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
          *     `nothing_to_bill`, `order_closed`,
@@ -7751,6 +8423,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/orders/{uuid}/courses/{course}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a course to the kitchen
+         * @description P6-21: "N-kursni yuborish" — the held lines of course `course` (1–9) go to their stations (`sent_at`); lines
+         *     added to that course later go with the next ordinary send. 422 `nothing_to_send` when the course has nothing
+         *     left to send. Needs orders.manage; the waiter rule. Not gated by the `courses` module: an order that has courses
+         *     always sends them.
+         */
+        post: operations["posCourse.send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/orders/{uuid}/discount": {
         parameters: {
             query?: never;
@@ -7827,6 +8522,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/orders/{uuid}/items/{item}/seat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a line's guest number
+         * @description `seat_no` 1-500 puts the line on that guest for the split by guest (POST /pos/orders/{uuid}/bills, mode
+         *     `by_guest`); null takes it off every guest (it is shared). 422 `already_void`; 404 `item_not_found`. Needs
+         *     orders.manage; the waiter rule applies (`approval_token`). The guest_split module (403 `module_disabled`).
+         */
+        post: operations["posOrderHandover.seat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/orders/{uuid}/items/{item}/served": {
         parameters: {
             query?: never;
@@ -7867,6 +8584,30 @@ export interface paths {
          *     bill being paid (refund that payment first, P3-35).
          */
         post: operations["posOrder.void"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/items/{item}/weight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enter the weight of a line
+         * @description P6-25: the real weight (`quantity`, kg or l, up to 3 decimals) of a line added with `awaiting_weight`: the line's
+         *     price follows it at its own unit price, `weighed_by` / `weighed_at` are set, the charges follow, and the order can
+         *     be billed again (no bill while a line awaits its weight: 409 `weight_pending`). A line weighed already: weighing
+         *     it again needs orders.void_item or a manager's `approval_token` (403 `approval_required`). A line that does not
+         *     wait for a weight: 422 `not_weighed_line`. Needs orders.manage; the waiter rule. Not gated by the module.
+         */
+        post: operations["posCourse.weight"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8004,7 +8745,8 @@ export interface paths {
          * @description A new round (`round_no`, who added it, when): lines priced by the order's channel, with the menu's rules (kg and
          *     fractions in steps, modifiers, stop-list, kazan portions, stock; in fiscal mode the MXIK code). `fire_mode`
          *     `now` (default) goes with the next send, `hold` only when sent by id; `due_at` for a pre-order; `seat_no` and
-         *     `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage.
+         *     `note` per line. `send: true` sends the round's `now` lines at once. Needs orders.manage. P6-21 / P6-25:
+         *     `course_no` and `awaiting_weight` per line as on opening (a course after the one in the kitchen is held).
          */
         post: operations["posOrder.addRound"];
         delete?: never;
@@ -8029,6 +8771,55 @@ export interface paths {
          *     `nothing_to_send` when there is nothing new. Needs orders.manage.
          */
         post: operations["posOrder.send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/table-label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the table plate
+         * @description P6-25 (kafe "stolga olib kelish", module `table_service`): the number on the plate the guest took (`table_label`,
+         *     up to 20 characters; null or empty clears it), shown on the kitchen ticket and the order. Audited. Needs
+         *     orders.manage; the waiter rule.
+         */
+        post: operations["posCourse.tableLabel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/orders/{uuid}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand the table to another waiter
+         * @description The open order goes to `waiter_id` (an active waiter of the order's branch; 404 `waiter_not_found`, 422
+         *     `same_waiter`). Needs orders.transfer (a manager or the owner by default; it is enough on its own, without
+         *     orders.manage), or orders.manage with a manager's one-time `approval_token` for orders.transfer (POST
+         *     /pos/approvals; 403 `approval_required`). The waiter rule is not
+         *     asked: the manager decides. `reason` (optional, up to 255 characters) is kept in the audit log. The old and the
+         *     new waiter are told (broadcast `order.transferred` on their own channels), the floor refetches. Nothing already
+         *     paid changes; what the order earns from now on (a personal tip, sales for the waiter's pay) follows the new
+         *     waiter. The waiter_transfer module (403 `module_disabled`).
+         */
+        post: operations["posOrderHandover.transfer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8387,6 +9178,207 @@ export interface paths {
         get: operations["posSync.status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/tables/{id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a table's state
+         * @description `state`: `cleaning` (the guests left, the table is not ready) or `free` (ready: clears the mark). The mark shows
+         *     as `service_state` on the floor map while the place has no open order; opening an order there clears it by
+         *     itself, and it never blocks seating. Needs hostess.manage or tables.manage in the table's branch; the hostess
+         *     module (403 `module_disabled`). Announced as `table.state_changed` on the branch's channel.
+         */
+        put: operations["posTableState.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tips of a shift
+         * @description The tips of `shift_uuid` (default: the terminal's open shift; without one, the branch's current business day),
+         *     with the summary (by method, personal, pool, by person). Someone without tips.manage, pos.close_shift or
+         *     reports.view (a waiter) sees only the tips that go to them, and of each only their own share: `amount` and
+         *     `original_amount` are their share, `staff` themselves, `holders` and `corrections` only theirs (without who
+         *     made them), `recorded_by` null. Needs orders.view.
+         */
+        get: operations["posTips.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/tips/{uuid}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a tip
+         * @description A manager's correction with a `reason`: the tip now gives `amount` (null: as now) to `mode` personal (`staff_id`;
+         *     null: unassigned) or pool. tips.manage, or a manager's `approval_token` for it (else 403 approval_required).
+         *     409 `tips_period_closed` (a closed pool split covers it); 422 `nothing_to_correct`, `staff_not_found`.
+         *     Idempotent. Audited (pos.tip_corrected).
+         */
+        post: operations["posTips.correct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The waitlist
+         * @description The branch's entries of a business day (default today's), in the order the guests came, each with its place in
+         *     the queue (`position`, waiting entries only), how long it has waited and the wait the hostess quoted; `summary`
+         *     counts them by state. Filter by `status`. Needs hostess.manage; the hostess module (403 `module_disabled`).
+         */
+        get: operations["posWaitlist.index"];
+        put?: never;
+        /**
+         * Write a guest on the waitlist
+         * @description `guest_name`, `party_size` (1-200), optional `guest_phone` (stored as +998XXXXXXXXX), `quoted_wait_minutes`
+         *     (0-600: what the hostess told the guest) and `note`. Announced as `waitlist.changed` on the branch's channel.
+         */
+        post: operations["posWaitlist.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/waitlist/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change an entry
+         * @description Only the fields sent change (name, phone, party size, quoted wait, note) and only while the entry is waiting
+         *     (409 `entry_closed`).
+         */
+        patch: operations["posWaitlist.update"];
+        trace?: never;
+    };
+    "/v1/pos/waitlist/{uuid}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The guest left
+         * @description Closes a waiting entry as `canceled`; optional `reason`.
+         */
+        post: operations["posWaitlist.cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/waitlist/{uuid}/no-show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The guest never came
+         * @description Closes a waiting entry as `no_show` (usually after calling them).
+         */
+        post: operations["posWaitlist.noShow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/waitlist/{uuid}/notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Call the guest ("stol tayyor")
+         * @description Stamps `notified_at` on a waiting entry (calling again moves it). Nothing is sent to the guest: the hostess calls
+         *     them with the number on the entry.
+         */
+        post: operations["posWaitlist.notify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/waitlist/{uuid}/seat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seat the party
+         * @description Gives the waiting party `dining_table_id` (an active place of the branch; 422 `table_not_found`). With
+         *     `open_order: true` the party's hall order is opened there (`party_size` guests; optional `waiter_id`, else the
+         *     opener if a waiter) and linked to the entry (`order_uuid`); the order needs orders.manage. 409 `entry_closed`.
+         */
+        post: operations["posWaitlist.seat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9294,6 +10286,10 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            service_state: string | null;
+            /** Format: date-time */
+            service_state_at: string | null;
+            service_state_by: number | null;
             store?: components["schemas"]["Store"];
             branch?: components["schemas"]["Branch"];
             hall?: components["schemas"]["Hall"];
@@ -9639,6 +10635,7 @@ export interface components {
             pickup_call_count: number;
             /** Format: date-time */
             pickup_handed_at: string | null;
+            table_label: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -9694,6 +10691,8 @@ export interface components {
             created_at: string | null;
             /** Format: date-time */
             updated_at: string | null;
+            seat_no: number | null;
+            waiter_id: number | null;
             order?: components["schemas"]["Order"];
             items?: components["schemas"]["OrderBillItem"][];
             payments?: components["schemas"]["Payment"][];
@@ -9778,6 +10777,12 @@ export interface components {
             set_parts: {
                 [key: string]: unknown;
             }[] | null;
+            course_no: number | null;
+            weight_status: components["schemas"]["WeightStatus"] | null;
+            weight_basis: components["schemas"]["WeightBasis"] | null;
+            weighed_by: (number | null) | (components["schemas"]["User"] | null);
+            /** Format: date-time */
+            weighed_at: string | null;
             order?: components["schemas"]["Order"];
             product_variant?: components["schemas"]["ProductVariant"] | null;
             batch?: components["schemas"]["MenuBatch"] | null;
@@ -9887,7 +10892,7 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund" | "orders.transfer" | "hostess.manage" | "staff_pay.view" | "staff_pay.manage" | "tips.manage";
         /**
          * PickupStatus
          * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a POS counter order before its lines went to the kitchen, an online pickup order of a branch without `queue_calling`). A POS counter order is tracked in every format (its kitchen lines outlive a payment taken first); only where `queue_calling` is on is it shown on the board and announced.
@@ -9941,10 +10946,10 @@ export interface components {
         };
         /**
          * PosSyncOperationType
-         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order.
+         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight.
          * @enum {string}
          */
-        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close";
+        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight";
         /** Product */
         Product: {
             id: number;
@@ -9972,6 +10977,9 @@ export interface components {
             package_code: string | null;
             vat_rate: string | null;
             quick_add: boolean;
+            quick_multipliers: number[] | null;
+            wait_minutes: number | null;
+            weight_mode: string | null;
             is_active: boolean;
             image_url: string | null;
             image_thumb_urls: {
@@ -10357,6 +11365,24 @@ export interface components {
             features: string[] | null;
             subscriptions?: components["schemas"]["StoreSubscription"][];
         };
+        /**
+         * TipMode
+         * @description P6-22: whom a branch's tips go to (pos_tip_settings.mode, pos_tips.mode): `personal` — the order's waiter, or the one picked at payment; `pool` — a shared pot split by the branch's rule (TipPoolDistributor).
+         * @enum {string}
+         */
+        TipMode: "personal" | "pool";
+        /**
+         * TipPoolPeriod
+         * @description P6-22: what one split of the pool covers: a business day of the branch (Asia/Tashkent, from the branch's day start) or one till shift.
+         * @enum {string}
+         */
+        TipPoolPeriod: "day" | "shift";
+        /**
+         * TipPoolRule
+         * @description P6-22: how a tip pool is split among the people taking part (TipPoolDistributor): `equal` — the same to each; `hours` — by minutes worked in the period; `sales` — by the paid bills of their orders (orders.waiter_id) in the period; `role_weights` — by the weight the owner gave their role.
+         * @enum {string}
+         */
+        TipPoolRule: "equal" | "hours" | "sales" | "role_weights";
         /** User */
         User: {
             id: number;
@@ -10397,7 +11423,19 @@ export interface components {
          * UserRole
          * @enum {string}
          */
-        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook" | "platform";
+        UserRole: "super_admin" | "owner" | "manager" | "customer" | "courier" | "cashier" | "waiter" | "cook" | "hostess" | "platform";
+        /**
+         * WeightBasis
+         * @description P6-25 (B3): which weight a "weight later" dish's kg price is for (products.weight_mode, kept on the sold line as order_items.weight_basis): the fish as chosen, before cooking (`raw`), or as served (`cooked`).
+         * @enum {string}
+         */
+        WeightBasis: "raw" | "cooked";
+        /**
+         * WeightStatus
+         * @description P6-25 (B3): where a "weight later" line is (order_items.weight_status; null: an ordinary line sold by the quantity typed). `awaiting`: the dish was chosen, its quantity is the estimate and no bill is made or printed while it waits; `weighed`: the real weight was entered (who and when are on the line), the price follows it.
+         * @enum {string}
+         */
+        WeightStatus: "awaiting" | "weighed";
     };
     responses: {
         /** @description Unauthenticated */
@@ -21615,7 +22653,7 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string | null;
-                role?: "customer" | "courier" | "staff" | "owner" | "manager" | "cashier" | "waiter" | "cook" | null;
+                role?: "customer" | "courier" | "staff" | "owner" | "manager" | "cashier" | "waiter" | "cook" | "hostess" | null;
                 status?: "active" | "blocked" | null;
                 store_id?: number | null;
                 per_page?: number | null;
@@ -25125,6 +26163,108 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "branchBookingRules.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            table_slot_minutes: number;
+                            room_slot_minutes: number | null;
+                            tapchan_slot_minutes: number | null;
+                            table_min_advance_minutes: number;
+                            room_min_advance_minutes: number;
+                            tapchan_min_advance_minutes: number;
+                            max_advance_days: number | null;
+                            deposit_mode: string;
+                            deposit_mode_label: string;
+                            deposit_amount: string;
+                            deposit_from_guests: number;
+                            deposit_required_to_confirm: boolean;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchBookingRules.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    table_slot_minutes?: number;
+                    room_slot_minutes?: number | null;
+                    tapchan_slot_minutes?: number | null;
+                    table_min_advance_minutes?: number;
+                    room_min_advance_minutes?: number;
+                    tapchan_min_advance_minutes?: number;
+                    max_advance_days?: number | null;
+                    /** @enum {string} */
+                    deposit_mode?: "off" | "flat" | "per_guest";
+                    deposit_amount?: number;
+                    deposit_from_guests?: number;
+                    deposit_required_to_confirm?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            configured: boolean;
+                            table_slot_minutes: number;
+                            room_slot_minutes: number | null;
+                            tapchan_slot_minutes: number | null;
+                            table_min_advance_minutes: number;
+                            room_min_advance_minutes: number;
+                            tapchan_min_advance_minutes: number;
+                            max_advance_days: number | null;
+                            deposit_mode: string;
+                            deposit_mode_label: string;
+                            deposit_amount: string;
+                            deposit_from_guests: number;
+                            deposit_required_to_confirm: boolean;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "branchPosSettings.show": {
         parameters: {
             query?: never;
@@ -26347,7 +27487,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    role: "manager" | "cashier" | "waiter" | "cook" | "courier";
+                    role: "manager" | "cashier" | "waiter" | "cook" | "hostess" | "courier";
                     name: string;
                     branch_id: number;
                 };
@@ -26747,6 +27887,7 @@ export interface operations {
                                 repayments: string;
                                 refunds: string;
                                 deposit_refunds: string;
+                                tips: string;
                             } | null;
                             difference: string | null;
                             threshold: string | null;
@@ -26859,6 +28000,7 @@ export interface operations {
                                 repayments: string;
                                 refunds: string;
                                 deposit_refunds: string;
+                                tips: string;
                             } | null;
                             difference: string | null;
                             threshold: string | null;
@@ -28823,7 +29965,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    role: "manager" | "cashier" | "waiter" | "cook" | "courier";
+                    role: "manager" | "cashier" | "waiter" | "cook" | "hostess" | "courier";
                     permission: components["schemas"]["Permission"];
                     allowed: boolean | null;
                 };
@@ -29143,6 +30285,724 @@ export interface operations {
                                     }[];
                                 };
                             };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "serviceChargeRules.show": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            enabled: boolean;
+                            locked: boolean;
+                            order_types: {
+                                key: string;
+                                label: string;
+                            }[];
+                            rows: {
+                                branch_id: number | null;
+                                hall_id: number | null;
+                                hall_name: string | null;
+                                service_charge_percent: string;
+                                service_charge_channels: string[] | null;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                                rules: {
+                                    by_order_type: {
+                                        [key: string]: string;
+                                    };
+                                    large_group_min_guests: number | null;
+                                    large_group_percent: string | null;
+                                    cover_amount: string | null;
+                                };
+                                notice: string | null;
+                                notice_preview: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "serviceChargeRules.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Percent by order type: {hall, table_service, takeaway}.
+                     * @example {
+                     *       "hall": "15",
+                     *       "table_service": "10",
+                     *       "takeaway": "0"
+                     *     }
+                     */
+                    by_order_type?: {
+                        [key: string]: string;
+                    };
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                    /** @description One hall's own row. */
+                    hall_id?: number;
+                    /**
+                     * @description Guests from which the large-group percent applies.
+                     * @example 8
+                     */
+                    large_group_min_guests?: number;
+                    /**
+                     * @description The large-group percent.
+                     * @example 18
+                     */
+                    large_group_percent?: string;
+                    /**
+                     * @description The cover per guest (so'm).
+                     * @example 5000
+                     */
+                    cover_amount?: string;
+                    /** @description The notice on the bill (null: worked out from the rules). */
+                    notice?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            enabled: boolean;
+                            locked: boolean;
+                            order_types: {
+                                key: string;
+                                label: string;
+                            }[];
+                            rows: {
+                                branch_id: number | null;
+                                hall_id: number | null;
+                                hall_name: string | null;
+                                service_charge_percent: string;
+                                service_charge_channels: string[] | null;
+                                place_fee_amount: string;
+                                place_fee_mode: string;
+                                rules: {
+                                    by_order_type: {
+                                        [key: string]: string;
+                                    };
+                                    large_group_min_guests: number | null;
+                                    large_group_percent: string | null;
+                                    cover_amount: string | null;
+                                };
+                                notice: string | null;
+                                notice_preview: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "tips.report": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+                /** @description First business day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last business day (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            totals: {
+                                count: number;
+                                amount: string;
+                                by_method: {
+                                    method: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
+                                personal: string;
+                                pool: string;
+                                unassigned: string;
+                                by_staff: {
+                                    staff_id: number;
+                                    name: string | null;
+                                    amount: string;
+                                }[];
+                                corrections: {
+                                    count: number;
+                                    amount: string;
+                                };
+                            };
+                            by_day: {
+                                business_date: string;
+                                amount: string;
+                                personal: string;
+                                pool: string;
+                                cash: string;
+                                card: string;
+                                qr: string;
+                                distributions: {
+                                    uuid: string;
+                                    shift_uuid: string | null;
+                                    status: string;
+                                    pool_amount: string;
+                                    distributed: string;
+                                }[];
+                                undistributed: string;
+                            }[];
+                            by_staff: {
+                                staff_id: number;
+                                name: string | null;
+                                role: string | null;
+                                personal: string;
+                                pool_share: string;
+                                pool_share_closed: string;
+                                total: string;
+                            }[];
+                            undistributed: string;
+                            staff: {
+                                id: number;
+                                name: string;
+                                role: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "tips.distributions": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+                /** @description First business day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last business day (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            pool_period: string;
+                            distributions: {
+                                uuid: string;
+                                branch_id: number;
+                                business_date: string;
+                                shift_uuid: string | null;
+                                rule: string;
+                                roles: string[];
+                                role_weights: {
+                                    [key: string]: string;
+                                };
+                                pool_amount: string;
+                                tips_count: number;
+                                distributed: string;
+                                status: string;
+                                computed_at: string | null;
+                                closed_at: string | null;
+                                closed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                manual_participants: boolean;
+                                lines: {
+                                    staff_id: number | null;
+                                    name: string | null;
+                                    role: string | null;
+                                    basis: string;
+                                    amount: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "tips.compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The people of the split: [{staff_id, minutes?}] (null: who worked). */
+                    participants?: {
+                        staff_id: number;
+                        minutes?: number | null;
+                    }[];
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                    /** @description The business day (YYYY-MM-DD). */
+                    business_date: string;
+                    /** @description One shift instead of the whole day. */
+                    shift_uuid?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            shift_uuid: string | null;
+                            rule: string;
+                            roles: string[];
+                            role_weights: {
+                                [key: string]: string;
+                            };
+                            pool_amount: string;
+                            tips_count: number;
+                            distributed: string;
+                            status: string;
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            manual_participants: boolean;
+                            lines: {
+                                staff_id: number | null;
+                                name: string | null;
+                                role: string | null;
+                                basis: string;
+                                amount: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "tips.close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            shift_uuid: string | null;
+                            rule: string;
+                            roles: string[];
+                            role_weights: {
+                                [key: string]: string;
+                            };
+                            pool_amount: string;
+                            tips_count: number;
+                            distributed: string;
+                            status: string;
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            closed_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            manual_participants: boolean;
+                            lines: {
+                                staff_id: number | null;
+                                name: string | null;
+                                role: string | null;
+                                basis: string;
+                                amount: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "tips.entries": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+                /** @description First business day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last business day (YYYY-MM-DD). */
+                to?: string;
+                /** @description Only the tips that go to this person now. */
+                staff_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            tips: {
+                                uuid: string;
+                                method: string;
+                                source: string | null;
+                                amount: string;
+                                original_amount: string;
+                                mode: string;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                holders: {
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    amount: string;
+                                }[];
+                                business_date: string;
+                                order_uuid: string | null;
+                                bill_uuid: string | null;
+                                payment_uuid: string | null;
+                                shift_uuid: string | null;
+                                recorded_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                closed: boolean;
+                                corrections: {
+                                    amount: string;
+                                    mode: string;
+                                    staff_id: number | null;
+                                    reason: string | null;
+                                    by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    approved_by: number | null;
+                                    created_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            }[];
+                            truncated: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "tips.settings": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings: {
+                                branch_id: number;
+                                enabled: boolean;
+                                mode: string;
+                                pool_rule: string;
+                                pool_period: string;
+                                roles: string[];
+                                role_weights: {
+                                    [key: string]: string;
+                                };
+                                updated_at: string | null;
+                            };
+                            options: {
+                                modes: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                pool_rules: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                pool_periods: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                roles: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "tips.updateSettings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    mode?: components["schemas"]["TipMode"];
+                    pool_rule?: components["schemas"]["TipPoolRule"];
+                    pool_period?: components["schemas"]["TipPoolPeriod"];
+                    roles?: ("manager" | "cashier" | "waiter" | "cook" | "hostess")[];
+                    role_weights?: number[];
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings: {
+                                branch_id: number;
+                                enabled: boolean;
+                                mode: string;
+                                pool_rule: string;
+                                pool_period: string;
+                                roles: string[];
+                                role_weights: {
+                                    [key: string]: string;
+                                };
+                                updated_at: string | null;
+                            };
+                            options: {
+                                modes: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                pool_rules: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                pool_periods: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                roles: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "tips.correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The tip's amount now (so'm; null: unchanged).
+                     * @example 20000
+                     */
+                    amount?: string;
+                    /**
+                     * @description personal or pool.
+                     * @example personal
+                     */
+                    mode: string;
+                    /** @description Whom a personal tip goes to (null: unassigned). */
+                    staff_id?: number;
+                    /** @description Why (required). */
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            method: string;
+                            source: string | null;
+                            amount: string;
+                            original_amount: string;
+                            mode: string;
+                            staff: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            holders: {
+                                mode: string;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                amount: string;
+                            }[];
+                            business_date: string;
+                            order_uuid: string | null;
+                            bill_uuid: string | null;
+                            payment_uuid: string | null;
+                            shift_uuid: string | null;
+                            recorded_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            closed: boolean;
+                            corrections: {
+                                amount: string;
+                                mode: string;
+                                staff_id: number | null;
+                                reason: string | null;
+                                by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                created_at: string | null;
+                            }[];
+                            created_at: string | null;
                         };
                     };
                 };
@@ -29698,6 +31558,46 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "productPosService.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    quick_multipliers?: number[] | null;
+                    wait_minutes?: number | null;
+                    weight_mode?: components["schemas"]["WeightBasis"] | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            product_id: number;
+                            quick_multipliers: number[] | null;
+                            wait_minutes: number | null;
+                            weight_mode: components["schemas"]["WeightBasis"] | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "report.export": {
         parameters: {
             query?: {
@@ -30125,6 +32025,16 @@ export interface operations {
                                 place_fee_amount: string;
                                 place_fee_mode: string;
                                 place_fee_channels: string[] | null;
+                                /** @description P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules) */
+                                service_charge_rules: {
+                                    by_order_type: {
+                                        [key: string]: string;
+                                    };
+                                    large_group_min_guests: number | null;
+                                    large_group_percent: string | null;
+                                    cover_amount: string | null;
+                                };
+                                service_charge_notice: string | null;
                             }[];
                         };
                     };
@@ -30173,6 +32083,16 @@ export interface operations {
                             place_fee_amount: string;
                             place_fee_mode: string;
                             place_fee_channels: string[] | null;
+                            /** @description P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules) */
+                            service_charge_rules: {
+                                by_order_type: {
+                                    [key: string]: string;
+                                };
+                                large_group_min_guests: number | null;
+                                large_group_percent: string | null;
+                                cover_amount: string | null;
+                            };
+                            service_charge_notice: string | null;
                         };
                     };
                 };
@@ -30586,7 +32506,7 @@ export interface operations {
                 "application/json": {
                     name: string;
                     /** @enum {string} */
-                    role: "manager" | "cashier" | "waiter" | "cook" | "courier";
+                    role: "manager" | "cashier" | "waiter" | "cook" | "hostess" | "courier";
                     branch_id: number;
                     phone?: string | null;
                 };
@@ -30625,6 +32545,1266 @@ export interface operations {
                             };
                             invite_link: string;
                         };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayRule.index": {
+        parameters: {
+            query?: {
+                /** @description Filial (filialga biriktirilgan xodim uchun o'z filiali). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch: {
+                                id: number;
+                                name: string;
+                            };
+                            period: string;
+                            period_label: string;
+                            periods: {
+                                value: string;
+                                label: string;
+                            }[];
+                            sales_attribution: string;
+                            sales_attribution_label: string;
+                            sales_attributions: {
+                                value: string;
+                                label: string;
+                            }[];
+                            component_types: {
+                                value: string;
+                                label: string;
+                            }[];
+                            guarantee_modes: {
+                                value: string;
+                                label: string;
+                            }[];
+                            guarantee_per: {
+                                value: string;
+                                label: string;
+                            }[];
+                            percent_bases: {
+                                value: string;
+                                label: string;
+                            }[];
+                            event_types: {
+                                value: string;
+                                label: string;
+                            }[];
+                            roles: {
+                                value: string;
+                                label: string;
+                            }[];
+                            staff: {
+                                id: number;
+                                name: string;
+                                role: string;
+                                role_label: string;
+                                branch_id: number | null;
+                            }[];
+                            rules: {
+                                uuid: string;
+                                branch_id: number;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                effective_from: string;
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    amount?: string;
+                                    percent?: string;
+                                    per?: string;
+                                    mode?: string;
+                                    base?: string;
+                                    event_types?: string[];
+                                }[];
+                                note: string | null;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayRule.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number;
+                    user_id?: number | null;
+                    role?: string | null;
+                    /** @description YYYY-MM-DD */
+                    effective_from: string;
+                    components: {
+                        [key: string]: unknown;
+                    }[];
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            user_id: number | null;
+                            user_name: string | null;
+                            role: string | null;
+                            role_label: string | null;
+                            effective_from: string;
+                            components: {
+                                type: string;
+                                label: string;
+                                amount?: string;
+                                percent?: string;
+                                per?: string;
+                                mode?: string;
+                                base?: string;
+                                event_types?: string[];
+                            }[];
+                            note: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayRule.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description YYYY-MM-DD */
+                    effective_from?: string;
+                    components?: {
+                        [key: string]: unknown;
+                    }[];
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            user_id: number | null;
+                            user_name: string | null;
+                            role: string | null;
+                            role_label: string | null;
+                            effective_from: string;
+                            components: {
+                                type: string;
+                                label: string;
+                                amount?: string;
+                                percent?: string;
+                                per?: string;
+                                mode?: string;
+                                base?: string;
+                                event_types?: string[];
+                            }[];
+                            note: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayRule.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffPayRule.settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number;
+                    /** @description App\Domain\Pos\StaffPay\PayPeriod: day, week, half_month, month. */
+                    period?: string;
+                    /** @description App\Domain\Pos\StaffPay\SalesAttribution: at_payment, current_waiter. */
+                    sales_attribution?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            period: string;
+                            period_label: string;
+                            sales_attribution: string;
+                            sales_attribution_label: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayStatement.index": {
+        parameters: {
+            query?: {
+                branch_id?: number;
+                /** @description YYYY-MM-DD */
+                from?: string;
+                /** @description YYYY-MM-DD */
+                to?: string;
+                /** @description App\Domain\Pos\StaffPay\StatementStatus */
+                status?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayStatement.store": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number;
+                    /** @description YYYY-MM-DD: a business date in the period. */
+                    date?: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayStatement.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffPayStatement.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffPayStatement.close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffPayStatement.adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                line: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    adjustment: string;
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffPayStatement.pay": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                line: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description cash_drawer | other */
+                    method: string;
+                    shift_uuid?: string | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    "staffPayStatement.recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "staffPayStatement.reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            period: string;
+                            period_label: string;
+                            period_from: string;
+                            period_to: string;
+                            status: string;
+                            status_label: string;
+                            gross_total: string;
+                            payable_total: string;
+                            paid_total: string;
+                            lines_count: number;
+                            warnings: {
+                                type: string;
+                                user_id: number | null;
+                                name: string | null;
+                                count?: number;
+                            }[];
+                            computed_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                            lines: {
+                                uuid: string;
+                                user_id: number | null;
+                                user_name: string | null;
+                                role: string | null;
+                                role_label: string | null;
+                                metrics: {
+                                    shifts: number;
+                                    minutes: number;
+                                    bills: number;
+                                    sales: string;
+                                    service_charge: string;
+                                    events: number;
+                                    tips: string;
+                                    uncounted_sessions: number;
+                                    rules: string[];
+                                    own_rule: boolean;
+                                };
+                                components: {
+                                    type: string;
+                                    label: string;
+                                    rule_uuid: string | null;
+                                    days: number;
+                                    quantity: string | null;
+                                    rate: string | null;
+                                    base: string | null;
+                                    amount: string;
+                                    detail: string;
+                                }[];
+                                gross: string;
+                                advances: string;
+                                tips_paid: string;
+                                adjustment: string;
+                                adjustment_reason: string | null;
+                                payable: string;
+                                paid: boolean;
+                                paid_at: string | null;
+                                paid_method: string | null;
+                                paid_note: string | null;
+                                cash_movement_id: number | null;
+                            }[];
+                            open_shifts: {
+                                uuid: string;
+                                device_name: string | null;
+                                business_date: string;
+                                opened_at: string;
+                                expected_cash: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffWorkSession.index": {
+        parameters: {
+            query?: {
+                branch_id?: number;
+                /** @description YYYY-MM-DD */
+                from?: string;
+                /** @description YYYY-MM-DD */
+                to?: string;
+                user_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            user_id: number;
+                            user_name: string | null;
+                            business_date: string;
+                            clock_in_at: string;
+                            clock_out_at: string | null;
+                            abandoned: boolean;
+                            open: boolean;
+                            minutes: number;
+                            source: string;
+                            note: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffWorkSession.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number;
+                    user_id: number;
+                    clock_in_at: string;
+                    clock_out_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            user_id: number;
+                            user_name: string | null;
+                            business_date: string;
+                            clock_in_at: string;
+                            clock_out_at: string | null;
+                            abandoned: boolean;
+                            open: boolean;
+                            minutes: number;
+                            source: string;
+                            note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffWorkSession.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    clock_in_at: string;
+                    clock_out_at?: string | null;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            user_id: number;
+                            user_name: string | null;
+                            business_date: string;
+                            clock_in_at: string;
+                            clock_out_at: string | null;
+                            abandoned: boolean;
+                            open: boolean;
+                            minutes: number;
+                            source: string;
+                            note: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "staffWorkSession.destroy": {
+        parameters: {
+            query: {
+                reason: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
                     };
                 };
             };
@@ -30779,7 +33959,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    role: "manager" | "cashier" | "waiter" | "cook" | "courier";
+                    role: "manager" | "cashier" | "waiter" | "cook" | "hostess" | "courier";
                     branch_id?: number | null;
                 };
             };
@@ -31027,6 +34207,78 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    "ownerWaitlist.index": {
+        parameters: {
+            query?: {
+                /** @description The branch; defaults to the caller's. */
+                branch_id?: number;
+                /** @description First business day, Y-m-d (default today). */
+                from?: string;
+                /** @description Last business day, Y-m-d, inclusive. */
+                to?: string;
+                /** @description One state: waiting, seated, canceled or no_show. */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            entries: {
+                                uuid: string;
+                                branch_id: number;
+                                business_date: string;
+                                guest_name: string;
+                                guest_phone: string | null;
+                                guest_phone_masked: string | null;
+                                party_size: number;
+                                quoted_wait_minutes: number | null;
+                                note: string | null;
+                                status: string;
+                                status_label: string;
+                                position: number | null;
+                                waited_minutes: number;
+                                dining_table_id: number | null;
+                                table_name: string | null;
+                                order_uuid: string | null;
+                                notified_at: string | null;
+                                seated_at: string | null;
+                                closed_at: string | null;
+                                version: number;
+                                created_at: string | null;
+                            }[];
+                            summary: {
+                                total: number;
+                                waiting: number;
+                                seated: number;
+                                canceled: number;
+                                no_show: number;
+                                party_size_total: number;
+                                avg_quoted_wait_minutes: number | null;
+                                avg_seated_wait_minutes: number | null;
+                                longest_waiting_minutes: number | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "clickWebhook.handle": {
@@ -31497,7 +34749,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage" | "batches.manage";
+                    permission: "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "tables.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "pos.refund" | "bookings.manage" | "customer_accounts.manage" | "batches.manage" | "orders.transfer" | "tips.manage";
                     user_id?: number | null;
                     staff_code?: string | null;
                     pin: string;
@@ -31577,6 +34829,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -31652,7 +34905,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -31718,7 +35017,12 @@ export interface operations {
                         reference?: string | null;
                         /** Format: uuid */
                         account_uuid?: string | null;
+                        /** @description P6-22: a tip on top of the tender, or the cash change left as one */
+                        tip_amount?: number | null;
+                        tip_from_change?: boolean | null;
                     }[];
+                    tip_staff_id?: number | null;
+                    tip_approval_token?: string | null;
                     approval_token?: string | null;
                     /** Format: uuid */
                     shift_uuid?: string | null;
@@ -31752,6 +35056,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -31827,7 +35132,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -31914,6 +35265,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -31989,7 +35341,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -32133,6 +35531,7 @@ export interface operations {
                     min_spend?: number | null;
                     note?: string | null;
                     confirm?: boolean | null;
+                    skip_lead_time?: boolean | null;
                     version?: number | null;
                 };
             };
@@ -32180,6 +35579,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -32406,6 +35807,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -32480,6 +35883,7 @@ export interface operations {
                     source?: "phone" | "telegram" | "instagram" | "walk_in" | "other" | null;
                     min_spend?: number | null;
                     note?: string | null;
+                    skip_lead_time?: boolean | null;
                     version?: number | null;
                 };
             };
@@ -32527,6 +35931,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -32637,6 +36043,8 @@ export interface operations {
                                 confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
+                                deposit_required: string;
+                                deposit_missing: string;
                                 items: {
                                     id: number;
                                     product_variant_id: number;
@@ -32750,6 +36158,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -32857,6 +36267,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -33015,6 +36427,7 @@ export interface operations {
                     tender: "cash" | "card" | "qr";
                     card_type?: string | null;
                     transaction_id?: string | null;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -33062,6 +36475,8 @@ export interface operations {
                                 confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
+                                deposit_required: string;
+                                deposit_missing: string;
                                 items: {
                                     id: number;
                                     product_variant_id: number;
@@ -33245,6 +36660,8 @@ export interface operations {
                                 confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
+                                deposit_required: string;
+                                deposit_missing: string;
                                 items: {
                                     id: number;
                                     product_variant_id: number;
@@ -33428,6 +36845,8 @@ export interface operations {
                                 confirmation_channel: string | null;
                                 created_at: string | null;
                                 updated_at: string | null;
+                                deposit_required: string;
+                                deposit_missing: string;
                                 items: {
                                     id: number;
                                     product_variant_id: number;
@@ -33622,6 +37041,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -33724,6 +37145,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -33843,6 +37266,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -33950,6 +37375,8 @@ export interface operations {
                             confirmation_channel: string | null;
                             created_at: string | null;
                             updated_at: string | null;
+                            deposit_required: string;
+                            deposit_missing: string;
                             items: {
                                 id: number;
                                 product_variant_id: number;
@@ -34153,12 +37580,22 @@ export interface operations {
                                 next_local_number: number;
                                 business_date: string;
                                 day_type: string;
+                                service_charge_locked: boolean;
                                 fees: {
                                     hall_id: number | null;
                                     channel: string;
                                     service_charge_percent: string;
                                     place_fee_amount: string;
                                     place_fee_mode: string;
+                                    rules: {
+                                        by_order_type: {
+                                            [key: string]: string;
+                                        };
+                                        large_group_min_guests: number | null;
+                                        large_group_percent: string | null;
+                                        cover_amount: string | null;
+                                    } | null;
+                                    service_charge_notice: string | null;
                                 }[];
                                 places: {
                                     table_id: number;
@@ -34194,6 +37631,14 @@ export interface operations {
                                 shared_terminal: boolean;
                                 checklist_complete: boolean;
                             } | null;
+                            staff_pay: {
+                                clock: boolean;
+                                session: {
+                                    uuid: string;
+                                    business_date: string;
+                                    clock_in_at: string;
+                                } | null;
+                            } | null;
                             format: {
                                 profile: string;
                                 profile_label: string;
@@ -34203,6 +37648,13 @@ export interface operations {
                                 locks: {
                                     service_charge_zero: boolean;
                                 };
+                            };
+                            tips: {
+                                enabled: boolean;
+                                mode: string;
+                                pool_rule: string;
+                                pool_period: string;
+                                roles: string[];
                             };
                             entitlements: {
                                 plan: {
@@ -34251,6 +37703,23 @@ export interface operations {
                                 }[];
                                 next_number: number | null;
                             };
+                            booking_rules: {
+                                branch_id: number;
+                                configured: boolean;
+                                table_slot_minutes: number;
+                                room_slot_minutes: number | null;
+                                tapchan_slot_minutes: number | null;
+                                table_min_advance_minutes: number;
+                                room_min_advance_minutes: number;
+                                tapchan_min_advance_minutes: number;
+                                max_advance_days: number | null;
+                                deposit_mode: string;
+                                deposit_mode_label: string;
+                                deposit_amount: string;
+                                deposit_from_guests: number;
+                                deposit_required_to_confirm: boolean;
+                                updated_at: string | null;
+                            } | null;
                         };
                     };
                 };
@@ -34295,6 +37764,9 @@ export interface operations {
                             products: (components["schemas"]["Product"] & {
                                 batch_tracked: boolean;
                                 quick_add: boolean;
+                                quick_multipliers: number[] | null;
+                                wait_minutes: number | null;
+                                weight_mode: string | null;
                                 is_available: boolean;
                                 /** @enum {string|null} */
                                 unavailable_reason: "stopped" | "sold_out" | null;
@@ -34351,6 +37823,135 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posClock.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            session: {
+                                uuid: string;
+                                branch_id: number;
+                                user_id: number;
+                                user_name: string | null;
+                                business_date: string;
+                                clock_in_at: string;
+                                clock_out_at: string | null;
+                                abandoned: boolean;
+                                open: boolean;
+                                minutes: number;
+                                source: string;
+                                note: string | null;
+                            } | null;
+                            today_minutes: number;
+                            business_date: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posClock.in": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            session: {
+                                uuid: string;
+                                branch_id: number;
+                                user_id: number;
+                                user_name: string | null;
+                                business_date: string;
+                                clock_in_at: string;
+                                clock_out_at: string | null;
+                                abandoned: boolean;
+                                open: boolean;
+                                minutes: number;
+                                source: string;
+                                note: string | null;
+                            } | null;
+                            today_minutes: number;
+                            business_date: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posClock.out": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            session: {
+                                uuid: string;
+                                branch_id: number;
+                                user_id: number;
+                                user_name: string | null;
+                                business_date: string;
+                                clock_in_at: string;
+                                clock_out_at: string | null;
+                                abandoned: boolean;
+                                open: boolean;
+                                minutes: number;
+                                source: string;
+                                note: string | null;
+                            } | null;
+                            today_minutes: number;
+                            business_date: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "customerAccount.index": {
@@ -35241,6 +38842,7 @@ export interface operations {
                                     min_spend_mode: string;
                                     status: string;
                                     bill_requested: boolean;
+                                    service_state: string | null;
                                     reservation: {
                                         booking_uuid: string;
                                         starts_at: string;
@@ -35345,6 +38947,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -35438,6 +39041,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -35493,7 +39099,12 @@ export interface operations {
                         fire_mode?: "now" | "hold" | null;
                         /** Format: date-time */
                         due_at?: string | null;
+                        /** @description P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later) */
+                        course_no?: number | null;
+                        awaiting_weight?: boolean | null;
                     }[] | null;
+                    /** @description P6-25: the table plate of a counter order carried to the table (module table_service) */
+                    table_label?: string | null;
                 };
             };
         };
@@ -35534,6 +39145,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -35575,6 +39187,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -35604,6 +39219,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -35642,6 +39266,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -35698,6 +39330,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -35739,6 +39372,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -35768,6 +39404,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -35806,6 +39451,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -35861,6 +39514,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -35954,6 +39608,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -36045,6 +39702,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -36120,7 +39778,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -36214,7 +39918,7 @@ export interface operations {
                 "application/json": {
                     version: number;
                     /** @enum {string} */
-                    mode: "single" | "equal" | "items";
+                    mode: "single" | "equal" | "items" | "by_guest";
                     parts?: number | null;
                     bills?: {
                         items: {
@@ -36277,6 +39981,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -36352,7 +40057,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -36529,6 +40280,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -36570,6 +40322,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -36599,6 +40354,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -36637,6 +40401,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -36704,6 +40476,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -36745,6 +40518,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -36774,6 +40550,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -36812,6 +40597,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -36880,6 +40673,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -36921,6 +40715,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -36950,6 +40747,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -36988,6 +40794,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -37068,6 +40882,7 @@ export interface operations {
                                 paid_amount: string;
                                 due_amount: string;
                                 guests_share: number | null;
+                                seat_no: number | null;
                                 per_guest_amount: string | null;
                                 printed_count: number;
                                 printed_at: string | null;
@@ -37143,7 +40958,53 @@ export interface operations {
                                     reference: string | null;
                                     status: string;
                                     paid_at: string | null;
+                                    tip_amount: string;
                                 }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
                                 ticket: {
                                     number: number;
                                     business_date: string | null;
@@ -37220,6 +41081,202 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "posCourse.send": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                course: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "posOrder.discount": {
         parameters: {
             query?: never;
@@ -37273,6 +41330,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -37314,6 +41372,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -37343,6 +41404,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -37381,6 +41451,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -37448,6 +41526,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -37489,6 +41568,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -37518,6 +41600,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -37556,6 +41647,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -37622,6 +41721,211 @@ export interface operations {
             };
         };
     };
+    "posOrderHandover.seat": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    seat_no: number | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "posOrder.served": {
         parameters: {
             query?: never;
@@ -37672,6 +41976,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -37713,6 +42018,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -37742,6 +42050,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -37780,6 +42097,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -37857,6 +42182,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -37898,6 +42224,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -37927,6 +42256,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -37965,6 +42303,219 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posCourse.weight": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    quantity: number;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -38042,6 +42593,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -38083,6 +42635,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -38112,6 +42667,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -38150,6 +42714,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -38217,6 +42789,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -38258,6 +42831,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -38287,6 +42863,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -38325,6 +42910,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -38442,6 +43035,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -38535,6 +43129,9 @@ export interface operations {
                                     note?: string | null;
                                     voided_at?: string | null;
                                     void_reason?: string | null;
+                                    course_no?: number | null;
+                                    weight_status?: string | null;
+                                    wait_minutes?: number | null;
                                     unit_price?: string;
                                     modifiers_total?: string;
                                     total_price?: string;
@@ -38612,6 +43209,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -38653,6 +43251,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -38682,6 +43283,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -38720,6 +43330,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -38764,10 +43382,14 @@ export interface operations {
                         fire_mode?: "now" | "hold" | null;
                         /** Format: date-time */
                         due_at?: string | null;
+                        course_no?: number | null;
+                        /** @description P6-21 */
+                        awaiting_weight?: boolean | null;
                     }[];
                     /** @enum {string|null} */
                     fire_mode?: "now" | "hold" | null;
                     send?: boolean | null;
+                    /** @description P6-25 */
                     approval_token?: string | null;
                 };
             };
@@ -38801,6 +43423,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -38842,6 +43465,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -38871,6 +43497,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -38909,6 +43544,14 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -38976,6 +43619,7 @@ export interface operations {
                             } | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             waiter: {
                                 id: number;
@@ -39017,6 +43661,9 @@ export interface operations {
                                 min_spend_topup_amount: string;
                                 waived: string[];
                                 total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
                                 waivers: {
                                     charge: string;
                                     reason: string;
@@ -39046,6 +43693,15 @@ export interface operations {
                                 handed_at: string | null;
                             } | null;
                             rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
                             items: {
                                 id: number;
                                 round_no: number | null;
@@ -39084,6 +43740,407 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posCourse.tableLabel": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    table_label: string | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posOrderHandover.transfer": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    waiter_id: number;
+                    reason?: string | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
                             }[];
                         };
                     };
@@ -39597,6 +44654,27 @@ export interface operations {
                                         cash: string;
                                     };
                                 };
+                                tips: {
+                                    count: number;
+                                    amount: string;
+                                    by_method: {
+                                        method: string;
+                                        count: number;
+                                        amount: string;
+                                    }[];
+                                    personal: string;
+                                    pool: string;
+                                    unassigned: string;
+                                    by_staff: {
+                                        staff_id: number;
+                                        name: string | null;
+                                        amount: string;
+                                    }[];
+                                    corrections: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -39608,6 +44686,8 @@ export interface operations {
                                     deposits: string;
                                     deposit_refunds: string;
                                     repayments: string;
+                                    tips: string;
+                                    tip_payouts: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -39762,6 +44842,27 @@ export interface operations {
                                             cash: string;
                                         };
                                     };
+                                    tips: {
+                                        count: number;
+                                        amount: string;
+                                        by_method: {
+                                            method: string;
+                                            count: number;
+                                            amount: string;
+                                        }[];
+                                        personal: string;
+                                        pool: string;
+                                        unassigned: string;
+                                        by_staff: {
+                                            staff_id: number;
+                                            name: string | null;
+                                            amount: string;
+                                        }[];
+                                        corrections: {
+                                            count: number;
+                                            amount: string;
+                                        };
+                                    };
                                     cash: {
                                         opening: string;
                                         sales: string;
@@ -39773,6 +44874,8 @@ export interface operations {
                                         deposits: string;
                                         deposit_refunds: string;
                                         repayments: string;
+                                        tips: string;
+                                        tip_payouts: string;
                                         expected: string;
                                     };
                                     movements: {
@@ -39969,6 +45072,27 @@ export interface operations {
                                         cash: string;
                                     };
                                 };
+                                tips: {
+                                    count: number;
+                                    amount: string;
+                                    by_method: {
+                                        method: string;
+                                        count: number;
+                                        amount: string;
+                                    }[];
+                                    personal: string;
+                                    pool: string;
+                                    unassigned: string;
+                                    by_staff: {
+                                        staff_id: number;
+                                        name: string | null;
+                                        amount: string;
+                                    }[];
+                                    corrections: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -39980,6 +45104,8 @@ export interface operations {
                                     deposits: string;
                                     deposit_refunds: string;
                                     repayments: string;
+                                    tips: string;
+                                    tip_payouts: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -40035,6 +45161,7 @@ export interface operations {
                                     repayments: string;
                                     refunds: string;
                                     deposit_refunds: string;
+                                    tips: string;
                                 } | null;
                                 difference: string | null;
                                 threshold: string | null;
@@ -40150,6 +45277,7 @@ export interface operations {
                                 repayments: string;
                                 refunds: string;
                                 deposit_refunds: string;
+                                tips: string;
                             } | null;
                             difference: string | null;
                             threshold: string | null;
@@ -40456,6 +45584,27 @@ export interface operations {
                                         cash: string;
                                     };
                                 };
+                                tips: {
+                                    count: number;
+                                    amount: string;
+                                    by_method: {
+                                        method: string;
+                                        count: number;
+                                        amount: string;
+                                    }[];
+                                    personal: string;
+                                    pool: string;
+                                    unassigned: string;
+                                    by_staff: {
+                                        staff_id: number;
+                                        name: string | null;
+                                        amount: string;
+                                    }[];
+                                    corrections: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -40467,6 +45616,8 @@ export interface operations {
                                     deposits: string;
                                     deposit_refunds: string;
                                     repayments: string;
+                                    tips: string;
+                                    tip_payouts: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -40522,6 +45673,7 @@ export interface operations {
                                     repayments: string;
                                     refunds: string;
                                     deposit_refunds: string;
+                                    tips: string;
                                 } | null;
                                 difference: string | null;
                                 threshold: string | null;
@@ -40717,6 +45869,27 @@ export interface operations {
                                         cash: string;
                                     };
                                 };
+                                tips: {
+                                    count: number;
+                                    amount: string;
+                                    by_method: {
+                                        method: string;
+                                        count: number;
+                                        amount: string;
+                                    }[];
+                                    personal: string;
+                                    pool: string;
+                                    unassigned: string;
+                                    by_staff: {
+                                        staff_id: number;
+                                        name: string | null;
+                                        amount: string;
+                                    }[];
+                                    corrections: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -40728,6 +45901,8 @@ export interface operations {
                                     deposits: string;
                                     deposit_refunds: string;
                                     repayments: string;
+                                    tips: string;
+                                    tip_payouts: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -40784,7 +45959,7 @@ export interface operations {
                         op_id: string;
                         seq: number;
                         /** @enum {string} */
-                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close";
+                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight";
                         /** Format: date-time */
                         occurred_at?: string | null;
                         staff_id: number;
@@ -41105,6 +46280,673 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posTableState.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    state: "cleaning" | "free";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            name: string;
+                            service_state: string | null;
+                            service_state_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTips.index": {
+        parameters: {
+            query?: {
+                /** @description The shift (default: the terminal's open shift). */
+                shift_uuid?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            shift_uuid: string | null;
+                            business_date: string;
+                            own_only: boolean;
+                            summary: {
+                                count: number;
+                                amount: string;
+                                by_method: {
+                                    method: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
+                                personal: string;
+                                pool: string;
+                                unassigned: string;
+                                by_staff: {
+                                    staff_id: number;
+                                    name: string | null;
+                                    amount: string;
+                                }[];
+                                corrections: {
+                                    count: number;
+                                    amount: string;
+                                };
+                            };
+                            tips: {
+                                uuid: string;
+                                method: string;
+                                source: string | null;
+                                amount: string;
+                                original_amount: string;
+                                mode: string;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                holders: {
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    amount: string;
+                                }[];
+                                business_date: string;
+                                order_uuid: string | null;
+                                bill_uuid: string | null;
+                                payment_uuid: string | null;
+                                shift_uuid: string | null;
+                                recorded_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                closed: boolean;
+                                corrections: {
+                                    amount: string;
+                                    mode: string;
+                                    staff_id: number | null;
+                                    reason: string | null;
+                                    by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    approved_by: number | null;
+                                    created_at: string | null;
+                                }[];
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posTips.correct": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The tip's amount now (so'm; null: unchanged).
+                     * @example 20000
+                     */
+                    amount?: string;
+                    /**
+                     * @description personal or pool.
+                     * @example personal
+                     */
+                    mode: string;
+                    /** @description Whom a personal tip goes to (null: unassigned). */
+                    staff_id?: number;
+                    /** @description Why (required). */
+                    reason: string;
+                    /** @description A manager's approval for tips.manage. */
+                    approval_token?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            method: string;
+                            source: string | null;
+                            amount: string;
+                            original_amount: string;
+                            mode: string;
+                            staff: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            holders: {
+                                mode: string;
+                                staff: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                amount: string;
+                            }[];
+                            business_date: string;
+                            order_uuid: string | null;
+                            bill_uuid: string | null;
+                            payment_uuid: string | null;
+                            shift_uuid: string | null;
+                            recorded_by: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            closed: boolean;
+                            corrections: {
+                                amount: string;
+                                mode: string;
+                                staff_id: number | null;
+                                reason: string | null;
+                                by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                created_at: string | null;
+                            }[];
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.index": {
+        parameters: {
+            query?: {
+                /** @description The branch; defaults to the caller's or the terminal's branch. */
+                branch_id?: number;
+                /** @description Business day, Y-m-d (default: today). */
+                date?: string;
+                /** @description One state: waiting, seated, canceled or no_show. */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            date: string;
+                            entries: {
+                                uuid: string;
+                                branch_id: number;
+                                business_date: string;
+                                guest_name: string;
+                                guest_phone: string | null;
+                                guest_phone_masked: string | null;
+                                party_size: number;
+                                quoted_wait_minutes: number | null;
+                                note: string | null;
+                                status: string;
+                                status_label: string;
+                                position: number | null;
+                                waited_minutes: number;
+                                dining_table_id: number | null;
+                                table_name: string | null;
+                                order_uuid: string | null;
+                                notified_at: string | null;
+                                seated_at: string | null;
+                                closed_at: string | null;
+                                version: number;
+                                created_at: string | null;
+                            }[];
+                            summary: {
+                                total: number;
+                                waiting: number;
+                                seated: number;
+                                canceled: number;
+                                no_show: number;
+                                party_size_total: number;
+                                avg_quoted_wait_minutes: number | null;
+                                avg_seated_wait_minutes: number | null;
+                                longest_waiting_minutes: number | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.store": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    guest_name: string;
+                    guest_phone?: string | null;
+                    party_size: number;
+                    quoted_wait_minutes?: number | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    guest_name?: string;
+                    guest_phone?: string | null;
+                    party_size?: number;
+                    quoted_wait_minutes?: number | null;
+                    note?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.cancel": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    reason?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.noShow": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.notify": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posWaitlist.seat": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    dining_table_id: number;
+                    open_order?: boolean | null;
+                    waiter_id?: number | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            business_date: string;
+                            guest_name: string;
+                            guest_phone: string | null;
+                            guest_phone_masked: string | null;
+                            party_size: number;
+                            quoted_wait_minutes: number | null;
+                            note: string | null;
+                            status: string;
+                            status_label: string;
+                            position: number | null;
+                            waited_minutes: number;
+                            dining_table_id: number | null;
+                            table_name: string | null;
+                            order_uuid: string | null;
+                            notified_at: string | null;
+                            seated_at: string | null;
+                            closed_at: string | null;
+                            version: number;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "promoCode.validateCode": {
         parameters: {
             query?: never;
@@ -41239,6 +47081,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -41269,6 +47112,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -41399,6 +47245,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -41508,6 +47357,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -41560,6 +47412,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -41590,6 +47443,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -41646,6 +47502,7 @@ export interface operations {
                             branch_id: number | null;
                             hall_ref: string | null;
                             table_ref: string | null;
+                            table_label: string | null;
                             guests_count: number | null;
                             notes: string | null;
                             items_total: number;
@@ -41676,6 +47533,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;
@@ -41799,6 +47659,9 @@ export interface operations {
                                 note?: string | null;
                                 voided_at?: string | null;
                                 void_reason?: string | null;
+                                course_no?: number | null;
+                                weight_status?: string | null;
+                                wait_minutes?: number | null;
                                 unit_price?: string;
                                 modifiers_total?: string;
                                 total_price?: string;

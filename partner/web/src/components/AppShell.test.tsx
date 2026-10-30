@@ -98,7 +98,7 @@ describe('AppShell', () => {
     renderShell();
 
     // reports.view also opens the shifts (X and Z reports) and the fiscal receipts
-    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Xodimlar', 'Filiallar', 'Fiskal', 'Hisobotlar']);
+    expect(await navLabels()).toEqual(['Boshqaruv paneli', 'Buyurtmalar', 'Menyu', 'Stop-list', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Choy puli', 'Xodimlar', 'Filiallar', 'Fiskal', 'Hisobotlar']);
     expect(screen.getByText('page content')).toBeInTheDocument();
     expect(screen.getByText('Menejer')).toBeInTheDocument();
   });
@@ -112,7 +112,7 @@ describe('AppShell', () => {
     });
     renderShell();
     expect(await navLabels()).toEqual([
-      'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
+      'Boshqaruv paneli', 'Buyurtmalar', 'Bronlar', 'Zal va xonalar', 'Menyu', 'Stop-list', 'Qozon', 'Bugungi menyu', 'Hosil hisoboti', 'Smenalar', 'Choy puli', 'Nasiya', 'Xodimlar', 'Filiallar', 'Yetkazish zonalari', 'Sozlamalar',
       'Kassa sozlamalari', 'Fiskal', 'Hisobotlar', 'Moliya', "Tarif va to'lov",
     ]);
   });
