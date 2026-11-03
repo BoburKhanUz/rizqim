@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'combo_parts3.dart';
+
 part 'items5.g.dart';
 
 @JsonSerializable()
@@ -16,6 +18,7 @@ class Items5 {
     required this.quantity,
     required this.amount,
     required this.discountAmount,
+    required this.comboParts,
   });
 
   factory Items5.fromJson(Map<String, Object?> json) => _$Items5FromJson(json);
@@ -31,6 +34,8 @@ class Items5 {
   final String amount;
   @JsonKey(name: 'discount_amount')
   final String discountAmount;
+  @JsonKey(name: 'combo_parts')
+  final List<ComboParts3>? comboParts;
 
   Map<String, Object?> toJson() => _$Items5ToJson(this);
 }

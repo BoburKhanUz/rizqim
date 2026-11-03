@@ -21,6 +21,9 @@ class ShiftReportView {
   PosMoney get averageBill => _sales.averageBill;
   PosMoney get roomFee => _sales.roomFee;
   PosMoney get serviceCharge => _sales.serviceCharge;
+
+  /// P6-34: sotuvdagi qadoq (`sales.packaging`).
+  PosMoney get packaging => _sales.packaging;
   PosMoney get discount => report.discounts.amount.isZero
       ? _sales.discount
       : report.discounts.amount;
@@ -147,6 +150,7 @@ class ShiftReportView {
       discounts: discount,
       serviceCharges: serviceCharge,
       roomFees: roomFee,
+      packaging: packaging,
       tenders: <ReportAmount>[
         for (final ({String tender, int count, PosMoney amount}) t in byTender)
           if (t.count > 0 || t.amount.isPositive)

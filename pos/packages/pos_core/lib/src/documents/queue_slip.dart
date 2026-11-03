@@ -10,6 +10,7 @@ final class QueueSlip {
     this.orderLabel,
     this.items = const <String>[],
     this.message = "Buyurtmangiz tayyor bo'lganda raqamingiz ekranda chiqadi va chaqiriladi.",
+    this.pickupAt,
   });
 
   final ReceiptHeader header;
@@ -25,4 +26,7 @@ final class QueueSlip {
   /// Qisqa ro'yxat ("2 x Osh", "1 x Choy").
   final List<String> items;
   final String message;
+
+  /// P6-34: oldindan buyurtma — mijoz olib ketadigan vaqt (do'kon vaqtida); `null` — hozir.
+  final DateTime? pickupAt;
 }

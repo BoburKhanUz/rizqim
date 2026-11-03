@@ -119,6 +119,27 @@ o'zi tayyor bo'ladi (mijoz ekranida chaqiriladi). **"Raqam N tayyor"** (yig'ish)
 tayyor qiladi (`POST /pos/orders/{uuid}/ready`: yopilgan buyurtmada `/staff/orders/{uuid}/status` ishlamaydi). Faqat ko'rish huquqi
 bor xodimda tugma yo'q.
 
+### 3g. Fast food va qahvaxona: yangi sexlar, vaqt maqsadi, yig'ish ekrani (KDS v2, P6-33)
+
+* **Sex turlari:** Grill, Fritur, Ichimliklar, Barista va Yig'ish (`grill`, `fryer`, `drinks`, `barista`, `expo`) — sex
+  tanlash ekranida o'z ikonkasi va nomi bilan (sexda vaqt maqsadi bo'lsa shu ham yoziladi). Choyxona sexlari o'zgarmagan.
+* **Vaqt maqsadi** (modul `kds_expo`): har qatorda "Maqsad 5:00 · 2:10 qoldi". Maqsadning 80 foizi o'tsa **sariq** (soat
+  ikonkasi), maqsad o'tsa **qizil** ("Kechikdi +1:15", ogohlantirish ikonkasi); chiptaning sarlavhasi va ramkasi ham shu
+  rangga o'tadi (sariq — "Shoshiling", qizil — "Kechikdi"). Maqsad serverdan (`target_seconds`: taomniki, bo'lmasa sexniki);
+  rang soatga qarab o'zi yangilanadi, serverning `late` belgisi esa darhol qizil qiladi. Maqsadsiz, tayyor va o'chirilgan
+  qatorda taymer yo'q.
+* **Yig'ish ekrani:** yig'ish (`expo`) sexi tanlansa **Yig'ish** bo'limi chiqadi (faqat shu sex tanlansa — oddiy doskasiz).
+  Ikki va undan ko'p sexda tayyorlanadigan buyurtma kartochkasida har sexning o'z taomlari va tayyorligi (`2/3`, ✓, pishayotgan
+  sex kechiksa "Kechikdi") ko'rinadi; hamma sex tayyor bo'lgach kartochka yashil ramkaga o'tadi, yig'ish vaqti yig'ish sexi
+  maqsadi bilan sanaladi, ovoz chalinadi va **Yig'ildi** tugmasi yonadi (`POST /staff/orders/{uuid}/assembled`). Bosilgach
+  buyurtma ketadi, navbat raqami "tayyor" bo'ladi (raqamlar ekrani va mijoz ekrani), onlayn mijozga xabar boradi. Yig'ish
+  boshqa ekranda bajarilsa yoki qator qaytarilsa (`kitchen.order_assembled`) ro'yxat o'zi yangilanadi. Tugma `kitchen.manage`
+  bor xodimga; server rad etsa (`stations_not_ready`) buyurtma qoladi va sababi chiqadi.
+* **Kombo konteksti:** kombo qismlari o'z sexida chiqadi; bir komboning qismlari ostida "Kombo: Lavash kombo ×2" sarlavhasi
+  turadi (yig'ish kartochkasida ham, ixcham ko'rinishda ham).
+* **Ixcham ko'rinish:** faqat Barista va/yoki Ichimliklar sexlari tanlansa doska o'zi ixcham ko'rinishga o'tadi: tor chiptalar
+  (1280 px da 5 ustun), har taom bir qatorda, modifikatorlar vergul bilan; **Oddiy / Ixcham** tugmasi bilan almashtiriladi.
+
 ### 4. Real-time va aloqa
 
 * Ilova Reverb'ga (WebSocket) ulanadi va filialning `private-pos-branch.{id}` kanalini **terminal tokeni** bilan
@@ -188,6 +209,12 @@ chiqishda dialoglarning yopilishi; o'qib bo'lmagan chipta yoki javob ("Aloqa yo'
 buyurtma navbati va muddat — soxta soat bilan, o'chirilgan qator va bekor qilingan buyurtma, ovozli signal, berilgan qator),
 `test/kazan_panel_test.dart` (soxta server bilan qozon amallari: qo'shish, sanash, yopish, yangi va qayta ochish, xato, real-time),
 `test/board_view_test.dart` (doska qoidalari toza funksiya sifatida), `packages/dart/rizqim_api/test/kitchen_setup_test.dart`.
+
+**P6-33 / P6-31 (fast food):** `test/fast_food_test.dart` (`LineTimer` chegaralari, ixcham va yig'ish ko'rinishlari toza funksiya
+sifatida, sex tanlash, maqsad taymeri soxta soat bilan, kombo konteksti, ixcham doska, yig'ish ekrani: tayyorlik, "Yig'ildi",
+boshqa ekranda yig'ilish, server rad etishi, yig'ish vaqti maqsadi, ruxsatsiz ko'rish), `test/fast_food_goldens_test.dart`
+(`test/goldens/ff_*.png`: yig'ish ekrani planshet va telefonda, kechikkan taymerlar, ixcham doska; o'qiladigan skrinshotlar uchun
+`KDS_SHOTS=<papka> flutter test --update-goldens test/fast_food_goldens_test.dart`).
 
 **Haqiqiy HTTP/WebSocket bilan integratsiya testi (P2-31)** — `test/kds_over_http_test.dart`: ilovaning o'z Dio klienti va Pusher
 klienti loopback'dagi `FakeKdsServer` (`test/fake_server/fake_kds_server.dart`, `dart:io` `HttpServer` + WebSocket) bilan haqiqiy
@@ -269,6 +296,9 @@ tiklansa, ulanish joyida). Kassa va ofitsiant ilovalari ham shunday.
 | `lib/src/realtime/branch_realtime.dart` | `private-pos-branch.{id}` (terminal tokeni bilan) |
 | `lib/src/settings/kds_settings.dart` | sozlamalar va ularni saqlash |
 | `lib/src/sound/ticket_sound.dart`, `assets/sounds/new_ticket.wav` | yangi chipta ovozi |
+| `lib/src/board/line_timer.dart` | qatorning vaqt maqsadiga nisbatan taymeri (sariq/qizil), chipta darajasi (P6-33) |
+| `lib/src/widgets/expo_card.dart`, `compact_ticket_card.dart` | yig'ish kartochkasi ("Yig'ildi") va ixcham chipta (barista, ichimliklar) |
+| `lib/src/widgets/target_timer_label.dart`, `combo_heading.dart`, `station_kinds.dart` | maqsad taymeri, kombo sarlavhasi, sex turi ikonkasi va nomi |
 | `lib/src/widgets/ticket_card.dart` | chipta; raqamli buyurtmada yirik № va "Raqam N tayyor" tugmasi (P6-14) |
 | `lib/src/widgets/` | chipta va mangal kartochkasi, sex tanlash, oldindan buyurtmalar, qozon paneli, "Yaqinda tayyor" lentasi, real-time belgisi, sozlamalar oynasi |
 

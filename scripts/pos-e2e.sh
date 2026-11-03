@@ -8,6 +8,7 @@
 # What it starts (all on 127.0.0.1, free high ports, so it does not meet a dev server or the e2e-stack servers):
 #   Laravel API   (php artisan serve, APP_ENV=e2e)   $POS_E2E_BACKEND_PORT  default 18200   on a Postgres database it WIPES and seeds
 #   Reverb        (php artisan reverb:start)         $POS_E2E_REVERB_PORT   default 18280
+#   the minute jobs the tests need     (php artisan pos:fire-scheduled-pickups every $POS_E2E_TICK_SECONDS, default 5)
 # then runs e2e/pos (`dart test`): the choyxona Thursday evening (shift, booking with a deposit, ten rooms served by two
 # waiters and the cashier, split bills, every tender, SALE/ADVANCE/CREDIT/REFUND receipts, X and Z), a Telegram order
 # accepted at the till, the real-time channel and a version conflict. The apps' data layer (pos_data) is the only client.
@@ -44,7 +45,7 @@ while [ $# -gt 0 ]; do
     --keep) KEEP=1 ;;
     --stop) STOP_ONLY=1 ;;
     --) shift; TEST_ARGS=("$@"); break ;;
-    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -213,6 +214,12 @@ artisan db:seed --class=PosStackSeeder --force --no-interaction > "$RUN/seed.log
 log "starting the backend (:$BACKEND_PORT) and Reverb (:$REVERB_PORT)"
 (cd "$ROOT/backend" && start backend env "${BACKEND_ENV[@]}" php artisan serve --host=127.0.0.1 --port="$BACKEND_PORT" --no-reload)
 (cd "$ROOT/backend" && start reverb env "${BACKEND_ENV[@]}" php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT")
+# P6-39: the scheduler's minute job that sends the orders for a later pickup to the kitchen at their kitchen time, run
+# every few seconds (not every minute) so a test does not wait a whole minute for it; the other scheduled jobs are not
+# needed by the tests and are not run
+TICK="${POS_E2E_TICK_SECONDS:-5}"
+# shellcheck disable=SC2016 # the $ are the inner shell's
+(cd "$ROOT/backend" && start scheduler env "${BACKEND_ENV[@]}" TICK="$TICK" bash -c 'while true; do php artisan pos:fire-scheduled-pickups --no-interaction; sleep "$TICK"; done')
 
 wait_for backend "http://127.0.0.1:$BACKEND_PORT/api/v1/health" 60
 # Reverb answers 404 on a plain GET but is up when it answers at all

@@ -7,6 +7,9 @@ enum BillChargeKind {
   placeFee('Joy puli'),
   serviceCharge('Xizmat haqi'),
   minSpendTopUp("Minimal summaga to'ldirish"),
+
+  /// P6-34: qadoq qatori (paket, stakan), [BillCharge.label] — qadoq nomi.
+  packaging('Qadoq'),
   discount('Chegirma');
 
   const BillChargeKind(this.label);
@@ -52,6 +55,7 @@ final class PreCheckItem {
     required this.unitPrice,
     required this.amount,
     this.modifiers = const <String>[],
+    this.parts = const <String>[],
   });
 
   final String name;
@@ -63,6 +67,9 @@ final class PreCheckItem {
 
   /// "Qazi", "Bedana tuxumi x2".
   final List<String> modifiers;
+
+  /// P6-31: kombo tarkibi, narxsiz ("Ichimlik — 0,4 l Pepsi").
+  final List<String> parts;
 }
 
 /// Schyot (pre-check): mehmonga to'lovdan oldin beriladi, **fiskal chek emas**. Qayta chop etilsa "NUSXA".

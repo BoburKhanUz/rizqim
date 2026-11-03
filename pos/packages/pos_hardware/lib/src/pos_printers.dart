@@ -5,6 +5,7 @@ import 'package:pos_core/pos_core.dart';
 import 'escpos/layout_renderer.dart';
 import 'printer/printer.dart';
 import 'queue/print_queue.dart';
+import 'tspl/tspl_renderer.dart';
 
 /// Ilova uchun bitta kirish nuqtasi: hujjatni chizadi ([LayoutRenderer]) va navbatga qo'yadi ([PrintQueue]).
 ///
@@ -14,11 +15,17 @@ import 'queue/print_queue.dart';
 /// printers.queue.stateChanges.listen(...);           // printer belgisi: "Qog'oz tugadi"
 /// ```
 class PosPrinters {
-  PosPrinters({PrintQueue? queue, this.renderer = const LayoutRenderer()})
-    : queue = queue ?? PrintQueue();
+  PosPrinters({
+    PrintQueue? queue,
+    this.renderer = const LayoutRenderer(),
+    this.labelRenderer = const TsplRenderer(),
+  }) : queue = queue ?? PrintQueue();
 
   final PrintQueue queue;
   final LayoutRenderer renderer;
+
+  /// Label printer (TSPL) uchun: stakan stikeri va paket yorlig'i.
+  final TsplRenderer labelRenderer;
 
   /// Hujjatni chop etish navbatiga qo'yadi. [openDrawer] — naqd to'lovda chek bilan birga kassa qutisi ochiladi.
   Future<PrintJob> print(
@@ -30,6 +37,22 @@ class PosPrinters {
       layout,
       printer,
       openDrawer: openDrawer,
+    );
+    return queue.submit(printer, bytes, title: layout.title);
+  }
+
+  /// Stiker yoki yorliqni label printerga chop etish navbatiga qo'yadi (TSPL, mavjud transportlar orqali). [copies] —
+  /// bir xil yorliqdan nechta (qatorda 3 ta stakan bo'lsa, har biri o'z "2/3" yozuvi bilan alohida yorliq).
+  Future<PrintJob> printLabel(
+    PrinterConfig printer,
+    LabelLayout layout, {
+    int copies = 1,
+    LabelPrintOptions options = const LabelPrintOptions(),
+  }) async {
+    final Uint8List bytes = await labelRenderer.render(
+      layout,
+      copies: copies,
+      options: options,
     );
     return queue.submit(printer, bytes, title: layout.title);
   }

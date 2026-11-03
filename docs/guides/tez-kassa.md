@@ -5,6 +5,8 @@ taom tayyor bo'lganda raqami ekranda chiqadi va chaqiriladi. Osh markazi, lag'mo
 stolovaya, kafe va fast food shunday ishlaydi. **Telefon rejimi** — xuddi shu narsa oddiy Android telefonda: ega o'zi
 kassir bo'lgan kichik joy uchun (somsaxona, tamaddixona).
 
+Fast food va qahvaxonada qo'shimcha: kombo, hajm bir bosishda, stiker, qadoq, olib ketish vaqti — [fast-food.md](fast-food.md).
+
 Kassaning qolgan ishlari (ulash, PIN, smena, to'lov turlari, qaytarish, X va Z, printer, internet uzilsa) —
 [kassa.md](kassa.md). Ega uchun sozlash — pastdagi [Ega uchun](#ega-uchun-formatni-tanlash-va-sozlash) bo'limi va
 [ega-pos-sozlash.md](ega-pos-sozlash.md).

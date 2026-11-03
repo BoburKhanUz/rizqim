@@ -4,25 +4,45 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'prices.dart';
+import 'locks.dart';
+import 'module_rows.dart';
+import 'profiles.dart';
+import 'template.dart';
 
 part 'data126.g.dart';
 
 @JsonSerializable()
 class Data126 {
   const Data126({
-    required this.productId,
-    required this.channels,
-    required this.prices,
+    required this.branchId,
+    required this.profile,
+    required this.profileLabel,
+    required this.mode,
+    required this.firstScreen,
+    required this.modules,
+    required this.locks,
+    required this.moduleRows,
+    required this.profiles,
+    required this.template,
   });
 
   factory Data126.fromJson(Map<String, Object?> json) =>
       _$Data126FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  final List<dynamic> channels;
-  final List<Prices> prices;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String profile;
+  @JsonKey(name: 'profile_label')
+  final String profileLabel;
+  final String mode;
+  @JsonKey(name: 'first_screen')
+  final String firstScreen;
+  final List<String> modules;
+  final Locks locks;
+  @JsonKey(name: 'module_rows')
+  final List<ModuleRows> moduleRows;
+  final List<Profiles> profiles;
+  final Template template;
 
   Map<String, Object?> toJson() => _$Data126ToJson(this);
 }

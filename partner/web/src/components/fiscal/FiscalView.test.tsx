@@ -199,7 +199,7 @@ describe('Soliq sozlamalari: the store\'s fiscal settings', () => {
     // the standard codes the server gives are already in the fields
     expect(screen.getByLabelText('Bron avansi: MXIK')).toHaveValue('10202002004000001');
     // and the charges with no official code say so
-    expect(screen.getAllByText("Rasmiy kod topilmagan: tasnif.soliq.uz da tekshirib kiriting.")).toHaveLength(5);
+    expect(screen.getAllByText("Rasmiy kod topilmagan: tasnif.soliq.uz da tekshirib kiriting.")).toHaveLength(6);
   });
 
   it('shows the demo driver by name when nothing is sent anywhere', async () => {

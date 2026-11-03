@@ -48,7 +48,7 @@ class KitchenStationRouteController extends ManagementController
      * For `branch_id`: every category in `category_ids` and every product in `product_ids` goes to `station_id`; one
      * that was routed to another station moves. `station_id: null` removes the routes of those categories and
      * products. Send at least one list. Products must be the store's; the station must be the branch's (active or
-     * not). `data` is the branch's routes afterwards.
+     * not). `data` is the branch's routes afterwards. P6-33: an `expo` (assembly) station takes no dishes (422).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: list<' . self::ROUTE . '>}')]
     public function assign(Request $request, AuditLogger $audit): JsonResponse
@@ -71,6 +71,10 @@ class KitchenStationRouteController extends ManagementController
             $station = KitchenStation::where('branch_id', $branch->id)->find((int) $data['station_id']);
             if (!$station instanceof KitchenStation) {
                 throw ValidationException::withMessages(['station_id' => 'Sex topilmadi (u shu filialniki bo\'lishi kerak).']);
+            }
+            // P6-33: the expo (assembly) station puts orders together, it cooks nothing of its own
+            if ($station->kind === \App\Enums\KitchenStationKind::EXPO) {
+                throw ValidationException::withMessages(['station_id' => "Yig'ish sexiga taom biriktirilmaydi: u boshqa sexlarda tayyorlangan buyurtmani yig'adi."]);
             }
         }
 

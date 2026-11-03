@@ -19,6 +19,18 @@ abstract final class StationKind {
   static const String tea = 'tea';
   static const String kitchen = 'kitchen';
   static const String other = 'other';
+
+  // P6-33 (KDS v2): fast food va qahvaxona sexlari
+  static const String grill = 'grill';
+  static const String fryer = 'fryer';
+  static const String drinks = 'drinks';
+  static const String barista = 'barista';
+
+  /// Yig'ish sexi: taom pishirmaydi, ko'p sexli buyurtmani yig'adi.
+  static const String expo = 'expo';
+
+  /// Ichimlik sexlari: ko'p mayda chipta (ixcham ko'rinish).
+  static bool isDrinkKind(String kind) => kind == drinks || kind == barista;
 }
 
 /// Filial sexi (oshxona ekrani tanlaydigan).
@@ -31,6 +43,7 @@ class KitchenStation {
     this.sortOrder = 0,
     this.showOnKds = true,
     this.isActive = true,
+    this.targetSeconds,
   });
 
   factory KitchenStation.fromJson(Map<String, Object?> json) => KitchenStation(
@@ -43,6 +56,7 @@ class KitchenStation {
         ? json['show_on_kds']! as bool
         : true,
     isActive: json['is_active'] is bool ? json['is_active']! as bool : true,
+    targetSeconds: (json['target_seconds'] as num?)?.toInt(),
   );
 
   final int id;
@@ -55,7 +69,16 @@ class KitchenStation {
   final bool showOnKds;
   final bool isActive;
 
+  /// P6-33: sexning standart vaqt maqsadi (soniya); `null` — yo'q. `expo` sexida — yig'ish vaqti.
+  final int? targetSeconds;
+
   bool get isMangal => kind == StationKind.mangal;
+
+  /// Yig'ish (expo) sexi.
+  bool get isExpo => kind == StationKind.expo;
+
+  /// Ichimlik yoki barista sexi.
+  bool get isDrink => StationKind.isDrinkKind(kind);
 }
 
 /// Filialning taom -> sex yo'naltirishlari (`/pos/bootstrap` `station_routes`, faqat faol sexlar): taomning o'z

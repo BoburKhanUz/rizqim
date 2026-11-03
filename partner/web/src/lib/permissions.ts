@@ -9,12 +9,14 @@ import {
   Coins,
   HandCoins,
   History,
+  Hourglass,
   LayoutDashboard,
   Map,
   PackageX,
   PiggyBank,
   Printer,
   ReceiptText,
+  Sandwich,
   Scale,
   Settings,
   ShieldCheck,
@@ -46,6 +48,7 @@ import type { MessageKey } from '@/i18n';
 //   tips       tips (choy puli): report, pool split, tip settings, service charge rules (reports.view / tips.manage /
 //              settings.manage; P6-22)
 //   possetup   kitchen stations, routes, printers, branch POS settings (settings.manage)
+//   kitchentimes the prep time report of the kitchen display, per station, dish and hour (reports.view; P6-33)
 //   permissions what each role may do alone, the "Huquqlar" page (permissions.manage, the owner)
 //   audit      the store's harakatlar jurnali (audit.view, the owner by default; P4-32, the old store panel's log)
 //   billing    the plan, devices, invoices and how to pay, "Tarif va to'lov" (finance.view)
@@ -59,8 +62,10 @@ export type NavKey =
   | 'menu'
   | 'stoplist'
   | 'batches'
+  | 'combos'
   | 'dailymenu'
   | 'yield'
+  | 'kitchentimes'
   | 'staffpay'
   | 'shifts'
   | 'tips'
@@ -93,8 +98,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'menu', href: '/menu', label: 'nav_menu', anyOf: ['menu.view', 'menu.manage'], icon: UtensilsCrossed },
   { key: 'stoplist', href: '/stoplist', label: 'nav_stoplist', anyOf: ['stoplist.manage'], icon: PackageX },
   { key: 'batches', href: '/stoplist/batches', label: 'nav_batches', anyOf: ['batches.manage'], icon: CookingPot },
+  // P6-31: the combo constructor (module combo)
+  { key: 'combos', href: '/menu/combos', label: 'nav_combos', anyOf: ['menu.view', 'menu.manage'], icon: Sandwich },
   { key: 'dailymenu', href: '/daily-menu', label: 'nav_dailymenu', anyOf: ['menu.manage', 'stoplist.manage'], icon: CalendarCheck },
   { key: 'yield', href: '/yield', label: 'nav_yield', anyOf: ['reports.view'], icon: Scale },
+  // P6-33: the kitchen's prep times (KDS v2)
+  { key: 'kitchentimes', href: '/kitchen-times', label: 'kds_nav', anyOf: ['reports.view'], icon: Hourglass },
   { key: 'staffpay', href: '/staff-pay', label: 'nav_staffpay', anyOf: ['staff_pay.view', 'staff_pay.manage'], icon: Coins },
   { key: 'shifts', href: '/shifts', label: 'nav_shifts', anyOf: ['pos.close_shift', 'reports.view'], icon: Timer },
   { key: 'tips', href: '/tips', label: 'nav_tips', anyOf: ['reports.view', 'tips.manage', 'settings.manage'], icon: PiggyBank },

@@ -7,31 +7,25 @@ part of 'data111.dart';
 // **************************************************************************
 
 Data111 _$Data111FromJson(Map<String, dynamic> json) => Data111(
+  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  profile: json['profile'] as String,
-  profileLabel: json['profile_label'] as String,
-  mode: json['mode'] as String,
-  firstScreen: json['first_screen'] as String,
-  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
-  locks: Locks2.fromJson(json['locks'] as Map<String, dynamic>),
-  moduleRows: (json['module_rows'] as List<dynamic>)
-      .map((e) => ModuleRows2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  profiles: (json['profiles'] as List<dynamic>)
-      .map((e) => Profiles2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  template: Template2.fromJson(json['template'] as Map<String, dynamic>),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  kindLabel: json['kind_label'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  showOnKds: json['show_on_kds'] as bool,
+  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data111ToJson(Data111 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'profile': instance.profile,
-  'profile_label': instance.profileLabel,
-  'mode': instance.mode,
-  'first_screen': instance.firstScreen,
-  'modules': instance.modules,
-  'locks': instance.locks,
-  'module_rows': instance.moduleRows,
-  'profiles': instance.profiles,
-  'template': instance.template,
+  'name': instance.name,
+  'kind': instance.kind,
+  'kind_label': instance.kindLabel,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'show_on_kds': instance.showOnKds,
+  'target_seconds': instance.targetSeconds,
 };

@@ -4,52 +4,57 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'store_status.dart';
-import 'store_transaction.dart';
-import 'store_wallet_transaction.dart';
-import 'payout_requests.dart';
+import 'branch5.dart';
+import 'polygon3.dart';
+import 'bbox3.dart';
 
 part 'data69.g.dart';
 
 @JsonSerializable()
 class Data69 {
   const Data69({
-    required this.debtBalance,
-    required this.walletBalance,
-    required this.creditLimit,
-    required this.minPayoutReserve,
-    required this.paymentAccountType,
-    required this.commissionRate,
-    required this.status,
-    required this.isOrderLocked,
-    required this.ledgerTransactions,
-    required this.walletTransactions,
-    required this.payoutRequests,
+    required this.id,
+    required this.name,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data69.fromJson(Map<String, Object?> json) => _$Data69FromJson(json);
 
-  @JsonKey(name: 'debt_balance')
-  final num debtBalance;
-  @JsonKey(name: 'wallet_balance')
-  final num walletBalance;
-  @JsonKey(name: 'credit_limit')
-  final num creditLimit;
-  @JsonKey(name: 'min_payout_reserve')
-  final num minPayoutReserve;
-  @JsonKey(name: 'payment_account_type')
-  final String paymentAccountType;
-  @JsonKey(name: 'commission_rate')
-  final num commissionRate;
-  final StoreStatus status;
-  @JsonKey(name: 'is_order_locked')
-  final bool isOrderLocked;
-  @JsonKey(name: 'ledger_transactions')
-  final List<StoreTransaction> ledgerTransactions;
-  @JsonKey(name: 'wallet_transactions')
-  final List<StoreWalletTransaction> walletTransactions;
-  @JsonKey(name: 'payout_requests')
-  final List<PayoutRequests> payoutRequests;
+  final int id;
+  final String name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch5? branch;
+  final Polygon3 polygon;
+  final Bbox3 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data69ToJson(this);
 }

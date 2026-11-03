@@ -11,7 +11,7 @@ PutV1OwnerDailyMenuResponse _$PutV1OwnerDailyMenuResponseFromJson(
 ) => PutV1OwnerDailyMenuResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data51.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data64.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerDailyMenuResponseToJson(

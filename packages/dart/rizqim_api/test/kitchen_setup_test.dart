@@ -348,4 +348,63 @@ void main() {
     expect(t.activeCount, 1);
     expect(t.allLinesReady, isTrue);
   });
+
+  test('P6-33: new station kinds and the time target are read; expo and drink helpers', () async {
+    adapter.handler = (RequestOptions o) => ok(<String, Object?>{
+      'server_time': '2026-10-22T08:00:00Z',
+      'stations': <Object?>[
+        <String, Object?>{
+          'id': 1,
+          'name': 'Grill',
+          'kind': 'grill',
+          'sort_order': 1,
+          'target_seconds': 300,
+        },
+        <String, Object?>{
+          'id': 2,
+          'name': 'Fritur',
+          'kind': 'fryer',
+          'sort_order': 2,
+        },
+        <String, Object?>{
+          'id': 3,
+          'name': 'Barista',
+          'kind': 'barista',
+          'sort_order': 3,
+          'target_seconds': 180,
+        },
+        <String, Object?>{
+          'id': 4,
+          'name': 'Ichimliklar',
+          'kind': 'drinks',
+          'sort_order': 4,
+        },
+        <String, Object?>{
+          'id': 5,
+          'name': "Yig'ish",
+          'kind': 'expo',
+          'sort_order': 5,
+          'target_seconds': 120,
+        },
+      ],
+    });
+    final KitchenSetup setup = await service.setup();
+    expect(setup.stations.map((s) => s.kind), <String>[
+      StationKind.grill,
+      StationKind.fryer,
+      StationKind.barista,
+      StationKind.drinks,
+      StationKind.expo,
+    ]);
+    expect(setup.stations.map((s) => s.targetSeconds), <int?>[
+      300,
+      null,
+      180,
+      null,
+      120,
+    ]);
+    expect(setup.stations.where((s) => s.isExpo).single.name, "Yig'ish");
+    expect(setup.stations.where((s) => s.isDrink).length, 2);
+    expect(setup.stations.first.isMangal, isFalse);
+  });
 }

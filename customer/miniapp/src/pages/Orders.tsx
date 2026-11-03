@@ -17,6 +17,7 @@ import { getApiErrorMessage, logApiError } from '../lib/apiError';
 import { toAmount } from '../lib/money';
 import { formatLineQuantity } from '../lib/quantity';
 import { formatDateTime, formatMoney, formatOrderCode } from '../lib/format';
+import { formatPickupTime } from '../lib/pickupTime';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import type { Order, PaymentStatus } from '../types';
 
@@ -188,6 +189,13 @@ export default function Orders() {
                 {t('queueNumberLabel')}: <span className="text-headline text-brand">{order.queue_number}</span>
               </span>
             )}
+            {/* P6-34: a pickup for later */}
+            {order.pickup_at && (
+              <span className="flex flex-wrap items-baseline gap-x-1.5 text-footnote font-bold text-fg" data-testid="order-pickup-at">
+                <span>{t('pickupAtLabel')}:</span>{' '}
+                <span className="whitespace-nowrap text-headline text-brand">{formatPickupTime(order.pickup_at, language)}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -214,6 +222,11 @@ export default function Orders() {
                   <span className="min-w-0 break-words font-medium text-fg">
                     {item.product_name || t('orderItemFallback')}
                     {item.variant_name && <span className="block text-caption font-normal text-fg-muted">{item.variant_name}</span>}
+                    {item.combo_parts?.map((part, index) => (
+                      <span key={`combo-${index}`} className="block text-caption font-normal text-fg-muted">
+                        {part.label}
+                      </span>
+                    ))}
                     {item.modifiers?.map((modifier) => (
                       <span key={modifier.uuid} className="block text-caption font-normal text-fg-muted">
                         {modifier.name}
@@ -225,6 +238,17 @@ export default function Orders() {
                   <span className="whitespace-nowrap text-right font-bold text-fg">
                     {formatMoney(item.total_price ? toAmount(item.total_price) : toAmount(item.unit_price) * item.quantity, language)}
                   </span>
+                </li>
+              ))}
+              {/* P6-34: the packaging lines, each its own line (a removed one is not shown) */}
+              {order.packaging_lines?.filter((line) => !line.removed).map((line) => (
+                <li key={`packaging-${line.rule_id}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3" data-testid="order-packaging-line">
+                  <span className="min-w-0 break-words font-medium text-fg">
+                    {line.name}
+                    <span className="block text-caption font-normal text-fg-muted">{t('packagingLabel')}</span>
+                  </span>
+                  <span className="whitespace-nowrap text-fg-muted">× {line.quantity}</span>
+                  <span className="whitespace-nowrap text-right font-bold text-fg">{formatMoney(toAmount(line.amount), language)}</span>
                 </li>
               ))}
             </ul>

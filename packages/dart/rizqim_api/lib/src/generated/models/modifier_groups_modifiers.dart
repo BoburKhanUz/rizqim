@@ -26,6 +26,7 @@ class ModifierGroupsModifiers {
     required this.createdAt,
     required this.updatedAt,
     required this.deletedAt,
+    required this.isDefault,
     required this.isAvailable,
     required this.unavailableReason,
     this.group,
@@ -58,6 +59,8 @@ class ModifierGroupsModifiers {
   final DateTime? updatedAt;
   @JsonKey(name: 'deleted_at')
   final DateTime? deletedAt;
+  @JsonKey(name: 'is_default')
+  final bool isDefault;
   final ModifierGroup? group;
   final ProductVariant? variant;
   @JsonKey(name: 'is_available')

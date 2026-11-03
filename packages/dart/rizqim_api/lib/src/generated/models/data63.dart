@@ -4,45 +4,40 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'layout2.dart';
+import 'products.dart';
 
 part 'data63.g.dart';
 
 @JsonSerializable()
 class Data63 {
   const Data63({
-    required this.id,
     required this.branchId,
-    required this.hallId,
-    required this.name,
-    required this.kind,
-    required this.seats,
-    required this.layout,
-    required this.sortOrder,
-    required this.isActive,
-    required this.minSpend,
-    required this.minSpendMode,
+    required this.date,
+    required this.businessDate,
+    required this.enforced,
+    required this.setValue,
+    required this.productIds,
+    required this.previousDate,
+    required this.products,
   });
 
   factory Data63.fromJson(Map<String, Object?> json) => _$Data63FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'hall_id')
-  final int hallId;
-  final String name;
-  final String kind;
-  final int? seats;
-  final Layout2 layout;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'min_spend')
-  final String? minSpend;
-  @JsonKey(name: 'min_spend_mode')
-  final String minSpendMode;
+  final String date;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final bool enforced;
+
+  /// The name has been replaced because it contains a keyword. Original name: `set`.
+  @JsonKey(name: 'set')
+  final bool setValue;
+  @JsonKey(name: 'product_ids')
+  final Map<String, int> productIds;
+  @JsonKey(name: 'previous_date')
+  final String? previousDate;
+  final List<Products> products;
 
   Map<String, Object?> toJson() => _$Data63ToJson(this);
 }

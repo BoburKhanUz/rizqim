@@ -7,11 +7,16 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/delete_v1_owner_kitchen_station_routes_id_response.dart';
 import '../models/delete_v1_owner_kitchen_stations_id_response.dart';
+import '../models/get_v1_owner_kds_targets_response.dart';
 import '../models/get_v1_owner_kitchen_station_routes_response.dart';
 import '../models/get_v1_owner_kitchen_stations_response.dart';
 import '../models/patch_v1_owner_kitchen_stations_id_response.dart';
 import '../models/post_v1_owner_kitchen_stations_response.dart';
+import '../models/put_v1_owner_kds_expo_scope_response.dart';
+import '../models/put_v1_owner_kds_targets_products_response.dart';
 import '../models/put_v1_owner_kitchen_station_routes_response.dart';
+import '../models/v1_owner_kds_expo_scope_request_body.dart';
+import '../models/v1_owner_kds_targets_products_request_body.dart';
 import '../models/v1_owner_kitchen_station_routes_request_body.dart';
 import '../models/v1_owner_kitchen_stations_id_request_body.dart';
 import '../models/v1_owner_kitchen_stations_request_body.dart';
@@ -22,6 +27,51 @@ part 'owner_kitchen_stations_api.g.dart';
 abstract class OwnerKitchenStationsApi {
   factory OwnerKitchenStationsApi(Dio dio, {String? baseUrl}) =
       _OwnerKitchenStationsApi;
+
+  /// Set which orders go through the expo.
+  ///
+  /// `expo_scope` (ExpoScope): `all` — every order a customer or courier waits for goes through the expo station before.
+  /// its number is called, one station or more (the default); `multi_station` — only an order cooked on two or more.
+  /// stations (a single-station order is ready at its last bump). Per branch (a branch-bound caller: their own); it.
+  /// applies once the branch has the module `kds_expo` and an active expo station, and never holds a payment. Switched.
+  /// to `multi_station`, a single-station order already waiting on the expo is ready at once (as its last bump would.
+  /// have made it: the number is called, the customer told); switched to `all`, orders still cooking wait on the expo.
+  /// when their last line is done. Audited when it changes (`kds.expo_scope_changed`, with `released_orders`).
+  ///
+  /// [branchId] - The branch (a branch-bound caller: their own).
+  @PUT('/v1/owner/kds/expo-scope')
+  Future<PutV1OwnerKdsExpoScopeResponse> kdsTargetsUpdateExpoScope({
+    @Body() required V1OwnerKdsExpoScopeRequestBody body,
+    @Query('branch_id') int? branchId,
+  });
+
+  /// Time targets of a branch's kitchen.
+  ///
+  /// The branch's stations with their target (`target_seconds`, null: none) and the kind's suggested one.
+  /// (`default_target_seconds`), the store's dishes that have their own target, and whether the branch has the.
+  /// module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range. `expo_scope` (ExpoScope):.
+  /// which orders go through the expo station — `all` (the default: every order, one station or more) or.
+  /// `multi_station` (only an order cooked on two or more stations).
+  ///
+  /// [branchId] - The branch (a branch-bound caller: their own).
+  @GET('/v1/owner/kds/targets')
+  Future<GetV1OwnerKdsTargetsResponse> kdsTargetsShow({
+    @Query('branch_id') int? branchId,
+  });
+
+  /// Set dishes' own time targets.
+  ///
+  /// `items`: up to 200 `{product_id, target_seconds}` of the store's dishes; `target_seconds` 10–7200 seconds, or null.
+  /// to drop the dish's own target (its station's applies again). A target is store-wide (every branch). Setting one.
+  /// needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. A caller bound to.
+  /// one branch is refused (403 `store_wide_only`): the target applies to every branch. Audited.
+  ///
+  /// [branchId] - The branch whose page to answer with (a branch-bound caller: their own).
+  @PUT('/v1/owner/kds/targets/products')
+  Future<PutV1OwnerKdsTargetsProductsResponse> kdsTargetsUpdateProducts({
+    @Body() required V1OwnerKdsTargetsProductsRequestBody body,
+    @Query('branch_id') int? branchId,
+  });
 
   /// Routes of a branch.
   ///
@@ -38,7 +88,7 @@ abstract class OwnerKitchenStationsApi {
   /// For `branch_id`: every category in `category_ids` and every product in `product_ids` goes to `station_id`; one.
   /// that was routed to another station moves. `station_id: null` removes the routes of those categories and.
   /// products. Send at least one list. Products must be the store's; the station must be the branch's (active or.
-  /// not). `data` is the branch's routes afterwards.
+  /// not). `data` is the branch's routes afterwards. P6-33: an `expo` (assembly) station takes no dishes (422).
   @PUT('/v1/owner/kitchen-station-routes')
   Future<PutV1OwnerKitchenStationRoutesResponse> kitchenStationRouteAssign({
     @Body() required V1OwnerKitchenStationRoutesRequestBody body,
@@ -64,9 +114,11 @@ abstract class OwnerKitchenStationsApi {
 
   /// Add a kitchen station.
   ///
-  /// `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other. `name` is unique within the branch.
-  /// `show_on_kds`: the station has a KDS screen. The station gets dishes through the routes.
-  /// (PUT /owner/kitchen-station-routes).
+  /// `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other; P6-33: grill, fryer, drinks, barista, or expo.
+  /// (the assembly screen: it gets no dishes). `name` is unique within the branch. `show_on_kds`: the station has a.
+  /// KDS screen. The station gets dishes through the routes (PUT /owner/kitchen-station-routes). P6-33:.
+  /// `target_seconds` (10–7200, null: none) is the time target of its lines (an expo station: the assembly time);.
+  /// setting one needs the module `kds_expo` on the branch (403 module_disabled), clearing never does.
   @POST('/v1/owner/kitchen-stations')
   Future<PostV1OwnerKitchenStationsResponse> kitchenStationStore({
     @Body() required V1OwnerKitchenStationsRequestBody body,
@@ -83,8 +135,9 @@ abstract class OwnerKitchenStationsApi {
 
   /// Edit a kitchen station.
   ///
-  /// Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`. A deactivated station is not offered.
-  /// to terminals and its routes are ignored: its dishes go to the default ticket printer.
+  /// Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`, `target_seconds` (P6-33). A deactivated.
+  /// station is not offered to terminals and its routes are ignored: its dishes go to the default ticket printer. A.
+  /// station with dishes routed to it cannot become `expo`: 422 `station_has_routes`.
   @PATCH('/v1/owner/kitchen-stations/{id}')
   Future<PatchV1OwnerKitchenStationsIdResponse> kitchenStationUpdate({
     @Path('id') required int id,

@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers34.dart';
+import 'modifier_display_mode.dart';
+import 'modifiers41.dart';
 
 part 'modifier_group_request.g.dart';
 
@@ -19,6 +20,7 @@ class ModifierGroupRequest {
     this.minSelect,
     this.maxSelect,
     this.isRequired,
+    this.displayMode,
     this.sortOrder,
     this.isActive,
     this.modifiers,
@@ -36,11 +38,15 @@ class ModifierGroupRequest {
   final int? maxSelect;
   @JsonKey(name: 'is_required')
   final bool? isRequired;
+
+  /// P6-32 (quick_modifiers): where the options are shown on the till's tile; left out: unchanged (a new group: dialog).
+  @JsonKey(name: 'display_mode')
+  final ModifierDisplayMode? displayMode;
   @JsonKey(name: 'sort_order')
   final int? sortOrder;
   @JsonKey(name: 'is_active')
   final bool? isActive;
-  final List<Modifiers34>? modifiers;
+  final List<Modifiers41>? modifiers;
 
   Map<String, Object?> toJson() => _$ModifierGroupRequestToJson(this);
 }

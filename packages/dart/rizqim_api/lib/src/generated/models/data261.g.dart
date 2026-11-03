@@ -8,54 +8,72 @@ part of 'data261.dart';
 
 Data261 _$Data261FromJson(Map<String, dynamic> json) => Data261(
   uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
-  type: json['type'] as String,
-  channel: json['channel'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  tableLabel: json['table_label'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  notes: json['notes'] as String?,
-  itemsTotal: (json['items_total'] as num).toInt(),
-  itemsReady: (json['items_ready'] as num).toInt(),
-  items: (json['items'] as List<dynamic>)
-      .map((e) => Items55.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  businessDate: json['business_date'] as String,
+  source: Source.fromJson(json['source'] as String),
+  terminalRef: json['terminal_ref'] as String?,
+  shared: json['shared'] as bool,
+  finalValue: json['final'] as bool,
+  shifts: (json['shifts'] as List<dynamic>)
+      .map((e) => Shifts6.fromJson(e as Map<String, dynamic>))
       .toList(),
-  createdAt: json['created_at'] as String?,
-  acceptedAt: json['accepted_at'] as String?,
-  preparingAt: json['preparing_at'] as String?,
-  readyAt: json['ready_at'] as String?,
-  canceledAt: json['canceled_at'] as String?,
-  waitingSeconds: (json['waiting_seconds'] as num).toInt(),
-  queueNumber: (json['queue_number'] as num?)?.toInt(),
-  pickupStatus: json['pickup_status'] == null
+  bankTotal: json['bank_total'] as String,
+  bankCount: (json['bank_count'] as num?)?.toInt(),
+  rizqimTotal: json['rizqim_total'] as String?,
+  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
+  rizqimBreakdown: json['rizqim_breakdown'] == null
       ? null
-      : PickupStatus.fromJson(json['pickup_status'] as String),
+      : RizqimBreakdown4.fromJson(
+          json['rizqim_breakdown'] as Map<String, dynamic>,
+        ),
+  difference: json['difference'] as String?,
+  threshold: json['threshold'] as String?,
+  overThreshold: json['over_threshold'] as bool?,
+  transactions: (json['transactions'] as List<dynamic>?)
+      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unmatched: json['unmatched'] == null
+      ? null
+      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
+  history: (json['history'] as List<dynamic>)
+      .map((e) => History4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  note: json['note'] as String?,
+  enteredBy: json['entered_by'] == null
+      ? null
+      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
+  alertedAt: json['alerted_at'] as String?,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data261ToJson(Data261 instance) => <String, dynamic>{
   'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
-  'type': instance.type,
-  'channel': instance.channel,
+  'shift_uuid': instance.shiftUuid,
+  'z_number': instance.zNumber,
   'branch_id': instance.branchId,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'table_label': instance.tableLabel,
-  'guests_count': instance.guestsCount,
-  'notes': instance.notes,
-  'items_total': instance.itemsTotal,
-  'items_ready': instance.itemsReady,
-  'items': instance.items,
+  'business_date': instance.businessDate,
+  'source': instance.source,
+  'terminal_ref': instance.terminalRef,
+  'shared': instance.shared,
+  'final': instance.finalValue,
+  'shifts': instance.shifts,
+  'bank_total': instance.bankTotal,
+  'bank_count': instance.bankCount,
+  'rizqim_total': instance.rizqimTotal,
+  'rizqim_count': instance.rizqimCount,
+  'rizqim_breakdown': instance.rizqimBreakdown,
+  'difference': instance.difference,
+  'threshold': instance.threshold,
+  'over_threshold': instance.overThreshold,
+  'transactions': instance.transactions,
+  'unmatched': instance.unmatched,
+  'history': instance.history,
+  'note': instance.note,
+  'entered_by': instance.enteredBy,
+  'alerted_at': instance.alertedAt,
   'created_at': instance.createdAt,
-  'accepted_at': instance.acceptedAt,
-  'preparing_at': instance.preparingAt,
-  'ready_at': instance.readyAt,
-  'canceled_at': instance.canceledAt,
-  'waiting_seconds': instance.waitingSeconds,
-  'queue_number': instance.queueNumber,
-  'pickup_status': instance.pickupStatus,
+  'updated_at': instance.updatedAt,
 };

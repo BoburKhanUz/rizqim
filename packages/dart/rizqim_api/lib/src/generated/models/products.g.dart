@@ -7,9 +7,9 @@ part of 'products.dart';
 // **************************************************************************
 
 Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
-  createdAt: json['created_at'] == null
+  updatedAt: json['updated_at'] == null
       ? null
-      : DateTime.parse(json['created_at'] as String),
+      : DateTime.parse(json['updated_at'] as String),
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -21,10 +21,10 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
   hasVariants: json['has_variants'] as bool,
-  id: (json['id'] as num).toInt(),
-  updatedAt: json['updated_at'] == null
+  createdAt: json['created_at'] == null
       ? null
-      : DateTime.parse(json['updated_at'] as String),
+      : DateTime.parse(json['created_at'] as String),
+  id: (json['id'] as num).toInt(),
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
@@ -39,6 +39,7 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
       ?.map((e) => (e as num).toInt())
       .toList(),
   waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  weightMode: json['weight_mode'] as String?,
   stationId: (json['station_id'] as num?)?.toInt(),
   isActive: json['is_active'] as bool,
   imageUrl: json['image_url'] as String?,
@@ -54,7 +55,7 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   variants: (json['variants'] as List<dynamic>)
       .map((e) => ProductsVariants.fromJson(e as Map<String, dynamic>))
       .toList(),
-  weightMode: json['weight_mode'] as String?,
+  kdsTargetSeconds: (json['kds_target_seconds'] as num?)?.toInt(),
   modifierGroups: (json['modifier_groups'] as List<dynamic>)
       .map((e) => ProductsModifierGroups.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -101,6 +102,7 @@ Map<String, dynamic> _$ProductsToJson(Products instance) => <String, dynamic>{
   'quick_multipliers': instance.quickMultipliers,
   'wait_minutes': instance.waitMinutes,
   'weight_mode': instance.weightMode,
+  'kds_target_seconds': instance.kdsTargetSeconds,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

@@ -7,13 +7,11 @@ part of 'shifts4.dart';
 // **************************************************************************
 
 Shifts4 _$Shifts4FromJson(Map<String, dynamic> json) => Shifts4(
-  uuid: json['uuid'] as String,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  status: json['status'] as String,
+  shift: Shift3.fromJson(json['shift'] as Map<String, dynamic>),
+  report: Report2.fromJson(json['report'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Shifts4ToJson(Shifts4 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'z_number': instance.zNumber,
-  'status': instance.status,
+  'shift': instance.shift,
+  'report': instance.report,
 };

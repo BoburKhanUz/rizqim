@@ -3,6 +3,7 @@ import 'package:pos_core/pos_core.dart';
 import '../json.dart';
 import '../menu_day/menu_day_models.dart';
 import '../orders/course_models.dart';
+import 'combo_models.dart';
 
 /// POS kanali: zal (`pos_hall`) yoki olib ketish (`pos_takeaway`). Narx kanal bo'yicha.
 enum PosChannel {
@@ -212,6 +213,7 @@ class PosProduct {
     this.quickMultipliers = const <int>[],
     this.waitMinutes,
     this.weightMode,
+    this.combo,
   });
 
   factory PosProduct.fromJson(PosJson j) => PosProduct(
@@ -241,6 +243,7 @@ class PosProduct {
     ],
     waitMinutes: j.intOrNull('wait_minutes'),
     weightMode: PosWeightBasis.fromWire(j.strOrNull('weight_mode')),
+    combo: PosCombo.maybe(j['combo']),
   );
 
   final int id;
@@ -285,8 +288,14 @@ class PosProduct {
   /// `null` — terilgan miqdor bilan sotiladi.
   final PosWeightBasis? weightMode;
 
+  /// P6-31: kombo slotlari va tanlovlari (kombo emas — `null`).
+  final PosCombo? combo;
+
   /// Og'irligi keyin kiritiladigan taom.
   bool get weighedLater => weightMode != null;
+
+  /// P6-31: tarkibi slotlarda tanlanadigan kombo.
+  bool get isCombo => combo != null;
 
   bool get hasModifiers => modifierGroups.isNotEmpty;
 
@@ -377,6 +386,31 @@ class PosVariant {
       q >= minimum && q.isMultipleOf(step) && (unit.isMeasured || q.isWhole);
 }
 
+/// P6-32: modifier guruhi variantlari kassa tugmasida qayerda ko'rsatiladi (`display_mode`). Maslahat: server har
+/// qanday usulda tanlangan variantlarni bir xil sotadi; `quick_modifiers` moduli yo'q filialga doim [dialog] keladi.
+enum PosModifierDisplay {
+  /// Modifikator oynasi (avvalgidek).
+  dialog('dialog'),
+
+  /// Variantlar menyu tugmasi yonida, oynasiz.
+  inline('inline'),
+
+  /// Hajm tanlash: bir bosishda (guruh faqat bitta variant oladi).
+  size('size');
+
+  const PosModifierDisplay(this.wire);
+
+  final String wire;
+
+  /// Noma'lum yoki bo'sh qiymat (eski server, kelajak rejimi) — [dialog].
+  static PosModifierDisplay fromWire(String? value) {
+    for (final PosModifierDisplay mode in values) {
+      if (mode.wire == value) return mode;
+    }
+    return dialog;
+  }
+}
+
 class PosModifierGroup {
   const PosModifierGroup({
     required this.id,
@@ -387,6 +421,7 @@ class PosModifierGroup {
     this.maxSelect,
     this.isRequired = false,
     this.sortOrder = 0,
+    this.displayMode = PosModifierDisplay.dialog,
   });
 
   factory PosModifierGroup.fromJson(PosJson j) => PosModifierGroup(
@@ -397,6 +432,7 @@ class PosModifierGroup {
     maxSelect: j.intOrNull('max_select'),
     isRequired: j.boolean('is_required'),
     sortOrder: j.intOrNull('sort_order') ?? 0,
+    displayMode: PosModifierDisplay.fromWire(j.strOrNull('display_mode')),
     modifiers: j.objects('modifiers', PosModifier.fromJson),
   );
 
@@ -409,7 +445,25 @@ class PosModifierGroup {
   final int? maxSelect;
   final bool isRequired;
   final int sortOrder;
+
+  /// Variantlar tugmada qayerda ko'rsatiladi (P6-32).
+  final PosModifierDisplay displayMode;
   final List<PosModifier> modifiers;
+
+  /// Kassa oynasiz bir bosishda tanlanadigan guruhmi (hajm yoki tugma yonidagi variantlar).
+  bool get isQuick => displayMode != PosModifierDisplay.dialog;
+
+  /// Oldindan belgilanadigan variantlar (P6-32): standart va hozir mavjud, guruh ruxsat bergan sondan ko'p emas
+  /// (ro'yxat tartibida). Buyurtma baribir tanlangan variantlarni aniq yuboradi — server standartni o'zi qo'shmaydi.
+  List<PosModifier> get preselected {
+    final List<PosModifier> picked = modifiers
+        .where((PosModifier m) => m.isDefault && m.isAvailable)
+        .toList();
+    final int? limit = maxSelect;
+    return limit == null || picked.length <= limit
+        ? picked
+        : picked.sublist(0, limit);
+  }
 }
 
 class PosModifier {
@@ -420,6 +474,7 @@ class PosModifier {
     this.priceDelta = PosMoney.zero,
     this.maxQuantity = 1,
     this.isAvailable = true,
+    this.isDefault = false,
   });
 
   factory PosModifier.fromJson(PosJson j) => PosModifier(
@@ -429,6 +484,7 @@ class PosModifier {
     priceDelta: j.money('price_delta'),
     maxQuantity: j.intOrNull('max_quantity') ?? 1,
     isAvailable: j.boolean('is_available', fallback: true),
+    isDefault: j.boolean('is_default'),
   );
 
   final int id;
@@ -439,6 +495,9 @@ class PosModifier {
   final PosMoney priceDelta;
   final int maxQuantity;
   final bool isAvailable;
+
+  /// Guruhning oldindan belgilangan varianti (P6-32; to'xtatilgan variant uchun server `false` yuboradi).
+  final bool isDefault;
 }
 
 /// Filialning stop-listi, tugagan variantlar va ochiq qozonlar.

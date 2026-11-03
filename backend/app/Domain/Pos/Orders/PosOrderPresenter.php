@@ -69,6 +69,9 @@ class PosOrderPresenter
             'place_fee_amount' => (string) $order->place_fee_amount,
             'room_fee_amount' => (string) $order->room_fee_amount,
             'min_spend_topup_amount' => (string) $order->min_spend_topup_amount,
+            // P6-34: the packaging lines' total (charges.packaging_lines) and the pickup time (null: now)
+            'packaging_amount' => (string) ($order->getAttribute('packaging_amount') ?? '0.00'),
+            'pickup' => \App\Domain\Pos\Takeaway\ScheduledPickup::present($order),
             'total_price' => (string) $order->total_price,
             'charges' => $charges->toArray() + [
                 'waivers' => $order->chargeWaivers->sortBy('id')->values()->map(fn (OrderChargeWaiver $waiver) => [
@@ -151,6 +154,11 @@ class PosOrderPresenter
         // P6-15: the parts of a kompleks line (the kitchen prepares these), only on such lines
         if ($item->set_parts) {
             $data['set_parts'] = $item->set_parts;
+        }
+        // P6-31: a combo line's parts as sold (slot, dish, pieces, modifiers, price delta, receipt label, kitchen line id),
+        // only on such lines; the line's kitchen_status is its parts' (ready once all are)
+        if ($item->isComboLine()) {
+            $data['combo_parts'] = $item->combo_parts;
         }
 
         return $data;

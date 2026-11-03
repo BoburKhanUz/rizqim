@@ -4,78 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'payment_settings.dart';
-import 'payment_account_type.dart';
-import 'store_status.dart';
-import 'tax_regime.dart';
-import 'telegram.dart';
-import 'fiscal_settings4.dart';
-
 part 'data140.g.dart';
 
 @JsonSerializable()
 class Data140 {
   const Data140({
     required this.id,
+    required this.branchId,
     required this.name,
-    required this.timezone,
-    required this.logo,
-    required this.logoUrl,
-    required this.banner,
-    required this.bannerUrl,
-    required this.description,
-    required this.phone,
+    required this.purpose,
+    required this.connection,
     required this.address,
-    required this.locationUrl,
-    required this.isOpen,
-    required this.minOrderAmount,
-    required this.paymentSettings,
-    required this.paymentAccountType,
-    required this.status,
-    required this.isOrderLocked,
-    required this.allowedMethods,
-    required this.tin,
-    required this.taxRegime,
-    required this.telegram,
-    required this.fiscalSettings,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data140.fromJson(Map<String, Object?> json) =>
       _$Data140FromJson(json);
 
   final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   final String name;
-  final String timezone;
-  final String? logo;
-  @JsonKey(name: 'logo_url')
-  final String? logoUrl;
-  final String? banner;
-  @JsonKey(name: 'banner_url')
-  final String? bannerUrl;
-  final String? description;
-  final String? phone;
+  final String purpose;
+  final String connection;
   final String? address;
-  @JsonKey(name: 'location_url')
-  final String? locationUrl;
-  @JsonKey(name: 'is_open')
-  final bool isOpen;
-  @JsonKey(name: 'min_order_amount')
-  final num minOrderAmount;
-  @JsonKey(name: 'payment_settings')
-  final PaymentSettings paymentSettings;
-  @JsonKey(name: 'payment_account_type')
-  final PaymentAccountType paymentAccountType;
-  final StoreStatus status;
-  @JsonKey(name: 'is_order_locked')
-  final bool isOrderLocked;
-  @JsonKey(name: 'allowed_methods')
-  final List<String> allowedMethods;
-  final String? tin;
-  @JsonKey(name: 'tax_regime')
-  final TaxRegime? taxRegime;
-  final Telegram telegram;
-  @JsonKey(name: 'fiscal_settings')
-  final FiscalSettings4 fiscalSettings;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data140ToJson(this);
 }

@@ -37,7 +37,7 @@ class OrderLineBuilder
      * the variants' units are known).
      *
      * @param  array<int, mixed>  $items  [{variant_id, quantity, modifiers?: [uuid | {id, quantity?}]}]
-     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>
+     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, combo?: list<mixed>}>
      */
     public function parse(array $items): array
     {
@@ -66,7 +66,15 @@ class OrderLineBuilder
             }
             ksort($modifiers);
 
-            $lines[] = ['index' => $index, 'variant_uuid' => strtolower((string) ($item['variant_id'] ?? '')), 'quantity' => $quantity, 'modifiers' => $modifiers];
+            $line = ['index' => $index, 'variant_uuid' => strtolower((string) ($item['variant_id'] ?? '')), 'quantity' => $quantity, 'modifiers' => $modifiers];
+            // P6-31: a combo's picks ({option_id, quantity?, modifiers?}), checked by Combos::resolve
+            if (isset($item['combo'])) {
+                if (!is_array($item['combo'])) {
+                    throw ValidationException::withMessages(["items.{$index}.combo" => "Kombo tanlovi noto'g'ri yuborilgan."]);
+                }
+                $line['combo'] = array_values($item['combo']);
+            }
+            $lines[] = $line;
         }
 
         return $lines;
@@ -78,9 +86,9 @@ class OrderLineBuilder
      * it is its own portion (its own minimum, its modifiers once per line, its own rounding), so the order costs the
      * sum of the lines the customer saw. Variants not found are left to the caller's checks.
      *
-     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>  $lines
+     * @param  list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, combo?: list<mixed>}>  $lines
      * @param  Collection<string, ProductVariant>  $variants  keyed by lower-case uuid
-     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>}>
+     * @return list<array{index: int, variant_uuid: string, quantity: Quantity, modifiers: array<string, int>, combo?: list<mixed>}>
      */
     public function merge(array $lines, Collection $variants): array
     {
@@ -88,7 +96,8 @@ class OrderLineBuilder
 
         foreach ($lines as $line) {
             $variant = $variants->get($line['variant_uuid']);
-            if ($variant === null || $variant->unit->isMeasured()) {
+            // P6-31: a combo line is its own (its picks are), never merged
+            if ($variant === null || $variant->unit->isMeasured() || isset($line['combo'])) {
                 $merged[] = $line;
                 continue;
             }
@@ -129,7 +138,11 @@ class OrderLineBuilder
             }
         }
         $sets = app(MealSets::class);
-        if ($sets->hasSets((int) $branch->store_id)) {
+        // P6-31: and a combo whose required slot has no option left
+        $combos = app(\App\Domain\Pos\Menu\Combos::class);
+        $hasSets = $sets->hasSets((int) $branch->store_id);
+        $hasCombos = $combos->hasCombos((int) $branch->store_id);
+        if ($hasSets || $hasCombos) {
             // A part that is sold out (batch stock) or switched off on this branch closes the kompleks like a stopped one
             $variants = $stopped[StopListSubject::VARIANT->value];
             foreach (app(MenuAvailability::class)->soldOutVariantIds($branch) as $variantId) {
@@ -138,7 +151,11 @@ class OrderLineBuilder
             foreach (BranchProductVariant::where('branch_id', $branch->id)->where('is_active', false)->pluck('variant_id') as $variantId) {
                 $variants[(int) $variantId] ??= null;
             }
-            foreach ($sets->closedByParts((int) $branch->store_id, $stopped[$products], $variants) as $productId => $reason) {
+            $closed = $hasSets ? $sets->closedByParts((int) $branch->store_id, $stopped[$products], $variants) : [];
+            if ($hasCombos) {
+                $closed += $combos->closedBySlots((int) $branch->store_id, $stopped[$products], $variants, $stopped[StopListSubject::MODIFIER->value]);
+            }
+            foreach ($closed as $productId => $reason) {
                 if (!array_key_exists($productId, $stopped[$products])) {
                     $stopped[$products][$productId] = $reason;
                 }

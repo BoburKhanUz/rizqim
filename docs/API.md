@@ -3886,3 +3886,195 @@ Mavjud endpointlarga qo'shimchalar:
   tegishli ro'yxatni qayta so'raydi.
 - Migratsiyalar: `2026_11_12_400100` (`order_bills.seat_no`), `400200` (`dining_tables.service_state*`), `400300`
   (`pos_waitlist_entries`), `400400` (`branch_booking_rules`).
+
+## KDS v2: sexlar, vaqt maqsadi, yig'ish ekrani, tayyorlash vaqti (P6-33)
+
+Fast food va qahvaxona oshxonasi uchun ([POS_SPEC.md](POS_SPEC.md), "KDS v2"). Modullar: `kds_expo` — yig'ish ekrani va vaqt
+maqsadlarini sozlash; `kds` — tayyorlash vaqti hisoboti. Choyxona sexlari va oshxona ekrani o'zgarmaydi.
+
+**Sex turlari.** `kitchen_stations.kind` ga `grill`, `fryer` (fritur), `drinks` (ichimliklar), `barista`, `expo` (yig'ish)
+qo'shildi; eskilari (`osh`, `mangal`, `salad_bar`, `tea`, `kitchen`, `other`) qoladi. `GET /owner/kitchen-stations` ning `kinds`
+ro'yxati hammasini beradi. `expo` sexiga taom biriktirilmaydi: `PUT /owner/kitchen-station-routes` 422 (`station_id`); taomi bor
+sexni `expo` ga aylantirish — 422 `station_has_routes`. Format shabloni (`POST /owner/pos/format/template`) fast food uchun
+Grill (`grill`), Fritur (`fryer`), Ichimliklar (`drinks`), Yig'ish (`expo`), qahvaxona uchun Barista (`barista`) sexlarini
+qo'shadi; filialda `kds_expo` bo'lsa ular tavsiya vaqti bilan keladi (grill 300, fryer 240, drinks 90, barista 180, expo 120
+soniya).
+
+**Vaqt maqsadi.** Sexning `target_seconds` (10–7200 soniya, `null` — yo'q; `expo` sexida — yig'ish vaqti) sex shaklida
+(`POST`/`PATCH /owner/kitchen-stations`, `GET /pos/bootstrap` ning `stations`) keladi. Taomning o'z maqsadi sexnikidan ustun:
+`products.kds_target_seconds`, do'kon bo'yicha (hamma filialda bir).
+- **`GET /owner/kds/targets?branch_id=`** (`settings.manage`, PIN sessiyasidan emas) — `{branch_id, enabled, expo_scope,
+  limits: {min, max}, stations: [{id, name, kind, kind_label, is_active, target_seconds, default_target_seconds}], products:
+  [{product_id, name, category_id, target_seconds}]}` (`products` — o'z vaqti bor taomlar; `enabled` — filialda `kds_expo` bor;
+  `expo_scope` — pastda, "Yig'ish").
+- **`PUT /owner/kds/targets/products`** `{branch_id?, items: [{product_id, target_seconds|null}]}` (≤ 200) — taomning o'z vaqti;
+  `null` uni olib tashlaydi (sex vaqti qaytadi). Javob — yuqoridagi sahifa. Jurnalda `kds.product_targets_updated`. Maqsad
+  butun do'kon uchun bo'lgani sababli bitta filialga bog'langan foydalanuvchiga — 403 `data.reason = store_wide_only`
+  (qo'yish ham, olib tashlash ham); `GET` ga ta'sir qilmaydi.
+
+Maqsad qo'yish `kds_expo` siz — 403 `module_disabled` (stansiya `PATCH` ida ham); olib tashlash doim mumkin. Sex o'zgarishi
+jurnalda avvalgidek (`pos.station_created`, `pos.station_updated`).
+
+**Oshxona chiptasi** (`GET /staff/kitchen/tickets`, bump va recall javoblari). Har qatorda `target_seconds` (taomniki ?? sexniki ??
+`null`) va `late`: qator pishayotgan bo'lsa `hozir − boshlangan > maqsad`, tayyor bo'lsa `ready_at − boshlangan > maqsad`;
+maqsadsiz qator hech qachon kechikmaydi. Boshlangan — `sent_at` (POS), onlayn qatorda — buyurtma qabul qilingan vaqt. Onlayn
+qatorning sexi — taomining hozirgi yo'naltirishi; onlayn qator bu maydonlarni faqat maqsadi bo'lsa oladi (aks holda P2-11 shakli
+o'zgarmaydi). Chiptada yangi `assembly` (yig'ish ekrani; yig'ishdan o'tmaydigan buyurtmada `null`):
+`{station_id, required: true, waiting, assembled_at, stations: [{station_id|null, name, kind|null, items_total, items_ready,
+done}]}` — qaysi sex tayyor (qisman ko'rinish), `waiting` — hamma sex tayyor va hali yig'ilmagan.
+
+**Yig'ish (expo).** Filialda `kds_expo` moduli va faol `expo` sexi bo'lsa, mijoz yoki kuryer kutadigan buyurtma (olib ketish,
+yetkazish, onlayn olib ketish, zalda stolsiz kassa buyurtmasi; stoldagi zal buyurtmasi emas) oxirgi bump bilan `ready`
+bo'lmaydi: u yig'ish ekranida kutadi (`preparing`, navbat raqami `preparing`). Qaysi buyurtma — filial sozlamasi `expo_scope`
+(egasi qarori 03.11.2026; `branches.pos_settings.expo_scope`, ExpoScope): **`all`** (standart) — oshxona qatori bor har bir
+buyurtma, bitta sexli ham; `multi_station` — faqat qatorlari ikki va undan ko'p sexda (sexsiz qator — yana bitta "sex": umumiy
+printer) tayyorlangani (avvalgi qoida).
+- **`PUT /owner/kds/expo-scope`** `{branch_id?, expo_scope: all|multi_station}` (`settings.manage`, PIN sessiyasidan emas,
+  `billing.unlocked`; bitta filialga bog'langan foydalanuvchi — o'z filiali) — javob `GET /owner/kds/targets` sahifasi. Modulsiz
+  ham saqlanadi (modul va expo sexi bo'lganda ishlaydi). O'zgarsa jurnalda `kds.expo_scope_changed` (`released_orders`).
+  `multi_station` ga o'tganda yig'ishni kutayotgan bitta sexli buyurtma darhol `ready` bo'ladi (oxirgi bumpdagidek: raqam
+  chaqiriladi, mijozga xabar) — expo ekranida qolib ketmaydi; `all` ga o'tganda pishayotgan buyurtmalar oxirgi bumpdan keyin
+  yig'ishni kutadi. Noma'lum qiymat — 422 `expo_scope`. `PUT /owner/branches/{id}/pos-settings` va `PUT /owner/pos/format` uni
+  o'zgarishsiz saqlaydi (ko'rsatmaydi ham).
+- **`POST /staff/orders/{uuid}/assembled`** (`kitchen.manage`, `pos.module:kds_expo`; `Idempotency-Key` ixtiyoriy) — yig'ildi:
+  `orders.assembled_at`/`assembled_by`; olib ketish, yetkazish va onlayn buyurtma `ready` bo'ladi (mijozga xabar, yetkazishda
+  kuryerlar), raqam `ready` (`queue.ready` → raqamlar ekrani va mijoz ekrani). Avval to'langan (yopilgan) kassa buyurtmasining
+  holati `delivered` qoladi, faqat raqami chaqiriladi. Javob — chipta; `kitchen.order_assembled` hodisasi (`{order, assembled:
+  true, assembled_at, queue_number}`) xodim kanallariga. Qayta — 200, o'zgarishsiz. 422: `assembly_not_required` (`multi_station`
+  da bitta sexli buyurtma, expo sexi yo'q — u oxirgi bump bilan tayyor bo'lgan), `stations_not_ready` (qator hali pishyapti yoki yuborilmagan),
+  `kitchen_status` (buyurtma oshxonadan chiqqan). Modul o'chiq — 403 `module_disabled`.
+- Qator qaytarilsa (recall) yoki yig'ilgandan keyin yangi qator tayyor bo'lsa yig'ish bekor bo'ladi (`assembled_at = null`,
+  `kitchen.order_assembled` `assembled: false`): expo uni qayta yig'adi. Kassirning "Tayyor"i (`POST /pos/orders/{uuid}/ready`)
+  avvalgidek oshxonani (expo bilan) chetlab o'tadi. To'lov, schyot, yopish, chek hech qachon kutmaydi.
+- Modulsiz, expo sexisiz yoki `multi_station` da bitta sexli buyurtmada — avvalgi yo'l: hamma qator tayyor → `ready`.
+
+**Tayyorlash vaqti hisoboti** — **`GET /owner/reports/kitchen-times?branch_id=&from=&to=&station_id=`** (`reports.view`,
+`pos.module:kds`). Filialning biznes kunlari (`from`..`to`, `YYYY-MM-DD`, standart bugun, ko'pi bilan 31 kun; do'kon vaqt
+mintaqasi, filial kun boshi — vaqtlar UTC da solishtiriladi). Davrda oshxonaga kelgan va `ready_at` bilan tayyor bo'lgan qatorlar
+(o'chirilganlar hech qachon): vaqt = `ready_at − boshlangan` (POS: `sent_at`; onlayn: qabul qilingan). Har guruhda `count`,
+`median_seconds`, `p90_seconds` (yaqin ikki rang orasida chiziqli — PostgreSQL `percentile_cont` kabi, butun soniyaga
+yaxlitlangan; qatorsiz — `null`), `with_target`, `over_target` (vaqt > maqsad), `over_target_share` (foiz, bitta kasr, satr;
+maqsadli qator yo'q — `null`). Javob: `summary`; `stations` (filial sexlari tartibida, sexsiz qatorlar oxirida `station_id: null`,
+`name: "Sexsiz"`); `products` (eng ko'pi oldin); `hours` (mahalliy soat 0–23, hammasi 24 ta); `orders` — har buyurtma birinchi
+qator kelgandan oshxona tugaguncha (yig'ilgan bo'lsa `assembled_at`, aks holda oxirgi `ready_at`); `expo` — davrda yig'ilgan
+buyurtmalar, oxirgi qator tayyor bo'lgandan yig'ilguncha, expo sexi maqsadiga nisbatan (expo sexi yo'q yoki boshqa sex filtrida —
+`null`). `station_id` qatorlarni toraytiradi (`orders` ni emas); boshqa filial sexi — 422. Maqsadlar hozirgisi bilan
+hisoblanadi.
+
+Migratsiya: `2026_11_14_200100` (`kitchen_stations.target_seconds`, `products.kds_target_seconds`, `orders.assembled_at`,
+`orders.assembled_by`, `order_items.sent_at` indeksi).
+
+**P6-39 tuzatishlari (fast food e2e topgan).** Oshxona chiptasida (`GET /staff/kitchen/tickets`, bump javoblari):
+onlayn qator (Telegram, Mini App) ham `station_id` ni beradi — o'zining (kombo qismi) yoki taomining yo'naltirishi bo'yicha;
+sex topilmasa P2-11 shakli o'zgarmaydi — shunda sex ekrani Telegram buyurtmalarining taomlarini ham ko'rsatadi. Chiptada yangi
+`pickup` (`ScheduledPickup::present`: `{pickup_at, kitchen_fire_at, kitchen_fired_at, waiting, local_time}` yoki `null`).
+Keyinroq vaqtga olingan onlayn buyurtmaning oshxona vaqti (`late`, `waiting_seconds`, tayyorlash vaqti hisoboti) qabul
+qilingandan emas, oshxona vaqtidan (`kitchen_fire_at`, qabul undan keyin bo'lsa — qabuldan) sanaladi
+(`KitchenTargets::orderStart`). Daqiqalik ish (`pos:fire-scheduled-pickups`) undan oldin pishib, berib bo'lingan onlayn
+buyurtmaning raqamini `preparing` ga qaytarmaydi (faqat `kitchen_fired_at` yoziladi). `printers.port` endi butun son
+(1–65535; avval PostgreSQL `smallint` 32767 dan kattasida 500 berardi), migratsiya `2026_11_14_500100`.
+
+3-to'lqin tekshiruvi: `POST /user/profile` ismdagi boshqaruv belgilarini (CR, LF, TAB, ESC...) bitta bo'shliqqa almashtiradi
+(ism yorliq va chekda chop etiladi); faqat boshqaruv belgilaridan iborat ism — 422 `name`. KDS ilovasi `waiting_seconds` ni
+chiptadagi `pickup.kitchen_fire_at` (qabuldan kechroq bo'lsa) yoki qabul vaqtidan sanalgan deb oladi — serverning
+`KitchenTargets::orderStart` qoidasi.
+
+## Qadoq, 24/7 va olib ketish vaqti (P6-34)
+
+docs/POS_SPEC.md "Qadoq, 24/7 va olib ketish vaqti". Modullar: `packaging`, `scheduled_pickup`, `round_the_clock` (yopiq —
+403 `module_disabled`). Pul — o'nlik satr. Egasining endpointlari terminal PIN sessiyasidan emas; har o'zgarish auditda.
+
+**Ega (partner web).**
+- `GET /owner/branches/{branch}/packaging-rules` (settings.manage, `packaging`) — qoidalar tartibi bilan: `id, name, basis`
+  (`order`|`item`, PackagingBasis), `basis_label, category_id, product_id, quantity, unit_price, mxik, package_code, unit,
+  order_types` (PackagingOrderType: `takeaway`, `pickup`, `delivery`), `is_active, sort_order`.
+- `POST .../packaging-rules` (201), `PUT .../packaging-rules/{rule}` (faqat o'zgargani), `DELETE .../packaging-rules/{rule}`.
+  `item` qoidasi bitta `category_id` yoki bitta `product_id` (do'konniki) nomlaydi; `mxik` 17 raqam yoki null (fiskal
+  sozlamadagi `charges.packaging` kodi); filialda ko'pi bilan 50 qoida. Audit: `settings.packaging_rule_created|changed|deleted`.
+  Kombo (egasi qarori 03.11.2026): `item` qoidasi kombo qatorini o'z taomi (kombo mahsuloti, uning kategoriyasi) sifatida va
+  har tarkibini (`combo_parts[].product_id`, uning kategoriyasi) o'z taomi sifatida sanaydi: tarkib porsiyasi = bitta komboda
+  dona (`combo_parts[].quantity`) × kombo qatori soni, tortiladigan tarkib — 1; tarkibning oshxona qatorlari sanalmaydi (ikki
+  marta emas). Masalan "stakan — ichimliklar kategoriyasi": 2 × Lavash kombo (Pepsi bilan) + 1 Pepsi = 3 stakan.
+- `GET|PUT /owner/branches/{branch}/pickup-settings` (settings.manage, `scheduled_pickup`): `pickup_min_lead_minutes` (0–720,
+  20), `pickup_slot_minutes` (5–120, 15), `pickup_max_days_ahead` (0–7, 1), `pickup_prep_minutes` (0–240, 15); javobda
+  `configured`, `round_the_clock`, `opening_hours {open, close}`. Audit: `settings.pickup_rules_changed`.
+- `GET /owner/branches/{branch}/business-days?from&to` (reports.view, `round_the_clock`; ko'pi bilan 31 kun, standart oxirgi
+  7 kun): `business_day {business_date, starts_at, started_at, next_starts_at, round_the_clock}` va har biznes kun uchun
+  `orders, pos_orders, online_orders, revenue, packaging_amount, after_midnight_orders, first_order_at, last_order_at,
+  shifts [{uuid, business_date, z_number, opened_at, closed_at, status}]`. POS buyurtmasi `business_date` bo'yicha (keyingi
+  kunga olib ketish — o'sha kunda), onlayn — berilgan vaqti bo'yicha; bekor qilingan va rad etilganlar kirmaydi.
+- Fiskal sozlamalar: `fiscal_settings.charges.packaging` (`name`, `mxik`, `package_code`, `unit`) — qoidasining o'z kodi
+  bo'lmagan qadoq qatori shu kod bilan chiqadi.
+
+**Kassa.** Hammasi Idempotency-Key va buyurtma `version` i bilan.
+- `POST /pos/orders/{uuid}/packaging/{rule}/remove` `{version, reason, approval_token?}` (orders.manage, `packaging`): qator
+  `removed: true`, 0 so'm qoladi. Schyot chop etilgandan keyin (`bill_locked`) — orders.discount yoki menejer tasdig'i
+  (`POST /pos/approvals` `orders.discount`; 403 `approval_required`, `data.permission`), egaga xabar, auditda `approved_by`.
+  Ofitsiant — faqat o'z buyurtmasi (boshqasiniki: `orders.manage` tasdig'i). 422 `packaging_not_found`, `already_removed`;
+  409 `paid_bill_affected`. `.../restore` `{version, approval_token?}` — 422 `not_removed`. Javob — buyurtma. Biror schyot
+  to'lana boshlagach qadoq qatorlari kamaymaydi (POS_SPEC P6-34).
+- `POST /pos/orders` — `pickup_at` (ISO, faqat `pos_takeaway`, `scheduled_pickup`); `PUT /pos/orders/{uuid}/pickup-time`
+  `{version, pickup_at|null, approval_token?}`: 422 `pickup_too_soon` (`data.earliest_at`, `min_lead_minutes`),
+  `pickup_too_far` (`latest_at`), `pickup_closed`; 409 `already_in_kitchen`; null — vaqt olib tashlanadi, buyurtma darhol
+  oshxonaga. Ofitsiant — faqat o'z buyurtmasi. Keyingi biznes kunga olingan buyurtma o'sha kunning `business_date` va
+  navbat raqamini oladi (`queue`); vaqt boshqa kunga o'zgarsa raqam ham o'sha kunniki bo'ladi.
+- `GET /pos/pickup-slots` — `slots [{at (UTC), time ("HH:MM"), business_date}]`.
+- Kassa ro'yxatlari (`GET /pos/orders`, shu jumladan `?scope=incoming`) qatorida ham `pickup` (yuqoridagidek yoki `null`): kassa
+  "Vaqtga" buyurtmalarni vaqti bilan ko'rsatadi.
+- Buyurtma javobida: `packaging_amount`, `pickup {pickup_at, kitchen_fire_at, kitchen_fired_at, waiting, local_time}|null`,
+  `charges.packaging_amount`, `charges.packaging_lines [{rule_id, name, basis, quantity, unit, unit_price, amount, mxik,
+  package_code, removed, removed_reason}]`. Schyotda: `packaging_amount`, `packaging_lines [{rule_id, name, quantity, unit,
+  amount}]` (schyotning ulushi). Fiskal chekda har qadoq — alohida qator.
+- `GET /pos/bootstrap` → `takeaway`: `packaging` (faol qoidalar, modul yoqilgan bo'lsa; internetsiz narx uchun), `pickup
+  {min_lead_minutes, slot_minutes, max_days_ahead, prep_minutes}|null`, `business_day` (yuqoridagidek).
+- Internetsiz `order.open` / `order.round` qatorida `product_id` va `category_id` bo'lishi mumkin (kassa qadoqni hisoblashi
+  uchun; server o'qimaydi).
+
+**Mijoz (Mini App, Telegram).**
+- `GET /stores/{store}/branches/{branch}/pickup-slots` (ochiq, `throttle:pickup-slots` — manzil bo'yicha daqiqasiga 30):
+  `enabled, min_lead_minutes, slot_minutes, slots [{at, time, business_date}]`; boshqa do'kon, faol bo'lmagan filial yoki
+  faol bo'lmagan do'kon (moliyaviy blok, to'lov kerak, to'xtatilgan) — 404 `branch_not_found`. Javob filial bo'yicha shu
+  daqiqaga keshlanadi. Onlayn olib ketish keyingi biznes kunga bo'lsa, raqami o'sha kunniki.
+- `POST /orders` — `pickup_at` (faqat `type = pickup`): yuqoridagi qoidalar bilan 422 `errors.pickup_at`. Buyurtmada
+  `pickup_at`, `kitchen_fire_at`, `packaging_amount`, `packaging_lines`; jami qadoq bilan.
+
+**Ishlar va testlar.** `pos:fire-scheduled-pickups` (har daqiqa, `PosTakeawayServiceProvider`). Migratsiyalar
+`2026_11_14_300100`–`300500`: `branch_packaging_rules`, `orders.packaging_amount|packaging_lines`,
+`order_bills.packaging_amount`, `order_packaging_removals`, `branch_takeaway_settings`,
+`orders.pickup_at|kitchen_fire_at|kitchen_fired_at`. Testlar: `tests/Feature/PosTakeaway/*`,
+`tests/Feature/PosFastFood/ComboPackagingTest.php` (kombo ichidagi ichimlik), `pos_data` `offline_packaging_test.dart`
+(backend bilan bir xil holatlar, kombo tarkibi ham), `takeaway_models_test.dart`.
+
+## Kombo (P6-31)
+
+To'liq tavsif: [MENU.md](MENU.md) §13. Hammasi `/api/v1` ostida. Konstruktor `pos.module:combo` (403 `module_disabled`); sotuv va
+chek modulga qaramaydi.
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `GET /owner/combos` | `menu.view` yoki `menu.manage` | `{combos[{id, uuid, product_id, product_name, prices[], is_active, slots[...]}], fiscal_mode}` |
+| `POST /owner/combos` | `menu.manage` | `{product_id, is_active?, slots[{uuid?, name, min_picks?, max_picks?, allow_modifiers?, options[{variant_id, quantity?, price_delta?, modifiers?[{modifier_id, quantity?}], is_default?, label?}]}]}` → 201; mahsulot allaqachon kombo bo'lsa slotlari yuborilganicha saqlanadi: slot `uuid`, nomi yoki o'rni bo'yicha, tanlov shu slotdagi taomi bo'yicha topilib joyida yangilanadi (id/`uuid` o'zgarmaydi), yuborilmagani yumshoq o'chiriladi |
+| `PUT /owner/combos/{id}` | `menu.manage` | `{slots?, is_active?}` (slotlar to'liq yuboriladi, POST kabi saqlanadi); faqat `is_active` — faqat bayroq (slotlar tekshirilmaydi) |
+| `DELETE /owner/combos/{id}` | `menu.manage` | mahsulot oddiy taom bo'lib qoladi |
+| `POST /owner/combos/{id}/preview` | `menu.view` yoki `menu.manage` | `{picks?[{option_id, quantity?, modifiers?}], channel?}` → `{name, quantity, base_price, delta, price, parts[{slot_name, name, variant_name, quantity, label}], fiscal_mode, fiscal: {single[], split[]}}` (`fiscal.*[]`: `{name, mxik_code, quantity, amount}`) |
+
+Qo'shimcha maydonlar va qoidalar:
+- Buyurtma qatori (`POST /orders`, `POST /pos/orders`, `POST /pos/orders/{uuid}/rounds`, oflayn `order.open`/`order.round`):
+  `items.*.combo[{option_id (uuid), quantity? 1–10, modifiers?}]`; oflayn qatorda `combo_delta` (kassaning farqi). Oflayn:
+  shu komboning olib tashlangan (yumshoq o'chirilgan) tanlovi va o'chirilgan kombo (tanlovlar bilan) qabul qilinadi, serverning
+  hozirgi narxi bilan; boshqa komboning tanlovi rad etiladi. Rad: 422
+  `code`/`data.reason` — `combo_option_invalid`, `combo_option_unavailable`, `combo_slot_required`, `combo_slot_limit`
+  (`errors["items.{i}.combo"]`).
+- Katalog (`GET /catalog`, POS katalogi): mahsulotda `combo` (kombo emas — `null`); POS katalogida tanlovlarda `is_available`.
+  Majburiy sloti bo'sh kombo `availability.stopped.products` da.
+- POS buyurtma qatori: `combo_parts` (sotuv nusxasi, faqat kombo qatorida); qatorning `kitchen_status` — tarkibniki. Mijoz
+  buyurtmasi (`GET /orders`) qatorida ham `combo_parts`.
+- KDS chiptasi (`GET /staff/kitchen/tickets`): kombo qatori o'rniga tarkib qatorlari, har birida `combo {item_id, name, quantity}`;
+  "tayyor"/"qaytarish" — `POST /staff/orders/{uuid}/items/{item}/ready|recall` tarkib qatori id'si bilan. Taxtada
+  (`GET /staff/orders`) kombo qatori `combo_parts` bilan (narxsiz).
+- Schyot (`items[]`): `combo_parts[{slot_name, name, variant_name, quantity, label}]` yoki `null` (tanlovsiz sotilgan kombo ham
+  `null` — oddiy qator).
+- `kitchen.item_status_changed`: `items_total`/`items_ready` — oshxona qatorlari (kombo o'rniga tarkiblari), tiket kabi.
+- Kombo, slot yoki tanlov o'zgarsa (yaratish, tahrir, o'chirish/yoqish, o'chirish) `menu_version` o'zgaradi.
+- Fiskal sozlama: `fiscal_settings.combo_fiscal_mode` — `single` (standart) | `split` (`ComboFiscalMode`).
+- `GET /owner/reports/top-products`: `combo_parts[{name, in_combos, alone, total}]`.

@@ -4,44 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components3.dart';
+import 'summary2.dart';
+import 'orders.dart';
+import 'stations8.dart';
+import 'products7.dart';
+import 'hours.dart';
+import 'expo.dart';
 
 part 'data146.g.dart';
 
 @JsonSerializable()
 class Data146 {
   const Data146({
-    required this.uuid,
     required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.role,
-    required this.roleLabel,
-    required this.effectiveFrom,
-    required this.components,
-    required this.note,
-    required this.updatedAt,
+    required this.from,
+    required this.to,
+    required this.timezone,
+    required this.dayStartsAt,
+    required this.stationId,
+    required this.summary,
+    required this.orders,
+    required this.stations,
+    required this.products,
+    required this.hours,
+    required this.expo,
   });
 
   factory Data146.fromJson(Map<String, Object?> json) =>
       _$Data146FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'user_id')
-  final int? userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  final String? role;
-  @JsonKey(name: 'role_label')
-  final String? roleLabel;
-  @JsonKey(name: 'effective_from')
-  final String effectiveFrom;
-  final List<Components3> components;
-  final String? note;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String from;
+  final String to;
+  final String timezone;
+  @JsonKey(name: 'day_starts_at')
+  final String dayStartsAt;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  final Summary2 summary;
+  final Orders orders;
+  final List<Stations8> stations;
+  final List<Products7> products;
+  final List<Hours> hours;
+  final Expo? expo;
 
   Map<String, Object?> toJson() => _$Data146ToJson(this);
 }

@@ -48,6 +48,15 @@ enum PosModule: string
     case TABLE_SERVICE = 'table_service';
     case SERVICE_CHARGE_RULES = 'service_charge_rules';
 
+    // Wave 3 "Fast food va qahvaxona" (docs/PHASE6_PLAN.md §9)
+    case COMBO = 'combo';
+    case QUICK_MODIFIERS = 'quick_modifiers';
+    case LABELS = 'labels';
+    case KDS_EXPO = 'kds_expo';
+    case PACKAGING = 'packaging';
+    case SCHEDULED_PICKUP = 'scheduled_pickup';
+    case ROUND_THE_CLOCK = 'round_the_clock';
+
     public function label(): string
     {
         return match ($this) {
@@ -79,6 +88,13 @@ enum PosModule: string
             self::WEIGHT_LATER => "Og'irlikni keyin kiritish",
             self::TABLE_SERVICE => 'Stolga olib kelish',
             self::SERVICE_CHARGE_RULES => 'Xizmat haqi qoidalari',
+            self::COMBO => 'Kombo',
+            self::QUICK_MODIFIERS => 'Tez modifikatorlar',
+            self::LABELS => 'Stakan stikeri va yorliq',
+            self::KDS_EXPO => "Yig'ish ekrani va sex vaqtlari",
+            self::PACKAGING => 'Qadoq',
+            self::SCHEDULED_PICKUP => 'Olib ketish vaqti',
+            self::ROUND_THE_CLOCK => '24/7 ish',
         };
     }
 
@@ -116,6 +132,13 @@ enum PosModule: string
             self::WEIGHT_LATER => "Taom tanlanadi, og'irlik tortilgach kiritiladi (kim tortdi); schyotda haqiqiy kg.",
             self::TABLE_SERVICE => "Kassada to'lab, stol raqami tablichkasi bilan: taom stolga olib boriladi.",
             self::SERVICE_CHARGE_RULES => "Xizmat haqi buyurtma turi bo'yicha, katta guruh qoidasi, mehmon boshiga \"cover\" va e'lon matni.",
+            self::COMBO => "Kombo: slotlar (asosiy, ichimlik, sous) va tanlovlar, narx farqi; chekda bitta qator, tarkibi narxsiz.",
+            self::QUICK_MODIFIERS => "Modifikatorlar menyu tugmasi yonida: hajm bir bosishda, standart tanlov oldindan belgilangan.",
+            self::LABELS => "Ichimlik stakaniga stiker (raqam, hajm, modifikatorlar) va olib ketish paketiga yorliq.",
+            self::KDS_EXPO => "Yig'ish ekrani: hamma sex tayyor bo'lgach buyurtma yig'iladi; sex va taom uchun vaqt maqsadi.",
+            self::PACKAGING => "Olib ketish va yetkazishda qadoq qatori qoida bo'yicha (o'z MXIK'i va narxi bilan).",
+            self::SCHEDULED_PICKUP => "Mijoz olib ketish vaqtini tanlaydi: oshxonaga tayyorlash vaqtidan oldin avtomatik chiqadi.",
+            self::ROUND_THE_CLOCK => "Kechayu kunduz ishlaydigan filial: yarim tundan o'tadigan smena, biznes kun boshlanishi bo'yicha raqam.",
         };
     }
 
@@ -126,7 +149,9 @@ enum PosModule: string
      * the service charge rules, tips and staff pay are Asosiy+). Wave 2 reuses the Asosiy plan features instead of
      * adding new ones, so the catalog and the plans already sold do not change: courses go with the kitchen display,
      * the hostess and table booking with bookings, the bill and staff money (guest split, service charge rules, tips,
-     * staff pay) with the service charge.
+     * staff pay) with the service charge. Wave 3 the same way: the combo, quick modifiers, packaging, the pickup time
+     * and 24/7 are on Start (§7: "kombo va tez modifikatorlar ataylab Start'da"), the expo screen (KDS v2) goes with the
+     * kitchen display and the cup stickers and labels (Asosiy) with it too (the label printer sits next to the KDS).
      */
     public function planFeature(): ?PlanFeature
     {
@@ -141,6 +166,7 @@ enum PosModule: string
             self::COURSES => PlanFeature::KDS,
             self::HOSTESS, self::TABLE_BOOKING => PlanFeature::BOOKINGS,
             self::GUEST_SPLIT, self::SERVICE_CHARGE_RULES, self::TIPS, self::STAFF_PAY => PlanFeature::SERVICE_CHARGE,
+            self::KDS_EXPO, self::LABELS => PlanFeature::KDS,
             default => null,
         };
     }

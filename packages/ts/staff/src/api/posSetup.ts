@@ -10,9 +10,13 @@ import type { JsonRequest, OkData } from './types';
 // --- Kitchen stations ------------------------------------------------------------------------------------------------------
 
 export type KitchenStations = OkData<'kitchenStation.index'>;
-export type KitchenStation = KitchenStations['stations'][number];
+// P6-33: `target_seconds` (the line time target; an expo station: the assembly target) is read here until the spec is
+// regenerated with it
+export type KitchenStation = KitchenStations['stations'][number] & { target_seconds?: number | null };
+export type KitchenStationList = Omit<KitchenStations, 'stations'> & { stations: KitchenStation[] };
 
-export const STATION_KINDS = ['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other'] as const;
+// P6-33 (KDS v2): the universal kinds after the choyxona's; `expo` is the assembly screen (it takes no dishes)
+export const STATION_KINDS = ['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other', 'grill', 'fryer', 'drinks', 'barista', 'expo'] as const;
 export type StationKind = (typeof STATION_KINDS)[number];
 
 export interface KitchenStationInput {
@@ -23,13 +27,15 @@ export interface KitchenStationInput {
   sort_order?: number;
   is_active?: boolean;
   show_on_kds?: boolean;
+  // P6-33: seconds (10–7200), null: none; setting one needs the `kds_expo` module
+  target_seconds?: number | null;
 }
 
 export type KitchenStationPatch = Partial<Omit<KitchenStationInput, 'branch_id'>>;
 
 // GET /owner/kitchen-stations: the branch's stations (inactive ones too) and the kinds the server knows
-export async function fetchKitchenStations(api: StaffApi, branchId?: number): Promise<KitchenStations> {
-  return unwrap(await api.client.GET('/v1/owner/kitchen-stations', { params: { query: branchId === undefined ? {} : { branch_id: branchId } } })).data;
+export async function fetchKitchenStations(api: StaffApi, branchId?: number): Promise<KitchenStationList> {
+  return unwrap(await api.client.GET('/v1/owner/kitchen-stations', { params: { query: branchId === undefined ? {} : { branch_id: branchId } } })).data as KitchenStationList;
 }
 
 export async function createKitchenStation(api: StaffApi, input: KitchenStationInput): Promise<KitchenStation> {
@@ -38,7 +44,7 @@ export async function createKitchenStation(api: StaffApi, input: KitchenStationI
 
 // An inactive station is not given to the terminals and its routes are ignored
 export async function updateKitchenStation(api: StaffApi, id: number, patch: KitchenStationPatch): Promise<KitchenStation> {
-  return unwrap(await api.client.PATCH('/v1/owner/kitchen-stations/{id}', { params: { path: { id } }, body: patch })).data as KitchenStation;
+  return unwrap(await api.client.PATCH('/v1/owner/kitchen-stations/{id}', { params: { path: { id } }, body: patch as never })).data as KitchenStation;
 }
 
 // 422 `station_in_use` once an order line was sent to it: switch it off instead

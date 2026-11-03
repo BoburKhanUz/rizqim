@@ -1,0 +1,9 @@
+label 40x30 mm (25 x 8)
+2xB  |#~5~7~                   |
+     |^^^^^^                   |
+     |-------------------------|
+B    |Olib ketish              |
+     |Mahsulot: 3 ta           |
+     |Dilnoza                  |
+BI   |Olib ketish: 12:40       |
+     |20.11.2026 12:15         |

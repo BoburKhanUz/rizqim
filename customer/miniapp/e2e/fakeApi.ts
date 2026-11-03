@@ -178,6 +178,8 @@ export class FakeApi {
   zoneMinOrder = 0
   /** false: the store has drawn no zones yet, so GET /delivery/quote answers zones_not_configured. */
   zonesConfigured = true
+  /** P6-34: the times GET /stores/{store}/branches/{branch}/pickup-slots offers; null: the branch takes no orders for later. */
+  pickupSlots: { min_lead_minutes: number; slot_minutes: number; slots: Array<{ at: string; time: string; business_date: string }> } | null = null
 
   orders: Order[] = [] // newest first, like the API lists them
 
@@ -292,6 +294,9 @@ export class FakeApi {
     if (method === 'GET' && path === '/orders') return this.listOrders(query)
     if (method === 'GET' && path === '/catalog/availability') return this.availabilityReply(query)
     if (method === 'GET' && path === '/delivery/quote') return this.deliveryQuote(query)
+    if (method === 'GET' && /^\/stores\/[^/]+\/branches\/[^/]+\/pickup-slots$/.test(path)) {
+      return ok(this.pickupSlots ? { enabled: true, ...this.pickupSlots } : { enabled: false, min_lead_minutes: 0, slot_minutes: 15, slots: [] })
+    }
     if (method === 'POST' && path === '/orders') return this.placeOrder(body ?? {}, idempotencyKey)
 
     const staffReply = this.staff.handle(method, path, query, body)
@@ -441,7 +446,7 @@ export class FakeApi {
 
   // POST /orders
   private placeOrder(body: Record<string, unknown>, idempotencyKey: string | null): ApiReply {
-    type Line = { variant_id: string; quantity: number; modifiers?: Array<{ id: string; quantity?: number } | string> }
+    type Line = { variant_id: string; quantity: number; modifiers?: Array<{ id: string; quantity?: number } | string>; combo?: Array<{ option_id: string; quantity?: number }> }
     const lines = Array.isArray(body.items) ? (body.items as Line[]) : []
     const items: Order['items'] = []
 
@@ -489,6 +494,27 @@ export class FakeApi {
         }
       }
 
+      // P6-31: a combo's picks (the backend's Combos::resolve): the options belong to the product, each slot within its
+      // limits, a slot left alone takes its default; the deltas join the price like a modifier
+      const comboParts: NonNullable<Order['items']>[number]['combo_parts'] = []
+      if (product.combo) {
+        const picks = (line.combo ?? []).map((pick) => ({ id: pick.option_id, quantity: pick.quantity ?? 1 }))
+        for (const slot of product.combo.slots) {
+          let chosenHere = picks.flatMap((pick) => (slot.options.some((option) => option.uuid === pick.id) ? Array(pick.quantity).fill(pick.id) : []))
+          if (chosenHere.length === 0 && slot.min_picks > 0) chosenHere = slot.options.filter((option) => option.is_default).map((option) => option.uuid)
+          if (chosenHere.length < slot.min_picks) return reply(422, { success: false, message: `'${slot.name}' tanlanmagan.`, data: { reason: 'combo_slot_required' } })
+          if (chosenHere.length > Math.max(1, slot.max_picks)) return reply(422, { success: false, message: `'${slot.name}' dan ko'p tanlandi.`, data: { reason: 'combo_slot_limit' } })
+          for (const uuid of chosenHere) {
+            const option = slot.options.find((candidate) => candidate.uuid === uuid)!
+            modifiersTotal += Number(option.price_delta)
+            comboParts.push({ slot_name: slot.name, name: option.name, variant_name: option.variant_name, quantity: option.quantity, label: option.receipt_label })
+          }
+        }
+        if (picks.some((pick) => !product.combo!.slots.some((slot) => slot.options.some((option) => option.uuid === pick.id)))) {
+          return reply(422, { success: false, message: 'Kombo tanlovi noto\'g\'ri.', data: { reason: 'combo_option_invalid' } })
+        }
+      }
+
       // price × quantity + modifiers × (pieces ? quantity : 1), rounded once, half up, to whole so'm (docs/MENU.md)
       const exact = Number(variant.price) * line.quantity + modifiersTotal * (measured ? 1 : line.quantity)
       const total = Math.floor(exact + 0.5)
@@ -501,6 +527,7 @@ export class FakeApi {
         unit: variant.unit ?? 'piece',
         unit_price: variant.price,
         modifiers: snapshot,
+        ...(comboParts.length > 0 ? { combo_parts: comboParts } : {}),
         modifiers_total: modifiersTotal.toFixed(2),
         total_price: total.toFixed(2),
       }))
@@ -537,6 +564,7 @@ export class FakeApi {
       address,
       shipping_address: isDelivery ? { address, latitude: Number(body.latitude), longitude: Number(body.longitude) } : null,
       notes: typeof body.notes === 'string' ? body.notes : null,
+      pickup_at: typeof body.pickup_at === 'string' ? body.pickup_at : null,
       items,
       created_at: new Date().toISOString(), // the newest of all
     })

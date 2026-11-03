@@ -59,6 +59,8 @@ export interface FakeModifier {
   name_i18n: Record<string, string> | null
   price_delta: string
   max_quantity: number
+  /** P6-32: the option the till preselects. */
+  is_default: boolean
   product_variant_id: number | null
   sort_order: number
   is_active: boolean
@@ -72,6 +74,8 @@ export interface FakeGroup {
   min_select: number
   max_select: number | null
   is_required: boolean
+  /** P6-32: where the options appear at the till. */
+  display_mode: 'dialog' | 'inline' | 'size'
   sort_order: number
   is_active: boolean
   modifiers: FakeModifier[]
@@ -286,6 +290,12 @@ export class FakeMenu {
     const name = String(input.name ?? '').trim()
     if (name === '') return fail(422, 'The given data was invalid.', { name: ['Guruh nomini kiriting.'] })
     const options = (input.modifiers as Array<Record<string, unknown>> | undefined) ?? existing?.modifiers ?? []
+    // P6-32: the quick hints (display mode, default options) need the quick_modifiers module; a size selector takes one option
+    const displayMode = (typeof input.display_mode === 'string' ? input.display_mode : (existing?.display_mode ?? 'dialog')) as FakeGroup['display_mode']
+    const maxSelect = 'max_select' in input ? (input.max_select as number | null) : (existing?.max_select ?? null)
+    if (displayMode === 'size' && maxSelect !== 1) return fail(422, 'The given data was invalid.', { display_mode: ["Hajm tanlash faqat bitta tanlov (eng ko'pi 1) bo'lgan guruhda ishlaydi."] })
+    const hintsOn = displayMode !== (existing?.display_mode ?? 'dialog') && displayMode !== 'dialog'
+    if (hintsOn && !this.backend.format.has('quick_modifiers')) return fail(403, "«Tez modifikatorlar» moduli bu filialda o'chiq.", undefined, { reason: 'module_disabled', module: 'quick_modifiers' })
     const id = existing?.id ?? ++this.counter
     const group: FakeGroup = {
       id,
@@ -295,6 +305,7 @@ export class FakeMenu {
       min_select: typeof input.min_select === 'number' ? input.min_select : (existing?.min_select ?? 0),
       max_select: 'max_select' in input ? (input.max_select as number | null) : (existing?.max_select ?? null),
       is_required: typeof input.is_required === 'boolean' ? input.is_required : (existing?.is_required ?? false),
+      display_mode: displayMode,
       sort_order: typeof input.sort_order === 'number' ? input.sort_order : (existing?.sort_order ?? 0),
       is_active: typeof input.is_active === 'boolean' ? input.is_active : (existing?.is_active ?? true),
       modifiers: options.map((option, position) => {
@@ -306,6 +317,7 @@ export class FakeMenu {
           name_i18n: (option.name_i18n as Record<string, string> | null | undefined) ?? null,
           price_delta: Number(option.price_delta ?? 0).toFixed(2),
           max_quantity: typeof option.max_quantity === 'number' ? option.max_quantity : 1,
+          is_default: typeof option.is_default === 'boolean' ? option.is_default : (existing?.modifiers.find((saved) => saved.id === option.id)?.is_default ?? false),
           product_variant_id: null,
           sort_order: position,
           is_active: option.is_active !== false,

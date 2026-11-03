@@ -41,6 +41,9 @@ PrintLayout layoutStationTicket(StationTicket t, PaperWidth paper) {
       bold: true,
       size: itemSize,
     );
+    for (final String part in item.parts) {
+      w.text('- ${paperPart(part)}', indent: 4);
+    }
     for (final String m in item.modifiers) {
       w.text('+ $m', indent: 4);
     }

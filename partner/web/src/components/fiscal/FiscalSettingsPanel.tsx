@@ -20,7 +20,7 @@ import { NO_ERRORS, sortServerErrors, type FormErrors } from '../pos/serverError
 import { labelFor } from '../reports/format';
 
 // Charges the law gives no official code for: the owner looks it up (docs/API.md "Fiskal cheklar")
-const NO_OFFICIAL_CODE: readonly FiscalChargeKey[] = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery'];
+const NO_OFFICIAL_CODE: readonly FiscalChargeKey[] = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'delivery', 'packaging'];
 
 type Tri = 'default' | 'yes' | 'no';
 const toTri = (value: boolean | null | undefined): Tri => (value === null || value === undefined ? 'default' : value ? 'yes' : 'no');

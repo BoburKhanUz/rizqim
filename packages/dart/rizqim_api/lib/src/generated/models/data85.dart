@@ -4,30 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal.dart';
-import 'card_modes.dart';
-import 'checklist_items.dart';
-import 'branches2.dart';
-
 part 'data85.g.dart';
 
 @JsonSerializable()
 class Data85 {
-  const Data85({
-    required this.fiscal,
-    required this.cardModes,
-    required this.checklistItems,
-    required this.branches,
-  });
+  const Data85({required this.topupUuid, required this.paymentUrl});
 
   factory Data85.fromJson(Map<String, Object?> json) => _$Data85FromJson(json);
 
-  final Fiscal fiscal;
-  @JsonKey(name: 'card_modes')
-  final List<CardModes> cardModes;
-  @JsonKey(name: 'checklist_items')
-  final List<ChecklistItems> checklistItems;
-  final List<Branches2> branches;
+  @JsonKey(name: 'topup_uuid')
+  final String topupUuid;
+  @JsonKey(name: 'payment_url')
+  final String paymentUrl;
 
   Map<String, Object?> toJson() => _$Data85ToJson(this);
 }

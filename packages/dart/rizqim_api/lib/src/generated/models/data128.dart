@@ -4,19 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'format.dart';
+
 part 'data128.g.dart';
 
 @JsonSerializable()
 class Data128 {
-  const Data128({required this.productId, required this.modifierGroups});
+  const Data128({
+    required this.stationsCreated,
+    required this.stationsSkipped,
+    required this.categoriesCreated,
+    required this.dishesCreated,
+    required this.dishesSkipped,
+    required this.format,
+  });
 
   factory Data128.fromJson(Map<String, Object?> json) =>
       _$Data128FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'modifier_groups')
-  final String modifierGroups;
+  @JsonKey(name: 'stations_created')
+  final List<String> stationsCreated;
+  @JsonKey(name: 'stations_skipped')
+  final List<String> stationsSkipped;
+  @JsonKey(name: 'categories_created')
+  final List<String> categoriesCreated;
+  @JsonKey(name: 'dishes_created')
+  final List<String> dishesCreated;
+  @JsonKey(name: 'dishes_skipped')
+  final List<String> dishesSkipped;
+  final Format format;
 
   Map<String, Object?> toJson() => _$Data128ToJson(this);
 }

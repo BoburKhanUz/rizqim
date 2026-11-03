@@ -64,6 +64,44 @@ class _OwnerReportsApi implements OwnerReportsApi {
   }
 
   @override
+  Future<GetV1OwnerReportsKitchenTimesResponse> prepTimeReportShow({
+    int? branchId,
+    String? from,
+    String? to,
+    int? stationId,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'branch_id': branchId,
+      r'from': from,
+      r'to': to,
+      r'station_id': stationId,
+    };
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<GetV1OwnerReportsKitchenTimesResponse>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/owner/reports/kitchen-times',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late GetV1OwnerReportsKitchenTimesResponse _value;
+    try {
+      _value = GetV1OwnerReportsKitchenTimesResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<GetV1OwnerReportsSalesResponse> reportSales({
     String? from,
     String? to,

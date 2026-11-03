@@ -11,7 +11,7 @@ PostV1OwnerDailyMenuCopyResponse _$PostV1OwnerDailyMenuCopyResponseFromJson(
 ) => PostV1OwnerDailyMenuCopyResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data52.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data65.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerDailyMenuCopyResponseToJson(

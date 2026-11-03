@@ -66,6 +66,9 @@ class ShiftReportBody extends StatelessWidget {
           AmountRow(label: 'Xona puli', amount: v.roomFee, muted: true),
         if (v.serviceCharge.isPositive)
           AmountRow(label: 'Xizmat haqi', amount: v.serviceCharge, muted: true),
+        // P6-34: the packaging lines sold (their own receipt lines)
+        if (v.packaging.isPositive)
+          AmountRow(label: 'Qadoq', amount: v.packaging, muted: true),
         if (v.discount.isPositive)
           AmountRow(label: 'Chegirma', amount: v.discount, muted: true),
         if (v.voidsCount > 0)

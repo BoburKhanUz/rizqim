@@ -12,7 +12,7 @@ _$PutV1OwnerBranchesBranchTerminalFlowResponseFromJson(
 ) => PutV1OwnerBranchesBranchTerminalFlowResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data43.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data50.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerBranchesBranchTerminalFlowResponseToJson(

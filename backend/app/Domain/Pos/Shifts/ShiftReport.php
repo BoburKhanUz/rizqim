@@ -38,7 +38,7 @@ final class ShiftReport
     public const MOVEMENT = 'array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee: array{id: int, name: string|null}|null, user: array{id: int, name: string|null}|null, approved_by: int|null, approver?: array{id: int, name: string|null}|null, created_at: string|null}';
 
     /** The fields of the X report (ShiftPresenter::SUMMARY adds the Z report's own). */
-    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, tips: ' . \App\Domain\Pos\Tips\ShiftTips::SHAPE . ', cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, tips: string, tip_payouts: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
+    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, packaging: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, tips: ' . \App\Domain\Pos\Tips\ShiftTips::SHAPE . ', cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, tips: string, tip_payouts: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
 
     /** The X report (and, as kept at closing, the Z report's body: ShiftPresenter::SUMMARY). */
     public const REPORT = 'array{' . self::REPORT_FIELDS . '}';
@@ -104,6 +104,7 @@ final class ShiftReport
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->where('orders.branch_id', $shift->branch_id)
             ->whereNotNull('order_items.voided_at')
+            ->whereNull('order_items.combo_parent_id') // P6-31: a voided combo is one void, not one per part
             ->whereBetween('order_items.voided_at', [$from, $to])
             ->selectRaw('count(*) as count, coalesce(sum(order_items.total_price), 0) as amount')
             ->first();
@@ -151,6 +152,8 @@ final class ShiftReport
                 'min_spend_topup' => $this->sum($bills->pluck('min_spend_topup_amount')),
                 'service_charge' => $this->sum($bills->pluck('service_charge_amount')),
                 'place_fee' => $this->sum($bills->pluck('place_fee_amount')),
+                // P6-34: the packaging lines of the bills (their own receipt lines)
+                'packaging' => $this->sum($bills->pluck('packaging_amount')),
                 'average_bill' => $bills->count() > 0
                     ? Money::fromTiyin(intdiv(Money::of($this->sum($bills->pluck('total')))->toTiyin(), $bills->count()))->toString()
                     : '0.00',

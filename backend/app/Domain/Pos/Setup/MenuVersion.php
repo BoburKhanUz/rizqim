@@ -4,6 +4,9 @@ namespace App\Domain\Pos\Setup;
 
 use App\Models\Category;
 use App\Models\ChannelPrice;
+use App\Models\Combo;
+use App\Models\ComboSlot;
+use App\Models\ComboSlotOption;
 use App\Models\Modifier;
 use App\Models\ModifierGroup;
 use App\Models\Product;
@@ -13,9 +16,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * `menu_version` of a store (P3-13, POS_SPEC 12.3): a short token that changes whenever the menu a terminal caches
- * changes (products, variants, categories, modifiers, channel prices, their order and visibility). It does not move
- * for availability (stop-list, kazan): that has its own real-time event. A terminal refetches the catalog when the
- * value differs from the one it holds.
+ * changes (products, variants, categories, modifiers, channel prices, combos with their slots and options, their order
+ * and visibility). It does not move for availability (stop-list, kazan): that has its own real-time event. A terminal
+ * refetches the catalog when the value differs from the one it holds.
  */
 final class MenuVersion
 {
@@ -31,6 +34,11 @@ final class MenuVersion
         $parts[] = self::stamp(Category::withTrashed(), true);
         $parts[] = self::stamp(DB::table('product_modifier_groups')
             ->whereIn('product_id', Product::withTrashed()->select('id')->where('store_id', $storeId)));
+        // Review P6 wave 3: combos (P6-31) are in the catalog a till caches: created, edited, switched off or deleted
+        $parts[] = self::stamp(Combo::query()->where('store_id', $storeId));
+        $comboIds = Combo::query()->select('id')->where('store_id', $storeId);
+        $parts[] = self::stamp(ComboSlot::withTrashed()->whereIn('combo_id', $comboIds), true);
+        $parts[] = self::stamp(ComboSlotOption::withTrashed()->whereIn('combo_slot_id', ComboSlot::withTrashed()->select('id')->whereIn('combo_id', $comboIds)), true);
 
         return substr(sha1(implode('|', $parts)), 0, 12);
     }

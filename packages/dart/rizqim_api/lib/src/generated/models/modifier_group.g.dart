@@ -29,6 +29,7 @@ ModifierGroup _$ModifierGroupFromJson(Map<String, dynamic> json) =>
       deletedAt: json['deleted_at'] == null
           ? null
           : DateTime.parse(json['deleted_at'] as String),
+      displayMode: ModifierDisplayMode.fromJson(json['display_mode'] as String),
       store: json['store'] == null
           ? null
           : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -55,6 +56,7 @@ Map<String, dynamic> _$ModifierGroupToJson(ModifierGroup instance) =>
       'created_at': instance.createdAt?.toIso8601String(),
       'updated_at': instance.updatedAt?.toIso8601String(),
       'deleted_at': instance.deletedAt?.toIso8601String(),
+      'display_mode': instance.displayMode,
       'store': instance.store,
       'modifiers': instance.modifiers,
       'products': instance.products,

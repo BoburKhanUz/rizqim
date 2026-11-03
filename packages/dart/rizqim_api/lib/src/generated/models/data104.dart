@@ -11,28 +11,24 @@ part 'data104.g.dart';
 @JsonSerializable()
 class Data104 {
   const Data104({
-    required this.data,
     required this.currentPage,
-    required this.lastPage,
+    required this.data,
     required this.perPage,
     required this.total,
-    required this.from,
-    required this.to,
+    required this.lastPage,
   });
 
   factory Data104.fromJson(Map<String, Object?> json) =>
       _$Data104FromJson(json);
 
-  final List<Data103> data;
   @JsonKey(name: 'current_page')
   final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
+  final List<Data103> data;
   @JsonKey(name: 'per_page')
   final int perPage;
   final int total;
-  final int? from;
-  final int? to;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
 
   Map<String, Object?> toJson() => _$Data104ToJson(this);
 }

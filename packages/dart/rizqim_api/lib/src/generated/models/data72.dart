@@ -8,14 +8,21 @@ part 'data72.g.dart';
 
 @JsonSerializable()
 class Data72 {
-  const Data72({required this.topupUuid, required this.paymentUrl});
+  const Data72({
+    required this.code,
+    required this.expiresAt,
+    required this.type,
+    required this.branchId,
+  });
 
   factory Data72.fromJson(Map<String, Object?> json) => _$Data72FromJson(json);
 
-  @JsonKey(name: 'topup_uuid')
-  final String topupUuid;
-  @JsonKey(name: 'payment_url')
-  final String paymentUrl;
+  final String code;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  final String type;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
 
   Map<String, Object?> toJson() => _$Data72ToJson(this);
 }

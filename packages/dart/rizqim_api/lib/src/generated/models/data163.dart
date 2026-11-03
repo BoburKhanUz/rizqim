@@ -4,46 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'components3.dart';
+
 part 'data163.g.dart';
 
 @JsonSerializable()
 class Data163 {
   const Data163({
-    required this.id,
+    required this.uuid,
     required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
-    required this.createdAt,
+    required this.userId,
+    required this.userName,
+    required this.role,
+    required this.roleLabel,
+    required this.effectiveFrom,
+    required this.components,
+    required this.note,
+    required this.updatedAt,
   });
 
   factory Data163.fromJson(Map<String, Object?> json) =>
       _$Data163FromJson(json);
 
-  final int id;
+  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'user_id')
+  final int? userId;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  final String? role;
+  @JsonKey(name: 'role_label')
+  final String? roleLabel;
+  @JsonKey(name: 'effective_from')
+  final String effectiveFrom;
+  final List<Components3> components;
+  final String? note;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

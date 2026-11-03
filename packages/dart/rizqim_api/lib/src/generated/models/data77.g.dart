@@ -7,23 +7,29 @@ part of 'data77.dart';
 // **************************************************************************
 
 Data77 _$Data77FromJson(Map<String, dynamic> json) => Data77(
-  uuid: json['uuid'] as String,
-  name: json['name'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  smartKassa: json['smart_kassa'] as bool,
-  fiscalKassaId: json['fiscal_kassa_id'] as String?,
-  kassaStatus: json['kassa_status'] == null
-      ? null
-      : KassaStatus.fromJson(json['kassa_status'] as Map<String, dynamic>),
-  lastSeenAt: json['last_seen_at'] as String?,
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout4.fromJson(json['layout'] as Map<String, dynamic>),
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data77ToJson(Data77 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'name': instance.name,
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'smart_kassa': instance.smartKassa,
-  'fiscal_kassa_id': instance.fiscalKassaId,
-  'kassa_status': instance.kassaStatus,
-  'last_seen_at': instance.lastSeenAt,
+  'hall_id': instance.hallId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

@@ -4,8 +4,13 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items55.dart';
-import 'pickup_status.dart';
+import 'source.dart';
+import 'shifts6.dart';
+import 'rizqim_breakdown4.dart';
+import 'transactions5.dart';
+import 'unmatched4.dart';
+import 'history4.dart';
+import 'entered_by4.dart';
 
 part 'data261.g.dart';
 
@@ -13,70 +18,80 @@ part 'data261.g.dart';
 class Data261 {
   const Data261({
     required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.type,
-    required this.channel,
+    required this.shiftUuid,
+    required this.zNumber,
     required this.branchId,
-    required this.hallRef,
-    required this.tableRef,
-    required this.tableLabel,
-    required this.guestsCount,
-    required this.notes,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
+    required this.businessDate,
+    required this.source,
+    required this.terminalRef,
+    required this.shared,
+    required this.finalValue,
+    required this.shifts,
+    required this.bankTotal,
+    required this.bankCount,
+    required this.rizqimTotal,
+    required this.rizqimCount,
+    required this.rizqimBreakdown,
+    required this.difference,
+    required this.threshold,
+    required this.overThreshold,
+    required this.transactions,
+    required this.unmatched,
+    required this.history,
+    required this.note,
+    required this.enteredBy,
+    required this.alertedAt,
     required this.createdAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
-    required this.canceledAt,
-    required this.waitingSeconds,
-    required this.queueNumber,
-    required this.pickupStatus,
+    required this.updatedAt,
   });
 
   factory Data261.fromJson(Map<String, Object?> json) =>
       _$Data261FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String type;
-  final String channel;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'table_label')
-  final String? tableLabel;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final String? notes;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items55> items;
+  final int branchId;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final Source source;
+  @JsonKey(name: 'terminal_ref')
+  final String? terminalRef;
+  final bool shared;
+
+  /// The name has been replaced because it contains a keyword. Original name: `final`.
+  @JsonKey(name: 'final')
+  final bool finalValue;
+  final List<Shifts6> shifts;
+  @JsonKey(name: 'bank_total')
+  final String bankTotal;
+  @JsonKey(name: 'bank_count')
+  final int? bankCount;
+  @JsonKey(name: 'rizqim_total')
+  final String? rizqimTotal;
+  @JsonKey(name: 'rizqim_count')
+  final int? rizqimCount;
+  @JsonKey(name: 'rizqim_breakdown')
+  final RizqimBreakdown4? rizqimBreakdown;
+  final String? difference;
+  final String? threshold;
+  @JsonKey(name: 'over_threshold')
+  final bool? overThreshold;
+  final List<Transactions5>? transactions;
+  final Unmatched4? unmatched;
+  final List<History4> history;
+  final String? note;
+  @JsonKey(name: 'entered_by')
+  final EnteredBy4? enteredBy;
+  @JsonKey(name: 'alerted_at')
+  final String? alertedAt;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
-  @JsonKey(name: 'queue_number')
-  final int? queueNumber;
-  @JsonKey(name: 'pickup_status')
-  final PickupStatus? pickupStatus;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data261ToJson(this);
 }

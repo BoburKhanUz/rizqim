@@ -30,6 +30,7 @@ ModifierGroupsModifiers _$ModifierGroupsModifiersFromJson(
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
+  isDefault: json['is_default'] as bool,
   isAvailable: json['is_available'] as bool,
   unavailableReason: json['unavailable_reason'] as String?,
   group: json['group'] == null
@@ -56,6 +57,7 @@ Map<String, dynamic> _$ModifierGroupsModifiersToJson(
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
   'deleted_at': instance.deletedAt?.toIso8601String(),
+  'is_default': instance.isDefault,
   'group': instance.group,
   'variant': instance.variant,
   'is_available': instance.isAvailable,

@@ -53,6 +53,7 @@ final class ShiftReport {
     this.discounts = PosMoney.zero,
     this.serviceCharges = PosMoney.zero,
     this.roomFees = PosMoney.zero,
+    this.packaging = PosMoney.zero,
     this.tenders = const <ReportAmount>[],
     this.advancesReceived = PosMoney.zero,
     this.advancesApplied = PosMoney.zero,
@@ -93,6 +94,9 @@ final class ShiftReport {
   final PosMoney discounts;
   final PosMoney serviceCharges;
   final PosMoney roomFees;
+
+  /// P6-34: sotuvdagi qadoq qatorlari (o'z fiskal qatorlari bilan; [sales] ichida).
+  final PosMoney packaging;
 
   /// To'lov turlari bo'yicha: Naqd, Karta, QR, Avans hisobidan, Nasiyaga.
   final List<ReportAmount> tenders;

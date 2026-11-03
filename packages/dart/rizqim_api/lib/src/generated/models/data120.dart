@@ -4,20 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings.dart';
-import 'options.dart';
+import 'data119.dart';
 
 part 'data120.g.dart';
 
 @JsonSerializable()
 class Data120 {
-  const Data120({required this.settings, required this.options});
+  const Data120({
+    required this.data,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+    required this.from,
+    required this.to,
+  });
 
   factory Data120.fromJson(Map<String, Object?> json) =>
       _$Data120FromJson(json);
 
-  final Settings settings;
-  final Options options;
+  final List<Data119> data;
+  @JsonKey(name: 'current_page')
+  final int currentPage;
+  @JsonKey(name: 'last_page')
+  final int lastPage;
+  @JsonKey(name: 'per_page')
+  final int perPage;
+  final int total;
+  final int? from;
+  final int? to;
 
   Map<String, Object?> toJson() => _$Data120ToJson(this);
 }

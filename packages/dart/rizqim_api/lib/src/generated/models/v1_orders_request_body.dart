@@ -25,6 +25,7 @@ class V1OrdersRequestBody {
     this.longitude,
     this.notes,
     this.promoCode,
+    this.pickupAt,
   });
 
   factory V1OrdersRequestBody.fromJson(Map<String, Object?> json) =>
@@ -47,6 +48,10 @@ class V1OrdersRequestBody {
   final String? notes;
   @JsonKey(name: 'promo_code')
   final String? promoCode;
+
+  /// P6-34: a pickup for later (module scheduled_pickup), an ISO time from GET /stores/{id}/branches/{branch}/pickup-slots
+  @JsonKey(name: 'pickup_at')
+  final DateTime? pickupAt;
 
   Map<String, Object?> toJson() => _$V1OrdersRequestBodyToJson(this);
 }

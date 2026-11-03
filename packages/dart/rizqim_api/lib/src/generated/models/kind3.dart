@@ -6,37 +6,33 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Kind3 {
-  @JsonValue('osh')
-  osh('osh'),
-  @JsonValue('mangal')
-  mangal('mangal'),
-  @JsonValue('salad_bar')
-  saladBar('salad_bar'),
-  @JsonValue('tea')
-  tea('tea'),
-  @JsonValue('kitchen')
-  kitchen('kitchen'),
-  @JsonValue('other')
-  other('other'),
+  @JsonValue('dish')
+  dish('dish'),
+  @JsonValue('service')
+  service('service'),
+
+  /// The name has been replaced because it contains a keyword. Original name: `null`.
+  @JsonValue(null)
+  valueNull(null),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
   const Kind3(this.json);
 
-  factory Kind3.fromJson(String json) =>
+  factory Kind3.fromJson(String? json) =>
       values.firstWhere((e) => e.json == json, orElse: () => $unknown);
 
   final String? json;
-  String toJson() {
+  String? toJson() {
     final value = json;
     if (value == null) {
       throw StateError(
-        'Cannot convert enum value with null JSON representation to String. '
+        'Cannot convert enum value with null JSON representation to String?. '
         'This usually happens for \$unknown or @JsonValue(null) entries.',
       );
     }
-    return value as String;
+    return value as String?;
   }
 
   @override

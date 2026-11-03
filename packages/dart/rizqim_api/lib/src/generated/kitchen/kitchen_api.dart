@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_staff_kitchen_tickets_response.dart';
+import '../models/post_v1_staff_orders_uuid_assembled_response.dart';
 import '../models/post_v1_staff_orders_uuid_items_item_ready_response.dart';
 import '../models/post_v1_staff_orders_uuid_items_item_recall_response.dart';
 
@@ -32,6 +33,11 @@ abstract class KitchenApi {
   /// P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays.
   /// listed (with `include_ready=1` also while `ready`) until the number is handed over.
   ///
+  /// P6-33 (KDS v2): each line carries its time target (`target_seconds`: the dish's own, else its station's; null:.
+  /// none) and `late` (now − when it reached the kitchen > target; a done line: its ready time). With the module.
+  /// `kds_expo` and an expo station, an order cooked on several stations carries `assembly` (the expo screen: which.
+  /// stations are done, `waiting` once all are, `assembled_at`); it stays `preparing` until the expo bumps it.
+  ///
   /// [branchId] - One branch; omit for every branch the caller works in (a branch terminal: its branch).
   ///
   /// [includeReady] - 1 (or true) to also list orders that are ready but not handed over yet.
@@ -42,6 +48,23 @@ abstract class KitchenApi {
     @Query('branch_id') int? branchId,
     @Query('include_ready') bool? includeReady,
     @Query('canceled_within') int? canceledWithin,
+  });
+
+  /// Assemble an order (expo bump).
+  ///
+  /// Every station cooked its part: the expo puts the order together and bumps it. A takeaway, pickup or delivery.
+  /// order becomes `ready` (the customer is told, couriers of a delivery called), a counter order's number is called.
+  /// (`queue.ready`: the board and the customer display); `kitchen.order_assembled` goes to the staff channels.
+  /// Only for an order that goes through the expo (the branch has the module and an active expo station, its lines.
+  /// were cooked on two or more stations; otherwise 422 `assembly_not_required`: the last line bump made it ready);.
+  /// 422 `stations_not_ready` while a line is still cooking, `kitchen_status` once it left the kitchen. Assembled.
+  /// already: 200 unchanged. A line recalled (or a new one bumped) undoes the assembly. Returns the ticket.
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
+  @POST('/v1/staff/orders/{uuid}/assembled')
+  Future<PostV1StaffOrdersUuidAssembledResponse> kitchenExpoAssembled({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') String? idempotencyKey,
   });
 
   /// Bump a line ready (kitchen display).

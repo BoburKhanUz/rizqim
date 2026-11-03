@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Layers, Plus, Trash2 } from 'lucide-react';
 import { Button, buttonClasses, Card, CardSkeletons, EmptyState, Field, fieldClass, IconButton, InlineError, Section, PageHeader, Switch } from '@rizqim/ui';
-import { useModifierGroups, useSaveModifierGroup, type ModifierGroup, type ModifierGroupInput } from '@rizqim/staff';
+import { MODIFIER_DISPLAY_MODES, useModifierGroups, useSaveModifierGroup, type ModifierDisplayMode, type ModifierGroup, type ModifierGroupInput } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { useMenuAccess } from './access';
 import { ErrorBanner, SuccessNote } from './ErrorBanner';
@@ -20,6 +20,8 @@ interface OptionDraft {
   ru: string;
   price: string;
   maxQuantity: string;
+  // P6-32: the option the till preselects
+  isDefault: boolean;
   active: boolean;
 }
 
@@ -31,14 +33,16 @@ interface GroupDraft {
   required: boolean;
   sortOrder: string;
   active: boolean;
+  // P6-32: where the options appear at the till
+  displayMode: ModifierDisplayMode;
   options: OptionDraft[];
 }
 
 let counter = 0;
-const newOption = (): OptionDraft => ({ key: `option-${++counter}`, name: '', ru: '', price: '', maxQuantity: '1', active: true });
+const newOption = (): OptionDraft => ({ key: `option-${++counter}`, name: '', ru: '', price: '', maxQuantity: '1', isDefault: false, active: true });
 
 function draftFrom(group: ModifierGroup | null): GroupDraft {
-  if (!group) return { name: '', ru: '', min: '0', max: '', required: false, sortOrder: '', active: true, options: [newOption()] };
+  if (!group) return { name: '', ru: '', min: '0', max: '', required: false, sortOrder: '', active: true, displayMode: 'dialog', options: [newOption()] };
   return {
     name: group.name,
     ru: group.name_i18n?.ru ?? '',
@@ -47,6 +51,7 @@ function draftFrom(group: ModifierGroup | null): GroupDraft {
     required: group.is_required,
     sortOrder: String(group.sort_order),
     active: group.is_active,
+    displayMode: group.display_mode ?? 'dialog',
     options: group.modifiers.map((modifier) => ({
       key: `option-${++counter}`,
       id: modifier.id,
@@ -54,12 +59,13 @@ function draftFrom(group: ModifierGroup | null): GroupDraft {
       ru: modifier.name_i18n?.ru ?? '',
       price: Number(modifier.price_delta) === 0 ? '' : toInputText(modifier.price_delta),
       maxQuantity: String(modifier.max_quantity),
+      isDefault: modifier.is_default ?? false,
       active: modifier.is_active,
     })),
   };
 }
 
-const KNOWN_FIELDS = /^(name|name_i18n(\..*)?|min_select|max_select|sort_order|modifiers\.\d+\.(name|price_delta|max_quantity))$/;
+const KNOWN_FIELDS = /^(name|name_i18n(\..*)?|min_select|max_select|sort_order|display_mode|modifiers\.\d+\.(name|price_delta|max_quantity|is_default))$/;
 
 // /menu/groups/new and /menu/groups/{id}: a group ("Sous tanlang") with its options and their price deltas
 export function ModifierGroupEditor({ id }: { id: string }) {
@@ -131,7 +137,15 @@ function GroupForm({ group, canManage }: { group: ModifierGroup | null; canManag
     setDraft((current) => ({ ...current, ...changes }));
     setSaved(false);
   };
-  const patchOption = (index: number, changes: Partial<OptionDraft>) => patch({ options: draft.options.map((option, i) => (i === index ? { ...option, ...changes } : option)) });
+  // A group that takes one option has at most one default: choosing a new one clears the old one
+  const singlePick = draft.displayMode === 'size' || parseDecimal(draft.max) === 1;
+  const patchOption = (index: number, changes: Partial<OptionDraft>) =>
+    patch({
+      options: draft.options.map((option, i) => {
+        if (i === index) return { ...option, ...changes };
+        return changes.isDefault && singlePick ? { ...option, isDefault: false } : option;
+      }),
+    });
 
   const check = (): Record<string, string> => {
     const found: Record<string, string> = {};
@@ -139,6 +153,7 @@ function GroupForm({ group, canManage }: { group: ModifierGroup | null; canManag
     for (const [field, text] of [['min_select', draft.min], ['max_select', draft.max], ['sort_order', draft.sortOrder]] as const) {
       if (text.trim() !== '' && parseDecimal(text) === null) found[field] = t('menu_err_number');
     }
+    if (draft.displayMode === 'size' && parseDecimal(draft.max) !== 1) found.display_mode = t('qs_mod_sizeNeedsOne');
     draft.options.forEach((option, index) => {
       if (option.name.trim() === '') found[`modifiers.${index}.name`] = t('menu_err_required');
       if (option.price.trim() !== '' && parseDecimal(option.price) === null) found[`modifiers.${index}.price_delta`] = t('menu_err_number');
@@ -163,12 +178,14 @@ function GroupForm({ group, canManage }: { group: ModifierGroup | null; canManag
       is_required: draft.required,
       sort_order: parseDecimal(draft.sortOrder) ?? 0,
       is_active: draft.active,
+      display_mode: draft.displayMode,
       modifiers: draft.options.map((option, index) => ({
         ...(option.id !== undefined ? { id: option.id } : {}),
         name: option.name.trim(),
         name_i18n: option.ru.trim() === '' ? null : { ru: option.ru.trim() },
         price_delta: parseDecimal(option.price) ?? 0,
         max_quantity: parseDecimal(option.maxQuantity) ?? 1,
+        is_default: option.isDefault,
         sort_order: index,
         is_active: option.active,
       })),
@@ -225,6 +242,25 @@ function GroupForm({ group, canManage }: { group: ModifierGroup | null; canManag
         </Card>
 
         <Card className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-headline font-bold text-fg">{t('qs_mod_section')}</h2>
+            <p className="text-footnote text-fg-muted">{t('qs_mod_hint')}</p>
+          </div>
+          <Field label={t('qs_mod_display')} hint={t('qs_mod_displayHint')} error={errors.display_mode} className="sm:max-w-sm">
+            {(control) => (
+              <select {...control} className={fieldClass} value={draft.displayMode} onChange={(event) => patch({ displayMode: event.target.value as ModifierDisplayMode })}>
+                {MODIFIER_DISPLAY_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`qs_mod_${mode}`)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <p className="text-footnote text-fg-muted">{t('qs_mod_module')}</p>
+        </Card>
+
+        <Card className="flex flex-col gap-4">
           <h2 className="text-headline font-bold text-fg">{t('menu_section_options')}</h2>
           {draft.options.map((option, index) => (
             <div key={option.key} role="group" aria-label={t('menu_option_n', { n: index + 1 })} className="flex flex-col gap-3 rounded-card border border-line p-3">
@@ -246,9 +282,18 @@ function GroupForm({ group, canManage }: { group: ModifierGroup | null; canManag
                   {(control) => <input {...control} className={fieldClass} inputMode="numeric" value={option.maxQuantity} onChange={(event) => patchOption(index, { maxQuantity: event.target.value })} />}
                 </Field>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={option.active} onChange={(active) => patchOption(index, { active })} label={`${t('menu_is_active')}: ${option.name || index + 1}`} />
-                <span className="text-body text-fg">{t('menu_is_active')}</span>
+              <div className="flex flex-wrap gap-x-8 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <Switch checked={option.active} onChange={(active) => patchOption(index, { active })} label={`${t('menu_is_active')}: ${option.name || index + 1}`} />
+                  <span className="text-body text-fg">{t('menu_is_active')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={option.isDefault} onChange={(isDefault) => patchOption(index, { isDefault })} label={`${t('qs_mod_default')}: ${option.name || index + 1}`} />
+                  <span className="text-body text-fg">
+                    {t('qs_mod_default')}
+                    <span className="block text-footnote text-fg-muted">{t('qs_mod_defaultHint')}</span>
+                  </span>
+                </div>
               </div>
             </div>
           ))}

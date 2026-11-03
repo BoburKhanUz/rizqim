@@ -262,6 +262,7 @@ class CreateOrderAction
             $batchNeeds = $this->batchNeeds($lines, $variants, $branch);
 
             $modifierRules = $this->lines->modifierRules($variants->map(fn ($variant) => (int) $variant->product_id)->unique()->values()->all());
+            $comboBlocked = null;
 
             foreach ($lines as $line) {
                 $variant = $variants->get($line['variant_uuid']);
@@ -273,6 +274,17 @@ class CreateOrderAction
                     $stopList[StopListSubject::MODIFIER->value],
                     $line['index'],
                 );
+
+                // P6-31: a combo's picks checked (required slots, options of the slot, limits, availability) and priced
+                $combo = null;
+                $combos = app(\App\Domain\Pos\Menu\Combos::class);
+                if (isset($line['combo']) || $combos->hasCombos((int) $storeId)) {
+                    $comboBlocked ??= $combos->blockedFor($branch, $stopList);
+                    $combo = $combos->resolve($variant, (array) ($line['combo'] ?? []), $comboBlocked, $channelMenu, (int) $line['index']);
+                }
+                if ($combo !== null) {
+                    $modifiers['total'] = $modifiers['total']->plus($combo['delta']);
+                }
 
                 $price = $channelMenu->priceOf($variant);
                 $lineTotal = $this->lines->lineTotal($price, $line['quantity'], $modifiers['total'], $variant->unit);
@@ -294,6 +306,7 @@ class CreateOrderAction
                     'batch_id' => $batch?->id,
                     'batch_quantity' => $batch ? $line['quantity']->times(MenuAvailability::consumptionOf($variant))->toString() : null,
                     'set_parts' => app(\App\Domain\Pos\Menu\MealSets::class)->partsFor($variant), // P6-15: a kompleks keeps its parts
+                    'combo_parts' => $combo['parts'] ?? null, // P6-31: a combo keeps its parts as sold
                     'variant_model' => $variant, // Temporary reference for stock deduction
                 ];
             }
@@ -356,9 +369,15 @@ class CreateOrderAction
             $guests = isset($payload['guests_count']) ? (int) $payload['guests_count'] : null;
             $diningFees = $this->diningFees->calculate((int) $storeId, $branch->id, $channel, Money::max(Money::zero(), $totalAmount->minus($discount)), $guests);
 
+            // P6-34: the branch's packaging lines for a pickup or delivery (module packaging), never discounted; a pickup
+            // for later (module scheduled_pickup) is checked and gets its kitchen time
+            $packaging = app(\App\Domain\Pos\Takeaway\PackagingRules::class)->forCheckout($branch, (string) $payload['type'], $orderItemsData);
+            $pickup = app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->forCheckout($branch, (string) $payload['type'], $payload['pickup_at'] ?? null, $orderItemsData);
+
             $totalPrice = Money::max(Money::zero(), $totalAmount->minus($discount)->plus($deliveryFee))
                 ->plus($diningFees['service_charge'])
-                ->plus($diningFees['place_fee']);
+                ->plus($diningFees['place_fee'])
+                ->plus($packaging['amount']);
 
             // Same base and rounding the ledger settles on, so the stored snapshot is exactly what gets charged.
             // P4-21: the rate of the order's channel (courier, own delivery, pickup; docs/BILLING.md "Komissiya"),
@@ -419,6 +438,11 @@ class CreateOrderAction
                 'delivery_zone_name' => $deliveryQuote?->zone->name,
                 'delivery_zone_price' => $deliveryQuote?->zone->deliveryPrice()->toString(),
                 'delivery_min_order_amount' => $deliveryQuote?->minOrderAmount->toString(),
+                // P6-34: packaging lines and the pickup time
+                'packaging_amount' => $packaging['amount']->toString(),
+                'packaging_lines' => $packaging['lines'] !== [] ? $packaging['lines'] : null,
+                'pickup_at' => $pickup['pickup_at'] ?? null,
+                'kitchen_fire_at' => $pickup['kitchen_fire_at'] ?? null,
             ]);
 
             // Create initial payment log for consistent transaction records
@@ -431,7 +455,7 @@ class CreateOrderAction
 
             // 3. Create Order Items & Deduct Stock
             foreach ($orderItemsData as $data) {
-                OrderItem::create([
+                $created = OrderItem::create([
                     'order_id' => $order->id,
                     'product_variant_id' => $data['product_variant_id'],
                     'product_name' => $data['product_name'],
@@ -445,7 +469,12 @@ class CreateOrderAction
                     'batch_id' => $data['batch_id'],
                     'batch_quantity' => $data['batch_quantity'],
                     'set_parts' => $data['set_parts'],
+                    'combo_parts' => $data['combo_parts'],
                 ]);
+                // P6-31: one kitchen line per combo part, each to its own station
+                if ($data['combo_parts']) {
+                    app(\App\Domain\Pos\Menu\ComboKitchen::class)->createParts($created, $data['combo_parts']);
+                }
                 
                 // Deduct stock (conditional: never below zero, even if the row changed after it was read)
                 $deducted = ProductVariant::whereKey($data['product_variant_id'])

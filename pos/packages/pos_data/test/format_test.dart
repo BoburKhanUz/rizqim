@@ -88,6 +88,14 @@ void main() {
         'weight_later',
         'table_service',
         'service_charge_rules',
+        // Wave 3
+        'combo',
+        'quick_modifiers',
+        'labels',
+        'kds_expo',
+        'packaging',
+        'scheduled_pickup',
+        'round_the_clock',
       ]);
       expect(PosModule.fromWire('kds'), PosModule.kds);
       expect(PosModule.fromWire('nope'), isNull);

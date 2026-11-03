@@ -7,27 +7,33 @@ part of 'data73.dart';
 // **************************************************************************
 
 Data73 _$Data73FromJson(Map<String, dynamic> json) => Data73(
-  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
   type: json['type'] as String,
-  amount: json['amount'] as String,
-  balanceBefore: json['balance_before'] as String,
-  balanceAfter: json['balance_after'] as String,
-  order: json['order'] == null
+  name: json['name'] as String,
+  platform: json['platform'] as String?,
+  appVersion: json['app_version'] as String?,
+  storeId: (json['store_id'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  user: json['user'] == null
       ? null
-      : Order2.fromJson(json['order'] as Map<String, dynamic>),
-  referenceId: json['reference_id'] as String?,
-  notes: json['notes'] as String?,
-  createdAt: json['created_at'] as String,
+      : User12.fromJson(json['user'] as Map<String, dynamic>),
+  hasPushToken: json['has_push_token'] as bool,
+  lastSeenAt: json['last_seen_at'] as String?,
+  revokedAt: json['revoked_at'] as String?,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data73ToJson(Data73 instance) => <String, dynamic>{
-  'id': instance.id,
+  'uuid': instance.uuid,
   'type': instance.type,
-  'amount': instance.amount,
-  'balance_before': instance.balanceBefore,
-  'balance_after': instance.balanceAfter,
-  'order': instance.order,
-  'reference_id': instance.referenceId,
-  'notes': instance.notes,
+  'name': instance.name,
+  'platform': instance.platform,
+  'app_version': instance.appVersion,
+  'store_id': instance.storeId,
+  'branch_id': instance.branchId,
+  'user': instance.user,
+  'has_push_token': instance.hasPushToken,
+  'last_seen_at': instance.lastSeenAt,
+  'revoked_at': instance.revokedAt,
   'created_at': instance.createdAt,
 };

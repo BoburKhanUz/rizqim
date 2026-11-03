@@ -299,6 +299,7 @@ class PosShiftSales {
     this.serviceCharge = PosMoney.zero,
     this.placeFee = PosMoney.zero,
     this.averageBill = PosMoney.zero,
+    this.packaging = PosMoney.zero,
   });
 
   factory PosShiftSales.fromJson(PosJson j) => PosShiftSales(
@@ -314,6 +315,7 @@ class PosShiftSales {
     serviceCharge: j.money('service_charge'),
     placeFee: j.money('place_fee'),
     averageBill: j.money('average_bill'),
+    packaging: j.money('packaging'),
   );
 
   /// To'langan schyotlar soni.
@@ -333,6 +335,9 @@ class PosShiftSales {
   final PosMoney serviceCharge;
   final PosMoney placeFee;
   final PosMoney averageBill;
+
+  /// P6-34: to'langan schyotlardagi qadoq (o'z chek qatorlari; [billsTotal] ichida).
+  final PosMoney packaging;
 }
 
 /// Ofitsiant bo'yicha (`by_waiter`): ofitsiantsiz buyurtmalar — [waiterId] `null`.

@@ -24,6 +24,9 @@ class PosSetupServiceProvider extends ServiceProvider
         // P6-11: format profile and modules
         $this->app->scoped(PosModules::class);
         $this->app->tag([PosFormatBootstrapSection::class], PosBootstrap::CONTRIBUTORS);
+
+        // P6-32: the branch's sticker and label settings (the `labels` module)
+        $this->app->tag([\App\Domain\Pos\Labels\LabelsBootstrapSection::class], PosBootstrap::CONTRIBUTORS);
     }
 
     public function boot(): void

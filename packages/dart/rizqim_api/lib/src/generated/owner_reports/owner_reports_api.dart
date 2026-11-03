@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/get_v1_owner_reports_kitchen_times_response.dart';
 import '../models/get_v1_owner_reports_sales_response.dart';
 import '../models/get_v1_owner_reports_top_products_response.dart';
 
@@ -46,6 +47,32 @@ abstract class OwnerReportsApi {
     @Query('sort') String? sort,
   });
 
+  /// Kitchen prep time report (tayyorlash vaqti).
+  ///
+  /// P6-33 (KDS v2): how long the kitchen took for the lines that reached it in the branch's business days `from`..`to`.
+  /// (YYYY-MM-DD, default today; at most 31 days; the branch's day start, the store's time zone): `count`, `median_seconds`,.
+  /// `p90_seconds`, and against the time targets `with_target`, `over_target`, `over_target_share` (percent, a string),.
+  /// for the whole branch (`summary`), per station, per dish (busiest first) and per local hour (0–23, all 24 rows).
+  /// A line counts from when it reached the kitchen (`sent_at`; an online line: the order's acceptance) to its.
+  /// `ready_at` bump; voided lines never. `orders`: each order's first line in to its kitchen done (the expo's.
+  /// assembly, else its last line ready). `expo`: the expo station's assembly time (last line ready → assembled), null.
+  /// without an expo station. `station_id` narrows the lines (not `orders`). Needs reports.view and the module `kds`.
+  ///
+  /// [branchId] - Required unless the caller is bound to a branch.
+  ///
+  /// [from] - First business day, YYYY-MM-DD (default: today).
+  ///
+  /// [to] - Last business day, YYYY-MM-DD (default: from; at most 31 days).
+  ///
+  /// [stationId] - Only this station's lines (a station of the branch).
+  @GET('/v1/owner/reports/kitchen-times')
+  Future<GetV1OwnerReportsKitchenTimesResponse> prepTimeReportShow({
+    @Query('branch_id') int? branchId,
+    @Query('from') String? from,
+    @Query('to') String? to,
+    @Query('station_id') int? stationId,
+  });
+
   /// Sales for a period.
   ///
   /// `from` and `to` (YYYY-MM-DD, both included, at most 366 days) are calendar days of the store's timezone; an.
@@ -72,6 +99,9 @@ abstract class OwnerReportsApi {
   ///
   /// Among the delivered orders, by the name the item had when sold: `sort` quantity (default) or revenue, `limit`.
   /// 1–50 (default 10). `quantity` is a whole number for pieces and a decimal for kg / l.
+  ///
+  /// P6-31: a combo is counted as the combo; `combo_parts` counts the dishes sold inside combos (`in_combos`), on their.
+  /// own lines (`alone`) and both (`total`): "lavash 120 = 80 + 40". Empty without combos.
   ///
   /// [from] - Birinchi kun (YYYY-MM-DD).
   ///

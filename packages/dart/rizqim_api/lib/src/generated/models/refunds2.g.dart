@@ -15,7 +15,7 @@ Refunds2 _$Refunds2FromJson(Map<String, dynamic> json) => Refunds2(
   method: json['method'] as String,
   reason: json['reason'] as String,
   approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal13.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal14.fromJson(json['fiscal'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 

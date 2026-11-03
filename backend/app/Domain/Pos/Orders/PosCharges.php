@@ -14,11 +14,15 @@ use App\Support\Money;
  *
  * P6-22: which rule set the service charge percent (`serviceChargeRule`), whether the place fee line is the
  * restaurant cover (`placeFeeKind` cover) and the notice the bill prints (`serviceChargeNotice`).
+ *
+ * P6-34: the packaging lines (`packagingLines`, each with its own MXIK and price) and their total (`packaging`), added
+ * to the total after the discount: total = ... + min spend top-up + packaging.
  */
 final class PosCharges
 {
     /**
      * @param  list<PosCharge>  $waived
+     * @param  list<array<string, mixed>>  $packagingLines  P6-34: App\Domain\Pos\Takeaway\PackagingRules::LINE
      */
     public function __construct(
         public readonly Money $itemsSubtotal,
@@ -38,7 +42,15 @@ final class PosCharges
         public readonly ServiceChargeRule $serviceChargeRule = ServiceChargeRule::NONE,
         public readonly string $placeFeeKind = self::PLACE_FEE,
         public readonly ?string $serviceChargeNotice = null,
+        public readonly ?Money $packaging = null,
+        public readonly array $packagingLines = [],
     ) {}
+
+    /** P6-34: the packaging lines' total (a charge after the discount, PackagingRules). */
+    public function packagingAmount(): Money
+    {
+        return $this->packaging ?? Money::zero();
+    }
 
     /** P6-22: the place fee line is the branch's "joy narxi"... */
     public const PLACE_FEE = 'place_fee';
@@ -64,7 +76,7 @@ final class PosCharges
     }
 
     /**
-     * @return array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null}
+     * @return array{items_subtotal: string, discount: string, service_charge_percent: string, service_charge_amount: string, place_fee_amount: string, room_fee_amount: string, room_tariff_id: int|null, business_date: string|null, day_type: string|null, min_spend: string, min_spend_topup_amount: string, waived: list<string>, total: string, service_charge_rule: string, place_fee_kind: string, service_charge_notice: string|null, packaging_amount: string, packaging_lines: list<array<string, mixed>>}
      */
     public function toArray(): array
     {
@@ -86,6 +98,9 @@ final class PosCharges
             'service_charge_rule' => $this->serviceChargeRule->value,
             'place_fee_kind' => $this->placeFeeKind,
             'service_charge_notice' => $this->serviceChargeNotice,
+            // P6-34: the packaging lines (PackagingRules::LINE) and their total
+            'packaging_amount' => $this->packagingAmount()->toString(),
+            'packaging_lines' => $this->packagingLines,
         ];
     }
 }

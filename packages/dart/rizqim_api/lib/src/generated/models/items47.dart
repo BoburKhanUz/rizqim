@@ -4,31 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'fire_mode.dart';
+import 'combo3.dart';
+
 part 'items47.g.dart';
 
 @JsonSerializable()
 class Items47 {
   const Items47({
-    required this.productId,
-    required this.productName,
-    required this.unit,
-    required this.reason,
-    required this.reasonLabel,
+    required this.variantId,
     required this.quantity,
+    this.modifiers,
+    this.note,
+    this.seatNo,
+    this.fireMode,
+    this.dueAt,
+    this.courseNo,
+    this.awaitingWeight,
+    this.combo,
   });
 
   factory Items47.fromJson(Map<String, Object?> json) =>
       _$Items47FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  final String unit;
-  final String reason;
-  @JsonKey(name: 'reason_label')
-  final String reasonLabel;
+  @JsonKey(name: 'variant_id')
+  final String variantId;
   final num quantity;
+  final List<String>? modifiers;
+  final String? note;
+  @JsonKey(name: 'seat_no')
+  final int? seatNo;
+  @JsonKey(name: 'fire_mode')
+  final FireMode? fireMode;
+  @JsonKey(name: 'due_at')
+  final DateTime? dueAt;
+  @JsonKey(name: 'course_no')
+  final int? courseNo;
+
+  /// P6-21
+  @JsonKey(name: 'awaiting_weight')
+  final bool? awaitingWeight;
+
+  /// P6-25
+  final List<Combo3>? combo;
 
   Map<String, Object?> toJson() => _$Items47ToJson(this);
 }

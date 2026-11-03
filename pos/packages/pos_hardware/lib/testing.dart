@@ -2,5 +2,6 @@
 library;
 
 export 'src/escpos/esc_pos_decoder.dart';
+export 'src/tspl/tspl_decoder.dart';
 export 'src/testing/fake_printer.dart';
 export 'src/testing/lan_printer_emulator.dart';

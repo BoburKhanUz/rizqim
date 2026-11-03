@@ -4,39 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'by_method12.dart';
+import 'by_staff8.dart';
+import 'corrections15.dart';
+
 part 'summary7.g.dart';
 
 @JsonSerializable()
 class Summary7 {
   const Summary7({
-    required this.total,
-    required this.waiting,
-    required this.seated,
-    required this.canceled,
-    required this.noShow,
-    required this.partySizeTotal,
-    required this.avgQuotedWaitMinutes,
-    required this.avgSeatedWaitMinutes,
-    required this.longestWaitingMinutes,
+    required this.count,
+    required this.amount,
+    required this.byMethod,
+    required this.personal,
+    required this.pool,
+    required this.unassigned,
+    required this.byStaff,
+    required this.corrections,
   });
 
   factory Summary7.fromJson(Map<String, Object?> json) =>
       _$Summary7FromJson(json);
 
-  final int total;
-  final int waiting;
-  final int seated;
-  final int canceled;
-  @JsonKey(name: 'no_show')
-  final int noShow;
-  @JsonKey(name: 'party_size_total')
-  final int partySizeTotal;
-  @JsonKey(name: 'avg_quoted_wait_minutes')
-  final int? avgQuotedWaitMinutes;
-  @JsonKey(name: 'avg_seated_wait_minutes')
-  final int? avgSeatedWaitMinutes;
-  @JsonKey(name: 'longest_waiting_minutes')
-  final int? longestWaitingMinutes;
+  final int count;
+  final String amount;
+  @JsonKey(name: 'by_method')
+  final List<ByMethod12> byMethod;
+  final String personal;
+  final String pool;
+  final String unassigned;
+  @JsonKey(name: 'by_staff')
+  final List<ByStaff8> byStaff;
+  final Corrections15 corrections;
 
   Map<String, Object?> toJson() => _$Summary7ToJson(this);
 }

@@ -1,0 +1,9 @@
+label 40x30 mm (25 x 8)
+2xB  |#~5~7~              12:15|
+     |^^^^^^                   |
+B    |Latte                    |
+     |0,4 l                    |
+     |+ Sut 0%, Vanil sirop    |
+     |                         |
+     |                         |
+B    |Olib ketish              |

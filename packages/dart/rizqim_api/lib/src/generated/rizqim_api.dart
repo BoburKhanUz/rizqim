@@ -26,10 +26,13 @@ import 'owner_batches/owner_batches_api.dart';
 import 'owner_billing/owner_billing_api.dart';
 import 'owner_branch_availability/owner_branch_availability_api.dart';
 import 'owner_branches/owner_branches_api.dart';
+import 'owner_packaging/owner_packaging_api.dart';
 import 'owner_fiscal/owner_fiscal_api.dart';
 import 'owner_table_booking/owner_table_booking_api.dart';
+import 'owner_stickers_and_labels/owner_stickers_and_labels_api.dart';
 import 'owner_pos_settings/owner_pos_settings_api.dart';
 import 'owner_catalog/owner_catalog_api.dart';
+import 'owner_combos/owner_combos_api.dart';
 import 'owner_daily_menu/owner_daily_menu_api.dart';
 import 'owner_delivery_zones/owner_delivery_zones_api.dart';
 import 'owner_devices/owner_devices_api.dart';
@@ -112,10 +115,13 @@ class RizqimApi {
   OwnerBillingApi? _ownerBilling;
   OwnerBranchAvailabilityApi? _ownerBranchAvailability;
   OwnerBranchesApi? _ownerBranches;
+  OwnerPackagingApi? _ownerPackaging;
   OwnerFiscalApi? _ownerFiscal;
   OwnerTableBookingApi? _ownerTableBooking;
+  OwnerStickersAndLabelsApi? _ownerStickersAndLabels;
   OwnerPosSettingsApi? _ownerPosSettings;
   OwnerCatalogApi? _ownerCatalog;
+  OwnerCombosApi? _ownerCombos;
   OwnerDailyMenuApi? _ownerDailyMenu;
   OwnerDeliveryZonesApi? _ownerDeliveryZones;
   OwnerDevicesApi? _ownerDevices;
@@ -222,17 +228,29 @@ class RizqimApi {
   OwnerBranchesApi get ownerBranches =>
       _ownerBranches ??= OwnerBranchesApi(_dio, baseUrl: _baseUrl);
 
+  OwnerPackagingApi get ownerPackaging =>
+      _ownerPackaging ??= OwnerPackagingApi(_dio, baseUrl: _baseUrl);
+
   OwnerFiscalApi get ownerFiscal =>
       _ownerFiscal ??= OwnerFiscalApi(_dio, baseUrl: _baseUrl);
 
   OwnerTableBookingApi get ownerTableBooking =>
       _ownerTableBooking ??= OwnerTableBookingApi(_dio, baseUrl: _baseUrl);
 
+  OwnerStickersAndLabelsApi get ownerStickersAndLabels =>
+      _ownerStickersAndLabels ??= OwnerStickersAndLabelsApi(
+        _dio,
+        baseUrl: _baseUrl,
+      );
+
   OwnerPosSettingsApi get ownerPosSettings =>
       _ownerPosSettings ??= OwnerPosSettingsApi(_dio, baseUrl: _baseUrl);
 
   OwnerCatalogApi get ownerCatalog =>
       _ownerCatalog ??= OwnerCatalogApi(_dio, baseUrl: _baseUrl);
+
+  OwnerCombosApi get ownerCombos =>
+      _ownerCombos ??= OwnerCombosApi(_dio, baseUrl: _baseUrl);
 
   OwnerDailyMenuApi get ownerDailyMenu =>
       _ownerDailyMenu ??= OwnerDailyMenuApi(_dio, baseUrl: _baseUrl);

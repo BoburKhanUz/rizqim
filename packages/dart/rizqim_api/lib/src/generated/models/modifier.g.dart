@@ -28,6 +28,7 @@ Modifier _$ModifierFromJson(Map<String, dynamic> json) => Modifier(
   deletedAt: json['deleted_at'] == null
       ? null
       : DateTime.parse(json['deleted_at'] as String),
+  isDefault: json['is_default'] as bool,
   group: json['group'] == null
       ? null
       : ModifierGroup.fromJson(json['group'] as Map<String, dynamic>),
@@ -50,6 +51,7 @@ Map<String, dynamic> _$ModifierToJson(Modifier instance) => <String, dynamic>{
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
   'deleted_at': instance.deletedAt?.toIso8601String(),
+  'is_default': instance.isDefault,
   'group': instance.group,
   'variant': instance.variant,
 };

@@ -48,7 +48,8 @@ class PosStationsPrintersApiTest extends TestCase
 
         $list = $this->as($this->owner, 'GET', "/api/v1/owner/kitchen-stations?branch_id={$this->branch->id}")->assertOk();
         $this->assertSame(['Osh va qozon', 'Mangal'], array_column($list->json('data.stations'), 'name'));
-        $this->assertSame(['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other'], array_column($list->json('data.kinds'), 'value'));
+        // P6-33: the universal kinds of KDS v2 after the choyxona's
+        $this->assertSame(['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other', 'grill', 'fryer', 'drinks', 'barista', 'expo'], array_column($list->json('data.kinds'), 'value'));
         $this->assertCount(3, $this->as($this->owner, 'GET', '/api/v1/owner/kitchen-stations')->json('data.stations'));
 
         $this->as($this->owner, 'PATCH', "/api/v1/owner/kitchen-stations/{$id}", ['name' => 'Osh', 'is_active' => false])
@@ -201,6 +202,19 @@ class PosStationsPrintersApiTest extends TestCase
         $this->as($this->owner, 'GET', "/api/v1/owner/printers?branch_id={$this->branch->id}")->assertOk()->assertJsonCount(1, 'data');
         $this->as($this->owner, 'DELETE', "/api/v1/owner/printers/{$id}")->assertOk();
         $this->assertSame(0, Printer::count());
+    }
+
+    public function test_a_lan_printer_on_a_high_port_is_saved(): void
+    {
+        // P6-39: ports above 32767 (a print server, the label printer emulator) used to overflow the column (500)
+        $id = $this->as($this->owner, 'POST', '/api/v1/owner/printers', [
+            'branch_id' => $this->branch->id, 'name' => 'Yorliq printeri', 'purpose' => 'label', 'connection' => 'lan',
+            'address' => '192.168.1.70', 'port' => 65535,
+        ])->assertCreated()->assertJsonPath('data.port', 65535)->json('data.id');
+
+        $this->as($this->owner, 'PATCH', "/api/v1/owner/printers/{$id}", ['port' => 33235])
+            ->assertOk()->assertJsonPath('data.port', 33235);
+        $this->assertSame(33235, Printer::findOrFail($id)->port);
     }
 
     public function test_connection_rules_are_checked(): void

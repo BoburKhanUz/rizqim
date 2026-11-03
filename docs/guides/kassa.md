@@ -283,6 +283,24 @@ taomlar guruhi (choy → salat va six → osh → yana choy). Har bosqichda raqa
 Kg taomda variant yorlig'iga qarang: "kg (guruch)" — guruch vazni, "kg (tayyor)" — tayyor osh vazni. Bu schyotda va chekda ham
 yoziladi.
 
+### Kombo, tez tanlov, qadoq va olib ketish vaqti (fast food, qahvaxona)
+
+Fast food va qahvaxona formatida qo'shimcha imkoniyatlar bor; hammasi [fast-food.md](fast-food.md) da.
+
+- **Kombo** (lavash + ichimlik + sous bitta narxda): kombo tugmasini bosing, oynada standart tanlovlar belgilangan turadi — **Qo'shish**
+  bilan savatga tushadi. Chekda bitta qator, tagida tarkibi narxsiz ([4-bo'lim](fast-food.md#4-kassada-kombo)).
+- **Hajm bir bosishda**: tugma yonidagi chiplar yoki hajm tanlagichi ([5-bo'lim](fast-food.md#5-tez-modifikatorlar-hajm-bir-bosishda)).
+- **Stiker va paket yorlig'i**: ichimlik stakaniga va olib ketish paketiga chiqadi; chiqmasa to'lov baribir o'tadi
+  ([6-bo'lim](fast-food.md#6-stiker-va-yorliq-printeri)).
+- **Qadoq**: olib ketish buyurtmasida alohida qator; mijoz o'z paketini olib kelsa **Olib tashlash** (sabab bilan), xato bo'lsa
+  **Qaytarish** ([7-bo'lim](fast-food.md#7-qadoq-qoidalari)). Internetsiz qatorlar ko'rinadi, olib tashlash o'chiq.
+- **Olib ketish vaqti** (mijoz "18:30 da olaman" desa): olib ketish buyurtmasiga vaqt tanlanadi; talonda **Olib ketish: 13:30**
+  ([8-bo'lim](fast-food.md#8-oldindan-buyurtma-olib-ketish-vaqti)). Bu bronning **Oldindan buyurtma** (osh, qozon kabob) bo'limidan
+  boshqa narsa.
+
+<!-- TEKSHIRILMAGAN: kassa ilovasidagi bu tugmalar va oynalar hozir tayyorlanmoqda (stage B, M1); nomlari ilova tayyor bo'lgach
+tekshirilsin. -->
+
 ### Uzoq bosish: izoh, mehmon, ushlab turish
 
 Taomni **uzoq bosing** yoki bosqichdagi yangi qatorni bosing. Oyna ochiladi:
@@ -879,6 +897,10 @@ Tugmalar:
 - Qog'oz eni — 58 yoki 80 mm. Chek tor yoki keng chiqsa o'zgartiring. Chek qog'ozi kamida 55 mm bo'lsin.
 
 Chop etishni kassaning o'zi bajaradi (LAN yoki USB orqali), server emas: internet uzilsa ham marka chiqaveradi.
+
+**Yorliq printeri** (stiker va paket yorlig'i, fast food): egasi uni **Vazifasi: Yorliq** bilan qo'shadi, kassa unga stikerni o'zi
+chiqaradi. **Sinov chop etish** bilan tekshiring; stiker chiqmasa to'lov baribir o'tadi, ish navbatda turadi va **Qayta yuborish**
+bilan yuboriladi ([fast-food.md](fast-food.md#6-stiker-va-yorliq-printeri)).
 
 **Ovoz:** **Yangi onlayn buyurtma ovozi** — yoqish/o'chirish, **Sinab eshitish**.
 **Qurilma:** nomi, filial, terminal raqami, kirgan xodim va shu kassa onlayn buyurtma markasini chiqarishi yoki chiqarmasligi.

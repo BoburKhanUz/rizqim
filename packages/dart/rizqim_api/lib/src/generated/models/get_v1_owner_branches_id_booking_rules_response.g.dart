@@ -11,7 +11,7 @@ _$GetV1OwnerBranchesIdBookingRulesResponseFromJson(Map<String, dynamic> json) =>
     GetV1OwnerBranchesIdBookingRulesResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data46.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data53.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1OwnerBranchesIdBookingRulesResponseToJson(

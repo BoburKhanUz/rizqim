@@ -13,7 +13,7 @@ Data159 _$Data159FromJson(Map<String, dynamic> json) => Data159(
   roleLabel: json['role_label'] as String,
   branch: json['branch'] == null
       ? null
-      : Branch12.fromJson(json['branch'] as Map<String, dynamic>),
+      : Branch9.fromJson(json['branch'] as Map<String, dynamic>),
   courierType: json['courier_type'] as String?,
   phone: json['phone'] as String?,
   loginPhoneEnabled: json['login_phone_enabled'] as bool,

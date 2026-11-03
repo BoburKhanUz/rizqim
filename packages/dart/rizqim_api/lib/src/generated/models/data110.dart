@@ -4,45 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'locks.dart';
-import 'module_rows.dart';
-import 'profiles.dart';
-import 'template.dart';
+import 'kinds.dart';
+import 'stations4.dart';
 
 part 'data110.g.dart';
 
 @JsonSerializable()
 class Data110 {
-  const Data110({
-    required this.branchId,
-    required this.profile,
-    required this.profileLabel,
-    required this.mode,
-    required this.firstScreen,
-    required this.modules,
-    required this.locks,
-    required this.moduleRows,
-    required this.profiles,
-    required this.template,
-  });
+  const Data110({required this.kinds, required this.stations});
 
   factory Data110.fromJson(Map<String, Object?> json) =>
       _$Data110FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String profile;
-  @JsonKey(name: 'profile_label')
-  final String profileLabel;
-  final String mode;
-  @JsonKey(name: 'first_screen')
-  final String firstScreen;
-  final List<String> modules;
-  final Locks locks;
-  @JsonKey(name: 'module_rows')
-  final List<ModuleRows> moduleRows;
-  final List<Profiles> profiles;
-  final Template template;
+  final List<Kinds> kinds;
+  final List<Stations4> stations;
 
   Map<String, Object?> toJson() => _$Data110ToJson(this);
 }

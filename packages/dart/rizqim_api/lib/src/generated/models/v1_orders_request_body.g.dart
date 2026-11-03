@@ -23,6 +23,9 @@ V1OrdersRequestBody _$V1OrdersRequestBodyFromJson(Map<String, dynamic> json) =>
       longitude: json['longitude'] as num?,
       notes: json['notes'] as String?,
       promoCode: json['promo_code'] as String?,
+      pickupAt: json['pickup_at'] == null
+          ? null
+          : DateTime.parse(json['pickup_at'] as String),
     );
 
 Map<String, dynamic> _$V1OrdersRequestBodyToJson(
@@ -39,4 +42,5 @@ Map<String, dynamic> _$V1OrdersRequestBodyToJson(
   'longitude': instance.longitude,
   'notes': instance.notes,
   'promo_code': instance.promoCode,
+  'pickup_at': instance.pickupAt?.toIso8601String(),
 };

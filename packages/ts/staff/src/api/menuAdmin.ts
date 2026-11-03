@@ -18,27 +18,39 @@ export async function fetchMenuBranches(api: StaffApi): Promise<MenuBranch[]> {
 
 // --- Modifier groups ("Sous tanlang", "Qo'shimchalar") -------------------------------------------------------------------
 
-export type ModifierGroup = OkData<'modifierGroup.index'>[number];
-export type ModifierOption = ModifierGroup['modifiers'][number];
+// P6-32 (quick_modifiers): where a group's options are shown on the till's tile — `dialog` (the modifier window, as before),
+// `inline` (chips beside the tile) or `size` (a one-tap size selector, a group that takes exactly one option) — and the option
+// the till preselects (`is_default`). Hints only: an order always carries the options chosen. The spec types `display_mode` as a
+// plain string, so the group is narrowed to the known values here (an older server sends neither: a dialog, nothing preselected).
+export const MODIFIER_DISPLAY_MODES = ['dialog', 'inline', 'size'] as const;
+export type ModifierDisplayMode = (typeof MODIFIER_DISPLAY_MODES)[number];
+
+export type ModifierOption = OkData<'modifierGroup.index'>[number]['modifiers'][number] & { is_default?: boolean };
+export type ModifierGroup = Omit<OkData<'modifierGroup.index'>[number], 'modifiers' | 'display_mode'> & { display_mode?: ModifierDisplayMode; modifiers: ModifierOption[] };
+
+type GeneratedGroupInput = JsonRequest<'modifierGroup.store'>;
+// One modifier of it: with `id` it updates that modifier; without, it creates one; one left out of the list is deleted
+// (order history keeps its snapshot). `price_delta`: so'm, per piece (once per line for items sold by weight). `is_default`
+// left out keeps what is saved.
+export type ModifierOptionInput = NonNullable<GeneratedGroupInput['modifiers']>[number] & { is_default?: boolean | null };
 
 // The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id} (ModifierGroupRequest). `max_select` null:
-// any number. `modifiers` present replaces the list (left out on an update: the modifiers stay).
-export type ModifierGroupInput = JsonRequest<'modifierGroup.store'>;
-// One modifier of it: with `id` it updates that modifier; without, it creates one; one left out of the list is deleted
-// (order history keeps its snapshot). `price_delta`: so'm, per piece (once per line for items sold by weight).
-export type ModifierOptionInput = NonNullable<ModifierGroupInput['modifiers']>[number];
+// any number. `modifiers` present replaces the list (left out on an update: the modifiers stay). `display_mode` left out keeps
+// what is saved (a new group: dialog); `size` needs `max_select` 1; setting a hint on a store whose branches all lack the
+// quick_modifiers module is 403 module_disabled.
+export type ModifierGroupInput = Omit<GeneratedGroupInput, 'modifiers' | 'display_mode'> & { display_mode?: ModifierDisplayMode | null; modifiers?: ModifierOptionInput[] };
 
 // GET /owner/modifier-groups: every group with its modifiers (inactive ones too) and the ids of the products offering it.
 export async function fetchModifierGroups(api: StaffApi): Promise<ModifierGroup[]> {
   const body = unwrap(await api.client.GET('/v1/owner/modifier-groups'));
-  return body.data ?? [];
+  return (body.data ?? []) as ModifierGroup[];
 }
 
 // POST /owner/modifier-groups (no id) or PUT /owner/modifier-groups/{id}
 export async function saveModifierGroup(api: StaffApi, id: number | null | undefined, input: ModifierGroupInput): Promise<ModifierGroup> {
   const options = { body: input };
-  if (id === null || id === undefined) return unwrap(await api.client.POST('/v1/owner/modifier-groups', options)).data;
-  return unwrap(await api.client.PUT('/v1/owner/modifier-groups/{id}', { params: { path: { id } }, ...options })).data;
+  if (id === null || id === undefined) return unwrap(await api.client.POST('/v1/owner/modifier-groups', options)).data as ModifierGroup;
+  return unwrap(await api.client.PUT('/v1/owner/modifier-groups/{id}', { params: { path: { id } }, ...options })).data as ModifierGroup;
 }
 
 // DELETE /owner/modifier-groups/{id}: products stop offering it; past orders keep their snapshot.

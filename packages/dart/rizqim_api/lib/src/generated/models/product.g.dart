@@ -7,9 +7,7 @@ part of 'product.dart';
 // **************************************************************************
 
 Product _$ProductFromJson(Map<String, dynamic> json) => Product(
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
+  hasVariants: json['has_variants'] as bool,
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -20,8 +18,10 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
   sku: json['sku'] as String?,
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
-  hasVariants: json['has_variants'] as bool,
   id: (json['id'] as num).toInt(),
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
@@ -35,16 +35,17 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
-  imageThumbUrls: ImageThumbUrls2.fromJson(
-    json['image_thumb_urls'] as Map<String, dynamic>,
-  ),
-  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
-  weightMode: json['weight_mode'] as String?,
-  isActive: json['is_active'] as bool,
-  imageUrl: json['image_url'] as String?,
   quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
+  imageThumbUrls: ImageThumbUrls2.fromJson(
+    json['image_thumb_urls'] as Map<String, dynamic>,
+  ),
+  weightMode: json['weight_mode'] as String?,
+  kdsTargetSeconds: (json['kds_target_seconds'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
+  imageUrl: json['image_url'] as String?,
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
   store: json['store'] == null
       ? null
       : Store.fromJson(json['store'] as Map<String, dynamic>),
@@ -94,6 +95,7 @@ Map<String, dynamic> _$ProductToJson(Product instance) => <String, dynamic>{
   'quick_multipliers': instance.quickMultipliers,
   'wait_minutes': instance.waitMinutes,
   'weight_mode': instance.weightMode,
+  'kds_target_seconds': instance.kdsTargetSeconds,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

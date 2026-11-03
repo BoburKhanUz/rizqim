@@ -16,6 +16,9 @@ FiscalSettings _$FiscalSettingsFromJson(Map<String, dynamic> json) =>
       sandbox: Sandbox.fromJson(json['sandbox'] as Map<String, dynamic>),
       depositRefundReceipt: json['deposit_refund_receipt'] as bool?,
       retainedDepositReceipt: json['retained_deposit_receipt'] as bool?,
+      comboFiscalMode: ComboFiscalMode.fromJson(
+        json['combo_fiscal_mode'] as String,
+      ),
     );
 
 Map<String, dynamic> _$FiscalSettingsToJson(FiscalSettings instance) =>
@@ -28,4 +31,5 @@ Map<String, dynamic> _$FiscalSettingsToJson(FiscalSettings instance) =>
       'sandbox': instance.sandbox,
       'deposit_refund_receipt': instance.depositRefundReceipt,
       'retained_deposit_receipt': instance.retainedDepositReceipt,
+      'combo_fiscal_mode': instance.comboFiscalMode,
     };

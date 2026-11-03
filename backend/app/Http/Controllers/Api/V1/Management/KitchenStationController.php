@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Management;
 
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Domain\Pos\Setup\SetupPresenter;
 use App\Enums\KitchenStationKind;
 use App\Enums\Permission;
+use App\Models\Branch;
 use App\Models\KitchenStation;
 use App\Services\Audit\AuditLogger;
 use App\Support\UzValidation;
@@ -21,10 +24,15 @@ use Illuminate\Validation\Rule;
  * P3-13: the kitchen stations of a branch (osh/qozon, mangal, salat va bar, choy...), for the partner web panel
  * (settings.manage; never from a terminal PIN session). A branch-bound caller works on their own branch only.
  */
-#[Group('Owner: kitchen stations', "Filial sexlari: osh, mangal, salat va bar, choy (P3-13). Marka va KDS shu sexlarga bo'linadi.")]
+#[Group('Owner: kitchen stations', "Filial sexlari: osh, mangal, salat va bar, choy (P3-13); grill, fritur, ichimliklar, barista va yig'ish (P6-33). Marka va KDS shu sexlarga bo'linadi.")]
 class KitchenStationController extends ManagementController
 {
-    private const STATION = 'array{id: int, branch_id: int, name: string, kind: string, kind_label: string, sort_order: int, is_active: bool, show_on_kds: bool}';
+    /** P6-33: the shortest and the longest time target of a station (seconds). */
+    public const MIN_TARGET = 10;
+
+    public const MAX_TARGET = 7200;
+
+    private const STATION = 'array{id: int, branch_id: int, name: string, kind: string, kind_label: string, sort_order: int, is_active: bool, show_on_kds: bool, target_seconds: int|null}';
 
     /**
      * The branch's kitchen stations
@@ -53,9 +61,11 @@ class KitchenStationController extends ManagementController
     /**
      * Add a kitchen station
      *
-     * `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other. `name` is unique within the branch.
-     * `show_on_kds`: the station has a KDS screen. The station gets dishes through the routes
-     * (PUT /owner/kitchen-station-routes).
+     * `kind`: osh, mangal, salad_bar, tea, kitchen (default) or other; P6-33: grill, fryer, drinks, barista, or expo
+     * (the assembly screen: it gets no dishes). `name` is unique within the branch. `show_on_kds`: the station has a
+     * KDS screen. The station gets dishes through the routes (PUT /owner/kitchen-station-routes). P6-33:
+     * `target_seconds` (10–7200, null: none) is the time target of its lines (an expo station: the assembly time);
+     * setting one needs the module `kds_expo` on the branch (403 module_disabled), clearing never does.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::STATION . '}')]
     public function store(Request $request, AuditLogger $audit): JsonResponse
@@ -64,7 +74,8 @@ class KitchenStationController extends ManagementController
         $data = $request->validate([
             'branch_id' => 'nullable|integer|min:1|max:999999999999999999',
             'name' => ['required', 'string', 'max:100'],
-            'kind' => ['sometimes', 'string', 'in:osh,mangal,salad_bar,tea,kitchen,other'],
+            'kind' => ['sometimes', 'string', Rule::enum(KitchenStationKind::class)],
+            'target_seconds' => ['sometimes', 'nullable', 'integer', 'min:' . self::MIN_TARGET, 'max:' . self::MAX_TARGET],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:100000'],
             'is_active' => ['sometimes', 'boolean'],
             'show_on_kds' => ['sometimes', 'boolean'],
@@ -73,6 +84,8 @@ class KitchenStationController extends ManagementController
         $request->validate([
             'name' => [Rule::unique('kitchen_stations', 'name')->where('branch_id', $branch->id)],
         ], UzValidation::messages($this->messages()), $this->attributes());
+
+        $this->assertTargetAllowed($branch, $data);
 
         $station = KitchenStation::create(['store_id' => $branch->store_id, 'branch_id' => $branch->id] + collect($data)->except('branch_id')->all());
         $station->refresh();
@@ -84,8 +97,9 @@ class KitchenStationController extends ManagementController
     /**
      * Edit a kitchen station
      *
-     * Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`. A deactivated station is not offered
-     * to terminals and its routes are ignored: its dishes go to the default ticket printer.
+     * Any subset of `name`, `kind`, `sort_order`, `is_active`, `show_on_kds`, `target_seconds` (P6-33). A deactivated
+     * station is not offered to terminals and its routes are ignored: its dishes go to the default ticket printer. A
+     * station with dishes routed to it cannot become `expo`: 422 `station_has_routes`.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::STATION . '}')]
     public function update(Request $request, int $id, AuditLogger $audit): JsonResponse
@@ -94,11 +108,17 @@ class KitchenStationController extends ManagementController
 
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:100', Rule::unique('kitchen_stations', 'name')->where('branch_id', $station->branch_id)->ignore($station->id)],
-            'kind' => ['sometimes', 'string', 'in:osh,mangal,salad_bar,tea,kitchen,other'],
+            'kind' => ['sometimes', 'string', Rule::enum(KitchenStationKind::class)],
+            'target_seconds' => ['sometimes', 'nullable', 'integer', 'min:' . self::MIN_TARGET, 'max:' . self::MAX_TARGET],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:100000'],
             'is_active' => ['sometimes', 'boolean'],
             'show_on_kds' => ['sometimes', 'boolean'],
         ], UzValidation::messages($this->messages()), $this->attributes());
+
+        $this->assertTargetAllowed($station->branch()->firstOrFail(), $data);
+        if (($data['kind'] ?? null) === KitchenStationKind::EXPO->value && $station->kind !== KitchenStationKind::EXPO && $station->routes()->exists()) {
+            return $this->error("Bu sexga taomlar biriktirilgan: yig'ish sexiga aylantirishdan oldin ularni boshqa sexga o'tkazing.", ['reason' => 'station_has_routes'], 422);
+        }
 
         $before = SetupPresenter::station($station);
         $station->update($data);
@@ -131,6 +151,19 @@ class KitchenStationController extends ManagementController
         return $this->success(null, "Sex o'chirildi.");
     }
 
+    /**
+     * P6-33: a time target is the KDS v2 setup of the module `kds_expo` (403 module_disabled without it); clearing one
+     * is always allowed.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertTargetAllowed(Branch $branch, array $data): void
+    {
+        if (($data['target_seconds'] ?? null) !== null) {
+            app(PosModules::class)->assertEnabled($branch, PosModule::KDS_EXPO);
+        }
+    }
+
     private function stationOf(Request $request, int $id): KitchenStation
     {
         $station = KitchenStation::where('store_id', $this->storeId($request))->find($id);
@@ -149,7 +182,9 @@ class KitchenStationController extends ManagementController
     {
         return [
             'name.unique' => 'Bu filialda bunday nomli sex bor.',
-            'kind.in' => "Sex turi noto'g'ri.",
+            'kind.enum' => "Sex turi noto'g'ri.",
+            'target_seconds.min' => 'Vaqt maqsadi kamida ' . self::MIN_TARGET . ' soniya bo\'lishi kerak.',
+            'target_seconds.max' => 'Vaqt maqsadi ko\'pi bilan ' . self::MAX_TARGET . ' soniya bo\'lishi mumkin.',
         ];
     }
 
@@ -158,6 +193,6 @@ class KitchenStationController extends ManagementController
      */
     private function attributes(): array
     {
-        return ['name' => 'Nomi', 'kind' => 'Turi', 'sort_order' => 'Tartib', 'branch_id' => 'Filial'];
+        return ['name' => 'Nomi', 'kind' => 'Turi', 'sort_order' => 'Tartib', 'branch_id' => 'Filial', 'target_seconds' => 'Vaqt maqsadi'];
     }
 }

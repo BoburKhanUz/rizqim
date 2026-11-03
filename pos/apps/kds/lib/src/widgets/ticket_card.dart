@@ -5,11 +5,14 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../board/board_view.dart';
+import '../board/line_timer.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
+import 'combo_heading.dart';
 import 'grill_timer_label.dart';
 import 'kds_type.dart';
 import 'line_marks.dart';
+import 'target_timer_label.dart';
 
 /// Bitta oshxona chiptasi: raqam, turi, kutish vaqti (rang, ikonka va yorliq bilan), izoh, taomlar va tugmalar.
 class TicketCard extends StatelessWidget {
@@ -54,6 +57,9 @@ class TicketCard extends StatelessWidget {
   /// Qatorni "tayyor" deb belgilash mumkin (ushlab turilgan qator hali oshxonada emas).
   static bool canBump(KitchenLine l) => l.canBeReady;
 
+  static WaitLevel _worse(WaitLevel a, WaitLevel b) =>
+      a.index >= b.index ? a : b;
+
   @override
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
@@ -80,9 +86,14 @@ class TicketCard extends StatelessWidget {
       valueListenable: clock,
       builder: (BuildContext context, DateTime now, Widget? body) {
         final Duration waiting = entry.waiting(now);
+        // P6-33: chipta kutishdan tashqari qatorlarning vaqt maqsadiga ham qaraydi: biror qator maqsaddan o'tsa
+        // chipta qizil, yaqinlashsa sariq
         final WaitLevel level = entry.voided
             ? WaitLevel.normal
-            : WaitLevel.of(waiting, settings);
+            : _worse(
+                WaitLevel.of(waiting, settings),
+                LineTimer.worstLevel(ticket, ticket.lines, now),
+              );
         final Color border = switch (level) {
           WaitLevel.normal => c.line,
           WaitLevel.warn => c.warning,
@@ -151,6 +162,8 @@ class TicketCard extends StatelessWidget {
                     newRounds.contains(ticket.lines[i].roundNo) &&
                     !rounds.every(newRounds.contains),
               ),
+            if (ComboHeading.startsGroup(ticket.lines, i))
+              ComboHeading(combo: ticket.lines[i].combo!),
             if (coursed &&
                 (i == 0 ||
                     ticket.lines[i].roundNo != ticket.lines[i - 1].roundNo ||
@@ -595,6 +608,7 @@ class _LineRow extends StatelessWidget {
                         child: WeightBadge(),
                       ),
                     GrillTimerLabel(ticket: ticket, line: line, clock: clock),
+                    TargetTimerLabel(ticket: ticket, line: line, clock: clock),
                     if (voided) ...<Widget>[
                       const SizedBox(height: 4),
                       const Align(

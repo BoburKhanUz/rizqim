@@ -57,6 +57,38 @@ class _KitchenApi implements KitchenApi {
   }
 
   @override
+  Future<PostV1StaffOrdersUuidAssembledResponse> kitchenExpoAssembled({
+    required String uuid,
+    String? idempotencyKey,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PostV1StaffOrdersUuidAssembledResponse>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/v1/staff/orders/${uuid}/assembled',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostV1StaffOrdersUuidAssembledResponse _value;
+    try {
+      _value = PostV1StaffOrdersUuidAssembledResponse.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1StaffOrdersUuidItemsItemReadyResponse> staffOrderBumpItem({
     required String uuid,
     required String item,

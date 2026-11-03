@@ -7,23 +7,27 @@ part of 'data83.dart';
 // **************************************************************************
 
 Data83 _$Data83FromJson(Map<String, dynamic> json) => Data83(
-  tin: json['tin'] as String?,
-  taxRegime: json['tax_regime'] == null
+  id: (json['id'] as num).toInt(),
+  type: json['type'] as String,
+  amount: json['amount'] as String,
+  balanceBefore: json['balance_before'] as String,
+  balanceAfter: json['balance_after'] as String,
+  order: json['order'] == null
       ? null
-      : TaxRegime.fromJson(json['tax_regime'] as String?),
-  fiscalSettings: FiscalSettings.fromJson(
-    json['fiscal_settings'] as Map<String, dynamic>,
-  ),
-  drivers: (json['drivers'] as List<dynamic>).map((e) => e as String).toList(),
-  taxRegimes: (json['tax_regimes'] as List<dynamic>)
-      .map((e) => TaxRegimes.fromJson(e as Map<String, dynamic>))
-      .toList(),
+      : Order.fromJson(json['order'] as Map<String, dynamic>),
+  referenceId: json['reference_id'] as String?,
+  notes: json['notes'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data83ToJson(Data83 instance) => <String, dynamic>{
-  'tin': instance.tin,
-  'tax_regime': instance.taxRegime,
-  'fiscal_settings': instance.fiscalSettings,
-  'drivers': instance.drivers,
-  'tax_regimes': instance.taxRegimes,
+  'id': instance.id,
+  'type': instance.type,
+  'amount': instance.amount,
+  'balance_before': instance.balanceBefore,
+  'balance_after': instance.balanceAfter,
+  'order': instance.order,
+  'reference_id': instance.referenceId,
+  'notes': instance.notes,
+  'created_at': instance.createdAt,
 };

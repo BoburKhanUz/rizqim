@@ -4,48 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'status4.dart';
+
 part 'data123.g.dart';
 
 @JsonSerializable()
 class Data123 {
   const Data123({
     required this.id,
-    required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
+    required this.amount,
+    required this.card,
+    required this.status,
+    required this.notes,
+    required this.resolutionNotes,
+    required this.processedAt,
+    required this.createdAt,
+    required this.storeId,
+    required this.cardNumber,
+    required this.processedBy,
+    required this.updatedAt,
   });
 
   factory Data123.fromJson(Map<String, Object?> json) =>
       _$Data123FromJson(json);
 
   final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  final String amount;
+  final String card;
+  final Status4 status;
+  final String? notes;
+  @JsonKey(name: 'resolution_notes')
+  final String? resolutionNotes;
+  @JsonKey(name: 'processed_at')
+  final String? processedAt;
+  @JsonKey(name: 'created_at')
+  final String createdAt;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'card_number')
+  final String cardNumber;
+  @JsonKey(name: 'processed_by')
+  final int? processedBy;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data123ToJson(this);
 }

@@ -119,9 +119,10 @@ class PosOrderService implements PosOrderOpener
      * kept when allowed, else the order gets the next one, QueueNumbers), `business_date` (Y-m-d: the business day the
      * order belongs to when it is not today's — an order taken offline before the day's start and synced after it;
      * OrderStamp numbers it within that day). P6-25: `table_label` (the table plate of a counter order carried to the
-     * table, module table_service: checked by the caller).
+     * table, module table_service: checked by the caller). P6-34: `pickup_at` (a takeaway picked up later, module
+     * scheduled_pickup: checked by the caller; its lines are held until pickup_at − the prep time, ScheduledPickup).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string, pickup_at?: ?\DateTimeInterface}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -182,6 +183,8 @@ class PosOrderService implements PosOrderOpener
                 'business_date' => $options['business_date'] ?? null,
                 // P6-25: the plate number of a counter order carried to the table
                 'table_label' => $options['table_label'] ?? null,
+                // P6-34: a counter order for a later pickup (checked by the caller): its lines wait (ScheduledPickup)
+                'pickup_at' => $options['pickup_at'] ?? null,
             ], fn ($value) => $value !== null));
 
             OrderStatusHistory::create([
@@ -200,6 +203,9 @@ class PosOrderService implements PosOrderOpener
 
             if (!empty($options['send'])) {
                 $this->fire($order, $actor, null);
+            }
+            if (isset($options['pickup_at'])) {
+                app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->schedule($order, $branch);
             }
 
             $this->audit->record('pos.order_opened', $order, [], [], array_filter([
@@ -240,6 +246,7 @@ class PosOrderService implements PosOrderOpener
             if ($send) {
                 $sent = $this->fire($order, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all());
             }
+            $this->reschedulePickup($order, $branch);
 
             $this->audit->record('pos.round_added', $order, [], [], [
                 'round_no' => $round,
@@ -277,6 +284,7 @@ class PosOrderService implements PosOrderOpener
 
             $this->charges->recalculate($locked);
             $sent = $send ? $this->fire($locked, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all()) : [];
+            $this->reschedulePickup($locked, $branch);
 
             $this->audit->record('pos.round_added', $locked, [], [], [
                 'round_no' => $round,
@@ -294,6 +302,17 @@ class PosOrderService implements PosOrderOpener
 
             return ['order' => $locked, 'items' => $items, 'flags' => $added['flags'], 'sent' => $sent];
         });
+    }
+
+    /**
+     * P6-34 (review P6W3 C4): a round added to an order waiting for its pickup time re-runs its schedule — a slower dish
+     * brings the kitchen time forward, and a time already passed fires the order now (ScheduledPickup::schedule).
+     */
+    protected function reschedulePickup(Order $order, Branch $branch): void
+    {
+        if ($order->getAttribute('pickup_at') !== null && $order->getAttribute('kitchen_fired_at') === null) {
+            app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->schedule($order, $branch);
+        }
     }
 
     /**
@@ -495,7 +514,8 @@ class PosOrderService implements PosOrderOpener
 
                 $offset = (int) $target->items()->max('round_no');
                 $sourceItems = $source->items()->pluck('id')->map(fn ($id) => (int) $id)->all();
-                OrderItem::where('order_id', $source->id)->update([
+                // P6-31: a combo's part lines move with it
+                OrderItem::withComboParts()->where('order_id', $source->id)->update([
                     'order_id' => $target->id,
                     'round_no' => DB::raw('COALESCE(round_no, 1) + ' . $offset),
                     'updated_at' => now(),
@@ -1274,7 +1294,7 @@ class PosOrderService implements PosOrderOpener
      * The approving manager's id when $actor lacks $permission and a valid one-time approval token is given; null when
      * the actor holds it. 403 `approval_required` / `approval_invalid` otherwise.
      */
-    protected function authorizeOrApprove(User $actor, Order $order, Permission $permission, ?string $token): ?int
+    public function authorizeOrApprove(User $actor, Order $order, Permission $permission, ?string $token): ?int
     {
         if ($this->permissions->allows($actor, $permission, $order)) {
             return null;

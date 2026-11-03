@@ -37,6 +37,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \App\Domain\Pos\Orders\WeightBasis|null $weight_basis
  * @property int|null $weighed_by
  * @property \Illuminate\Support\Carbon|null $weighed_at
+ *
+ * P6-31: a combo line keeps its parts as sold (Combos::resolve) and has one zero-priced kitchen line per part
+ * @property list<array<string, mixed>>|null $combo_parts
+ * @property int|null $combo_parent_id
  */
 class OrderItem extends Model
 {
@@ -68,6 +72,9 @@ class OrderItem extends Model
         'weight_basis' => \App\Domain\Pos\Orders\WeightBasis::class,
         'weighed_by' => 'integer',
         'weighed_at' => 'datetime',
+        // P6-31
+        'combo_parts' => 'array',
+        'combo_parent_id' => 'integer',
     ];
 
     protected $attributes = [
@@ -75,6 +82,64 @@ class OrderItem extends Model
         'modifiers_total' => '0.00',
         'kitchen_status' => 'pending',
     ];
+
+    /** P6-31: the global scope that hides the kitchen lines of combo parts (App\Domain\Pos\Menu\ComboKitchen). */
+    public const COMBO_PARTS_SCOPE = 'combo_parts';
+
+    /**
+     * P6-31: a combo's part lines exist for the kitchen only (their station, bump and timing); every other query, the
+     * order's lines, bills, receipts, refunds, reports and payloads, sees the one priced combo line. The kitchen reads
+     * them with withComboParts() or comboChildren(). ComboKitchen keeps them in step with their combo line.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(self::COMBO_PARTS_SCOPE, fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereNull($query->qualifyColumn('combo_parent_id')));
+        static::saving(fn (self $item) => app(\App\Domain\Pos\Menu\ComboKitchen::class)->saving($item));
+        static::saved(fn (self $item) => app(\App\Domain\Pos\Menu\ComboKitchen::class)->saved($item));
+    }
+
+    /**
+     * P6-31: the lines with the kitchen lines of combo parts too.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<static>
+     */
+    public static function withComboParts(): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::query()->withoutGlobalScope(self::COMBO_PARTS_SCOPE);
+    }
+
+    /**
+     * P6-31: the kitchen lines of this combo line's parts.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<self, $this>
+     */
+    public function comboChildren(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(self::class, 'combo_parent_id')->withoutGlobalScope(self::COMBO_PARTS_SCOPE)->orderBy('id');
+    }
+
+    /**
+     * P6-31: the combo line of a part's kitchen line.
+     *
+     * @return BelongsTo<self, $this>
+     */
+    public function comboParent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'combo_parent_id');
+    }
+
+    /**
+     * P6-31: a combo line (it has parts) or a part's kitchen line.
+     */
+    public function isComboLine(): bool
+    {
+        return is_array($this->combo_parts) && $this->combo_parts !== [];
+    }
+
+    public function isComboPart(): bool
+    {
+        return $this->combo_parent_id !== null;
+    }
 
     /**
      * Decimal in the database (0.5 kg); 2.000 still reads (and serializes) as 2.

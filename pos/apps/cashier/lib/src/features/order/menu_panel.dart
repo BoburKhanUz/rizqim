@@ -4,7 +4,9 @@ import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../menu_day/menu_day.dart';
+import 'order_draft.dart';
 import 'order_format.dart';
+import 'quick_modifiers.dart';
 
 /// Kategoriya rangi (tugma chetidagi chiziq): kategoriyalar tartibi bo'yicha.
 const List<Color> _accents = <Color>[
@@ -28,10 +30,14 @@ class MenuPanel extends StatefulWidget {
     this.frequent = const <PosProduct>[],
     this.enabled = true,
     this.columns,
+    this.onQuickPick,
   });
 
   final PosCatalog catalog;
   final ValueChanged<PosProduct> onTap;
+
+  /// P6-32: hajm tugmasi bosildi (taom shu hajm bilan, bir bosishda); `null` — tugmada hajmlar ko'rsatilmaydi.
+  final void Function(PosProduct product, PosModifier size)? onQuickPick;
 
   /// Uzoq bosish: qatorni to'liq sozlab qo'shish (qo'shimcha, izoh, o'rin).
   final ValueChanged<PosProduct> onLongPress;
@@ -100,11 +106,12 @@ class _MenuPanelState extends State<MenuPanel> {
     }
     // P6-15: a sold-out dish with a planned batch says when it comes back instead of its price
     final PosNextBatch? next = available ? null : day.nextBatch;
-    return PosTileButton(
+    final Widget tile = PosTileButton(
       key: ValueKey<String>('menu-${p.id}'),
       label: p.name,
       subtitle: next?.text ?? _subtitle(p),
-      detail: day.partsLine,
+      // P6-31: a combo tells its default parts
+      detail: p.isCombo ? _comboDetail(p) : day.partsLine,
       badge: _badge(p),
       accent: _accentOf(p.categoryId),
       unavailable: !available,
@@ -112,6 +119,68 @@ class _MenuPanelState extends State<MenuPanel> {
       onTap: widget.enabled ? () => widget.onTap(p) : null,
       onLongPress: widget.enabled ? () => widget.onLongPress(p) : null,
     );
+    // P6-32: the sizes on the tile itself (0,3 / 0,5 / 0,7): one tap adds the dish in that size
+    final PosModifierGroup? size = widget.onQuickPick == null || p.isCombo
+        ? null
+        : sizeGroupOf(p);
+    if (size == null || !available) return tile;
+    final List<PosModifier> sizes = <PosModifier>[
+      for (final PosModifier m in size.modifiers)
+        if (m.isAvailable && !cat.availability.stoppedModifiers.contains(m.id))
+          m,
+    ];
+    if (sizes.isEmpty) return tile;
+    final Set<String> defaults = <String>{
+      for (final PosModifier m in preselectedOf(
+        size,
+        availability: cat.availability,
+      ))
+        m.uuid,
+    };
+    final Widget chips = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (final PosModifier m in sizes)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: QuickChip(
+              key: ValueKey<String>('menu-${p.id}-size-${m.uuid}'),
+              label: m.name,
+              selected: defaults.contains(m.uuid),
+              square: true,
+              compact: true,
+              onTap: widget.enabled ? () => widget.onQuickPick!(p, m) : null,
+            ),
+          ),
+      ],
+    );
+    final bool phone = widget.columns != null;
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: tile),
+        if (phone)
+          Positioned(right: 8, top: 0, bottom: 0, child: Center(child: chips))
+        else
+          Positioned(
+            left: 12,
+            right: 6,
+            bottom: 8,
+            child: FittedBox(
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.scaleDown,
+              child: chips,
+            ),
+          ),
+      ],
+    );
+  }
+
+  String? _comboDetail(PosProduct p) {
+    final List<String> parts = <String>[
+      for (final PosComboSlot s in p.combo!.slots)
+        if (s.isRequired) ?s.defaultOption?.name,
+    ];
+    return parts.isEmpty ? 'Kombo' : parts.join(' · ');
   }
 
   @override

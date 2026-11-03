@@ -4,49 +4,34 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status4.dart';
+import 'limits3.dart';
+import 'stations3.dart';
+import 'products6.dart';
 
 part 'data107.g.dart';
 
 @JsonSerializable()
 class Data107 {
   const Data107({
-    required this.id,
-    required this.amount,
-    required this.card,
-    required this.status,
-    required this.notes,
-    required this.resolutionNotes,
-    required this.processedAt,
-    required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
+    required this.branchId,
+    required this.enabled,
+    required this.expoScope,
+    required this.limits,
+    required this.stations,
+    required this.products,
   });
 
   factory Data107.fromJson(Map<String, Object?> json) =>
       _$Data107FromJson(json);
 
-  final int id;
-  final String amount;
-  final String card;
-  final Status4 status;
-  final String? notes;
-  @JsonKey(name: 'resolution_notes')
-  final String? resolutionNotes;
-  @JsonKey(name: 'processed_at')
-  final String? processedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final bool enabled;
+  @JsonKey(name: 'expo_scope')
+  final String expoScope;
+  final Limits3 limits;
+  final List<Stations3> stations;
+  final List<Products6> products;
 
   Map<String, Object?> toJson() => _$Data107ToJson(this);
 }

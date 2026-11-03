@@ -4,70 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff22.dart';
-import 'device22.dart';
-import 'order12.dart';
-import 'resolved_by2.dart';
+import 'pickup_status.dart';
 
 part 'data246.g.dart';
 
 @JsonSerializable()
 class Data246 {
   const Data246({
-    required this.opId,
-    required this.seq,
-    required this.type,
-    required this.typeLabel,
+    required this.orderUuid,
+    required this.number,
+    required this.businessDate,
     required this.status,
-    required this.reason,
-    required this.message,
-    required this.staff,
-    required this.device,
-    required this.occurredAt,
-    required this.receivedAt,
-    required this.appliedAt,
-    required this.clockSkewSeconds,
-    required this.order,
-    required this.payload,
-    required this.refs,
-    required this.resolvedAt,
-    required this.resolvedBy,
-    required this.resolution,
-    required this.resolutionNote,
+    required this.channel,
+    required this.orderStatus,
+    required this.readyAt,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
+    required this.openedAt,
   });
 
   factory Data246.fromJson(Map<String, Object?> json) =>
       _$Data246FromJson(json);
 
-  @JsonKey(name: 'op_id')
-  final String opId;
-  final int seq;
-  final String type;
-  @JsonKey(name: 'type_label')
-  final String typeLabel;
-  final String status;
-  final String? reason;
-  final String? message;
-  final Staff22? staff;
-  final Device22? device;
-  @JsonKey(name: 'occurred_at')
-  final String? occurredAt;
-  @JsonKey(name: 'received_at')
-  final String? receivedAt;
-  @JsonKey(name: 'applied_at')
-  final String? appliedAt;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  final Order12? order;
-  final Map<String, dynamic> payload;
-  final Map<String, dynamic> refs;
-  @JsonKey(name: 'resolved_at')
-  final String? resolvedAt;
-  @JsonKey(name: 'resolved_by')
-  final ResolvedBy2? resolvedBy;
-  final String? resolution;
-  @JsonKey(name: 'resolution_note')
-  final String? resolutionNote;
+  @JsonKey(name: 'order_uuid')
+  final String orderUuid;
+  final int number;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  final PickupStatus? status;
+  final String channel;
+  @JsonKey(name: 'order_status')
+  final String orderStatus;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
 
   Map<String, Object?> toJson() => _$Data246ToJson(this);
 }

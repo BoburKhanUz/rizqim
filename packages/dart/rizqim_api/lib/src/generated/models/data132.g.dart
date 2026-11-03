@@ -7,13 +7,13 @@ part of 'data132.dart';
 // **************************************************************************
 
 Data132 _$Data132FromJson(Map<String, dynamic> json) => Data132(
-  calendar: Calendar.fromJson(json['calendar'] as Map<String, dynamic>),
-  tariffs: (json['tariffs'] as List<dynamic>)
-      .map((e) => Tariffs.fromJson(e as Map<String, dynamic>))
+  poolPeriod: json['pool_period'] as String,
+  distributions: (json['distributions'] as List<dynamic>)
+      .map((e) => Distributions2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data132ToJson(Data132 instance) => <String, dynamic>{
-  'calendar': instance.calendar,
-  'tariffs': instance.tariffs,
+  'pool_period': instance.poolPeriod,
+  'distributions': instance.distributions,
 };

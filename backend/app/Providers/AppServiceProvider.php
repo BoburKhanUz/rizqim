@@ -104,6 +104,8 @@ class AppServiceProvider extends ServiceProvider
         // P1-24: public delivery zones and quotes; a customer dragging the map pin asks for a quote at every stop
         RateLimiter::for('delivery-zones', fn (Request $request) => Limit::perMinute(120)->by('ip:' . $request->ip()));
         RateLimiter::for('delivery-quote', fn (Request $request) => Limit::perMinute(60)->by('ip:' . $request->ip()));
+        // P6-34 (review P6W3 S2): the Mini App's public pickup times (cached per branch and minute)
+        RateLimiter::for('pickup-slots', fn (Request $request) => Limit::perMinute(30)->by('ip:' . $request->ip()));
 
         // P2-12: CSV report downloads from the partner web panel (streamed, but a period's orders are read in full)
         RateLimiter::for('report-csv', fn (Request $request) => [

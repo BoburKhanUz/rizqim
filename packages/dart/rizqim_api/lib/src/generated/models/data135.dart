@@ -4,16 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'tips.dart';
+
 part 'data135.g.dart';
 
 @JsonSerializable()
 class Data135 {
-  const Data135({required this.id});
+  const Data135({required this.tips, required this.truncated});
 
   factory Data135.fromJson(Map<String, Object?> json) =>
       _$Data135FromJson(json);
 
-  final int id;
+  final List<Tips> tips;
+  final bool truncated;
 
   Map<String, Object?> toJson() => _$Data135ToJson(this);
 }

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../escpos/code_page.dart';
 import '../escpos/esc_pos_decoder.dart';
 import '../printer/printer.dart';
+import '../tspl/tspl_decoder.dart';
 
 /// Xotiradagi soxta printer: yuborilgan baytlarni saqlaydi, xato va holatni "o'ynaydi" (testlar, demo rejim).
 class MemoryPrinterTransport implements PrinterTransport {
@@ -39,6 +40,9 @@ class MemoryPrinterTransport implements PrinterTransport {
   /// Oxirgi hujjat buyruqlari.
   EscPosDocument get lastDocument =>
       EscPosDocument.parse(received.last, initial: codePage);
+
+  /// Oxirgi hujjat label printer (TSPL) sifatida.
+  TsplDocument get lastLabel => TsplDocument.parse(received.last);
 
   List<EscPosDocument> get documents => <EscPosDocument>[
     for (final Uint8List b in received)

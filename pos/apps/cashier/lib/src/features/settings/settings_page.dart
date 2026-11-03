@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_api/rizqim_api.dart';
@@ -58,10 +59,27 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _test(PrinterConfig config, PosPrinterInfo info) async {
     final PosScope scope = PosScope.of(context);
     try {
-      final PrintJob job = await scope.printing.printers.testPrint(
-        _prefs.apply(config),
-        now: scope.services.now().toLocal(),
-      );
+      // P6-32: a label (TSPL) printer gets a sample cup sticker, not the receipt test page
+      final PrintJob job = config.language == PrinterLanguage.tspl
+          ? await scope.printing.printers.printLabel(
+              config,
+              layoutCupSticker(
+                CupSticker(
+                  number: '1',
+                  itemName: 'Sinov stikeri',
+                  variantName: info.name,
+                  modifiers: const <String>['Printer ishlayapti'],
+                  printedAt: scope.services.now().toLocal(),
+                ),
+                scope.session.bootstrap?.labelSettings?.size ??
+                    LabelSize.mm40x30,
+              ),
+              options: LabelPrintOptions(textMode: config.textMode),
+            )
+          : await scope.printing.printers.testPrint(
+              _prefs.apply(config),
+              now: scope.services.now().toLocal(),
+            );
       if (mounted) {
         showPosMessage(context, 'Sinov sahifasi yuborildi: ${info.name}.');
       }

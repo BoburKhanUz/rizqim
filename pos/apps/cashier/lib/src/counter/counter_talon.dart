@@ -9,6 +9,8 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../features/billing/cashier_ui.dart';
 import '../features/billing/receipts.dart';
+import '../features/order/order_format.dart' show comboPartLines;
+import '../features/order/takeaway_widgets.dart' show pickupLocalTime;
 import '../shell/pos_scope.dart';
 import 'counter_controller.dart';
 
@@ -39,8 +41,11 @@ Future<bool> printTalon(
     orderCode: r.order.shortCode,
     items: r.lines,
   );
+  // P6-34: a scheduled pickup's time on the talon
+  final PosPickupTime? pickup = r.order.pickup;
+  final DateTime? pickupAt = pickup == null ? null : pickupLocalTime(pickup);
   // P6-25: the table plate goes on the talon (the dish is carried to it)
-  final QueueSlip slip = plate == null || plate.isEmpty
+  final QueueSlip base = plate == null || plate.isEmpty
       ? server ??
             QueueSlip(
               header: printer.header,
@@ -58,6 +63,18 @@ Future<bool> printTalon(
           orderLabel: 'Stol $plate',
           items: r.lines,
           message: 'Taomingiz $plate-stolga olib kelinadi.',
+        );
+  final QueueSlip slip = pickupAt == null
+      ? base
+      : QueueSlip(
+          header: base.header,
+          number: base.number,
+          createdAt: base.createdAt,
+          orderCode: base.orderCode,
+          orderLabel: base.orderLabel,
+          items: base.items,
+          message: "Buyurtmangiz shu vaqtga tayyor bo'ladi.",
+          pickupAt: pickupAt,
         );
   return printer.print(
     context,
@@ -128,7 +145,7 @@ class CounterReceiptView extends StatelessWidget {
               ),
             ],
             const Divider(height: 24),
-            for (final PosBillItem i in bill.items)
+            for (final PosBillItem i in bill.items) ...<Widget>[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(
@@ -146,6 +163,23 @@ class CounterReceiptView extends StatelessWidget {
                   ],
                 ),
               ),
+              // P6-31: a combo's parts under it, without prices
+              for (final String part in comboPartLines(i.comboParts))
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 2),
+                  child: Text(
+                    part,
+                    style: RzType.footnote.copyWith(color: c.fgMuted),
+                  ),
+                ),
+            ],
+            // P6-34: the packaging lines (their own receipt lines)
+            for (final PosPackagingLine l in bill.packagingLines)
+              if (!l.amount.isZero)
+                AmountRow(
+                  label: l.quantity > 1 ? '${l.name} × ${l.quantity}' : l.name,
+                  amount: l.amount,
+                ),
             const Divider(height: 24),
             AmountRow(label: 'Jami', amount: bill.total, bold: true),
             for (final PosPayment p in bill.payments)

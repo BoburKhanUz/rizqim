@@ -26,6 +26,11 @@ export const possetup = defineSection({
     pos_kind_tea: 'Choy',
     pos_kind_kitchen: 'Oshxona',
     pos_kind_other: 'Boshqa',
+    pos_kind_grill: 'Grill',
+    pos_kind_fryer: 'Fritur',
+    pos_kind_drinks: 'Ichimliklar',
+    pos_kind_barista: 'Barista',
+    pos_kind_expo: "Yig'ish",
 
     // Sexlar
     pos_stations_title: 'Oshxona sexlari',
@@ -196,6 +201,11 @@ export const possetup = defineSection({
     pos_kind_tea: 'Чай',
     pos_kind_kitchen: 'Кухня',
     pos_kind_other: 'Другое',
+    pos_kind_grill: 'Гриль',
+    pos_kind_fryer: 'Фритюр',
+    pos_kind_drinks: 'Напитки',
+    pos_kind_barista: 'Бариста',
+    pos_kind_expo: 'Сборка',
 
     pos_stations_title: 'Кухонные цеха',
     pos_stations_intro: 'Цех — место, где готовят блюдо (плов, мангал, салат-бар, чай). Строка заказа уходит в свой цех: на принтер или кухонный экран.',
@@ -362,6 +372,11 @@ export const possetup = defineSection({
     pos_kind_tea: 'Tea',
     pos_kind_kitchen: 'Kitchen',
     pos_kind_other: 'Other',
+    pos_kind_grill: 'Burger grill',
+    pos_kind_fryer: 'Fryer',
+    pos_kind_drinks: 'Drinks',
+    pos_kind_barista: 'Barista',
+    pos_kind_expo: 'Expo (assembly)',
 
     pos_stations_title: 'Kitchen stations',
     pos_stations_intro: 'A station is where a dish is made (plov, grill, salad bar, tea). An order line goes to its own station: to a printer or the kitchen screen.',

@@ -18,6 +18,10 @@ Bill _$BillFromJson(Map<String, dynamic> json) => Bill(
   minSpendTopupAmount: json['min_spend_topup_amount'] as String,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
+  packagingAmount: json['packaging_amount'] as String,
+  packagingLines: (json['packaging_lines'] as List<dynamic>)
+      .map((e) => PackagingLines.fromJson(e as Map<String, dynamic>))
+      .toList(),
   total: json['total'] as String,
   paidAmount: json['paid_amount'] as String,
   dueAmount: json['due_amount'] as String,
@@ -27,9 +31,9 @@ Bill _$BillFromJson(Map<String, dynamic> json) => Bill(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal3.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal4.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items4.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
       .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
@@ -57,6 +61,8 @@ Map<String, dynamic> _$BillToJson(Bill instance) => <String, dynamic>{
   'min_spend_topup_amount': instance.minSpendTopupAmount,
   'service_charge_amount': instance.serviceChargeAmount,
   'place_fee_amount': instance.placeFeeAmount,
+  'packaging_amount': instance.packagingAmount,
+  'packaging_lines': instance.packagingLines,
   'total': instance.total,
   'paid_amount': instance.paidAmount,
   'due_amount': instance.dueAmount,

@@ -7,11 +7,31 @@ part of 'data175.dart';
 // **************************************************************************
 
 Data175 _$Data175FromJson(Map<String, dynamic> json) => Data175(
-  booking: Booking.fromJson(json['booking'] as Map<String, dynamic>),
-  order: Order7.fromJson(json['order'] as Map<String, dynamic>),
+  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  userId: (json['user_id'] as num).toInt(),
+  userName: json['user_name'] as String?,
+  businessDate: json['business_date'] as String,
+  clockInAt: json['clock_in_at'] as String,
+  clockOutAt: json['clock_out_at'] as String?,
+  abandoned: json['abandoned'] as bool,
+  open: json['open'] as bool,
+  minutes: (json['minutes'] as num).toInt(),
+  source: json['source'] as String,
+  note: json['note'] as String?,
 );
 
 Map<String, dynamic> _$Data175ToJson(Data175 instance) => <String, dynamic>{
-  'booking': instance.booking,
-  'order': instance.order,
+  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'user_id': instance.userId,
+  'user_name': instance.userName,
+  'business_date': instance.businessDate,
+  'clock_in_at': instance.clockInAt,
+  'clock_out_at': instance.clockOutAt,
+  'abandoned': instance.abandoned,
+  'open': instance.open,
+  'minutes': instance.minutes,
+  'source': instance.source,
+  'note': instance.note,
 };

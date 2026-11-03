@@ -21,11 +21,14 @@ class UnsupportedPrinter {
 ///
 /// * [receiptPrinter] — chek va schyot (`purpose: receipt`);
 /// * [kitchenPrinterFor] — sex markasi (`kitchen`, sexi bo'yicha; sexsiz qatorlar — sexsiz kitchen printeri);
+/// * [labelPrinter] — stakan stikeri va paket yorlig'i (P6-32, `label`; TSPL tilida);
 /// * [unsupported] — ishlatib bo'lmaydiganlari va sababi.
 ///
 /// Mos kelish: `lan` → LAN 9100 (`address`, `port`), `builtin` → Sunmi ichki printeri, `usb` → Windows spooler (printer
 /// nomi — serverdagi `name`; Windows'dagi nom boshqacha bo'lsa P3-22 printer sozlamalarida qurilmada almashtiradi),
-/// `bluetooth` — hozircha yo'q. `encoding` → kod sahifasi, `print_as_image` → matn rasm sifatida.
+/// `bluetooth` — hozircha yo'q. `encoding` → kod sahifasi, `print_as_image` → matn rasm sifatida. P6-32: `purpose: label`
+/// printeri TSPL tilida ([PrinterLanguage.tspl]: Xprinter, Gprinter yorliq printerlari); boshqalari ESC/POS — serverda
+/// alohida "til" maydoni yo'q, maqsadning o'zi tilni aytadi.
 class CashierPrinting extends ChangeNotifier {
   CashierPrinting({PosPrinters? printers})
     : printers = printers ?? PosPrinters();
@@ -66,6 +69,9 @@ class CashierPrinting extends ChangeNotifier {
   /// Chek va schyot printeri (birinchi `receipt`).
   PrinterConfig? get receiptPrinter =>
       _first((PosPrinterInfo i) => i.isReceipt);
+
+  /// P6-32: stiker printeri (birinchi `label`, TSPL); yo'q — `null` (stiker chiqmaydi, to'lov davom etadi).
+  PrinterConfig? get labelPrinter => _first((PosPrinterInfo i) => i.isLabel);
 
   /// Sex markasi printeri: shu sexniki, bo'lmasa sexsiz `kitchen` printeri.
   PrinterConfig? kitchenPrinterFor(int? stationId) =>
@@ -123,6 +129,7 @@ class CashierPrinting extends ChangeNotifier {
       paper: PaperWidth.fromMillimetres(info.paperWidth),
       codePage: EscPosCodePage.byName(info.encoding),
       textMode: info.printAsImage ? PrintTextMode.image : PrintTextMode.auto,
+      language: info.isLabel ? PrinterLanguage.tspl : PrinterLanguage.escpos,
     ),
     null,
   );

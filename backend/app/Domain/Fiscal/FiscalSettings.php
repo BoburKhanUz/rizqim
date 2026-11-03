@@ -20,10 +20,12 @@ use Illuminate\Validation\ValidationException;
  *       "charges": {                      // receipt lines that are not menu items (FiscalLineBuilder::forCharge)
  *         "room_fee": {"mxik": "1020200…", "package_code": null, "unit": "xizmat", "name": "Xona puli"},
  *         …                               // also place_fee, min_spend_topup, service_charge, deposit, booking_fee,
- *       },                                // credit, delivery
+ *       },                                // credit, delivery, packaging (P6-34: the default code of the packaging
+ *                                         // lines whose rule has none)
  *       "sandbox": {"latency_ms": 0, "fail_attempts": 0, "failure_rate": 0, "reject": false},
  *       "deposit_refund_receipt": null,   // P3-17 booking deposits (FLAGS); null: their default
- *       "retained_deposit_receipt": null
+ *       "retained_deposit_receipt": null,
+ *       "combo_fiscal_mode": "single"     // P6-31 (ComboFiscalMode): a combo as one line, or split by its parts
  *     }
  *
  * A charge field left out (or null) takes config('fiscal.charges.<key>.<field>').
@@ -31,7 +33,7 @@ use Illuminate\Validation\ValidationException;
 final class FiscalSettings
 {
     /** The charges FiscalLineBuilder::forCharge knows, in display order */
-    public const CHARGES = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'deposit', 'booking_fee', 'credit', 'delivery'];
+    public const CHARGES = ['room_fee', 'place_fee', 'min_spend_topup', 'service_charge', 'deposit', 'booking_fee', 'credit', 'delivery', 'packaging'];
 
     /**
      * Receipt choices of the booking deposit flow (P3-17, App\Domain\Pos\Booking\PosSettingsReader): a REFUND
@@ -130,6 +132,14 @@ final class FiscalSettings
     }
 
     /**
+     * P6-31: how a combo goes on the fiscal receipt (owner decision 30.10.2026: `single` unless the accountant asks).
+     */
+    public function comboFiscalMode(): ComboFiscalMode
+    {
+        return ComboFiscalMode::tryFrom((string) ($this->raw['combo_fiscal_mode'] ?? '')) ?? ComboFiscalMode::SINGLE;
+    }
+
+    /**
      * @return array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}
      */
     public function sandbox(): array
@@ -147,7 +157,7 @@ final class FiscalSettings
     /**
      * Everything with its defaults, as the settings endpoints return it.
      *
-     * @return array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null}
+     * @return array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null, combo_fiscal_mode: ComboFiscalMode}
      */
     public function toArray(): array
     {
@@ -165,6 +175,7 @@ final class FiscalSettings
             'sandbox' => $this->sandbox(),
             'deposit_refund_receipt' => $this->flag('deposit_refund_receipt'),
             'retained_deposit_receipt' => $this->flag('retained_deposit_receipt'),
+            'combo_fiscal_mode' => $this->comboFiscalMode(),
         ];
     }
 
@@ -209,6 +220,8 @@ final class FiscalSettings
             'fiscal_settings.sandbox.reject' => ['sometimes', 'boolean'],
             'fiscal_settings.deposit_refund_receipt' => ['sometimes', 'nullable', 'boolean'],
             'fiscal_settings.retained_deposit_receipt' => ['sometimes', 'nullable', 'boolean'],
+            // P6-31: a combo as one fiscal line (single) or by its parts (split)
+            'fiscal_settings.combo_fiscal_mode' => ['sometimes', 'nullable', 'string', Rule::enum(ComboFiscalMode::class)],
         ], \App\Support\UzValidation::messages([
             'tin.regex' => "STIR 9 ta raqamdan iborat bo'lishi kerak.",
             'tax_regime.in' => "Soliq rejimi noto'g'ri: vat, vat_simplified yoki turnover.",
@@ -227,6 +240,7 @@ final class FiscalSettings
             'fiscal_settings.sandbox.failure_rate' => 'Xato ehtimoli (%)',
             'fiscal_settings.deposit_refund_receipt' => 'Avans qaytarilganda chek',
             'fiscal_settings.retained_deposit_receipt' => 'Avans ushlab qolinganda chek',
+            'fiscal_settings.combo_fiscal_mode' => 'Kombo fiskal chekda',
         ]);
 
         $validator->after(function (\Illuminate\Validation\Validator $validator) use ($input, $store) {
@@ -305,6 +319,14 @@ final class FiscalSettings
                 } else {
                     $stored[$flag] = (bool) $input[$flag];
                 }
+            }
+        }
+
+        if (array_key_exists('combo_fiscal_mode', $input)) {
+            if ($input['combo_fiscal_mode'] === null) {
+                unset($stored['combo_fiscal_mode']);
+            } else {
+                $stored['combo_fiscal_mode'] = (string) $input['combo_fiscal_mode'];
             }
         }
 

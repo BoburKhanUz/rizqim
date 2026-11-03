@@ -7,19 +7,15 @@ part of 'data178.dart';
 // **************************************************************************
 
 Data178 _$Data178FromJson(Map<String, dynamic> json) => Data178(
-  text: json['text'] as String,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines19.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  roomFee: json['room_fee'] == null
-      ? null
-      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
-  channels: Channels3.fromJson(json['channels'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: UserRole.fromJson(json['role'] as String),
+  branchId: (json['branch_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data178ToJson(Data178 instance) => <String, dynamic>{
-  'text': instance.text,
-  'lines': instance.lines,
-  'room_fee': instance.roomFee,
-  'channels': instance.channels,
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'branch_id': instance.branchId,
 };

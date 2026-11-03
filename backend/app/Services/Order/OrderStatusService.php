@@ -124,7 +124,8 @@ class OrderStatusService
             $keepsKitchen = $to === OrderStatus::DELIVERED && $tracker !== null && $tracker->keepsKitchen($order);
             if (!$keepsKitchen && in_array($to, [OrderStatus::READY, OrderStatus::ON_THE_WAY, OrderStatus::DELIVERY, OrderStatus::DELIVERED], true)) {
                 // P3-12: a POS line sent to the kitchen too; a POS line never sent (held) and a voided one stay as they are
-                $order->items()->whereIn('kitchen_status', \App\Enums\KitchenItemStatus::cookingValues())
+                // P6-31: a combo's part lines with it
+                \App\Models\OrderItem::withComboParts()->where('order_id', $order->id)->whereIn('kitchen_status', \App\Enums\KitchenItemStatus::cookingValues())
                     ->where(fn ($query) => $query->whereNotNull('sent_at')->orWhereNull('fire_mode'))
                     ->update(['kitchen_status' => \App\Enums\KitchenItemStatus::READY->value, 'ready_at' => now()]);
             }

@@ -2,6 +2,7 @@
 // over the profile's defaults with the plan's and the law's locks, and the sample stations and menu. The store's service fee
 // rows (GET /owner/service-fees) live here too: the Format page reads them to warn that a stolovaya takes no service charge.
 import type { FakeBackend } from './backend'
+import { FakeLabels } from './labels'
 import { fail, ok, type FakeRequest, type Reply } from './types'
 
 interface Profile {
@@ -84,11 +85,20 @@ const MODULES: Array<{ key: string; label: string; description: string; plan?: s
   { key: 'rooms', label: 'Xonalar va tapchanlar', description: "Xona va tapchanlar bandligi." },
   { key: 'service_charge', label: 'Xizmat haqi', description: "Hisobga foiz qo'shiladi." },
   { key: 'kds', label: 'Oshxona ekrani (KDS)', description: 'Oshxona uchun buyurtmalar ekrani.', plan: 'asosiy' },
+  // P6-33: KDS v2's expo screen and time targets
+  { key: 'kds_expo', label: "Yig'ish ekrani va sex vaqtlari", description: "Yig'ish ekrani va sex vaqt maqsadlari.", plan: 'asosiy' },
   { key: 'hostess', label: 'Hostes', description: "Kutish ro'yxati va stol holati." },
   { key: 'table_booking', label: 'Stol broni', description: 'Stol turi bo\'yicha slot, bron muddati va bo\'nak.' },
   // P6-25 (the menu's "Kassada sotish" section reads them)
   { key: 'skewer_buttons', label: 'Six tugmalari', description: "×2…×10 tez tugmalari va mangal vaqti." },
   { key: 'weight_later', label: "Og'irlikni keyin kiritish", description: "Taom tortilgach og'irligi kiritiladi." },
+  // P6-32: the sticker settings tab and the modifier group's quick hints
+  { key: 'labels', label: 'Stakan stikeri va yorliq', description: 'Ichimlik stakaniga stiker va olib ketish paketiga yorliq.' },
+  { key: 'quick_modifiers', label: 'Tez modifikatorlar', description: 'Modifikatorlar menyu tugmasi yonida.' },
+  // P6-34: packaging rules, the pickup time and 24/7 tabs
+  { key: 'packaging', label: 'Qadoq', description: "Olib ketish va yetkazishda qadoq qatori qoida bo'yicha." },
+  { key: 'scheduled_pickup', label: 'Olib ketish vaqti', description: 'Mijoz olib ketish vaqtini tanlaydi.' },
+  { key: 'round_the_clock', label: '24/7 ish', description: 'Kechayu kunduz ishlaydigan filial.' },
 ]
 
 export interface FakeServiceFeeRow {
@@ -112,8 +122,17 @@ export class FakeFormat {
   existingStations = new Set<string>(['Osh va qozon'])
   existingDishes = new Set<string>()
   serviceFees: FakeServiceFeeRow[] = []
+  /** P6-32: the branch's sticker and label settings (the labels module). */
+  labels: FakeLabels
 
-  constructor(readonly backend: FakeBackend) {}
+  constructor(readonly backend: FakeBackend) {
+    this.labels = new FakeLabels(backend, () => this.has('labels'))
+  }
+
+  /** Whether a module is on for the branch now (the owner's switch over the profile, minus the plan's lock). */
+  has(key: string): boolean {
+    return this.enabled(key)
+  }
 
   private get current(): Profile {
     return PROFILES.find((profile) => profile.key === this.profile) ?? PROFILES[0]
@@ -196,6 +215,8 @@ export class FakeFormat {
 
   handle(req: FakeRequest, body: Record<string, unknown> | null): Reply | null {
     const path = req.path
+    const sticker = this.labels.handle(req, body)
+    if (sticker) return sticker
     if (req.method === 'GET' && path === '/v1/owner/pos/format') return ok(this.view(Number(req.query.branch_id ?? 1)))
     if (req.method === 'PUT' && path === '/v1/owner/pos/format') return this.update(body ?? {})
     if (req.method === 'POST' && path === '/v1/owner/pos/format/template') {

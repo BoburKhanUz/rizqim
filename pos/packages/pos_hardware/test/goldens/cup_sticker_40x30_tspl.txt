@@ -1,0 +1,16 @@
+SIZE 40 mm,30 mm
+GAP 2 mm,0 mm
+DIRECTION 1,0
+REFERENCE 0,0
+DENSITY 8
+CLS
+TEXT 8,16,"2",0,2,2,"#57"
+TEXT 9,16,"2",0,2,2,"#57"
+TEXT 248,12,"2",0,1,1,"12:15"
+TEXT 8,68,"2",0,1,1,"Latte"
+TEXT 9,68,"2",0,1,1,"Latte"
+TEXT 8,96,"2",0,1,1,"0,4 l"
+TEXT 8,124,"2",0,1,1,"+ Sut 0%, Vanil sirop"
+TEXT 8,208,"2",0,1,1,"Olib ketish"
+TEXT 9,208,"2",0,1,1,"Olib ketish"
+PRINT 1,1

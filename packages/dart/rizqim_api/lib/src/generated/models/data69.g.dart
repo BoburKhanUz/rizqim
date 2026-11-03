@@ -7,35 +7,39 @@ part of 'data69.dart';
 // **************************************************************************
 
 Data69 _$Data69FromJson(Map<String, dynamic> json) => Data69(
-  debtBalance: json['debt_balance'] as num,
-  walletBalance: json['wallet_balance'] as num,
-  creditLimit: json['credit_limit'] as num,
-  minPayoutReserve: json['min_payout_reserve'] as num,
-  paymentAccountType: json['payment_account_type'] as String,
-  commissionRate: json['commission_rate'] as num,
-  status: StoreStatus.fromJson(json['status'] as String),
-  isOrderLocked: json['is_order_locked'] as bool,
-  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
-      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
-      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  payoutRequests: (json['payout_requests'] as List<dynamic>)
-      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  branch: json['branch'] == null
+      ? null
+      : Branch5.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon3.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox3.fromJson(json['bbox'] as Map<String, dynamic>),
+  areaKm2: json['area_km2'] as String,
+  deliveryPrice: json['delivery_price'] as String,
+  minOrderAmount: json['min_order_amount'] as String,
+  freeDeliveryFrom: json['free_delivery_from'] as String?,
+  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
+  priority: (json['priority'] as num).toInt(),
+  active: json['active'] as bool,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data69ToJson(Data69 instance) => <String, dynamic>{
-  'debt_balance': instance.debtBalance,
-  'wallet_balance': instance.walletBalance,
-  'credit_limit': instance.creditLimit,
-  'min_payout_reserve': instance.minPayoutReserve,
-  'payment_account_type': instance.paymentAccountType,
-  'commission_rate': instance.commissionRate,
-  'status': instance.status,
-  'is_order_locked': instance.isOrderLocked,
-  'ledger_transactions': instance.ledgerTransactions,
-  'wallet_transactions': instance.walletTransactions,
-  'payout_requests': instance.payoutRequests,
+  'id': instance.id,
+  'name': instance.name,
+  'branch_id': instance.branchId,
+  'branch': instance.branch,
+  'polygon': instance.polygon,
+  'bbox': instance.bbox,
+  'area_km2': instance.areaKm2,
+  'delivery_price': instance.deliveryPrice,
+  'min_order_amount': instance.minOrderAmount,
+  'free_delivery_from': instance.freeDeliveryFrom,
+  'eta_minutes': instance.etaMinutes,
+  'priority': instance.priority,
+  'active': instance.active,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

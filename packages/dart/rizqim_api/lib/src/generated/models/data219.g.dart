@@ -7,31 +7,25 @@ part of 'data219.dart';
 // **************************************************************************
 
 Data219 _$Data219FromJson(Map<String, dynamic> json) => Data219(
-  orderUuid: json['order_uuid'] as String,
-  number: (json['number'] as num).toInt(),
-  businessDate: json['business_date'] as String?,
-  status: json['status'] == null
+  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
+  store: json['store'] == null
       ? null
-      : PickupStatus.fromJson(json['status'] as String),
-  channel: json['channel'] as String,
-  orderStatus: json['order_status'] as String,
-  readyAt: json['ready_at'] as String?,
-  calledAt: json['called_at'] as String?,
-  callCount: (json['call_count'] as num).toInt(),
-  handedAt: json['handed_at'] as String?,
-  openedAt: json['opened_at'] as String?,
+      : Store3.fromJson(json['store'] as Map<String, dynamic>),
+  device: Device11.fromJson(json['device'] as Map<String, dynamic>),
+  tillUuid: json['till_uuid'] as String?,
+  modules: Modules2.fromJson(json['modules'] as Map<String, dynamic>),
+  serverTime: json['server_time'] as String,
+  cart: json['cart'] == null
+      ? null
+      : Cart.fromJson(json['cart'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data219ToJson(Data219 instance) => <String, dynamic>{
-  'order_uuid': instance.orderUuid,
-  'number': instance.number,
-  'business_date': instance.businessDate,
-  'status': instance.status,
-  'channel': instance.channel,
-  'order_status': instance.orderStatus,
-  'ready_at': instance.readyAt,
-  'called_at': instance.calledAt,
-  'call_count': instance.callCount,
-  'handed_at': instance.handedAt,
-  'opened_at': instance.openedAt,
+  'branch': instance.branch,
+  'store': instance.store,
+  'device': instance.device,
+  'till_uuid': instance.tillUuid,
+  'modules': instance.modules,
+  'server_time': instance.serverTime,
+  'cart': instance.cart,
 };

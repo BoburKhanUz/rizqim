@@ -257,6 +257,15 @@ u yerda sotilmaydigan variantni o'chiring. Bu stop-listda ham ko'rinadi.
 Osh kabi qozonda pishadigan taomlar uchun **Qozon bo'yicha sotiladi** ni yoqing. Filialda ochiq qozon bo'lmasa, taom **tugadi** deb ko'rsatiladi.
 **Qozon bo'yicha** yorlig'i ro'yxatda ko'rinadi. [Stop-list va qozon](#6-stop-list-va-qozon) bo'limiga qarang.
 
+### Kombo va tez modifikatorlar (fast food, qahvaxona)
+
+- **Kombo**: oddiy taom qo'shing (masalan, "Lavash kombo", narxi — komboning asosiy narxi), keyin **Menyu** → **Kombo** →
+  **Kombo qo'shish**: slotlar (Asosiy, Ichimlik, Sous), har slotda tanlovlar, narx farqi va bitta standart tanlov. Chek va
+  fiskal chek qanday chiqishi, kassada va Mini App'da qanday ishlashi: [fast-food.md](fast-food.md#2-kombo-panelda-sozlash).
+  Modul yoqilmagan filialda bu bo'lim ishlamaydi (**Sozlamalar** → **Format**).
+- **Tez tanlov**: modifikator guruhida **Kassada tez tanlash** bo'limi — variantlar menyu tugmasi yonida yoki hajm bir bosishda,
+  standart variant oldindan belgilangan ([fast-food.md](fast-food.md#5-tez-modifikatorlar-hajm-bir-bosishda)).
+
 ### Taomni o'chirish
 
 Taom qatoridan **O'chirish** → tasdiqlang. Oldingi buyurtmalar o'zgarmaydi. Vaqtincha sotmaslik kerak bo'lsa — o'chirmang,
@@ -435,6 +444,19 @@ Eslatma: kassa va oshxona ekrani terminallari soni oylik to'lovga ta'sir qilishi
 Oshxona ekrani **Asosiy** tarifdan boshlab bor; Start tarifda **Kod yaratish** o'chiq turadi. Tarifdagidan ortiq qurilma har oy
 qo'shimcha to'lanadi; to'lanmagan hisob-faktura sababli sozlamalar yopilganda esa ortiqcha qurilma ulanmaydi.
 
+### Fast food: qadoq, oldindan buyurtma, stiker va 24/7
+
+Fast food va qahvaxona formatida **Kassa sozlamalari** da qo'shimcha yorliqlar bor (modul yoqilgan bo'lsa; faqat ega):
+
+- **Qadoq qoidalari** — olib ketish va yetkazishda paket yoki idish qatorini o'zi qo'shish (nomi, narxi, MXIK);
+- **Oldindan buyurtma** — mijoz olib ketish vaqtini tanlashi: eng kam muddat, vaqt qadami, necha kun oldin, tayyorlash vaqti;
+- **Stiker va yorliq** — rulon o'lchami (40 × 30 yoki 58 × 40 mm), qaysi taomlarga stiker, paketga yorliq;
+- **24/7** — kechayu kunduz ishlaydigan filial uchun biznes kunlar hisoboti;
+- **Sexlar** da yangi turlar (**Grill**, **Fritur**, **Ichimliklar**, **Barista**, **Yig'ish**) va **Vaqt maqsadi**.
+
+Hammasi qadamma-qadam: [fast-food.md](fast-food.md). Modullarni **Format** sahifasida yoqasiz
+([ega-pos-sozlash.md](ega-pos-sozlash.md#filial-formati-birinchi-qadam)).
+
 ## 9. Filiallar va ish vaqti
 
 **Filiallar** bo'limida har bir filial kartochkasi ko'rinadi: nomi, **Hozir ochiq** / **Hozir yopiq**, ish vaqti, manzil, telefon va **Yetkazish radiusi**.
@@ -498,6 +520,12 @@ Xarita yuklanmasa, **GeoJSON** maydoniga tayyor shaklni qo'yib **Xaritaga qo'lla
 Sahifada: **Tushum**, **Buyurtmalar**, **O'rtacha chek**, **Bekor qilingan**; **Tushum dinamikasi** grafigi (**Grafik** / **Jadval**);
 **Kanal bo'yicha**, **Filial bo'yicha**, **To'lov usuli bo'yicha**, **Buyurtma turi bo'yicha**; **Eng ko'p sotilgan taomlar**
 (**Soni bo'yicha** / **Tushum bo'yicha**). Tushum faqat yetkazilgan buyurtmalardan hisoblanadi.
+
+### Tayyorlash vaqti
+
+**Tayyorlash vaqti** bo'limi (hisobot huquqi bor xodimga): oshxona qanchada tayyorlayapti. Filial, davr (ko'pi bilan 31 kun) va sex
+tanlanadi; sahifada mediana va 90% vaqt, maqsaddan oshganlar soni, sex, taom va soat bo'yicha jadvallar. Tushlik soatida qaysi
+sex ortda qolayotganini shu yerdan ko'rasiz: [fast-food.md](fast-food.md#11-tayyorlash-vaqti-hisoboti).
 
 ### CSV yuklab olish
 

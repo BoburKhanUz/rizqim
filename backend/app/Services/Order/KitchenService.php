@@ -2,6 +2,7 @@
 
 namespace App\Services\Order;
 
+use App\Domain\Pos\Contracts\AssemblyTracker;
 use App\Domain\Pos\Contracts\CourseTracker;
 use App\Domain\Pos\Contracts\KitchenStationResolver;
 use App\Domain\Pos\Contracts\PickupTracker;
@@ -30,6 +31,10 @@ use Illuminate\Support\Facades\DB;
  * they are bumped and recalled there with no status move at all (courier_assigned has no way back to preparing or on
  * to ready; the courier waits for the food). Once the order is on its way or finished its lines are closed
  * (OrderStatusService marks any still pending ready), so on_the_way and later stay 422.
+ *
+ * P6-33 (module `kds_expo`): in a branch with an expo station an order cooked on several stations is not made ready by
+ * its last bump: it waits for the expo bump (AssemblyTracker, POST /staff/orders/{uuid}/assembled), which does that
+ * step; a recall or a new line bumped undoes an assembly.
  */
 class KitchenService
 {
@@ -75,7 +80,8 @@ class KitchenService
     {
         return DB::transaction(function () use ($order, $item, $actor, $to) {
             $order = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
-            $item = OrderItem::whereKey($item->getKey())->where('order_id', $order->id)->firstOrFail();
+            // P6-31: a combo part's kitchen line is bumped on its own station (ComboKitchen rolls the combo line up)
+            $item = OrderItem::withComboParts()->whereKey($item->getKey())->where('order_id', $order->id)->firstOrFail();
             // Statuses the order moved to here, so the caller sends the same alerts as for a status button (P2-33: not the
             // quiet ones, see OrderStatusService)
             $statuses = [];
@@ -158,11 +164,16 @@ class KitchenService
                 $order->forceFill(['version' => (int) $order->version + 1])->save();
             }
 
+            // P6-33 (kds_expo): a line back in the kitchen or a new one out of it undoes an assembly on the expo station;
+            // an order cooked on several stations waits there before it is ready
+            $assembly = app()->bound(AssemblyTracker::class) ? app(AssemblyTracker::class) : null;
+            $assembly?->kitchenChanged($order, $item);
+
             // P2-33: with a courier already assigned the order stays courier_assigned (no status move either way)
             // P3-12: a POS line sent and not ready yet (or not sent yet) is still to cook too
             $pending = $order->items()->whereIn('kitchen_status', KitchenItemStatus::cookingValues())->exists();
             if ($to === KitchenItemStatus::READY && !$pending && $order->order_type !== OrderType::DINE_IN
-                && $order->status !== OrderStatus::COURIER_ASSIGNED && !$closedPickup) {
+                && $order->status !== OrderStatus::COURIER_ASSIGNED && !$closedPickup && !($assembly?->awaitsAssembly($order) ?? false)) {
                 $result = $this->orderStatus->transition($order, OrderStatus::READY, $actor, [
                     'notes' => "Oshxonada barcha taomlar tayyor: {$actor->name}",
                 ]);

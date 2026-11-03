@@ -7,9 +7,7 @@ part of 'data.dart';
 // **************************************************************************
 
 Data _$DataFromJson(Map<String, dynamic> json) => Data(
-  createdAt: json['created_at'] == null
-      ? null
-      : DateTime.parse(json['created_at'] as String),
+  hasVariants: json['has_variants'] as bool,
   uuid: json['uuid'] as String,
   storeId: (json['store_id'] as num).toInt(),
   categoryId: (json['category_id'] as num).toInt(),
@@ -20,8 +18,10 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   sku: json['sku'] as String?,
   status: json['status'] as String,
   sortOrder: (json['sort_order'] as num).toInt(),
-  hasVariants: json['has_variants'] as bool,
   id: (json['id'] as num).toInt(),
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
   updatedAt: json['updated_at'] == null
       ? null
       : DateTime.parse(json['updated_at'] as String),
@@ -35,16 +35,17 @@ Data _$DataFromJson(Map<String, dynamic> json) => Data(
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as String?,
   quickAdd: json['quick_add'] as bool,
-  modifierGroupLinks: (json['modifier_group_links'] as List<dynamic>)
-      .map((e) => ProductModifierGroup.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
-  weightMode: json['weight_mode'] as String?,
-  isActive: json['is_active'] as bool,
-  imageUrl: json['image_url'] as String?,
   quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
       ?.map((e) => (e as num).toInt())
       .toList(),
+  modifierGroupLinks: (json['modifier_group_links'] as List<dynamic>)
+      .map((e) => ProductModifierGroup.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  weightMode: json['weight_mode'] as String?,
+  kdsTargetSeconds: (json['kds_target_seconds'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
+  imageUrl: json['image_url'] as String?,
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
   imageThumbUrls: ImageThumbUrls2.fromJson(
     json['image_thumb_urls'] as Map<String, dynamic>,
   ),
@@ -94,6 +95,7 @@ Map<String, dynamic> _$DataToJson(Data instance) => <String, dynamic>{
   'quick_multipliers': instance.quickMultipliers,
   'wait_minutes': instance.waitMinutes,
   'weight_mode': instance.weightMode,
+  'kds_target_seconds': instance.kdsTargetSeconds,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,

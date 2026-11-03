@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../catalog/combo_models.dart';
 import '../fiscal/fiscal_receipt_models.dart';
 import '../json.dart';
 
@@ -219,6 +220,7 @@ class PosBillItem {
     this.unit = PosUnit.piece,
     this.amount = PosMoney.zero,
     this.discountAmount = PosMoney.zero,
+    this.comboParts,
   });
 
   factory PosBillItem.fromJson(PosJson j) => PosBillItem(
@@ -229,6 +231,7 @@ class PosBillItem {
     quantity: j.quantity('quantity'),
     amount: j.money('amount'),
     discountAmount: j.money('discount_amount'),
+    comboParts: PosComboPart.listOf(j['combo_parts']),
   );
 
   final int orderItemId;
@@ -238,6 +241,9 @@ class PosBillItem {
   final PosQuantity quantity;
   final PosMoney amount;
   final PosMoney discountAmount;
+
+  /// P6-31: kombo tarkibi (chekda qator ostida narxsiz, `combo_parts[].label`); kombo emas — `null`.
+  final List<PosComboPart>? comboParts;
 }
 
 class PosPayment {

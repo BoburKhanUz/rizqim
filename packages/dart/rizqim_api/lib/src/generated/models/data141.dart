@@ -8,13 +8,44 @@ part 'data141.g.dart';
 
 @JsonSerializable()
 class Data141 {
-  const Data141({required this.path, required this.url});
+  const Data141({
+    required this.id,
+    required this.branchId,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
+  });
 
   factory Data141.fromJson(Map<String, Object?> json) =>
       _$Data141FromJson(json);
 
-  final String path;
-  final String url;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data141ToJson(this);
 }

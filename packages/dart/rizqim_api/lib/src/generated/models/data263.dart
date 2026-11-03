@@ -4,122 +4,74 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer6.dart';
-import 'delivery9.dart';
-import 'courier6.dart';
-import 'items57.dart';
-import 'status_history2.dart';
+import 'device18.dart';
+import 'opened_by7.dart';
+import 'closed_by10.dart';
+import 'summary6.dart';
+import 'bank_terminal2.dart';
 
 part 'data263.g.dart';
 
 @JsonSerializable()
 class Data263 {
   const Data263({
-    required this.discount,
-    required this.shortCode,
-    required this.status,
-    required this.statusLabel,
-    required this.type,
-    required this.channel,
-    required this.storeId,
-    required this.branchId,
-    required this.branchName,
-    required this.paymentMethod,
-    required this.paymentStatus,
-    required this.subtotal,
     required this.uuid,
-    required this.deliveryPrice,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.totalPrice,
-    required this.notes,
-    required this.guestsCount,
-    required this.hallRef,
-    required this.tableRef,
-    required this.cancelReason,
-    required this.cancelNote,
-    required this.customer,
-    required this.statusHistory,
-    required this.courier,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.acceptedAt,
-    required this.preparingAt,
-    required this.readyAt,
+    required this.status,
+    required this.branchId,
+    required this.device,
+    required this.businessDate,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
     required this.closedAt,
-    required this.waitingSeconds,
-    required this.delivery,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
+    required this.difference,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
+    required this.summary,
+    required this.bankTerminal,
   });
 
   factory Data263.fromJson(Map<String, Object?> json) =>
       _$Data263FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
   final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final String type;
-  final String channel;
-  @JsonKey(name: 'store_id')
-  final int storeId;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'branch_name')
-  final String? branchName;
-  @JsonKey(name: 'payment_method')
-  final String paymentMethod;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final String? notes;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  @JsonKey(name: 'cancel_note')
-  final String? cancelNote;
-  final Customer6? customer;
-  final Delivery9? delivery;
-  final Courier6? courier;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items57> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
+  final int branchId;
+  final Device18? device;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy7? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
-  @JsonKey(name: 'status_history')
-  final List<StatusHistory2> statusHistory;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy10? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
+  final String? difference;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
+  final Summary6? summary;
+  @JsonKey(name: 'bank_terminal')
+  final BankTerminal2? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data263ToJson(this);
 }

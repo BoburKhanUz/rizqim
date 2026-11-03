@@ -4,7 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order.dart';
+import 'branch6.dart';
+import 'polygon4.dart';
+import 'bbox4.dart';
 
 part 'data70.g.dart';
 
@@ -12,31 +14,47 @@ part 'data70.g.dart';
 class Data70 {
   const Data70({
     required this.id,
-    required this.type,
-    required this.amount,
-    required this.balanceBefore,
-    required this.balanceAfter,
-    required this.order,
-    required this.referenceId,
-    required this.notes,
+    required this.name,
+    required this.branchId,
+    required this.branch,
+    required this.polygon,
+    required this.bbox,
+    required this.areaKm2,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
+    required this.active,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data70.fromJson(Map<String, Object?> json) => _$Data70FromJson(json);
 
   final int id;
-  final String type;
-  final String amount;
-  @JsonKey(name: 'balance_before')
-  final String balanceBefore;
-  @JsonKey(name: 'balance_after')
-  final String balanceAfter;
-  final Order? order;
-  @JsonKey(name: 'reference_id')
-  final String? referenceId;
-  final String? notes;
+  final String name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Branch6? branch;
+  final Polygon4 polygon;
+  final Bbox4 bbox;
+  @JsonKey(name: 'area_km2')
+  final String areaKm2;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
+  final bool active;
   @JsonKey(name: 'created_at')
-  final String createdAt;
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data70ToJson(this);
 }

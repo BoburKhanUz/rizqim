@@ -12,15 +12,19 @@ import 'counter_format.dart';
 /// Modul o'chiq, bootstrap `queue.numbers` yo'q yoki qurilma jurnali bo'lmasa — raqam olinmaydi: buyurtma raqamsiz
 /// ochiladi va raqamni (bo'lsa) server beradi.
 class CounterQueueNumbers {
-  CounterQueueNumbers(this.data, {PosQueueRepository? repository})
-    : repository = repository ?? PosQueueRepository(data.http);
+  CounterQueueNumbers(
+    this.data, {
+    PosQueueRepository? repository,
+    DateTime Function()? clock,
+  }) : repository = repository ?? PosQueueRepository(data.http),
+       _clock = clock ?? DateTime.now;
 
   static final Expando<CounterQueueNumbers> _byData =
       Expando<CounterQueueNumbers>();
 
   /// Bitta terminal ([PosData]) uchun bitta nusxa (yangi olingan blok sahifa qayta ochilganda ham esda).
-  static CounterQueueNumbers of(PosData data) =>
-      _byData[data] ??= CounterQueueNumbers(data).._watchSync();
+  static CounterQueueNumbers of(PosData data, {DateTime Function()? clock}) =>
+      _byData[data] ??= CounterQueueNumbers(data, clock: clock).._watchSync();
 
   /// Internetsiz ochilgan buyurtma serverga yetdi: server bergan raqam (`refs.queue_number`; `queue_number_taken`
   /// bo'lsa boshqasi) ham ishlatilgan deb yoziladi.
@@ -35,15 +39,53 @@ class CounterQueueNumbers {
 
   final PosData data;
   final PosQueueRepository repository;
+  final DateTime Function() _clock;
 
   PosQueueState? _fresh;
   Future<void>? _toppingUp;
 
-  /// Oxirgi ma'lum bloklar: `POST /pos/queue/blocks` javobi yoki bootstrap.
-  PosQueueState get state =>
-      _fresh != null && _fresh!.businessDate == _bootState.businessDate
-      ? _fresh!
-      : _bootState;
+  /// Oxirgi ma'lum bloklar: `POST /pos/queue/blocks` javobi yoki bootstrap. P6-34 (24/7): yangi biznes kunning
+  /// bloklari (kun boshida olingan) eski bootstrap'dagidan ustun.
+  PosQueueState get state {
+    final PosQueueState boot = _bootState;
+    final PosQueueState? fresh = _fresh;
+    if (fresh == null || fresh.businessDate == null) return boot;
+    final String? bootDate = boot.businessDate;
+    return bootDate == null || fresh.businessDate!.compareTo(bootDate) >= 0
+        ? fresh
+        : boot;
+  }
+
+  /// P6-34: bootstrap'ning biznes kuni (`takeaway.business_day`; eski server — `null`).
+  PosBusinessDay? get _businessDay =>
+      PosTakeaway.of(data.session.bootstrap?.raw ?? const <String, Object?>{})
+          .businessDay;
+
+  /// Biznes kun almashdi (24/7 smena kun boshidan o'tdi), bloklar hali eski kunniki: raqam yangi kun blokidan bo'lishi
+  /// uchun avval yangi bloklar so'raladi (talon bir biznes kunda takrorlanmaydi va har kun 1 dan boshlanadi).
+  bool get dayRolled {
+    final PosBusinessDay? day = _businessDay;
+    final String? date = state.businessDate;
+    if (day == null || date == null || !day.isOverAt(_clock())) return false;
+    return date.compareTo(day.dateAt(_clock())) < 0;
+  }
+
+  Future<void>? _rolling;
+
+  /// Yangi biznes kun bloklari (aloqa borida). Internetsiz — eski blokdan raqam beriladi, server ochishda yangi kun
+  /// blokidan boshqasini beradi (`queue_number_taken`) va kassa uni ham ishlatilgan deb yozadi.
+  Future<void> rollOver() => _rolling ??= _rollOver().whenComplete(() {
+    _rolling = null;
+  });
+
+  Future<void> _rollOver() async {
+    if (!dayRolled || (data.offline?.active ?? false)) return;
+    try {
+      _fresh = await repository.reserveBlocks();
+    } on PosException {
+      // Keyingi raqamda yana uriniladi
+    }
+  }
 
   PosQueueState get _bootState =>
       data.session.bootstrap?.queue ?? const PosQueueState();
@@ -64,6 +106,7 @@ class CounterQueueNumbers {
 
   /// Keyingi raqam (diskka yozilgach); olinmasa `null`.
   Future<int?> take() async {
+    if (dayRolled) await rollOver();
     final SyncStore? s = _store;
     final String? date = state.businessDate;
     if (!enabled || s == null || date == null) return null;

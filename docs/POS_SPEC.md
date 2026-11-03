@@ -1673,3 +1673,178 @@ Bron tafsiloti (`GET /pos/bookings/{uuid}`) `deposit_required` va `deposit_missi
 `2026_11_12_4001xx`–`4004xx`). Ruxsatlar: `orders.transfer` (ega, menejer; kassir/ofitsiant PIN tasdig'i bilan),
 `hostess.manage` (ega, menejer, hostes). Menejer PIN tasdig'i bilan beriladigan ruxsatlar ro'yxatiga `orders.transfer`
 qo'shildi.
+
+## KDS v2: universal sexlar, vaqt maqsadi, yig'ish ekrani (P6-33)
+
+Fast food oqimi: kassa → sexlar (grill, fritur, ichimlik) → yig'ish → "tayyor" raqam. API — [API.md](API.md), "KDS v2".
+
+- **Sex turlari:** `grill`, `fryer`, `drinks`, `barista`, `expo` choyxonaning `osh`, `mangal`, `salad_bar`, `tea` va `kitchen`,
+  `other` turlariga qo'shildi. Format shabloni: fast food — Grill, Fritur, Ichimliklar, Yig'ish; qahvaxona — Barista.
+  Yig'ish (`expo`) sexi taom pishirmaydi: unga taom biriktirilmaydi.
+- **Vaqt maqsadi** (modul `kds_expo`): sexning standart vaqti (soniya) va taomning o'z vaqti (sexnikidan ustun, do'kon bo'yicha).
+  KDS chiptasi har qatorda `target_seconds` va `late` ni beradi: "kechikdi" = hozir − oshxonaga kelgan vaqt > maqsad (tayyor
+  qatorda — tayyor bo'lgan vaqt). Maqsadsiz qator kechikmaydi. Expo sexining maqsadi — yig'ish vaqti.
+- **Yig'ish ekrani** (modul `kds_expo` va faol `expo` sexi): mijoz yoki kuryer kutadigan buyurtma (olib ketish, yetkazish,
+  onlayn olib ketish, stolsiz zal buyurtmasi) oxirgi sex tayyor bo'lganda ekspoda kutadi; ekspo ekrani qaysi sex tayyorligini
+  ko'rsatadi. Ekspo "yig'ildi" bosganda buyurtma `ready` (onlayn mijozga xabar), raqam `ready` — raqamlar ekrani va mijoz
+  ekraniga chiqadi. Qator qaytarilsa yoki yig'ilgandan keyin yangi qator tayyor bo'lsa yig'ish bekor bo'ladi. Expo'siz yoki
+  modulsiz — avvalgidek: hamma sex tayyor → `ready`. Kassirning "Tayyor" tugmasi doim ishlaydi; to'lov, schyot va yopish hech
+  qachon yig'ishni kutmaydi (avval to'langan kassa buyurtmasi ham: raqami yig'ilgandan keyin chaqiriladi).
+- **Qaysi buyurtma yig'iladi** (egasi qarori 03.11.2026, filial sozlamasi `expo_scope`, `branches.pos_settings`): `all` —
+  **har bir buyurtma**, bitta sexli ham (standart); `multi_station` — faqat ikki va undan ko'p sexda tayyorlangani (bitta sexli
+  oxirgi bump bilan `ready`, avvalgi qoida). Panel: "POS sozlamalari → Sexlar → Yig'ish ekrani"; API —
+  `PUT /owner/kds/expo-scope` (`settings.manage`, auditda `kds.expo_scope_changed`). `multi_station` ga o'tilganda yig'ishni
+  kutayotgan bitta sexli buyurtma darhol `ready` (qolib ketmaydi). Sozlama POS sozlamalari va format o'zgarishida saqlanadi.
+- **Tayyorlash vaqti hisoboti** (modul `kds`): sex, taom va soat bo'yicha soni, mediana, 90-persentil, maqsaddan oshganlar soni
+  va ulushi; buyurtma bo'yicha (birinchi taom kelgandan yig'ilguncha yoki oxirgi taom tayyor bo'lguncha — "90% buyurtma 9
+  daqiqada" ko'rsatkichi) va yig'ish vaqti. Haqiqiy vaqtlardan: `sent_at` (onlayn — qabul qilingan), `ready_at`, `assembled_at`.
+  Biznes kunlari Toshkent vaqti bilan, filial kun boshidan; ko'pi bilan 31 kun. Hamkor panelida "Tayyorlash vaqti" sahifasi.
+- **Ma'lumotlar:** `kitchen_stations.target_seconds`, `products.kds_target_seconds`, `orders.assembled_at`, `orders.assembled_by`
+  (migratsiya `2026_11_14_200100`). Real-time: `kitchen.order_assembled` (`{order, assembled, assembled_at, queue_number}`).
+- **KDS ilovasi (pos/apps/kds, 3-bosqich B):** yangi sex turlari o'z ikonkasi va nomi bilan; har qatorda maqsadga nisbatan taymer
+  (maqsadning 80 foizidan sariq, o'tgach qizil "Kechikdi +m:ss", chipta ham shu rangda; server `late` bayrog'i darhol qizil);
+  yig'ish (`expo`) sexi tanlansa **Yig'ish** bo'limi: `assembly` li buyurtma kartochkasi (har sexning taomlari va tayyorligi,
+  yig'ish vaqti yig'ish sexi maqsadiga qarab) va **Yig'ildi** tugmasi (`POST /staff/orders/{uuid}/assembled`), `kitchen.order_assembled`
+  bilan jonli yangilanadi; kombo qismlari "Kombo: Lavash kombo ×2" sarlavhasi ostida; barista/ichimlik sexlari ixcham doskada.
+  Mijoz ekrani o'zgarmadi: yig'ilgan raqam `queue.ready` bilan "Tayyor"ga tushadi, oldindan buyurtma yuborilguncha taxtada yo'q.
+
+Fast food e2e (P6-39) topgani: Telegram buyurtmasining qatorlari ham sex ekranida (chiptada `station_id`), keyinroq vaqtga
+olingan buyurtma oshxona vaqtidan sanaladi (qabul qilingandan emas: darhol "kechikdi" bo'lmaydi), daqiqalik ishdan oldin
+berilgan buyurtma raqami taxtaga qaytmaydi. API — [API.md](API.md), "P6-39 tuzatishlari".
+
+3-to'lqin tekshiruvi tuzatishlari (KDS): (1) KDS soati keyinroq vaqtga olingan buyurtmada ham to'g'ri: ilova server soatini
+chiptadagi `waiting_seconds` dan **serverning o'zi sanaydigan boshlanish** bo'yicha topadi (`KitchenTicket.waitingStart`: qabul
+yoki, `pickup.kitchen_fire_at` kechroq bo'lsa, oshxona vaqti), shuning uchun qabul qilinganidan soatlar o'tib oshxonaga tushgan
+buyurtma qator taymerini, "O'CHIRILDI" yangiligini va bekor qilish muddatini buzmaydi. Oshxonaga hali tushmagan (`pickup.waiting`)
+buyurtmadan soat ofseti olinmaydi (u HTTP `Date` sarlavhasiga yoki boshqa chiptaga tayanadi). Server javobi o'zgarmadi
+(`pickup` allaqachon chiptada). (2) Yorliq matnidagi boshqaruv belgilari (mijoz ismi, izoh: CR, LF, ESC, TAB) TSPL buyrug'ini
+kirita olmaydi: `tsplAscii`/`TsplBuilder.text` ularni bo'shliqqa almashtiradi, `LabelWriter` matnni bir qatorga keltiradi
+(`PRINT 1,500` kabi qator chiqmaydi); `POST /user/profile` ham ismdagi boshqaruv belgilarini bo'shliqqa almashtiradi.
+(3) Taomning vaqt maqsadi do'kon bo'yicha, shuning uchun `PUT /owner/kds/targets/products` ni bitta filialga bog'langan
+foydalanuvchi o'zgartira olmaydi (403 `store_wide_only`); egasi va butun do'kon menejeri uchun avvalgidek.
+
+## Qadoq, 24/7 va olib ketish vaqti (P6-34)
+
+Uch modul (format profili, 2.15): `packaging` (fast food, qahvaxona, dark kitchen, lag'monxona, somsaxona, tamaddixona),
+`scheduled_pickup` (fast food, qahvaxona) va `round_the_clock` (hech bir profilda standart emas, ega yoqadi). Hammasi
+Start tarifida. Hech biri to'lov, schyot, chek, smena yoki qaytarishni to'smaydi.
+
+**Qadoq (B8).** Filialning qoidalari (`branch_packaging_rules`, panel: "POS sozlamalari → Qadoq qoidalari"): har qoida —
+bitta idish o'z nomi, narxi, MXIK va qadoq kodi bilan (MXIK bo'sh bo'lsa — do'kon fiskal sozlamasidagi `packaging` kodi).
+- `basis = order` — buyurtmaga `quantity` dona (har olib ketishga bitta paket); `basis = item` — bitta kategoriya yoki bitta
+  taomning har porsiyasiga `quantity` dona (dona qator miqdori yuqoriga yaxlitlanadi: 1,5 porsiya — 2 idish; kg/l qator — 1).
+- **Kombo** (egasi qarori 03.11.2026): kombo qatori o'zi bitta taom (kombo mahsuloti va kategoriyasi: "kombo qutisi" qoidasi
+  uni sanaydi) va **har tarkibi ham o'z taomi** — kombo ichidagi ichimlik "stakan" qoidasida sanaladi. Tarkib porsiyasi =
+  bitta komboda nechta dona (`combo_parts[].quantity`) × kombo qatori soni (tortiladigan tarkib — 1). Tarkib kombo qatorining
+  nusxasidan (`combo_parts[].product_id`) o'qiladi, oshxona qatorlari sanalmaydi — hech narsa ikki marta sanalmaydi. Masalan
+  2 × Lavash kombo (Pepsi bilan) + 1 Pepsi = 3 stakan. Kassada, Telegram buyurtmasida, internetsiz (`OfflinePackaging`,
+  kassa savatidagi taxminiy qadoq ham) bir xil.
+- Buyurtma turlari (`order_types`): `takeaway` (kassada olib ketish), `pickup` va `delivery` (Telegram, Mini App, mobil).
+  Zal buyurtmasi va stolga olib boriladigan kassa buyurtmasi (`table_label`) hech qachon qadoq olmaydi.
+- Qadoq — buyurtmaning qatori: `orders.packaging_amount` (jami) va `orders.packaging_lines` (qoida, nom, MXIK, soni, narx,
+  summa, olib tashlangani). Chegirmadan keyin qo'shiladi va chegirma olmaydi:
+  `jami = max(0, taomlar − chegirma) + xizmat haqi + joy narxi + xona puli + minimal summa farqi + qadoq`.
+- Schyot va chekda har qadoq alohida qator o'z MXIK'i bilan; bo'lingan schyot qadoq ulushini oladi (qatorlar bo'yicha
+  proporsional, qoldiq tiyin eng katta kasrga — `Allocation`), chek yig'indisi har doim schyot summasiga teng.
+- Mijoz o'z paketini olib kelsa, kassir qatorni sabab bilan olib tashlaydi (`POST /pos/orders/{uuid}/packaging/{rule}/remove`,
+  orders.manage, auditda `pos.packaging_removed`); qaytarish — `.../restore`. Schyot chop etilgandan keyin (schyot qulfi,
+  2.9) olib tashlash — chop etilgandan keyingi chegirma kabi: `orders.discount` yoki menejer tasdig'i (403 `approval_required`,
+  kassa PIN oynasini ochib qayta yuboradi), egaga xabar ("✂️ ... olib tashlandi"); ofitsiant faqat o'z buyurtmasida (11).
+  Schyoti to'lanayotgan buyurtmada rad etiladi (409 `paid_bill_affected`).
+- Buyurtmaning biror schyoti to'lana boshlagach qadoq qatorlari schyotdagidek qoladi: qayta hisoblashda qator o'sishi mumkin
+  (taom qo'shildi, qoida qimmatladi), kamaymaydi va yo'qolmaydi (taom o'chirildi, qoida arzonladi yoki o'chirildi) — to'langan
+  schyot har qatorning ulushini olib bo'lgan. Shunda to'lanmagan schyotdagi taomni o'chirish ishlaydi (idishi buyurtmada
+  qoladi; olib tashlash uchun to'langan schyotni qaytaring).
+- Telegram buyurtmasida qadoq CreateOrderAction'da (pickup — `pickup`, yetkazish — `delivery` qoidalari), buyurtma kartasida
+  va onlayn to'lov chekida alohida qatorlar.
+- Internetsiz: bootstrap `takeaway.packaging` qoidalari bilan kassa narxni serverdek hisoblaydi (`pos_data`
+  `OfflinePackaging`); qator taom va kategoriyasini o'zi bilan olib yuradi.
+- Modul o'chirilsa, yangi buyurtmalar qadoqsiz; qadoqli ochiq buyurtma o'z qatorlarini (saqlanganidek) saqlaydi.
+
+**24/7 (`round_the_clock`).** Qoida hamma filial uchun bir — biznes kun (2.3); 24/7 uni ochiq qiladi:
+- biznes kun filialning `business_day_starts_at` (standart 05:00, filial sozlamasida) dan keyingisigacha: 23:59, 00:00 va
+  04:59 — oldingi kun, 05:00 — yangi kun;
+- **smena va Z** smena ochilgan biznes kunga tegishli (20:00 da ochilib ertalab 08:00 da yopilgan smena — kechagi kun);
+- **buyurtma raqami** biznes kun bo'yicha (qaror: smena bo'yicha emas): har biznes kun boshida 1 dan, smena o'rtasida ham;
+  talon bir biznes kunda takrorlanmaydi (`orders.queue_number` filial va kun bo'yicha yagona). Kassa eski kun blokidagi raqamni
+  taklif qilsa, server yangi kun blokidan beradi; kassa `takeaway.business_day.next_starts_at` da bloklarni yangilaydi;
+- hisobot biznes kun bo'yicha: `GET /owner/branches/{id}/business-days` (buyurtmalar, tushum, qadoq, yarim tundan keyingi
+  buyurtmalar, o'sha kunda ochilgan smenalar va Z raqami);
+- 24/7 yoqilgan filialda olib ketish vaqti ish vaqtiga qaramaydi.
+
+**Olib ketish vaqti (`scheduled_pickup`).** Kassadagi olib ketish (`POST /pos/orders` da `pickup_at` yoki
+`PUT /pos/orders/{uuid}/pickup-time`) yoki Telegram olib ketish buyurtmasi (`POST /orders` da `pickup_at`):
+- vaqt kamida `pickup_min_lead_minutes` (20) keyin (422 `pickup_too_soon`), ko'pi bilan `pickup_max_days_ahead` biznes kun
+  ichida (0 — faqat bugun; 422 `pickup_too_far`), do'kon ish vaqtida (`open_time`–`close_time`; teng yoki yo'q bo'lsa yoki 24/7
+  — har vaqt; 422 `pickup_closed`). Vaqtlar ro'yxati — `pickup_slot_minutes` qadamida (`GET /pos/pickup-slots`, Mini App
+  `GET /stores/{store}/branches/{branch}/pickup-slots`);
+- oshxona buyurtmani `kitchen_fire_at = pickup_at − tayyorlash vaqti` da oladi (taomlarning eng katta `wait_minutes`, kamida
+  filialning `pickup_prep_minutes` 15). Ungacha kassa buyurtmasining qatorlari ushlab turiladi (`fire_mode = hold`, `due_at`
+  yo'q: "Oshxonaga yuborish" ularni jo'natmaydi), onlayn buyurtma KDS va raqam taxtasida ko'rinmaydi;
+- har daqiqa `pos:fire-scheduled-pickups`: vaqti kelgan buyurtmalarning qatorlari sexlarga ketadi, raqam `preparing`
+  (taxtada ko'rinadi), `order.items_changed` (`sent`), auditda `pos.pickup_fired`; `kitchen_fired_at` qachonligini aytadi.
+  Avval to'langan (yopilgan) buyurtma ham shu payt oshxonaga chiqadi;
+- vaqtni oshxonaga chiqqunicha o'zgartirish yoki olib tashlash mumkin (olib tashlansa — darhol oshxonaga); keyin 409
+  `already_in_kitchen`; ofitsiant faqat o'z buyurtmasida (11). Kombo tarkibining oshxona qatorlari ham ushlab turiladi.
+  Internetsiz vaqt tanlanmaydi (buyurtma "hozir" bo'ladi);
+- kutayotgan buyurtmaga yangi tur qo'shilsa jadval qayta hisoblanadi: sekinroq taom oshxona vaqtini oldinga suradi, vaqti
+  o'tib ketgan bo'lsa buyurtma darhol oshxonaga chiqadi;
+- **raqam va biznes kun**: keyingi biznes kunga (kun boshi, 05:00 dan keyin) olingan buyurtma o'sha kunga tegishli —
+  `business_date` va navbat raqami o'sha kunniki (kassa buyurtmasi — o'sha kunning kassa bloki, onlayn — filial bloki),
+  raqam taxtasida o'sha kuni chiqadi, biznes kun hisobotida o'sha kunda; to'lovi uni olgan smenada qoladi. Shu sabab bir
+  biznes kunda bir raqam ikki marta berilmaydi (o'sha kunning bloklari bu raqamdan yuqorida kesiladi). Vaqt boshqa biznes
+  kunga o'zgartirilsa (yoki olib tashlansa — bugunga) buyurtma o'sha kunning keyingi raqamini oladi (talonni qayta chop
+  eting). Internetsiz raqamlash qoidalari o'zgarmagan (internetsiz vaqt tanlanmaydi);
+- Mini App vaqtlari (`GET /stores/{store}/branches/{branch}/pickup-slots`) bir necha so'rov bilan hisoblanadi, filial
+  bo'yicha shu daqiqaga keshlanadi (sozlama keyingi daqiqadan ko'rinadi), manzil bo'yicha daqiqasiga 30 ta; savdo qilmaydigan
+  (faol bo'lmagan: moliyaviy blok, to'lov kerak, to'xtatilgan) do'kon — 404. Tayyorlash vaqti hisobotida (`PrepTimeReport`)
+  bir necha kun oldin berilgan onlayn buyurtma oshxona vaqti tushgan kunda hisoblanadi.
+
+## Kombo (P6-31)
+
+Modul `combo`. Qoidalar, jadvallar va endpointlar: [MENU.md](MENU.md) §13, [API.md](API.md) "Kombo". Qisqasi:
+
+1. **Kombo — bitta narxli qator.** Narx = kombo mahsuloti + tanlov farqlari (+ qo'shilgan modifikatorlar); `unit_price` +
+   `modifiers_total`, shuning uchun schyot, bo'lish, chegirma va xizmat haqi o'zgarishsiz ishlaydi. Server tanlovni POS va
+   Telegram'da bir xil tekshiradi (majburiy slot — standart tanlov, min/max, eskirgan tanlov 422 `combo_option_unavailable`).
+2. **Oshxona — tarkib bo'yicha.** Har tarkib nol narxli oshxona qatori (`combo_parent_id`) bo'lib o'z sexiga boradi va KDS'da
+   kombo nomi bilan "tayyor" qilinadi; kombo qatori hamma tarkibi tayyor bo'lganda tayyor. Bu qatorlar boshqa hamma joydan
+   yashirin (global scope). Kombo bir butun o'chiriladi va qaytariladi.
+3. **Chek.** Mijoz chekida bitta qator va tagida tarkib narxsiz; fiskal chekda bitta qator kombo MXIK'i bilan (`single`) yoki
+   sozlamada `split` — tarkib bo'yicha, ulushlar yig'indisi = kombo narxi (eng katta qoldiq, tiyinda).
+4. **Yopilish.** Majburiy slotida sotiladigan tanlov qolmasa kombo stop-listga tushadi; sotilmaydigan tanlov ko'rsatilmaydi.
+5. **Internetsiz.** Kassa komboni o'zi narxlaydi (`PosComboPricing`, server bilan bir xil) va `combo` + `combo_delta` bilan
+   navbatga qo'yadi; server tanlovni saqlaydi, farqni o'zi hisoblaydi (`offline_price_mismatch`). Egasi komboni tahrirlasa
+   o'zgarmagan slot va tanlovlar `uuid` ini saqlaydi; olib tashlangani yumshoq o'chiriladi — internetsiz sotuvi baribir
+   sinxronlanadi, keyin o'chirilgan kombo ham (tanlovlar bilan kelsa); narx serverning hozirgi qoidasi bilan. Boshqa kombo
+   tanlovi rad etiladi. Kombo o'zgarishi `menu_version` ni siljitadi (MENU.md §13).
+6. **Kassir ekrani (stage B).** Kombo tugmasi slot oynasini ochadi: majburiy slotlarda standart tanlov belgilangan, slotda
+   bitta bosish tanlovni almashtiradi, farq tugmada (+5 000), sotilmaydigan tanlov ko'rsatilmaydi; standart kombo — 2 bosish
+   (kombo, "Qo'shish"). Savat qatorida tarkib narxsiz; qatorni bosish tanlovni va sonini o'zgartiradi. Kassa tanlovni doim
+   aniq yuboradi (har slot uchun `combo[]`). Mijoz chekida kombo qatori ostida `combo_parts[].label` narxsiz (qog'ozda tire
+   "—" oddiy "-" bilan: bitta belgi uchun chek rasm rejimiga o'tmaydi); fiskal qator nomi bo'yicha schyot qatoriga bog'lanadi,
+   `split` rejimining tarkib qatorlariga hech narsa qo'shilmaydi. Sex markasida tarkib "- ..." qatorlari bilan.
+
+### Kassada fast food (P6 3-to'lqin, stage B)
+
+- **Tez modifikatorlar** (`display_mode`): `size` — menyu tugmasida hajmlar (0,3 / 0,5 / 0,7), bitta bosish taomni shu hajm
+  bilan qo'shadi; savat qatorida hajm va `inline` variantlar ("Muzsiz") tugmalari, bitta bosishda. Standart variantlar
+  oldindan belgilanadi (oynada ham); tez guruh standart bilan to'lsa oyna ochilmaydi; buyurtma variantlarni doim aniq yuboradi.
+- **Stiker va paket yorlig'i** (`labels`): avval to'lov kassasida to'lovdan keyin, zal/buyurtma ekranida oshxonaga
+  yuborilganda, Telegram olib ketish buyurtmasi qabul qilinganda: `labels.appliesTo(kategoriya)` × `stickersFor(soni)`
+  stakan stikeri (kombo ichidagi ichimlik ham, kombo nomi `[Lavash kombo]` bilan), olib ketishda `bag_label` bo'lsa paket
+  yorlig'i (mahsulotlar soni — kombo tarkibi donada, olib ketish vaqti). Printer — bootstrapdagi birinchi `purpose: label`
+  printeri; uning tili maqsaddan (`label` → TSPL, boshqasi ESC/POS; serverda alohida maydon yo'q). Navbatga qo'yiladi (qayta
+  urinish bilan), chiqmasa "Stiker chop etilmadi" banneri — to'lovni hech qachon to'smaydi. "Stikerlar" tugmasi (to'langan
+  ekranda) ko'rinish va qayta chop etish; printer sozlamalarida "Sinov" yorliq printeriga namuna stiker chiqaradi.
+- **Qadoq**: savatda filial qoidalari bo'yicha taxminiy qadoq qatori (`OfflinePackaging`), "Olib tashlash" (sabab oynasi) —
+  savatda eslab qolinadi va buyurtma ochilishi bilan serverda olib tashlanadi; ochilgan buyurtmada "Olib tashlash" va
+  "Qaytarish" (yangi schyot tuziladi). Buyurtma ekranining jami panelida ham. Internetsiz — qatorlar ko'rinadi, tugmalar
+  o'chiq: "Internet yo'q: qadoqni olib tashlab bo'lmaydi."
+- **Olib ketish vaqti**: olib ketishda (stol raqamisiz, aloqa borida) "Vaqtga" — `GET /pos/pickup-slots` vaqtlari, bitta
+  bosishda; savatda — `POST /pos/orders` `pickup_at` bilan, ochilgandan keyin (oshxonaga chiqqunicha) — `PUT .../pickup-time`,
+  "Hozir" vaqtni olib tashlaydi. Talonda "Olib ketish: 13:30" (teskari rangda). "Navbat" bo'limida "Vaqtga" ro'yxati (eng
+  yaqini birinchi; kassa ro'yxati qatorida `pickup`, Telegram kartasida ham).
+- **24/7 navbat**: `takeaway.business_day.next_starts_at` o'tgach kassa keyingi raqamdan oldin yangi kun bloklarini oladi
+  (`POST /pos/queue/blocks`), talon raqami yangi kunda 1 dan; internetsiz — eski blokdan, server yangi kun raqamini beradi.
+- **Z hisobot**: `sales.packaging` — "Shu jumladan qadoq" (X ekranida ham).

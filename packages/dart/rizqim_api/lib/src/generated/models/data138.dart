@@ -4,49 +4,63 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_charge_rules2.dart';
+import 'staff4.dart';
+import 'holders2.dart';
+import 'recorded_by2.dart';
+import 'corrections3.dart';
 
 part 'data138.g.dart';
 
 @JsonSerializable()
 class Data138 {
   const Data138({
-    required this.branchId,
-    required this.hallId,
-    required this.serviceChargePercent,
-    required this.serviceChargeChannels,
-    required this.placeFeeAmount,
-    required this.placeFeeMode,
-    required this.placeFeeChannels,
-    required this.serviceChargeRules,
-    required this.serviceChargeNotice,
+    required this.uuid,
+    required this.method,
+    required this.source,
+    required this.amount,
+    required this.originalAmount,
+    required this.mode,
+    required this.staff,
+    required this.holders,
+    required this.businessDate,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.shiftUuid,
+    required this.recordedBy,
+    required this.closed,
+    required this.corrections,
+    required this.createdAt,
   });
 
   factory Data138.fromJson(Map<String, Object?> json) =>
       _$Data138FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-
-  /// P3-12: a hall's own row (null: the branch's or the store's)
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'service_charge_percent')
-  final String serviceChargePercent;
-  @JsonKey(name: 'service_charge_channels')
-  final List<String>? serviceChargeChannels;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'place_fee_mode')
-  final String placeFeeMode;
-  @JsonKey(name: 'place_fee_channels')
-  final List<String>? placeFeeChannels;
-
-  /// P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules)
-  @JsonKey(name: 'service_charge_rules')
-  final ServiceChargeRules2 serviceChargeRules;
-  @JsonKey(name: 'service_charge_notice')
-  final String? serviceChargeNotice;
+  final String uuid;
+  final String method;
+  final String? source;
+  final String amount;
+  @JsonKey(name: 'original_amount')
+  final String originalAmount;
+  final String mode;
+  final Staff4? staff;
+  final List<Holders2> holders;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'recorded_by')
+  final RecordedBy2? recordedBy;
+  final bool closed;
+  final List<Corrections3> corrections;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data138ToJson(this);
 }

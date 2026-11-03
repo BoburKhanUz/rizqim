@@ -7,21 +7,19 @@ part of 'summary2.dart';
 // **************************************************************************
 
 Summary2 _$Summary2FromJson(Map<String, dynamic> json) => Summary2(
-  ordersCount: (json['orders_count'] as num).toInt(),
-  deliveredCount: (json['delivered_count'] as num).toInt(),
-  canceledCount: (json['canceled_count'] as num).toInt(),
-  refundedCount: (json['refunded_count'] as num).toInt(),
-  activeCount: (json['active_count'] as num).toInt(),
-  revenue: json['revenue'] as String,
-  averageCheck: json['average_check'] as String,
+  count: (json['count'] as num).toInt(),
+  medianSeconds: (json['median_seconds'] as num?)?.toInt(),
+  p90Seconds: (json['p90_seconds'] as num?)?.toInt(),
+  withTarget: (json['with_target'] as num).toInt(),
+  overTarget: (json['over_target'] as num).toInt(),
+  overTargetShare: json['over_target_share'] as String?,
 );
 
 Map<String, dynamic> _$Summary2ToJson(Summary2 instance) => <String, dynamic>{
-  'orders_count': instance.ordersCount,
-  'delivered_count': instance.deliveredCount,
-  'canceled_count': instance.canceledCount,
-  'refunded_count': instance.refundedCount,
-  'active_count': instance.activeCount,
-  'revenue': instance.revenue,
-  'average_check': instance.averageCheck,
+  'count': instance.count,
+  'median_seconds': instance.medianSeconds,
+  'p90_seconds': instance.p90Seconds,
+  'with_target': instance.withTarget,
+  'over_target': instance.overTarget,
+  'over_target_share': instance.overTargetShare,
 };

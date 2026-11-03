@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'kind4.dart';
+import 'kind3.dart';
 import 'variants2.dart';
 
 part 'v1_owner_products_id_fiscal_request_body.g.dart';
@@ -23,7 +23,7 @@ class V1OwnerProductsIdFiscalRequestBody {
     Map<String, Object?> json,
   ) => _$V1OwnerProductsIdFiscalRequestBodyFromJson(json);
 
-  final Kind4? kind;
+  final Kind3? kind;
   @JsonKey(name: 'mxik_code')
   final String? mxikCode;
   @JsonKey(name: 'package_code')

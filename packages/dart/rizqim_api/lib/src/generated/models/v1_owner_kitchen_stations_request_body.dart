@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'kind3.dart';
+import 'kitchen_station_kind.dart';
 
 part 'v1_owner_kitchen_stations_request_body.g.dart';
 
@@ -14,6 +14,7 @@ class V1OwnerKitchenStationsRequestBody {
     required this.name,
     this.branchId,
     this.kind,
+    this.targetSeconds,
     this.sortOrder,
     this.isActive,
     this.showOnKds,
@@ -26,7 +27,9 @@ class V1OwnerKitchenStationsRequestBody {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final String name;
-  final Kind3? kind;
+  final KitchenStationKind? kind;
+  @JsonKey(name: 'target_seconds')
+  final int? targetSeconds;
   @JsonKey(name: 'sort_order')
   final int? sortOrder;
   @JsonKey(name: 'is_active')

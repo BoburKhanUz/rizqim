@@ -1,0 +1,46 @@
+B2x2 |Choyxona Bog'bon|
+     |      "Bog'bon Savdo" MChJ      |
+     |        STIR: 301234567         |
+     |  Toshkent, Yunusobod tumani,   |
+     |         4-mavze, 12-uy         |
+     |     Tel: +998 90 123 45 67     |
+     |================================|
+B1x2 |          SOTUV CHEKI           |
+     |Chek: 000321    20.11.2026 12:15|
+     |Kassir: Dilnoza                 |
+     |Olib ketish                     |
+     |Buyurtma: #T057                 |
+     |--------------------------------|
+B    |Lavash kombo                    |
+     |  1 ta lavash - katta, mol      |
+     |  go'shtli                      |
+     |  Ichimlik - 0,4 l Pepsi        |
+     |  Sous - achchiq                |
+     |  1 x 52 000              52 000|
+     |  QQS 12%               5 571.43|
+     |  MXIK: 10202001003000000       |
+B    |Fri (katta)                     |
+     |  1 x 18 000              18 000|
+     |  QQS 12%               1 928.57|
+     |  MXIK: 10202001003000000       |
+B    |Paket                           |
+     |  1 x 1 000                1 000|
+     |  QQS 12%                 107.14|
+     |  MXIK: 10202002005000000       |
+     |  Qadoq: 1500000                |
+     |--------------------------------|
+B1x2 |JAMI:                     71 000|
+     |Shu jumladan QQS 12%:   7 607.14|
+     |--------------------------------|
+     |Naqd:                     71 000|
+     |To'lov shakli: Naqd pul         |
+     |--------------------------------|
+     |Kassa: VK-000451                |
+     |FM: UZ170703100153              |
+     |Fiskal chek: 145                |
+     |Fiskal belgi: 581923004417      |
+     |                                |
+     [QR 5] https://ofd.soliq.uz/check?t=UZ170703100153&r=145&c=20261022234000&s=581923004417
+     |                                |
+     |    Xaridingiz uchun rahmat!    |
+     - - - - - - - - - - - - kesish -

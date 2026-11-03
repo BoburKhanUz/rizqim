@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Menu;
 
+use App\Enums\ModifierDisplayMode;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * The body of POST /owner/modifier-groups and PUT /owner/modifier-groups/{id} (P1-21; P2-30: a form request, so the
@@ -17,7 +19,7 @@ class ModifierGroupRequest extends FormRequest
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     public function rules(): array
     {
@@ -29,6 +31,8 @@ class ModifierGroupRequest extends FormRequest
             'min_select' => 'nullable|integer|min:0|max:50',
             'max_select' => 'nullable|integer|min:1|max:50',
             'is_required' => 'nullable|boolean',
+            /** P6-32 (quick_modifiers): where the options are shown on the till's tile; left out: unchanged (a new group: dialog). */
+            'display_mode' => ['nullable', Rule::enum(ModifierDisplayMode::class)],
             'sort_order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
             'modifiers' => 'sometimes|array|max:100',
@@ -38,6 +42,8 @@ class ModifierGroupRequest extends FormRequest
             'modifiers.*.name_i18n' => 'nullable|array',
             'modifiers.*.price_delta' => 'nullable|numeric|min:0|max:100000000|decimal:0,2',
             'modifiers.*.max_quantity' => 'nullable|integer|min:1|max:50',
+            /** P6-32: the option the till preselects; left out: unchanged (a new option: false). */
+            'modifiers.*.is_default' => 'nullable|boolean',
             'modifiers.*.product_variant_id' => 'nullable|integer',
             'modifiers.*.sort_order' => 'nullable|integer',
             'modifiers.*.is_active' => 'nullable|boolean',

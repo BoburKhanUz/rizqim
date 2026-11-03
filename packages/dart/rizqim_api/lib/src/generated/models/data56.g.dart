@@ -7,39 +7,33 @@ part of 'data56.dart';
 // **************************************************************************
 
 Data56 _$Data56FromJson(Map<String, dynamic> json) => Data56(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  branch: json['branch'] == null
-      ? null
-      : Branch5.fromJson(json['branch'] as Map<String, dynamic>),
-  polygon: Polygon3.fromJson(json['polygon'] as Map<String, dynamic>),
-  bbox: Bbox3.fromJson(json['bbox'] as Map<String, dynamic>),
-  areaKm2: json['area_km2'] as String,
-  deliveryPrice: json['delivery_price'] as String,
-  minOrderAmount: json['min_order_amount'] as String,
-  freeDeliveryFrom: json['free_delivery_from'] as String?,
-  etaMinutes: (json['eta_minutes'] as num?)?.toInt(),
-  priority: (json['priority'] as num).toInt(),
-  active: json['active'] as bool,
-  createdAt: json['created_at'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  configured: json['configured'] as bool,
+  size: json['size'] as String,
+  sizeLabel: json['size_label'] as String,
+  widthMm: (json['width_mm'] as num).toInt(),
+  heightMm: (json['height_mm'] as num).toInt(),
+  scope: json['scope'] as String,
+  scopeLabel: json['scope_label'] as String,
+  categoryIds: (json['category_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  perUnit: json['per_unit'] as bool,
+  bagLabel: json['bag_label'] as bool,
   updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data56ToJson(Data56 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
   'branch_id': instance.branchId,
-  'branch': instance.branch,
-  'polygon': instance.polygon,
-  'bbox': instance.bbox,
-  'area_km2': instance.areaKm2,
-  'delivery_price': instance.deliveryPrice,
-  'min_order_amount': instance.minOrderAmount,
-  'free_delivery_from': instance.freeDeliveryFrom,
-  'eta_minutes': instance.etaMinutes,
-  'priority': instance.priority,
-  'active': instance.active,
-  'created_at': instance.createdAt,
+  'configured': instance.configured,
+  'size': instance.size,
+  'size_label': instance.sizeLabel,
+  'width_mm': instance.widthMm,
+  'height_mm': instance.heightMm,
+  'scope': instance.scope,
+  'scope_label': instance.scopeLabel,
+  'category_ids': instance.categoryIds,
+  'per_unit': instance.perUnit,
+  'bag_label': instance.bagLabel,
   'updated_at': instance.updatedAt,
 };

@@ -61,6 +61,8 @@ final class FormatProfileTemplateApplier
             if ($withStations) {
                 $existing = $this->existingStations($branch);
                 $order = (int) KitchenStation::where('branch_id', $branch->id)->max('sort_order');
+                // P6-33: time targets are the `kds_expo` setup
+                $targets = app(PosModules::class)->enabled($branch, PosModule::KDS_EXPO);
                 foreach (FormatProfileTemplates::stations($profile) as $station) {
                     if ($this->stationExists($existing, $station['name'], $station['kind'])) {
                         $result['stations_skipped'][] = $station['name'];
@@ -74,6 +76,8 @@ final class FormatProfileTemplateApplier
                         'sort_order' => ++$order,
                         'is_active' => true,
                         'show_on_kds' => true,
+                        // P6-33: a universal station starts with its kind's time target (the owner changes it)
+                        'target_seconds' => $targets ? $station['kind']->defaultTargetSeconds() : null,
                     ]);
                     $existing[] = ['name' => self::key($station['name']), 'kind' => $station['kind']];
                     $result['stations_created'][] = $station['name'];

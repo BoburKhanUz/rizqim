@@ -4,48 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pickup_status.dart';
+import 'branch15.dart';
+import 'store3.dart';
+import 'device11.dart';
+import 'modules2.dart';
+import 'cart.dart';
 
 part 'data219.g.dart';
 
 @JsonSerializable()
 class Data219 {
   const Data219({
-    required this.orderUuid,
-    required this.number,
-    required this.businessDate,
-    required this.status,
-    required this.channel,
-    required this.orderStatus,
-    required this.readyAt,
-    required this.calledAt,
-    required this.callCount,
-    required this.handedAt,
-    required this.openedAt,
+    required this.branch,
+    required this.store,
+    required this.device,
+    required this.tillUuid,
+    required this.modules,
+    required this.serverTime,
+    required this.cart,
   });
 
   factory Data219.fromJson(Map<String, Object?> json) =>
       _$Data219FromJson(json);
 
-  @JsonKey(name: 'order_uuid')
-  final String orderUuid;
-  final int number;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final PickupStatus? status;
-  final String channel;
-  @JsonKey(name: 'order_status')
-  final String orderStatus;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'called_at')
-  final String? calledAt;
-  @JsonKey(name: 'call_count')
-  final int callCount;
-  @JsonKey(name: 'handed_at')
-  final String? handedAt;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
+  final Branch15 branch;
+  final Store3? store;
+  final Device11 device;
+  @JsonKey(name: 'till_uuid')
+  final String? tillUuid;
+  final Modules2 modules;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  final Cart? cart;
 
   Map<String, Object?> toJson() => _$Data219ToJson(this);
 }

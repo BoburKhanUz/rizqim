@@ -7,15 +7,23 @@ part of 'data189.dart';
 // **************************************************************************
 
 Data189 _$Data189FromJson(Map<String, dynamic> json) => Data189(
-  session: json['session'] == null
-      ? null
-      : Session2.fromJson(json['session'] as Map<String, dynamic>),
-  todayMinutes: (json['today_minutes'] as num).toInt(),
-  businessDate: json['business_date'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  rooms: (json['rooms'] as List<dynamic>)
+      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unassigned: (json['unassigned'] as List<dynamic>)
+      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data189ToJson(Data189 instance) => <String, dynamic>{
-  'session': instance.session,
-  'today_minutes': instance.todayMinutes,
-  'business_date': instance.businessDate,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'rooms': instance.rooms,
+  'unassigned': instance.unassigned,
 };

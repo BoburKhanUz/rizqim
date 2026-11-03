@@ -42,6 +42,95 @@ class KitchenModifier {
   String get label => quantity > 1 ? '$name ×$quantity' : name;
 }
 
+/// P6-31: kombo qismi qatorining konteksti — qaysi kombodan ("Lavash kombo ×2"). Kombo qatorining o'zi oshxonaga
+/// chiqmaydi: har qism o'z sexiga ketadi, kombo nomi shu yerda.
+class KitchenCombo {
+  const KitchenCombo({required this.itemId, this.name, this.quantity});
+
+  factory KitchenCombo.fromJson(Map<String, Object?> json) => KitchenCombo(
+    itemId: (json['item_id'] as num?)?.toInt() ?? 0,
+    name: json['name'] as String?,
+    quantity: json['quantity'] as num?,
+  );
+
+  /// Kombo qatorining id si: bir kombo qismlarini guruhlash uchun.
+  final int itemId;
+  final String? name;
+  final num? quantity;
+
+  /// "Lavash kombo" yoki "Lavash kombo ×2".
+  String get label {
+    final String n = (name ?? '').trim().isEmpty ? 'Kombo' : name!.trim();
+    final num q = quantity ?? 1;
+    return q > 1 ? '$n ×$q' : n;
+  }
+}
+
+/// P6-33: chiptadagi bitta sexning yig'ishdagi holati.
+class KitchenAssemblyStation {
+  const KitchenAssemblyStation({
+    required this.name,
+    required this.itemsTotal,
+    required this.itemsReady,
+    required this.done,
+    this.stationId,
+    this.kind,
+  });
+
+  factory KitchenAssemblyStation.fromJson(Map<String, Object?> json) =>
+      KitchenAssemblyStation(
+        stationId: (json['station_id'] as num?)?.toInt(),
+        name: '${json['name'] ?? ''}',
+        kind: json['kind'] as String?,
+        itemsTotal: (json['items_total'] as num?)?.toInt() ?? 0,
+        itemsReady: (json['items_ready'] as num?)?.toInt() ?? 0,
+        done: json['done'] == true,
+      );
+
+  /// `null` — sexsiz qatorlar ("Umumiy").
+  final int? stationId;
+  final String name;
+
+  /// [StationKind] qiymati; sexsiz bo'lsa `null`.
+  final String? kind;
+  final int itemsTotal;
+  final int itemsReady;
+  final bool done;
+}
+
+/// P6-33 (`kds_expo`): ko'p sexli buyurtmaning yig'ish ko'rinishi (chiptaning `assembly` maydoni; yig'ishdan
+/// o'tmaydigan buyurtmada chiptada `null`).
+class KitchenAssembly {
+  const KitchenAssembly({
+    required this.stationId,
+    required this.waiting,
+    this.assembledAt,
+    this.stations = const <KitchenAssemblyStation>[],
+  });
+
+  factory KitchenAssembly.fromJson(Map<String, Object?> json) =>
+      KitchenAssembly(
+        stationId: (json['station_id'] as num?)?.toInt() ?? 0,
+        waiting: json['waiting'] == true,
+        assembledAt: _date(json['assembled_at']),
+        stations: _list(json['stations'], KitchenAssemblyStation.fromJson),
+      );
+
+  /// Filialning faol `expo` sexi.
+  final int stationId;
+
+  /// Hamma sex tayyor, yig'ishni kutmoqda: "Yig'ildi" tugmasi shunda yoqiladi.
+  final bool waiting;
+  final DateTime? assembledAt;
+  final List<KitchenAssemblyStation> stations;
+
+  bool get isAssembled => assembledAt != null;
+
+  /// Hamma sex tayyor (server `waiting` ni tayyor buyurtmada o'chiradi, shuning uchun sexlardan ham o'qiladi).
+  bool get allStationsDone =>
+      stations.isNotEmpty && stations.every((s) => s.done);
+}
+
 /// Chiptadagi bitta taom qatori.
 class KitchenLine {
   const KitchenLine({
@@ -68,6 +157,9 @@ class KitchenLine {
     this.courseNo,
     this.weightStatus,
     this.waitMinutes,
+    this.targetSeconds,
+    this.late = false,
+    this.combo,
   });
 
   factory KitchenLine.fromJson(Map<String, Object?> json) => KitchenLine(
@@ -94,6 +186,13 @@ class KitchenLine {
     courseNo: (json['course_no'] as num?)?.toInt(),
     weightStatus: json['weight_status'] as String?,
     waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+    targetSeconds: (json['target_seconds'] as num?)?.toInt(),
+    late: json['late'] == true,
+    combo: json['combo'] is Map
+        ? KitchenCombo.fromJson(
+            (json['combo']! as Map<Object?, Object?>).cast<String, Object?>(),
+          )
+        : null,
   );
 
   final int id;
@@ -146,6 +245,16 @@ class KitchenLine {
   /// P6-25: taom mangalda qancha pishadi (daqiqa), mahsulotda belgilangan bo'lsa.
   final int? waitMinutes;
 
+  /// P6-33: qatorning vaqt maqsadi (soniya; taomniki, bo'lmasa sexniki); `null` — maqsad yo'q, qator kechikmaydi.
+  final int? targetSeconds;
+
+  /// P6-33: server hisobi: pishayotgan qatorda `hozir − boshlangan > maqsad`, tayyor qatorda `ready_at − boshlangan >
+  /// maqsad`. Ekran pishayotgan qator uchun uni o'z soati bilan ham tekshiradi (so'rovlar orasida).
+  final bool late;
+
+  /// P6-31: kombo qismi bo'lsa, qaysi kombodan; oddiy qatorda `null`.
+  final KitchenCombo? combo;
+
   /// Og'irligi hali tortilmagan qator (oshxona "og'irlik kutilmoqda" deb ko'rsatadi).
   bool get awaitingWeight => weightStatus == 'awaiting';
 
@@ -191,6 +300,9 @@ class KitchenLine {
     int? courseNo,
     String? weightStatus,
     int? waitMinutes,
+    int? targetSeconds,
+    bool? late,
+    KitchenCombo? combo,
   }) => KitchenLine(
     id: id,
     productName: productName,
@@ -215,7 +327,44 @@ class KitchenLine {
     courseNo: courseNo ?? this.courseNo,
     weightStatus: weightStatus ?? this.weightStatus,
     waitMinutes: waitMinutes ?? this.waitMinutes,
+    targetSeconds: targetSeconds ?? this.targetSeconds,
+    late: late ?? this.late,
+    combo: combo ?? this.combo,
   );
+}
+
+/// P6-34 / P6-39: keyinroq olib ketiladigan buyurtmaning vaqti (chiptaning `pickup` maydoni; vaqtsiz buyurtmada `null`).
+/// Oshxona buyurtmani [kitchenFireAt] da oladi; server kutishni shu paytdan sanaydi (qabul qilingan paytdan emas).
+class KitchenPickup {
+  const KitchenPickup({
+    required this.pickupAt,
+    this.kitchenFireAt,
+    this.kitchenFiredAt,
+    this.waiting = false,
+  });
+
+  factory KitchenPickup.fromJson(Map<String, Object?> json) => KitchenPickup(
+    pickupAt:
+        _date(json['pickup_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+    kitchenFireAt: _date(json['kitchen_fire_at']),
+    kitchenFiredAt: _date(json['kitchen_fired_at']),
+    waiting: json['waiting'] == true,
+  );
+
+  /// Mijoz olib ketadigan vaqt.
+  final DateTime pickupAt;
+
+  /// Oshxona buyurtmani oladigan (olgan) vaqt: `pickup_at` − tayyorlash vaqti.
+  final DateTime? kitchenFireAt;
+
+  /// Buyurtma oshxonaga haqiqatan tushgan payt; `null` — hali tushmagan.
+  final DateTime? kitchenFiredAt;
+
+  /// Oshxona hali olmagan: chipta kutmoqda.
+  final bool waiting;
+
+  /// Oshxonaga tushgan.
+  bool get isFired => kitchenFiredAt != null;
 }
 
 /// Bitta buyurtmaning oshxona chiptasi. Mijoz ma'lumoti va narxlar yo'q.
@@ -242,6 +391,8 @@ class KitchenTicket {
     this.queueNumber,
     this.pickupStatus,
     this.tableLabel,
+    this.assembly,
+    this.pickup,
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -269,6 +420,17 @@ class KitchenTicket {
     queueNumber: (json['queue_number'] as num?)?.toInt(),
     pickupStatus: json['pickup_status'] as String?,
     tableLabel: json['table_label'] as String?,
+    assembly: json['assembly'] is Map
+        ? KitchenAssembly.fromJson(
+            (json['assembly']! as Map<Object?, Object?>)
+                .cast<String, Object?>(),
+          )
+        : null,
+    pickup: json['pickup'] is Map
+        ? KitchenPickup.fromJson(
+            (json['pickup']! as Map<Object?, Object?>).cast<String, Object?>(),
+          )
+        : null,
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
     receivedAt: receivedAt,
   );
@@ -306,6 +468,12 @@ class KitchenTicket {
   /// P6-25 (kafe "stolga olib kelish"): kassada to'langan buyurtmaning stol tablichkasi raqami ("12"); yo'q bo'lsa `null`.
   final String? tableLabel;
 
+  /// P6-33 (`kds_expo`): yig'ish ekrani ko'rinishi; buyurtma yig'ishdan o'tmasa `null`.
+  final KitchenAssembly? assembly;
+
+  /// P6-34: olib ketish vaqti tanlangan buyurtmaning vaqti; vaqtsizda `null`.
+  final KitchenPickup? pickup;
+
   /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
   final DateTime? canceledAt;
 
@@ -313,9 +481,22 @@ class KitchenTicket {
   bool get isCanceled =>
       status == 'canceled' || status == 'cancelled' || status == 'rejected';
 
-  /// Server hisoblagan kutish vaqti (qabul qilingandan, bo'lmasa yaratilgandan) javob paytida.
+  /// Server hisoblagan kutish vaqti (qabul qilingandan, bo'lmasa yaratilgandan; olib ketish vaqti bor buyurtmada
+  /// kechroqqa qarab: oshxonaga tushgan paytdan) javob paytida.
   final int waitingSeconds;
   final DateTime receivedAt;
+
+  /// Server [waitingSeconds] ni sanaydigan boshlanish payti (`KitchenTargets::orderStart`): qabul (bo'lmasa yaratilish),
+  /// olib ketish vaqti bor buyurtmada esa oshxona vaqti kechroq bo'lsa shu. Oshxonaga hali tushmagan chiptada kutish 0
+  /// va boshlanish kelajakda — soatni undan chiqarib bo'lmaydi, shuning uchun `null`.
+  DateTime? get waitingStart {
+    final DateTime? accepted = acceptedAt ?? createdAt;
+    final KitchenPickup? p = pickup;
+    final DateTime? fire = p?.kitchenFireAt;
+    if (p != null && p.waiting) return null;
+    if (fire == null) return accepted;
+    return accepted == null || fire.isAfter(accepted) ? fire : accepted;
+  }
 
   /// `#E101` (qisqa kod) yoki uuid boshi: Mini App va web panel bilan bir xil (`formatOrderCode`).
   String get code {
@@ -360,6 +541,9 @@ class KitchenTicket {
     int? queueNumber,
     String? pickupStatus,
     String? tableLabel,
+    KitchenAssembly? assembly,
+    bool clearAssembly = false,
+    KitchenPickup? pickup,
   }) => KitchenTicket(
     uuid: uuid,
     shortCode: shortCode,
@@ -380,6 +564,8 @@ class KitchenTicket {
     queueNumber: queueNumber ?? this.queueNumber,
     pickupStatus: pickupStatus ?? this.pickupStatus,
     tableLabel: tableLabel ?? this.tableLabel,
+    assembly: clearAssembly ? null : (assembly ?? this.assembly),
+    pickup: pickup ?? this.pickup,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
   );

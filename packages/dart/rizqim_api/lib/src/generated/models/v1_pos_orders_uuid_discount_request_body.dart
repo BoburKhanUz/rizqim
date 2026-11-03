@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'kind6.dart';
+import 'kind5.dart';
 
 part 'v1_pos_orders_uuid_discount_request_body.g.dart';
 
@@ -23,7 +23,7 @@ class V1PosOrdersUuidDiscountRequestBody {
   ) => _$V1PosOrdersUuidDiscountRequestBodyFromJson(json);
 
   final int version;
-  final Kind6 kind;
+  final Kind5 kind;
   final num value;
   final String? reason;
   @JsonKey(name: 'approval_token')

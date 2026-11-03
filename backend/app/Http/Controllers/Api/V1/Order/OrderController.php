@@ -200,6 +200,10 @@ class OrderController extends Controller
      * `branch_closed`, or `below_minimum_order` (with `data.min_order_amount` and `data.subtotal`). Stores without
      * zones keep the branch radius rule and the store's delivery fee.
      *
+     * P6-31 (docs/MENU.md "Kombo"): a combo line sends its picks in `items.*.combo`; 422 with `code` / `data.reason`
+     * `combo_option_unavailable` (a stale pick: refresh the menu), `combo_slot_required`, `combo_slot_limit` or
+     * `combo_option_invalid`.
+     *
      * P4-32: a payment provider the RIZQIM team switched off (Tizim → To'lov tizimlari) is a 422 with `code` and
      * `data.reason` `payment_provider_inactive` (and `errors.payment_method`); the store's payment settings already
      * show it `{enabled: false, available: false}`. In test mode a Payme `payment_url` opens Payme's sandbox checkout.
@@ -216,6 +220,11 @@ class OrderController extends Controller
             // P1-21: a fraction for items sold by weight (0.5 kg, at most 3 decimals); pieces stay whole (checked per unit)
             'items.*.quantity' => 'required|numeric|gt:0|max:9999',
             'items.*.modifiers' => 'nullable|array|max:50',
+            // P6-31: a combo's picks ({option_id, quantity?, modifiers?}); a required slot left out takes its default
+            'items.*.combo' => 'nullable|array|max:30',
+            'items.*.combo.*.option_id' => 'required|uuid',
+            'items.*.combo.*.quantity' => 'nullable|integer|min:1|max:10',
+            'items.*.combo.*.modifiers' => 'nullable|array|max:20',
             // P1-34: accepted for older apps, ignored: the channel is the sign-in's (channelOf)
             'channel' => ['nullable', 'string', Rule::in(\App\Enums\OrderChannel::customerValues())],
             'type' => 'required|string|in:delivery,pickup,dine_in',
@@ -226,6 +235,8 @@ class OrderController extends Controller
             'longitude' => 'required_if:type,delivery|nullable|numeric',
             'notes' => 'nullable|string|max:500',
             'promo_code' => 'nullable|string|max:50',
+            // P6-34: a pickup for later (module scheduled_pickup), an ISO time from GET /stores/{id}/branches/{branch}/pickup-slots
+            'pickup_at' => 'nullable|date',
         ]);
 
         // P1-34: a hall order is taken by a waiter or the till (the POS path), never from the customer apps: without a
@@ -237,7 +248,7 @@ class OrderController extends Controller
         }
 
         try {
-            $payload = $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code']);
+            $payload = $request->only(['store_id', 'type', 'payment_method', 'address', 'latitude', 'longitude', 'branch_id', 'notes', 'promo_code', 'pickup_at']);
             // P1-34: the channel (its prices and visibility) is decided by how the customer signed in, not by the body
             $payload['channel'] = $this->channelOf($request);
 

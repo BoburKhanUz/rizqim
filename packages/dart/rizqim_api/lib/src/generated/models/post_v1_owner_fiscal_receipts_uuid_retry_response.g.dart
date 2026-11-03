@@ -12,7 +12,7 @@ _$PostV1OwnerFiscalReceiptsUuidRetryResponseFromJson(
 ) => PostV1OwnerFiscalReceiptsUuidRetryResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data82.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data95.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerFiscalReceiptsUuidRetryResponseToJson(

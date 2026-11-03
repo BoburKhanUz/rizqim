@@ -20,6 +20,7 @@ class Sales9 {
     required this.minSpendTopup,
     required this.serviceCharge,
     required this.placeFee,
+    required this.packaging,
     required this.averageBill,
   });
 
@@ -41,6 +42,7 @@ class Sales9 {
   final String serviceCharge;
   @JsonKey(name: 'place_fee')
   final String placeFee;
+  final String packaging;
   @JsonKey(name: 'average_bill')
   final String averageBill;
 

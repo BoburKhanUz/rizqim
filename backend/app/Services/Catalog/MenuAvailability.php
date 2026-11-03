@@ -223,7 +223,11 @@ class MenuAvailability
                     $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => DailyMenuService::OFF_MENU_REASON, 'until' => null];
                 }
             }
-            foreach (app(MealSets::class)->closedByParts((int) $branch->store_id, $stoppedProducts, array_fill_keys(array_merge($stopped['variants'], $soldOut), null)) as $productId => $reason) {
+            $blockedVariants = array_fill_keys(array_merge($stopped['variants'], $soldOut), null);
+            // P6-31: a combo whose required slot has no available option closes like a kompleks with a stopped part
+            $closed = app(MealSets::class)->closedByParts((int) $branch->store_id, $stoppedProducts, $blockedVariants)
+                + app(\App\Domain\Pos\Menu\Combos::class)->closedBySlots((int) $branch->store_id, $stoppedProducts, $blockedVariants, array_fill_keys($stopped['modifiers'], null));
+            foreach ($closed as $productId => $reason) {
                 if (!array_key_exists($productId, $stoppedProducts)) {
                     $stoppedProducts[$productId] = $reason;
                     $stopped['products'][] = $productId;

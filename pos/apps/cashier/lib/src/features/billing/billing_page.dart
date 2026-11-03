@@ -16,6 +16,7 @@ import '../../shell/pos_scope.dart';
 import '../../shell/routes.dart';
 import '../order/discount_dialog.dart';
 import '../order/kitchen_tickets.dart';
+import '../order/order_format.dart' show comboPartLines;
 import 'cashier_ui.dart';
 import 'payment_page.dart';
 import 'receipts.dart';
@@ -762,6 +763,15 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
               ),
             ),
           AmountRow(label: 'Taomlar', amount: order.subtotal),
+          // P6-34: the order's packaging lines (removed ones say so)
+          for (final PosPackagingLine l in order.packagingLines)
+            AmountRow(
+              label: l.removed
+                  ? '${l.name} (olib tashlandi)'
+                  : (l.quantity > 1 ? '${l.name} × ${l.quantity}' : l.name),
+              amount: l.amount,
+              muted: l.removed,
+            ),
           if (!order.roomFeeAmount.isZero)
             AmountRow(label: 'Xona puli', amount: order.roomFeeAmount),
           if (!order.minSpendTopupAmount.isZero)
@@ -1129,7 +1139,7 @@ class BillPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          for (final PosBillItem i in bill.items)
+          for (final PosBillItem i in bill.items) ...<Widget>[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
@@ -1162,8 +1172,25 @@ class BillPreview extends StatelessWidget {
                 ],
               ),
             ),
+            // P6-31: a combo's parts, without prices
+            for (final String part in comboPartLines(i.comboParts))
+              Padding(
+                padding: const EdgeInsets.only(left: 16, bottom: 2),
+                child: Text(
+                  part,
+                  style: RzType.footnote.copyWith(color: c.fgMuted),
+                ),
+              ),
+          ],
           const Divider(height: 20),
           AmountRow(label: 'Taomlar', amount: bill.subtotal),
+          // P6-34: each packaging line of the bill
+          for (final PosPackagingLine l in bill.packagingLines)
+            if (!l.amount.isZero)
+              AmountRow(
+                label: l.quantity > 1 ? '${l.name} × ${l.quantity}' : l.name,
+                amount: l.amount,
+              ),
           if (!bill.roomFeeAmount.isZero)
             AmountRow(label: 'Xona puli', amount: bill.roomFeeAmount),
           if (!bill.minSpendTopupAmount.isZero)

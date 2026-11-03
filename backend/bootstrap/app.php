@@ -115,6 +115,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], $e->status);
             }
 
+            // P6-31: a combo pick refused (combo_option_unavailable, combo_slot_required...): the same shape, its own code
+            if ($e instanceof \App\Domain\Pos\Menu\ComboPickException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => $e->reason,
+                    'errors' => $e->errors(),
+                    'data' => ['reason' => $e->reason, 'errors' => $e->errors()],
+                ], $e->status);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),

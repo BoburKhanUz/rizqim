@@ -7,49 +7,31 @@ part of 'data236.dart';
 // **************************************************************************
 
 Data236 _$Data236FromJson(Map<String, dynamic> json) => Data236(
-  uuid: json['uuid'] as String,
-  status: json['status'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  device: json['device'] == null
+  orderUuid: json['order_uuid'] as String,
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
       ? null
-      : Device12.fromJson(json['device'] as Map<String, dynamic>),
-  businessDate: json['business_date'] as String,
-  openedAt: json['opened_at'] as String,
-  openedBy: json['opened_by'] == null
-      ? null
-      : OpenedBy.fromJson(json['opened_by'] as Map<String, dynamic>),
-  openingCash: json['opening_cash'] as String,
-  closedAt: json['closed_at'] as String?,
-  closedBy: json['closed_by'] == null
-      ? null
-      : ClosedBy4.fromJson(json['closed_by'] as Map<String, dynamic>),
-  expectedCash: json['expected_cash'] as String?,
-  countedCash: json['counted_cash'] as String?,
-  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, (e as num).toInt()),
-  ),
-  difference: json['difference'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  forceClosed: json['force_closed'] as bool,
-  closeNote: json['close_note'] as String?,
+      : PickupStatus.fromJson(json['status'] as String),
+  channel: json['channel'] as String,
+  orderStatus: json['order_status'] as String,
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data236ToJson(Data236 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'status': instance.status,
-  'branch_id': instance.branchId,
-  'device': instance.device,
+  'order_uuid': instance.orderUuid,
+  'number': instance.number,
   'business_date': instance.businessDate,
+  'status': instance.status,
+  'channel': instance.channel,
+  'order_status': instance.orderStatus,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
   'opened_at': instance.openedAt,
-  'opened_by': instance.openedBy,
-  'opening_cash': instance.openingCash,
-  'closed_at': instance.closedAt,
-  'closed_by': instance.closedBy,
-  'expected_cash': instance.expectedCash,
-  'counted_cash': instance.countedCash,
-  'counted_breakdown': instance.countedBreakdown,
-  'difference': instance.difference,
-  'z_number': instance.zNumber,
-  'force_closed': instance.forceClosed,
-  'close_note': instance.closeNote,
 };

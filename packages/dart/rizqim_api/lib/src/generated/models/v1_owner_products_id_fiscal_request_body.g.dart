@@ -9,7 +9,7 @@ part of 'v1_owner_products_id_fiscal_request_body.dart';
 V1OwnerProductsIdFiscalRequestBody _$V1OwnerProductsIdFiscalRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1OwnerProductsIdFiscalRequestBody(
-  kind: json['kind'] == null ? null : Kind4.fromJson(json['kind'] as String?),
+  kind: json['kind'] == null ? null : Kind3.fromJson(json['kind'] as String?),
   mxikCode: json['mxik_code'] as String?,
   packageCode: json['package_code'] as String?,
   vatRate: json['vat_rate'] as num?,

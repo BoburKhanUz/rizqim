@@ -10,7 +10,7 @@ BatchWriteoffs5 _$BatchWriteoffs5FromJson(Map<String, dynamic> json) =>
     BatchWriteoffs5(
       count: (json['count'] as num).toInt(),
       items: (json['items'] as List<dynamic>)
-          .map((e) => Items51.fromJson(e as Map<String, dynamic>))
+          .map((e) => Items55.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
 

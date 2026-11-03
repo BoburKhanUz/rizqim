@@ -9,39 +9,39 @@ part of 'summary5.dart';
 Summary5 _$Summary5FromJson(Map<String, dynamic> json) => Summary5(
   shiftUuid: json['shift_uuid'] as String,
   generatedAt: json['generated_at'] as String,
-  period: Period7.fromJson(json['period'] as Map<String, dynamic>),
-  sales: Sales7.fromJson(json['sales'] as Map<String, dynamic>),
+  period: Period6.fromJson(json['period'] as Map<String, dynamic>),
+  sales: Sales5.fromJson(json['sales'] as Map<String, dynamic>),
   byTender: (json['by_tender'] as List<dynamic>)
-      .map((e) => ByTender4.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByTender3.fromJson(e as Map<String, dynamic>))
       .toList(),
   cards: (json['cards'] as List<dynamic>)
-      .map((e) => Cards4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Cards3.fromJson(e as Map<String, dynamic>))
       .toList(),
   byChannel: (json['by_channel'] as List<dynamic>)
-      .map((e) => ByChannel6.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByChannel5.fromJson(e as Map<String, dynamic>))
       .toList(),
   byWaiter: (json['by_waiter'] as List<dynamic>)
-      .map((e) => ByWaiter4.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByWaiter3.fromJson(e as Map<String, dynamic>))
       .toList(),
-  discounts: Discounts4.fromJson(json['discounts'] as Map<String, dynamic>),
-  voids: Voids4.fromJson(json['voids'] as Map<String, dynamic>),
-  batchWriteoffs: BatchWriteoffs4.fromJson(
+  discounts: Discounts3.fromJson(json['discounts'] as Map<String, dynamic>),
+  voids: Voids3.fromJson(json['voids'] as Map<String, dynamic>),
+  batchWriteoffs: BatchWriteoffs3.fromJson(
     json['batch_writeoffs'] as Map<String, dynamic>,
   ),
-  refunds: Refunds7.fromJson(json['refunds'] as Map<String, dynamic>),
-  deposits: Deposits4.fromJson(json['deposits'] as Map<String, dynamic>),
-  credit: Credit7.fromJson(json['credit'] as Map<String, dynamic>),
-  tips: Tips12.fromJson(json['tips'] as Map<String, dynamic>),
-  cash: Cash5.fromJson(json['cash'] as Map<String, dynamic>),
+  refunds: Refunds6.fromJson(json['refunds'] as Map<String, dynamic>),
+  deposits: Deposits3.fromJson(json['deposits'] as Map<String, dynamic>),
+  credit: Credit6.fromJson(json['credit'] as Map<String, dynamic>),
+  tips: Tips11.fromJson(json['tips'] as Map<String, dynamic>),
+  cash: Cash4.fromJson(json['cash'] as Map<String, dynamic>),
   movements: (json['movements'] as List<dynamic>)
-      .map((e) => Movements4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Movements3.fromJson(e as Map<String, dynamic>))
       .toList(),
   openOrders: (json['open_orders'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
   pendingReceipts: json['pending_receipts'] == null
       ? null
-      : PendingReceipts2.fromJson(
+      : PendingReceipts.fromJson(
           json['pending_receipts'] as Map<String, dynamic>,
         ),
 );

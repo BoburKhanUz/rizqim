@@ -15,7 +15,15 @@ class OnlineOrderRepository {
   /// Navbat qatoridagi onlayn karta (`online`); bo'lmasa qatorning o'zi.
   static PosOnlineOrder _card(PosJson row) {
     final PosJson? card = row.objOrNull('online');
-    return PosOnlineOrder.fromJson(card ?? row);
+    if (card == null) return PosOnlineOrder.fromJson(row);
+    // P6-34: the row's queue number and pickup time (the card has neither) ride along in the card's raw
+    return PosOnlineOrder.fromJson(
+      PosJson.of(<String, Object?>{
+        if (row['queue'] != null) 'queue': row['queue'],
+        if (row['pickup'] != null) 'pickup': row['pickup'],
+        ...card.map,
+      }),
+    );
   }
 
   static PosOnlineOrder _order(Object? data) => _card(dataObject(data));

@@ -32,6 +32,6 @@ describe('the branch format (P6-11)', () => {
   it('lists the 14 profiles and the module keys of the backend', () => {
     expect(FORMAT_PROFILES).toHaveLength(14);
     expect(POS_MODULES).toContain('terminal_card_flow');
-    expect(POS_MODULES).toHaveLength(28);
+    expect(POS_MODULES).toHaveLength(35);
   });
 });

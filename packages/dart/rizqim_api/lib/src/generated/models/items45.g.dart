@@ -17,7 +17,7 @@ Items45 _$Items45FromJson(Map<String, dynamic> json) => Items45(
   quantityLabel: json['quantity_label'] as String,
   unitPrice: json['unit_price'] as String,
   modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers26.fromJson(e as Map<String, dynamic>))
+      .map((e) => Modifiers29.fromJson(e as Map<String, dynamic>))
       .toList(),
   modifiersTotal: json['modifiers_total'] as String,
   totalPrice: json['total_price'] as String,
