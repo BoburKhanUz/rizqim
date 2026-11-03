@@ -10,17 +10,24 @@ class PosTakeawayRepository {
 
   final PosHttp _http;
 
-  /// `POST /pos/orders/{uuid}/packaging/{rule}/remove`: mijoz o'z paketini olib keldi ([reason] majburiy).
+  /// `POST /pos/orders/{uuid}/packaging/{rule}/remove`: mijoz o'z paketini olib keldi ([reason] majburiy). Schyot
+  /// chop etilgandan keyin bu chegirma kabi: 403 `approval_required` (`orders.discount`) — menejer tasdig'i
+  /// ([approvalToken]); boshqa ofitsiantning buyurtmasi — `orders.manage` tasdig'i.
   Future<PosOrder> removePackaging(
     String orderUuid,
     int ruleId, {
     required int version,
     required String reason,
+    String? approvalToken,
     String? idempotencyKey,
   }) => _order(
     'POST',
     '/v1/pos/orders/$orderUuid/packaging/$ruleId/remove',
-    <String, Object?>{'version': version, 'reason': reason},
+    <String, Object?>{
+      'version': version,
+      'reason': reason,
+      'approval_token': ?approvalToken,
+    },
     idempotencyKey,
   );
 
@@ -29,11 +36,12 @@ class PosTakeawayRepository {
     String orderUuid,
     int ruleId, {
     required int version,
+    String? approvalToken,
     String? idempotencyKey,
   }) => _order(
     'POST',
     '/v1/pos/orders/$orderUuid/packaging/$ruleId/restore',
-    <String, Object?>{'version': version},
+    <String, Object?>{'version': version, 'approval_token': ?approvalToken},
     idempotencyKey,
   );
 
@@ -43,11 +51,13 @@ class PosTakeawayRepository {
     String orderUuid,
     DateTime? pickupAt, {
     required int version,
+    String? approvalToken,
     String? idempotencyKey,
   }) =>
       _order('PUT', '/v1/pos/orders/$orderUuid/pickup-time', <String, Object?>{
         'version': version,
         'pickup_at': pickupAt?.toUtc().toIso8601String(),
+        'approval_token': ?approvalToken,
       }, idempotencyKey);
 
   /// `GET /pos/pickup-slots`: filial taklif qiladigan olib ketish vaqtlari.

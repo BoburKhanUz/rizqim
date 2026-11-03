@@ -46,7 +46,8 @@ use Illuminate\Validation\ValidationException;
  *  - the times offered (slots()): every `pickup_slot_minutes` from the earliest allowed time to the last.
  *
  * Changing or clearing the time on the till (PUT /pos/orders/{uuid}/pickup-time) works until the order fired; a cleared
- * time fires it at once. Nothing here blocks a payment, a bill, a close or a refund: a scheduled counter order is paid
+ * time fires it at once. A round added while it waits re-runs schedule() (PosOrderService). An order for a later business
+ * day belongs to that day: its number, the board, the day report (dayOf(), review P6W3 C5). Nothing here blocks a payment, a bill, a close or a refund: a scheduled counter order is paid
  * first like any other and stays in the kitchen's future until it fires.
  */
 final class ScheduledPickup
@@ -70,6 +71,9 @@ final class ScheduledPickup
 
     /** The most slots one answer lists. */
     public const MAX_SLOTS = 300;
+
+    /** The most steps one walk over the window takes (a week and two days of 5-minute steps). */
+    public const MAX_STEPS = (self::MAX_DAYS_AHEAD + 2) * 24 * 12;
 
     public function __construct(
         private readonly PosModules $modules,
@@ -146,16 +150,40 @@ final class ScheduledPickup
      */
     public function isOpenAt(Branch $branch, CarbonInterface $at): bool
     {
-        if ($this->modules->enabled($branch, PosModule::ROUND_THE_CLOCK)) {
-            return true;
-        }
         $store = Store::find($branch->store_id);
+
+        return self::inWindow($this->window($branch, $store), $at, new DateTimeZone(StoreTimezone::of($store)));
+    }
+
+    /**
+     * The opening hours pickups are taken in, ["HH:MM", "HH:MM"]; null: any time (the `round_the_clock` module, no hours
+     * set, or equal open and close times).
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function window(Branch $branch, ?Store $store): ?array
+    {
+        if ($this->modules->enabled($branch, PosModule::ROUND_THE_CLOCK)) {
+            return null;
+        }
         $open = self::hhmm($store?->getAttribute('open_time'));
         $close = self::hhmm($store?->getAttribute('close_time'));
-        if ($open === null || $close === null || $open === $close) {
+
+        return $open === null || $close === null || $open === $close ? null : [$open, $close];
+    }
+
+    /**
+     * open ≤ local time ≤ close (a close before the open runs past midnight); no window: always.
+     *
+     * @param  array{0: string, 1: string}|null  $window
+     */
+    private static function inWindow(?array $window, CarbonInterface $at, DateTimeZone $timezone): bool
+    {
+        if ($window === null) {
             return true;
         }
-        $time = CarbonImmutable::instance($at)->setTimezone(new DateTimeZone(StoreTimezone::of($store)))->format('H:i');
+        [$open, $close] = $window;
+        $time = CarbonImmutable::instance($at)->setTimezone($timezone)->format('H:i');
 
         return $close > $open ? ($time >= $open && $time <= $close) : ($time >= $open || $time <= $close);
     }
@@ -251,11 +279,19 @@ final class ScheduledPickup
         $this->assertForOnline($branch, $at);
 
         $wait = 0;
+        $parts = [];
         foreach ($lines as $line) {
             $variant = $line['variant_model'] ?? null;
             if ($variant instanceof \App\Models\ProductVariant) {
                 $wait = max($wait, (int) ($variant->product?->getAttribute('wait_minutes') ?? 0));
             }
+            // P6-31: a combo is cooked as its parts (as prepMinutes() reads the POS order's part lines)
+            foreach ((array) ($line['combo_parts'] ?? []) as $part) {
+                $parts[] = (int) ($part['product_id'] ?? 0);
+            }
+        }
+        if ($parts !== []) {
+            $wait = max($wait, (int) \App\Models\Product::withTrashed()->whereIn('id', array_values(array_unique($parts)))->max('wait_minutes'));
         }
         $prep = max($this->settings($branch)['pickup_prep_minutes'], $wait);
 
@@ -268,19 +304,26 @@ final class ScheduledPickup
     public function latest(Branch $branch, ?CarbonInterface $now = null): CarbonImmutable
     {
         $now = CarbonImmutable::instance($now ?? now());
-        $store = Store::find($branch->store_id);
-        $timezone = new DateTimeZone(StoreTimezone::of($store));
-        [$hour, $minute] = array_map('intval', explode(':', PosSettings::timeOf($branch->getAttribute('business_day_starts_at'))));
-        $today = BusinessDay::of($branch, $now);
+        $timezone = new DateTimeZone(StoreTimezone::of(Store::find($branch->store_id)));
+
+        return self::windowEnd($now, $timezone, PosSettings::timeOf($branch->getAttribute('business_day_starts_at')), $this->settings($branch)['pickup_max_days_ahead']);
+    }
+
+    private static function windowEnd(CarbonImmutable $now, DateTimeZone $timezone, string $dayStart, int $daysAhead): CarbonImmutable
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $dayStart));
+        $today = PosSettings::businessDate($now, $timezone->getName(), $dayStart);
 
         return CarbonImmutable::createFromFormat('!Y-m-d', $today, $timezone)
-            ->addDays($this->settings($branch)['pickup_max_days_ahead'] + 1)
+            ->addDays($daysAhead + 1)
             ->setTime($hour, $minute);
     }
 
     /**
      * The pickup times offered from now: every slot from the earliest allowed one (rounded up to the step) to the end
-     * of the window, inside the opening hours; empty while the module is off.
+     * of the window, inside the opening hours; empty while the module is off. Review P6W3 S2: the branch's settings,
+     * store, time zone, hours and modules are read once (a fixed handful of queries, the public Mini App endpoint calls
+     * it), the business dates are worked out from the day start, and the walk stops after MAX_STEPS steps.
      *
      * @return list<array{at: string, time: string, business_date: string}>
      */
@@ -291,22 +334,25 @@ final class ScheduledPickup
         }
         $now = CarbonImmutable::instance($now ?? now());
         $settings = $this->settings($branch);
-        $timezone = new DateTimeZone(StoreTimezone::of(Store::find($branch->store_id)));
+        $store = Store::find($branch->store_id);
+        $timezone = new DateTimeZone(StoreTimezone::of($store));
+        $dayStart = PosSettings::timeOf($branch->getAttribute('business_day_starts_at'));
+        $window = $this->window($branch, $store);
         $step = max(5, $settings['pickup_slot_minutes']);
 
         $earliest = $now->addMinutes($settings['pickup_min_lead_minutes'])->setTimezone($timezone)->setSecond(0)->setMicrosecond(0);
         $minuteOfDay = $earliest->hour * 60 + $earliest->minute;
         $rounded = (int) (ceil($minuteOfDay / $step) * $step);
         $at = $earliest->startOfDay()->addMinutes($rounded);
-        $latest = $this->latest($branch, $now);
+        $latest = self::windowEnd($now, $timezone, $dayStart, $settings['pickup_max_days_ahead']);
 
         $slots = [];
-        while ($at->lessThan($latest) && count($slots) < self::MAX_SLOTS) {
-            if ($this->isOpenAt($branch, $at)) {
+        for ($steps = 0; $at->lessThan($latest) && count($slots) < self::MAX_SLOTS && $steps < self::MAX_STEPS; $steps++) {
+            if (self::inWindow($window, $at, $timezone)) {
                 $slots[] = [
                     'at' => $at->utc()->toJSON(),
                     'time' => $at->format('H:i'),
-                    'business_date' => BusinessDay::of($branch, $at),
+                    'business_date' => PosSettings::businessDate($at, $timezone->getName(), $dayStart),
                 ];
             }
             $at = $at->addMinutes($step);
@@ -406,13 +452,16 @@ final class ScheduledPickup
 
     /**
      * The till changes the pickup time of an order that has not fired yet (null: no time, the kitchen gets it now).
-     * orders.manage; the order's version; audited.
+     * orders.manage; the order's version; the waiter rule (WaiterAccess: another waiter's order needs a manager's
+     * `approval_token` for orders.manage); audited. A time on another business day moves the order to that day with
+     * that day's next queue number (dayOf(); a cleared time: today's).
      *
      * @throws PosOrderException
+     * @throws \App\Domain\Pos\Billing\PosActionException the waiter rule
      */
-    public function change(Order $order, int $version, ?CarbonInterface $pickupAt, User $actor): Order
+    public function change(Order $order, int $version, ?CarbonInterface $pickupAt, User $actor, ?string $approvalToken = null): Order
     {
-        return DB::transaction(function () use ($order, $version, $pickupAt, $actor) {
+        return DB::transaction(function () use ($order, $version, $pickupAt, $actor, $approvalToken) {
             $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             if ((int) $locked->version !== $version) {
                 throw PosOrderException::versionConflict((int) $locked->version);
@@ -425,13 +474,18 @@ final class ScheduledPickup
             if ($locked->getAttribute('kitchen_fired_at') !== null || ($locked->getAttribute('pickup_at') === null && $this->hasSentLines($locked))) {
                 throw new PosOrderException("Buyurtma allaqachon oshxonada: olib ketish vaqtini o'zgartirib bo'lmaydi.", 409, 'already_in_kitchen');
             }
-
-            $before = $locked->getAttribute('pickup_at') !== null ? CarbonImmutable::parse($locked->getAttribute('pickup_at'))->utc()->toJSON() : null;
             if ($pickupAt !== null) {
                 $this->assertForPos($branch, $pickupAt);
+            }
+            // Review P6W3 S1: the waiter rule (POS_SPEC 11), as for every other change of the order
+            app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($locked, $actor, $approvalToken);
+
+            $before = $locked->getAttribute('pickup_at') !== null ? CarbonImmutable::parse($locked->getAttribute('pickup_at'))->utc()->toJSON() : null;
+            $this->moveToDay($locked, $branch, self::dayOf($branch, $pickupAt));
+            if ($pickupAt !== null) {
                 $locked->forceFill(['pickup_at' => CarbonImmutable::instance($pickupAt)->utc(), 'kitchen_fire_at' => null])->save();
-                // The lines not sent yet wait for the time now
-                OrderItem::where('order_id', $locked->id)
+                // The lines not sent yet wait for the time now (P6-31: the combo parts' kitchen lines with them)
+                OrderItem::withComboParts()->where('order_id', $locked->id)
                     ->where('kitchen_status', KitchenItemStatus::PENDING->value)
                     ->whereNull('sent_at')
                     ->where('fire_mode', FireMode::NOW->value)
@@ -447,6 +501,30 @@ final class ScheduledPickup
 
             return $locked->refresh();
         });
+    }
+
+    /**
+     * Review P6W3 C5: the business day an order for $pickupAt belongs to — its pickup's (an order taken at 04:30 for
+     * 06:00 is the new day's: its number, the board and the day report are that day's); none: now's. OrderStamp stamps
+     * a new POS order with it, PickupQueue numbers an online pickup with it.
+     */
+    public static function dayOf(Branch $branch, ?\DateTimeInterface $pickupAt): string
+    {
+        return BusinessDay::of($branch, $pickupAt);
+    }
+
+    /**
+     * Moves a POS order to the business day $date when it is on another one: the day's next queue number (the old one
+     * is given up; the till shows and prints the new one). The order's payments stay in the shift that took them.
+     */
+    private function moveToDay(Order $order, Branch $branch, string $date): void
+    {
+        if ($order->business_date?->toDateString() === $date) {
+            return;
+        }
+        $order->forceFill(['business_date' => $date, 'queue_number' => null]);
+        app(\App\Domain\Pos\Shifts\QueueNumbers::class)->number($order, $branch, $date);
+        $order->save();
     }
 
     /**

@@ -22,7 +22,8 @@ use Illuminate\Validation\ValidationException;
  * P6-33 (B6, module `kds_expo`): the kitchen display's time targets (docs/API.md "KDS v2"): each station's default
  * (kitchen_stations.target_seconds, set with PATCH /owner/kitchen-stations/{id}) and a dish's own override
  * (products.kds_target_seconds, store-wide). The KDS ticket carries the target of each line and whether it is late;
- * the prep time report counts the lines over their target. settings.manage, never from a terminal PIN session.
+ * the prep time report counts the lines over their target. settings.manage, never from a terminal PIN session. A dish's
+ * target is store-wide, so a caller bound to one branch may read the page but not set it (403 `store_wide_only`).
  */
 #[Group('Owner: kitchen stations', "Filial sexlari: osh, mangal, salat va bar, choy (P3-13); grill, fritur, ichimliklar, barista va yig'ish (P6-33). Marka va KDS shu sexlarga bo'linadi.")]
 class KdsTargetsController extends ManagementController
@@ -66,7 +67,8 @@ class KdsTargetsController extends ManagementController
      *
      * `items`: up to 200 `{product_id, target_seconds}` of the store's dishes; `target_seconds` 10–7200 seconds, or null
      * to drop the dish's own target (its station's applies again). A target is store-wide (every branch). Setting one
-     * needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. Audited.
+     * needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. A caller bound to
+     * one branch is refused (403 `store_wide_only`): the target applies to every branch. Audited.
      */
     #[QueryParameter('branch_id', description: 'The branch whose page to answer with (a branch-bound caller: their own).', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::PAGE . '}')]
@@ -84,6 +86,13 @@ class KdsTargetsController extends ManagementController
         ]), ['items' => 'Taomlar', 'items.*.product_id' => 'Taom', 'items.*.target_seconds' => 'Vaqt maqsadi']);
         $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
         $storeId = (int) $branch->store_id;
+        // A dish's target is store-wide (every branch reads it) and the module check is store-wide too: a caller bound to
+        // one branch does not change it, whatever they were granted
+        if ($this->permissions->actingBranchId($request->user()) !== null) {
+            return $this->error('Taom vaqt maqsadi butun do\'kon uchun: uni faqat egasi yoki butun do\'kon menejeri o\'zgartiradi.', [
+                'reason' => 'store_wide_only',
+            ], 403);
+        }
 
         $wanted = [];
         foreach ($data['items'] as $item) {

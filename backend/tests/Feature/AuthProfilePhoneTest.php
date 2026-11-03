@@ -87,6 +87,17 @@ class AuthProfilePhoneTest extends TestCase
         $this->assertSame('+998901110000', $this->user->fresh()->phone);
     }
 
+    public function test_control_characters_in_the_name_become_spaces_so_a_label_printer_never_gets_a_command(): void
+    {
+        // The name reaches TSPL stickers and ESC/POS receipts: a line break in it must not survive
+        $this->updateProfile(['name' => "Ali\r\nPRINT 1,500\r\n\x1bX\t"])->assertOk()->assertJsonPath('data.name', 'Ali PRINT 1,500 X');
+        $this->assertSame('Ali PRINT 1,500 X', $this->user->fresh()->name);
+
+        // Nothing but control characters is an empty name
+        $this->updateProfile(['name' => "\r\n\x00"])->assertStatus(422)->assertJsonValidationErrors('name');
+        $this->assertSame('Ali PRINT 1,500 X', $this->user->fresh()->name);
+    }
+
     public function test_phone_is_changed_through_otp_when_sms_verification_is_required(): void
     {
         $this->requireSmsVerification(true);

@@ -126,8 +126,8 @@ class LabelWriter {
   }) {
     final int cols = size.cols ~/ scale;
     final int budget = _clamp(maxRows ~/ scale, 0, rowsLeft ~/ scale);
-    if (budget == 0 || text.trim().isEmpty) return 0;
-    final List<String> lines = _wrap(text.trim(), cols);
+    if (budget == 0 || _flat(text).isEmpty) return 0;
+    final List<String> lines = _wrap(_flat(text), cols);
     var shown = lines.length > budget ? lines.sublist(0, budget) : lines;
     if (lines.length > budget) {
       shown = <String>[...shown.take(budget - 1), _ellipsis(shown.last, cols)];
@@ -197,9 +197,15 @@ class LabelWriter {
 
   static String _clip(String text, int width) {
     if (width <= 0) return '';
-    if (textWidth(text) <= width) return text;
-    return _ellipsis(text, width);
+    final String flat = _flat(text);
+    if (textWidth(flat) <= width) return flat;
+    return _ellipsis(flat, width);
   }
+
+  /// Matnni bir qatorga keltiradi: har bir boshqaruv belgisi (CR, LF, TAB, ESC...) va ketma-ket bo'shliqlar bitta
+  /// bo'shliq bo'ladi. Foydalanuvchi matni (mijoz ismi, izoh) printer buyrug'ini buzib yubora olmaydi.
+  static String _flat(String text) =>
+      text.replaceAll(RegExp(r'[\x00-\x1F\x7F\s]+'), ' ').trim();
 
   /// Qatorni [width] gacha qisqartiradi, oxiri ".." (ASCII: label printer shriftida "…" yo'q).
   static String _ellipsis(String text, int width) {

@@ -101,4 +101,29 @@ class PosRoundTheClockTest extends TestCase
         $this->branch->forceFill(['pos_settings' => array_merge($this->branch->pos_settings ?? [], ['modules' => []])])->save();
         $this->actingAs($this->owner, 'sanctum')->getJson($url)->assertStatus(403)->assertJsonPath('data.reason', 'module_disabled');
     }
+
+    /**
+     * Review P6W3 S2: the report reads the day of each online order (no business_date) without a query per order.
+     */
+    public function test_the_report_costs_the_same_queries_for_many_online_orders(): void
+    {
+        $report = fn () => app(\App\Domain\Pos\Takeaway\RoundTheClock::class)->report($this->branch->refresh(), '2026-10-22', '2026-10-22');
+        $count = function () use ($report): int {
+            \Illuminate\Support\Facades\DB::flushQueryLog();
+            \Illuminate\Support\Facades\DB::enableQueryLog();
+            $report();
+            $queries = count(\Illuminate\Support\Facades\DB::getQueryLog());
+            \Illuminate\Support\Facades\DB::disableQueryLog();
+
+            return $queries;
+        };
+
+        $this->order([['variant_id' => $this->tea->uuid, 'quantity' => 1]])->assertCreated();
+        $one = $count();
+        for ($i = 0; $i < 6; $i++) {
+            $this->order([['variant_id' => $this->tea->uuid, 'quantity' => 1]])->assertCreated();
+        }
+        $this->assertSame($one, $count());
+        $this->assertSame(7, $report()[0]['online_orders']);
+    }
 }

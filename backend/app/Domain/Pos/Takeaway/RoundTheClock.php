@@ -29,6 +29,8 @@ use DateTimeZone;
  *    from 1 at the day start even in the middle of a shift (decision: per business day, not per shift: the talon
  *    never repeats a number within a business day, and two shifts of one day never share one); a till holding the old
  *    day's block gets the new day's at the next number (QueueNumbers checks a number against the order's own day);
+ *    a takeaway or an online pickup for a later business day belongs to its pickup's day (ScheduledPickup::dayOf: its
+ *    number, the board and this report), its payment to the shift that took it;
  *  - reports by business day (report()): the orders, money and packaging of each day, and the shifts that worked it.
  *
  * The till reads `business_day` from GET /pos/bootstrap (`takeaway`): the date, when it started and when the next one
@@ -73,7 +75,13 @@ final class RoundTheClock
     public function startOf(Branch $branch, string $date): CarbonImmutable
     {
         $timezone = new DateTimeZone(StoreTimezone::of(Store::find($branch->store_id)));
-        [$hour, $minute] = array_map('intval', explode(':', PosSettings::timeOf($branch->getAttribute('business_day_starts_at'))));
+
+        return self::startIn($date, $timezone, PosSettings::timeOf($branch->getAttribute('business_day_starts_at')));
+    }
+
+    private static function startIn(string $date, DateTimeZone $timezone, string $dayStart): CarbonImmutable
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $dayStart));
 
         return CarbonImmutable::createFromFormat('!Y-m-d', $date, $timezone)->setTime($hour, $minute);
     }
@@ -89,13 +97,14 @@ final class RoundTheClock
     public function report(Branch $branch, string $from, string $to): array
     {
         $timezone = new DateTimeZone(StoreTimezone::of(Store::find($branch->store_id)));
-        $rangeStart = $this->startOf($branch, $from);
-        $rangeEnd = $this->startOf($branch, $to)->addDay();
+        $dayStart = PosSettings::timeOf($branch->getAttribute('business_day_starts_at'));
+        $rangeStart = self::startIn($from, $timezone, $dayStart);
+        $rangeEnd = self::startIn($to, $timezone, $dayStart)->addDay();
 
         $rows = [];
         for ($day = CarbonImmutable::createFromFormat('!Y-m-d', $from); $day->format('Y-m-d') <= $to; $day = $day->addDay()) {
             $date = $day->format('Y-m-d');
-            $start = $this->startOf($branch, $date);
+            $start = self::startIn($date, $timezone, $dayStart);
             $rows[$date] = [
                 'business_date' => $date,
                 'started_at' => $start->utc()->toJSON(),
@@ -126,7 +135,8 @@ final class RoundTheClock
         $sums = [];
         foreach ($orders as $order) {
             $created = CarbonImmutable::instance($order->created_at ?? now());
-            $date = $order->business_date?->toDateString() ?? BusinessDay::of($branch, $created);
+            // Review P6W3 S2: the day of an online order from the zone and day start read once (no query per order)
+            $date = $order->business_date?->toDateString() ?? PosSettings::businessDate($created, $timezone->getName(), $dayStart);
             if (!isset($rows[$date])) {
                 continue;
             }

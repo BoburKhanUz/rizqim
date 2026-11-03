@@ -281,6 +281,46 @@ void main() {
   );
 
   testWidgets(
+    'packaging after the bill was printed: the manager types the PIN, then the bag comes off',
+    (WidgetTester tester) async {
+      final (P22 p, FakeQueueBackend _, FastFoodBackend f) =
+          await fastFoodTill();
+      await pumpHome(tester, p.h, size: const Size(1280, 1100));
+      await tester.tap(menuTile(friId));
+      await tester.pumpAndSettle();
+      // «To'lash»: the order opens; back from the payment page, the bill was printed meanwhile (the guest holds it)
+      await tester.tap(find.byKey(const ValueKey<String>('counter-pay')));
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byType(PaymentPage))).pop();
+      await tester.pumpAndSettle();
+      p.state.orders.values.single['bill_locked'] = true;
+
+      await tester.tap(key('packaging-remove-$bagRuleId'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(ChoiceChip, "Mijoz o'z paketini olib keldi"),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(buttonLabeled('Olib tashlash').first);
+      // The PIN dialog keeps animating: pump a while instead of settling (the idle lock would fire)
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // The server asked for orders.discount: the manager's PIN, then the same removal with the approval
+      expect(find.text("Menejer tasdig'i"), findsOneWidget);
+      expect(f.removed, isEmpty);
+      await typePin(tester, '5926');
+      await tester.pumpAndSettle();
+      expect(find.text("Menejer tasdig'i"), findsNothing);
+      expect(f.removed, <(int, String)>[
+        (bagRuleId, "Mijoz o'z paketini olib keldi"),
+      ]);
+      expect(f.removalTokens.single, isNotNull);
+      expect(find.text(som(14000)), findsWidgets);
+    },
+  );
+
+  testWidgets(
     'packaging offline: shown, removal disabled with a plain message',
     (WidgetTester tester) async {
       final (P22 p, FakeQueueBackend _, FastFoodBackend _) =

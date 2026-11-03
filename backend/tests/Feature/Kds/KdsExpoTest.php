@@ -3,10 +3,13 @@
 namespace Tests\Feature\Kds;
 
 use App\Enums\OrderStatus;
+use App\Enums\UserRole;
 use App\Events\Broadcast\KitchenOrderAssembledBroadcast;
 use App\Events\Broadcast\QueueNumberBroadcast;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\RolePermissionOverride;
 use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -244,6 +247,35 @@ class KdsExpoTest extends TestCase
 
         // A cook or a terminal session does not set targets
         $this->cook('GET', "/owner/kds/targets?branch_id={$this->branch->id}")->assertStatus(403);
+    }
+
+    public function test_a_branch_bound_caller_does_not_set_the_store_wide_dish_targets(): void
+    {
+        // Only the owner has settings.manage by default and it is not grantable through the API; a row written directly
+        // (an old override, a support fix) must still not let a branch-bound manager change what every branch uses
+        RolePermissionOverride::create(['store_id' => $this->store->id, 'role' => 'manager', 'permission' => 'settings.manage', 'allowed' => true]);
+        $manager = $this->makeStaff(UserRole::MANAGER, $this->branch);
+        $call = function (array $items) use ($manager) {
+            $this->withBearer(null);
+            $this->app['auth']->forgetGuards();
+
+            return $this->actingAs($manager, 'sanctum')->json('PUT', '/api/v1/owner/kds/targets/products', ['items' => $items]);
+        };
+
+        // A target is store-wide (every branch): only the owner or a store-wide manager sets it; clearing one is the same
+        $call([['product_id' => $this->tea->product_id, 'target_seconds' => 45]])
+            ->assertStatus(403)->assertJsonPath('data.reason', 'store_wide_only');
+        $call([['product_id' => $this->tea->product_id, 'target_seconds' => null]])
+            ->assertStatus(403)->assertJsonPath('data.reason', 'store_wide_only');
+        $this->assertNull(Product::find($this->tea->product_id)->kds_target_seconds);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'kds.product_targets_updated']);
+
+        // A store-wide manager (no branch) and the owner still can
+        $wide = $this->makeStaff(UserRole::MANAGER);
+        $this->withBearer(null);
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($wide, 'sanctum')->json('PUT', '/api/v1/owner/kds/targets/products', ['branch_id' => $this->branch->id, 'items' => [['product_id' => $this->tea->product_id, 'target_seconds' => 45]]])->assertOk();
+        $this->owner('PUT', '/owner/kds/targets/products', ['branch_id' => $this->branch->id, 'items' => [['product_id' => $this->tea->product_id, 'target_seconds' => 50]]])->assertOk();
     }
 
     public function test_the_fast_food_template_seeds_the_universal_stations_with_their_targets(): void

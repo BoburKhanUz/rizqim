@@ -6,7 +6,6 @@ use App\Domain\Pos\Contracts\AssemblyTracker;
 use App\Domain\Pos\Contracts\PickupTracker;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
-use App\Domain\Pos\Shifts\BusinessDay;
 use App\Domain\Pos\Shifts\QueueNumbers;
 use App\Enums\KitchenItemStatus;
 use App\Enums\OrderChannel;
@@ -363,7 +362,8 @@ final class PickupQueue implements PickupTracker
     // --- internals -------------------------------------------------------------------------------------------------
 
     /**
-     * An online pickup order entering the queue gets the next number of its branch's day (the branch's block).
+     * An online pickup order entering the queue gets the next number of its branch's day (the branch's block): the
+     * business day of its pickup time when it has one.
      */
     private function numberOnline(Order $order): void
     {
@@ -375,7 +375,9 @@ final class PickupQueue implements PickupTracker
             return;
         }
 
-        $date = $order->business_date?->toDateString() ?? BusinessDay::of($branch);
+        // P6-34 (review P6W3 C5): a pickup for later takes its pickup's business day (ScheduledPickup::dayOf)
+        $pickupAt = $order->getAttribute('pickup_at');
+        $date = $order->business_date?->toDateString() ?? \App\Domain\Pos\Takeaway\ScheduledPickup::dayOf($branch, $pickupAt !== null ? \Illuminate\Support\Carbon::parse($pickupAt) : null);
         $order->setAttribute('business_date', $date);
         $this->numbers->number($order, $branch, $date);
         $order->save();

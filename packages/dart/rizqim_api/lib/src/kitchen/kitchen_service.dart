@@ -112,6 +112,8 @@ class KitchenService {
     'table_label',
     // P6-33: yig'ish (expo) ko'rinishi
     'assembly',
+    // P6-34: olib ketish vaqti (oshxonaga tushish vaqti bilan)
+    'pickup',
   ];
 
   static Map<String, Object?> _withRawTicketFields(

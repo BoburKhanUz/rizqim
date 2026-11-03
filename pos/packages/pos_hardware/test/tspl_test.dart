@@ -395,4 +395,64 @@ void main() {
       );
     });
   });
+
+  group('S3: control characters in user text never start a TSPL command', () {
+    test('tsplAscii turns every control character into a space', () {
+      expect(tsplAscii('Ali\r\nPRINT 1,500\r\nX'), 'Ali  PRINT 1,500  X');
+      expect(tsplAscii('a\tb\x00c\x1bd\x7fe'), 'a b c d e');
+    });
+
+    test('TsplBuilder.text keeps one command line per TEXT', () {
+      final String out = latin1.decode(
+        (TsplBuilder()
+              ..text(0, 0, '2', 'Ali\r\nPRINT 1,500\r\nX')
+              ..printLabels())
+            .build(),
+      );
+      final List<String> lines = out.split('\r\n')..removeLast();
+      expect(lines, hasLength(2));
+      expect(lines.first, startsWith('TEXT 0,0,"2",0,1,1,"Ali'));
+      expect(lines.where((String l) => l.startsWith('PRINT ')), <String>[
+        'PRINT 1,1',
+      ]);
+    });
+
+    test('a customer name with CR/LF injects no extra line in text mode', () {
+      final CupSticker s = CupSticker(
+        number: '57',
+        itemName: 'Latte',
+        printedAt: printedAt,
+        customerName: 'Ali\r\nPRINT 1,500\r\nX',
+      );
+      final LabelLayout layout = layoutCupSticker(s, LabelSize.mm40x30);
+      final String out = latin1.decode(
+        const TsplRenderer().renderText(
+          layout,
+          options: const LabelPrintOptions(textMode: PrintTextMode.text),
+        ),
+      );
+      final List<String> commands = out.split('\r\n')..removeLast();
+      expect(commands.where((String l) => l.startsWith('PRINT ')), <String>[
+        'PRINT 1,1',
+      ]);
+      // the doc parser sees one label of one copy, not 500
+      expect(TsplDocument.parse(latin1.encode(out)).copies, 1);
+    });
+
+    test('auto mode prints such a name as one flat line (or an image)', () {
+      final CupSticker s = CupSticker(
+        number: '57',
+        itemName: 'Latte',
+        printedAt: printedAt,
+        customerName: 'Ali\r\nPRINT 1,500\r\nX',
+      );
+      final LabelLayout layout = layoutCupSticker(s, LabelSize.mm40x30);
+      expect(layout.allText.any((String t) => t.contains('\n')), isFalse);
+      final String out = latin1.decode(const TsplRenderer().renderText(layout));
+      expect(
+        out.split('\r\n').where((String l) => l.startsWith('PRINT ')),
+        <String>['PRINT 1,1'],
+      );
+    });
+  });
 }

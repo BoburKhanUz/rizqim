@@ -734,6 +734,40 @@ void main() {
       },
     );
 
+    testWidgets(
+      'a scheduled pickup fired hours after acceptance does not skew the server clock (an old void is not shown as recent)',
+      (WidgetTester tester) async {
+        final KdsHarness h = posKitchen(stationValues: allStations);
+        h.state.sendDate = false;
+        // everything below happened an hour ago by the server clock
+        h.state.now = () => h.now.subtract(const Duration(hours: 1));
+        // accepted 5 hours before that, handed to the kitchen 3 minutes before it: the server counts from that time
+        h.state.addPosOrder(
+          table: 'Xona 9',
+          age: const Duration(hours: 5),
+          firedAgo: const Duration(minutes: 3),
+          lines: const <PosLine>[PosLine('Osh', '1', station: 2)],
+        );
+        h.state.addPosOrder(
+          lines: const <PosLine>[
+            PosLine(
+              "Qo'y shashlik",
+              '4',
+              station: 1,
+              status: 'void',
+              voidReason: 'Xato kiritilgan',
+            ),
+            PosLine('Osh', '1', station: 2),
+          ],
+        );
+        h.state.now = () => h.now;
+        await pumpBoard(tester, h);
+        // the void is an hour old by the server clock: not "recent"
+        expect(find.text(VoidBadge.label), findsNothing);
+        expect(find.text('Sabab: Xato kiritilgan'), findsNothing);
+      },
+    );
+
     testWidgets('a voided mangal row shows the badge too', (
       WidgetTester tester,
     ) async {

@@ -32,6 +32,11 @@ Route::prefix('v1')->group(function () {
 
         Route::middleware('not-staff-session')->post('/user/profile', function (Request $request) {
             $user = $request->user();
+            // The name is printed on stickers and receipts: control characters (a line break starts a printer command)
+            // become one space; a name of nothing else is empty (422)
+            if (is_string($request->input('name'))) {
+                $request->merge(['name' => trim((string) preg_replace('/\p{Cc}+/u', ' ', $request->input('name')))]);
+            }
             $data = $request->validate([
                 'name' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:255',

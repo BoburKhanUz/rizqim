@@ -477,11 +477,12 @@ class KitchenBoardController extends ChangeNotifier {
         for (final KitchenLine l in e.ticket.lines) l.id,
   };
 
-  /// Javobdan server soati ofseti: pishayotgan chiptaning kutish vaqti (server soati = qabul + kutish), bo'lmasa HTTP
-  /// `Date` sarlavhasi.
+  /// Javobdan server soati ofseti: pishayotgan chiptaning kutish vaqti (server soati = kutish boshlanishi + kutish;
+  /// oldindan buyurtmada boshlanish oshxonaga tushish vaqti), bo'lmasa HTTP `Date` sarlavhasi. Oshxonaga hali tushmagan
+  /// oldindan buyurtmadan soat chiqmaydi.
   static Duration? _offsetOf(KitchenTicketList list) {
     for (final KitchenTicket t in list.tickets) {
-      if (t.isCooking && (t.acceptedAt ?? t.createdAt) != null) {
+      if (t.isCooking && t.waitingStart != null) {
         return serverNowAt(t, t.receivedAt).difference(t.receivedAt);
       }
     }

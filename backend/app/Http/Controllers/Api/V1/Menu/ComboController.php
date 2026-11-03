@@ -8,8 +8,6 @@ use App\Domain\Pos\Billing\Allocation;
 use App\Domain\Pos\Menu\Combos;
 use App\Enums\OrderChannel;
 use App\Models\Combo;
-use App\Models\ComboSlot;
-use App\Models\ComboSlotOption;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
@@ -58,8 +56,11 @@ class ComboController extends MenuStaffController
      * included in the option's price), `is_default` (one per slot: taken when the slot is left out) and `label` (the
      * receipt text, e.g. "Ichimlik — 0,4 l Pepsi"; default "<slot> — <dish> (<variant>), <modifiers>"). Up to 8 slots.
      * A part cannot be the combo itself, another combo or a kompleks; a kompleks product cannot be a combo. Saving a
-     * product that already is a combo replaces its slots. Sold lines keep the parts they had (`combo_parts`). Audited
-     * (`menu.combo_saved`).
+     * product that already is a combo saves its slots as sent, keeping the rows a till cached: a slot is the existing one
+     * with its `uuid` (optional), else the one with its name, else the one at its position; an option is that slot's
+     * existing one of the same dish. Those keep their ids and uuids (a till's cached picks still sell); a slot or option
+     * no longer sent is removed (kept for offline sales made before). Sold lines keep the parts they had
+     * (`combo_parts`). Audited (`menu.combo_saved`).
      */
     #[\Dedoc\Scramble\Attributes\Response(201, type: 'array{success: true, message: string, data: ' . self::COMBO . '}')]
     public function store(Request $request, Combos $combos): JsonResponse
@@ -75,16 +76,19 @@ class ComboController extends MenuStaffController
     /**
      * Change a combo
      *
-     * Replaces the slots (sent in full) and/or switches the combo off (`is_active` false: it is sold as a plain product).
+     * Saves the slots (sent in full, matched as on create) and/or switches the combo off (`is_active` false: it is sold
+     * as a plain product). `is_active` alone only sets the flag (a part dish switched off in the menu never blocks it).
      */
     #[\Dedoc\Scramble\Attributes\Response(200, type: 'array{success: true, message: string, data: ' . self::COMBO . '}')]
     public function update(Request $request, int $id, Combos $combos): JsonResponse
     {
         $combo = $this->combo($request, $id);
         $data = $this->validated($request, false);
-        $slots = $data['slots'] ?? $this->currentSlots($combo);
+        $active = (bool) ($data['is_active'] ?? $combo->is_active);
 
-        $combo = $combos->save($this->storeId($request), $combo->product()->firstOrFail(), $slots, (bool) ($data['is_active'] ?? $combo->is_active), $request->user());
+        $combo = isset($data['slots'])
+            ? $combos->save($this->storeId($request), $combo->product()->firstOrFail(), $data['slots'], $active, $request->user())
+            : $combos->setActive($combo, $active, $request->user());
 
         return $this->success($this->present($combos, $combo->load('product.variants')), 'Kombo saqlandi.');
     }
@@ -170,6 +174,7 @@ class ComboController extends MenuStaffController
             'product_id' => $creating ? 'required|integer' : 'prohibited',
             'is_active' => 'nullable|boolean',
             'slots' => ($creating ? 'required' : 'sometimes') . '|array|min:1|max:' . Combos::MAX_SLOTS,
+            'slots.*.uuid' => 'nullable|uuid',
             'slots.*.name' => 'required|string|max:60',
             'slots.*.min_picks' => 'nullable|integer|min:0|max:' . Combos::MAX_PICKS,
             'slots.*.max_picks' => 'nullable|integer|min:1|max:' . Combos::MAX_PICKS,
@@ -184,29 +189,6 @@ class ComboController extends MenuStaffController
             'slots.*.options.*.is_default' => 'nullable|boolean',
             'slots.*.options.*.label' => 'nullable|string|max:80',
         ]);
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function currentSlots(Combo $combo): array
-    {
-        $combo->loadMissing(Combos::RELATIONS);
-
-        return $combo->slots->map(fn (ComboSlot $slot) => [
-            'name' => $slot->name,
-            'min_picks' => (int) $slot->min_picks,
-            'max_picks' => (int) $slot->max_picks,
-            'allow_modifiers' => (bool) $slot->allow_modifiers,
-            'options' => $slot->options->map(fn (ComboSlotOption $option) => [
-                'variant_id' => (int) $option->product_variant_id,
-                'quantity' => (int) $option->quantity,
-                'price_delta' => Money::of($option->price_delta)->toString(),
-                'modifiers' => $option->modifiers ?? [],
-                'is_default' => (bool) $option->is_default,
-                'label' => $option->label,
-            ])->values()->all(),
-        ])->values()->all();
     }
 
     private function combo(Request $request, int $id): Combo

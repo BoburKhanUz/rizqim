@@ -394,7 +394,7 @@ class _CounterPageState extends State<CounterPage> {
     if (ctl.packagingLocked) return;
     final String? reason = await askPackagingReason(context, l);
     if (reason == null || !mounted) return;
-    await ctl.removePackaging(l.ruleId, reason);
+    await ctl.removePackaging(l.ruleId, reason, approve: _approve);
   }
 
   Future<void> _cancelSale() async {
@@ -1011,8 +1011,9 @@ class _CounterPageState extends State<CounterPage> {
                   : (PosPackagingLine l) => unawaited(_removePackaging(l)),
               onRestore: ctl.busy
                   ? null
-                  : (PosPackagingLine l) =>
-                        unawaited(ctl.restorePackaging(l.ruleId)),
+                  : (PosPackagingLine l) => unawaited(
+                      ctl.restorePackaging(l.ruleId, approve: _approve),
+                    ),
             ),
           ),
       ];

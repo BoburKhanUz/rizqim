@@ -32,7 +32,9 @@ use Illuminate\Support\Facades\DB;
  * (OfflinePricing.packaging).
  *
  * The module gates the rules, not an order that has packaging: with the module off a POS order keeps the lines it
- * already has (frozen as stored) and gets no new ones. Rule changes reach open orders on their next recalculation.
+ * already has (frozen as stored) and gets no new ones. Rule changes reach open orders on their next recalculation. Once
+ * a bill of the order is being paid its lines never shrink (keepBilled, review P6W3 C6). Taking a line off follows the
+ * waiter rule, and after the bill was printed it is a discount after the print (remove(), review P6W3 S1).
  */
 final class PackagingRules
 {
@@ -278,8 +280,39 @@ final class PackagingRules
         }
 
         $lines = $this->linesFor((int) $branch->id, $type, $this->dishesOf($order), $this->removedOf($order));
+        if ($stored !== [] && self::billTaken($order)) {
+            $lines = self::keepBilled($stored, $lines);
+        }
 
         return ['lines' => $lines, 'amount' => self::total($lines)];
+    }
+
+    /**
+     * Review P6W3 C6: once a bill of the order is being paid, its packaging lines stay as billed — a line may grow (a
+     * dish added, a dearer rule), never shrink or go (a dish voided, a rule cheapened, switched off or deleted): the
+     * bills already paid carry a share of every line (shareLines), so the order must keep it. A dish of an unpaid bill
+     * can then be voided (its container stays on the order; refund the paid bill to take it off). New rules' lines join.
+     *
+     * @param  list<array<string, mixed>>  $stored
+     * @param  list<array<string, mixed>>  $computed
+     * @return list<array<string, mixed>>
+     */
+    private static function keepBilled(array $stored, array $computed): array
+    {
+        $now = [];
+        foreach ($computed as $line) {
+            $now[(int) $line['rule_id']] = $line;
+        }
+
+        $lines = [];
+        foreach ($stored as $line) {
+            $ruleId = (int) $line['rule_id'];
+            $fresh = $now[$ruleId] ?? null;
+            unset($now[$ruleId]);
+            $lines[] = $fresh !== null && Money::of((string) $fresh['amount'])->isGreaterThan((string) $line['amount']) ? $fresh : $line;
+        }
+
+        return [...$lines, ...array_values($now)];
     }
 
     /**
@@ -405,34 +438,40 @@ final class PackagingRules
 
     /**
      * The cashier takes a packaging line off the order (the guest brought their own bag): a reason, orders.manage, the
-     * order's version; refused once a bill of the order is being paid (409 `paid_bill_affected`: refund it first) and
-     * for a line the order does not have (422 `packaging_not_found`). Audited; order.items_changed (`charges_changed`).
+     * order's version, the waiter rule (WaiterAccess). Once the bill was printed (the bill lock, P3-18: the guest holds
+     * the higher bill) it lowers the bill like a discount after the print: orders.discount or a manager's approval token
+     * for it (403 `approval_required`), and the owner is told (PosOrderAlerts::packagingRemoved). Refused once a bill of
+     * the order is being paid (409 `paid_bill_affected`: refund it first) and for a line the order does not have (422
+     * `packaging_not_found`). Audited (with `approved_by`); order.items_changed (`charges_changed`).
      *
      * @throws \App\Domain\Pos\Orders\PosOrderException
+     * @throws \App\Domain\Pos\Billing\PosActionException the waiter rule
      */
-    public function remove(Order $order, int $version, int $ruleId, string $reason, User $actor): Order
+    public function remove(Order $order, int $version, int $ruleId, string $reason, User $actor, ?string $approvalToken = null): Order
     {
-        return $this->change($order, $version, $ruleId, $actor, function (Order $order, array $line) use ($ruleId, $reason, $actor) {
-            if (!empty($line['removed'])) {
-                throw new \App\Domain\Pos\Orders\PosOrderException("Bu qadoq allaqachon olib tashlangan.", 422, 'already_removed');
-            }
+        return $this->change($order, $version, $ruleId, $actor, $approvalToken, true, function (Order $order, array $line, ?int $approvedBy, bool $billLocked) use ($ruleId, $reason, $actor) {
             OrderPackagingRemoval::updateOrCreate(
                 ['order_id' => $order->id, 'rule_id' => $ruleId],
                 ['reason' => mb_substr(trim($reason), 0, 255), 'removed_by' => $actor->id],
             );
+            if ($billLocked) {
+                app(\App\Domain\Pos\Orders\PosOrderAlerts::class)->packagingRemoved($order, (string) $line['name'], (string) $line['amount'], trim($reason), $actor, $approvedBy);
+            }
 
-            return ['pos.packaging_removed', ['rule_id' => $ruleId, 'name' => $line['name'], 'amount' => $line['amount'], 'reason' => trim($reason)]];
+            return ['pos.packaging_removed', array_filter(['rule_id' => $ruleId, 'name' => $line['name'], 'amount' => $line['amount'], 'reason' => trim($reason), 'approved_by' => $approvedBy], fn ($value) => $value !== null)];
         });
     }
 
     /**
-     * Puts a packaging line taken off back (it raises the bill: orders.manage is enough). 422 `not_removed`.
+     * Puts a packaging line taken off back (it raises the bill: orders.manage is enough; the waiter rule). 422
+     * `not_removed`.
      *
      * @throws \App\Domain\Pos\Orders\PosOrderException
+     * @throws \App\Domain\Pos\Billing\PosActionException the waiter rule
      */
-    public function restore(Order $order, int $version, int $ruleId, User $actor): Order
+    public function restore(Order $order, int $version, int $ruleId, User $actor, ?string $approvalToken = null): Order
     {
-        return $this->change($order, $version, $ruleId, $actor, function (Order $order, array $line) use ($ruleId) {
+        return $this->change($order, $version, $ruleId, $actor, $approvalToken, false, function (Order $order, array $line) use ($ruleId) {
             if (OrderPackagingRemoval::where('order_id', $order->id)->where('rule_id', $ruleId)->delete() === 0) {
                 throw new \App\Domain\Pos\Orders\PosOrderException("Bu qadoq olib tashlanmagan.", 422, 'not_removed');
             }
@@ -442,23 +481,33 @@ final class PackagingRules
     }
 
     /**
-     * @param  \Closure(Order, array<string, mixed>): array{0: string, 1: array<string, mixed>}  $apply
+     * Whether a bill of the order is being paid (a payment taken on it, or paid).
      */
-    private function change(Order $order, int $version, int $ruleId, User $actor, \Closure $apply): Order
+    public static function billTaken(Order $order): bool
     {
-        return DB::transaction(function () use ($order, $version, $ruleId, $actor, $apply) {
+        return $order->exists && \App\Models\OrderBill::query()
+            ->where('order_id', $order->id)
+            ->where('status', '!=', \App\Domain\Pos\Billing\BillStatus::VOID->value)
+            ->where(fn ($query) => $query->where('status', \App\Domain\Pos\Billing\BillStatus::PAID->value)
+                ->orWhereExists(fn ($payments) => $payments->selectRaw('1')->from('payments')->whereColumn('payments.bill_id', 'order_bills.id')))
+            ->exists();
+    }
+
+    /**
+     * $lowers: the change lowers the bill (a removal): after the print it needs orders.discount or a manager's token.
+     *
+     * @param  \Closure(Order, array<string, mixed>, int|null, bool): array{0: string, 1: array<string, mixed>}  $apply
+     */
+    private function change(Order $order, int $version, int $ruleId, User $actor, ?string $approvalToken, bool $lowers, \Closure $apply): Order
+    {
+        return DB::transaction(function () use ($order, $version, $ruleId, $actor, $approvalToken, $lowers, $apply) {
+            $orders = app(\App\Domain\Pos\Orders\PosOrderService::class);
             $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
-            app(\App\Domain\Pos\Orders\PosOrderService::class)->assertMutable($locked);
+            $orders->assertMutable($locked);
             if ((int) $locked->version !== $version) {
                 throw \App\Domain\Pos\Orders\PosOrderException::versionConflict((int) $locked->version);
             }
-            $taken = \App\Models\OrderBill::query()
-                ->where('order_id', $locked->id)
-                ->where('status', '!=', \App\Domain\Pos\Billing\BillStatus::VOID->value)
-                ->where(fn ($query) => $query->where('status', \App\Domain\Pos\Billing\BillStatus::PAID->value)
-                    ->orWhereExists(fn ($payments) => $payments->selectRaw('1')->from('payments')->whereColumn('payments.bill_id', 'order_bills.id')))
-                ->exists();
-            if ($taken) {
+            if (self::billTaken($locked)) {
                 throw new \App\Domain\Pos\Orders\PosOrderException("Buyurtmaning schyoti to'lanmoqda yoki to'langan: qadoqni o'zgartirish uchun avval to'lovni qaytaring.", 409, 'paid_bill_affected');
             }
 
@@ -466,8 +515,17 @@ final class PackagingRules
             if ($line === null) {
                 throw new \App\Domain\Pos\Orders\PosOrderException('Buyurtmada bunday qadoq qatori yo\'q.', 422, 'packaging_not_found');
             }
+            if ($lowers && !empty($line['removed'])) {
+                throw new \App\Domain\Pos\Orders\PosOrderException("Bu qadoq allaqachon olib tashlangan.", 422, 'already_removed');
+            }
 
-            [$action, $meta] = $apply($locked, $line);
+            // Review P6W3 S1: after the print a removal is a discount (P3-18's bill lock); then the waiter rule (POS_SPEC
+            // 11) as for every change of the order — a manager who approved the removal covers another waiter's order
+            $billLocked = $lowers && $orders->billLocked($locked);
+            $approvedBy = $billLocked ? $orders->authorizeOrApprove($actor, $locked, \App\Enums\Permission::ORDERS_DISCOUNT, $approvalToken) : null;
+            $approvedBy = app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($locked, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
+
+            [$action, $meta] = $apply($locked, $line, $approvedBy, $billLocked);
             app(\App\Domain\Pos\Orders\PosChargesCalculator::class)->recalculate($locked);
             $locked->forceFill(['version' => (int) $locked->version + 1])->save();
             $this->audit->record($action, $locked, [], [], $meta, ['actor' => $actor]);

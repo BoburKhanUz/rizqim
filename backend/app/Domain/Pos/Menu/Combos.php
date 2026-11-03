@@ -250,8 +250,10 @@ class Combos
 
     /**
      * Checks a combo line's picks and prices its parts. Null when the variant's product is no active combo (a plain
-     * line). $strict false (a sale the till made offline): availability is not asked again and an option of a combo
-     * since changed is still taken while it exists in the store (the device sold it); limits and membership still are.
+     * line). $strict false (a sale the till made offline): availability is not asked again, an option the owner has
+     * since removed from this combo (soft-deleted, or in a removed slot) is still taken (the device sold it), and a combo
+     * switched off since is still the combo when the till sent picks; either is priced by the server's current rule (the
+     * option's stored delta, the combo product's price). Limits and membership (this combo's options only) still are.
      *
      * Each pick: {option_id: uuid, quantity?: 1..MAX_PICKS, modifiers?: [uuid | {id, quantity}]}.
      *
@@ -264,6 +266,10 @@ class Combos
     public function resolve(ProductVariant $variant, array $picks, array $blocked, ChannelMenu $menu, int $index, bool $strict = true): ?array
     {
         $combo = $this->forProduct((int) $variant->product_id);
+        if ($combo === null && !$strict && $picks !== []) {
+            // Offline: the till sold it as a combo before it heard the combo was switched off
+            $combo = Combo::query()->where('product_id', $variant->product_id)->with(self::RELATIONS)->first();
+        }
         if ($combo === null) {
             if ($picks !== []) {
                 throw ComboPickException::invalid($index, "'{$this->lines->nameOf($variant)}' kombo emas: tarkib tanlab bo'lmaydi.");
@@ -298,18 +304,19 @@ class Combos
             }
         }
         if (!$strict) {
-            // Offline: an option removed from the combo since the till took its menu is still the store's sale
+            // Offline: an option removed from this combo since the till took its menu is still the store's sale (never
+            // another combo's option)
             $missing = array_diff(array_keys($chosen), array_keys($options));
             if ($missing !== []) {
-                $stale = ComboSlotOption::query()->whereIn('uuid', $missing)->with(['slot', 'variant.product'])
-                    ->whereHas('slot.combo', fn ($query) => $query->where('store_id', $combo->store_id))->get();
+                $stale = ComboSlotOption::withTrashed()->whereIn('uuid', $missing)->with(['slot', 'variant.product'])
+                    ->whereIn('combo_slot_id', ComboSlot::withTrashed()->select('id')->where('combo_id', $combo->id))->get();
                 foreach ($stale as $option) {
                     $options[strtolower((string) $option->uuid)] = ['slot' => $option->slot, 'option' => $option];
                 }
             }
         }
 
-        $modifierRows = $this->presetModifiers(new EloquentCollection([$combo]));
+        $modifierRows = $this->presetModifiers(new EloquentCollection([$combo]), array_column($options, 'option'));
         $bySlot = [];
         foreach ($chosen as $uuid => $pick) {
             $found = $options[$uuid] ?? null;
@@ -319,7 +326,7 @@ class Combos
             if ($strict && !$this->available($found['option'], $blocked['products'], $blocked['variants'], $blocked['modifiers'])) {
                 throw ComboPickException::unavailable($index, $comboName, $this->optionName($found['option']));
             }
-            $bySlot[(int) $found['slot']->id][] = ['option' => $found['option'], 'count' => $pick['count'], 'modifiers' => $pick['modifiers']];
+            $bySlot[(int) $found['slot']->id][] = ['slot' => $found['slot'], 'option' => $found['option'], 'count' => $pick['count'], 'modifiers' => $pick['modifiers']];
         }
 
         $parts = [];
@@ -343,6 +350,20 @@ class Combos
                 throw ComboPickException::limit($index, $comboName, (string) $slot->name, max(1, (int) $slot->max_picks));
             }
 
+            foreach ($slotPicks as $pick) {
+                $part = $this->part($slot, $pick['option'], $pick['count'], $pick['modifiers'], $blocked, $menu, $modifierRows, $index, $strict);
+                $delta = $delta->plus($part['price_delta']);
+                $parts[] = $part;
+            }
+            unset($bySlot[(int) $slot->id]);
+        }
+
+        // Offline only: picks of a slot the owner removed since (soft-deleted), after the current slots, within its limit
+        foreach ($bySlot as $slotPicks) {
+            $slot = $slotPicks[0]['slot'];
+            if (array_sum(array_column($slotPicks, 'count')) > max(1, (int) $slot->max_picks)) {
+                throw ComboPickException::limit($index, $comboName, (string) $slot->name, max(1, (int) $slot->max_picks));
+            }
             foreach ($slotPicks as $pick) {
                 $part = $this->part($slot, $pick['option'], $pick['count'], $pick['modifiers'], $blocked, $menu, $modifierRows, $index, $strict);
                 $delta = $delta->plus($part['price_delta']);
@@ -471,23 +492,21 @@ class Combos
     // --- Owner: the constructor ------------------------------------------------------------------------------------
 
     /**
-     * Creates the combo of a product, or replaces its slots and options. 422 for a product that already is a kompleks, a
-     * part outside the store or sold by weight, the combo itself or another combo or kompleks as a part, a preset modifier
-     * that is not the dish's, a slot whose limits do not fit its options, or more than one default where one is picked.
+     * Creates the combo of a product, or saves its slots and options as sent (in full). 422 for a product that already is
+     * a kompleks, a part outside the store or sold by weight, the combo itself or another combo or kompleks as a part, a
+     * preset modifier that is not the dish's, a slot whose limits do not fit its options, or more than one default where
+     * one is picked.
      *
-     * @param  list<array<string, mixed>>  $slots  [{name, min_picks?, max_picks?, allow_modifiers?, options: [{variant_id, quantity?, price_delta?, modifiers?: [{modifier_id, quantity?}], is_default?, label?}]}]
+     * The rows a till cached stay (review P6 wave 3): a slot sent is the existing one with its `uuid`, else the one with
+     * its name, else the one at its position; an option is the slot's existing one of the same dish (the same preset
+     * first). Those are updated in place (their uuids, the picks the tills send, stay); the rest are created; a slot or
+     * option no longer sent is soft-deleted (an offline sale of it still resolves, see resolve()).
+     *
+     * @param  list<array<string, mixed>>  $slots  [{uuid?, name, min_picks?, max_picks?, allow_modifiers?, options: [{variant_id, quantity?, price_delta?, modifiers?: [{modifier_id, quantity?}], is_default?, label?}]}]
      */
     public function save(int $storeId, Product $product, array $slots, bool $active, ?User $actor): Combo
     {
-        if ((int) $product->store_id !== $storeId) {
-            throw ValidationException::withMessages(['product_id' => 'Mahsulot topilmadi.']);
-        }
-        if (DailySet::query()->where('product_id', $product->id)->exists()) {
-            throw ValidationException::withMessages(['product_id' => "Bu mahsulot kompleks: uni kombo qilib bo'lmaydi (avval kompleksni o'chiring)."]);
-        }
-        if ($product->variants()->where('unit', '!=', 'piece')->exists()) {
-            throw ValidationException::withMessages(['product_id' => "Kombo dona bilan sotiladi: kg yoki litr variantli mahsulotni kombo qilib bo'lmaydi."]);
-        }
+        $this->assertCanBeCombo($storeId, $product);
         if ($slots === [] || count($slots) > self::MAX_SLOTS) {
             throw ValidationException::withMessages(['slots' => 'Komboda 1 tadan ' . self::MAX_SLOTS . ' tagacha slot bo\'lishi kerak.']);
         }
@@ -572,6 +591,7 @@ class Combos
             }
 
             $rows[] = [
+                'uuid' => is_string($slot['uuid'] ?? null) ? strtolower($slot['uuid']) : null,
                 'slot' => ['name' => mb_substr($name, 0, 60), 'min_picks' => $min, 'max_picks' => $max, 'allow_modifiers' => (bool) ($slot['allow_modifiers'] ?? false), 'sort_order' => $s],
                 'options' => $optionRows,
             ];
@@ -586,14 +606,8 @@ class Combos
                 $combo = Combo::create(['store_id' => $storeId, 'product_id' => $product->id, 'is_active' => $active, 'created_by' => $actor?->id]);
             } else {
                 $combo->forceFill(['is_active' => $active])->save();
-                ComboSlot::query()->where('combo_id', $combo->id)->delete();
             }
-            foreach ($rows as $row) {
-                $slot = ComboSlot::create($row['slot'] + ['combo_id' => $combo->id]);
-                foreach ($row['options'] as $option) {
-                    ComboSlotOption::create($option + ['combo_slot_id' => $slot->id]);
-                }
-            }
+            $this->saveSlots($combo, $rows);
 
             $combo->unsetRelation('slots');
             $this->audit->record('menu.combo_saved', $combo, $before, ['is_active' => $active, 'slots' => $this->auditShape($combo)], [
@@ -607,6 +621,123 @@ class Combos
         unset($this->has[$storeId]);
 
         return $combo->load(self::RELATIONS);
+    }
+
+    /**
+     * Switches a combo on or off without touching its slots (PUT with `is_active` only): a part dish switched off in the
+     * menu since never blocks it. Switching on checks the product can still be a combo. Audited (`menu.combo_saved`).
+     */
+    public function setActive(Combo $combo, bool $active, ?User $actor): Combo
+    {
+        if ((bool) $combo->is_active !== $active) {
+            /** @var Product $product */
+            $product = Product::withTrashed()->findOrFail($combo->product_id);
+            if ($active) {
+                $this->assertCanBeCombo((int) $combo->store_id, $product);
+            }
+            $combo->forceFill(['is_active' => $active])->save();
+            $this->audit->record('menu.combo_saved', $combo, ['is_active' => !$active], ['is_active' => $active], [
+                'product' => $product->name,
+                'created' => false,
+            ], ['actor' => $actor, 'store_id' => (int) $combo->store_id]);
+            unset($this->has[(int) $combo->store_id]);
+        }
+
+        return $combo->load(self::RELATIONS);
+    }
+
+    /**
+     * 422 for a product of another store, a kompleks or one sold by weight.
+     */
+    private function assertCanBeCombo(int $storeId, Product $product): void
+    {
+        if ((int) $product->store_id !== $storeId) {
+            throw ValidationException::withMessages(['product_id' => 'Mahsulot topilmadi.']);
+        }
+        if (DailySet::query()->where('product_id', $product->id)->exists()) {
+            throw ValidationException::withMessages(['product_id' => "Bu mahsulot kompleks: uni kombo qilib bo'lmaydi (avval kompleksni o'chiring)."]);
+        }
+        if ($product->variants()->where('unit', '!=', 'piece')->exists()) {
+            throw ValidationException::withMessages(['product_id' => "Kombo dona bilan sotiladi: kg yoki litr variantli mahsulotni kombo qilib bo'lmaydi."]);
+        }
+    }
+
+    /**
+     * The slots and options as sent, keeping the existing rows they match (see save()).
+     *
+     * @param  list<array{uuid: string|null, slot: array<string, mixed>, options: list<array<string, mixed>>}>  $rows
+     */
+    private function saveSlots(Combo $combo, array $rows): void
+    {
+        $existing = ComboSlot::query()->where('combo_id', $combo->id)->with('options')->orderBy('sort_order')->orderBy('id')->get()->values();
+        $free = $existing->keyBy('id');
+        $matched = [];
+        $take = function (int $k, ?ComboSlot $slot) use (&$matched, $free): void {
+            if ($slot !== null && !isset($matched[$k]) && $free->has($slot->id)) {
+                $matched[$k] = $slot;
+                $free->forget($slot->id);
+            }
+        };
+        foreach ($rows as $k => $row) {
+            $take($k, $row['uuid'] !== null ? $free->first(fn (ComboSlot $slot) => strtolower((string) $slot->uuid) === $row['uuid']) : null);
+        }
+        foreach ($rows as $k => $row) {
+            $take($k, $free->first(fn (ComboSlot $slot) => mb_strtolower(trim((string) $slot->name)) === mb_strtolower($row['slot']['name'])));
+        }
+        foreach ($rows as $k => $row) {
+            $take($k, $existing->get($k));
+        }
+
+        foreach ($rows as $k => $row) {
+            $slot = $matched[$k] ?? null;
+            if ($slot === null) {
+                $slot = ComboSlot::create($row['slot'] + ['combo_id' => $combo->id]);
+                $slot->setRelation('options', new EloquentCollection());
+            } else {
+                $slot->forceFill($row['slot'])->save();
+            }
+            $this->saveOptions($slot, $row['options']);
+        }
+
+        foreach ($free as $slot) {
+            ComboSlotOption::query()->where('combo_slot_id', $slot->id)->delete();
+            $slot->delete();
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function saveOptions(ComboSlot $slot, array $rows): void
+    {
+        $free = $slot->options->keyBy('id');
+        $preset = fn (?array $modifiers) => json_encode(array_map(fn (array $modifier) => [(int) $modifier['modifier_id'], max(1, (int) ($modifier['quantity'] ?? 1))], $modifiers ?? []));
+        $matched = [];
+        // The same dish with the same preset first, then the same dish
+        foreach ([true, false] as $exact) {
+            foreach ($rows as $k => $row) {
+                if (isset($matched[$k])) {
+                    continue;
+                }
+                $option = $free->first(fn (ComboSlotOption $option) => (int) $option->product_variant_id === (int) $row['product_variant_id']
+                    && (!$exact || $preset($option->modifiers) === $preset($row['modifiers'])));
+                if ($option !== null) {
+                    $matched[$k] = $option;
+                    $free->forget($option->id);
+                }
+            }
+        }
+
+        foreach ($rows as $k => $row) {
+            if (isset($matched[$k])) {
+                $matched[$k]->forceFill($row)->save();
+            } else {
+                ComboSlotOption::create($row + ['combo_slot_id' => $slot->id]);
+            }
+        }
+        foreach ($free as $option) {
+            $option->delete();
+        }
     }
 
     public function delete(Combo $combo, ?User $actor): void
@@ -683,21 +814,30 @@ class Combos
     }
 
     /**
-     * The preset modifiers of the combos' options, by id (deleted ones too: a sold line may name them).
+     * The preset modifiers of the combos' options (and of $extra options: removed ones an offline sale still names), by
+     * id (deleted ones too: a sold line may name them).
      *
      * @param  EloquentCollection<int, Combo>  $combos
+     * @param  iterable<ComboSlotOption>  $extra
      * @return Collection<int, Modifier>
      */
-    private function presetModifiers(EloquentCollection $combos): Collection
+    private function presetModifiers(EloquentCollection $combos, iterable $extra = []): Collection
     {
-        $ids = [];
+        $options = [];
         foreach ($combos as $combo) {
             foreach ($combo->slots as $slot) {
                 foreach ($slot->options as $option) {
-                    foreach ((array) ($option->modifiers ?? []) as $modifier) {
-                        $ids[] = (int) ($modifier['modifier_id']);
-                    }
+                    $options[] = $option;
                 }
+            }
+        }
+        foreach ($extra as $option) {
+            $options[] = $option;
+        }
+        $ids = [];
+        foreach ($options as $option) {
+            foreach ((array) ($option->modifiers ?? []) as $modifier) {
+                $ids[] = (int) ($modifier['modifier_id']);
             }
         }
         if ($ids === []) {

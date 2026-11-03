@@ -13,7 +13,8 @@ use App\Models\PosShift;
  * the Order `creating` event (PosBillingServiceProvider), so whoever opens POS orders (P3-12's PosOrderOpener, a
  * booking's "Keldi") gets it without calling anything. Values already set are kept. The number is taken under a
  * per branch and day advisory lock held until the opening transaction commits, so two terminals never share one.
- * P6-13: the number itself comes from QueueNumbers (till blocks with the `queue_numbers` module).
+ * P6-13: the number itself comes from QueueNumbers (till blocks with the `queue_numbers` module). P6-34: a takeaway for
+ * a later pickup takes its pickup's business day (and that day's number), so a number never repeats within a day.
  */
 final class OrderStamp
 {
@@ -31,7 +32,10 @@ final class OrderStamp
         }
 
         $date = $order->getAttribute('business_date');
-        $date = $date !== null ? \Illuminate\Support\Carbon::parse($date)->toDateString() : BusinessDay::of($branch);
+        // P6-34 (review P6W3 C5): a takeaway for a later pickup belongs to its pickup's business day (ScheduledPickup::dayOf)
+        $pickupAt = $order->getAttribute('pickup_at');
+        $date = $date !== null ? \Illuminate\Support\Carbon::parse($date)->toDateString()
+            : \App\Domain\Pos\Takeaway\ScheduledPickup::dayOf($branch, $pickupAt !== null ? \Illuminate\Support\Carbon::parse($pickupAt) : null);
         $order->setAttribute('business_date', $date);
 
         if ($order->getAttribute('shift_id') === null && $order->getAttribute('device_id') !== null) {

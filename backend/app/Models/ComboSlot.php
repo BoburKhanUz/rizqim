@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * One slot of a combo (P6-31): "Asosiy", "Ichimlik", "Sous"; min_picks 0 makes it optional.
+ * One slot of a combo (P6-31): "Asosiy", "Ichimlik", "Sous"; min_picks 0 makes it optional. A slot the owner removed
+ * is soft-deleted (Combos::save keeps the rest by uuid, name or position), so an offline sale of it still syncs.
  *
  * @property int $min_picks
  * @property int $max_picks
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ComboSlot extends Model
 {
     use \App\Traits\HasPublicUuid;
+    use SoftDeletes;
 
     protected $guarded = ['id'];
 

@@ -182,4 +182,56 @@ void main() {
     expect(LabelSize.fromWire('nope'), LabelSize.mm40x30);
     expect(LabelSize.fromWire(null), LabelSize.mm40x30);
   });
+
+  group('S3: control characters in user text', () {
+    bool hasControl(String t) => t.runes.any((int r) => r < 0x20 || r == 0x7F);
+
+    test(
+      'no text of a label holds a line break or other control character',
+      () {
+        const String dirty = 'Ali\r\nPRINT 1,500\r\nX\x00\x1b\t';
+        for (final LabelSize size in LabelSize.values) {
+          final LabelLayout cup = layoutCupSticker(
+            latte(
+              customer: dirty,
+              name: 'Late\r\nPRINT 1,9',
+              modifiers: <String>[dirty],
+            ),
+            size,
+          );
+          final LabelLayout bag = layoutBagLabel(
+            BagLabel(
+              number: '5\r\n7',
+              itemCount: 3,
+              printedAt: printedAt,
+              customerName: dirty,
+            ),
+            size,
+          );
+          for (final LabelLayout l in <LabelLayout>[cup, bag]) {
+            for (final LabelText t in l.texts) {
+              expect(
+                hasControl(t.text),
+                isFalse,
+                reason: '"${t.text}" in ${size.wire}',
+              );
+            }
+          }
+        }
+      },
+    );
+
+    test('footer and pair collapse whitespace into single spaces', () {
+      final LabelWriter b = LabelWriter(LabelSize.mm40x30)
+        ..pair('A\r\n\r\nB', '12')
+        ..footer('x\r\n\t y');
+      final List<String> texts = b
+          .build()
+          .texts
+          .map((LabelText t) => t.text)
+          .toList();
+      expect(texts, contains('A B'));
+      expect(texts, contains('x y'));
+    });
+  });
 }

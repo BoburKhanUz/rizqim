@@ -246,6 +246,7 @@ class PosOrderService implements PosOrderOpener
             if ($send) {
                 $sent = $this->fire($order, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all());
             }
+            $this->reschedulePickup($order, $branch);
 
             $this->audit->record('pos.round_added', $order, [], [], [
                 'round_no' => $round,
@@ -283,6 +284,7 @@ class PosOrderService implements PosOrderOpener
 
             $this->charges->recalculate($locked);
             $sent = $send ? $this->fire($locked, $actor, $items->filter(fn (OrderItem $item) => $item->fire_mode === FireMode::NOW)->pluck('id')->map(fn ($id) => (int) $id)->all()) : [];
+            $this->reschedulePickup($locked, $branch);
 
             $this->audit->record('pos.round_added', $locked, [], [], [
                 'round_no' => $round,
@@ -300,6 +302,17 @@ class PosOrderService implements PosOrderOpener
 
             return ['order' => $locked, 'items' => $items, 'flags' => $added['flags'], 'sent' => $sent];
         });
+    }
+
+    /**
+     * P6-34 (review P6W3 C4): a round added to an order waiting for its pickup time re-runs its schedule — a slower dish
+     * brings the kitchen time forward, and a time already passed fires the order now (ScheduledPickup::schedule).
+     */
+    protected function reschedulePickup(Order $order, Branch $branch): void
+    {
+        if ($order->getAttribute('pickup_at') !== null && $order->getAttribute('kitchen_fired_at') === null) {
+            app(\App\Domain\Pos\Takeaway\ScheduledPickup::class)->schedule($order, $branch);
+        }
     }
 
     /**
@@ -1281,7 +1294,7 @@ class PosOrderService implements PosOrderOpener
      * The approving manager's id when $actor lacks $permission and a valid one-time approval token is given; null when
      * the actor holds it. 403 `approval_required` / `approval_invalid` otherwise.
      */
-    protected function authorizeOrApprove(User $actor, Order $order, Permission $permission, ?string $token): ?int
+    public function authorizeOrApprove(User $actor, Order $order, Permission $permission, ?string $token): ?int
     {
         if ($this->permissions->allows($actor, $permission, $order)) {
             return null;

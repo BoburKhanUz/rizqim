@@ -325,6 +325,9 @@ class FastFoodBackend {
   /// What the till sent: `POST /pos/orders` bodies, packaging removals (rule, reason), pickup-time changes.
   final List<Map<String, Object?>> opened = <Map<String, Object?>>[];
   final List<(int, String)> removed = <(int, String)>[];
+
+  /// The `approval_token` each packaging removal the server took came with.
+  final List<String?> removalTokens = <String?>[];
   final List<int> restored = <int>[];
   final List<String?> pickupChanges = <String?>[];
 
@@ -621,6 +624,15 @@ class FastFoodBackend {
       final Map<String, Object?> order = state.orders[pack.group(1)]!;
       final int rule = int.parse(pack.group(2)!);
       final bool remove = pack.group(3) == 'remove';
+      // Review P6W3 S1: after the bill was printed a removal is a discount (orders.discount or a manager's approval)
+      if (remove && order['bill_locked'] == true) {
+        final FakeResponse? denied = state.authorize(
+          r.member,
+          'orders.discount',
+          r.data['approval_token'],
+        );
+        if (denied != null) return denied;
+      }
       final Map<int, String> off = _removed[pack.group(1)!] ??= <int, String>{};
       if (remove) {
         off[rule] = '${r.data['reason']}';
@@ -629,6 +641,7 @@ class FastFoodBackend {
       }
       if (remove) {
         removed.add((rule, '${r.data['reason']}'));
+        removalTokens.add(r.data['approval_token'] as String?);
       } else {
         restored.add(rule);
       }

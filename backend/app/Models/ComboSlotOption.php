@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * One option of a combo slot (P6-31): a dish variant, its pieces, an optional modifier preset and a price delta.
+ * One option of a combo slot (P6-31): a dish variant, its pieces, an optional modifier preset and a price delta. An
+ * option the owner removed is soft-deleted (Combos::save keeps the rest by their dish), so its uuid, cached by a till,
+ * still resolves for an offline sale.
  *
  * @property int $quantity
  * @property numeric-string $price_delta
@@ -16,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ComboSlotOption extends Model
 {
     use \App\Traits\HasPublicUuid;
+    use SoftDeletes;
 
     protected $guarded = ['id'];
 
@@ -40,6 +44,6 @@ class ComboSlotOption extends Model
      */
     public function slot(): BelongsTo
     {
-        return $this->belongsTo(ComboSlot::class, 'combo_slot_id');
+        return $this->belongsTo(ComboSlot::class, 'combo_slot_id')->withTrashed();
     }
 }

@@ -103,10 +103,15 @@ class ComboKitchen
     }
 
     /**
-     * OrderItem saving: the combo line itself is cooked nowhere (its parts are).
+     * OrderItem saving: the combo line itself is cooked nowhere (its parts are). A combo sold with no picks (its slots all
+     * optional) has no parts: it is a plain line (`combo_parts` null), so the kitchen, the reports and the progress
+     * counts read it the same way.
      */
     public function saving(OrderItem $item): void
     {
+        if ($item->combo_parts === []) {
+            $item->combo_parts = null;
+        }
         if ($item->isComboLine() && $item->station_id !== null) {
             $item->station_id = null;
         }

@@ -632,6 +632,64 @@ void main() {
     );
   });
 
+  group('server clock of a scheduled pickup', () {
+    KitchenTicket scheduled({
+      required Duration firedAgo,
+      bool waiting = false,
+      int? waitingSeconds,
+    }) => KitchenTicket(
+      uuid: 's',
+      status: 'accepted',
+      type: 'pickup',
+      channel: 'telegram',
+      lines: <KitchenLine>[
+        line(1, 'Osh', station: 2, sentAt: t0.subtract(firedAgo)),
+      ],
+      // the server counts the wait from the kitchen time, not from the acceptance 5 hours before
+      waitingSeconds: waitingSeconds ?? firedAgo.inSeconds,
+      receivedAt: t0,
+      acceptedAt: t0.subtract(const Duration(hours: 5)),
+      createdAt: t0.subtract(const Duration(hours: 5, minutes: 1)),
+      pickup: KitchenPickup(
+        pickupAt: t0.add(const Duration(minutes: 10)),
+        kitchenFireAt: t0.subtract(firedAgo),
+        kitchenFiredAt: waiting ? null : t0.subtract(firedAgo),
+        waiting: waiting,
+      ),
+    );
+
+    test('serverNowAt anchors on the kitchen time the server counts from', () {
+      final KitchenTicket t = scheduled(firedAgo: const Duration(minutes: 3));
+      expect(serverNowAt(t, t0), t0);
+      expect(
+        serverNowAt(t, t0.add(const Duration(seconds: 30))),
+        t0.add(const Duration(seconds: 30)),
+      );
+    });
+
+    test(
+      'a ticket still waiting for its kitchen time falls back to receipt',
+      () {
+        final KitchenTicket t = scheduled(
+          firedAgo: const Duration(minutes: -20),
+          waiting: true,
+          waitingSeconds: 0,
+        );
+        expect(serverNowAt(t, t0), t0);
+      },
+    );
+
+    test('the wait of a scheduled ticket is not hours long', () {
+      final KitchenTicket t = scheduled(firedAgo: const Duration(minutes: 3));
+      final BoardTicket b = build(<KitchenTicket>[t]).active.single;
+      expect(b.waiting(t0), const Duration(minutes: 3));
+      expect(
+        b.waiting(t0.add(const Duration(minutes: 1))),
+        const Duration(minutes: 4),
+      );
+    });
+  });
+
   group('mangal grouping', () {
     test('same dish in a round is one row with the skewers added up', () {
       final List<SkewerGroup> g = groupSkewers(<KitchenLine>[

@@ -304,15 +304,31 @@ tarkib qatorlariga shu nisbatda bo'linadi (yig'indi = qaytarilgan summa). Tarkib
 o'chirilgan kombo bitta o'chirish.
 
 **Egasi.** `GET/POST /owner/combos`, `PUT/DELETE /owner/combos/{id}`, `POST /owner/combos/{id}/preview` (chek ko'rinishi),
-o'qish `menu.view`, yozish `menu.manage`; jurnal `menu.combo_saved`, `menu.combo_deleted`. Fiskal rejim — `PUT /owner/fiscal/settings`
+o'qish `menu.view`, yozish `menu.manage`; jurnal `menu.combo_saved`, `menu.combo_deleted`. **Saqlash qatorlarni saqlaydi**
+(review P6 W3): yuborilgan slot — mavjudidan `uuid` (ixtiyoriy) bo'yicha, bo'lmasa nomi, bo'lmasa o'rni bo'yicha topiladi; tanlov —
+shu slotdagi o'sha taomniki (avval bir xil oldindan qo'yilgan modifikatorlisi). Topilganlar o'z joyida yangilanadi (id va `uuid` —
+kassa saqlagan tanlovlar — o'zgarmaydi), yangilari qo'shiladi, yuborilmagan slot/tanlov **yumshoq o'chiriladi** (`deleted_at`:
+katalog va onlayn sotuvda yo'q, internetsiz sotuvda topiladi). `PUT` faqat `is_active` bilan — faqat bayroq (slotlar qayta
+qurilmaydi; menyuda o'chirilgan tarkib taomi komboni o'chirishga xalaqit bermaydi; yoqishda faqat mahsulot tekshiriladi). Kombo,
+slot va tanlovning har o'zgarishi `menu_version` ni siljitadi (kassa katalogni qayta oladi). Fiskal rejim — `PUT /owner/fiscal/settings`
 (`settings.manage`, `settings.fiscal_changed` jurnali). Panel: Menyu → Kombo (`/menu/combos`).
 
 **Internetsiz (pos_data).** Katalogdagi `combo` saqlanadi; `PosComboPricing.resolve` server bilan bir xil qoida va narx (standart,
 min/max, sotilmaydigan tanlov, qo'shilgan modifikator). `order.open`/`order.round` qatori `combo` (tanlovlar) va `combo_delta`
-(kassa hisoblagan farq) olib keladi; server tanlovni qayta tekshirmaydi (mavjudlik), lekin a'zolik va chegaralarni tekshiradi;
-farqni o'zi hisoblaydi va mos kelmasa `offline_price_mismatch` belgisi qo'yadi. Kassa ko'rinishida qator `combo_parts` bilan.
+(kassa hisoblagan farq) olib keladi; server tanlovni qayta tekshirmaydi (mavjudlik), lekin a'zolik (faqat **shu** komboning
+tanlovlari — boshqa kombo tanlovi rad etiladi) va chegaralarni tekshiradi; farqni o'zi hisoblaydi va mos kelmasa
+`offline_price_mismatch` belgisi qo'yadi. Kassa menyuni olgandan keyin egasi olib tashlagan tanlov yoki slot (yumshoq o'chirilgan)
+ham, keyin o'chirilgan (`is_active` false) kombo ham tanlovlar bilan kelsa — sotuv saqlanadi, **serverning hozirgi qoidasi** bilan
+narxlanadi (tanlovning saqlangan farqi, kombo mahsuloti narxi). O'chirilgan komboni tanlovsiz sotish — oddiy taom. Kassa ko'rinishida
+qator `combo_parts` bilan.
+
+**Tanlovsiz kombo.** Slotlari hammasi ixtiyoriy kombo tanlovsiz sotilsa tarkibi yo'q: qator oddiy qator (`combo_parts` null, bo'sh
+ro'yxat emas) — oshxona, tayyorlash vaqti hisoboti va KDS hisoblagichi uni bir xil o'qiydi. Oshxona hisoblagichi
+(`kitchen.item_status_changed` `items_total`/`items_ready`) kombo qatorini emas, tarkib oshxona qatorlarini sanaydi (tiket kabi).
+Onlayn "vaqtga" olib ketishda oshxona vaqti tarkib taomlarining `wait_minutes` ini ham hisobga oladi (eng kattasi, POS kabi).
 
 Migratsiyalar: `2026_11_14_100100_create_combos_tables`, `2026_11_14_100200_add_combo_columns_to_order_items_table`
-(`order_items.combo_parts`, `order_items.combo_parent_id`). Testlar: `tests/Feature/PosFastFood/ComboTest.php`,
-`ComboReceiptTest.php`; `pos/packages/pos_data/test/combo_test.dart`; panel `src/components/combos`, `e2e/combos.spec.ts`;
+(`order_items.combo_parts`, `order_items.combo_parent_id`), `2026_11_15_100100_add_soft_deletes_to_combo_slots_tables`
+(`deleted_at`; eski `combo_parts = []` → null). Testlar: `tests/Feature/PosFastFood/ComboTest.php`,
+`ComboReceiptTest.php`, `ComboEditsTest.php`; `pos/packages/pos_data/test/combo_test.dart`; panel `src/components/combos`, `e2e/combos.spec.ts`;
 Mini App `ProductSheet.combo.test.tsx`.

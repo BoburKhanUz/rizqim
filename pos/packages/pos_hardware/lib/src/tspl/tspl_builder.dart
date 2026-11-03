@@ -93,8 +93,15 @@ class TsplBuilder {
 
 /// Matnni ASCII ga keltiradi (TSPL ning o'rnatilgan shrifti faqat ASCII): "oʻ" → "o'", "№" → "N"; qolgan belgilar
 /// (kirill) → "?" — butun yorliqni rasm sifatida chop etish uchun [tsplCanEncode] bilan tekshiring.
+///
+/// Boshqaruv belgilari (< 0x20 va 0x7F: CR, LF, ESC, TAB...) bo'shliqqa almashadi: foydalanuvchi matni (mijoz ismi,
+/// izoh) `TEXT` buyrug'ining qatorini tugatib, yangi TSPL buyrug'ini (masalan `PRINT 1,500`) kiritib yubora olmaydi.
 String tsplAscii(String text) =>
-    EscPosCodePage.ascii.decode(EscPosCodePage.ascii.encode(text));
+    _noControl(EscPosCodePage.ascii.decode(EscPosCodePage.ascii.encode(text)));
+
+String _noControl(String text) => String.fromCharCodes(
+  text.runes.map((int r) => r < 0x20 || r == 0x7F ? 0x20 : r),
+);
 
 /// Matn printerning o'rnatilgan (ASCII) shriftida to'g'ri chiqadimi: "oʻ", "gʻ", "ʼ" ("o'" ga almashadi) ham ma'qul,
 /// kirill emas.

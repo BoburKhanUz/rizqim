@@ -1707,6 +1707,17 @@ Fast food e2e (P6-39) topgani: Telegram buyurtmasining qatorlari ham sex ekranid
 olingan buyurtma oshxona vaqtidan sanaladi (qabul qilingandan emas: darhol "kechikdi" bo'lmaydi), daqiqalik ishdan oldin
 berilgan buyurtma raqami taxtaga qaytmaydi. API — [API.md](API.md), "P6-39 tuzatishlari".
 
+3-to'lqin tekshiruvi tuzatishlari (KDS): (1) KDS soati keyinroq vaqtga olingan buyurtmada ham to'g'ri: ilova server soatini
+chiptadagi `waiting_seconds` dan **serverning o'zi sanaydigan boshlanish** bo'yicha topadi (`KitchenTicket.waitingStart`: qabul
+yoki, `pickup.kitchen_fire_at` kechroq bo'lsa, oshxona vaqti), shuning uchun qabul qilinganidan soatlar o'tib oshxonaga tushgan
+buyurtma qator taymerini, "O'CHIRILDI" yangiligini va bekor qilish muddatini buzmaydi. Oshxonaga hali tushmagan (`pickup.waiting`)
+buyurtmadan soat ofseti olinmaydi (u HTTP `Date` sarlavhasiga yoki boshqa chiptaga tayanadi). Server javobi o'zgarmadi
+(`pickup` allaqachon chiptada). (2) Yorliq matnidagi boshqaruv belgilari (mijoz ismi, izoh: CR, LF, ESC, TAB) TSPL buyrug'ini
+kirita olmaydi: `tsplAscii`/`TsplBuilder.text` ularni bo'shliqqa almashtiradi, `LabelWriter` matnni bir qatorga keltiradi
+(`PRINT 1,500` kabi qator chiqmaydi); `POST /user/profile` ham ismdagi boshqaruv belgilarini bo'shliqqa almashtiradi.
+(3) Taomning vaqt maqsadi do'kon bo'yicha, shuning uchun `PUT /owner/kds/targets/products` ni bitta filialga bog'langan
+foydalanuvchi o'zgartira olmaydi (403 `store_wide_only`); egasi va butun do'kon menejeri uchun avvalgidek.
+
 ## Qadoq, 24/7 va olib ketish vaqti (P6-34)
 
 Uch modul (format profili, 2.15): `packaging` (fast food, qahvaxona, dark kitchen, lag'monxona, somsaxona, tamaddixona),
@@ -1725,8 +1736,14 @@ bitta idish o'z nomi, narxi, MXIK va qadoq kodi bilan (MXIK bo'sh bo'lsa — do'
 - Schyot va chekda har qadoq alohida qator o'z MXIK'i bilan; bo'lingan schyot qadoq ulushini oladi (qatorlar bo'yicha
   proporsional, qoldiq tiyin eng katta kasrga — `Allocation`), chek yig'indisi har doim schyot summasiga teng.
 - Mijoz o'z paketini olib kelsa, kassir qatorni sabab bilan olib tashlaydi (`POST /pos/orders/{uuid}/packaging/{rule}/remove`,
-  orders.manage, menejersiz, auditda `pos.packaging_removed`); qaytarish — `.../restore`. Schyoti to'lanayotgan buyurtmada
-  rad etiladi (409 `paid_bill_affected`).
+  orders.manage, auditda `pos.packaging_removed`); qaytarish — `.../restore`. Schyot chop etilgandan keyin (schyot qulfi,
+  2.9) olib tashlash — chop etilgandan keyingi chegirma kabi: `orders.discount` yoki menejer tasdig'i (403 `approval_required`,
+  kassa PIN oynasini ochib qayta yuboradi), egaga xabar ("✂️ ... olib tashlandi"); ofitsiant faqat o'z buyurtmasida (11).
+  Schyoti to'lanayotgan buyurtmada rad etiladi (409 `paid_bill_affected`).
+- Buyurtmaning biror schyoti to'lana boshlagach qadoq qatorlari schyotdagidek qoladi: qayta hisoblashda qator o'sishi mumkin
+  (taom qo'shildi, qoida qimmatladi), kamaymaydi va yo'qolmaydi (taom o'chirildi, qoida arzonladi yoki o'chirildi) — to'langan
+  schyot har qatorning ulushini olib bo'lgan. Shunda to'lanmagan schyotdagi taomni o'chirish ishlaydi (idishi buyurtmada
+  qoladi; olib tashlash uchun to'langan schyotni qaytaring).
 - Telegram buyurtmasida qadoq CreateOrderAction'da (pickup — `pickup`, yetkazish — `delivery` qoidalari), buyurtma kartasida
   va onlayn to'lov chekida alohida qatorlar.
 - Internetsiz: bootstrap `takeaway.packaging` qoidalari bilan kassa narxni serverdek hisoblaydi (`pos_data`
@@ -1757,7 +1774,20 @@ bitta idish o'z nomi, narxi, MXIK va qadoq kodi bilan (MXIK bo'sh bo'lsa — do'
   (taxtada ko'rinadi), `order.items_changed` (`sent`), auditda `pos.pickup_fired`; `kitchen_fired_at` qachonligini aytadi.
   Avval to'langan (yopilgan) buyurtma ham shu payt oshxonaga chiqadi;
 - vaqtni oshxonaga chiqqunicha o'zgartirish yoki olib tashlash mumkin (olib tashlansa — darhol oshxonaga); keyin 409
-  `already_in_kitchen`. Internetsiz vaqt tanlanmaydi (buyurtma "hozir" bo'ladi).
+  `already_in_kitchen`; ofitsiant faqat o'z buyurtmasida (11). Kombo tarkibining oshxona qatorlari ham ushlab turiladi.
+  Internetsiz vaqt tanlanmaydi (buyurtma "hozir" bo'ladi);
+- kutayotgan buyurtmaga yangi tur qo'shilsa jadval qayta hisoblanadi: sekinroq taom oshxona vaqtini oldinga suradi, vaqti
+  o'tib ketgan bo'lsa buyurtma darhol oshxonaga chiqadi;
+- **raqam va biznes kun**: keyingi biznes kunga (kun boshi, 05:00 dan keyin) olingan buyurtma o'sha kunga tegishli —
+  `business_date` va navbat raqami o'sha kunniki (kassa buyurtmasi — o'sha kunning kassa bloki, onlayn — filial bloki),
+  raqam taxtasida o'sha kuni chiqadi, biznes kun hisobotida o'sha kunda; to'lovi uni olgan smenada qoladi. Shu sabab bir
+  biznes kunda bir raqam ikki marta berilmaydi (o'sha kunning bloklari bu raqamdan yuqorida kesiladi). Vaqt boshqa biznes
+  kunga o'zgartirilsa (yoki olib tashlansa — bugunga) buyurtma o'sha kunning keyingi raqamini oladi (talonni qayta chop
+  eting). Internetsiz raqamlash qoidalari o'zgarmagan (internetsiz vaqt tanlanmaydi);
+- Mini App vaqtlari (`GET /stores/{store}/branches/{branch}/pickup-slots`) bir necha so'rov bilan hisoblanadi, filial
+  bo'yicha shu daqiqaga keshlanadi (sozlama keyingi daqiqadan ko'rinadi), manzil bo'yicha daqiqasiga 30 ta; savdo qilmaydigan
+  (faol bo'lmagan: moliyaviy blok, to'lov kerak, to'xtatilgan) do'kon — 404. Tayyorlash vaqti hisobotida (`PrepTimeReport`)
+  bir necha kun oldin berilgan onlayn buyurtma oshxona vaqti tushgan kunda hisoblanadi.
 
 ## Kombo (P6-31)
 
@@ -1773,7 +1803,10 @@ Modul `combo`. Qoidalar, jadvallar va endpointlar: [MENU.md](MENU.md) §13, [API
    sozlamada `split` — tarkib bo'yicha, ulushlar yig'indisi = kombo narxi (eng katta qoldiq, tiyinda).
 4. **Yopilish.** Majburiy slotida sotiladigan tanlov qolmasa kombo stop-listga tushadi; sotilmaydigan tanlov ko'rsatilmaydi.
 5. **Internetsiz.** Kassa komboni o'zi narxlaydi (`PosComboPricing`, server bilan bir xil) va `combo` + `combo_delta` bilan
-   navbatga qo'yadi; server tanlovni saqlaydi, farqni o'zi hisoblaydi (`offline_price_mismatch`).
+   navbatga qo'yadi; server tanlovni saqlaydi, farqni o'zi hisoblaydi (`offline_price_mismatch`). Egasi komboni tahrirlasa
+   o'zgarmagan slot va tanlovlar `uuid` ini saqlaydi; olib tashlangani yumshoq o'chiriladi — internetsiz sotuvi baribir
+   sinxronlanadi, keyin o'chirilgan kombo ham (tanlovlar bilan kelsa); narx serverning hozirgi qoidasi bilan. Boshqa kombo
+   tanlovi rad etiladi. Kombo o'zgarishi `menu_version` ni siljitadi (MENU.md §13).
 6. **Kassir ekrani (stage B).** Kombo tugmasi slot oynasini ochadi: majburiy slotlarda standart tanlov belgilangan, slotda
    bitta bosish tanlovni almashtiradi, farq tugmada (+5 000), sotilmaydigan tanlov ko'rsatilmaydi; standart kombo — 2 bosish
    (kombo, "Qo'shish"). Savat qatorida tarkib narxsiz; qatorni bosish tanlovni va sonini o'zgartiradi. Kassa tanlovni doim

@@ -5,10 +5,12 @@ import '../settings/kds_settings.dart';
 import '../stations/station_selection.dart';
 
 /// Server soati bo'yicha "hozir" ([now] qurilma soati): chipta javobi kelgan payt serverning `waiting_seconds` si
-/// qabul qilingan vaqtdan hisoblangan, shuning uchun server vaqti = qabul + kutish. Planshet soati serverdan farq qilsa
-/// ham oldindan buyurtma muddati va qatorning kutishi to'g'ri chiqadi.
+/// serverning o'zi kutishni sanaydigan boshlanishdan ([KitchenTicket.waitingStart]: qabul, olib ketish vaqti bor
+/// buyurtmada esa oshxonaga tushish vaqti) hisoblangan, shuning uchun server vaqti = boshlanish + kutish. Planshet soati
+/// serverdan farq qilsa ham oldindan buyurtma muddati va qatorning kutishi to'g'ri chiqadi. Oshxonaga hali tushmagan
+/// oldindan buyurtmada boshlanish yo'q: soat javob qabul qilingan paytdan ketadi.
 DateTime serverNowAt(KitchenTicket t, DateTime now) {
-  final DateTime? start = t.acceptedAt ?? t.createdAt;
+  final DateTime? start = t.waitingStart;
   final DateTime atReceipt = start != null && t.isCooking
       ? start.add(Duration(seconds: t.waitingSeconds))
       : t.receivedAt;

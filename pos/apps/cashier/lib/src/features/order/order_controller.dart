@@ -647,18 +647,21 @@ class OrderController extends ChangeNotifier {
     success: '${kind.label} qaytarildi',
   );
 
-  /// P6-34: mijoz o'z paketini olib keldi — qadoq qatorini sabab bilan olib tashlash (aloqa borida; auditda).
+  /// P6-34: mijoz o'z paketini olib keldi — qadoq qatorini sabab bilan olib tashlash (aloqa borida; auditda). Schyot
+  /// chop etilgandan keyin (yoki boshqa ofitsiantning buyurtmasi) server menejer tasdig'ini so'raydi ([approve]).
   Future<bool> removePackaging(
     int ruleId,
     String reason, {
     required ApprovalRunner approve,
   }) => _packaging(
-    (int v) => takeaway.removePackaging(
+    (int v, String? t) => takeaway.removePackaging(
       _uuid!,
       ruleId,
       version: v,
       reason: reason,
-      idempotencyKey: _actionKey('pack-remove:$ruleId:$v'),
+      approvalToken: t,
+      // A retry with the manager's approval is a new request (its own key)
+      idempotencyKey: _actionKey('pack-remove:$ruleId:$v:${t ?? ''}'),
     ),
     approve,
     'Qadoq olib tashlandi',
@@ -669,18 +672,19 @@ class OrderController extends ChangeNotifier {
     int ruleId, {
     required ApprovalRunner approve,
   }) => _packaging(
-    (int v) => takeaway.restorePackaging(
+    (int v, String? t) => takeaway.restorePackaging(
       _uuid!,
       ruleId,
       version: v,
-      idempotencyKey: _actionKey('pack-restore:$ruleId:$v'),
+      approvalToken: t,
+      idempotencyKey: _actionKey('pack-restore:$ruleId:$v:${t ?? ''}'),
     ),
     approve,
     'Qadoq qaytarildi',
   );
 
   Future<bool> _packaging(
-    Future<PosOrder> Function(int version) call,
+    Future<PosOrder> Function(int version, String? approvalToken) call,
     ApprovalRunner approve,
     String success,
   ) {
@@ -691,21 +695,20 @@ class OrderController extends ChangeNotifier {
       );
       return Future<bool>.value(false);
     }
-    return _mutate(
-      (int v, String? _) => call(v),
-      approve: approve,
-      success: success,
-    );
+    return _mutate(call, approve: approve, success: success);
   }
 
   /// P6-34: olib ketish vaqti (`scheduled_pickup`; [at] `null` — hozir, darhol oshxonaga).
   Future<bool> setPickupTime(DateTime? at, {required ApprovalRunner approve}) =>
       _mutate(
-        (int v, String? _) => takeaway.setPickupTime(
+        (int v, String? t) => takeaway.setPickupTime(
           _uuid!,
           at,
           version: v,
-          idempotencyKey: _actionKey('pickup:$v:${at?.toIso8601String()}'),
+          approvalToken: t,
+          idempotencyKey: _actionKey(
+            'pickup:$v:${at?.toIso8601String()}:${t ?? ''}',
+          ),
         ),
         approve: approve,
         success: at == null

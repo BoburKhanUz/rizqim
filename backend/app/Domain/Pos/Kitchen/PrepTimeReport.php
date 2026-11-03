@@ -171,7 +171,10 @@ final class PrepTimeReport
             ->where(fn ($query) => $query
                 ->where(fn ($query) => $query->where('order_items.sent_at', '>=', $start)->where('order_items.sent_at', '<', $end))
                 ->orWhere(fn ($query) => $query->whereNull('order_items.sent_at')->whereNull('order_items.fire_mode')
-                    ->where('orders.created_at', '>=', $start->subDay())->where('orders.created_at', '<', $end)));
+                    ->where(fn ($query) => $query
+                        ->where(fn ($query) => $query->where('orders.created_at', '>=', $start->subDay())->where('orders.created_at', '<', $end))
+                        // Review P6W3 C9: a pickup ordered days ahead starts at its kitchen time
+                        ->orWhere(fn ($query) => $query->whereNotNull('orders.pickup_at')->where('orders.kitchen_fire_at', '>=', $start)->where('orders.kitchen_fire_at', '<', $end)))));
     }
 
     /**

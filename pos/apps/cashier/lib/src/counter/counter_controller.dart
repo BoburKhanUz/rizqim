@@ -204,13 +204,22 @@ class CounterController extends ChangeNotifier {
   bool get packagingLocked => data.offline?.active ?? false;
 
   /// Mijoz o'z paketini olib keldi: savatda — eslab qolinadi, ochilgan buyurtmada — serverda (sabab bilan, auditda).
-  Future<bool> removePackaging(int ruleId, String reason) =>
-      _changePackaging(ruleId, reason);
+  /// Schyot chop etilgandan keyin server menejer tasdig'ini so'raydi ([approve] — PIN oynasi, keyin qayta so'rov).
+  Future<bool> removePackaging(
+    int ruleId,
+    String reason, {
+    ApprovalRunner? approve,
+  }) => _changePackaging(ruleId, reason, approve);
 
   /// Olib tashlangan qadoqni qaytarish.
-  Future<bool> restorePackaging(int ruleId) => _changePackaging(ruleId, null);
+  Future<bool> restorePackaging(int ruleId, {ApprovalRunner? approve}) =>
+      _changePackaging(ruleId, null, approve);
 
-  Future<bool> _changePackaging(int ruleId, String? reason) async {
+  Future<bool> _changePackaging(
+    int ruleId,
+    String? reason,
+    ApprovalRunner? approve,
+  ) async {
     if (packagingLocked) {
       _emit(
         "Internet yo'q: qadoqni olib tashlab yoki qaytarib bo'lmaydi.",
@@ -233,24 +242,36 @@ class CounterController extends ChangeNotifier {
     _busy = true;
     _notify();
     try {
-      _order = reason == null
-          ? await takeaway.restorePackaging(
+      // A retry with the manager's approval is a new request (its own key)
+      Future<PosOrder> call(String? t) => reason == null
+          ? takeaway.restorePackaging(
               o.uuid,
               ruleId,
               version: o.version,
-              idempotencyKey: _key('pack-restore:$ruleId:${o.version}'),
+              approvalToken: t,
+              idempotencyKey: _key(
+                'pack-restore:$ruleId:${o.version}:${t ?? ''}',
+              ),
             )
-          : await takeaway.removePackaging(
+          : takeaway.removePackaging(
               o.uuid,
               ruleId,
               version: o.version,
               reason: reason,
-              idempotencyKey: _key('pack-remove:$ruleId:${o.version}'),
+              approvalToken: t,
+              idempotencyKey: _key(
+                'pack-remove:$ruleId:${o.version}:${t ?? ''}',
+              ),
             );
+      _order = approve != null
+          ? await approve<PosOrder>(call)
+          : await call(null);
       // The unpaid bill no longer matches the order: «To'lash» makes a new one (a new request, its own key)
       _bill = null;
       _keys.remove('bill:${o.uuid}');
       return true;
+    } on PosApprovalCancelled {
+      return false;
     } on PosVersionConflict {
       await _reloadOrder();
       _emit("Buyurtma o'zgardi: qayta urinib ko'ring.", error: true);

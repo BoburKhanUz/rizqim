@@ -333,6 +333,40 @@ class KitchenLine {
   );
 }
 
+/// P6-34 / P6-39: keyinroq olib ketiladigan buyurtmaning vaqti (chiptaning `pickup` maydoni; vaqtsiz buyurtmada `null`).
+/// Oshxona buyurtmani [kitchenFireAt] da oladi; server kutishni shu paytdan sanaydi (qabul qilingan paytdan emas).
+class KitchenPickup {
+  const KitchenPickup({
+    required this.pickupAt,
+    this.kitchenFireAt,
+    this.kitchenFiredAt,
+    this.waiting = false,
+  });
+
+  factory KitchenPickup.fromJson(Map<String, Object?> json) => KitchenPickup(
+    pickupAt:
+        _date(json['pickup_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+    kitchenFireAt: _date(json['kitchen_fire_at']),
+    kitchenFiredAt: _date(json['kitchen_fired_at']),
+    waiting: json['waiting'] == true,
+  );
+
+  /// Mijoz olib ketadigan vaqt.
+  final DateTime pickupAt;
+
+  /// Oshxona buyurtmani oladigan (olgan) vaqt: `pickup_at` − tayyorlash vaqti.
+  final DateTime? kitchenFireAt;
+
+  /// Buyurtma oshxonaga haqiqatan tushgan payt; `null` — hali tushmagan.
+  final DateTime? kitchenFiredAt;
+
+  /// Oshxona hali olmagan: chipta kutmoqda.
+  final bool waiting;
+
+  /// Oshxonaga tushgan.
+  bool get isFired => kitchenFiredAt != null;
+}
+
 /// Bitta buyurtmaning oshxona chiptasi. Mijoz ma'lumoti va narxlar yo'q.
 class KitchenTicket {
   const KitchenTicket({
@@ -358,6 +392,7 @@ class KitchenTicket {
     this.pickupStatus,
     this.tableLabel,
     this.assembly,
+    this.pickup,
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -389,6 +424,11 @@ class KitchenTicket {
         ? KitchenAssembly.fromJson(
             (json['assembly']! as Map<Object?, Object?>)
                 .cast<String, Object?>(),
+          )
+        : null,
+    pickup: json['pickup'] is Map
+        ? KitchenPickup.fromJson(
+            (json['pickup']! as Map<Object?, Object?>).cast<String, Object?>(),
           )
         : null,
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
@@ -431,6 +471,9 @@ class KitchenTicket {
   /// P6-33 (`kds_expo`): yig'ish ekrani ko'rinishi; buyurtma yig'ishdan o'tmasa `null`.
   final KitchenAssembly? assembly;
 
+  /// P6-34: olib ketish vaqti tanlangan buyurtmaning vaqti; vaqtsizda `null`.
+  final KitchenPickup? pickup;
+
   /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
   final DateTime? canceledAt;
 
@@ -438,9 +481,22 @@ class KitchenTicket {
   bool get isCanceled =>
       status == 'canceled' || status == 'cancelled' || status == 'rejected';
 
-  /// Server hisoblagan kutish vaqti (qabul qilingandan, bo'lmasa yaratilgandan) javob paytida.
+  /// Server hisoblagan kutish vaqti (qabul qilingandan, bo'lmasa yaratilgandan; olib ketish vaqti bor buyurtmada
+  /// kechroqqa qarab: oshxonaga tushgan paytdan) javob paytida.
   final int waitingSeconds;
   final DateTime receivedAt;
+
+  /// Server [waitingSeconds] ni sanaydigan boshlanish payti (`KitchenTargets::orderStart`): qabul (bo'lmasa yaratilish),
+  /// olib ketish vaqti bor buyurtmada esa oshxona vaqti kechroq bo'lsa shu. Oshxonaga hali tushmagan chiptada kutish 0
+  /// va boshlanish kelajakda — soatni undan chiqarib bo'lmaydi, shuning uchun `null`.
+  DateTime? get waitingStart {
+    final DateTime? accepted = acceptedAt ?? createdAt;
+    final KitchenPickup? p = pickup;
+    final DateTime? fire = p?.kitchenFireAt;
+    if (p != null && p.waiting) return null;
+    if (fire == null) return accepted;
+    return accepted == null || fire.isAfter(accepted) ? fire : accepted;
+  }
 
   /// `#E101` (qisqa kod) yoki uuid boshi: Mini App va web panel bilan bir xil (`formatOrderCode`).
   String get code {
@@ -487,6 +543,7 @@ class KitchenTicket {
     String? tableLabel,
     KitchenAssembly? assembly,
     bool clearAssembly = false,
+    KitchenPickup? pickup,
   }) => KitchenTicket(
     uuid: uuid,
     shortCode: shortCode,
@@ -508,6 +565,7 @@ class KitchenTicket {
     pickupStatus: pickupStatus ?? this.pickupStatus,
     tableLabel: tableLabel ?? this.tableLabel,
     assembly: clearAssembly ? null : (assembly ?? this.assembly),
+    pickup: pickup ?? this.pickup,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
   );

@@ -31,8 +31,9 @@ class KitchenItemStatusChangedBroadcast extends OrderBroadcast
         $this->kitchenStatus = $item->kitchen_status->value;
         $this->itemReadyAt = $item->ready_at?->toJSON();
 
-        // P3-12: a voided line is not counted; a served one counts as ready
-        $counts = $order->items()->toBase()
+        // P3-12: a voided line is not counted; a served one counts as ready. P6-31: the kitchen lines, as the ticket counts
+        // them: a combo line is counted as its parts
+        $counts = OrderItem::withComboParts()->where('order_id', $order->id)->whereNull('combo_parts')->toBase()
             ->selectRaw("count(*) filter (where kitchen_status <> 'void') as total")
             ->selectRaw("count(*) filter (where kitchen_status in ('ready', 'served')) as ready")
             ->first();

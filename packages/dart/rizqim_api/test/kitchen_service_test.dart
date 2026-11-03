@@ -562,6 +562,35 @@ void main() {
     expect(t.copyWith(clearAssembly: true).assembly, isNull);
   });
 
+  test('P6-39: a ticket of a scheduled pickup carries its kitchen time; the wait counts from it', () async {
+    adapter.handler = (RequestOptions o) => json(200, <String, Object?>{
+      'success': true,
+      'message': '',
+      'data': <Object?>[
+        <String, Object?>{
+          ...ticketJson(type: 'pickup'),
+          'pickup': <String, Object?>{
+            'pickup_at': '2026-10-22T12:10:00Z',
+            'kitchen_fire_at': '2026-10-22T11:57:00Z',
+            'kitchen_fired_at': '2026-10-22T11:57:01Z',
+            'waiting': false,
+            'local_time': '22.10 17:10',
+          },
+        },
+        ticketJson(),
+      ],
+      'meta': <String, Object?>{'truncated': false},
+    });
+    final List<KitchenTicket> list = (await client.kitchen.tickets()).tickets;
+    final KitchenPickup p = list.first.pickup!;
+    expect(p.kitchenFireAt, DateTime.utc(2026, 10, 22, 11, 57));
+    expect(p.pickupAt, DateTime.utc(2026, 10, 22, 12, 10));
+    expect(p.waiting, isFalse);
+    expect(p.isFired, isTrue);
+    expect(list.first.copyWith(status: 'ready').pickup, isNotNull);
+    expect(list.last.pickup, isNull);
+  });
+
   test(
     'P6-33: a ticket of an order outside the expo has no assembly',
     () async {

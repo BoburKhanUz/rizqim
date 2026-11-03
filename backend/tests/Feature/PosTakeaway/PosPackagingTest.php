@@ -265,6 +265,124 @@ class PosPackagingTest extends TestCase
         $this->assertSame([['Paket', 1, '1000.00'], ["Sho'rva idishi", 2, '6000.00']], array_map(fn (array $line) => [$line['name'], $line['quantity'], $line['amount']], $model->packaging_lines ?? []));
     }
 
+    /**
+     * What the owner was told on Telegram (PosSyncFixtures' fake messenger).
+     *
+     * @return list<string>
+     */
+    private function ownerAlerts(): array
+    {
+        $telegram = app(\App\Services\Telegram\TelegramMessenger::class);
+        $this->assertInstanceOf(\Tests\Feature\PosBooking\FakeTelegramMessenger::class, $telegram);
+
+        return array_values(array_map(fn (array $sent) => (string) $sent['text'], array_filter($telegram->sent, fn (array $sent) => $sent['chat'] === (string) $this->owner->telegram_id)));
+    }
+
+    private function managerApproval(string $permission, ?string $token = null): string
+    {
+        return (string) $this->tillAs('POST', '/pos/approvals', ['permission' => $permission, 'user_id' => $this->manager->id, 'pin' => self::MANAGER_PIN], $token)
+            ->assertCreated()->json('data.token');
+    }
+
+    /**
+     * Review P6W3 S1: once the bill was printed (the guest holds it), taking packaging off lowers it like a discount: a
+     * manager's approval for orders.discount, and the owner hears about it.
+     */
+    public function test_packaging_taken_off_after_the_bill_was_printed_needs_a_manager_and_tells_the_owner(): void
+    {
+        // 2 soups: 50 000 + a bag 1 000 + 2 bowls 6 000; before the print the cashier takes the bag off alone, quietly
+        $opened = $this->takeaway([[$this->soup, 2]])->assertCreated()->assertJsonPath('data.total_price', '57000.00');
+        $uuid = (string) $opened->json('data.uuid');
+        $removed = $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bag->id}/remove", ['version' => (int) $opened->json('data.version'), 'reason' => "O'z paketi"])
+            ->assertOk()->assertJsonPath('data.total_price', '56000.00');
+        $this->assertSame([], $this->ownerAlerts());
+
+        $bill = $this->tillAs('POST', "/pos/orders/{$uuid}/bills", ['version' => (int) $removed->json('data.version'), 'mode' => 'single'])->assertSuccessful()->json('data.bills.0');
+        $this->tillAs('POST', '/pos/bills/' . $bill['uuid'] . '/print', [])->assertSuccessful();
+        $order = Order::where('uuid', $uuid)->firstOrFail();
+        $this->assertNotNull($order->bill_locked_at);
+
+        // Printed: the cashier needs a manager
+        $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bowl->id}/remove", ['version' => (int) $order->version, 'reason' => 'Idish kerak emas'])
+            ->assertStatus(403)->assertJsonPath('data.reason', 'approval_required')->assertJsonPath('data.permission', 'orders.discount');
+        $this->assertSame('56000.00', (string) $order->refresh()->total_price);
+
+        $done = $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bowl->id}/remove", ['version' => (int) $order->version, 'reason' => 'Idish kerak emas', 'approval_token' => $this->managerApproval('orders.discount')])
+            ->assertOk()->assertJsonPath('data.total_price', '50000.00');
+        $log = AuditLog::where('action', 'pos.packaging_removed')->latest('id')->firstOrFail();
+        $this->assertSame((int) $this->manager->id, (int) ($log->payload_json['approved_by'] ?? 0));
+        $this->assertCount(1, $this->ownerAlerts());
+        $this->assertStringContainsString("Sho'rva idishi olib tashlandi: 6 000 so'm", $this->ownerAlerts()[0]);
+        $this->assertStringContainsString('Idish kerak emas', $this->ownerAlerts()[0]);
+        $this->assertStringContainsString('Tasdiqladi: ' . $this->manager->name, $this->ownerAlerts()[0]);
+
+        // Putting it back raises the bill: no manager needed
+        $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bowl->id}/restore", ['version' => (int) $done->json('data.version')])
+            ->assertOk()->assertJsonPath('data.total_price', '56000.00');
+    }
+
+    /**
+     * Review P6W3 S1: the waiter rule applies to packaging as to any change of the order.
+     */
+    public function test_a_waiter_changes_the_packaging_of_another_waiters_order_only_with_a_manager(): void
+    {
+        $other = $this->makeStaff(\App\Enums\UserRole::WAITER, $this->branch);
+        $opened = $this->takeaway([[$this->soup, 1]])->assertCreated();
+        $uuid = (string) $opened->json('data.uuid');
+        Order::where('uuid', $uuid)->update(['waiter_id' => $other->id]);
+
+        $waiterToken = $this->pinSession($this->till, $this->waiter, '6194');
+        $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bag->id}/remove", ['version' => (int) $opened->json('data.version'), 'reason' => 'ok'], $waiterToken)
+            ->assertStatus(403)->assertJsonPath('data.reason', 'approval_required')->assertJsonPath('data.permission', 'orders.manage');
+        $this->assertFalse(AuditLog::where('action', 'pos.packaging_removed')->exists());
+
+        $token = $this->managerApproval('orders.manage', $waiterToken);
+        $this->tillAs('POST', "/pos/orders/{$uuid}/packaging/{$this->bag->id}/remove", ['version' => (int) $opened->json('data.version'), 'reason' => 'ok', 'approval_token' => $token], $waiterToken)
+            ->assertOk()->assertJsonPath('data.charges.packaging_lines.0.removed', true);
+    }
+
+    /**
+     * Review P6W3 C6: once a bill of the order is being paid its packaging lines stay as billed (they may grow, never
+     * shrink): a dish of an unpaid bill can still be voided, and the paid bill keeps fitting the order.
+     */
+    public function test_a_dish_of_an_unpaid_bill_is_voided_after_another_bill_was_paid(): void
+    {
+        // A soup and a shashlik (43 000) + a bag 1 000 + a bowl 3 000, one bill each
+        $opened = $this->takeaway([[$this->soup, 1], [$this->shashlik, 1]])->assertCreated()->assertJsonPath('data.total_price', '47000.00');
+        $uuid = (string) $opened->json('data.uuid');
+        $order = Order::where('uuid', $uuid)->firstOrFail();
+        $soup = \App\Models\OrderItem::where('order_id', $order->id)->where('product_variant_id', $this->soup->id)->firstOrFail();
+        $shashlik = \App\Models\OrderItem::where('order_id', $order->id)->where('product_variant_id', $this->shashlik->id)->firstOrFail();
+        $bills = $this->tillAs('POST', "/pos/orders/{$uuid}/bills", ['version' => (int) $order->version, 'mode' => 'items', 'bills' => [
+            ['items' => [['order_item_id' => $shashlik->id, 'quantity' => '1']]],
+            ['items' => [['order_item_id' => $soup->id, 'quantity' => '1']]],
+        ]])->assertSuccessful()->json('data.bills');
+        $this->tillAs('POST', '/pos/bills/' . $bills[0]['uuid'] . '/payments', ['shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => $bills[0]['total']]]])->assertSuccessful();
+
+        // The guest does not want the soup after all: the void goes through, the packaging stays as billed
+        $order->refresh();
+        $void = $this->tillAs('POST', "/pos/orders/{$uuid}/items/{$soup->id}/void", ['version' => (int) $order->version, 'reason' => 'Voz kechdi', 'approval_token' => $this->managerApproval('orders.void_item')])
+            ->assertOk()
+            ->assertJsonPath('data.charges.packaging_amount', '4000.00')
+            ->assertJsonPath('data.total_price', '22000.00');
+
+        // A rule changed meanwhile does not lower it either; a new soup adds its bowl
+        $this->bowl->forceFill(['unit_price' => '1000'])->save();
+        $round = $this->tillAs('POST', "/pos/orders/{$uuid}/rounds", ['version' => (int) $void->json('data.version'), 'items' => [['variant_id' => $this->tea->uuid, 'quantity' => 1]]])
+            ->assertOk()->assertJsonPath('data.charges.packaging_amount', '4000.00');
+        $this->bowl->forceFill(['unit_price' => '3000'])->save();
+        $this->tillAs('POST', "/pos/orders/{$uuid}/rounds", ['version' => (int) $round->json('data.version'), 'items' => [['variant_id' => $this->soup->uuid, 'quantity' => 2]]])
+            ->assertOk()->assertJsonPath('data.charges.packaging_lines.1.quantity', 2)->assertJsonPath('data.charges.packaging_amount', '7000.00');
+
+        // The rest is billed and paid: the order closes with every tiyin of it paid
+        $order->refresh();
+        $rest = $this->tillAs('POST', "/pos/orders/{$uuid}/bills", ['version' => (int) $order->version, 'mode' => 'single'])->assertSuccessful()->json('data.bills');
+        $open = collect($rest)->firstWhere('status', '!=', 'paid');
+        $this->tillAs('POST', '/pos/bills/' . $open['uuid'] . '/payments', ['shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => $open['total']]]])->assertSuccessful();
+        $order->refresh();
+        $this->assertSame(Money::of($order->total_price)->toString(), Money::sum(...\App\Models\Payment::where('order_id', $order->id)->where('status', 'paid')->pluck('amount')->all())->toString());
+    }
+
     public function test_portions_count_a_piece_line_rounded_up_and_a_weighed_line_once(): void
     {
         $this->assertSame(2, PackagingRules::portions(\App\Support\Quantity::of('1.5'), false));

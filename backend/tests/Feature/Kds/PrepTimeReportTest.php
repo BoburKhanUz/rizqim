@@ -171,6 +171,26 @@ class PrepTimeReportTest extends TestCase
         $this->assertSame([200, 200], array_column($data['stations'], 'median_seconds'));
     }
 
+    /**
+     * Review P6W3 C9: an online pickup ordered days ahead counts on the day its kitchen time falls in, from that time.
+     */
+    public function test_an_online_pickup_ordered_days_ahead_counts_on_its_kitchen_day(): void
+    {
+        $this->at(0);
+        $online = $this->orderWithItems(OrderStatus::NEW, ['order_type' => 'pickup']);
+        $this->at(120);
+        $this->tillAs('POST', "/pos/orders/{$online->uuid}/accept")->assertOk();
+        // For 25.10 13:00 Tashkent, cooked from its kitchen time 12:45 (07:45 UTC), ready 300 s later
+        Order::whereKey($online->id)->update(['pickup_at' => '2026-10-25 08:00:00', 'kitchen_fire_at' => '2026-10-25 07:45:00', 'kitchen_fired_at' => '2026-10-25 07:45:00']);
+        OrderItem::where('order_id', $online->id)->update(['kitchen_status' => 'ready', 'ready_at' => '2026-10-25 07:50:00']);
+        $this->at(3 * 86400);
+
+        $data = $this->owner('GET', "/owner/reports/kitchen-times?branch_id={$this->branch->id}&from=2026-10-25")->assertOk()->json('data');
+        $this->assertSame(2, $data['summary']['count']);
+        $this->assertSame(300, $data['summary']['median_seconds']);
+        $this->assertSame(0, $this->owner('GET', "/owner/reports/kitchen-times?branch_id={$this->branch->id}&from=2026-10-22")->assertOk()->json('data.summary.count'));
+    }
+
     public function test_the_percentiles_interpolate_between_ranks(): void
     {
         $this->assertNull(PrepTimeReport::percentile([], 0.5));

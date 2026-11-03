@@ -290,6 +290,7 @@ class FakeKitchenState {
     String? tableLabel,
     String type = 'dine_in',
     String channel = 'pos_hall',
+    Duration? firedAgo,
   }) {
     final int n = ++_seq;
     final String uuid =
@@ -311,6 +312,8 @@ class FakeKitchenState {
       'accepted_at': accepted,
       'preparing_at': null,
       'ready_at': null,
+      // P6-39: an order for a later pickup: accepted [age] ago, handed to the kitchen only [firedAgo] ago
+      if (firedAgo != null) 'kitchen_fire_at': now().subtract(firedAgo),
       'items': <Map<String, Object?>>[
         for (final PosLine l in lines) _posItem(l),
       ],
@@ -1260,7 +1263,13 @@ class FakeKitchenState {
 
   Map<String, Object?> _ticket(Map<String, Object?> o) {
     final List<Map<String, Object?>> items = _items(o);
-    final DateTime start = (o['accepted_at'] ?? o['created_at'])! as DateTime;
+    final DateTime accepted =
+        (o['accepted_at'] ?? o['created_at'])! as DateTime;
+    final DateTime? fireAt = o['kitchen_fire_at'] as DateTime?;
+    // The server rule (KitchenTargets::orderStart): a scheduled order waits from its kitchen time
+    final DateTime start = fireAt != null && fireAt.isAfter(accepted)
+        ? fireAt
+        : accepted;
     final DateTime end = o['status'] == 'ready'
         ? o['ready_at']! as DateTime
         : now();
@@ -1268,7 +1277,9 @@ class FakeKitchenState {
         v is DateTime ? v.toUtc().toIso8601String() : null;
     return <String, Object?>{
       // `assembled_at` is the order's own column; the ticket carries it inside `assembly`
-      ...(<String, Object?>{...o}..remove('assembled_at')),
+      ...(<String, Object?>{...o}
+        ..remove('assembled_at')
+        ..remove('kitchen_fire_at')),
       'items_total': items
           .where((Map<String, Object?> i) => i['kitchen_status'] != 'void')
           .length,
@@ -1292,6 +1303,15 @@ class FakeKitchenState {
           },
       ],
       'assembly': _assembly(o),
+      'pickup': fireAt == null
+          ? null
+          : <String, Object?>{
+              'pickup_at': iso(fireAt.add(const Duration(minutes: 10))),
+              'kitchen_fire_at': iso(fireAt),
+              'kitchen_fired_at': iso(fireAt),
+              'waiting': false,
+              'local_time': '',
+            },
       'created_at': iso(o['created_at']),
       'accepted_at': iso(o['accepted_at']),
       'preparing_at': iso(o['preparing_at']),

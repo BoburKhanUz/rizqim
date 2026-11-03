@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  *  - a waived charge line (room fee, minimum spend top-up, service charge, place fee): always — the research names
  *    each one (R20);
  *  - a discount (P3-37) of at least `discount_percent` of the dishes (an amount by its share of them);
+ *  - a packaging line taken off after the bill was printed (P6-34): always;
  *  - a cancelled order: always;
  *  - a hall order open longer than `open_room_hours`: once per order (orders.long_open_alerted_at), by the
  *    pos:alert-long-open schedule.
@@ -69,6 +70,22 @@ class PosOrderAlerts
         }
 
         $this->alerts->send((int) $order->store_id, "✂️ {$charge->label()} olib tashlandi: " . PosOwnerAlerts::sum($amount)
+            . "\n{$this->place($order)}"
+            . "\nSabab: {$reason}"
+            . "\n{$this->people($actor, $approvedBy)}");
+    }
+
+    /**
+     * P6-34 (review P6W3 S1): a packaging line taken off after the bill was printed (the guest holds the higher bill; a
+     * manager approved it): always, like a waived charge.
+     */
+    public function packagingRemoved(Order $order, string $name, string $amount, string $reason, User $actor, ?int $approvedBy): void
+    {
+        if (!Money::of($amount)->isPositive()) {
+            return;
+        }
+
+        $this->alerts->send((int) $order->store_id, "✂️ {$name} olib tashlandi: " . PosOwnerAlerts::sum($amount)
             . "\n{$this->place($order)}"
             . "\nSabab: {$reason}"
             . "\n{$this->people($actor, $approvedBy)}");
