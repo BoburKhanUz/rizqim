@@ -452,3 +452,14 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 11. **Dark kitchen:** shu bosqichda (tavsiya: oxirgi to'lqinda, 5-bosqich ulagichlari tayyor bo'lsa) yoki keyin alohida.
 12. **Stolovaya va baliqxona uchun tarozi:** pilot so'rasa keyingi bosqichga qo'shamizmi.
 13. PR'larni ko'rib chiqish va merge — har to'lqin oxirida.
+14. **Qarorlar (03.11.2026):**
+    - **Yig'ish ekrani** (`kds_expo` yoqilgan filialda) — **har bir buyurtma** yig'ishdan o'tadi (bitta sexli ham);
+      filial sozlamasi bilan "faqat 2 va undan ko'p sexli" ga qaytarish mumkin.
+    - **Kombo ichidagi ichimlik** qadoq qoidalarida o'z taomi sifatida sanaladi (stakan qatori qo'shiladi).
+    - **Ofitsiant "Schyot so'rash"** — schyot kassa yoki zal printeridan avtomatik chiqadi (filial sozlamasi, printer
+      tanlanadi; qayta chop etish menejer huquqi bilan, jurnalga yoziladi). Uskunalar to'lqinida.
+    - **"Uskunalar va lokal tarmoq" to'lqini** qilinadi: native drayverlar (Sunmi printer/pul qutisi/skaner/D2 ekran,
+      Bluetooth va USB printerlar, printerni qidirish, sinov cheki) va lokal ko'prik — internet uzilsa Wi-Fi orqali
+      ofitsiant buyurtma oladi, KDS taom oladi, "tayyor" qaytadi, mijoz ekrani raqam ko'rsatadi; asosiy kassa markaz;
+      xabarlar filial kaliti bilan imzolanadi va shifrlanadi; to'lov faqat kassada; internet qaytgach hammasi tartib
+      bilan serverga ketadi. Haqiqiy uskunada sinash ro'yxati bilan.
