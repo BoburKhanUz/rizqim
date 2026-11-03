@@ -335,7 +335,7 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 | P6-26 | **Stol broni** (C6): stol turi bo'yicha slot, bron muddati qoidasi sozlanadi, depozit ixtiyoriy, kutish ro'yxati | `Pos/Booking` | Choyxona broni (kamida 3 soat) o'zgarmaydi |
 | P6-29 | **Review, e2e, pilot:** "juma kechasi restoran" e2e (20 stol, 4 ofitsiant, 3 kurs, bo'lingan schyot, choy puli); qo'llanmalar; kafe va restoran, kabobxona yoki baliqxona pilotlari | hammasi | 10-bo'lim |
 
-### To'lqin 3 — "Fast food va qahvaxona"
+### To'lqin 3 — "Fast food va qahvaxona" (tugadi, PR #20)
 
 | Kod | Ish | Asosiy joylar | Tekshiruv |
 |---|---|---|---|

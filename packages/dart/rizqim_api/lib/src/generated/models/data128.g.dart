@@ -7,21 +7,29 @@ part of 'data128.dart';
 // **************************************************************************
 
 Data128 _$Data128FromJson(Map<String, dynamic> json) => Data128(
-  branchId: (json['branch_id'] as num).toInt(),
-  enabled: json['enabled'] as bool,
-  locked: json['locked'] as bool,
-  orderTypes: (json['order_types'] as List<dynamic>)
-      .map((e) => OrderTypes.fromJson(e as Map<String, dynamic>))
+  stationsCreated: (json['stations_created'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
-  rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows.fromJson(e as Map<String, dynamic>))
+  stationsSkipped: (json['stations_skipped'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
+  categoriesCreated: (json['categories_created'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  dishesCreated: (json['dishes_created'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  dishesSkipped: (json['dishes_skipped'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  format: Format.fromJson(json['format'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data128ToJson(Data128 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'enabled': instance.enabled,
-  'locked': instance.locked,
-  'order_types': instance.orderTypes,
-  'rows': instance.rows,
+  'stations_created': instance.stationsCreated,
+  'stations_skipped': instance.stationsSkipped,
+  'categories_created': instance.categoriesCreated,
+  'dishes_created': instance.dishesCreated,
+  'dishes_skipped': instance.dishesSkipped,
+  'format': instance.format,
 };

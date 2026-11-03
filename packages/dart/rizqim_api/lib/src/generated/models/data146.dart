@@ -4,48 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period2.dart';
-import 'summary3.dart';
-import 'series.dart';
-import 'by_channel2.dart';
-import 'by_branch.dart';
-import 'by_payment_method2.dart';
-import 'by_order_type2.dart';
+import 'summary2.dart';
+import 'orders.dart';
+import 'stations8.dart';
+import 'products7.dart';
+import 'hours.dart';
+import 'expo.dart';
 
 part 'data146.g.dart';
 
 @JsonSerializable()
 class Data146 {
   const Data146({
-    required this.period,
     required this.branchId,
+    required this.from,
+    required this.to,
+    required this.timezone,
+    required this.dayStartsAt,
+    required this.stationId,
     required this.summary,
-    required this.byStatus,
-    required this.series,
-    required this.byChannel,
-    required this.byBranch,
-    required this.byPaymentMethod,
-    required this.byOrderType,
+    required this.orders,
+    required this.stations,
+    required this.products,
+    required this.hours,
+    required this.expo,
   });
 
   factory Data146.fromJson(Map<String, Object?> json) =>
       _$Data146FromJson(json);
 
-  final Period2 period;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Summary3 summary;
-  @JsonKey(name: 'by_status')
-  final Map<String, int> byStatus;
-  final List<Series> series;
-  @JsonKey(name: 'by_channel')
-  final List<ByChannel2> byChannel;
-  @JsonKey(name: 'by_branch')
-  final List<ByBranch> byBranch;
-  @JsonKey(name: 'by_payment_method')
-  final List<ByPaymentMethod2> byPaymentMethod;
-  @JsonKey(name: 'by_order_type')
-  final List<ByOrderType2> byOrderType;
+  final int branchId;
+  final String from;
+  final String to;
+  final String timezone;
+  @JsonKey(name: 'day_starts_at')
+  final String dayStartsAt;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  final Summary2 summary;
+  final Orders orders;
+  final List<Stations8> stations;
+  final List<Products7> products;
+  final List<Hours> hours;
+  final Expo? expo;
 
   Map<String, Object?> toJson() => _$Data146ToJson(this);
 }

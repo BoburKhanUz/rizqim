@@ -335,6 +335,19 @@ void main() {
         <String, Object?>{'option_id': uuidOf(5)},
       ]);
       expect(queued['combo_delta'], '2000.00');
+      // The parts' dishes ride along for the till's packaging rules (the server ignores them)
+      expect(
+        <List<Object?>>[
+          for (final Map<Object?, Object?> p
+              in (queued['combo_parts']! as List<Object?>)
+                  .cast<Map<Object?, Object?>>())
+            <Object?>[p['product_id'], p['category_id'], p['unit']],
+        ],
+        <List<Object?>>[
+          <Object?>[23, 2, 'piece'],
+          <Object?>[25, 2, 'piece'],
+        ],
+      );
       expect(queued['unit_price'], '45000.00');
 
       // A pick the server would refuse (two drinks in a one-drink slot) is not sold offline either

@@ -4,9 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device12.dart';
-import 'opened_by.dart';
-import 'closed_by4.dart';
+import 'fiscal17.dart';
 
 part 'data256.g.dart';
 
@@ -14,57 +12,35 @@ part 'data256.g.dart';
 class Data256 {
   const Data256({
     required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
-    required this.businessDate,
-    required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.amount,
+    required this.method,
+    required this.reason,
+    required this.approvedBy,
+    required this.fiscal,
+    required this.createdAt,
   });
 
   factory Data256.fromJson(Map<String, Object?> json) =>
       _$Data256FromJson(json);
 
   final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device12? device;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy4? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  final String amount;
+  final String method;
+  final String reason;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  final Fiscal17 fiscal;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data256ToJson(this);
 }

@@ -36,14 +36,18 @@ abstract class OwnerCombosApi {
   /// included in the option's price), `is_default` (one per slot: taken when the slot is left out) and `label` (the.
   /// receipt text, e.g. "Ichimlik — 0,4 l Pepsi"; default "<slot> — <dish> (<variant>), <modifiers>"). Up to 8 slots.
   /// A part cannot be the combo itself, another combo or a kompleks; a kompleks product cannot be a combo. Saving a.
-  /// product that already is a combo replaces its slots. Sold lines keep the parts they had (`combo_parts`). Audited.
-  /// (`menu.combo_saved`).
+  /// product that already is a combo saves its slots as sent, keeping the rows a till cached: a slot is the existing one.
+  /// with its `uuid` (optional), else the one with its name, else the one at its position; an option is that slot's.
+  /// existing one of the same dish. Those keep their ids and uuids (a till's cached picks still sell); a slot or option.
+  /// no longer sent is removed (kept for offline sales made before). Sold lines keep the parts they had.
+  /// (`combo_parts`). Audited (`menu.combo_saved`).
   @POST('/v1/owner/combos')
   Future<PostV1OwnerCombosResponse> comboStore();
 
   /// Change a combo.
   ///
-  /// Replaces the slots (sent in full) and/or switches the combo off (`is_active` false: it is sold as a plain product).
+  /// Saves the slots (sent in full, matched as on create) and/or switches the combo off (`is_active` false: it is sold.
+  /// as a plain product). `is_active` alone only sets the flag (a part dish switched off in the menu never blocks it).
   @PUT('/v1/owner/combos/{id}')
   Future<PutV1OwnerCombosIdResponse> comboUpdate({@Path('id') required int id});
 

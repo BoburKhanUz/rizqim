@@ -42,6 +42,7 @@ Map<String, Object?> fastFoodFormat() => formatBlock(
 
 Future<(P22, FakeQueueBackend, FastFoodBackend)> fastFoodTill({
   bool labelPrinter = true,
+  bool cups = false,
   DateTime? nextDayAt,
 }) async {
   final P22 p = P22(offlineStore: await SyncStore.open(MemorySyncStorage()));
@@ -52,6 +53,7 @@ Future<(P22, FakeQueueBackend, FastFoodBackend)> fastFoodTill({
   final FastFoodBackend f = FastFoodBackend(
     p,
     labelPrinter: labelPrinter,
+    cups: cups,
     nextDayAt: nextDayAt,
   );
   return (p, q, f);
@@ -277,6 +279,53 @@ void main() {
             .single['total'],
         '15000.00',
       );
+    },
+  );
+
+  testWidgets(
+    'packaging: the drink inside a combo takes a cup on the cart estimate and on the server alike',
+    (WidgetTester tester) async {
+      final (P22 p, FakeQueueBackend _, FastFoodBackend f) = await fastFoodTill(
+        cups: true,
+      );
+      await pumpHome(tester, p.h, size: const Size(1280, 1100));
+      // The default combo (lavash, pepsi): one cup for its drink, the bag
+      await tester.tap(menuTile(comboId));
+      await tester.pumpAndSettle();
+      await tester.tap(key('combo-add'));
+      await tester.pumpAndSettle();
+      expect(key('packaging-lines'), findsOneWidget);
+      expect(find.text('Paket'), findsOneWidget);
+      expect(find.text('Stakan'), findsOneWidget);
+
+      // Two combos: two cups (the parts' pieces × the combo line's quantity)
+      await tester.tap(key('cart-1'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('combo-plus'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('combo-add'));
+      await tester.pumpAndSettle();
+      expect(find.text('Stakan × 2'), findsOneWidget);
+
+      // The order opened: the server counts the same
+      await tester.tap(find.byKey(const ValueKey<String>('counter-pay')));
+      await tester.pumpAndSettle();
+      final Map<String, Object?> order = p.state.orders.values.last;
+      expect(
+        <Object?>[
+          for (final Map<Object?, Object?> l
+              in ((order['charges']!
+                          as Map<String, Object?>)['packaging_lines']!
+                      as List<Object?>)
+                  .cast<Map<Object?, Object?>>())
+            <Object?>[l['name'], l['quantity']],
+        ],
+        <Object?>[
+          <Object?>['Paket', 1],
+          <Object?>['Stakan', 2],
+        ],
+      );
+      expect(f.opened, hasLength(1));
     },
   );
 

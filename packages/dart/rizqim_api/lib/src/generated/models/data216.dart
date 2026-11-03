@@ -4,16 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'account4.dart';
+import 'entries4.dart';
+
 part 'data216.g.dart';
 
 @JsonSerializable()
 class Data216 {
-  const Data216({required this.stored});
+  const Data216({
+    required this.account,
+    required this.from,
+    required this.to,
+    required this.openingBalance,
+    required this.closingBalance,
+    required this.chargesTotal,
+    required this.repaymentsTotal,
+    required this.adjustmentsTotal,
+    required this.entries,
+  });
 
   factory Data216.fromJson(Map<String, Object?> json) =>
       _$Data216FromJson(json);
 
-  final bool stored;
+  final Account4 account;
+  final String from;
+  final String to;
+  @JsonKey(name: 'opening_balance')
+  final String openingBalance;
+  @JsonKey(name: 'closing_balance')
+  final String closingBalance;
+  @JsonKey(name: 'charges_total')
+  final String chargesTotal;
+  @JsonKey(name: 'repayments_total')
+  final String repaymentsTotal;
+  @JsonKey(name: 'adjustments_total')
+  final String adjustmentsTotal;
+  final List<Entries4> entries;
 
   Map<String, Object?> toJson() => _$Data216ToJson(this);
 }

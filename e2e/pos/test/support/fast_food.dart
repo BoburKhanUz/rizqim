@@ -35,8 +35,8 @@ const Map<String, String> stationOfCategory = <String, String>{
   'Kofe': 'barista',
 };
 
-/// The packaging rules of the seed: a bag per takeaway order, a cup per drink (a drink of a combo is the combo's dish,
-/// so it takes no cup of its own).
+/// The packaging rules of the seed: a bag per takeaway order, a cup per drink (a drink inside a combo counts as its own
+/// dish too: owner decision 03.11.2026).
 const PosMoney bagPrice = PosMoney.som(1500);
 const PosMoney cupPrice = PosMoney.som(1000);
 
@@ -210,14 +210,23 @@ class FfMenu {
         stationOfCategory[categoryName(product(i.name).categoryId)]!,
   };
 
-  /// The cups of the drinks sold on their own (the cup rule counts dishes of the drinks category; combos are dishes of
-  /// their own category).
-  int cups(Iterable<Item> items) => <Item>[
-    for (final Item i in items)
-      if (!i.isCombo &&
-          categoryName(product(i.name).categoryId) == 'Ichimliklar')
-        i,
-  ].fold<int>(0, (int n, Item i) => n + i.quantity);
+  /// The cups of the drinks: the cup rule counts dishes of the drinks category — a drink of its own, and a drink inside
+  /// a combo (its pieces in one combo × the combo line's quantity); the combo line itself is of its own category.
+  int cups(Iterable<Item> items) {
+    var n = 0;
+    for (final Item i in items) {
+      if (i.isCombo) {
+        for (final Part p in parts(i)) {
+          if (categoryOfProduct(p.option.productId!) == 'Ichimliklar') {
+            n += p.pieces * i.quantity;
+          }
+        }
+      } else if (categoryName(product(i.name).categoryId) == 'Ichimliklar') {
+        n += i.quantity;
+      }
+    }
+    return n;
+  }
 
   /// The packaging of a takeaway (counter or Telegram pickup) order: a bag (unless removed) and the cups.
   PosMoney packaging(Iterable<Item> items, {bool bag = true}) =>

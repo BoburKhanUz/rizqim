@@ -194,6 +194,24 @@ class CounterController extends ChangeNotifier {
             categoryId: l.product.categoryId,
             quantity: l.quantity,
             measured: l.variant.unit.isMeasured,
+            // Kombo ichidagi ichimlik ham o'z taomi sifatida sanaladi (egasi qarori 03.11.2026)
+            parts: <OfflineDish>[
+              for (final PosComboPart p
+                  in l.combo?.resolution.parts ?? const <PosComboPart>[])
+                OfflineDish(
+                  productId: p.productId,
+                  categoryId: p.productId == null
+                      ? null
+                      : _catalog?.product(p.productId!)?.categoryId,
+                  quantity: PosQuantity.whole(p.quantity),
+                  measured:
+                      _catalog
+                          ?.variantByUuid(p.variantUuid ?? '')
+                          ?.unit
+                          .isMeasured ??
+                      false,
+                ),
+            ],
           ),
       ],
       removed: _packagingRemoved,

@@ -32,6 +32,13 @@ test('the owner sets station targets, an expo station and a dish of its own on t
   await expect(page.getByText("Yig'ish sexi qo'shildi.")).toBeVisible()
   expect(api.callsTo('POST', '/v1/owner/kitchen-stations')[0].body).toEqual({ branch_id: 1, name: "Yig'ish", kind: 'expo', is_active: true, show_on_kds: true, target_seconds: 90 })
 
+  // Every order goes through the expo by default; this branch keeps it to multi-station orders
+  const scope = page.getByLabel("Yig'ishdan o'tadigan buyurtmalar")
+  await expect(scope).toHaveValue('all')
+  await scope.selectOption('multi_station')
+  await expect(page.getByText("Saqlandi: faqat 2 va undan ko'p sexli buyurtma yig'ishdan o'tadi.")).toBeVisible()
+  expect(api.callsTo('PUT', '/v1/owner/kds/expo-scope')[0].body).toEqual({ branch_id: 1, expo_scope: 'multi_station' })
+
   // A dish's own target over its station's, then taken off again
   await page.getByLabel('Taom', { exact: true }).selectOption({ label: 'Lagmon' })
   await page.getByLabel('Soniya').fill('420')
@@ -54,6 +61,7 @@ test('without the module a station has no target field and the dishes panel is h
   await expect(page.getByText(/Vaqt maqsadi "Yig'ish ekrani va sex vaqtlari" moduli bilan ishlaydi/)).toBeVisible()
   await expect(page.getByLabel('Vaqt maqsadi')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: "Taomning o'z vaqti" })).toHaveCount(0)
+  await expect(page.getByLabel("Yig'ishdan o'tadigan buyurtmalar")).toHaveCount(0)
   expect(api.callsTo('GET', '/v1/owner/kds/targets')).toHaveLength(0)
 })
 

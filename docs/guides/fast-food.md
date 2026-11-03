@@ -233,6 +233,10 @@ nomi, narxi va MXIK kodi bilan. Zal buyurtmasiga hech qachon qo'shilmaydi.
 Misol: "Paket" — har buyurtmaga, 1 000 so'm, kassada olib ketish va Telegram olib ketish. "Qopqoq" — har porsiyaga, ichimliklar
 kategoriyasi, 300 so'm, hamma turlarda.
 
+**Kombo ichidagi ichimlik ham sanaladi.** "Har porsiyaga" qoidasi kombo tarkibidagi taomlarni ham o'z taomi deb hisoblaydi:
+2 ta Lavash kombo (har birida Pepsi) va alohida 1 Pepsi — 3 ta qopqoq. Kombo o'zi ham taom: "Kombo qutisi" kabi qoidani kombo
+mahsulotiga yoki uning kategoriyasiga qo'ysangiz, har komboga bittadan qo'shiladi.
+
 Qadoq **chegirmadan keyin** qo'shiladi va chegirma olmaydi. Bo'lingan schyotda qadoq ulushi ham bo'linadi; chek yig'indisi har doim
 schyotga teng. Qadoq **Z hisobotda alohida satr** bo'lib ham chiqadi, shuning uchun tushumni qadoqsiz ham ko'rish mumkin.
 
@@ -329,10 +333,13 @@ kelgan paytdan sanaladi (Telegram buyurtmasida — qabul qilingandan).
 [oshxona-ekrani.md](oshxona-ekrani.md#15-fast-food-vaqt-maqsadi-kombo-va-yigish-ekrani) da oshpaz uchun: taymerlar, kombo tarkibi
 va yig'ish ekrani.
 
-**Yig'ish ekrani.** Faqat bitta sexda tayyorlanadigan buyurtma avvalgidek: oshpaz "tayyor" bossa, raqam tayyor bo'ladi. Qatorlari
-**ikki va undan ko'p sexda** pishadigan buyurtma (lavash grillda, fri fritda, ichimlik ichimliklarda) oxirgi sex tayyor bo'lgach
-**yig'ish ekranida** kutadi. Yig'uvchi sumkaga hammasini solgach **Yig'ildi** ni bosadi — shundan keyingina raqam tayyor bo'ladi
-(raqamlar taxtasida va mijoz ekranida chiqadi, onlayn mijozga xabar boradi). Ekran buyurtmaning qaysi sexlari tayyorligini ko'rsatadi.
+**Yig'ish ekrani.** Yig'ish sexi bor filialda **har bir buyurtma** (bitta sexli ham) oxirgi sex tayyor bo'lgach **yig'ish
+ekranida** kutadi. Yig'uvchi sumkaga hammasini solgach **Yig'ildi** ni bosadi — shundan keyingina raqam tayyor bo'ladi (raqamlar
+taxtasida va mijoz ekranida chiqadi, onlayn mijozga xabar boradi). Ekran buyurtmaning qaysi sexlari tayyorligini ko'rsatadi.
+
+Egasi buni filial bo'yicha o'zgartiradi: **Kassa sozlamalari** → **Sexlar** → **Yig'ish ekrani** → **Yig'ishdan o'tadigan
+buyurtmalar**: **Har bir buyurtma (bitta sexli ham)** (standart) yoki **Faqat 2 va undan ko'p sexli buyurtma** — unda bitta sexda
+pishadigan buyurtma (masalan, faqat kofe) oshpaz "tayyor" bosishi bilan tayyor bo'ladi. Sozlama tanlanishi bilan saqlanadi.
 
 <!-- TEKSHIRILMAGAN: yig'ish ekrani (KDS) hozir tayyorlanmoqda (stage B, M2): "Yig'ildi" tugmasi va sex holati ko'rinishi. -->
 

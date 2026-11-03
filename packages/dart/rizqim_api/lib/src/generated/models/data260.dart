@@ -4,13 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'source.dart';
-import 'shifts6.dart';
-import 'rizqim_breakdown4.dart';
-import 'transactions5.dart';
-import 'unmatched4.dart';
-import 'history4.dart';
-import 'entered_by4.dart';
+import 'device16.dart';
+import 'opened_by5.dart';
+import 'closed_by8.dart';
+import 'summary5.dart';
+import 'bank_terminal.dart';
 
 part 'data260.g.dart';
 
@@ -18,80 +16,62 @@ part 'data260.g.dart';
 class Data260 {
   const Data260({
     required this.uuid,
-    required this.shiftUuid,
-    required this.zNumber,
+    required this.status,
     required this.branchId,
+    required this.device,
     required this.businessDate,
-    required this.source,
-    required this.terminalRef,
-    required this.shared,
-    required this.finalValue,
-    required this.shifts,
-    required this.bankTotal,
-    required this.bankCount,
-    required this.rizqimTotal,
-    required this.rizqimCount,
-    required this.rizqimBreakdown,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
+    required this.closedAt,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
     required this.difference,
-    required this.threshold,
-    required this.overThreshold,
-    required this.transactions,
-    required this.unmatched,
-    required this.history,
-    required this.note,
-    required this.enteredBy,
-    required this.alertedAt,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
+    required this.summary,
+    required this.bankTerminal,
   });
 
   factory Data260.fromJson(Map<String, Object?> json) =>
       _$Data260FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
+  final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
+  final Device16? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
-  final Source source;
-  @JsonKey(name: 'terminal_ref')
-  final String? terminalRef;
-  final bool shared;
-
-  /// The name has been replaced because it contains a keyword. Original name: `final`.
-  @JsonKey(name: 'final')
-  final bool finalValue;
-  final List<Shifts6> shifts;
-  @JsonKey(name: 'bank_total')
-  final String bankTotal;
-  @JsonKey(name: 'bank_count')
-  final int? bankCount;
-  @JsonKey(name: 'rizqim_total')
-  final String? rizqimTotal;
-  @JsonKey(name: 'rizqim_count')
-  final int? rizqimCount;
-  @JsonKey(name: 'rizqim_breakdown')
-  final RizqimBreakdown4? rizqimBreakdown;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy5? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy8? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
   final String? difference;
-  final String? threshold;
-  @JsonKey(name: 'over_threshold')
-  final bool? overThreshold;
-  final List<Transactions5>? transactions;
-  final Unmatched4? unmatched;
-  final List<History4> history;
-  final String? note;
-  @JsonKey(name: 'entered_by')
-  final EnteredBy4? enteredBy;
-  @JsonKey(name: 'alerted_at')
-  final String? alertedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
+  final Summary5? summary;
+  @JsonKey(name: 'bank_terminal')
+  final BankTerminal? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data260ToJson(this);
 }

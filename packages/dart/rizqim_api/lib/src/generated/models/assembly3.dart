@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'stations11.dart';
+import 'stations12.dart';
 
 part 'assembly3.g.dart';
 
@@ -30,7 +30,7 @@ class Assembly3 {
   final bool waiting;
   @JsonKey(name: 'assembled_at')
   final String? assembledAt;
-  final List<Stations11> stations;
+  final List<Stations12> stations;
 
   Map<String, Object?> toJson() => _$Assembly3ToJson(this);
 }

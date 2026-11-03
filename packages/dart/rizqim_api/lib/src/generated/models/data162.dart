@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components3.dart';
+import 'components2.dart';
 
 part 'data162.g.dart';
 
@@ -38,7 +38,7 @@ class Data162 {
   final String? roleLabel;
   @JsonKey(name: 'effective_from')
   final String effectiveFrom;
-  final List<Components3> components;
+  final List<Components2> components;
   final String? note;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;

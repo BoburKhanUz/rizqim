@@ -11,8 +11,12 @@ _$V1PosOrdersUuidPackagingRuleRestoreRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosOrdersUuidPackagingRuleRestoreRequestBody(
   version: (json['version'] as num).toInt(),
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidPackagingRuleRestoreRequestBodyToJson(
   V1PosOrdersUuidPackagingRuleRestoreRequestBody instance,
-) => <String, dynamic>{'version': instance.version};
+) => <String, dynamic>{
+  'version': instance.version,
+  'approval_token': instance.approvalToken,
+};

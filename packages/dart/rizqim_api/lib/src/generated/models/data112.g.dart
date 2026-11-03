@@ -7,11 +7,25 @@ part of 'data112.dart';
 // **************************************************************************
 
 Data112 _$Data112FromJson(Map<String, dynamic> json) => Data112(
-  sets: (json['sets'] as List<dynamic>)
-      .map((e) => Sets.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  kindLabel: json['kind_label'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  showOnKds: json['show_on_kds'] as bool,
+  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data112ToJson(Data112 instance) => <String, dynamic>{
-  'sets': instance.sets,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'kind_label': instance.kindLabel,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'show_on_kds': instance.showOnKds,
+  'target_seconds': instance.targetSeconds,
 };

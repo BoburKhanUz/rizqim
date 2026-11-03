@@ -4,59 +4,46 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch12.dart';
-import 'login_phone_proof.dart';
-
 part 'data175.g.dart';
 
 @JsonSerializable()
 class Data175 {
   const Data175({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
-    required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
-    required this.createdAt,
+    required this.uuid,
+    required this.branchId,
+    required this.userId,
+    required this.userName,
+    required this.businessDate,
+    required this.clockInAt,
+    required this.clockOutAt,
+    required this.abandoned,
+    required this.open,
+    required this.minutes,
+    required this.source,
+    required this.note,
   });
 
   factory Data175.fromJson(Map<String, Object?> json) =>
       _$Data175FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch12? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
-  final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'user_id')
+  final int userId;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'clock_in_at')
+  final String clockInAt;
+  @JsonKey(name: 'clock_out_at')
+  final String? clockOutAt;
+  final bool abandoned;
+  final bool open;
+  final int minutes;
+  final String source;
+  final String? note;
 
   Map<String, Object?> toJson() => _$Data175ToJson(this);
 }

@@ -359,9 +359,12 @@ abstract class PosOrdersApi {
   /// Take a packaging line off the order.
   ///
   /// `reason` is required ("mijoz o'z paketini olib keldi"). The line stays on the order with `removed: true` and 0.
-  /// so'm (charges.packaging_lines), the total goes down. 422 `packaging_not_found` (the order has no such line) or.
-  /// `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited.
-  /// (`pos.packaging_removed`).
+  /// so'm (charges.packaging_lines), the total goes down. Once the bill was printed (`bill_locked`) it is a discount.
+  /// after the print: orders.discount or a manager's `approval_token` for it (POST /pos/approvals; 403.
+  /// `approval_required` with `data.permission`), and the owner is told. A waiter changes only their own orders.
+  /// (another waiter's: 403 `approval_required` for orders.manage). 422 `packaging_not_found` (the order has no such.
+  /// line) or `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited.
+  /// (`pos.packaging_removed`, with `approved_by`).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/packaging/{rule}/remove')
@@ -375,7 +378,8 @@ abstract class PosOrdersApi {
 
   /// Put a packaging line back.
   ///
-  /// 422 `not_removed`. Audited (`pos.packaging_restored`).
+  /// 422 `not_removed`. A waiter: their own orders only (another waiter's: a manager's `approval_token` for.
+  /// orders.manage). Audited (`pos.packaging_restored`).
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/orders/{uuid}/packaging/{rule}/restore')
@@ -393,7 +397,9 @@ abstract class PosOrdersApi {
   /// inside the window (422 `pickup_too_far`) and the opening hours (422 `pickup_closed`; the 24/7 module: any hour).
   /// The lines not sent yet wait and go to the kitchen at `pickup.kitchen_fire_at` (pickup_at − the prep time) by.
   /// themselves. `pickup_at: null` takes the time off: the kitchen gets the order now. 409 `already_in_kitchen` once.
-  /// it was sent. Audited.
+  /// it was sent. A time on another business day (after the day start, 05:00 by default) moves the order to that day.
+  /// with that day's queue number (`queue`; reprint the talon). A waiter: their own orders only (another waiter's: a.
+  /// manager's `approval_token` for orders.manage). Audited.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @PUT('/v1/pos/orders/{uuid}/pickup-time')

@@ -47,10 +47,15 @@ export interface ProductTarget {
   target_seconds: number;
 }
 
+// Which orders go through the expo station (owner decision 03.11.2026): every order (the default) or only the ones cooked
+// on two or more stations
+export type ExpoScope = 'all' | 'multi_station';
+
 export interface KdsTargets {
   branch_id: number;
   // The branch has the `kds_expo` module: setting a target needs it, clearing one never does
   enabled: boolean;
+  expo_scope: ExpoScope;
   limits: { min: number; max: number };
   stations: TargetStation[];
   // The store's dishes with their own target (over their station's)
@@ -68,6 +73,9 @@ export const fetchKdsTargets = (api: StaffApi, branchId: number) =>
 
 export const saveProductTargets = (api: StaffApi, branchId: number, items: ProductTargetInput[]) =>
   data<KdsTargets>(door(api).PUT('/v1/owner/kds/targets/products', { body: { branch_id: branchId, items } }));
+
+export const saveExpoScope = (api: StaffApi, branchId: number, expoScope: ExpoScope) =>
+  data<KdsTargets>(door(api).PUT('/v1/owner/kds/expo-scope', { body: { branch_id: branchId, expo_scope: expoScope } }));
 
 // --- Prep time report -----------------------------------------------------------------------------------------------------
 

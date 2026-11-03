@@ -7,17 +7,21 @@ part of 'data290.dart';
 // **************************************************************************
 
 Data290 _$Data290FromJson(Map<String, dynamic> json) => Data290(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: json['role'] as String,
-  staffCode: json['staff_code'] as String?,
-  photoUrl: json['photo_url'] as String?,
+  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
+  store: json['store'] == null
+      ? null
+      : Store4.fromJson(json['store'] as Map<String, dynamic>),
+  branch: json['branch'] == null
+      ? null
+      : Branch16.fromJson(json['branch'] as Map<String, dynamic>),
+  branches: (json['branches'] as List<dynamic>)
+      .map((e) => Branches3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data290ToJson(Data290 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'role': instance.role,
-  'staff_code': instance.staffCode,
-  'photo_url': instance.photoUrl,
+  'device': instance.device,
+  'store': instance.store,
+  'branch': instance.branch,
+  'branches': instance.branches,
 };

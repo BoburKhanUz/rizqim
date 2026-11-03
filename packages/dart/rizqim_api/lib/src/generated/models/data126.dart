@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'locks2.dart';
-import 'module_rows2.dart';
-import 'profiles2.dart';
-import 'template2.dart';
+import 'locks.dart';
+import 'module_rows.dart';
+import 'profiles.dart';
+import 'template.dart';
 
 part 'data126.g.dart';
 
@@ -38,11 +38,11 @@ class Data126 {
   @JsonKey(name: 'first_screen')
   final String firstScreen;
   final List<String> modules;
-  final Locks2 locks;
+  final Locks locks;
   @JsonKey(name: 'module_rows')
-  final List<ModuleRows2> moduleRows;
-  final List<Profiles2> profiles;
-  final Template2 template;
+  final List<ModuleRows> moduleRows;
+  final List<Profiles> profiles;
+  final Template template;
 
   Map<String, Object?> toJson() => _$Data126ToJson(this);
 }

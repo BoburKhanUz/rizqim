@@ -125,7 +125,9 @@ abstract class OrdersApi {
   /// `enabled: false` (and no slots) when the branch does not take orders for later. Otherwise every `slot_minutes`.
   /// from the earliest allowed time (`min_lead_minutes` from now) to the end of the window, inside the opening hours.
   /// (24/7: all day): `at` (UTC, send it back as `pickup_at`), `time` ("HH:MM", the store's), `business_date`. 404 for a.
-  /// branch that is not the store's or not active.
+  /// branch that is not the store's or not active, or a store that does not sell (not active: finance hold, payment.
+  /// required, suspended...). The answer is kept for the current minute per branch (a settings change shows from the.
+  /// next minute); 30 requests a minute per address.
   @GET('/v1/stores/{store}/branches/{branch}/pickup-slots')
   Future<GetV1StoresStoreBranchesBranchPickupSlotsResponse> pickupSlotsIndex({
     @Path('store') required String store,

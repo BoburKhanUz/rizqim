@@ -4,35 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'results.dart';
-import 'device20.dart';
+import 'shift5.dart';
+import 'report3.dart';
 
 part 'data264.g.dart';
 
 @JsonSerializable()
 class Data264 {
-  const Data264({
-    required this.serverTime,
-    required this.clockSkewSeconds,
-    required this.clockWarning,
-    required this.stoppedAt,
-    required this.results,
-    required this.device,
-  });
+  const Data264({required this.shift, required this.report});
 
   factory Data264.fromJson(Map<String, Object?> json) =>
       _$Data264FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  @JsonKey(name: 'clock_warning')
-  final bool clockWarning;
-  @JsonKey(name: 'stopped_at')
-  final int? stoppedAt;
-  final List<Results> results;
-  final Device20 device;
+  final Shift5 shift;
+  final Report3 report;
 
   Map<String, Object?> toJson() => _$Data264ToJson(this);
 }

@@ -15,6 +15,7 @@ class Data106 {
   const Data106({
     required this.branchId,
     required this.enabled,
+    required this.expoScope,
     required this.limits,
     required this.stations,
     required this.products,
@@ -26,6 +27,8 @@ class Data106 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   final bool enabled;
+  @JsonKey(name: 'expo_scope')
+  final String expoScope;
   final Limits2 limits;
   final List<Stations2> stations;
   final List<Products5> products;

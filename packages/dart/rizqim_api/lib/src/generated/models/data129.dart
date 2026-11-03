@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order_types2.dart';
-import 'rows2.dart';
+import 'order_types.dart';
+import 'rows.dart';
 
 part 'data129.g.dart';
 
@@ -27,8 +27,8 @@ class Data129 {
   final bool enabled;
   final bool locked;
   @JsonKey(name: 'order_types')
-  final List<OrderTypes2> orderTypes;
-  final List<Rows2> rows;
+  final List<OrderTypes> orderTypes;
+  final List<Rows> rows;
 
   Map<String, Object?> toJson() => _$Data129ToJson(this);
 }

@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings2.dart';
-import 'options5.dart';
+import 'settings.dart';
+import 'options4.dart';
 
 part 'data136.g.dart';
 
@@ -16,8 +16,8 @@ class Data136 {
   factory Data136.fromJson(Map<String, Object?> json) =>
       _$Data136FromJson(json);
 
-  final Settings2 settings;
-  final Options5 options;
+  final Settings settings;
+  final Options4 options;
 
   Map<String, Object?> toJson() => _$Data136ToJson(this);
 }

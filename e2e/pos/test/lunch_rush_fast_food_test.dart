@@ -2,10 +2,13 @@
 /// `fastfood`) at the lunch peak. Two tills sell over the counter, pay first, while about twenty Telegram orders come
 /// in. Lavash and burger combos (the owner's receipt example: one line, the parts below it without prices), drinks with
 /// the one-tap size, coffee from the corner's barista. Every combo part goes to its own station (grill, fryer, drinks,
-/// barista); an order cooked on two or more stations waits on the expo screen until it is assembled, then its number
-/// shows ready on the board; the fryer falls behind for a while and its lines turn late. Cup stickers (drinks, inside
+/// barista); every order waits on the expo screen until it is assembled (the branch's `expo_scope` `all`, the default
+/// since the owner decision of 03.11.2026; for a while the branch is switched to `multi_station` and single-station
+/// orders are ready at their last bump), then its number shows ready on the board; the fryer falls behind for a while
+/// and its lines turn late. Cup stickers (drinks, inside
 /// combos too) and bag labels go to the TSPL label printer (the emulator decodes them). Every takeaway carries its
-/// packaging (a bag, a cup per drink) as its own fiscal lines; one guest brings their own bag. One order is for a later
+/// packaging (a bag, a cup per drink — the drinks inside combos too) as its own fiscal lines; one guest brings their
+/// own bag. One order is for a later
 /// pickup and fires to the kitchen at its time (two Telegram ones too); the second till sells a combo offline and syncs.
 /// The combo's fiscal mode is switched to `split` for a while (the shares add up to the tiyin) and back. Z on both tills
 /// (the receipts are the sales, the packaging apart), and the prep time report matches the timestamps the kitchen
@@ -160,6 +163,9 @@ class Sale {
   /// The fiscal mode the combo lines were sold under.
   String fiscalMode = 'single';
 
+  /// Whether it goes through the expo (the branch's expo scope when it was sold).
+  late bool viaExpo;
+
   PosMoney get total => dishes + packaging;
   bool get multiStation => stations.length >= 2;
 
@@ -182,6 +188,7 @@ class TgOrder {
   int? number;
   DateTime? pickupAt;
   DateTime? acceptedAt;
+  late bool viaExpo;
 
   PosMoney get total => dishes + packaging;
   bool get multiStation => stations.length >= 2;
@@ -242,6 +249,11 @@ void main() {
   var comboStickers = 0;
   var bagLabels = 0;
   String fiscalMode = 'single';
+
+  /// The branch's expo scope (`all`: every order through the expo; `multi_station`: only orders of 2+ stations).
+  String expoScope = 'all';
+  bool viaExpo(Set<String> stations) =>
+      stations.isNotEmpty && (expoScope == 'all' || stations.length >= 2);
 
   Future<Map<String, Object?>> ownerCall(
     String method,
@@ -542,6 +554,7 @@ void main() {
     s.dishes = t.menu.total(s.items);
     s.packaging = t.menu.packaging(s.items, bag: !s.removeBag);
     s.stations = t.menu.stations(s.items);
+    s.viaExpo = viaExpo(s.stations);
     final String date = t.queueState.businessDate!;
     // [opened]: the order the till opened before (its number taken then)
     final int? number =
@@ -681,11 +694,11 @@ void main() {
     return s;
   }
 
-  /// The number reached the board as ready (after the expo for an order of several stations), the till hands it over.
+  /// The number reached the board as ready (after the expo when the order goes through it), the till hands it over.
   Future<void> handOver(
     String uuid,
     Till t, {
-    required bool multi,
+    required bool viaExpo,
     required String what,
   }) async {
     final HeardEvent ready = await board.waitFor(
@@ -698,11 +711,11 @@ void main() {
       what: '$what ready on the board',
     );
     final Map<String, Object?>? assembly = crew.assembly[uuid];
-    if (multi) {
+    if (viaExpo) {
       expect(
         assembly,
         isNotNull,
-        reason: '$what: cooked on several stations, it goes through the expo',
+        reason: '$what: it goes through the expo ($expoScope)',
       );
       final DateTime? bumped = expo.bumped[uuid];
       expect(bumped, isNotNull, reason: '$what: the expo assembled it');
@@ -713,7 +726,11 @@ void main() {
       );
       expoToBoard.add(ready.at.difference(bumped));
     } else {
-      expect(assembly, isNull, reason: '$what: one station, no expo');
+      expect(
+        assembly,
+        isNull,
+        reason: '$what: one station under multi_station, no expo',
+      );
       expect(expo.bumped.containsKey(uuid), isFalse);
       final List<LineSeen> lines = crew.lines.values
           .where((LineSeen l) => l.orderUuid == uuid && l.bumpedAt != null)
@@ -738,7 +755,7 @@ void main() {
       await handOver(
         s.uuid,
         s.till,
-        multi: s.multiStation,
+        viaExpo: s.viaExpo,
         what: '$s (${s.number})',
       );
     }
@@ -801,6 +818,7 @@ void main() {
     o.dishes = till1.menu.total(o.items);
     o.packaging = till1.menu.packaging(o.items);
     o.stations = till1.menu.stations(o.items);
+    o.viaExpo = viaExpo(o.stations);
     o.pickupAt = o.pickupIn == null
         ? null
         : DateTime.now().toUtc().add(o.pickupIn!);
@@ -894,7 +912,7 @@ void main() {
       await handOver(
         o.uuid,
         till1,
-        multi: o.multiStation,
+        viaExpo: o.viaExpo,
         what: '$o (${o.number})',
       );
       final Response<Object?> r = await customers[o.customer].get<Object?>(
@@ -1018,7 +1036,7 @@ void main() {
     stdout.writeln(
       '\n[pos-e2e] fast food lunch: ${all.length} counter orders, ${telegram.length} Telegram, $stickers cup stickers '
       '($comboStickers in combos), $bagLabels bag labels; expo "Yig\'ildi" → ready on the board ${stat(expoToBoard)}; '
-      'last bump → ready (one station) ${stat(bumpToBoard)}',
+      'last bump → ready (one station, multi_station) ${stat(bumpToBoard)}',
     );
   });
 
@@ -1290,7 +1308,8 @@ void main() {
         ],
       );
       expect(line.orderItemId, isPositive);
-      // The fiscal receipt: one line with the combo's own MXIK, the bag and the Pepsi's cup apart
+      // The fiscal receipt: one line with the combo's own MXIK, the bag and the cups apart (one line: the Pepsi's and the
+      // combo's drink)
       final PosFiscalLine combo = s.receipt!.lines.singleWhere(
         (PosFiscalLine l) => l.mxikCode == mxik['Lavash kombo'],
       );
@@ -1304,11 +1323,18 @@ void main() {
       expect(
         s.receipt!.lines,
         hasLength(4),
-        reason: 'the combo, the Pepsi, the bag, the cup',
+        reason: 'the combo, the Pepsi, the bag, the cups',
+      );
+      expect(
+        s.receipt!.lines
+            .where((PosFiscalLine l) => l.amount == cupPrice * 2)
+            .length,
+        1,
+        reason: 'two cups: the Pepsi and the drink inside the combo',
       );
 
       // The kitchen: the lavash and the sauce at the grill, the drink at the drinks station, each with the combo's name
-      await handOver(s.uuid, s.till, multi: true, what: '$s');
+      await handOver(s.uuid, s.till, viaExpo: true, what: '$s');
       final List<LineSeen> parts = crew.lines.values
           .where((LineSeen l) => l.orderUuid == s.uuid && l.comboName != null)
           .toList();
@@ -1348,11 +1374,12 @@ void main() {
     test(
       'the rush: both tills at once, pay first; one guest brings their own bag',
       () async {
+        // 18 + 3 here and 4 under multi_station below (the lunch stays at 60 counter orders)
         final List<Sale> a = <Sale>[
-          for (var i = 0; i < 22; i++) plan(removeBag: i == 5),
+          for (var i = 0; i < 18; i++) plan(removeBag: i == 5),
         ];
-        // A few orders cooked on one station only: no expo for them
-        a.addAll(<Sale>[
+        // A few orders cooked on one station only: through the expo too (expo_scope `all`, the default)
+        List<Sale> singles() => <Sale>[
           plan(
             items: const <Item>[
               Item.dish('Kapuchino', modifiers: <String>['0,3 l']),
@@ -1364,12 +1391,45 @@ void main() {
               Item.dish('Fanta', quantity: 3, modifiers: <String>['0,4 l']),
             ],
           ),
-        ]);
+        ];
+        a.addAll(singles());
         await rush(
           <Sale>[for (var i = 0; i < a.length; i += 2) a[i]],
           <Sale>[for (var i = 1; i < a.length; i += 2) a[i]],
         );
         await handOverSales(a);
+        expect(
+          a.where((Sale s) => !s.multiStation).map((Sale s) => s.viaExpo),
+          everyElement(isTrue),
+        );
+
+        // The owner keeps the expo for multi-station orders for a while: single-station ones are ready at their last
+        // bump, a multi-station one still waits on the expo; then back to every order
+        expect(
+          (await ownerCall('PUT', '/v1/owner/kds/expo-scope', <String, Object?>{
+            'branch_id': seed.branchId,
+            'expo_scope': 'multi_station',
+          }))['expo_scope'],
+          'multi_station',
+        );
+        expoScope = 'multi_station';
+        final List<Sale> m = <Sale>[
+          ...singles(),
+          plan(
+            items: const <Item>[
+              Item.combo('Lavash kombo'),
+              Item.dish('Kartoshka fri'),
+            ],
+          ),
+        ];
+        await rush(<Sale>[m[0], m[2]], <Sale>[m[1], m[3]]);
+        await handOverSales(m);
+        expect(m.map((Sale s) => s.viaExpo), <bool>[false, false, false, true]);
+        await ownerCall('PUT', '/v1/owner/kds/expo-scope', <String, Object?>{
+          'branch_id': seed.branchId,
+          'expo_scope': 'all',
+        });
+        expoScope = 'all';
         final Sale own = a[5];
         expect(own.removeBag, isTrue);
         final PosOrder o = await own.till.pos.orders.get(own.uuid);
@@ -1780,14 +1840,14 @@ void main() {
       expect(expo.refused, isEmpty);
     });
 
-    test('every combo part reached its station; every order of several stations was assembled on the expo', () {
+    test('every combo part reached its station; every order through the expo was assembled there', () {
       for (final Sale s in all) {
         final Set<String> seen = <String>{
           for (final LineSeen l in crew.lines.values)
             if (l.orderUuid == s.uuid) stationKey(l.stationId),
         };
         expect(seen, s.stations, reason: '$s');
-        expect(expo.bumped.containsKey(s.uuid), s.multiStation, reason: '$s');
+        expect(expo.bumped.containsKey(s.uuid), s.viaExpo, reason: '$s');
       }
       final int comboParts = crew.lines.values
           .where((LineSeen l) => l.comboName != null)

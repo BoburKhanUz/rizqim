@@ -19,8 +19,9 @@ use Tests\TestCase;
 
 /**
  * P6-33 (B6, module `kds_expo`): an order cooked on several stations waits on the expo (assembly) station after its
- * last bump; the expo bump makes it ready and calls its number; a recall undoes an assembly; an order of one station,
- * a branch without the module or without an expo station keep the "every line ready → ready" path. The tickets carry
+ * last bump; the expo bump makes it ready and calls its number; a recall undoes an assembly. By default (expo_scope
+ * `all`, owner decision 03.11.2026) an order of one station goes through the expo too; with `multi_station` it, a
+ * branch without the module or without an expo station keep the "every line ready → ready" path. The tickets carry
  * the time target of each line and whether it is late.
  */
 class KdsExpoTest extends TestCase
@@ -107,7 +108,9 @@ class KdsExpoTest extends TestCase
 
     public function test_an_order_of_one_station_and_a_branch_without_the_module_or_an_expo_keep_the_old_path(): void
     {
-        // One station: the last bump makes it ready, the expo has nothing to do
+        // The branch keeps the old rule (expo_scope multi_station): one station, the last bump makes it ready, the expo
+        // has nothing to do
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'multi_station'])->assertOk();
         $single = (string) $this->openTakeaway()->assertCreated()->json('data.uuid');
         $this->assertNull($this->ticketOf($single)['assembly']);
         $this->bumpAll($single);
@@ -129,6 +132,106 @@ class KdsExpoTest extends TestCase
         $this->bumpAll($off);
         $this->assertSame(OrderStatus::READY, Order::where('uuid', $off)->firstOrFail()->status);
         $this->cook('POST', "/staff/orders/{$off}/assembled")->assertStatus(403)->assertJsonPath('data.reason', 'module_disabled');
+    }
+
+    public function test_by_default_an_order_of_one_station_goes_through_the_expo_too(): void
+    {
+        // Owner decision 03.11.2026 (expo_scope `all`, the default): every order is assembled, one station or more
+        Event::fake([QueueNumberBroadcast::class]);
+        $uuid = (string) $this->openTakeaway()->assertCreated()->json('data.uuid');
+        $ticket = $this->ticketOf($uuid);
+        $this->assertNotNull($ticket['assembly']);
+        $this->assertSame($this->expo->id, $ticket['assembly']['station_id']);
+        $this->assertSame([
+            ['station_id' => $this->grill->id, 'name' => 'Grill', 'kind' => 'grill', 'items_total' => 1, 'items_ready' => 0, 'done' => false],
+        ], $ticket['assembly']['stations']);
+
+        // The last (only) bump: the order waits on the expo, its number is not called yet
+        $this->bumpAll($uuid);
+        $order = Order::where('uuid', $uuid)->firstOrFail();
+        $this->assertSame(OrderStatus::PREPARING, $order->status);
+        $this->assertSame('preparing', $order->pickup_status);
+        $this->assertTrue($this->ticketOf($uuid)['assembly']['waiting']);
+        Event::assertNotDispatched(QueueNumberBroadcast::class, fn (QueueNumberBroadcast $event) => $event->broadcastAs() === 'queue.ready');
+
+        $this->cook('POST', "/staff/orders/{$uuid}/assembled")->assertOk()->assertJsonPath('data.status', 'ready')->assertJsonPath('data.pickup_status', 'ready');
+        Event::assertDispatched(QueueNumberBroadcast::class, fn (QueueNumberBroadcast $event) => $event->broadcastAs() === 'queue.ready');
+
+        // A single-station counter order paid first: the payment never waits, the number is called after the expo
+        $response = $this->tillAs('POST', '/pos/orders', [
+            'channel' => 'pos_takeaway',
+            'items' => [['variant_id' => $this->tea->uuid, 'quantity' => 1]],
+            'send' => true,
+        ])->assertCreated();
+        $paid = (string) $response->json('data.uuid');
+        $bill = (string) $this->tillAs('POST', "/pos/orders/{$paid}/bills", ['version' => $response->json('data.version'), 'mode' => 'single'])->assertSuccessful()->json('data.bills.0.uuid');
+        $this->tillAs('POST', "/pos/bills/{$bill}/payments", ['shift_uuid' => $this->shift->uuid, 'tenders' => [['tender' => 'cash', 'amount' => '5000']]])->assertSuccessful();
+        $this->assertSame(OrderStatus::DELIVERED, Order::where('uuid', $paid)->firstOrFail()->status);
+        $this->bumpAll($paid);
+        $this->assertSame('preparing', Order::where('uuid', $paid)->firstOrFail()->pickup_status);
+        $this->cook('POST', "/staff/orders/{$paid}/assembled")->assertOk()->assertJsonPath('data.status', 'delivered')->assertJsonPath('data.pickup_status', 'ready');
+
+        // A hall order at a table still never goes through the expo
+        $this->assertNull(app(\App\Domain\Pos\Kitchen\KitchenAssembly::class)->present(
+            Order::where('uuid', $uuid)->firstOrFail()->forceFill(['order_type' => \App\Enums\OrderType::DINE_IN, 'table_label' => null]),
+            collect(),
+        ));
+    }
+
+    public function test_the_owner_sets_the_expo_scope_of_a_branch(): void
+    {
+        $this->owner('GET', "/owner/kds/targets?branch_id={$this->branch->id}")->assertOk()->assertJsonPath('data.expo_scope', 'all');
+
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'everything'])->assertStatus(422)->assertJsonValidationErrors('expo_scope');
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id])->assertStatus(422)->assertJsonValidationErrors('expo_scope');
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'multi_station'])->assertOk()
+            ->assertJsonPath('message', 'Saqlandi.')
+            ->assertJsonPath('data.expo_scope', 'multi_station')
+            ->assertJsonPath('data.stations.0.kind', 'grill');
+        $this->assertDatabaseHas('audit_logs', ['action' => 'kds.expo_scope_changed']);
+        $this->assertSame(1, \App\Models\AuditLog::query()->where('action', 'kds.expo_scope_changed')->count());
+        // The same value again: nothing to audit
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'multi_station'])->assertOk();
+        $this->assertSame(1, \App\Models\AuditLog::query()->where('action', 'kds.expo_scope_changed')->count());
+
+        // One station: the old path again
+        $single = (string) $this->openTakeaway()->assertCreated()->json('data.uuid');
+        $this->assertNull($this->ticketOf($single)['assembly']);
+
+        // The POS settings and a format change keep it
+        $this->owner('PUT', "/owner/branches/{$this->branch->id}/pos-settings", ['pos_settings' => ['screen_lock_minutes' => 7]])->assertOk();
+        $this->assertSame('multi_station', $this->branch->fresh()->pos_settings['expo_scope'] ?? null);
+        $this->owner('PUT', '/owner/pos/format', ['branch_id' => $this->branch->id, 'modules' => ['packaging' => false]])->assertOk();
+        $this->assertSame('multi_station', $this->branch->fresh()->pos_settings['expo_scope'] ?? null);
+        $this->owner('GET', "/owner/branches/{$this->branch->id}/pos-settings")->assertOk()->assertJsonMissingPath('data.pos_settings.expo_scope');
+        $this->owner('GET', "/owner/kds/targets?branch_id={$this->branch->id}")->assertOk()->assertJsonPath('data.expo_scope', 'multi_station');
+
+        // A cook does not change it
+        $this->cook('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'all'])->assertStatus(403);
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'all'])->assertOk()->assertJsonPath('data.expo_scope', 'all');
+        $this->assertNotNull($this->ticketOf((string) $this->openTakeaway()->assertCreated()->json('data.uuid'))['assembly']);
+    }
+
+    public function test_switching_to_multi_station_releases_a_single_station_order_waiting_on_the_expo(): void
+    {
+        Event::fake([QueueNumberBroadcast::class]);
+        $single = (string) $this->openTakeaway()->assertCreated()->json('data.uuid');
+        $this->bumpAll($single);
+        $two = $this->openCombo();
+        $this->bumpAll($two);
+        $this->assertSame('preparing', Order::where('uuid', $single)->firstOrFail()->pickup_status);
+
+        // The owner keeps the expo for multi-station orders: the single-station one waiting there is ready now (never
+        // stranded), the two-station one keeps waiting for its assembly
+        $this->owner('PUT', '/owner/kds/expo-scope', ['branch_id' => $this->branch->id, 'expo_scope' => 'multi_station'])->assertOk();
+        $order = Order::where('uuid', $single)->firstOrFail();
+        $this->assertSame(OrderStatus::READY, $order->status);
+        $this->assertSame('ready', $order->pickup_status);
+        $this->assertNull($order->getAttribute('assembled_at'));
+        Event::assertDispatched(QueueNumberBroadcast::class, fn (QueueNumberBroadcast $event) => $event->broadcastAs() === 'queue.ready' && $event->uuid === $order->uuid);
+        $this->assertSame('preparing', Order::where('uuid', $two)->firstOrFail()->pickup_status);
+        $this->assertTrue($this->ticketOf($two)['assembly']['waiting']);
+        $this->cook('POST', "/staff/orders/{$two}/assembled")->assertOk()->assertJsonPath('data.status', 'ready');
     }
 
     public function test_a_counter_order_paid_first_is_called_once_the_expo_assembled_it(): void

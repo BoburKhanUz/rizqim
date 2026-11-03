@@ -1,6 +1,7 @@
 // KDS v2 of the fake backend (docs/API.md "KDS v2", P6-33): the branch's kitchen stations with their kinds and time targets,
 // the dishes' own targets and the prep time report. Answers like the server: a target 10–7200 seconds (422 otherwise), setting
-// one needs the `kds_expo` module (403 module_disabled), clearing one never does; the report needs the `kds` module.
+// one needs the `kds_expo` module (403 module_disabled), clearing one never does; the report needs the `kds` module. Which
+// orders go through the expo (`expo_scope`: all — the default — or multi_station; 422 otherwise) per branch.
 import type { FakeBackend } from './backend'
 import { fail, ok, type FakeRequest, type Reply } from './types'
 
@@ -41,6 +42,8 @@ export class FakeKds {
   ]
   /** product id => its own target */
   productTargets = new Map<number, number>()
+  /** branch id => its expo scope (not set: `all`) */
+  expoScopes = new Map<number, string>()
   private nextId = 10
 
   constructor(readonly backend: FakeBackend) {}
@@ -66,6 +69,7 @@ export class FakeKds {
     return {
       branch_id: branchId,
       enabled: this.backend.format.has('kds_expo'),
+      expo_scope: this.expoScopes.get(branchId) ?? 'all',
       limits: { min: MIN, max: MAX },
       stations: this.stations
         .filter((station) => station.branch_id === branchId)
@@ -145,6 +149,13 @@ export class FakeKds {
         else this.productTargets.set(item.product_id, item.target_seconds)
       }
       return ok(this.targetsPage(Number(body?.branch_id ?? 1)))
+    }
+    if (req.method === 'PUT' && path === '/v1/owner/kds/expo-scope') {
+      const scope = body?.expo_scope
+      if (scope !== 'all' && scope !== 'multi_station') return fail(422, 'The given data was invalid.', { expo_scope: ["Yig'ish sozlamasi all yoki multi_station bo'lishi kerak."] })
+      const branchId = Number(body?.branch_id ?? 1)
+      this.expoScopes.set(branchId, scope)
+      return { status: 200, body: { success: true, message: 'Saqlandi.', data: this.targetsPage(branchId) } }
     }
     if (req.method === 'GET' && path === '/v1/owner/reports/kitchen-times') return this.report(req.query)
     return null

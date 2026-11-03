@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data243.dart';
+import 'data244.dart';
 
 part 'post_v1_pos_orders_uuid_packaging_rule_restore_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosOrdersUuidPackagingRuleRestoreResponse {
 
   final bool success;
   final String message;
-  final Data243 data;
+  final Data244 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosOrdersUuidPackagingRuleRestoreResponseToJson(this);

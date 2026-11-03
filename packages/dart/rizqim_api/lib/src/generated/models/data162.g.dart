@@ -15,7 +15,7 @@ Data162 _$Data162FromJson(Map<String, dynamic> json) => Data162(
   roleLabel: json['role_label'] as String?,
   effectiveFrom: json['effective_from'] as String,
   components: (json['components'] as List<dynamic>)
-      .map((e) => Components3.fromJson(e as Map<String, dynamic>))
+      .map((e) => Components2.fromJson(e as Map<String, dynamic>))
       .toList(),
   note: json['note'] as String?,
   updatedAt: json['updated_at'] as String?,

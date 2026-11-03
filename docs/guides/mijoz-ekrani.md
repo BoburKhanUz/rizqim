@@ -104,9 +104,9 @@ Taxta oshxona ekranidagi (KDS) "tayyor" tugmasi bosilishi bilan, odatda **1–2 
 
 **Fast food: yig'ish va oldindan buyurtma** ([fast-food.md](fast-food.md#10-oshxona-sexlar-vaqt-maqsadi-va-yigish-ekrani)):
 
-- Filialda **Yig'ish** sexi (yig'ish ekrani) bo'lsa, ikki va undan ko'p sexda pishadigan buyurtmaning raqami **Tayyor** ga
-  oxirgi sex tayyor bo'lganda emas, yig'uvchi oshxonada **Yig'ildi** ni bosganda o'tadi: shunda ovoz chalinadi va "17 raqam tayyor!"
-  chiqadi. Bitta sexli buyurtmalar avvalgidek, oshpaz "tayyor" bosganda tayyor bo'ladi.
+- Filialda **Yig'ish** sexi (yig'ish ekrani) bo'lsa, buyurtmaning raqami **Tayyor** ga oxirgi sex tayyor bo'lganda emas, yig'uvchi
+  oshxonada **Yig'ildi** ni bosganda o'tadi: shunda ovoz chalinadi va "17 raqam tayyor!" chiqadi. Standart — har bir buyurtma;
+  egasi "faqat 2 va undan ko'p sexli" ni tanlasa, bitta sexli buyurtma oshpaz "tayyor" bosganda tayyor bo'ladi.
 - **Oldindan buyurtma** (mijoz olib ketish vaqtini tanlagan): raqam taxtada olib ketish vaqtigacha ko'rinmaydi. Buyurtma oshxonaga
   chiqqach (vaqtdan tayyorlash vaqti oldin) raqam **Tayyorlanmoqda** ga tushadi.
 

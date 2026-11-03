@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Setup;
 
+use App\Domain\Pos\Kitchen\ExpoScope;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use DateTimeZone;
@@ -32,6 +33,9 @@ use DateTimeZone;
  *   set) and the owner's module overrides ({module: bool}, only where they differ from the profile). Read with
  *   format(), written only by PUT /owner/pos/format (withFormat()); the POS settings endpoint neither shows nor takes
  *   them, and merge() carries them over unchanged. The effective modules: PosModules.
+ * - `expo_scope` (KDS_KEYS, owner decision 03.11.2026): which orders go through the expo station (ExpoScope: `all`, the
+ *   default, or `multi_station`). Read with expoScope(), written only by PUT /owner/kds/expo-scope (withExpoScope());
+ *   like the format keys the POS settings endpoint neither shows nor takes it and merge() carries it over unchanged.
  */
 final class PosSettings
 {
@@ -42,6 +46,9 @@ final class PosSettings
 
     /** P6-11: kept by merge(), written by withFormat() only. */
     public const FORMAT_KEYS = ['profile', 'modules'];
+
+    /** Kept by merge(), written by withExpoScope() only (the KDS settings, PUT /owner/kds/expo-scope). */
+    public const KDS_KEYS = ['expo_scope'];
 
     public const ALERT_KEYS = ['open_room_hours', 'void_amount', 'discount_percent', 'unaccepted_online_minutes', 'cash_out_amount'];
 
@@ -197,8 +204,44 @@ final class PosSettings
             };
         }
 
-        // P6-11: the format profile and module overrides are not this endpoint's: carried over as stored
-        return $settings + self::storedFormat($stored);
+        // P6-11: the format profile and module overrides are not this endpoint's: carried over as stored (the KDS keys
+        // too)
+        return $settings + self::storedFormat($stored) + self::storedKds($stored);
+    }
+
+    /**
+     * Which orders go through the branch's expo station: the stored `expo_scope`, the default (`all`) when not set or
+     * not a known value.
+     *
+     * @param  array<string, mixed>|null  $stored
+     */
+    public static function expoScope(?array $stored): ExpoScope
+    {
+        return (is_string($stored['expo_scope'] ?? null) ? ExpoScope::tryFrom($stored['expo_scope']) : null) ?? ExpoScope::DEFAULT;
+    }
+
+    /**
+     * What to store after the expo scope changed: the settings with `expo_scope` set.
+     *
+     * @param  array<string, mixed>|null  $stored
+     * @return array<string, mixed>
+     */
+    public static function withExpoScope(?array $stored, ExpoScope $scope): array
+    {
+        return ['expo_scope' => $scope->value] + self::merge($stored, []);
+    }
+
+    /**
+     * The KDS keys as stored (only a valid value; nothing when never set).
+     *
+     * @param  array<string, mixed>|null  $stored
+     * @return array<string, mixed>
+     */
+    private static function storedKds(?array $stored): array
+    {
+        $scope = is_string($stored['expo_scope'] ?? null) ? ExpoScope::tryFrom($stored['expo_scope']) : null;
+
+        return $scope !== null ? ['expo_scope' => $scope->value] : [];
     }
 
     /**

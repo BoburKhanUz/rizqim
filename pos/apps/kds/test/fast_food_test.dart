@@ -373,7 +373,7 @@ void main() {
       // the kind label and the target; the expo says what it does
       expect(find.textContaining('maqsad 5:00'), findsOneWidget);
       expect(
-        find.textContaining("ko'p sexli buyurtmalarni yig'adi · maqsad 2:00"),
+        find.textContaining("Yig'ish: buyurtmalarni yig'adi · maqsad 2:00"),
         findsOneWidget,
       );
     });

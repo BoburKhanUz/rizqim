@@ -21,7 +21,7 @@ Data283 _$Data283FromJson(Map<String, dynamic> json) => Data283(
   itemsTotal: (json['items_total'] as num).toInt(),
   itemsReady: (json['items_ready'] as num).toInt(),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items61.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items60.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: json['created_at'] as String?,
   acceptedAt: json['accepted_at'] as String?,
@@ -35,10 +35,10 @@ Data283 _$Data283FromJson(Map<String, dynamic> json) => Data283(
       : PickupStatus.fromJson(json['pickup_status'] as String),
   assembly: json['assembly'] == null
       ? null
-      : Assembly4.fromJson(json['assembly'] as Map<String, dynamic>),
+      : Assembly3.fromJson(json['assembly'] as Map<String, dynamic>),
   pickup: json['pickup'] == null
       ? null
-      : Pickup30.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup29.fromJson(json['pickup'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data283ToJson(Data283 instance) => <String, dynamic>{

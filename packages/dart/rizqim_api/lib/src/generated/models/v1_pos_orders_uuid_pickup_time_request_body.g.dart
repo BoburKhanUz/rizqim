@@ -13,6 +13,7 @@ _$V1PosOrdersUuidPickupTimeRequestBodyFromJson(Map<String, dynamic> json) =>
       pickupAt: json['pickup_at'] == null
           ? null
           : DateTime.parse(json['pickup_at'] as String),
+      approvalToken: json['approval_token'] as String?,
     );
 
 Map<String, dynamic> _$V1PosOrdersUuidPickupTimeRequestBodyToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$V1PosOrdersUuidPickupTimeRequestBodyToJson(
 ) => <String, dynamic>{
   'version': instance.version,
   'pickup_at': instance.pickupAt?.toIso8601String(),
+  'approval_token': instance.approvalToken,
 };

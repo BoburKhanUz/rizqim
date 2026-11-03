@@ -19,11 +19,15 @@ afterEach(() => setSession(null));
 const KINDS = ['osh', 'mangal', 'salad_bar', 'tea', 'kitchen', 'other', 'grill', 'fryer', 'drinks', 'barista', 'expo'].map((value) => ({ value, label: value }));
 const station = (over: Record<string, unknown> = {}) => ({ id: 1, branch_id: 1, name: 'Grill', kind: 'grill', kind_label: 'Grill', sort_order: 1, is_active: true, show_on_kds: true, target_seconds: 300, ...over });
 const format = (modules: string[]) => ({ branch_id: 1, profile: 'fast_food', profile_label: 'Fast food', mode: 'counter', first_screen: 'quick_counter', modules, locks: { service_charge_zero: false }, module_rows: [], profiles: [], template: { profile: 'fast_food', stations: [], dishes: [] } });
-const targetsPage = (products: Array<Record<string, unknown>> = []) => ({
+const targetsPage = (products: Array<Record<string, unknown>> = [], expoScope = 'all') => ({
   branch_id: 1,
   enabled: true,
+  expo_scope: expoScope,
   limits: { min: 10, max: 7200 },
-  stations: [{ id: 1, name: 'Grill', kind: 'grill', kind_label: 'Grill', is_active: true, target_seconds: 300, default_target_seconds: 300 }],
+  stations: [
+    { id: 1, name: 'Grill', kind: 'grill', kind_label: 'Grill', is_active: true, target_seconds: 300, default_target_seconds: 300 },
+    { id: 3, name: "Yig'ish", kind: 'expo', kind_label: "Yig'ish", is_active: true, target_seconds: null, default_target_seconds: 120 },
+  ],
   products,
 });
 
@@ -131,12 +135,30 @@ describe('Sexlar: KDS v2 time targets', () => {
     expect(await last(calls, 'PUT').json()).toEqual({ branch_id: 1, items: [{ product_id: 8, target_seconds: null }] });
   });
 
+  it('every order goes through the expo by default; the owner can keep it to multi-station orders', async () => {
+    const { calls, typing } = open({ 'PUT /api/v1/owner/kds/expo-scope': () => ok(targetsPage([], 'multi_station')) });
+    const scope = await screen.findByLabelText("Yig'ishdan o'tadigan buyurtmalar");
+    expect(scope).toHaveValue('all');
+    expect(screen.getByRole('option', { name: 'Har bir buyurtma (bitta sexli ham)' })).toBeInTheDocument();
+    await typing.selectOptions(scope, 'multi_station');
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ branch_id: 1, expo_scope: 'multi_station' });
+    expect(await screen.findByText("Saqlandi: faqat 2 va undan ko'p sexli buyurtma yig'ishdan o'tadi.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Yig'ishdan o'tadigan buyurtmalar")).toHaveValue('multi_station');
+  });
+
+  it('says the setting waits for an expo station when the branch has none', async () => {
+    open({ 'GET /api/v1/owner/kds/targets': () => ok({ ...targetsPage(), stations: targetsPage().stations.slice(0, 1) }) });
+    expect(await screen.findByText(/Filialda faol yig'ish sexi yo'q/)).toBeInTheDocument();
+  });
+
   it('without the module there is no target field and no dishes panel', async () => {
     const { typing } = open({}, ['kds']);
     await typing.click(await screen.findByRole('button', { name: "Yig'ish: sexni tahrirlash" }));
     expect(screen.queryByLabelText('Vaqt maqsadi')).not.toBeInTheDocument();
     expect(screen.getByText(/Vaqt maqsadi "Yig'ish ekrani va sex vaqtlari" moduli bilan ishlaydi/)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: "Taomning o'z vaqti" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Yig'ishdan o'tadigan buyurtmalar")).not.toBeInTheDocument();
   });
 });
 

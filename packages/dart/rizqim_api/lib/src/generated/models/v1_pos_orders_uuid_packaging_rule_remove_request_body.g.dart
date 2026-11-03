@@ -12,8 +12,13 @@ _$V1PosOrdersUuidPackagingRuleRemoveRequestBodyFromJson(
 ) => V1PosOrdersUuidPackagingRuleRemoveRequestBody(
   version: (json['version'] as num).toInt(),
   reason: json['reason'] as String,
+  approvalToken: json['approval_token'] as String?,
 );
 
 Map<String, dynamic> _$V1PosOrdersUuidPackagingRuleRemoveRequestBodyToJson(
   V1PosOrdersUuidPackagingRuleRemoveRequestBody instance,
-) => <String, dynamic>{'version': instance.version, 'reason': instance.reason};
+) => <String, dynamic>{
+  'version': instance.version,
+  'reason': instance.reason,
+  'approval_token': instance.approvalToken,
+};

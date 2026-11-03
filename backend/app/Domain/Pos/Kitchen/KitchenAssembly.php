@@ -11,6 +11,7 @@ use App\Domain\Pos\Orders\PickupStatus;
 use App\Domain\Pos\Orders\PosOrderException;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\KitchenItemStatus;
 use App\Enums\KitchenStationKind;
 use App\Enums\OrderStatus;
@@ -34,15 +35,17 @@ use Illuminate\Support\Facades\DB;
  * P6-33 (B6, module `kds_expo`, docs/POS_SPEC.md "KDS v2"): the expo (assembly, "yig'ish") station.
  *
  * Which orders: in a branch with the module and an active `expo` station, an order that becomes ready for a customer or
- * a courier (takeaway, delivery, pickup, a counter order eaten in the hall — not a hall order at a table) whose kitchen
- * lines were cooked on two or more stations (a line without a station counts as one more "station": the default
- * printer). Such an order shows on the expo screen (the ticket's `assembly`) with which stations are done; when the
+ * a courier (takeaway, delivery, pickup, a counter order eaten in the hall — not a hall order at a table) that has a
+ * kitchen line; with the branch's `expo_scope` (PosSettings, ExpoScope) `all` — the default, owner decision 03.11.2026 —
+ * every such order, with `multi_station` only one whose kitchen lines were cooked on two or more stations (a line
+ * without a station counts as one more "station": the default printer). Such an order shows on the expo screen (the
+ * ticket's `assembly`) with which stations are done; when the
  * last station bumps its last line the order is NOT ready yet: it waits on the expo. The expo bump
  * (POST /staff/orders/{uuid}/assembled) marks it assembled (orders.assembled_at) and makes it ready the way the last
  * bump used to: a takeaway, pickup or delivery order moves to `ready` (OrderStatusService, the customer is told), and
- * the pickup queue calls the number (`queue.ready` → the board and the customer display). An order cooked on one
- * station, a branch without an expo station or without the module: the existing "every line ready → ready" path,
- * unchanged.
+ * the pickup queue calls the number (`queue.ready` → the board and the customer display). An order the expo does not
+ * take (one station under `multi_station`), a branch without an expo station or without the module: the existing
+ * "every line ready → ready" path, unchanged.
  *
  * An assembly is undone (assembled_at cleared) when a line of the order is recalled or a new one bumped ready (the
  * customer added to it): the expo assembles it again. The cashier's "Tayyor" (POST /pos/orders/{uuid}/ready) still
@@ -58,6 +61,9 @@ class KitchenAssembly implements AssemblyTracker
 
     /** @var array<int, int|null> branch id => the active expo station's id (null: none or the module is off) */
     private array $expo = [];
+
+    /** @var array<int, ExpoScope> branch id => its expo scope */
+    private array $scopes = [];
 
     /** @var array<int, KitchenStation> station id => station */
     private array $stations = [];
@@ -97,7 +103,20 @@ class KitchenAssembly implements AssemblyTracker
             return false;
         }
 
-        return count($this->stationGroups($order, $items)) >= 2;
+        return count($this->stationGroups($order, $items)) >= $this->scope((int) $order->branch_id)->minStations();
+    }
+
+    /**
+     * The branch's expo scope (branches.pos_settings.expo_scope; `all` when not set).
+     */
+    public function scope(int $branchId): ExpoScope
+    {
+        if (!isset($this->scopes[$branchId])) {
+            $branch = Branch::query()->whereKey($branchId)->first(['id', 'pos_settings']);
+            $this->scopes[$branchId] = PosSettings::expoScope($branch?->pos_settings);
+        }
+
+        return $this->scopes[$branchId];
     }
 
     /**
@@ -162,7 +181,7 @@ class KitchenAssembly implements AssemblyTracker
             }
             if (!$this->requires($order)) {
                 throw new PosOrderException(
-                    "Bu buyurtma yig'ish sexidan o'tmaydi: u bitta sexda tayyorlanadi yoki filialda yig'ish sexi yo'q.",
+                    "Bu buyurtma yig'ish sexidan o'tmaydi: u bitta sexda tayyorlanadi (filial sozlamasi: faqat ko'p sexli) yoki filialda yig'ish sexi yo'q.",
                     422,
                     'assembly_not_required',
                 );
@@ -183,28 +202,7 @@ class KitchenAssembly implements AssemblyTracker
 
             $order->forceFill(['assembled_at' => now(), 'assembled_by' => $actor->id])->save();
 
-            // The last bump's step, now: a takeaway, pickup or delivery order is ready (a hall order at the counter
-            // and a counter order paid first keep their status; their number is called by the pickup queue)
-            $statuses = [];
-            if ($order->order_type !== OrderType::DINE_IN && !$closedPickup
-                && in_array($order->status, [OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)) {
-                try {
-                    if ($order->status === OrderStatus::ACCEPTED) {
-                        $order = app(OrderStatusService::class)->transition($order, OrderStatus::PREPARING, $actor, ['notes' => "Yig'ish: {$actor->name}"])->order;
-                    }
-                    $result = app(OrderStatusService::class)->transition($order, OrderStatus::READY, $actor, [
-                        'notes' => "Yig'ildi, buyurtma tayyor: {$actor->name}",
-                    ]);
-                } catch (OrderTransitionException $e) {
-                    throw new PosOrderException($e->getMessage(), $e->status, 'status');
-                }
-                $order = $result->order;
-                if (!$result->quiet) {
-                    $statuses[] = OrderStatus::READY;
-                }
-            }
-
-            $tracker?->kitchenChanged($order->refresh());
+            [$order, $statuses] = $this->makeReady($order, $actor, $closedPickup, "Yig'ildi, buyurtma tayyor: {$actor->name}");
             $this->audit->record('kds.order_assembled', $order, [], ['assembled_at' => self::assembledAt($order)?->toJSON()], [
                 'short_code' => $order->short_code,
                 'queue_number' => $order->queue_number,
@@ -215,7 +213,87 @@ class KitchenAssembly implements AssemblyTracker
         });
     }
 
+    /**
+     * The branch's expo scope went to `multi_station` (PUT /owner/kds/expo-scope): an order waiting on the expo that no
+     * longer goes through it (cooked on one station, every line done, not assembled) is ready now, the way its last
+     * bump would have made it — never stranded on an expo that no longer shows it. Each under its row lock; an order
+     * that changed meanwhile is left alone. Returns the released orders with the statuses they moved to (the caller
+     * tells the customer).
+     *
+     * @return list<array{order: Order, statuses: list<OrderStatus>}>
+     */
+    public function releaseWaiting(int $branchId, User $actor): array
+    {
+        $candidates = Order::query()->where('branch_id', $branchId)->whereNull('assembled_at')
+            ->where('created_at', '>=', now()->subDays(2))
+            ->where(fn ($query) => $query->where('pickup_status', PickupStatus::PREPARING->value)
+                ->orWhereIn('status', [OrderStatus::ACCEPTED->value, OrderStatus::PREPARING->value]))
+            ->orderBy('id')->limit(500)->pluck('id');
+
+        $released = [];
+        foreach ($candidates as $id) {
+            $result = DB::transaction(function () use ($id, $actor) {
+                $order = Order::whereKey($id)->lockForUpdate()->first();
+                if ($order === null || self::assembledAt($order) !== null || $this->requires($order)
+                    || $this->stationGroups($order, null) === []
+                    || OrderItem::where('order_id', $order->id)->whereIn('kitchen_status', KitchenItemStatus::cookingValues())->exists()) {
+                    return null;
+                }
+                $tracker = app()->bound(PickupTracker::class) ? app(PickupTracker::class) : null;
+                $closedPickup = $order->status === OrderStatus::DELIVERED && $tracker !== null && $tracker->keepsKitchen($order);
+                if (!$closedPickup && !in_array($order->status, KitchenService::LINE_STATUSES, true)) {
+                    return null;
+                }
+                try {
+                    [$order, $statuses] = $this->makeReady($order, $actor, $closedPickup, "Oshxonada barcha taomlar tayyor (yig'ish faqat ko'p sexli buyurtmalar uchun): {$actor->name}");
+                } catch (PosOrderException) {
+                    return null;
+                }
+
+                return ['order' => $order, 'statuses' => $statuses];
+            });
+            if ($result !== null) {
+                $released[] = $result;
+            }
+        }
+
+        return $released;
+    }
+
     // --- internals -------------------------------------------------------------------------------------------------
+
+    /**
+     * The last bump's step, now: a takeaway, pickup or delivery order is ready (a hall order at the counter and a
+     * counter order paid first keep their status; their number is called by the pickup queue).
+     *
+     * @return array{0: Order, 1: list<OrderStatus>}
+     *
+     * @throws PosOrderException
+     */
+    private function makeReady(Order $order, User $actor, bool $closedPickup, string $notes): array
+    {
+        $statuses = [];
+        if ($order->order_type !== OrderType::DINE_IN && !$closedPickup
+            && in_array($order->status, [OrderStatus::ACCEPTED, OrderStatus::PREPARING], true)) {
+            try {
+                if ($order->status === OrderStatus::ACCEPTED) {
+                    $order = app(OrderStatusService::class)->transition($order, OrderStatus::PREPARING, $actor, ['notes' => "Yig'ish: {$actor->name}"])->order;
+                }
+                $result = app(OrderStatusService::class)->transition($order, OrderStatus::READY, $actor, ['notes' => $notes]);
+            } catch (OrderTransitionException $e) {
+                throw new PosOrderException($e->getMessage(), $e->status, 'status');
+            }
+            $order = $result->order;
+            if (!$result->quiet) {
+                $statuses[] = OrderStatus::READY;
+            }
+        }
+
+        $tracker = app()->bound(PickupTracker::class) ? app(PickupTracker::class) : null;
+        $tracker?->kitchenChanged($order->refresh());
+
+        return [$order, $statuses];
+    }
 
     public static function assembledAt(Order $order): ?Carbon
     {

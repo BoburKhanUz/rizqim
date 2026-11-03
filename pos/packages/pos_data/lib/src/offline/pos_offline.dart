@@ -882,7 +882,17 @@ class PosOffline {
       if (combo != null) ...<String, Object?>{
         'combo_delta': combo.delta.toApiString(),
         'combo_parts': <Map<String, Object?>>[
-          for (final PosComboPart part in combo.parts) part.toJson(),
+          for (final PosComboPart part in combo.parts)
+            <String, Object?>{
+              ...part.toJson(),
+              // P6-34: each part's dish for the packaging rules (a cup per drink counts the combo's drink too)
+              'category_id': part.productId == null
+                  ? null
+                  : cat.product(part.productId!)?.categoryId,
+              'unit':
+                  cat.variantByUuid(part.variantUuid ?? '')?.unit.wire ??
+                  'piece',
+            },
         ],
       },
       // For the till's own view and tickets

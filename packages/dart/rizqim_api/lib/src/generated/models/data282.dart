@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items60.dart';
+import 'items59.dart';
 import 'pickup_status.dart';
-import 'assembly3.dart';
-import 'pickup29.dart';
+import 'assembly2.dart';
+import 'pickup28.dart';
 
 part 'data282.g.dart';
 
@@ -64,7 +64,7 @@ class Data282 {
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
   final int itemsReady;
-  final List<Items60> items;
+  final List<Items59> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'accepted_at')
@@ -81,8 +81,8 @@ class Data282 {
   final int? queueNumber;
   @JsonKey(name: 'pickup_status')
   final PickupStatus? pickupStatus;
-  final Assembly3? assembly;
-  final Pickup29? pickup;
+  final Assembly2? assembly;
+  final Pickup28? pickup;
 
   Map<String, Object?> toJson() => _$Data282ToJson(this);
 }

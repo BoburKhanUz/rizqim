@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { posSetupKeys, useStaffApi } from '@rizqim/staff';
-import { fetchKdsTargets, fetchPrepTimes, saveProductTargets, type PrepQuery, type ProductTargetInput } from './api';
+import { fetchKdsTargets, fetchPrepTimes, saveExpoScope, saveProductTargets, type ExpoScope, type PrepQuery, type ProductTargetInput } from './api';
 
 // Keys sit under ['owner', ...] like the other owner screens', so a sign-out clears them all
 export const kdsKeys = {
@@ -22,6 +22,16 @@ export function useSaveProductTargets(branchId: number) {
       queryClient.setQueryData(kdsKeys.targets(branchId), page);
       void queryClient.invalidateQueries({ queryKey: ['owner', 'kds', 'report'] });
     },
+  });
+}
+
+// Every order through the expo, or only multi-station ones (PUT /owner/kds/expo-scope answers with the targets page)
+export function useSaveExpoScope(branchId: number) {
+  const api = useStaffApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scope: ExpoScope) => saveExpoScope(api, branchId, scope),
+    onSuccess: (page) => queryClient.setQueryData(kdsKeys.targets(branchId), page),
   });
 }
 

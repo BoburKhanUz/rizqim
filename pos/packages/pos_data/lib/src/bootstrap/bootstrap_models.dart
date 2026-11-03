@@ -406,7 +406,7 @@ class PosStation {
   /// P6-33: sexning standart vaqt maqsadi (soniya); `null` — yo'q. `expo` sexida — yig'ish vaqti.
   final int? targetSeconds;
 
-  /// Yig'ish (expo) sexi: unga taom biriktirilmaydi, ko'p sexli buyurtmani yig'adi.
+  /// Yig'ish (expo) sexi: unga taom biriktirilmaydi, buyurtmani yig'adi (filial `expo_scope` bo'yicha).
   bool get isExpo => kind == 'expo';
 }
 

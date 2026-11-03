@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data108.dart';
+import 'data109.dart';
 
 part 'put_v1_owner_kitchen_station_routes_response.g.dart';
 
@@ -22,7 +22,7 @@ class PutV1OwnerKitchenStationRoutesResponse {
 
   final bool success;
   final String message;
-  final List<Data108> data;
+  final List<Data109> data;
 
   Map<String, Object?> toJson() =>
       _$PutV1OwnerKitchenStationRoutesResponseToJson(this);

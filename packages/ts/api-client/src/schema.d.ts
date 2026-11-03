@@ -5235,8 +5235,11 @@ export interface paths {
          *     included in the option's price), `is_default` (one per slot: taken when the slot is left out) and `label` (the
          *     receipt text, e.g. "Ichimlik — 0,4 l Pepsi"; default "<slot> — <dish> (<variant>), <modifiers>"). Up to 8 slots.
          *     A part cannot be the combo itself, another combo or a kompleks; a kompleks product cannot be a combo. Saving a
-         *     product that already is a combo replaces its slots. Sold lines keep the parts they had (`combo_parts`). Audited
-         *     (`menu.combo_saved`).
+         *     product that already is a combo saves its slots as sent, keeping the rows a till cached: a slot is the existing one
+         *     with its `uuid` (optional), else the one with its name, else the one at its position; an option is that slot's
+         *     existing one of the same dish. Those keep their ids and uuids (a till's cached picks still sell); a slot or option
+         *     no longer sent is removed (kept for offline sales made before). Sold lines keep the parts they had
+         *     (`combo_parts`). Audited (`menu.combo_saved`).
          */
         post: operations["combo.store"];
         delete?: never;
@@ -5255,7 +5258,8 @@ export interface paths {
         get?: never;
         /**
          * Change a combo
-         * @description Replaces the slots (sent in full) and/or switches the combo off (`is_active` false: it is sold as a plain product).
+         * @description Saves the slots (sent in full, matched as on create) and/or switches the combo off (`is_active` false: it is sold
+         *     as a plain product). `is_active` alone only sets the flag (a part dish switched off in the menu never blocks it).
          */
         put: operations["combo.update"];
         post?: never;
@@ -5999,6 +6003,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/kds/expo-scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set which orders go through the expo
+         * @description `expo_scope` (ExpoScope): `all` — every order a customer or courier waits for goes through the expo station before
+         *     its number is called, one station or more (the default); `multi_station` — only an order cooked on two or more
+         *     stations (a single-station order is ready at its last bump). Per branch (a branch-bound caller: their own); it
+         *     applies once the branch has the module `kds_expo` and an active expo station, and never holds a payment. Switched
+         *     to `multi_station`, a single-station order already waiting on the expo is ready at once (as its last bump would
+         *     have made it: the number is called, the customer told); switched to `all`, orders still cooking wait on the expo
+         *     when their last line is done. Audited when it changes (`kds.expo_scope_changed`, with `released_orders`).
+         */
+        put: operations["kdsTargets.updateExpoScope"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/kds/targets": {
         parameters: {
             query?: never;
@@ -6010,7 +6040,9 @@ export interface paths {
          * Time targets of a branch's kitchen
          * @description The branch's stations with their target (`target_seconds`, null: none) and the kind's suggested one
          *     (`default_target_seconds`), the store's dishes that have their own target, and whether the branch has the
-         *     module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range.
+         *     module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range. `expo_scope` (ExpoScope):
+         *     which orders go through the expo station — `all` (the default: every order, one station or more) or
+         *     `multi_station` (only an order cooked on two or more stations).
          */
         get: operations["kdsTargets.show"];
         put?: never;
@@ -6033,7 +6065,8 @@ export interface paths {
          * Set dishes' own time targets
          * @description `items`: up to 200 `{product_id, target_seconds}` of the store's dishes; `target_seconds` 10–7200 seconds, or null
          *     to drop the dish's own target (its station's applies again). A target is store-wide (every branch). Setting one
-         *     needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. Audited.
+         *     needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. A caller bound to
+         *     one branch is refused (403 `store_wide_only`): the target applies to every branch. Audited.
          */
         put: operations["kdsTargets.updateProducts"];
         post?: never;
@@ -8969,9 +9002,12 @@ export interface paths {
         /**
          * Take a packaging line off the order
          * @description `reason` is required ("mijoz o'z paketini olib keldi"). The line stays on the order with `removed: true` and 0
-         *     so'm (charges.packaging_lines), the total goes down. 422 `packaging_not_found` (the order has no such line) or
-         *     `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited
-         *     (`pos.packaging_removed`).
+         *     so'm (charges.packaging_lines), the total goes down. Once the bill was printed (`bill_locked`) it is a discount
+         *     after the print: orders.discount or a manager's `approval_token` for it (POST /pos/approvals; 403
+         *     `approval_required` with `data.permission`), and the owner is told. A waiter changes only their own orders
+         *     (another waiter's: 403 `approval_required` for orders.manage). 422 `packaging_not_found` (the order has no such
+         *     line) or `already_removed`; 409 `paid_bill_affected` once a bill of the order is being paid. Audited
+         *     (`pos.packaging_removed`, with `approved_by`).
          */
         post: operations["posTakeaway.removePackaging"];
         delete?: never;
@@ -8991,7 +9027,8 @@ export interface paths {
         put?: never;
         /**
          * Put a packaging line back
-         * @description 422 `not_removed`. Audited (`pos.packaging_restored`).
+         * @description 422 `not_removed`. A waiter: their own orders only (another waiter's: a manager's `approval_token` for
+         *     orders.manage). Audited (`pos.packaging_restored`).
          */
         post: operations["posTakeaway.restorePackaging"];
         delete?: never;
@@ -9014,7 +9051,9 @@ export interface paths {
          *     inside the window (422 `pickup_too_far`) and the opening hours (422 `pickup_closed`; the 24/7 module: any hour).
          *     The lines not sent yet wait and go to the kitchen at `pickup.kitchen_fire_at` (pickup_at − the prep time) by
          *     themselves. `pickup_at: null` takes the time off: the kitchen gets the order now. 409 `already_in_kitchen` once
-         *     it was sent. Audited.
+         *     it was sent. A time on another business day (after the day start, 05:00 by default) moves the order to that day
+         *     with that day's queue number (`queue`; reprint the talon). A waiter: their own orders only (another waiter's: a
+         *     manager's `approval_token` for orders.manage). Audited.
          */
         put: operations["posTakeaway.setPickupTime"];
         post?: never;
@@ -10078,7 +10117,9 @@ export interface paths {
          * @description `enabled: false` (and no slots) when the branch does not take orders for later. Otherwise every `slot_minutes`
          *     from the earliest allowed time (`min_lead_minutes` from now) to the end of the window, inside the opening hours
          *     (24/7: all day): `at` (UTC, send it back as `pickup_at`), `time` ("HH:MM", the store's), `business_date`. 404 for a
-         *     branch that is not the store's or not active.
+         *     branch that is not the store's or not active, or a store that does not sell (not active: finance hold, payment
+         *     required, suspended...). The answer is kept for the current minute per branch (a settings change shows from the
+         *     next minute); 30 requests a minute per address.
          */
         get: operations["pickupSlots.index"];
         put?: never;
@@ -10775,6 +10816,12 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        /**
+         * ExpoScope
+         * @description Which orders go through a branch's expo (assembly) station (branches.pos_settings.expo_scope, owner decision 03.11.2026, docs/POS_SPEC.md "KDS v2"): `all` (the default) every order a customer or courier waits for, one station or more; `multi_station` only an order cooked on two or more stations (the rule of P6-33 before the decision).
+         * @enum {string}
+         */
+        ExpoScope: "all" | "multi_station";
         /**
          * FireMode
          * @description When a POS line goes to the kitchen (order_items.fire_mode, P3-12, docs/POS_SPEC.md §2.6): with the next "send" (`now`), or only when it is sent by name (`hold`: a later course, a pre-order with its due time).
@@ -30259,6 +30306,64 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "kdsTargets.updateExpoScope": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    expo_scope: components["schemas"]["ExpoScope"];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            enabled: boolean;
+                            expo_scope: string;
+                            limits: {
+                                min: number;
+                                max: number;
+                            };
+                            stations: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                                kind_label: string;
+                                is_active: boolean;
+                                target_seconds: number | null;
+                                default_target_seconds: number | null;
+                            }[];
+                            products: {
+                                product_id: number;
+                                name: string;
+                                category_id: number;
+                                target_seconds: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "kdsTargets.show": {
         parameters: {
             query?: {
@@ -30282,6 +30387,7 @@ export interface operations {
                         data: {
                             branch_id: number;
                             enabled: boolean;
+                            expo_scope: string;
                             limits: {
                                 min: number;
                                 max: number;
@@ -30342,6 +30448,7 @@ export interface operations {
                         data: {
                             branch_id: number;
                             enabled: boolean;
+                            expo_scope: string;
                             limits: {
                                 min: number;
                                 max: number;
@@ -30366,6 +30473,14 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             422: components["responses"]["ValidationException"];
         };
     };
@@ -44844,6 +44959,7 @@ export interface operations {
                 "application/json": {
                     version: number;
                     reason: string;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -45061,6 +45177,7 @@ export interface operations {
             content: {
                 "application/json": {
                     version: number;
+                    approval_token?: string | null;
                 };
             };
         };
@@ -45279,6 +45396,7 @@ export interface operations {
                     version: number;
                     /** Format: date-time */
                     pickup_at: string | null;
+                    approval_token?: string | null;
                 };
             };
         };

@@ -11,6 +11,7 @@ class V1PosOrdersUuidPackagingRuleRemoveRequestBody {
   const V1PosOrdersUuidPackagingRuleRemoveRequestBody({
     required this.version,
     required this.reason,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidPackagingRuleRemoveRequestBody.fromJson(
@@ -19,6 +20,8 @@ class V1PosOrdersUuidPackagingRuleRemoveRequestBody {
 
   final int version;
   final String reason;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidPackagingRuleRemoveRequestBodyToJson(this);

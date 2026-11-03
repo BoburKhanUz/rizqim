@@ -8,13 +8,18 @@ part 'v1_pos_orders_uuid_packaging_rule_restore_request_body.g.dart';
 
 @JsonSerializable()
 class V1PosOrdersUuidPackagingRuleRestoreRequestBody {
-  const V1PosOrdersUuidPackagingRuleRestoreRequestBody({required this.version});
+  const V1PosOrdersUuidPackagingRuleRestoreRequestBody({
+    required this.version,
+    this.approvalToken,
+  });
 
   factory V1PosOrdersUuidPackagingRuleRestoreRequestBody.fromJson(
     Map<String, Object?> json,
   ) => _$V1PosOrdersUuidPackagingRuleRestoreRequestBodyFromJson(json);
 
   final int version;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidPackagingRuleRestoreRequestBodyToJson(this);

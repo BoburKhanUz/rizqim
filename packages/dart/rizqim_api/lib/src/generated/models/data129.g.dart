@@ -11,10 +11,10 @@ Data129 _$Data129FromJson(Map<String, dynamic> json) => Data129(
   enabled: json['enabled'] as bool,
   locked: json['locked'] as bool,
   orderTypes: (json['order_types'] as List<dynamic>)
-      .map((e) => OrderTypes2.fromJson(e as Map<String, dynamic>))
+      .map((e) => OrderTypes.fromJson(e as Map<String, dynamic>))
       .toList(),
   rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Rows.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

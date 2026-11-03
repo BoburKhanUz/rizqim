@@ -4,69 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'type6.dart';
-import 'status5.dart';
-import 'payment_form.dart';
-import 'lines26.dart';
-import 'payments27.dart';
+import 'branch15.dart';
+import 'store3.dart';
+import 'device11.dart';
+import 'modules2.dart';
+import 'cart.dart';
 
 part 'data219.g.dart';
 
 @JsonSerializable()
 class Data219 {
   const Data219({
-    required this.uuid,
-    required this.type,
-    required this.status,
-    required this.paymentForm,
-    required this.nonFiscal,
-    required this.total,
-    required this.vatTotal,
-    required this.fiscalSign,
-    required this.receiptNumber,
-    required this.qrUrl,
-    required this.terminalId,
-    required this.error,
-    required this.issuedAt,
-    required this.createdAt,
-    required this.branchId,
-    required this.originalReceiptUuid,
-    required this.lines,
-    required this.payments,
+    required this.branch,
+    required this.store,
+    required this.device,
+    required this.tillUuid,
+    required this.modules,
+    required this.serverTime,
+    required this.cart,
   });
 
   factory Data219.fromJson(Map<String, Object?> json) =>
       _$Data219FromJson(json);
 
-  final String uuid;
-  final Type6 type;
-  final Status5 status;
-  @JsonKey(name: 'payment_form')
-  final PaymentForm paymentForm;
-  @JsonKey(name: 'non_fiscal')
-  final bool nonFiscal;
-  final String total;
-  @JsonKey(name: 'vat_total')
-  final String vatTotal;
-  @JsonKey(name: 'fiscal_sign')
-  final String? fiscalSign;
-  @JsonKey(name: 'receipt_number')
-  final String? receiptNumber;
-  @JsonKey(name: 'qr_url')
-  final String? qrUrl;
-  @JsonKey(name: 'terminal_id')
-  final String? terminalId;
-  final String? error;
-  @JsonKey(name: 'issued_at')
-  final String? issuedAt;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'original_receipt_uuid')
-  final String? originalReceiptUuid;
-  final List<Lines26> lines;
-  final List<Payments27> payments;
+  final Branch15 branch;
+  final Store3? store;
+  final Device11 device;
+  @JsonKey(name: 'till_uuid')
+  final String? tillUuid;
+  final Modules2 modules;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  final Cart? cart;
 
   Map<String, Object?> toJson() => _$Data219ToJson(this);
 }

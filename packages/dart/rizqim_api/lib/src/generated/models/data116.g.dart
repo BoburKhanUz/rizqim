@@ -20,12 +20,12 @@ Data116 _$Data116FromJson(Map<String, dynamic> json) => Data116(
   sortOrder: (json['sort_order'] as num).toInt(),
   isActive: json['is_active'] as bool,
   modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Modifiers4.fromJson(e as Map<String, dynamic>))
       .toList(),
   productIds: (json['product_ids'] as List<dynamic>)
       .map((e) => (e as num).toInt())
       .toList(),
-  productRules: ProductRules2.fromJson(
+  productRules: ProductRules.fromJson(
     json['product_rules'] as Map<String, dynamic>,
   ),
 );

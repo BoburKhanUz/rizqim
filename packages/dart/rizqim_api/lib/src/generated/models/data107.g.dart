@@ -7,21 +7,23 @@ part of 'data107.dart';
 // **************************************************************************
 
 Data107 _$Data107FromJson(Map<String, dynamic> json) => Data107(
-  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  stationId: (json['station_id'] as num).toInt(),
-  categoryId: (json['category_id'] as num?)?.toInt(),
-  categoryName: json['category_name'] as String?,
-  productId: (json['product_id'] as num?)?.toInt(),
-  productName: json['product_name'] as String?,
+  enabled: json['enabled'] as bool,
+  expoScope: json['expo_scope'] as String,
+  limits: Limits3.fromJson(json['limits'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products6.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data107ToJson(Data107 instance) => <String, dynamic>{
-  'id': instance.id,
   'branch_id': instance.branchId,
-  'station_id': instance.stationId,
-  'category_id': instance.categoryId,
-  'category_name': instance.categoryName,
-  'product_id': instance.productId,
-  'product_name': instance.productName,
+  'enabled': instance.enabled,
+  'expo_scope': instance.expoScope,
+  'limits': instance.limits,
+  'stations': instance.stations,
+  'products': instance.products,
 };

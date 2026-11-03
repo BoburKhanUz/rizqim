@@ -7,19 +7,15 @@ part of 'data269.dart';
 // **************************************************************************
 
 Data269 _$Data269FromJson(Map<String, dynamic> json) => Data269(
-  shiftUuid: json['shift_uuid'] as String?,
-  businessDate: json['business_date'] as String,
-  ownOnly: json['own_only'] as bool,
-  summary: Summary7.fromJson(json['summary'] as Map<String, dynamic>),
-  tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips14.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  serviceState: json['service_state'] as String?,
+  serviceStateAt: json['service_state_at'] as String?,
 );
 
 Map<String, dynamic> _$Data269ToJson(Data269 instance) => <String, dynamic>{
-  'shift_uuid': instance.shiftUuid,
-  'business_date': instance.businessDate,
-  'own_only': instance.ownOnly,
-  'summary': instance.summary,
-  'tips': instance.tips,
+  'id': instance.id,
+  'name': instance.name,
+  'service_state': instance.serviceState,
+  'service_state_at': instance.serviceStateAt,
 };

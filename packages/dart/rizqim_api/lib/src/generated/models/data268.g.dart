@@ -7,15 +7,17 @@ part of 'data268.dart';
 // **************************************************************************
 
 Data268 _$Data268FromJson(Map<String, dynamic> json) => Data268(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  serviceState: json['service_state'] as String?,
-  serviceStateAt: json['service_state_at'] as String?,
+  serverTime: json['server_time'] as String,
+  device: Device23.fromJson(json['device'] as Map<String, dynamic>),
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  errorsCount: (json['errors_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data268ToJson(Data268 instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'service_state': instance.serviceState,
-  'service_state_at': instance.serviceStateAt,
+  'server_time': instance.serverTime,
+  'device': instance.device,
+  'errors': instance.errors,
+  'errors_count': instance.errorsCount,
 };

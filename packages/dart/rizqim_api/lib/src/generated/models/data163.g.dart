@@ -7,15 +7,29 @@ part of 'data163.dart';
 // **************************************************************************
 
 Data163 _$Data163FromJson(Map<String, dynamic> json) => Data163(
-  period: json['period'] as String,
-  periodLabel: json['period_label'] as String,
-  salesAttribution: json['sales_attribution'] as String,
-  salesAttributionLabel: json['sales_attribution_label'] as String,
+  uuid: json['uuid'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  userId: (json['user_id'] as num?)?.toInt(),
+  userName: json['user_name'] as String?,
+  role: json['role'] as String?,
+  roleLabel: json['role_label'] as String?,
+  effectiveFrom: json['effective_from'] as String,
+  components: (json['components'] as List<dynamic>)
+      .map((e) => Components3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  note: json['note'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data163ToJson(Data163 instance) => <String, dynamic>{
-  'period': instance.period,
-  'period_label': instance.periodLabel,
-  'sales_attribution': instance.salesAttribution,
-  'sales_attribution_label': instance.salesAttributionLabel,
+  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'user_id': instance.userId,
+  'user_name': instance.userName,
+  'role': instance.role,
+  'role_label': instance.roleLabel,
+  'effective_from': instance.effectiveFrom,
+  'components': instance.components,
+  'note': instance.note,
+  'updated_at': instance.updatedAt,
 };

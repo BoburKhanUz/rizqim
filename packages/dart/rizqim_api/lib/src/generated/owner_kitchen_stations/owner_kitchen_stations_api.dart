@@ -12,8 +12,10 @@ import '../models/get_v1_owner_kitchen_station_routes_response.dart';
 import '../models/get_v1_owner_kitchen_stations_response.dart';
 import '../models/patch_v1_owner_kitchen_stations_id_response.dart';
 import '../models/post_v1_owner_kitchen_stations_response.dart';
+import '../models/put_v1_owner_kds_expo_scope_response.dart';
 import '../models/put_v1_owner_kds_targets_products_response.dart';
 import '../models/put_v1_owner_kitchen_station_routes_response.dart';
+import '../models/v1_owner_kds_expo_scope_request_body.dart';
 import '../models/v1_owner_kds_targets_products_request_body.dart';
 import '../models/v1_owner_kitchen_station_routes_request_body.dart';
 import '../models/v1_owner_kitchen_stations_id_request_body.dart';
@@ -26,11 +28,30 @@ abstract class OwnerKitchenStationsApi {
   factory OwnerKitchenStationsApi(Dio dio, {String? baseUrl}) =
       _OwnerKitchenStationsApi;
 
+  /// Set which orders go through the expo.
+  ///
+  /// `expo_scope` (ExpoScope): `all` — every order a customer or courier waits for goes through the expo station before.
+  /// its number is called, one station or more (the default); `multi_station` — only an order cooked on two or more.
+  /// stations (a single-station order is ready at its last bump). Per branch (a branch-bound caller: their own); it.
+  /// applies once the branch has the module `kds_expo` and an active expo station, and never holds a payment. Switched.
+  /// to `multi_station`, a single-station order already waiting on the expo is ready at once (as its last bump would.
+  /// have made it: the number is called, the customer told); switched to `all`, orders still cooking wait on the expo.
+  /// when their last line is done. Audited when it changes (`kds.expo_scope_changed`, with `released_orders`).
+  ///
+  /// [branchId] - The branch (a branch-bound caller: their own).
+  @PUT('/v1/owner/kds/expo-scope')
+  Future<PutV1OwnerKdsExpoScopeResponse> kdsTargetsUpdateExpoScope({
+    @Body() required V1OwnerKdsExpoScopeRequestBody body,
+    @Query('branch_id') int? branchId,
+  });
+
   /// Time targets of a branch's kitchen.
   ///
   /// The branch's stations with their target (`target_seconds`, null: none) and the kind's suggested one.
   /// (`default_target_seconds`), the store's dishes that have their own target, and whether the branch has the.
-  /// module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range.
+  /// module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range. `expo_scope` (ExpoScope):.
+  /// which orders go through the expo station — `all` (the default: every order, one station or more) or.
+  /// `multi_station` (only an order cooked on two or more stations).
   ///
   /// [branchId] - The branch (a branch-bound caller: their own).
   @GET('/v1/owner/kds/targets')
@@ -42,7 +63,8 @@ abstract class OwnerKitchenStationsApi {
   ///
   /// `items`: up to 200 `{product_id, target_seconds}` of the store's dishes; `target_seconds` 10–7200 seconds, or null.
   /// to drop the dish's own target (its station's applies again). A target is store-wide (every branch). Setting one.
-  /// needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. Audited.
+  /// needs the module `kds_expo` on a branch of the store (403 module_disabled); clearing never does. A caller bound to.
+  /// one branch is refused (403 `store_wide_only`): the target applies to every branch. Audited.
   ///
   /// [branchId] - The branch whose page to answer with (a branch-bound caller: their own).
   @PUT('/v1/owner/kds/targets/products')

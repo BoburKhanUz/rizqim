@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'session4.dart';
+import 'session3.dart';
 
 part 'data207.g.dart';
 
@@ -19,7 +19,7 @@ class Data207 {
   factory Data207.fromJson(Map<String, Object?> json) =>
       _$Data207FromJson(json);
 
-  final Session4? session;
+  final Session3? session;
   @JsonKey(name: 'today_minutes')
   final int todayMinutes;
   @JsonKey(name: 'business_date')

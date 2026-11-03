@@ -7,27 +7,13 @@ part of 'data149.dart';
 // **************************************************************************
 
 Data149 _$Data149FromJson(Map<String, dynamic> json) => Data149(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  calendar: Calendar.fromJson(json['calendar'] as Map<String, dynamic>),
+  tariffs: (json['tariffs'] as List<dynamic>)
+      .map((e) => Tariffs.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data149ToJson(Data149 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'calendar': instance.calendar,
+  'tariffs': instance.tariffs,
 };

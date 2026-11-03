@@ -30,6 +30,9 @@ const int labelPrinterId = 9;
 /// The bag rule (one per takeaway order, 1 000 so'm).
 const int bagRuleId = 501;
 
+/// The cup rule (`cups: true`: one per drink, 500 so'm; a drink inside a combo counts too).
+const int cupRuleId = 502;
+
 String fastVariantUuid(int id) => FakePosState.variantUuid(id);
 
 String optionUuid(int id) =>
@@ -257,6 +260,7 @@ class FastFoodBackend {
     this.labels = true,
     this.labelPrinter = true,
     this.packaging = true,
+    this.cups = false,
     this.pickup = true,
     DateTime? nextDayAt,
   }) {
@@ -291,7 +295,9 @@ class FastFoodBackend {
             }
           : null
       ..['takeaway'] = <String, Object?>{
-        'packaging': packaging ? <Object?>[_bagRule] : const <Object?>[],
+        'packaging': packaging
+            ? <Object?>[_bagRule, if (cups) _cupRule]
+            : const <Object?>[],
         'pickup': pickup
             ? <String, Object?>{
                 'min_lead_minutes': 20,
@@ -320,6 +326,7 @@ class FastFoodBackend {
   final bool labels;
   final bool labelPrinter;
   final bool packaging;
+  final bool cups;
   final bool pickup;
 
   /// What the till sent: `POST /pos/orders` bodies, packaging removals (rule, reason), pickup-time changes.
@@ -354,8 +361,27 @@ class FastFoodBackend {
     'sort_order': 0,
   };
 
+  static const Map<String, Object?> _cupRule = <String, Object?>{
+    'id': cupRuleId,
+    'name': 'Stakan',
+    'basis': 'item',
+    'category_id': drinksCategory,
+    'product_id': null,
+    'quantity': 1,
+    'unit_price': '500.00',
+    'mxik': null,
+    'package_code': null,
+    'unit': 'dona',
+    'order_types': <String>['takeaway', 'pickup'],
+    'is_active': true,
+    'sort_order': 1,
+  };
+
   List<PosPackagingRule> get _rules => packaging
-      ? <PosPackagingRule>[PosPackagingRule.fromJson(PosJson.of(_bagRule))]
+      ? <PosPackagingRule>[
+          PosPackagingRule.fromJson(PosJson.of(_bagRule)),
+          if (cups) PosPackagingRule.fromJson(PosJson.of(_cupRule)),
+        ]
       : const <PosPackagingRule>[];
 
   /// The pickup times the till offers.
@@ -541,6 +567,11 @@ class FastFoodBackend {
                 (i['product_variant_id'] as num?)?.toInt(),
               ),
               quantity: PosQuantity.parse(i['quantity']),
+              // As PackagingRules: a combo's parts count as their own dishes
+              parts: OfflinePackaging.comboParts(
+                i['combo_parts'],
+                categoryOf: _categoryOf,
+              ),
             ),
       ],
       removed: off,

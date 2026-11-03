@@ -14,7 +14,7 @@ export const kds = defineSection({
     kds_station_targetExpoHint: "Yig'ish sexi uchun: hamma sex tayyor bo'lgandan yig'ilguncha. Bo'sh: maqsad yo'q.",
     kds_station_targetSuggested: 'Tavsiya: {{value}}',
     kds_station_targetOff: "Vaqt maqsadi \"Yig'ish ekrani va sex vaqtlari\" moduli bilan ishlaydi (Format bo'limi).",
-    kds_station_expoNote: "Yig'ish sexiga taom biriktirilmaydi: bir nechta sexda tayyorlangan buyurtma shu yerda yig'iladi va \"tayyor\" bo'ladi.",
+    kds_station_expoNote: "Yig'ish sexiga taom biriktirilmaydi: buyurtma shu yerda yig'iladi va \"tayyor\" bo'ladi.",
     kds_err_target: "Vaqt maqsadi {{min}} dan {{max}} soniyagacha butun son bo'lishi kerak.",
 
     // Dishes' own targets
@@ -27,6 +27,16 @@ export const kds = defineSection({
     kds_products_add: "Qo'shish",
     kds_products_removeAria: "{{name}}: o'z vaqtini olib tashlash",
     kds_products_saved: 'Saqlandi.',
+
+    // Which orders go through the expo
+    kds_expo_title: "Yig'ish ekrani",
+    kds_expo_intro: "Yig'ish sexi bor filialda buyurtma raqami yig'ilgandan keyin chaqiriladi. To'lov hech qachon yig'ishni kutmaydi.",
+    kds_expo_scope: "Yig'ishdan o'tadigan buyurtmalar",
+    kds_expo_all: 'Har bir buyurtma (bitta sexli ham)',
+    kds_expo_multi: "Faqat 2 va undan ko'p sexli buyurtma",
+    kds_expo_savedAll: "Saqlandi: har bir buyurtma yig'ishdan o'tadi.",
+    kds_expo_savedMulti: "Saqlandi: faqat 2 va undan ko'p sexli buyurtma yig'ishdan o'tadi.",
+    kds_expo_noStation: "Filialda faol yig'ish sexi yo'q: sozlama shunday sex qo'shilgach ishlaydi.",
     kds_products_removed: "{{name}}: endi sex vaqti qo'llanadi.",
 
     // The report
@@ -70,7 +80,7 @@ export const kds = defineSection({
     kds_station_targetExpoHint: 'Для сборки: от готовности всех цехов до сборки. Пусто: без цели.',
     kds_station_targetSuggested: 'Рекомендуется: {{value}}',
     kds_station_targetOff: 'Цели по времени работают с модулем «Экран сборки и время цехов» (раздел «Формат»).',
-    kds_station_expoNote: 'К сборке блюда не привязываются: здесь собирается заказ, приготовленный в нескольких цехах, и становится «готов».',
+    kds_station_expoNote: 'К сборке блюда не привязываются: здесь собирается заказ и становится «готов».',
     kds_err_target: 'Цель — целое число секунд от {{min}} до {{max}}.',
 
     kds_products_title: 'Своё время блюда',
@@ -82,6 +92,15 @@ export const kds = defineSection({
     kds_products_add: 'Добавить',
     kds_products_removeAria: '{{name}}: убрать своё время',
     kds_products_saved: 'Сохранено.',
+
+    kds_expo_title: 'Экран сборки',
+    kds_expo_intro: 'В филиале с цехом сборки номер заказа вызывается после сборки. Оплата никогда не ждёт сборки.',
+    kds_expo_scope: 'Какие заказы проходят сборку',
+    kds_expo_all: 'Каждый заказ (и из одного цеха)',
+    kds_expo_multi: 'Только заказы из 2 и более цехов',
+    kds_expo_savedAll: 'Сохранено: каждый заказ проходит сборку.',
+    kds_expo_savedMulti: 'Сохранено: сборку проходят только заказы из 2 и более цехов.',
+    kds_expo_noStation: 'В филиале нет активного цеха сборки: настройка заработает, когда он появится.',
     kds_products_removed: '{{name}}: теперь действует время цеха.',
 
     kds_report_title: 'Время приготовления',
@@ -124,7 +143,7 @@ export const kds = defineSection({
     kds_station_targetExpoHint: 'For the expo: from every station ready to assembled. Empty: no target.',
     kds_station_targetSuggested: 'Suggested: {{value}}',
     kds_station_targetOff: 'Time targets come with the “Expo screen and station times” module (the Format tab).',
-    kds_station_expoNote: 'No dishes go to the expo: an order cooked on several stations is put together here and becomes ready.',
+    kds_station_expoNote: 'No dishes go to the expo: an order is put together here and becomes ready.',
     kds_err_target: 'The target is a whole number of seconds from {{min}} to {{max}}.',
 
     kds_products_title: "Dishes' own times",
@@ -136,6 +155,15 @@ export const kds = defineSection({
     kds_products_add: 'Add',
     kds_products_removeAria: '{{name}}: remove its own time',
     kds_products_saved: 'Saved.',
+
+    kds_expo_title: 'Expo screen',
+    kds_expo_intro: "In a branch with an expo station an order's number is called once it is assembled. A payment never waits for the expo.",
+    kds_expo_scope: 'Orders that go through the expo',
+    kds_expo_all: 'Every order (one station too)',
+    kds_expo_multi: 'Only orders of 2 or more stations',
+    kds_expo_savedAll: 'Saved: every order goes through the expo.',
+    kds_expo_savedMulti: 'Saved: only orders of 2 or more stations go through the expo.',
+    kds_expo_noStation: 'The branch has no active expo station: the setting applies once it has one.',
     kds_products_removed: "{{name}}: the station's time applies now.",
 
     kds_report_title: 'Prep times',

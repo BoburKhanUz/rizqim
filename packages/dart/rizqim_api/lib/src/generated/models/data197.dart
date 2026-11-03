@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'booking3.dart';
-import 'payment2.dart';
-import 'fiscal8.dart';
+import 'booking2.dart';
+import 'payment.dart';
+import 'fiscal7.dart';
 
 part 'data197.g.dart';
 
@@ -21,9 +21,9 @@ class Data197 {
   factory Data197.fromJson(Map<String, Object?> json) =>
       _$Data197FromJson(json);
 
-  final Booking3 booking;
-  final Payment2 payment;
-  final Fiscal8 fiscal;
+  final Booking2 booking;
+  final Payment payment;
+  final Fiscal7 fiscal;
 
   Map<String, Object?> toJson() => _$Data197ToJson(this);
 }

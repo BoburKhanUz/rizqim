@@ -7,7 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'fees.dart';
 import 'places.dart';
 import 'guest_items.dart';
-import 'limits3.dart';
+import 'limits4.dart';
 
 part 'offline.g.dart';
 
@@ -42,7 +42,7 @@ class Offline {
   final List<Places> places;
   @JsonKey(name: 'guest_items')
   final List<GuestItems> guestItems;
-  final Limits3 limits;
+  final Limits4 limits;
 
   Map<String, Object?> toJson() => _$OfflineToJson(this);
 }

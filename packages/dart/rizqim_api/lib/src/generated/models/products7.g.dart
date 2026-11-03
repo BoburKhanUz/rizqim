@@ -7,15 +7,23 @@ part of 'products7.dart';
 // **************************************************************************
 
 Products7 _$Products7FromJson(Map<String, dynamic> json) => Products7(
+  productId: (json['product_id'] as num?)?.toInt(),
   name: json['name'] as String,
-  quantity: json['quantity'] as num,
-  revenue: json['revenue'] as String,
-  orders: (json['orders'] as num).toInt(),
+  count: (json['count'] as num).toInt(),
+  medianSeconds: (json['median_seconds'] as num?)?.toInt(),
+  p90Seconds: (json['p90_seconds'] as num?)?.toInt(),
+  withTarget: (json['with_target'] as num).toInt(),
+  overTarget: (json['over_target'] as num).toInt(),
+  overTargetShare: json['over_target_share'] as String?,
 );
 
 Map<String, dynamic> _$Products7ToJson(Products7 instance) => <String, dynamic>{
+  'product_id': instance.productId,
   'name': instance.name,
-  'quantity': instance.quantity,
-  'revenue': instance.revenue,
-  'orders': instance.orders,
+  'count': instance.count,
+  'median_seconds': instance.medianSeconds,
+  'p90_seconds': instance.p90Seconds,
+  'with_target': instance.withTarget,
+  'over_target': instance.overTarget,
+  'over_target_share': instance.overTargetShare,
 };

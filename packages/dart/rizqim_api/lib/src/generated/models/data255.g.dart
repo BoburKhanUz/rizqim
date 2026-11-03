@@ -7,27 +7,23 @@ part of 'data255.dart';
 // **************************************************************************
 
 Data255 _$Data255FromJson(Map<String, dynamic> json) => Data255(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal17.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  numbers: json['numbers'] as bool,
+  calling: json['calling'] as bool,
+  businessDate: json['business_date'] as String,
+  blockSize: (json['block_size'] as num).toInt(),
+  lowWater: (json['low_water'] as num).toInt(),
+  blocks: (json['blocks'] as List<dynamic>)
+      .map((e) => Blocks2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  nextNumber: (json['next_number'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data255ToJson(Data255 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
-  'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
+  'numbers': instance.numbers,
+  'calling': instance.calling,
+  'business_date': instance.businessDate,
+  'block_size': instance.blockSize,
+  'low_water': instance.lowWater,
+  'blocks': instance.blocks,
+  'next_number': instance.nextNumber,
 };

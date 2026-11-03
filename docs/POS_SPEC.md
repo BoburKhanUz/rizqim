@@ -1684,12 +1684,17 @@ Fast food oqimi: kassa → sexlar (grill, fritur, ichimlik) → yig'ish → "tay
 - **Vaqt maqsadi** (modul `kds_expo`): sexning standart vaqti (soniya) va taomning o'z vaqti (sexnikidan ustun, do'kon bo'yicha).
   KDS chiptasi har qatorda `target_seconds` va `late` ni beradi: "kechikdi" = hozir − oshxonaga kelgan vaqt > maqsad (tayyor
   qatorda — tayyor bo'lgan vaqt). Maqsadsiz qator kechikmaydi. Expo sexining maqsadi — yig'ish vaqti.
-- **Yig'ish ekrani** (modul `kds_expo` va faol `expo` sexi): qatorlari ikki va undan ko'p sexda tayyorlangan, mijoz yoki kuryer
-  kutadigan buyurtma (olib ketish, yetkazish, onlayn olib ketish, stolsiz zal buyurtmasi) oxirgi sex tayyor bo'lganda
-  ekspoda kutadi; ekspo ekrani qaysi sex tayyorligini ko'rsatadi. Ekspo "yig'ildi" bosganda buyurtma `ready` (onlayn mijozga
-  xabar), raqam `ready` — raqamlar ekrani va mijoz ekraniga chiqadi. Qator qaytarilsa yoki yig'ilgandan keyin yangi qator tayyor
-  bo'lsa yig'ish bekor bo'ladi. Expo'siz, modulsiz yoki bitta sexli buyurtmada — avvalgidek: hamma sex tayyor → `ready`.
-  Kassirning "Tayyor" tugmasi doim ishlaydi; to'lov, schyot va yopish hech qachon yig'ishni kutmaydi.
+- **Yig'ish ekrani** (modul `kds_expo` va faol `expo` sexi): mijoz yoki kuryer kutadigan buyurtma (olib ketish, yetkazish,
+  onlayn olib ketish, stolsiz zal buyurtmasi) oxirgi sex tayyor bo'lganda ekspoda kutadi; ekspo ekrani qaysi sex tayyorligini
+  ko'rsatadi. Ekspo "yig'ildi" bosganda buyurtma `ready` (onlayn mijozga xabar), raqam `ready` — raqamlar ekrani va mijoz
+  ekraniga chiqadi. Qator qaytarilsa yoki yig'ilgandan keyin yangi qator tayyor bo'lsa yig'ish bekor bo'ladi. Expo'siz yoki
+  modulsiz — avvalgidek: hamma sex tayyor → `ready`. Kassirning "Tayyor" tugmasi doim ishlaydi; to'lov, schyot va yopish hech
+  qachon yig'ishni kutmaydi (avval to'langan kassa buyurtmasi ham: raqami yig'ilgandan keyin chaqiriladi).
+- **Qaysi buyurtma yig'iladi** (egasi qarori 03.11.2026, filial sozlamasi `expo_scope`, `branches.pos_settings`): `all` —
+  **har bir buyurtma**, bitta sexli ham (standart); `multi_station` — faqat ikki va undan ko'p sexda tayyorlangani (bitta sexli
+  oxirgi bump bilan `ready`, avvalgi qoida). Panel: "POS sozlamalari → Sexlar → Yig'ish ekrani"; API —
+  `PUT /owner/kds/expo-scope` (`settings.manage`, auditda `kds.expo_scope_changed`). `multi_station` ga o'tilganda yig'ishni
+  kutayotgan bitta sexli buyurtma darhol `ready` (qolib ketmaydi). Sozlama POS sozlamalari va format o'zgarishida saqlanadi.
 - **Tayyorlash vaqti hisoboti** (modul `kds`): sex, taom va soat bo'yicha soni, mediana, 90-persentil, maqsaddan oshganlar soni
   va ulushi; buyurtma bo'yicha (birinchi taom kelgandan yig'ilguncha yoki oxirgi taom tayyor bo'lguncha — "90% buyurtma 9
   daqiqada" ko'rsatkichi) va yig'ish vaqti. Haqiqiy vaqtlardan: `sent_at` (onlayn — qabul qilingan), `ready_at`, `assembled_at`.
@@ -1698,7 +1703,7 @@ Fast food oqimi: kassa → sexlar (grill, fritur, ichimlik) → yig'ish → "tay
   (migratsiya `2026_11_14_200100`). Real-time: `kitchen.order_assembled` (`{order, assembled, assembled_at, queue_number}`).
 - **KDS ilovasi (pos/apps/kds, 3-bosqich B):** yangi sex turlari o'z ikonkasi va nomi bilan; har qatorda maqsadga nisbatan taymer
   (maqsadning 80 foizidan sariq, o'tgach qizil "Kechikdi +m:ss", chipta ham shu rangda; server `late` bayrog'i darhol qizil);
-  yig'ish (`expo`) sexi tanlansa **Yig'ish** bo'limi: ko'p sexli buyurtma kartochkasi (har sexning taomlari va tayyorligi,
+  yig'ish (`expo`) sexi tanlansa **Yig'ish** bo'limi: `assembly` li buyurtma kartochkasi (har sexning taomlari va tayyorligi,
   yig'ish vaqti yig'ish sexi maqsadiga qarab) va **Yig'ildi** tugmasi (`POST /staff/orders/{uuid}/assembled`), `kitchen.order_assembled`
   bilan jonli yangilanadi; kombo qismlari "Kombo: Lavash kombo ×2" sarlavhasi ostida; barista/ichimlik sexlari ixcham doskada.
   Mijoz ekrani o'zgarmadi: yig'ilgan raqam `queue.ready` bilan "Tayyor"ga tushadi, oldindan buyurtma yuborilguncha taxtada yo'q.
@@ -1728,6 +1733,12 @@ Start tarifida. Hech biri to'lov, schyot, chek, smena yoki qaytarishni to'smaydi
 bitta idish o'z nomi, narxi, MXIK va qadoq kodi bilan (MXIK bo'sh bo'lsa — do'kon fiskal sozlamasidagi `packaging` kodi).
 - `basis = order` — buyurtmaga `quantity` dona (har olib ketishga bitta paket); `basis = item` — bitta kategoriya yoki bitta
   taomning har porsiyasiga `quantity` dona (dona qator miqdori yuqoriga yaxlitlanadi: 1,5 porsiya — 2 idish; kg/l qator — 1).
+- **Kombo** (egasi qarori 03.11.2026): kombo qatori o'zi bitta taom (kombo mahsuloti va kategoriyasi: "kombo qutisi" qoidasi
+  uni sanaydi) va **har tarkibi ham o'z taomi** — kombo ichidagi ichimlik "stakan" qoidasida sanaladi. Tarkib porsiyasi =
+  bitta komboda nechta dona (`combo_parts[].quantity`) × kombo qatori soni (tortiladigan tarkib — 1). Tarkib kombo qatorining
+  nusxasidan (`combo_parts[].product_id`) o'qiladi, oshxona qatorlari sanalmaydi — hech narsa ikki marta sanalmaydi. Masalan
+  2 × Lavash kombo (Pepsi bilan) + 1 Pepsi = 3 stakan. Kassada, Telegram buyurtmasida, internetsiz (`OfflinePackaging`,
+  kassa savatidagi taxminiy qadoq ham) bir xil.
 - Buyurtma turlari (`order_types`): `takeaway` (kassada olib ketish), `pickup` va `delivery` (Telegram, Mini App, mobil).
   Zal buyurtmasi va stolga olib boriladigan kassa buyurtmasi (`table_label`) hech qachon qadoq olmaydi.
 - Qadoq — buyurtmaning qatori: `orders.packaging_amount` (jami) va `orders.packaging_lines` (qoida, nom, MXIK, soni, narx,

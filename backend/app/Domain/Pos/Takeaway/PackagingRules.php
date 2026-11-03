@@ -22,7 +22,12 @@ use Illuminate\Support\Facades\DB;
  *
  *   basis order   quantity × 1 per order that has at least one live dish
  *   basis item    quantity × the portions of the dishes of its category or product: a piece line counts its quantity
- *                 (rounded up: 1.5 portions take 2 bowls), a kg or litre line counts 1
+ *                 (rounded up: 1.5 portions take 2 bowls), a kg or litre line counts 1. A combo line (P6-31) counts
+ *                 as its own dish (the combo product and its category) AND each of its parts' dishes counts too (owner
+ *                 decision 03.11.2026: a cup per drink includes the combo's drink): a part's portions are its pieces
+ *                 in one combo × the combo line's quantity (from the line's `combo_parts` snapshot, the same pieces its
+ *                 kitchen line carries; a weighed part 1). The part kitchen lines (`combo_parent_id`) are never read
+ *                 as dishes, so nothing counts twice
  *   amount        quantity × unit_price, whole tiyin (prices are whole so'm in practice)
  *
  * only for the order types the rule lists (PackagingOrderType: POS takeaway, online pickup, delivery; never the hall).
@@ -180,9 +185,10 @@ final class PackagingRules
 
     /**
      * The packaging lines for dishes of a branch's order of $type. $dishes: the live lines, each with its product, its
-     * category, its quantity and whether it is weighed. $removed: rule id => the reason it was taken off.
+     * category, its quantity and whether it is weighed; a combo line also with its parts' dishes (`parts`, each part's
+     * quantity: its pieces in ONE combo). $removed: rule id => the reason it was taken off.
      *
-     * @param  iterable<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool}>  $dishes
+     * @param  iterable<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool, parts?: list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool}>}>  $dishes
      * @param  array<int, string>  $removed
      * @return list<array<string, mixed>> LINE
      */
@@ -203,10 +209,14 @@ final class PackagingRules
             $portions = $rule->basis === PackagingBasis::ORDER ? 1 : 0;
             if ($rule->basis === PackagingBasis::ITEM) {
                 foreach ($dishes as $dish) {
-                    $matches = ($rule->product_id !== null && $dish['product_id'] === (int) $rule->product_id)
-                        || ($rule->product_id === null && $rule->category_id !== null && $dish['category_id'] === (int) $rule->category_id);
-                    if ($matches) {
+                    if (self::matches($rule, $dish['product_id'], $dish['category_id'])) {
                         $portions += self::portions($dish['quantity'], $dish['measured']);
+                    }
+                    // A combo's parts: their pieces in one combo × the combo line's quantity
+                    foreach ($dish['parts'] ?? [] as $part) {
+                        if (self::matches($rule, $part['product_id'], $part['category_id'])) {
+                            $portions += self::portions($part['quantity']->times($dish['quantity']), $part['measured']);
+                        }
                     }
                 }
             }
@@ -233,6 +243,15 @@ final class PackagingRules
         }
 
         return $lines;
+    }
+
+    /**
+     * Whether an item rule names this dish: its product, or (a rule without a product) its category.
+     */
+    private static function matches(BranchPackagingRule $rule, ?int $productId, ?int $categoryId): bool
+    {
+        return ($rule->product_id !== null && $productId === (int) $rule->product_id)
+            || ($rule->product_id === null && $rule->category_id !== null && $categoryId === (int) $rule->category_id);
     }
 
     /**
@@ -319,7 +338,7 @@ final class PackagingRules
      * An online order's packaging at checkout (CreateOrderAction): the branch's rules over the priced lines, while the
      * module is on; none for a dine-in order.
      *
-     * @param  iterable<array<string, mixed>>  $lines  CreateOrderAction's lines: `variant_model` (with its product) and `quantity`
+     * @param  iterable<array<string, mixed>>  $lines  CreateOrderAction's lines: `variant_model` (with its product), `quantity` and a combo's `combo_parts`
      * @return array{lines: list<array<string, mixed>>, amount: Money}
      */
     public function forCheckout(Branch $branch, ?string $type, iterable $lines): array
@@ -341,9 +360,10 @@ final class PackagingRules
                 'category_id' => $product?->category_id !== null ? (int) $product->category_id : null,
                 'quantity' => $line['quantity'] instanceof Quantity ? $line['quantity'] : Quantity::of((string) $line['quantity']),
                 'measured' => $variant->unit->isMeasured(),
+                'parts' => $line['combo_parts'] ?? null,
             ];
         }
-        $packaging = $this->linesFor((int) $branch->id, $packagingType, $dishes);
+        $packaging = $this->linesFor((int) $branch->id, $packagingType, self::withPartDishes($dishes));
 
         return ['lines' => $packaging, 'amount' => self::total($packaging)];
     }
@@ -397,9 +417,9 @@ final class PackagingRules
 
     /**
      * The live dish lines of an order with their product and category (deleted variants and products included: the line
-     * is a snapshot).
+     * is a snapshot); a combo line with its parts' dishes (`parts`, from its snapshot).
      *
-     * @return list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool}>
+     * @return list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool, parts: list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool}>}>
      */
     public function dishesOf(Order $order): array
     {
@@ -411,15 +431,56 @@ final class PackagingRules
             ->where('order_items.kitchen_status', '!=', KitchenItemStatus::VOID->value)
             ->whereNull('order_items.voided_at')
             ->orderBy('order_items.id')
-            ->get(['order_items.quantity', 'order_items.unit', 'products.id as dish_product_id', 'products.category_id as dish_category_id'])
+            ->get(['order_items.quantity', 'order_items.unit', 'order_items.combo_parts', 'products.id as dish_product_id', 'products.category_id as dish_category_id'])
             ->map(fn (\App\Models\OrderItem $row) => [
                 'product_id' => $row->getAttribute('dish_product_id') !== null ? (int) $row->getAttribute('dish_product_id') : null,
                 'category_id' => $row->getAttribute('dish_category_id') !== null ? (int) $row->getAttribute('dish_category_id') : null,
                 'quantity' => Quantity::of((string) ($row->getRawOriginal('quantity') ?? '0')),
                 'measured' => $row->unit->isMeasured(),
+                'parts' => $row->combo_parts,
             ])
             ->values()
-            ->all();
+            ->pipe(fn ($dishes) => self::withPartDishes($dishes->all()));
+    }
+
+    /**
+     * The dishes with a combo's `parts` read from its snapshot (order_items.combo_parts: `product_id`, `quantity` —
+     * pieces in one combo —, `unit`), each part's category from its product (deleted ones included: the snapshot is
+     * what was sold). One query for all the parts. A line without parts gets none.
+     *
+     * @param  list<array<string, mixed>>  $dishes  each with `parts`: the raw snapshot or null
+     * @return list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool, parts: list<array{product_id: int|null, category_id: int|null, quantity: Quantity, measured: bool}>}>
+     */
+    private static function withPartDishes(array $dishes): array
+    {
+        $productIds = [];
+        foreach ($dishes as $dish) {
+            foreach (is_array($dish['parts'] ?? null) ? $dish['parts'] : [] as $part) {
+                if (is_array($part) && isset($part['product_id'])) {
+                    $productIds[(int) $part['product_id']] = true;
+                }
+            }
+        }
+        $categories = $productIds === [] ? [] : \App\Models\Product::withTrashed()->whereIn('id', array_keys($productIds))->pluck('category_id', 'id')->all();
+
+        return array_map(function (array $dish) use ($categories) {
+            $parts = [];
+            foreach (is_array($dish['parts'] ?? null) ? $dish['parts'] : [] as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+                $productId = isset($part['product_id']) ? (int) $part['product_id'] : null;
+                $category = $productId !== null ? ($categories[$productId] ?? null) : null;
+                $parts[] = [
+                    'product_id' => $productId,
+                    'category_id' => $category !== null ? (int) $category : null,
+                    'quantity' => Quantity::of((string) max(0, (int) ($part['quantity'] ?? 1))),
+                    'measured' => \App\Enums\MenuUnit::tryFrom((string) ($part['unit'] ?? 'piece'))?->isMeasured() ?? false,
+                ];
+            }
+
+            return ['parts' => $parts] + $dish;
+        }, $dishes);
     }
 
     /**

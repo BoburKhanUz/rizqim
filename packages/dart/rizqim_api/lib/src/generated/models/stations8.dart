@@ -9,35 +9,38 @@ part 'stations8.g.dart';
 @JsonSerializable()
 class Stations8 {
   const Stations8({
-    required this.id,
-    required this.branchId,
+    required this.stationId,
     required this.name,
     required this.kind,
-    required this.kindLabel,
-    required this.sortOrder,
-    required this.isActive,
-    required this.showOnKds,
     required this.targetSeconds,
+    required this.count,
+    required this.medianSeconds,
+    required this.p90Seconds,
+    required this.withTarget,
+    required this.overTarget,
+    required this.overTargetShare,
   });
 
   factory Stations8.fromJson(Map<String, Object?> json) =>
       _$Stations8FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
   final String name;
-  final String kind;
-  @JsonKey(name: 'kind_label')
-  final String kindLabel;
-  @JsonKey(name: 'sort_order')
-  final int sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  @JsonKey(name: 'show_on_kds')
-  final bool showOnKds;
+  final String? kind;
   @JsonKey(name: 'target_seconds')
   final int? targetSeconds;
+  final int count;
+  @JsonKey(name: 'median_seconds')
+  final int? medianSeconds;
+  @JsonKey(name: 'p90_seconds')
+  final int? p90Seconds;
+  @JsonKey(name: 'with_target')
+  final int withTarget;
+  @JsonKey(name: 'over_target')
+  final int overTarget;
+  @JsonKey(name: 'over_target_share')
+  final String? overTargetShare;
 
   Map<String, Object?> toJson() => _$Stations8ToJson(this);
 }

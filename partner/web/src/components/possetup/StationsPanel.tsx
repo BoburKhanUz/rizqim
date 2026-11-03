@@ -7,6 +7,7 @@ import { useCreateKitchenStation, useDeleteKitchenStation, useKitchenStations, u
 import { useI18n } from '../I18nProvider';
 import { formatDuration, parseTarget, TARGET_LIMITS } from '../kds/format';
 import { useRefreshKdsTargets } from '../kds/hooks';
+import { ExpoScopePanel } from '../kds/ExpoScopePanel';
 import { ProductTargetsPanel } from '../kds/ProductTargetsPanel';
 import { ConfirmDialog } from '../management/ConfirmDialog';
 import { errorText } from '../management/errors';
@@ -19,7 +20,8 @@ import { DataTable, Td, Th } from '../reports/ui';
 
 // Kitchen stations of a branch (osh, mangal, salad bar, tea ...): where the kitchen ticket of a dish is printed or shown. A
 // station that took an order cannot be deleted, only switched off. P6-33 (KDS v2): the universal kinds (grill, fryer, drinks,
-// barista, expo) and, with the `kds_expo` module, each station's time target and the dishes' own targets.
+// barista, expo) and, with the `kds_expo` module, each station's time target, which orders go through the expo and the
+// dishes' own targets.
 export function StationsPanel({ branchId }: { branchId: number }) {
   const { t } = useI18n();
   const stations = useKitchenStations(branchId);
@@ -143,6 +145,7 @@ export function StationsPanel({ branchId }: { branchId: number }) {
           </Card>
         )}
       </Gate>
+      {targetsOn && <ExpoScopePanel branchId={branchId} />}
       {targetsOn && <ProductTargetsPanel branchId={branchId} />}
     </div>
   );

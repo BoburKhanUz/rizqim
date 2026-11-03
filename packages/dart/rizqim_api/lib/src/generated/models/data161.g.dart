@@ -7,29 +7,57 @@ part of 'data161.dart';
 // **************************************************************************
 
 Data161 _$Data161FromJson(Map<String, dynamic> json) => Data161(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  userId: (json['user_id'] as num?)?.toInt(),
-  userName: json['user_name'] as String?,
-  role: json['role'] as String?,
-  roleLabel: json['role_label'] as String?,
-  effectiveFrom: json['effective_from'] as String,
-  components: (json['components'] as List<dynamic>)
-      .map((e) => Components2.fromJson(e as Map<String, dynamic>))
+  branch: Branch11.fromJson(json['branch'] as Map<String, dynamic>),
+  period: json['period'] as String,
+  periodLabel: json['period_label'] as String,
+  periods: (json['periods'] as List<dynamic>)
+      .map((e) => Periods.fromJson(e as Map<String, dynamic>))
       .toList(),
-  note: json['note'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  salesAttribution: json['sales_attribution'] as String,
+  salesAttributionLabel: json['sales_attribution_label'] as String,
+  salesAttributions: (json['sales_attributions'] as List<dynamic>)
+      .map((e) => SalesAttributions.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  componentTypes: (json['component_types'] as List<dynamic>)
+      .map((e) => ComponentTypes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  guaranteeModes: (json['guarantee_modes'] as List<dynamic>)
+      .map((e) => GuaranteeModes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  guaranteePer: (json['guarantee_per'] as List<dynamic>)
+      .map((e) => GuaranteePer.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  percentBases: (json['percent_bases'] as List<dynamic>)
+      .map((e) => PercentBases.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  eventTypes: (json['event_types'] as List<dynamic>)
+      .map((e) => EventTypes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  staff: (json['staff'] as List<dynamic>)
+      .map((e) => Staff7.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  rules: (json['rules'] as List<dynamic>)
+      .map((e) => Rules3.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data161ToJson(Data161 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'branch_id': instance.branchId,
-  'user_id': instance.userId,
-  'user_name': instance.userName,
-  'role': instance.role,
-  'role_label': instance.roleLabel,
-  'effective_from': instance.effectiveFrom,
-  'components': instance.components,
-  'note': instance.note,
-  'updated_at': instance.updatedAt,
+  'branch': instance.branch,
+  'period': instance.period,
+  'period_label': instance.periodLabel,
+  'periods': instance.periods,
+  'sales_attribution': instance.salesAttribution,
+  'sales_attribution_label': instance.salesAttributionLabel,
+  'sales_attributions': instance.salesAttributions,
+  'component_types': instance.componentTypes,
+  'guarantee_modes': instance.guaranteeModes,
+  'guarantee_per': instance.guaranteePer,
+  'percent_bases': instance.percentBases,
+  'event_types': instance.eventTypes,
+  'roles': instance.roles,
+  'staff': instance.staff,
+  'rules': instance.rules,
 };

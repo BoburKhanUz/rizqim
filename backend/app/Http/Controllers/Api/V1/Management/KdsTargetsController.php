@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Management;
 
+use App\Domain\Pos\Kitchen\ExpoScope;
 use App\Domain\Pos\Setup\PosModule;
 use App\Domain\Pos\Setup\PosModules;
+use App\Domain\Pos\Setup\PosSettings;
 use App\Enums\Permission;
+use App\Models\Branch;
 use App\Models\KitchenStation;
 use App\Models\Product;
 use App\Services\Audit\AuditLogger;
@@ -16,6 +19,7 @@ use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -24,6 +28,8 @@ use Illuminate\Validation\ValidationException;
  * (products.kds_target_seconds, store-wide). The KDS ticket carries the target of each line and whether it is late;
  * the prep time report counts the lines over their target. settings.manage, never from a terminal PIN session. A dish's
  * target is store-wide, so a caller bound to one branch may read the page but not set it (403 `store_wide_only`).
+ * The page also carries the branch's expo scope (`expo_scope`, PUT /owner/kds/expo-scope): which orders go through the
+ * expo station (ExpoScope, branches.pos_settings.expo_scope).
  */
 #[Group('Owner: kitchen stations', "Filial sexlari: osh, mangal, salat va bar, choy (P3-13); grill, fritur, ichimliklar, barista va yig'ish (P6-33). Marka va KDS shu sexlarga bo'linadi.")]
 class KdsTargetsController extends ManagementController
@@ -32,7 +38,7 @@ class KdsTargetsController extends ManagementController
 
     private const PRODUCT = 'array{product_id: int, name: string, category_id: int, target_seconds: int}';
 
-    private const PAGE = 'array{branch_id: int, enabled: bool, limits: array{min: int, max: int}, stations: list<' . self::STATION . '>, products: list<' . self::PRODUCT . '>}';
+    private const PAGE = 'array{branch_id: int, enabled: bool, expo_scope: string, limits: array{min: int, max: int}, stations: list<' . self::STATION . '>, products: list<' . self::PRODUCT . '>}';
 
     /** Most dishes one PUT may change. */
     public const MAX_ITEMS = 200;
@@ -50,7 +56,9 @@ class KdsTargetsController extends ManagementController
      *
      * The branch's stations with their target (`target_seconds`, null: none) and the kind's suggested one
      * (`default_target_seconds`), the store's dishes that have their own target, and whether the branch has the
-     * module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range.
+     * module (`enabled`: setting a target needs it). Seconds; `limits` are the allowed range. `expo_scope` (ExpoScope):
+     * which orders go through the expo station — `all` (the default: every order, one station or more) or
+     * `multi_station` (only an order cooked on two or more stations).
      */
     #[QueryParameter('branch_id', description: 'The branch (a branch-bound caller: their own).', type: 'int', required: false)]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::PAGE . '}')]
@@ -131,6 +139,53 @@ class KdsTargetsController extends ManagementController
     }
 
     /**
+     * Set which orders go through the expo
+     *
+     * `expo_scope` (ExpoScope): `all` — every order a customer or courier waits for goes through the expo station before
+     * its number is called, one station or more (the default); `multi_station` — only an order cooked on two or more
+     * stations (a single-station order is ready at its last bump). Per branch (a branch-bound caller: their own); it
+     * applies once the branch has the module `kds_expo` and an active expo station, and never holds a payment. Switched
+     * to `multi_station`, a single-station order already waiting on the expo is ready at once (as its last bump would
+     * have made it: the number is called, the customer told); switched to `all`, orders still cooking wait on the expo
+     * when their last line is done. Audited when it changes (`kds.expo_scope_changed`, with `released_orders`).
+     */
+    #[QueryParameter('branch_id', description: 'The branch (a branch-bound caller: their own).', type: 'int', required: false)]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::PAGE . '}')]
+    public function updateExpoScope(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'branch_id' => 'nullable|integer|min:1|max:999999999999999999',
+            'expo_scope' => ['required', 'string', Rule::enum(ExpoScope::class)],
+        ], UzValidation::messages([
+            'expo_scope.enum' => "Yig'ish sozlamasi all yoki multi_station bo'lishi kerak.",
+        ]), ['expo_scope' => "Yig'ish sozlamasi"]);
+        $branch = $this->branch($request, Permission::SETTINGS_MANAGE);
+
+        $scope = ExpoScope::from((string) $data['expo_scope']);
+        $before = PosSettings::expoScope($branch->pos_settings);
+        if ($before !== $scope) {
+            $branch->update(['pos_settings' => PosSettings::withExpoScope($branch->pos_settings, $scope)]);
+            // An order waiting on the expo that no longer goes through it is ready now (never stranded there)
+            $released = $scope === ExpoScope::MULTI_STATION
+                ? app(\App\Domain\Pos\Kitchen\KitchenAssembly::class)->releaseWaiting((int) $branch->id, $request->user())
+                : [];
+            foreach ($released as $row) {
+                foreach ($row['statuses'] as $status) {
+                    app(\App\Services\Notifications\OrderAlertService::class)->statusChanged($row['order'], $status->value);
+                }
+            }
+            $this->audit->record('kds.expo_scope_changed', $branch, ['expo_scope' => $before->value], ['expo_scope' => $scope->value], [
+                'released_orders' => array_map(fn (array $row) => (string) $row['order']->uuid, $released),
+            ], [
+                'store_id' => (int) $branch->store_id,
+                'branch_id' => (int) $branch->id,
+            ]);
+        }
+
+        return $this->success($this->page((int) $branch->id, (int) $branch->store_id, $this->modules->enabled($branch, PosModule::KDS_EXPO)), 'Saqlandi.');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function page(int $branchId, int $storeId, bool $enabled): array
@@ -158,6 +213,7 @@ class KdsTargetsController extends ManagementController
         return [
             'branch_id' => $branchId,
             'enabled' => $enabled,
+            'expo_scope' => PosSettings::expoScope(Branch::query()->whereKey($branchId)->first(['id', 'pos_settings'])?->pos_settings)->value,
             'limits' => ['min' => KitchenStationController::MIN_TARGET, 'max' => KitchenStationController::MAX_TARGET],
             'stations' => $stations,
             'products' => $products,

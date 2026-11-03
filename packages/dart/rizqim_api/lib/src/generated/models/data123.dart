@@ -4,27 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'roles.dart';
-import 'permissions.dart';
+import 'status4.dart';
 
 part 'data123.g.dart';
 
 @JsonSerializable()
 class Data123 {
   const Data123({
-    required this.roles,
-    required this.permissions,
-    required this.matrix,
-    required this.defaults,
+    required this.id,
+    required this.amount,
+    required this.card,
+    required this.status,
+    required this.notes,
+    required this.resolutionNotes,
+    required this.processedAt,
+    required this.createdAt,
+    required this.storeId,
+    required this.cardNumber,
+    required this.processedBy,
+    required this.updatedAt,
   });
 
   factory Data123.fromJson(Map<String, Object?> json) =>
       _$Data123FromJson(json);
 
-  final List<Roles> roles;
-  final List<Permissions> permissions;
-  final Map<String, Map<String, bool>> matrix;
-  final Map<String, Map<String, bool>> defaults;
+  final int id;
+  final String amount;
+  final String card;
+  final Status4 status;
+  final String? notes;
+  @JsonKey(name: 'resolution_notes')
+  final String? resolutionNotes;
+  @JsonKey(name: 'processed_at')
+  final String? processedAt;
+  @JsonKey(name: 'created_at')
+  final String createdAt;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'card_number')
+  final String cardNumber;
+  @JsonKey(name: 'processed_by')
+  final int? processedBy;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data123ToJson(this);
 }

@@ -4,45 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'locks.dart';
-import 'module_rows.dart';
-import 'profiles.dart';
-import 'template.dart';
+import 'role3.dart';
 
 part 'data125.g.dart';
 
 @JsonSerializable()
 class Data125 {
   const Data125({
-    required this.branchId,
-    required this.profile,
-    required this.profileLabel,
-    required this.mode,
-    required this.firstScreen,
-    required this.modules,
-    required this.locks,
-    required this.moduleRows,
-    required this.profiles,
-    required this.template,
+    required this.role,
+    required this.permission,
+    required this.allowed,
   });
 
   factory Data125.fromJson(Map<String, Object?> json) =>
       _$Data125FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String profile;
-  @JsonKey(name: 'profile_label')
-  final String profileLabel;
-  final String mode;
-  @JsonKey(name: 'first_screen')
-  final String firstScreen;
-  final List<String> modules;
-  final Locks locks;
-  @JsonKey(name: 'module_rows')
-  final List<ModuleRows> moduleRows;
-  final List<Profiles> profiles;
-  final Template template;
+  final Role3 role;
+  final String permission;
+  final bool allowed;
 
   Map<String, Object?> toJson() => _$Data125ToJson(this);
 }

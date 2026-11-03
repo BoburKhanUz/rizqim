@@ -7,25 +7,17 @@ part of 'data218.dart';
 // **************************************************************************
 
 Data218 _$Data218FromJson(Map<String, dynamic> json) => Data218(
-  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store3.fromJson(json['store'] as Map<String, dynamic>),
-  device: Device11.fromJson(json['device'] as Map<String, dynamic>),
-  tillUuid: json['till_uuid'] as String?,
-  modules: Modules2.fromJson(json['modules'] as Map<String, dynamic>),
-  serverTime: json['server_time'] as String,
-  cart: json['cart'] == null
-      ? null
-      : Cart.fromJson(json['cart'] as Map<String, dynamic>),
+  businessDate: json['business_date'] as String,
+  preparing: (json['preparing'] as List<dynamic>)
+      .map((e) => Preparing.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  ready: (json['ready'] as List<dynamic>)
+      .map((e) => Ready.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data218ToJson(Data218 instance) => <String, dynamic>{
-  'branch': instance.branch,
-  'store': instance.store,
-  'device': instance.device,
-  'till_uuid': instance.tillUuid,
-  'modules': instance.modules,
-  'server_time': instance.serverTime,
-  'cart': instance.cart,
+  'business_date': instance.businessDate,
+  'preparing': instance.preparing,
+  'ready': instance.ready,
 };

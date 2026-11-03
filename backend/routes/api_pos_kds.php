@@ -25,5 +25,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
         Route::get('/owner/kds/targets', [KdsTargetsController::class, 'show']);
         // Setting a dish's target needs `kds_expo` (checked in the controller: clearing one never does)
         Route::put('/owner/kds/targets/products', [KdsTargetsController::class, 'updateProducts'])->middleware('billing.unlocked');
+        // Owner decision 03.11.2026: every order through the expo (`all`, the default) or only multi-station ones
+        Route::put('/owner/kds/expo-scope', [KdsTargetsController::class, 'updateExpoScope'])->middleware('billing.unlocked');
     });
 });

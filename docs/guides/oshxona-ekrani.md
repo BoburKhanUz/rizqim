@@ -438,7 +438,8 @@ hajm va qo'shimchalar, taymer.
 
 ### Yig'ish ekrani
 
-**Yig'ish** sexini tanlasangiz, doskada ikki va undan ko'p sexda pishadigan buyurtmalar chiqadi. Har buyurtmada qaysi sexlar
+**Yig'ish** sexini tanlasangiz, doskada buyurtmalar chiqadi (standart — har biri; egasi "faqat 2 va undan ko'p sexli" ni
+tanlagan bo'lsa — faqat shular). Har buyurtmada qaysi sexlar
 **tayyor** va qaysilari hali pishayotgani ko'rinadi. Hamma sex tayyor bo'lgach buyurtmani yig'ing (taomlar, ichimlik, sous, paket)
 va **Yig'ildi** ni bosing: shundan keyin raqam **tayyor** bo'ladi — raqamlar taxtasida chiqadi, ovoz chalinadi, onlayn mijozga
 xabar boradi. Yig'ish uchun ham vaqt maqsadi bo'lishi mumkin (hamma sex tayyor bo'lgandan yig'ilguncha): **Yig'ish: 0:45** va
@@ -483,6 +484,6 @@ tayyorlanadigan buyurtmalar yig'ish ekraniga tushmaydi: ular avvalgidek oshpaz "
 | Qatorda **Og'irlik kutilmoqda** turibdi | Taom hali tortilmagan. Pishirishda davom eting; og'irlikni kassir yoki ofitsiant kiritadi, shuning uchun ularga ayting |
 | Taymer ko'rinmayapti | Taomga mangal vaqti belgilanmagan (ega menyuda **Mangal vaqti**ni yozadi) yoki taom hali yuborilmagan/tayyor |
 | Fast foodda taymer yo'q | Sex yoki taomga **Vaqt maqsadi** berilmagan (ega **Kassa sozlamalari** → **Sexlar** da yozadi) yoki qator hali yuborilmagan |
-| Yig'ish ekranida buyurtma yo'q | Buyurtma faqat bitta sexda pishadi (u yig'ishga tushmaydi) yoki hamma sex hali tayyor emas |
+| Yig'ish ekranida buyurtma yo'q | Filial "faqat 2 va undan ko'p sexli" rejimida va buyurtma bitta sexda pishadi, yoki hamma sex hali tayyor emas |
 | Raqam tayyor bo'lmayapti, buyurtma yig'ishda turibdi | **Yig'ildi** bosilmagan. Shoshilinch bo'lsa kassir **Tayyor** ni bosadi |
 | Chiptada **Stol 12** bor, zalda bunday stol yo'q | Bu kafe stol tablichkasi raqami, zal xaritasidagi stol emas. Taomni shu raqamli tablichkali stolga olib boring |

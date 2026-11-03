@@ -22,10 +22,10 @@ Data133 _$Data133FromJson(Map<String, dynamic> json) => Data133(
   closedAt: json['closed_at'] as String?,
   closedBy: json['closed_by'] == null
       ? null
-      : ClosedBy3.fromJson(json['closed_by'] as Map<String, dynamic>),
+      : ClosedBy2.fromJson(json['closed_by'] as Map<String, dynamic>),
   manualParticipants: json['manual_participants'] as bool,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines7.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines6.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

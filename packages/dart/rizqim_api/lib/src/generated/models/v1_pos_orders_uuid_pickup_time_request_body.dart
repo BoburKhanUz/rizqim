@@ -11,6 +11,7 @@ class V1PosOrdersUuidPickupTimeRequestBody {
   const V1PosOrdersUuidPickupTimeRequestBody({
     required this.version,
     required this.pickupAt,
+    this.approvalToken,
   });
 
   factory V1PosOrdersUuidPickupTimeRequestBody.fromJson(
@@ -20,6 +21,8 @@ class V1PosOrdersUuidPickupTimeRequestBody {
   final int version;
   @JsonKey(name: 'pickup_at')
   final DateTime? pickupAt;
+  @JsonKey(name: 'approval_token')
+  final String? approvalToken;
 
   Map<String, Object?> toJson() =>
       _$V1PosOrdersUuidPickupTimeRequestBodyToJson(this);

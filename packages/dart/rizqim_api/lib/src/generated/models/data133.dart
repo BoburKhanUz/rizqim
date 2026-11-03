@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'closed_by3.dart';
-import 'lines7.dart';
+import 'closed_by2.dart';
+import 'lines6.dart';
 
 part 'data133.g.dart';
 
@@ -55,10 +55,10 @@ class Data133 {
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy3? closedBy;
+  final ClosedBy2? closedBy;
   @JsonKey(name: 'manual_participants')
   final bool manualParticipants;
-  final List<Lines7> lines;
+  final List<Lines6> lines;
 
   Map<String, Object?> toJson() => _$Data133ToJson(this);
 }

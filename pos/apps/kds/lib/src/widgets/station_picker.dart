@@ -149,7 +149,7 @@ class _StationPickerState extends State<StationPicker> {
     final String goal = target == null
         ? ''
         : ' · maqsad ${formatDuration(Duration(seconds: target))}';
-    if (s.isExpo) return "$kind: ko'p sexli buyurtmalarni yig'adi$goal";
+    if (s.isExpo) return "$kind: buyurtmalarni yig'adi$goal";
     return s.kindLabel.isEmpty && target == null ? null : '$kind$goal';
   }
 }

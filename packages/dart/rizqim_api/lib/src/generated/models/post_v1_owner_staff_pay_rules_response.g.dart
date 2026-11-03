@@ -11,7 +11,7 @@ PostV1OwnerStaffPayRulesResponse _$PostV1OwnerStaffPayRulesResponseFromJson(
 ) => PostV1OwnerStaffPayRulesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data161.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data162.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerStaffPayRulesResponseToJson(

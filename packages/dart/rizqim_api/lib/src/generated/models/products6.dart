@@ -11,31 +11,20 @@ class Products6 {
   const Products6({
     required this.productId,
     required this.name,
-    required this.count,
-    required this.medianSeconds,
-    required this.p90Seconds,
-    required this.withTarget,
-    required this.overTarget,
-    required this.overTargetShare,
+    required this.categoryId,
+    required this.targetSeconds,
   });
 
   factory Products6.fromJson(Map<String, Object?> json) =>
       _$Products6FromJson(json);
 
   @JsonKey(name: 'product_id')
-  final int? productId;
+  final int productId;
   final String name;
-  final int count;
-  @JsonKey(name: 'median_seconds')
-  final int? medianSeconds;
-  @JsonKey(name: 'p90_seconds')
-  final int? p90Seconds;
-  @JsonKey(name: 'with_target')
-  final int withTarget;
-  @JsonKey(name: 'over_target')
-  final int overTarget;
-  @JsonKey(name: 'over_target_share')
-  final String? overTargetShare;
+  @JsonKey(name: 'category_id')
+  final int categoryId;
+  @JsonKey(name: 'target_seconds')
+  final int targetSeconds;
 
   Map<String, Object?> toJson() => _$Products6ToJson(this);
 }

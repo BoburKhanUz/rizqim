@@ -721,6 +721,8 @@ class OfflineOrderState {
               categoryId: (i['category_id'] as num?)?.toInt(),
               quantity: PosQuantity.parse(i['quantity']),
               measured: PosUnit.fromWire(i['unit'] as String?).isMeasured,
+              // A combo's drink counts as its own dish (owner decision 03.11.2026)
+              parts: OfflinePackaging.comboParts(i['combo_parts']),
             ),
       ],
       removed: <int, String>{

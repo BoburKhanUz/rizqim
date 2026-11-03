@@ -7,6 +7,9 @@ import '../takeaway/takeaway_models.dart';
 /// * `order` qoidasi — buyurtmada kamida bitta tirik taom bo'lsa, `quantity` × 1;
 /// * `item` qoidasi — o'z kategoriyasi yoki taomining porsiyalari × `quantity` (dona qator — miqdori yuqoriga butun
 ///   songa, kg/l qator — 1);
+/// * kombo qatori (P6-31) o'zi taom (kombo mahsuloti va kategoriyasi) va uning har tarkibi ham o'z taomi sifatida
+///   sanaladi (egasi qarori 03.11.2026: kombo ichidagi ichimlik ham stakan oladi): tarkib porsiyasi = bitta komboda
+///   nechta dona × kombo qatori soni (tortiladigan tarkib — 1); hech narsa ikki marta sanalmaydi;
 /// * summa = soni × narx; olib tashlangan qoida qatori ro'yxatda qoladi, summasi 0;
 /// * faqat qoida aytgan buyurtma turida (`takeaway` — kassa olib ketishi, stol raqamisiz); zalda hech qachon.
 ///
@@ -48,12 +51,25 @@ abstract final class OfflinePackaging {
       if (!rule.orderTypes.contains(orderType)) continue;
       var count = rule.perOrder ? 1 : 0;
       if (!rule.perOrder) {
+        bool matches(OfflineDish d) => rule.productId != null
+            ? d.productId == rule.productId
+            : rule.categoryId != null && d.categoryId == rule.categoryId;
         for (final OfflineDish dish in dishes) {
-          final bool matches = rule.productId != null
-              ? dish.productId == rule.productId
-              : rule.categoryId != null && dish.categoryId == rule.categoryId;
-          if (matches) {
+          if (matches(dish)) {
             count += portions(dish.quantity, measured: dish.measured);
+          }
+          // Kombo tarkibi: bitta komboda nechta dona × kombo qatori soni
+          for (final OfflineDish part in dish.parts) {
+            if (matches(part)) {
+              count += portions(
+                PosQuantity.milli(
+                  part.quantity.milli *
+                      dish.quantity.milli ~/
+                      PosQuantity.scaleFactor,
+                ),
+                measured: part.measured,
+              );
+            }
           }
         }
       }
@@ -79,23 +95,49 @@ abstract final class OfflinePackaging {
     return lines;
   }
 
+  /// Kombo qatorining `combo_parts` nusxasidan tarkib taomlari ([OfflineDish.parts]): `product_id`, `quantity` (bitta
+  /// komboda nechta dona), `unit` va `category_id` (yo'q bo'lsa — [categoryOf] dan). Kombo bo'lmasa — bo'sh.
+  static List<OfflineDish> comboParts(
+    Object? raw, {
+    int? Function(int productId)? categoryOf,
+  }) {
+    if (raw is! List) return const <OfflineDish>[];
+    return <OfflineDish>[
+      for (final Object? e in raw)
+        if (e is Map)
+          OfflineDish(
+            productId: (e['product_id'] as num?)?.toInt(),
+            categoryId:
+                (e['category_id'] as num?)?.toInt() ??
+                (e['product_id'] is num
+                    ? categoryOf?.call((e['product_id']! as num).toInt())
+                    : null),
+            quantity: PosQuantity.whole((e['quantity'] as num?)?.toInt() ?? 1),
+            measured: PosUnit.fromWire(e['unit'] as String?).isMeasured,
+          ),
+    ];
+  }
+
   /// Olib tashlanmagan qatorlar jami.
   static PosMoney total(List<PosPackagingLine> lines) => PosMoney.sum(
     <PosMoney>[for (final PosPackagingLine l in lines) l.amount],
   );
 }
 
-/// Qadoq hisobi uchun buyurtmadagi taom qatori: mahsulot, kategoriya, miqdor, tortiladimi.
+/// Qadoq hisobi uchun buyurtmadagi taom qatori: mahsulot, kategoriya, miqdor, tortiladimi; kombo bo'lsa — tarkib
+/// taomlari ([parts], har birining miqdori — bitta komboda nechta dona).
 class OfflineDish {
   const OfflineDish({
     required this.quantity,
     this.productId,
     this.categoryId,
     this.measured = false,
+    this.parts = const <OfflineDish>[],
   });
 
   final int? productId;
   final int? categoryId;
   final PosQuantity quantity;
   final bool measured;
+  final List<OfflineDish> parts;
 }

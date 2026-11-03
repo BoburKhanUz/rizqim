@@ -14,7 +14,7 @@ Data114 _$Data114FromJson(Map<String, dynamic> json) => Data114(
   prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
   isActive: json['is_active'] as bool,
   parts: (json['parts'] as List<dynamic>)
-      .map((e) => Parts4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Parts3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

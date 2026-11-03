@@ -238,4 +238,228 @@ void main() {
     expect(bill['packaging_amount'], '4000.00');
     expect((bill['packaging_lines']! as List).length, 2);
   });
+
+  // Owner decision 03.11.2026: a drink inside a combo counts for the item rules as its own dish. The fixed cases of
+  // the backend's tests/Feature/PosFastFood/ComboPackagingTest.php (`the fixed cases count the drinks inside combos`):
+  // a bag per order (1 500), a cup per drink (1 000, the drinks' category) and a box per combo (2 000, the combo product).
+  group('combo parts (the backend fixed cases)', () {
+    const int drinks = 50;
+    const int combo = 20;
+    const int lavash = 23;
+    const int pepsi = 21;
+    const int fanta = 22;
+    const int ayran = 25;
+    const int sauce = 26;
+
+    Map<String, Object?> rule(
+      int id,
+      String name,
+      String basis,
+      String price, {
+      int? category,
+      int? product,
+    }) => <String, Object?>{
+      'id': id,
+      'branch_id': 3,
+      'name': name,
+      'basis': basis,
+      'basis_label': basis,
+      'category_id': category,
+      'product_id': product,
+      'quantity': 1,
+      'unit_price': price,
+      'mxik': null,
+      'package_code': null,
+      'unit': 'dona',
+      'order_types': <Object?>['takeaway', 'pickup', 'delivery'],
+      'is_active': true,
+      'sort_order': id,
+    };
+
+    final List<PosPackagingRule> rules = PosTakeaway.of(<String, Object?>{
+      'takeaway': <String, Object?>{
+        'packaging': <Object?>[
+          rule(1, 'Paket', 'order', '1500.00'),
+          rule(2, 'Stakan', 'item', '1000.00', category: drinks),
+          rule(3, 'Kombo qutisi', 'item', '2000.00', product: combo),
+        ],
+      },
+    }).packaging;
+
+    OfflineDish part(
+      int product,
+      int? category,
+      int pieces, {
+      bool measured = false,
+    }) => OfflineDish(
+      productId: product,
+      categoryId: category,
+      quantity: PosQuantity.whole(pieces),
+      measured: measured,
+    );
+
+    List<List<Object?>> view(List<PosPackagingLine> lines) => <List<Object?>>[
+      for (final PosPackagingLine l in lines)
+        <Object?>[l.name, l.quantity, l.amount.toApiString()],
+    ];
+
+    test('A: two combos and a pepsi of its own — 3 cups, 2 boxes, a bag', () {
+      final List<PosPackagingLine> lines = OfflinePackaging.lines(
+        rules,
+        'takeaway',
+        <OfflineDish>[
+          OfflineDish(
+            productId: combo,
+            quantity: PosQuantity.parse('2'),
+            parts: <OfflineDish>[
+              part(lavash, null, 1),
+              part(pepsi, drinks, 1),
+              part(sauce, null, 1),
+            ],
+          ),
+          OfflineDish(
+            productId: pepsi,
+            categoryId: drinks,
+            quantity: PosQuantity.parse('1'),
+          ),
+        ],
+      );
+      expect(view(lines), <List<Object?>>[
+        <Object?>['Paket', 1, '1500.00'],
+        <Object?>['Stakan', 3, '3000.00'],
+        <Object?>['Kombo qutisi', 2, '4000.00'],
+      ]);
+      expect(OfflinePackaging.total(lines).toApiString(), '8500.00');
+    });
+
+    test('B: three combos of two ayran and a weighed drink part, the cup taken off', () {
+      final List<PosPackagingLine> lines = OfflinePackaging.lines(
+        rules,
+        'takeaway',
+        <OfflineDish>[
+          OfflineDish(
+            productId: combo,
+            quantity: PosQuantity.parse('3'),
+            parts: <OfflineDish>[
+              part(ayran, drinks, 2),
+              part(fanta, drinks, 1, measured: true),
+            ],
+          ),
+        ],
+        removed: <int, String>{2: "Mijoz o'z stakanini olib keldi"},
+      );
+      expect(view(lines), <List<Object?>>[
+        <Object?>['Paket', 1, '1500.00'],
+        <Object?>['Stakan', 7, '0.00'],
+        <Object?>['Kombo qutisi', 3, '6000.00'],
+      ]);
+      expect(lines[1].removed, isTrue);
+    });
+
+    test(
+      'C: a combo in the drinks category counts for it and so does its drink',
+      () {
+        final List<PosPackagingLine> lines = OfflinePackaging.lines(
+          rules,
+          'takeaway',
+          <OfflineDish>[
+            OfflineDish(
+              productId: combo,
+              categoryId: drinks,
+              quantity: PosQuantity.parse('1'),
+              parts: <OfflineDish>[part(pepsi, drinks, 1)],
+            ),
+          ],
+        );
+        expect(view(lines), <List<Object?>>[
+          <Object?>['Paket', 1, '1500.00'],
+          <Object?>['Stakan', 2, '2000.00'],
+          <Object?>['Kombo qutisi', 1, '2000.00'],
+        ]);
+      },
+    );
+
+    test('the parts are read from the line\'s combo_parts snapshot', () {
+      final List<OfflineDish> parts = OfflinePackaging.comboParts(<Object?>[
+        <String, Object?>{'product_id': lavash, 'quantity': 1, 'unit': 'piece'},
+        <String, Object?>{
+          'product_id': pepsi,
+          'category_id': drinks,
+          'quantity': 2,
+          'unit': 'piece',
+        },
+        <String, Object?>{'product_id': fanta, 'quantity': 1, 'unit': 'l'},
+      ], categoryOf: (int id) => id == fanta ? drinks : null);
+      expect(parts.map((OfflineDish d) => d.categoryId), <int?>[
+        null,
+        drinks,
+        drinks,
+      ]);
+      expect(parts.map((OfflineDish d) => d.quantity.wholePart), <int>[
+        1,
+        2,
+        1,
+      ]);
+      expect(parts.map((OfflineDish d) => d.measured), <bool>[
+        false,
+        false,
+        true,
+      ]);
+      expect(OfflinePackaging.comboParts(null), isEmpty);
+    });
+
+    test(
+      'an order opened offline counts the drinks of its combo lines',
+      () async {
+        final Map<String, Object?> boot = <String, Object?>{
+          ...bootstrap(),
+          'takeaway': <String, Object?>{
+            ...(bootstrap()['takeaway']! as Map<String, Object?>),
+            'packaging': <Object?>[
+              rule(1, 'Paket', 'order', '1500.00'),
+              rule(2, 'Stakan', 'item', '1000.00', category: drinks),
+              rule(3, 'Kombo qutisi', 'item', '2000.00', product: combo),
+            ],
+          },
+        };
+        final Map<String, Object?> order = await open(
+          boot,
+          <Map<String, Object?>>[
+            <String, Object?>{
+              ...line(
+                'l1',
+                'Lavash kombo',
+                '2.000',
+                '45000.00',
+                30,
+                product: combo,
+              ),
+              'combo_parts': <Object?>[
+                <String, Object?>{
+                  'product_id': lavash,
+                  'category_id': 31,
+                  'quantity': 1,
+                  'unit': 'piece',
+                },
+                <String, Object?>{
+                  'product_id': pepsi,
+                  'category_id': drinks,
+                  'quantity': 1,
+                  'unit': 'piece',
+                },
+              ],
+            },
+            line('l2', 'Pepsi', '1.000', '8000.00', drinks, product: pepsi),
+          ],
+        );
+        expect(order['packaging_amount'], '8500.00');
+        expect(
+          (charges(order)['packaging_lines']! as List).map(
+            (Object? l) => (l! as Map)['quantity'],
+          ),
+          <int>[1, 3, 2],
+        );
+      },
+    );
+  });
 }

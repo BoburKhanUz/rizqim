@@ -7,15 +7,21 @@ part of 'data109.dart';
 // **************************************************************************
 
 Data109 _$Data109FromJson(Map<String, dynamic> json) => Data109(
-  kinds: (json['kinds'] as List<dynamic>)
-      .map((e) => Kinds.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  stationId: (json['station_id'] as num).toInt(),
+  categoryId: (json['category_id'] as num?)?.toInt(),
+  categoryName: json['category_name'] as String?,
+  productId: (json['product_id'] as num?)?.toInt(),
+  productName: json['product_name'] as String?,
 );
 
 Map<String, dynamic> _$Data109ToJson(Data109 instance) => <String, dynamic>{
-  'kinds': instance.kinds,
-  'stations': instance.stations,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'station_id': instance.stationId,
+  'category_id': instance.categoryId,
+  'category_name': instance.categoryName,
+  'product_id': instance.productId,
+  'product_name': instance.productName,
 };

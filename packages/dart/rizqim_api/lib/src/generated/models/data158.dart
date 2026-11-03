@@ -4,59 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch9.dart';
-import 'login_phone_proof.dart';
-
 part 'data158.g.dart';
 
 @JsonSerializable()
 class Data158 {
-  const Data158({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
-    required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
-    required this.createdAt,
-  });
+  const Data158({required this.path, required this.url});
 
   factory Data158.fromJson(Map<String, Object?> json) =>
       _$Data158FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch9? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
-  final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String path;
+  final String url;
 
   Map<String, Object?> toJson() => _$Data158ToJson(this);
 }

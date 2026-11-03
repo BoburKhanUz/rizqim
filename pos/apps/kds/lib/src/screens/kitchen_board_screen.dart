@@ -428,7 +428,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
     );
   }
 
-  /// P6-33: yig'ish ekrani — ko'p sexli buyurtmalar, sexlar tayyorligi bilan; "Yig'ildi" bosilsa buyurtma ketadi.
+  /// P6-33: yig'ish ekrani — buyurtmalar (filial sozlamasi: har biri yoki faqat ko'p sexli), sexlar tayyorligi bilan; "Yig'ildi" bosilsa buyurtma ketadi.
   Widget _expoBoard(BuildContext context, BoardView view) {
     final KitchenBoardController board = widget.controller;
     if (view.expo.isEmpty) {
