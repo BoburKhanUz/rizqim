@@ -4,32 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'summary7.dart';
-import 'tips14.dart';
+import 'results.dart';
+import 'device20.dart';
 
 part 'data270.g.dart';
 
 @JsonSerializable()
 class Data270 {
   const Data270({
-    required this.shiftUuid,
-    required this.businessDate,
-    required this.ownOnly,
-    required this.summary,
-    required this.tips,
+    required this.serverTime,
+    required this.clockSkewSeconds,
+    required this.clockWarning,
+    required this.stoppedAt,
+    required this.results,
+    required this.device,
   });
 
   factory Data270.fromJson(Map<String, Object?> json) =>
       _$Data270FromJson(json);
 
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'own_only')
-  final bool ownOnly;
-  final Summary7 summary;
-  final List<Tips14> tips;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  @JsonKey(name: 'clock_warning')
+  final bool clockWarning;
+  @JsonKey(name: 'stopped_at')
+  final int? stoppedAt;
+  final List<Results> results;
+  final Device20 device;
 
   Map<String, Object?> toJson() => _$Data270ToJson(this);
 }

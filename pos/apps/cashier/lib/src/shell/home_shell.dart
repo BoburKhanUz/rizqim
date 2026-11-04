@@ -6,6 +6,7 @@ import 'package:pos_hardware/pos_hardware.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import '../features/billing/billing_page.dart';
+import '../features/billing/cashier_ui.dart' show showPosMessage;
 import '../features/order/kitchen_tickets.dart';
 import '../services.dart';
 import 'destinations.dart';
@@ -61,6 +62,10 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _visited.add(_current);
+    widget.services.billPrints.onProblem = (String message) {
+      final BuildContext? ctx = _scopeContext;
+      if (ctx != null && ctx.mounted) showPosMessage(ctx, message);
+    };
     _subs.add(_session.changes.listen((_) => _rebuild()));
     // P4-21: the plan is read again now and then, so paying the invoice opens the locks and removes the notice
     _plan.start();
@@ -92,6 +97,10 @@ class _HomeShellState extends State<HomeShell> {
               unawaited(_reloadShift());
             }
             if (e is PosFiscalReceiptUpdated) unawaited(_printSynced());
+            // P6: the waiter asked for the bill: the named till prints the pre-check by itself
+            if (e is PosBillPrintRequested) {
+              unawaited(widget.services.billPrints.handle(e.request));
+            }
           }),
         )
         ..add(rt.resubscribed.listen((_) => unawaited(_reloadShift())));
@@ -100,6 +109,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    widget.services.billPrints.onProblem = null;
     _plan.dispose();
     for (final StreamSubscription<Object?> s in _subs) {
       unawaited(s.cancel());

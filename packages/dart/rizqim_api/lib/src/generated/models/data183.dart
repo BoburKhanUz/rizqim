@@ -4,28 +4,46 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'approved_by.dart';
-
 part 'data183.g.dart';
 
 @JsonSerializable()
 class Data183 {
   const Data183({
-    required this.token,
-    required this.permission,
-    required this.expiresAt,
-    required this.approvedBy,
+    required this.id,
+    required this.branchId,
+    required this.type,
+    required this.subjectId,
+    required this.subjectUuid,
+    required this.name,
+    required this.reason,
+    required this.until,
+    required this.createdBy,
+    required this.createdByName,
+    required this.createdAt,
   });
 
   factory Data183.fromJson(Map<String, Object?> json) =>
       _$Data183FromJson(json);
 
-  final String token;
-  final String permission;
-  @JsonKey(name: 'expires_at')
-  final String expiresAt;
-  @JsonKey(name: 'approved_by')
-  final ApprovedBy approvedBy;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String type;
+  @JsonKey(name: 'subject_id')
+  final int subjectId;
+  @JsonKey(name: 'subject_uuid')
+  final dynamic subjectUuid;
+  final dynamic name;
+  final String? reason;
+  final String? until;
+  @JsonKey(name: 'created_by')
+  final int? createdBy;
+
+  /// The store's own staff only (a super admin's entry shows no name)
+  @JsonKey(name: 'created_by_name')
+  final String? createdByName;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data183ToJson(this);
 }

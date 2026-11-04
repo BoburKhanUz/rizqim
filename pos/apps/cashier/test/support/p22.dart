@@ -6,6 +6,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
 import 'package:pos_hardware/testing.dart';
 import 'package:rizqim_cashier/src/features/settings/cashier_prefs.dart';
+import 'package:rizqim_cashier/src/hardware/cashier_hardware.dart';
 import 'package:rizqim_cashier/src/shell/routes.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,8 +15,15 @@ import 'harness.dart';
 /// P3-22 testlari uchun: soxta backend'ning kassa qismi ([FakeCashierBackend]), bo'limga o'tish, schyotni ochish va
 /// chek printeriga chiqqan hujjatlar.
 class P22 {
-  P22({bool realtime = true, SyncStore? offlineStore})
-    : h = CashierHarness(realtime: realtime, offlineStore: offlineStore) {
+  P22({
+    bool realtime = true,
+    SyncStore? offlineStore,
+    CashierHardware? hardware,
+  }) : h = CashierHarness(
+         realtime: realtime,
+         offlineStore: offlineStore,
+         hardware: hardware,
+       ) {
     backend = FakeCashierBackend(h.state);
     SharedPreferences.setMockInitialValues(<String, Object>{});
     CashierPrefs.instance.reset();

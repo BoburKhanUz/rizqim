@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Save, X } from 'lucide-react';
 import { Button, Card, Field, fieldClass, formatDate, FormError, Notice } from '@rizqim/ui';
-import { ALERT_KEYS, CANCEL_POLICY_MAX, POS_MODES, useBranchPosSettings, useSaveBranchPosSettings, useStoreDevices, type AlertKey, type BranchPosSettings, type BranchPosSettingsPatch, type PosMode } from '@rizqim/staff';
+import { ALERT_KEYS, CANCEL_POLICY_MAX, POS_MODES, useBranchPosSettings, usePrinters, useSaveBranchPosSettings, useStoreDevices, type AlertKey, type BranchPosSettings, type BranchPosSettingsPatch, type PosMode } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { Check, NumberField, parseDecimal } from '../management/fields';
 import { Gate } from '../pos/Gate';
@@ -25,6 +25,9 @@ interface Draft {
   mode: PosMode;
   dayStart: string;
   printingDevice: string;
+  // The bill is made and printed by itself when the waiter asks for it; the printer's id ('' : the printing till's receipt printer)
+  autoPrintBill: boolean;
+  billPrinter: string;
   lock: string;
   queue: boolean;
   // The biggest discount (%) a cashier gives without a manager; empty: always a manager's PIN
@@ -47,6 +50,9 @@ function draftOf(settings: BranchPosSettings): Draft {
     mode: (POS_MODES as readonly string[]).includes(pos.mode) ? (pos.mode as PosMode) : 'hybrid',
     dayStart: settings.business_day_starts_at,
     printingDevice: pos.printing_device_id ?? '',
+    // A server that does not know the setting yet prints by itself (the default)
+    autoPrintBill: pos.auto_print_bill ?? true,
+    billPrinter: pos.bill_printer === null || pos.bill_printer === undefined ? '' : String(pos.bill_printer),
     lock: String(pos.screen_lock_minutes),
     queue: pos.queue_numbers,
     cashierDiscount: textOf(pos.cashier_discount_max_percent, ''),
@@ -64,6 +70,8 @@ const SERVER_FIELDS = [
   'business_day_starts_at',
   'pos_settings.mode',
   'pos_settings.printing_device_id',
+  'pos_settings.auto_print_bill',
+  'pos_settings.bill_printer',
   'pos_settings.screen_lock_minutes',
   'pos_settings.queue_numbers',
   'pos_settings.cashier_discount_max_percent',
@@ -88,6 +96,7 @@ export function BranchSettingsPanel({ branchId }: { branchId: number }) {
 function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSettings }) {
   const { t, language } = useI18n();
   const devices = useStoreDevices();
+  const printers = usePrinters(branchId);
   const save = useSaveBranchPosSettings();
   const { draft, setDraft, base, dirty } = useServerDraft(data, draftOf);
   const [adding, setAdding] = useState('');
@@ -96,6 +105,7 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
   const [saved, setSaved] = useState<string | null>(null);
 
   const terminals = (devices.data ?? []).filter((device) => device.type === 'pos' && (device.branch_id === null || device.branch_id === branchId));
+  const receiptPrinters = (printers.data ?? []).filter((printer) => printer.purpose === 'receipt' && printer.is_active);
   const patch = (changes: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...changes }));
     setSaved(null);
@@ -135,6 +145,8 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
     const settings: NonNullable<BranchPosSettingsPatch['pos_settings']> = {};
     if (changed.has('mode')) settings.mode = draft.mode;
     if (changed.has('printingDevice')) settings.printing_device_id = draft.printingDevice === '' ? null : draft.printingDevice;
+    if (changed.has('autoPrintBill')) settings.auto_print_bill = draft.autoPrintBill;
+    if (changed.has('billPrinter')) settings.bill_printer = draft.billPrinter === '' ? null : Number(draft.billPrinter);
     if (changed.has('lock')) settings.screen_lock_minutes = lock;
     if (changed.has('queue')) settings.queue_numbers = draft.queue;
     if (changed.has('cashierDiscount')) settings.cashier_discount_max_percent = discount ?? null;
@@ -200,6 +212,16 @@ function SettingsForm({ branchId, data }: { branchId: number; data: BranchPosSet
           <NumberField label={t('pos_set_slot')} hint={t('pos_set_slotHint')} value={draft.slot} onChange={(slot) => patch({ slot })} inputMode="numeric" suffix="daq" error={local.slot ?? serverError('pos_settings.booking_slot_minutes')} />
         </div>
         <Check checked={draft.queue} onChange={(queue) => patch({ queue })} label={t('pos_set_queue')} hint={t('pos_set_queueHint')} />
+        <Check checked={draft.autoPrintBill} onChange={(autoPrintBill) => patch({ autoPrintBill })} label={t('pos_set_autoBill')} hint={serverError('pos_settings.auto_print_bill') ?? t('pos_set_autoBillHint')} />
+        <SelectField
+          label={t('pos_set_billPrinter')}
+          hint={t('pos_set_billPrinterHint')}
+          value={draft.billPrinter}
+          onChange={(billPrinter) => patch({ billPrinter })}
+          disabled={!draft.autoPrintBill}
+          options={[{ value: '', label: t('pos_set_billPrinterDefault') }, ...receiptPrinters.map((printer) => ({ value: String(printer.id), label: printer.name }))]}
+          error={serverError('pos_settings.bill_printer')}
+        />
       </Card>
 
       <Card className="flex flex-col gap-4">

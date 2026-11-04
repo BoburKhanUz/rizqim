@@ -8,20 +8,22 @@ part of 'data129.dart';
 
 Data129 _$Data129FromJson(Map<String, dynamic> json) => Data129(
   branchId: (json['branch_id'] as num).toInt(),
-  enabled: json['enabled'] as bool,
-  locked: json['locked'] as bool,
-  orderTypes: (json['order_types'] as List<dynamic>)
-      .map((e) => OrderTypes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows.fromJson(e as Map<String, dynamic>))
+  keyId: (json['key_id'] as num).toInt(),
+  rotatedAt: json['rotated_at'] as String?,
+  port: (json['port'] as num).toInt(),
+  hub: json['hub'] == null
+      ? null
+      : Hub.fromJson(json['hub'] as Map<String, dynamic>),
+  candidates: (json['candidates'] as List<dynamic>)
+      .map((e) => Candidates.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data129ToJson(Data129 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'enabled': instance.enabled,
-  'locked': instance.locked,
-  'order_types': instance.orderTypes,
-  'rows': instance.rows,
+  'key_id': instance.keyId,
+  'rotated_at': instance.rotatedAt,
+  'port': instance.port,
+  'hub': instance.hub,
+  'candidates': instance.candidates,
 };

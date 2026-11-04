@@ -4,11 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device18.dart';
-import 'opened_by7.dart';
-import 'closed_by10.dart';
-import 'summary6.dart';
-import 'bank_terminal2.dart';
+import 'device13.dart';
+import 'opened_by2.dart';
+import 'closed_by5.dart';
 
 part 'data263.g.dart';
 
@@ -32,8 +30,6 @@ class Data263 {
     required this.zNumber,
     required this.forceClosed,
     required this.closeNote,
-    required this.summary,
-    required this.bankTerminal,
   });
 
   factory Data263.fromJson(Map<String, Object?> json) =>
@@ -43,19 +39,19 @@ class Data263 {
   final String status;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final Device18? device;
+  final Device13? device;
   @JsonKey(name: 'business_date')
   final String businessDate;
   @JsonKey(name: 'opened_at')
   final String openedAt;
   @JsonKey(name: 'opened_by')
-  final OpenedBy7? openedBy;
+  final OpenedBy2? openedBy;
   @JsonKey(name: 'opening_cash')
   final String openingCash;
   @JsonKey(name: 'closed_at')
   final String? closedAt;
   @JsonKey(name: 'closed_by')
-  final ClosedBy10? closedBy;
+  final ClosedBy5? closedBy;
   @JsonKey(name: 'expected_cash')
   final String? expectedCash;
   @JsonKey(name: 'counted_cash')
@@ -69,9 +65,6 @@ class Data263 {
   final bool forceClosed;
   @JsonKey(name: 'close_note')
   final String? closeNote;
-  final Summary6? summary;
-  @JsonKey(name: 'bank_terminal')
-  final BankTerminal2? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data263ToJson(this);
 }

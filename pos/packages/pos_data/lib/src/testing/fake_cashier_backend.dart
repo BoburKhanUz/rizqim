@@ -125,7 +125,7 @@ class FakeCashierBackend {
     }
     if (m == 'POST' &&
         (x = _match(
-              r'^/v1/pos/bills/([^/]+)/(print|payments|fiscal-retry)$',
+              r'^/v1/pos/bills/([^/]+)/(print|print-request|payments|fiscal-retry)$',
               p,
             )) !=
             null) {
@@ -135,6 +135,7 @@ class FakeCashierBackend {
       if (found == null) return _fail(404, null, 'Schyot topilmadi.');
       return switch (x.group(2)) {
         'print' => _print(found.$1, found.$2, r),
+        'print-request' => _printRequest(found.$1, found.$2, r),
         'payments' => _pay(found.$1, found.$2, r),
         _ => _fiscalRetry(found.$1, found.$2),
       };
@@ -802,6 +803,58 @@ class FakeCashierBackend {
       'copy': copy,
     }, message: copy ? 'Nusxa chiqarildi.' : 'Schyot chiqarildi.');
   }
+
+  /// Soxta serverga kelgan `print-request` lar (so'rov tartibida): kim so'radi va qaysi schyot.
+  final List<Map<String, Object?>> printRequests = <Map<String, Object?>>[];
+
+  /// `POST /pos/bills/{uuid}/print-request` (P6): `pos.reprint_bill` yoki menejer tasdig'i; `bill.print_requested`
+  /// hodisasi yuboriladi (`printer_id`/`target_device` — bootstrap'dagi chop etuvchi kassa bo'yicha).
+  FakeResponse _printRequest(
+    Map<String, Object?> bill,
+    Map<String, Object?> order,
+    FakeRequest r,
+  ) {
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'pos.reprint_bill',
+      r.data['approval_token'],
+    );
+    if (denied != null) return denied;
+    if (bill['status'] == 'void') {
+      return _fail(409, 'bill_void', 'Bu schyot bekor qilingan.');
+    }
+    final String requestId = 'req-${printRequests.length + 1}';
+    final Map<String, Object?> ack = <String, Object?>{
+      'request_id': requestId,
+      'printer_id': printRequestPrinterId,
+      'target_device': printRequestTargetDevice,
+    };
+    printRequests.add(<String, Object?>{
+      ...ack,
+      'bill': bill['uuid'],
+      'order': order['uuid'],
+      'requested_by': r.member['id'],
+    });
+    state.emit('bill.print_requested', <String, Object?>{
+      'order': <String, Object?>{
+        'uuid': order['uuid'],
+        'status': order['status'],
+        'store_id': FakePosState.storeId,
+        'branch_id': FakePosState.branchId,
+        'courier_id': null,
+        'updated_at': order['updated_at'],
+      },
+      'bill': <String, Object?>{'uuid': bill['uuid']},
+      'reprint': true,
+      'requested_by': r.member['id'],
+      ...ack,
+    });
+    return _ok(ack, message: 'Schyot qayta chiqarishga yuborildi.');
+  }
+
+  /// `print-request` javobi va hodisasidagi printer va kassa (sinov ularni o'zgartiradi).
+  int? printRequestPrinterId;
+  String? printRequestTargetDevice;
 
   bool _outOfDate(Map<String, Object?> order, Map<String, Object?> bill) =>
       !_settled(bill) &&

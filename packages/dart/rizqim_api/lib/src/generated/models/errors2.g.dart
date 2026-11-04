@@ -20,6 +20,9 @@ Errors2 _$Errors2FromJson(Map<String, dynamic> json) => Errors2(
   device: json['device'] == null
       ? null
       : Device24.fromJson(json['device'] as Map<String, dynamic>),
+  originDevice: json['origin_device'] == null
+      ? null
+      : OriginDevice3.fromJson(json['origin_device'] as Map<String, dynamic>),
   occurredAt: json['occurred_at'] as String?,
   receivedAt: json['received_at'] as String?,
   appliedAt: json['applied_at'] as String?,
@@ -47,6 +50,7 @@ Map<String, dynamic> _$Errors2ToJson(Errors2 instance) => <String, dynamic>{
   'message': instance.message,
   'staff': instance.staff,
   'device': instance.device,
+  'origin_device': instance.originDevice,
   'occurred_at': instance.occurredAt,
   'received_at': instance.receivedAt,
   'applied_at': instance.appliedAt,

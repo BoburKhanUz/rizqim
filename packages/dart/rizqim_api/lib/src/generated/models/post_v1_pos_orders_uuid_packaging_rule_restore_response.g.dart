@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidPackagingRuleRestoreResponseFromJson(
 ) => PostV1PosOrdersUuidPackagingRuleRestoreResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data244.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data249.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidPackagingRuleRestoreResponseToJson(

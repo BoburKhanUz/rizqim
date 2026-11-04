@@ -32,7 +32,7 @@ final class PosSyncService
     ) {}
 
     /**
-     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>}>  $operations
+     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string}>  $operations
      * @param  array{size?: int|null, oldest_at?: string|null}|null  $queue
      * @return array{results: list<PosSyncOperation>, duplicates: list<string>, stopped_at: int|null, clock_skew_seconds: int|null}
      *

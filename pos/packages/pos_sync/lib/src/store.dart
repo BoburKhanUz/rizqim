@@ -138,15 +138,23 @@ class SyncStore {
 
   /// Amalni navbatga yozadi (diskka tasdiqlangach qaytadi). Bir vaqtda kelgan chaqiriqlar navbat bilan yoziladi:
   /// `seq` yozuv paytida beriladi, takrorlanmaydi.
+  ///
+  /// P6 lokal ko'prik: markaz boshqa qurilmaning amalini o'sha qurilma bergan [opId] va [origin] bilan yozadi; shu
+  /// [opId] li amal navbatda (yoki javob olganlar orasida) bo'lsa — yangisi yozilmaydi, o'sha qaytadi.
   Future<SyncOperation> enqueue(
     String type,
     Map<String, Object?> payload, {
     required int staffId,
     DateTime? occurredAt,
+    String? opId,
+    String? origin,
   }) => _locked(() async {
-    var id = newUuid(_random);
-    while (_pending.any((SyncOperation o) => o.opId == id) ||
-        _answered.any((SyncOperation o) => o.opId == id)) {
+    if (opId != null) {
+      final SyncOperation? known = find(opId);
+      if (known != null) return known;
+    }
+    var id = opId ?? newUuid(_random);
+    while (opId == null && find(id) != null) {
       id = newUuid(_random);
     }
     final SyncOperation op = SyncOperation(
@@ -156,6 +164,7 @@ class SyncStore {
       occurredAt: occurredAt ?? _clock(),
       staffId: staffId,
       payload: payload,
+      origin: origin,
     );
     await _append(<String, Object?>{'k': 'op', 'op': op.toJson()});
     _lastSeq = op.seq;
@@ -164,6 +173,17 @@ class SyncStore {
     _emit();
     return op;
   });
+
+  /// [opId] li amal (navbatdagi yoki javob olgan, oxirgi [keepAnswered] tasi), bo'lmasa `null`.
+  SyncOperation? find(String opId) {
+    for (final SyncOperation o in _pending) {
+      if (o.opId == opId) return o;
+    }
+    for (final SyncOperation o in _answered) {
+      if (o.opId == opId) return o;
+    }
+    return null;
+  }
 
   /// Keyingi lokal buyurtma raqami (`K1-017`): qurilmaning prefiksi bilan, hech qachon takrorlanmaydi
   /// ([serverNext] — serverdagi shu qurilmaning keyingi raqami, ilova qayta o'rnatilsa ham 1 dan boshlanmasin).

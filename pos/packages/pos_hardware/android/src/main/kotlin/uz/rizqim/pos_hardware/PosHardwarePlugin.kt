@@ -1,180 +1,106 @@
 package uz.rizqim.pos_hardware
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import com.sunmi.peripheral.printer.InnerPrinterCallback
-import com.sunmi.peripheral.printer.InnerPrinterException
-import com.sunmi.peripheral.printer.InnerPrinterManager
-import com.sunmi.peripheral.printer.InnerResultCallback
-import com.sunmi.peripheral.printer.SunmiPrinterService
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.MethodCall
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Sunmi built-in printer for the Dart side in lib/src/printer/sunmi_transport.dart.
+ * The POS hardware plugin: every native device the Dart package `pos_hardware` talks to.
  *
- * Channel `uz.rizqim.pos_hardware/sunmi`: `bind` -> Boolean, `status` -> Int (updatePrinterState), `sendRaw`
- * {bytes: ByteArray} -> null, `openDrawer` -> null, `info` -> Map. Errors: `unavailable` (service not bound or gone),
- * `printer_error` (details = printer state code, e.g. 4 = out of paper), `failed`.
+ * | Channel | Class | Dart side |
+ * |---|---|---|
+ * | `uz.rizqim.pos_hardware/sunmi` | [SunmiPrinter] | lib/src/printer/sunmi_transport.dart |
+ * | `uz.rizqim.pos_hardware/bluetooth` | [BluetoothPrinters] | lib/src/printer/native_transport.dart |
+ * | `uz.rizqim.pos_hardware/usb` | [UsbPrinters] | lib/src/printer/native_transport.dart |
+ * | `uz.rizqim.pos_hardware/scanner` (events) | [ScannerStream] | lib/src/scanner/barcode_scanner.dart |
+ * | `uz.rizqim.pos_hardware/customer_screen` | [CustomerScreen] | lib/src/display/customer_screen.dart |
  *
- * ESC/POS bytes go through SunmiPrinterService.sendRAWData, so receipts, kitchen tickets, QR codes and raster images
- * are rendered by the same Dart code as for LAN printers.
+ * The activity is needed for the Bluetooth permission dialog and the second-screen window; without one (a background
+ * engine) those answer `false` and everything else works.
  */
-class PosHardwarePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
-    private lateinit var channel: MethodChannel
-    private lateinit var context: Context
-    private val main = Handler(Looper.getMainLooper())
-
-    @Volatile
-    private var service: SunmiPrinterService? = null
-    private val pendingBinds = mutableListOf<MethodChannel.Result>()
-    private var binding = false
-
-    private val printerCallback = object : InnerPrinterCallback() {
-        override fun onConnected(service: SunmiPrinterService) {
-            this@PosHardwarePlugin.service = service
-            main.post { finishBind(true) }
-        }
-
-        override fun onDisconnected() {
-            service = null
-            main.post { finishBind(false) }
-        }
-    }
+class PosHardwarePlugin : FlutterPlugin, ActivityAware {
+    private val channels = mutableListOf<MethodChannel>()
+    private var scannerChannel: EventChannel? = null
+    private var sunmi: SunmiPrinter? = null
+    private var bluetooth: BluetoothPrinters? = null
+    private var usb: UsbPrinters? = null
+    private var scanner: ScannerStream? = null
+    private var customerScreen: CustomerScreen? = null
+    private var permissions: Permissions? = null
+    private var activityBinding: ActivityPluginBinding? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        context = binding.applicationContext
-        channel = MethodChannel(binding.binaryMessenger, CHANNEL)
-        channel.setMethodCallHandler(this)
+        val context: Context = binding.applicationContext
+        val messenger = binding.binaryMessenger
+        val perms = Permissions(context)
+        permissions = perms
+        val s = SunmiPrinter(context).also { sunmi = it }
+        val bt = BluetoothPrinters(context, perms).also { bluetooth = it }
+        val u = UsbPrinters(context).also { usb = it }
+        val screen = CustomerScreen(context).also { customerScreen = it }
+        for ((name, handler) in listOf(
+            SunmiPrinter.CHANNEL to s,
+            BLUETOOTH_CHANNEL to bt,
+            USB_CHANNEL to u,
+            CustomerScreen.CHANNEL to screen,
+        )) {
+            channels.add(MethodChannel(messenger, name).also { it.setMethodCallHandler(handler) })
+        }
+        val sc = ScannerStream(context).also { scanner = it }
+        scannerChannel = EventChannel(messenger, SCANNER_CHANNEL).also { it.setStreamHandler(sc) }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel.setMethodCallHandler(null)
-        if (service != null) {
-            try {
-                InnerPrinterManager.getInstance().unBindService(context, printerCallback)
-            } catch (ignored: InnerPrinterException) {
-            }
-        }
-        service = null
+        channels.forEach { it.setMethodCallHandler(null) }
+        channels.clear()
+        scannerChannel?.setStreamHandler(null)
+        scannerChannel = null
+        scanner?.stop()
+        sunmi?.dispose()
+        bluetooth?.dispose()
+        usb?.dispose()
+        customerScreen?.dispose()
+        scanner = null
+        sunmi = null
+        bluetooth = null
+        usb = null
+        customerScreen = null
+        permissions = null
     }
 
-    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        when (call.method) {
-            "bind" -> bind(result)
-            "status" -> withService(result) { s -> result.success(s.updatePrinterState()) }
-            "sendRaw" -> {
-                val bytes = call.argument<ByteArray>("bytes")
-                if (bytes == null) {
-                    result.error("failed", "Missing 'bytes'", null)
-                    return
-                }
-                withService(result) { s -> s.sendRAWData(bytes, replyOnce(result, checkState = true)) }
-            }
-            "openDrawer" -> withService(result) { s -> s.openDrawer(replyOnce(result, checkState = false)) }
-            "info" -> withService(result) { s ->
-                result.success(
-                    mapOf(
-                        "model" to s.printerModal,
-                        "serial" to s.printerSerialNo,
-                        "version" to s.printerVersion,
-                        // getPrinterPaper(): 1 = 58 mm, 2 = 80 mm
-                        "paper" to (if (s.printerPaper == 1) 58 else 80),
-                    ),
-                )
-            }
-            else -> result.notImplemented()
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) = attach(binding)
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) = attach(binding)
+
+    override fun onDetachedFromActivityForConfigChanges() = detach()
+
+    override fun onDetachedFromActivity() = detach()
+
+    private fun attach(binding: ActivityPluginBinding) {
+        activityBinding = binding
+        permissions?.let {
+            it.activity = binding.activity
+            binding.addRequestPermissionsResultListener(it)
         }
+        customerScreen?.activity = binding.activity
     }
 
-    private fun bind(result: MethodChannel.Result) {
-        if (service != null) {
-            result.success(true)
-            return
+    private fun detach() {
+        permissions?.let {
+            activityBinding?.removeRequestPermissionsResultListener(it)
+            it.activity = null
+            it.cancelAll()
         }
-        pendingBinds.add(result)
-        if (binding) return
-        binding = true
-        val started = try {
-            InnerPrinterManager.getInstance().bindService(context, printerCallback)
-        } catch (ignored: InnerPrinterException) {
-            false
-        }
-        if (!started) {
-            // not a Sunmi device: the printer service does not exist
-            finishBind(false)
-        } else {
-            main.postDelayed({ if (binding) finishBind(service != null) }, BIND_TIMEOUT_MS)
-        }
-    }
-
-    private fun finishBind(ok: Boolean) {
-        binding = false
-        val waiting = pendingBinds.toList()
-        pendingBinds.clear()
-        waiting.forEach { it.success(ok) }
-    }
-
-    private inline fun withService(result: MethodChannel.Result, block: (SunmiPrinterService) -> Unit) {
-        val s = service
-        if (s == null) {
-            result.error("unavailable", "Sunmi printer service is not bound", null)
-            return
-        }
-        try {
-            block(s)
-        } catch (e: Exception) {
-            // RemoteException: the service died; Dart binds again on the next call
-            service = null
-            result.error("unavailable", e.message, null)
-        }
-    }
-
-    /** A Sunmi callback that answers the Dart call exactly once, on the main thread. */
-    private fun replyOnce(result: MethodChannel.Result, checkState: Boolean): InnerResultCallback {
-        val replied = AtomicBoolean(false)
-        fun reply(block: () -> Unit) {
-            if (replied.compareAndSet(false, true)) main.post(block)
-        }
-        return object : InnerResultCallback() {
-            override fun onRunResult(isSuccess: Boolean) {
-                if (!isSuccess) {
-                    reply { result.error("failed", "Printer refused the command", null) }
-                    return
-                }
-                val state = if (checkState) service?.updatePrinterState() ?: 1 else 1
-                if (state in ERROR_STATES) {
-                    reply { result.error("printer_error", "Printer state $state", state) }
-                } else {
-                    reply { result.success(null) }
-                }
-            }
-
-            override fun onReturnString(value: String?) {}
-
-            override fun onRaiseException(code: Int, msg: String?) {
-                reply { result.error("failed", msg ?: "Sunmi error $code", code) }
-            }
-
-            override fun onPrintResult(code: Int, msg: String?) {
-                if (code == 0) {
-                    reply { result.success(null) }
-                } else {
-                    reply { result.error("failed", msg ?: "Print result $code", code) }
-                }
-            }
-        }
+        activityBinding = null
+        customerScreen?.activity = null
     }
 
     companion object {
-        const val CHANNEL = "uz.rizqim.pos_hardware/sunmi"
-        const val BIND_TIMEOUT_MS = 3000L
-
-        // updatePrinterState(): 3 communication error, 4 out of paper, 5 overheated, 6 cover open, 7 cutter error,
-        // 505 no printer, 507 firmware update failed
-        val ERROR_STATES = setOf(3, 4, 5, 6, 7, 505, 507)
+        const val BLUETOOTH_CHANNEL = "uz.rizqim.pos_hardware/bluetooth"
+        const val USB_CHANNEL = "uz.rizqim.pos_hardware/usb"
+        const val SCANNER_CHANNEL = "uz.rizqim.pos_hardware/scanner"
     }
 }

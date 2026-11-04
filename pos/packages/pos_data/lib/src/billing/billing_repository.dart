@@ -4,6 +4,7 @@ import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../offline/pos_offline.dart';
 import '../offline/sync_models.dart';
+import 'bill_print_request.dart';
 import 'billing_models.dart';
 
 /// Schyot, to'lov, yopish va qaytarish (docs/API.md, "Schyot, to'lov va smena (P3-18)"). Yupqa qatlam: P3-22 kerakli
@@ -56,6 +57,24 @@ class BillingRepository {
       if (o != null) return o.billing(orderUuid);
       rethrow;
     }
+  }
+
+  /// `POST /pos/bills/{uuid}/print-request` (P6, A bosqichi): ofitsiantning "Schyotni qayta chiqarish"i. Server
+  /// filialning chop etuvchi kassasiga `bill.print_requested` yuboradi; schyotning nusxa hisobi o'zgarmaydi.
+  /// `pos.reprint_bill` yoki menejer tasdig'i ([approvalToken]) kerak (403 `approval_required`).
+  Future<PosBillPrintAck> requestPrint(
+    String billUuid, {
+    String? approvalToken,
+    String? idempotencyKey,
+  }) {
+    _onlineOnly('schyotni qayta chiqarish');
+    return _http.mutate(
+      'POST',
+      '/v1/pos/bills/${_id(billUuid)}/print-request',
+      (Object? data) => PosBillPrintAck.fromJson(dataObject(data)),
+      idempotencyKey: idempotencyKey,
+      body: <String, Object?>{'approval_token': ?approvalToken},
+    );
   }
 
   /// `POST /pos/orders/{uuid}/bills`: schyot tuzish yoki bo'lish (buyurtmaning hali schyotga tushmagan qismidan).

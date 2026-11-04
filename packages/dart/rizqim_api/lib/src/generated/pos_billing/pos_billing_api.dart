@@ -14,6 +14,7 @@ import '../models/get_v1_pos_shifts_uuid_x_report_response.dart';
 import '../models/post_v1_pos_approvals_response.dart';
 import '../models/post_v1_pos_bills_uuid_fiscal_retry_response.dart';
 import '../models/post_v1_pos_bills_uuid_payments_response.dart';
+import '../models/post_v1_pos_bills_uuid_print_request_response.dart';
 import '../models/post_v1_pos_bills_uuid_print_response.dart';
 import '../models/post_v1_pos_orders_uuid_bills_response.dart';
 import '../models/post_v1_pos_orders_uuid_close_response.dart';
@@ -25,6 +26,7 @@ import '../models/put_v1_pos_shifts_uuid_bank_report_response.dart';
 import '../models/v1_pos_approvals_request_body.dart';
 import '../models/v1_pos_bills_uuid_payments_request_body.dart';
 import '../models/v1_pos_bills_uuid_print_request_body.dart';
+import '../models/v1_pos_bills_uuid_print_request_request_body.dart';
 import '../models/v1_pos_orders_uuid_bills_request_body.dart';
 import '../models/v1_pos_refunds_request_body.dart';
 import '../models/v1_pos_shifts_request_body.dart';
@@ -114,6 +116,24 @@ abstract class PosBillingApi {
     @Path('uuid') required String uuid,
     @Header('Idempotency-Key') required String idempotencyKey,
     @Body() V1PosBillsUuidPrintRequestBody? body,
+  });
+
+  /// Ask the till to print the bill again.
+  ///
+  /// The waiter app's "Schyotni qayta chiqarish" (P6 stage A): the branch's printing till prints the bill as a pre-check.
+  /// ("Bu fiskal chek emas", marked "NUSXA") on the branch's bill printer; it hears `bill.print_requested`.
+  /// (`reprint: true`) on `pos-branch.{id}`. It needs pos.reprint_bill or a manager's `approval_token` for.
+  /// it (403 `approval_required`), like a copy printed at the till, and is audited as `pos.bill_reprinted` with the.
+  /// requester. Never fiscal; the bill's copy count does not move. A voided bill: 409 `bill_void`. A waiter asks for.
+  /// their own orders only (another waiter's: a manager's approval). Answers who prints: `printer_id` (null: that.
+  /// till's own receipt printer), `target_device` (null: every till of the branch).
+  ///
+  /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
+  @POST('/v1/pos/bills/{uuid}/print-request')
+  Future<PostV1PosBillsUuidPrintRequestResponse> posBillPrintRequest({
+    @Path('uuid') required String uuid,
+    @Header('Idempotency-Key') required String idempotencyKey,
+    @Body() V1PosBillsUuidPrintRequestRequestBody? body,
   });
 
   /// A receipt for the till.

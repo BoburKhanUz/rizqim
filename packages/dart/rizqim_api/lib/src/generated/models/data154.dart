@@ -4,19 +4,24 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings3.dart';
-
 part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
-  const Data154({required this.channels, required this.settings});
+  const Data154({
+    required this.branchId,
+    required this.weekendDays,
+    required this.holidays,
+  });
 
   factory Data154.fromJson(Map<String, Object?> json) =>
       _$Data154FromJson(json);
 
-  final List<dynamic> channels;
-  final List<Settings3> settings;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'weekend_days')
+  final List<int> weekendDays;
+  final List<String> holidays;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

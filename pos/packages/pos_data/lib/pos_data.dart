@@ -19,6 +19,7 @@ export 'package:pos_sync/pos_sync.dart';
 
 export 'src/accounts/account_models.dart';
 export 'src/accounts/account_repository.dart';
+export 'src/billing/bill_print_request.dart';
 export 'src/billing/billing_models.dart';
 export 'src/billing/billing_repository.dart';
 export 'src/bookings/booking_models.dart';

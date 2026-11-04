@@ -52,6 +52,9 @@ abstract class PosBootstrapApi {
   /// the staff_pay module.
   /// P6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`.
   /// (personal|pool), `pool_rule` and `pool_period`.
+  /// P6 local bridge: `lan`, this terminal's LAN keys (its device key, the beacon key, the branch's hub and port; the.
+  /// hub also its secret and the terminals it lets in) and the signed offline grant of this PIN session; null for a.
+  /// normal staff or owner sign-in and outside a terminal of the branch (pos/packages/pos_lan/README.md).
   /// P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,.
   /// quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's.
   /// switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;.

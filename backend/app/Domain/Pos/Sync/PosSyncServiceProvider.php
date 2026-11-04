@@ -16,13 +16,14 @@ use Illuminate\Support\ServiceProvider;
 /**
  * P3-31: the offline limited mode (docs/POS_SPEC.md §5): the `offline` section of GET /pos/bootstrap (what a till keeps
  * to sell through an outage) and the rate limit of POST /pos/sync (a drained queue after an hour comes in a few dozen
- * batches; per till). Review P3-35: the POS price history (PriceHistory) follows every price change.
+ * batches; per till). Review P3-35: the POS price history (PriceHistory) follows every price change. P6: the `lan`
+ * section of GET /pos/bootstrap (the local bridge's keys, App\Domain\Pos\Lan).
  */
 class PosSyncServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->tag([OfflineBootstrapSection::class], PosBootstrap::CONTRIBUTORS);
+        $this->app->tag([OfflineBootstrapSection::class, \App\Domain\Pos\Lan\LanBootstrapSection::class], PosBootstrap::CONTRIBUTORS);
     }
 
     public function boot(): void

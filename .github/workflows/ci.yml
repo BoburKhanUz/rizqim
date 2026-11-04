@@ -36,6 +36,8 @@ jobs:
       pospkg: ${{ steps.filter.outputs.pospkg }}
       # P3-33: the POS stack end-to-end test (pos-stack-e2e job)
       posstack: ${{ steps.filter.outputs.posstack }}
+      # P6 hardware: the Android builds of the POS apps (android-build job; Kotlin is compiled only there)
+      android: ${{ steps.filter.outputs.android }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -140,6 +142,13 @@ jobs:
               - 'packages/ts/**'
               - 'e2e/**'
               - 'scripts/e2e-stack.sh'
+              - '.github/workflows/ci.yml'
+            # P6 hardware: the POS apps' Android builds (android-build job): the apps and plugins under pos/ and the shared
+            # Dart packages they link
+            android:
+              - 'pos/**'
+              - 'packages/dart/**'
+              - 'pubspec*'
               - '.github/workflows/ci.yml'
             # P3-33: the POS stack end-to-end test against the real backend (pos-stack-e2e job): the backend, the POS packages
             # and the API client they are built on, the test and its script
@@ -1039,5 +1048,47 @@ jobs:
             else
               (cd "$dir" && dart test)
             fi
+            echo "::endgroup::"
+          done
+
+  # --- P6 hardware: Android debug builds of the POS apps -------------------------------------------------------------
+  # The pos_hardware Android plugin (Kotlin: Sunmi printer, Bluetooth SPP and USB OTG printers, the scanner broadcast,
+  # the second-screen Presentation) cannot be compiled on the developers' machines without an Android SDK; this job
+  # compiles it together with each app (a Kotlin or manifest error fails the build). No emulator and no device: the
+  # behaviour on real hardware is checked with docs/HARDWARE_TEST.md.
+  android-build:
+    name: Android build (POS apps, debug APK)
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FLUTTER_VERSION: 3.47.5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # One ABI keeps it fast; the Kotlin and the manifests are the same for every ABI
+      - name: Build debug APKs
+        run: |
+          set -e
+          for app in cashier waiter kds customer_display; do
+            echo "::group::$app"
+            (cd "pos/apps/$app" && flutter build apk --debug --target-platform android-arm64)
             echo "::endgroup::"
           done

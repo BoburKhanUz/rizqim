@@ -20,6 +20,8 @@ PosSettings4 _$PosSettings4FromJson(Map<String, dynamic> json) => PosSettings4(
   bookingConfirmation: BookingConfirmation4.fromJson(
     json['booking_confirmation'] as Map<String, dynamic>,
   ),
+  autoPrintBill: json['auto_print_bill'] as bool,
+  billPrinter: (json['bill_printer'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PosSettings4ToJson(PosSettings4 instance) =>
@@ -33,4 +35,6 @@ Map<String, dynamic> _$PosSettings4ToJson(PosSettings4 instance) =>
       'holidays': instance.holidays,
       'booking_slot_minutes': instance.bookingSlotMinutes,
       'booking_confirmation': instance.bookingConfirmation,
+      'auto_print_bill': instance.autoPrintBill,
+      'bill_printer': instance.billPrinter,
     };

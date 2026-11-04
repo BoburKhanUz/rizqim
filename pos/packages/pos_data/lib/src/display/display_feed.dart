@@ -14,6 +14,7 @@ import 'display_repository.dart';
 ///   eskisini tashlaydi, qayta ochilgan kassani eskirgan deb o'ylamaydi).
 /// * `payment`, `paid` va `idle` kutmasdan ketadi (mijoz summani va "Rahmat"ni kutib o'tirmasin).
 /// * Format moduli o'chiq bo'lsa ([enabled] `false`) hech narsa yuborilmaydi.
+/// * P6 uskunalar: [addLocalListener] — shu qurilmaning ikkinchi ekrani (Sunmi D2) chekni serverni kutmasdan oladi.
 ///
 /// ```dart
 /// final feed = pos.displayFeed;
@@ -48,15 +49,33 @@ class DisplayFeed {
   int sent = 0;
 
   int _seq = 0;
+  final List<void Function(PosDisplayCart cart)> _local =
+      <void Function(PosDisplayCart cart)>[];
   PosDisplayCart? _pending;
   String? _lastBody;
   Timer? _timer;
   Future<void>? _inFlight;
   bool _disposed = false;
 
+  /// P6 uskunalar: har [publish] da darhol chaqiriladi (birlashtirishsiz, serverdan oldin) — qurilmaning o'z ikkinchi
+  /// ekrani uchun (Sunmi D2, Android `Presentation`). Xato kassa ishiga tegmaydi.
+  void addLocalListener(void Function(PosDisplayCart cart) listener) =>
+      _local.add(listener);
+
+  void removeLocalListener(void Function(PosDisplayCart cart) listener) =>
+      _local.remove(listener);
+
   /// Chekni ikkinchi ekranga yuboradi (kutmaydi).
   void publish(PosDisplayCart cart) {
     if (!enabled || _disposed) return;
+    for (final void Function(PosDisplayCart cart) l
+        in List<void Function(PosDisplayCart cart)>.of(_local)) {
+      try {
+        l(cart);
+      } on Object {
+        // A local screen must never break the till
+      }
+    }
     _pending = cart;
     if (cart.state == PosDisplayScreen.cart && debounce > Duration.zero) {
       _timer ??= Timer(debounce, _kick);

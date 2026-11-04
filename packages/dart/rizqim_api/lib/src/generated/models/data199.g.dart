@@ -7,13 +7,19 @@ part of 'data199.dart';
 // **************************************************************************
 
 Data199 _$Data199FromJson(Map<String, dynamic> json) => Data199(
-  booking: Booking4.fromJson(json['booking'] as Map<String, dynamic>),
-  payment: Payment3.fromJson(json['payment'] as Map<String, dynamic>),
-  fiscal: Fiscal9.fromJson(json['fiscal'] as Map<String, dynamic>),
+  text: json['text'] as String,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines19.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  roomFee: json['room_fee'] == null
+      ? null
+      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
+  channels: Channels3.fromJson(json['channels'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data199ToJson(Data199 instance) => <String, dynamic>{
-  'booking': instance.booking,
-  'payment': instance.payment,
-  'fiscal': instance.fiscal,
+  'text': instance.text,
+  'lines': instance.lines,
+  'room_fee': instance.roomFee,
+  'channels': instance.channels,
 };

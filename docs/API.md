@@ -231,7 +231,7 @@ terminal faqat `private-pos-branch.{branchId}` kanaliga qo'shila oladi (boshqa k
 |---|---|---|
 | `private-store.{storeId}` | ega, filialsiz menejer | `order.created`, `order.status_changed`, `order.assigned`, `menu.availability_changed` |
 | `private-branch.{branchId}` | shu filial menejeri, ega | xuddi shu |
-| `private-pos-branch.{branchId}` (P2-11) | filialda ishlaydigan hamma: shu filialda `orders.view` huquqi bor xodim (ega va filialsiz xodim — do'konning istalgan filiali; filialga biriktirilgan menejer, kassir, ofitsiant, oshpaz — o'z filiali; terminaldagi PIN sessiyasi — faqat terminal filiali) va shu filialning ulangan POS/KDS terminali (terminal tokeni bilan; filialsiz ulangan terminal — do'konning har bir filiali) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed`; POS hodisalari (P3-12, P3-17, P3-18), P3-26 `order.bill_requested`, P6-21 `order.course_ready` va P6-13 `queue.preparing`, `queue.ready`, `queue.handed`, `queue.canceled` |
+| `private-pos-branch.{branchId}` (P2-11) | filialda ishlaydigan hamma: shu filialda `orders.view` huquqi bor xodim (ega va filialsiz xodim — do'konning istalgan filiali; filialga biriktirilgan menejer, kassir, ofitsiant, oshpaz — o'z filiali; terminaldagi PIN sessiyasi — faqat terminal filiali) va shu filialning ulangan POS/KDS terminali (terminal tokeni bilan; filialsiz ulangan terminal — do'konning har bir filiali) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed`; POS hodisalari (P3-12, P3-17, P3-18), P3-26 `order.bill_requested`, P6 `bill.print_requested`, P6-21 `order.course_ready` va P6-13 `queue.preparing`, `queue.ready`, `queue.handed`, `queue.canceled` |
 | `private-courier.{userId}` | kuryerning o'zi (o'rnini bosgan ega/menejer ham) | `order.status_changed`, `order.assigned` |
 | `private-user.{userId}` | mijozning o'zi | `order.status_changed` |
 | `menu.{storeId}` | ochiq, obunasiz | `menu.availability_changed` |
@@ -250,6 +250,13 @@ Hodisa tanalari:
 // order.bill_requested (P3-26): ofitsiant kassadan schyot so'radi (POST /pos/orders/{uuid}/request-bill)
 {"order": {"uuid": "...", "status": "preparing", "store_id": 3, "branch_id": 5, "courier_id": null, "updated_at": "..."},
  "version": 7, "table_id": 12, "bill_requested_at": "...", "requested_by": 41}
+
+// bill.print_requested (P6, faqat pos-branch): schyotni pre-check sifatida chiqarish so'rovi (fiskal emas). Ofitsiant
+// "Schyot so'rash"ni bosdi va filialda auto_print_bill yoqiq (reprint: false), yoki "Schyotni qayta chiqarish"
+// (POST /pos/bills/{uuid}/print-request, reprint: true). printer_id null — kassaning o'z chek printeri; target_device
+// (qurilma uuid) null — nomlanmagan: filialning hamma kassasi chiqaradi. Kassa request_id bo'yicha bir marta chiqaradi.
+{"order": {"uuid": "...", "status": "preparing", "store_id": 3, "branch_id": 5, "courier_id": null, "updated_at": "..."},
+ "bill": {"uuid": "..."}, "request_id": "...", "reprint": false, "printer_id": 7, "target_device": "...", "requested_by": 41}
 
 // order.course_ready (P6-21, store/branch/pos-branch): kursning oshxonaga chiqqan hamma taomi tayyor; ofitsiant telefoni
 // waiter_id o'zi (yoki null) bo'lsa "2-kurs tayyor" ko'rsatadi
@@ -663,6 +670,11 @@ Chop etishni server emas, terminalning o'zi bajaradi ([POS_SPEC.md](POS_SPEC.md)
   `auto_send` (standart `true`: bron tasdiqlanganda o'zi yuboriladi), `sms` (standart `false`: SMS pulli — yoqilsa,
   Telegrami yo'q mehmonga SMS ketadi), `cancel_policy` (bekor qilish qoidasi matni, ≤300 belgi, yoki `null`). Boshqa
   kalit — 422. `GET /pos/bootstrap` da ham shu blok.
+- `pos_settings.auto_print_bill` (P6, standart `true`) va `pos_settings.bill_printer` (printer `id` yoki `null`) —
+  ofitsiant "Schyot so'rash"ni bosganda schyot avtomatik tuziladi va kassada chiqadi (pre-check, fiskal emas;
+  `POST /pos/orders/{uuid}/request-bill` va `bill.print_requested`, "POS: zal va buyurtmalar" bo'limi). `bill_printer` —
+  shu filialning faol `receipt` printeri, aks holda 422; `null` — chop etuvchi kassaning chek printeri. `GET /pos/bootstrap`
+  da ham shu kalitlar.
 Noma'lum kalit — 422 (saqlanmaydi). Javob: `branch_id`, `timezone`, `business_day_starts_at`, to'liq `pos_settings`
 (saqlanmaganlari standart qiymat bilan).
 
@@ -1185,6 +1197,7 @@ kim so'radi), `pos.approval_used`.
 | `GET /pos/orders/{uuid}/bills` | `orders.view` | buyurtmaning hisob holati va schyotlari (`all=1` — bekor qilinganlari bilan), qaytarishlar |
 | `POST /pos/orders/{uuid}/bills {version, mode, parts?, bills?, approval_token?}` | bitta schyot — `orders.manage` yoki `pos.take_payment`; bo'lish — `pos.take_payment`; ofitsiant — faqat o'z buyurtmasi (boshqasiniki — menejer tasdig'i, `orders.manage`) | schyot tuzish yoki bo'lish |
 | `POST /pos/bills/{uuid}/print {version?, approval_token?}` | `orders.manage` yoki `pos.take_payment`; nusxa — `pos.reprint_bill` (yoki tasdiq) | schyotni chiqarish |
+| `POST /pos/bills/{uuid}/print-request {approval_token?}` | `orders.manage` yoki `pos.take_payment`; `pos.reprint_bill` yoki menejer tasdig'i (403 `approval_required`); ofitsiant qoidasi | P6: ofitsiant ilovasining "Schyotni qayta chiqarish"i. Kassaga `bill.print_requested` (`reprint: true`) boradi; schyotning nusxa hisobi o'zgarmaydi, `pos.bill_reprinted` jurnali so'ragan xodim bilan. Javob `{request_id, printer_id, target_device}`. Bekor qilingan schyot — 409 `bill_void` |
 
 - `mode`: `single` — bitta schyot; `equal` + `parts` (2–30) — teng summali schyotlar, **qoldiq tiyin birinchi
   schyotga**; `items` + `bills: [{items: [{order_item_id, quantity}], guests?}]` — taom bo'yicha, kasr miqdor ham
@@ -1434,7 +1447,7 @@ yoki filial buyurtmasi — 404, boshqa filialda ochish — 403. Har o'zgartiruvc
 | `GET /pos/orders?scope=closed&business_date&branch_id` | `orders.view` | P3-26: bir biznes kunda yopilgan (to'langan) POS buyurtmalari, yangisi birinchi, ko'pi bilan 300 — qaytarish uchun ro'yxat (standart — filialning hozirgi biznes kuni) |
 | `POST /pos/orders/{uuid}/accept {version?}` | `orders.manage` | P3-26: onlayn buyurtmani qabul qilish (`new` → `accepted`; mijozga xabar, oshxonaga tushadi). Qabul qilingan — 200 o'zgarishsiz; POS buyurtmasi — 422 `not_online_order` |
 | `POST /pos/orders/{uuid}/reject {reason, cancel_reason?, approval_token?, version?}` | `orders.cancel` yoki `orders.manage` + menejer tasdig'i | P3-26: onlayn buyurtmani rad etish (`new` → `rejected`). `reason` — mijoz va ega o'qiydigan matn; `cancel_reason`: `customer_request`, `out_of_stock`, `store_closed`, `courier_unavailable`, `other` (standart). Tasdiqsiz — 403 `approval_required` |
-| `POST /pos/orders/{uuid}/request-bill {version?, approval_token?}` | `orders.manage` (+ ofitsiant qoidasi) | P3-26: ofitsiantning "Schyot so'rash": `bill_requested_at`/`bill_requested_by`, `order.bill_requested` hodisasi; schyot bu yerda tuzilmaydi. Takroriy — 200 o'zgarishsiz |
+| `POST /pos/orders/{uuid}/request-bill {version?, approval_token?}` | `orders.manage` (+ ofitsiant qoidasi) | P3-26: ofitsiantning "Schyot so'rash": `bill_requested_at`/`bill_requested_by`, `order.bill_requested` hodisasi. P6: filialda `pos_settings.auto_print_bill` yoqiq bo'lsa (standart) server schyotni o'zi tuzadi (bitta schyot; kerak bo'lsa eskirganini qayta tuzadi; buyurtma `version`i o'zgarmaydi, schyot "chiqarilgan" hisoblanmaydi va buyurtma qulflanmaydi) va `bill.print_requested` yuboradi; to'lanayotgan yoki bo'lingan buyurtmaga tegmaydi, schyot tuzib bo'lmasa (bo'sh, og'irlik kutilmoqda) so'rov baribir qabul qilinadi. Takroriy — 200 o'zgarishsiz, qayta chiqarilmaydi |
 | `GET /pos/orders/{uuid}` | `orders.view` | bitta POS buyurtma |
 | `POST /pos/orders {branch_id?, channel, table_id?, guests_count, waiter_id?, external_id?, note?, items?, send?}` | `orders.manage` | buyurtma ochish: `pos_hall` (stol, xona, tapchan yoki stolsiz) yoki `pos_takeaway` |
 | `POST /pos/orders/{uuid}/rounds {version, items, fire_mode?, send?}` | `orders.manage` | yangi bosqich (`round_no`, kim qo'shdi, qachon) |
@@ -1838,6 +1851,48 @@ to'ldiriladi).
 
 Testlar: `tests/Feature/PosSync/PosSyncFlowTest.php`, `PosSyncConflictsTest.php`, `PosSyncAccessTest.php`,
 `PosSyncReviewFixesTest.php` (P3-35).
+
+## Lokal ko'prik (P6, "Uskunalar va lokal tarmoq")
+
+Internet uzilsa asosiy kassa (markaz) Wi-Fi orqali ofitsiant, KDS va mijoz ekraniga xizmat qiladi
+([POS_SPEC.md](POS_SPEC.md) 5.5). Qurilmalar orasidagi shartnoma (kadr, shifr va imzo, beacon, xabarlar) —
+[`pos/packages/pos_lan/README.md`](../pos/packages/pos_lan/README.md). Server tomoni:
+
+| Metod | Yo'l | Kim | Vazifasi |
+|---|---|---|---|
+| GET | `/pos/bootstrap` → `lan` | terminaldagi PIN sessiyasi | shu terminalning LAN kalitlari va oflayn granti (pastda) |
+| GET | `/pos/lan` | terminal tokeni (`auth:device`) | xuddi shu bo'lim, grantsiz (xodimsiz mijoz ekrani uchun); do'kon bo'yicha ulangan terminalga `data: null` |
+| GET | `/owner/pos/lan?branch_id=` | ega, `settings.manage`, PIN sessiyasidan emas | markaz kassa (`hub.device`, `name`, `chosen`), `candidates` (filialning faol kassalari), `port`, `key_id`, `rotated_at` |
+| PUT | `/owner/pos/lan` | ega | `branch_id`, `hub_device_id` (filialning faol kassasi uuid'si yoki `null` — standart), `port` (1024–65535); audit `settings.pos_lan_changed` |
+| POST | `/owner/pos/lan/rotate` | ega | yangi filial siri (`key_id` + 1); audit `pos.lan_key_rotated` (kalitning o'zi hech qayerda yo'q) |
+
+**Markaz:** egasi tanlagan faol kassa; tanlanmagan bo'lsa — filialning "chop etuvchi" kassasi
+(`pos_settings.printing_device_id`), u ham bo'lmasa filialning birinchi ulangan faol POS terminali. Bitta filialda bitta.
+
+**Bootstrap `lan`** (oddiy xodim yoki ega web kirishida, boshqa filial yoki do'kon bo'yicha ulangan terminalda — `null`):
+`v` (1), `branch_id`, `key_id`, `role` (`hub` | `client`), `device` (shu terminal), `device_key` (base64,
+`HMAC-SHA256(S, "rizqim-lan/v1/device/" + uuid)`), `beacon_key` (`HMAC(S, "rizqim-lan/v1/beacon")`), `hub` (`device`,
+`name`, `port`), `hub_secret` (filial siri `S` — faqat `role: hub`), `devices` (markaz qabul qiladigan terminallar:
+filialning faol POS, KDS va mijoz ekranlari — faqat markazga), `grant` (PIN sessiyasining imzoli oflayn granti:
+`base64url(json).base64url(HMAC(K_G, ...))`, `K_G = HMAC(S, "rizqim-lan/v1/grant")`; payload `v`, `kid`, `branch_id`,
+`device`, `staff_id`, `name`, `role`, `permissions[]`, `session`, `iat`, `exp` = `iat` + 36 soat), `clock_window_seconds`
+(120). Sir serverda shifrlangan (`branch_lan_settings.secret`). Kassa kalitlarni xavfsiz xotirada saqlaydi, oflayn
+nusxaga yozmaydi.
+
+**Relay (`POST /pos/sync`).** Markaz LAN orqali olgan amalni `operations[].origin_device` (o'sha terminal uuid'si),
+mijoz bergan `op_id` va o'z `seq` i bilan yuboradi. Server uni kelib chiqqan terminalniki sifatida qo'llaydi (xodim —
+o'sha terminalda 36 soat ichida PIN bilan kirgan va huquqi bor; buyurtmaning `device_id` si — o'sha terminal;
+`pos_sync_operations.origin_device_id`). Qabul qilinmaydi (`rejected`, "Sinxronlash xatolari"da `origin_device` bilan):
+yuboruvchi filial markazi emas — `relay_not_hub` (markaz almashgan bo'lsa, eski markazning almashishdan oldingi
+amallari 48 soat qabul qilinadi); `origin_device` noma'lum yoki boshqa do'konniki — `origin_unknown`; boshqa filialniki —
+`origin_wrong_branch`; uzilgan — `origin_revoked`; `bill.create`, `bill.pay`, `order.close` — `relay_not_allowed`.
+Yangi amal turlari (kassaning o'zi ham yuborishi mumkin): `kitchen.bump` / `kitchen.recall` (`order`, `line`;
+`kitchen.manage`; KDS onlayndagi qoidalar), `kitchen.assembled` (`order`; yig'ish shart bo'lmasa — `applied`,
+`refs.changed: false`), `bill.request` (`order`; `orders.manage`, ofitsiant qoidasi).
+
+Migratsiyalar (qo'shimcha, qaytariladigan): `2026_11_16_200100_create_branch_lan_settings_table`,
+`2026_11_16_200200_add_origin_device_to_pos_sync_operations_table`. Testlar: `tests/Feature/PosLan/PosLanKeysTest.php`,
+`PosLanRelayTest.php`, `tests/Unit/PosLan/LanKeysTest.php` (Dart bilan bir xil kalit vektorlari).
 
 ## Kassadagi chegirma va kassir huquqlari (P3-37)
 

@@ -1,9 +1,14 @@
 import 'dart:async';
 
+import 'package:pos_core/pos_core.dart' show ReceiptHeader;
 import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
+import 'features/settings/cashier_prefs.dart';
+import 'hardware/cashier_hardware.dart';
+import 'lan/cashier_lan_hub.dart';
+import 'printing/bill_print_service.dart';
 import 'printing/printing_service.dart';
 import 'storage/shell_settings.dart';
 
@@ -26,15 +31,53 @@ class CashierServices {
     this.pollInterval = AppConfig.pollInterval,
     this.livePollInterval = AppConfig.livePollInterval,
     SyncStore? offlineStore,
+    CashierHardware? hardware,
+    this.lanStore,
   }) : data = data ?? PosData(client, clock: clock, offlineStore: offlineStore),
-       printing = printing ?? CashierPrinting();
+       printing = printing ?? CashierPrinting(),
+       hardware = hardware ?? CashierHardware() {
+    // P6 local bridge: from the start (a till reopened offline runs the hub before anyone can sign in)
+    unawaited(lan.start());
+  }
+
+  /// P6 lokal ko'prik kalitlari saqlanadigan xavfsiz xotira (`null`: saqlanmaydi, testlar).
+  final SecureKeyValueStore? lanStore;
+
+  /// P6 lokal ko'prik (docs/POS_SPEC.md 5.5): markaz kassa bo'lsa — LAN serveri va beacon.
+  late final CashierLanHub lan = CashierLanHub(
+    session: data.session,
+    auth: client.auth,
+    offline: data.offline,
+    store: lanStore,
+  );
 
   final RizqimClient client;
+
+  /// P6 (A bosqichi): ofitsiant so'ragan schyotni (`bill.print_requested`) chek printerida chiqaradi. So'rov
+  /// serverdan ish ekrani ([HomeShell]) orqali keladi; keyingi bosqichda LAN ko'prigi ham shu yerga uzatadi.
+  late final BillPrintService billPrints = BillPrintService(
+    data: data,
+    printing: printing,
+    deviceUuid: () => session.bootstrap?.device?.uuid,
+    now: now,
+    header: () {
+      final PosBootstrap? b = session.bootstrap;
+      return ReceiptHeader(
+        storeName: b?.store.name ?? session.storeName ?? 'Kassa',
+        address: b?.branch.address,
+        phone: b?.branch.phone,
+      );
+    },
+    adjust: CashierPrefs.instance.apply,
+  );
 
   /// POS ma'lumot qatlami: sessiya, tasdiq, repozitoriylar.
   final PosData data;
   final ShellSettingsController settings;
   final CashierPrinting printing;
+
+  /// P6 uskunalar: printerni qidirish, skanerlar, ikkinchi ekran (Sunmi D2).
+  final CashierHardware hardware;
   final RealtimeFactory? realtimeFactory;
   final DateTime Function()? clock;
 

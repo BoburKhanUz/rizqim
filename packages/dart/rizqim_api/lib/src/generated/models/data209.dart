@@ -4,20 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'accounts.dart';
-import 'meta.dart';
+import 'channel6.dart';
+import 'branch14.dart';
+import 'category.dart';
+import 'products.dart';
+import 'availability.dart';
 
 part 'data209.g.dart';
 
 @JsonSerializable()
 class Data209 {
-  const Data209({required this.accounts, required this.meta});
+  const Data209({
+    required this.channel,
+    required this.menuVersion,
+    required this.branch,
+    required this.categories,
+    required this.products,
+    required this.availability,
+  });
 
   factory Data209.fromJson(Map<String, Object?> json) =>
       _$Data209FromJson(json);
 
-  final List<Accounts> accounts;
-  final Meta meta;
+  final Channel6 channel;
+  @JsonKey(name: 'menu_version')
+  final String menuVersion;
+  final Branch14 branch;
+  final List<Category> categories;
+  final List<Products> products;
+  final Availability availability;
 
   Map<String, Object?> toJson() => _$Data209ToJson(this);
 }

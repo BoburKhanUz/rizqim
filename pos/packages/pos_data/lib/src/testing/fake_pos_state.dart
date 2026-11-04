@@ -145,6 +145,10 @@ class FakePosState {
   /// Filial POS sozlamasi (P3-37): kassir menejersiz beradigan chegirma foizi; `null` — har chegirma tasdiq bilan.
   String? cashierDiscountMaxPercent = '10.00';
 
+  /// P6 (A bosqichi): `pos_settings.auto_print_bill` va `bill_printer` (printer id).
+  bool autoPrintBill = true;
+  int? billPrinter;
+
   /// Filial POS sozlamasi (P3-37): shu summadan katta chiqimda egaga xabar.
   String? cashOutAlertAmount = '500000.00';
 
@@ -1079,6 +1083,8 @@ class FakePosState {
             'holidays': <Object?>[...holidays],
             'booking_slot_minutes': null,
             'cashier_discount_max_percent': cashierDiscountMaxPercent,
+            'auto_print_bill': autoPrintBill,
+            'bill_printer': billPrinter,
             'booking_confirmation': <String, Object?>{...bookingConfirmation},
           },
         },

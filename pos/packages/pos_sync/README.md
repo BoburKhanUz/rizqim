@@ -28,7 +28,10 @@ final sender = SyncSender(store: store, transport: transport)..start();   // alo
   qizil, 500 buyurtma chegarasi, menyu va aloqa 24 soatdan eski bo'lsa sotuv yo'q (`blockReason`), serverga yetmagan
   eng eski to'lov 24 / 40 / 48 soatda (`FiscalQueueLevel`), `canCloseShift`.
 - **`SyncOpType`** — amal turlari (`order.open`, `order.round`, `order.send`, `order.void`, `order.served`,
-  `bill.create`, `bill.pay`, `order.close`) va o'zbekcha nomlari.
+  `bill.create`, `bill.pay`, `order.close`, `order.course_send`, `order.weight`; P6: `kitchen.bump`, `kitchen.recall`,
+  `kitchen.assembled`, `bill.request`) va o'zbekcha nomlari.
+- P6 lokal ko'prik (`pos_lan`): markaz boshqa qurilmaning amalini `enqueue(..., opId:, origin:)` bilan yozadi — o'sha
+  `op_id` (takror kelsa yangisi yozilmaydi, `find`), `SyncOperation.origin` serverga `origin_device` bo'lib boradi.
 
 ## Sinov
 

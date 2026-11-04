@@ -4,20 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'shift5.dart';
-import 'report3.dart';
+import 'shift2.dart';
+import 'report.dart';
+import 'shifts4.dart';
 
 part 'data264.g.dart';
 
 @JsonSerializable()
 class Data264 {
-  const Data264({required this.shift, required this.report});
+  const Data264({
+    required this.shift,
+    required this.report,
+    required this.shifts,
+  });
 
   factory Data264.fromJson(Map<String, Object?> json) =>
       _$Data264FromJson(json);
 
-  final Shift5 shift;
-  final Report3 report;
+  final Shift2? shift;
+  final Report? report;
+  final List<Shifts4> shifts;
 
   Map<String, Object?> toJson() => _$Data264ToJson(this);
 }

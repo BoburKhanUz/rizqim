@@ -52,6 +52,11 @@ class OrderController extends ChangeNotifier {
   /// Ofitsiant kassadan schyot so'ragan (P3-26: serverdagi `bill_requested_at`; kassada "Schyot so'raldi").
   bool get billRequested => order?.billRequestedAt != null;
 
+  /// P6: filialda schyot avtomatik chiqadi (`pos_settings.auto_print_bill`, standart: ha): "Schyot so'rash" schyotni
+  /// kassada o'zi chiqaradi.
+  bool get autoPrintsBill =>
+      session.bootstrap?.branch.settings.autoPrintBill ?? true;
+
   /// Schyot chiqarilgandan keyin buyurtma o'zgargan: kassir schyotni qayta chiqaradi.
   bool billStale = false;
 
@@ -461,10 +466,54 @@ class OrderController extends ChangeNotifier {
       );
       _retryKeys.remove(sig);
       order = next;
-      onNotice?.call("Schyot so'raldi: kassir uni chiqaradi.");
+      onNotice?.call(
+        autoPrintsBill
+            ? "Schyot so'raldi: kassada chiqadi."
+            : "Schyot so'raldi: kassir uni chiqaradi.",
+      );
       return true;
     } on Object catch (e) {
       _forgetUnlessLost(sig, e);
+      await _handleFailure(e);
+      return false;
+    } finally {
+      busy = false;
+      _notify();
+    }
+  }
+
+  /// "Schyotni qayta chiqarish" (P6: `POST /pos/bills/{uuid}/print-request`): kassaning chek printeri schyotni yana
+  /// chiqaradi ("NUSXA", fiskal emas). Ofitsiantda `pos.reprint_bill` yo'q: menejer tasdig'i so'raladi ([approving]).
+  /// Buyurtmaning to'lanmagan schyotlari (bo'lingan bo'lsa — hammasi) yuboriladi. Schyot hali tuzilmagan bo'lsa —
+  /// `false` va xabar. Muvaffaqiyatli — `true`.
+  Future<bool> reprintBill(Approving approving) async {
+    if (order == null || busy || !online) return false;
+    busy = true;
+    lastError = null;
+    _notify();
+    try {
+      final PosBilling billing = await data.billing.bills(uuid);
+      final List<PosBill> live = <PosBill>[
+        for (final PosBill b in billing.bills)
+          if (b.status != 'void' && !b.isPaid) b,
+      ];
+      if (live.isEmpty) {
+        const String text =
+            "Schyot hali tuzilmagan: avval \"Schyot so'rash\" ni bosing.";
+        lastError = text;
+        onNotice?.call(text, error: true);
+        return false;
+      }
+      // Bir tasdiq bir amalga: bo'lingan schyotlarda har biri uchun alohida so'raladi
+      for (final PosBill bill in live) {
+        await approving<PosBillPrintAck>(
+          (String? token) =>
+              data.billing.requestPrint(bill.uuid, approvalToken: token),
+        );
+      }
+      onNotice?.call('Schyot qayta chiqarishga yuborildi.');
+      return true;
+    } on Object catch (e) {
       await _handleFailure(e);
       return false;
     } finally {

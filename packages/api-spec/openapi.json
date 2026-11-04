@@ -245,6 +245,14 @@
             "description": "Internetsiz cheklangan rejim: kassaning offlayn navbati, sinxronlash holati va xatolari (P3-31)."
         },
         {
+            "name": "POS: local bridge",
+            "description": "Lokal ko'prik: internet uzilsa asosiy kassa orqali Wi-Fi'da ishlash (P6)."
+        },
+        {
+            "name": "Owner: local bridge",
+            "description": "Filialning lokal ko'prigi: markaz kassa, port, kalitni yangilash (P6)."
+        },
+        {
             "name": "POS: queue numbers",
             "description": "Buyurtma raqami va chaqiruv: kassa oralig'lari, \"Tayyorlanmoqda / Tayyor\" taxtasi, tayyor, qayta chaqirish, berildi (P6-13)."
         },
@@ -46001,7 +46009,7 @@
         "/v1/owner/branches/{id}/pos-settings": {
             "get": {
                 "operationId": "branchPosSettings.show",
-                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, \"10.00\" by default; null or\n\"0.00\": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,\n`unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, \"500000.00\" by\ndefault; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),\n`booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is\nconfirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null).",
+                "description": "`business_day_starts_at`: \"HH:MM\", the local time (`timezone` of the store) the business day starts, 05:00 unless\nchanged. `pos_settings`: every key, stored values over the defaults: `mode` counter|table|hybrid,\n`printing_device_id` (uuid of the \"chop etuvchi\" kassa), `screen_lock_minutes` (0: never), `queue_numbers`,\n`cashier_discount_max_percent` (P3-37: the discount percent a cashier gives alone, \"10.00\" by default; null or\n\"0.00\": always a manager's PIN), `alerts` (`open_room_hours`, `void_amount`, `discount_percent`,\n`unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, \"500000.00\" by\ndefault; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),\n`booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is\nconfirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null),\n`auto_print_bill` (true by default — the waiter's \"Schyot so'rash\" makes the bill and the till prints the pre-check\nby itself), `bill_printer` (id of a receipt printer of the branch it is printed on; null: the receipt printer of the\nprinting till).",
                 "summary": "The branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -46141,6 +46149,15 @@
                                                                 "sms",
                                                                 "cancel_policy"
                                                             ]
+                                                        },
+                                                        "auto_print_bill": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "bill_printer": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -46152,7 +46169,9 @@
                                                         "alerts",
                                                         "holidays",
                                                         "booking_slot_minutes",
-                                                        "booking_confirmation"
+                                                        "booking_confirmation",
+                                                        "auto_print_bill",
+                                                        "bill_printer"
                                                     ]
                                                 }
                                             },
@@ -46180,7 +46199,7 @@
             },
             "put": {
                 "operationId": "branchPosSettings.update",
-                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;\n`alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,\n`unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`\nbooleans, `cancel_policy` text up to 300 characters or null). An unknown key is 422.",
+                "description": "Send only what changes. `business_day_starts_at`: \"HH:MM\" from 00:00 to 11:59 (an early opener may set 04:00).\n`pos_settings`: `mode`; `printing_device_id` (uuid of a POS terminal of this branch, or null for none);\n`screen_lock_minutes` 0-240; `queue_numbers`; `cashier_discount_max_percent` 0-100 (2 decimals) or null;\n`alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,\n`unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end\ntime holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`\nbooleans, `cancel_policy` text up to 300 characters or null); `auto_print_bill` boolean; `bill_printer` (id of an\nactive receipt printer of this branch, or null). An unknown key is 422.",
                 "summary": "Change the branch's POS settings",
                 "tags": [
                     "Owner: POS settings"
@@ -46291,6 +46310,16 @@
                                                     "format": "date"
                                                 },
                                                 "maxItems": 400
+                                            },
+                                            "auto_print_bill": {
+                                                "type": "boolean"
+                                            },
+                                            "bill_printer": {
+                                                "type": [
+                                                    "integer",
+                                                    "null"
+                                                ],
+                                                "minimum": 1
                                             },
                                             "booking_confirmation": {
                                                 "type": "object",
@@ -46442,6 +46471,15 @@
                                                                 "sms",
                                                                 "cancel_policy"
                                                             ]
+                                                        },
+                                                        "auto_print_bill": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "bill_printer": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -46453,7 +46491,9 @@
                                                         "alerts",
                                                         "holidays",
                                                         "booking_slot_minutes",
-                                                        "booking_confirmation"
+                                                        "booking_confirmation",
+                                                        "auto_print_bill",
+                                                        "bill_printer"
                                                     ]
                                                 }
                                             },
@@ -60671,6 +60711,418 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/pos/lan": {
+            "get": {
+                "operationId": "branchLan.show",
+                "description": "`hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first\npaired till), `candidates`: the branch's active tills, `port` (default 18480), `key_id` and `rotated_at`.",
+                "summary": "The branch's local bridge",
+                "tags": [
+                    "Owner: local bridge"
+                ],
+                "parameters": [
+                    {
+                        "name": "branch_id",
+                        "in": "query",
+                        "description": "The branch (a branch-bound caller: their own).",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "branch_id": {
+                                                    "type": "integer"
+                                                },
+                                                "key_id": {
+                                                    "type": "integer"
+                                                },
+                                                "rotated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "port": {
+                                                    "type": "integer"
+                                                },
+                                                "hub": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "device": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "chosen": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "device",
+                                                        "name",
+                                                        "chosen"
+                                                    ]
+                                                },
+                                                "candidates": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "platform": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "last_seen_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "platform",
+                                                            "last_seen_at"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "branch_id",
+                                                "key_id",
+                                                "rotated_at",
+                                                "port",
+                                                "hub",
+                                                "candidates"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "branchLan.update",
+                "description": "`hub_device_id`: an active till (uuid) of the branch, null: back to the default. `port`: 1024–65535. Send only\nwhat changes. Audited (settings.pos_lan_changed).",
+                "summary": "Pick the hub or the port",
+                "tags": [
+                    "Owner: local bridge"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "hub_device_id": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "uuid"
+                                    },
+                                    "port": {
+                                        "type": "integer",
+                                        "minimum": 1024,
+                                        "maximum": 65535
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "branch_id": {
+                                                    "type": "integer"
+                                                },
+                                                "key_id": {
+                                                    "type": "integer"
+                                                },
+                                                "rotated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "port": {
+                                                    "type": "integer"
+                                                },
+                                                "hub": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "device": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "chosen": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "device",
+                                                        "name",
+                                                        "chosen"
+                                                    ]
+                                                },
+                                                "candidates": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "platform": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "last_seen_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "platform",
+                                                            "last_seen_at"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "branch_id",
+                                                "key_id",
+                                                "rotated_at",
+                                                "port",
+                                                "hub",
+                                                "candidates"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/pos/lan/rotate": {
+            "post": {
+                "operationId": "branchLan.rotate",
+                "description": "A new secret (`key_id` + 1): every terminal takes its new keys with its next bootstrap (a sign-in or restart) and\ncannot join the LAN until then. Use it when a device was lost. Audited (pos.lan_key_rotated).",
+                "summary": "Rotate the branch's LAN key",
+                "tags": [
+                    "Owner: local bridge"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "branch_id": {
+                                                    "type": "integer"
+                                                },
+                                                "key_id": {
+                                                    "type": "integer"
+                                                },
+                                                "rotated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "port": {
+                                                    "type": "integer"
+                                                },
+                                                "hub": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "device": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "chosen": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "device",
+                                                        "name",
+                                                        "chosen"
+                                                    ]
+                                                },
+                                                "candidates": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "platform": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "last_seen_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "platform",
+                                                            "last_seen_at"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "branch_id",
+                                                "key_id",
+                                                "rotated_at",
+                                                "port",
+                                                "hub",
+                                                "candidates"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -79165,6 +79617,109 @@
                 }
             }
         },
+        "/v1/pos/bills/{uuid}/print-request": {
+            "post": {
+                "operationId": "posBill.printRequest",
+                "description": "The waiter app's \"Schyotni qayta chiqarish\" (P6 stage A): the branch's printing till prints the bill as a pre-check\n(\"Bu fiskal chek emas\", marked \"NUSXA\") on the branch's bill printer; it hears `bill.print_requested`\n(`reprint: true`) on `pos-branch.{id}`. It needs pos.reprint_bill or a manager's `approval_token` for\nit (403 `approval_required`), like a copy printed at the till, and is audited as `pos.bill_reprinted` with the\nrequester. Never fiscal; the bill's copy count does not move. A voided bill: 409 `bill_void`. A waiter asks for\ntheir own orders only (another waiter's: a manager's approval). Answers who prints: `printer_id` (null: that\ntill's own receipt printer), `target_device` (null: every till of the branch).",
+                "summary": "Ask the till to print the bill again",
+                "tags": [
+                    "POS: billing"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "description": "Required: a new UUID per action, the same one when retrying it (428 or 400 without).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "approval_token": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 100
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "request_id": {
+                                                    "type": "string"
+                                                },
+                                                "printer_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "target_device": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "request_id",
+                                                "printer_id",
+                                                "target_device"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/pos/bookings": {
             "get": {
                 "operationId": "booking.index",
@@ -87907,7 +88462,7 @@
         "/v1/pos/bootstrap": {
             "get": {
                 "operationId": "posBootstrap.show",
-                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`\n(P3-37: the discount percent a cashier gives without a manager; null or \"0.00\": always a manager), `alerts`\n(`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),\n`holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's),\n`booking_confirmation` (P3-38: `auto_send`, `sms`, `cancel_policy`)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the\nsame as GET /owner/billing/entitlements) for the \"Asosiy tarifda bor\" locks and the unpaid-invoice notice;\nP6-13: `queue`, order numbers (`numbers`, `calling`: the queue_numbers and queue_calling modules) and this till's\nnumber blocks of today (`blocks` start/end/next, `next_number`; a till running low gets its next block here).\nP6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to\nask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the\nterminal_card_flow module.\nP6-26: `booking_rules`, the branch's table booking rules (slot by place kind, lead time, deposit; null without the\ntable_booking module).\nP6-23: `staff_pay`, the clock-in/out for the signed-in person (`clock`, their open work `session`); null without\nthe staff_pay module.\nP6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`\n(personal|pool), `pool_rule` and `pool_period`.\nP6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,\nquick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's\nswitches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;\n`locks.service_charge_zero` for a stolovaya.",
+                "description": "A terminal's staff PIN session works its terminal's branch; a normal staff sign-in works the staff member's own\nbranch. An owner (or a terminal paired to the whole store) names the branch with `branch_id`; another store's\nbranch is 404, another branch than the caller's own 403 (orders.view).\n\n`data`: `server_time`; `menu_version` (refetch GET /catalog?channel=pos_* when it changes); `store` (id, name,\ntimezone); `branch` (id, name, address, phone, timezone, `business_day_starts_at` \"HH:MM\", `business_date`\n(the business day it is now), `pos_settings`: `mode` counter|table|hybrid, `printing_device_id` (uuid of the\n\"chop etuvchi\" kassa or null), `screen_lock_minutes` (0: never), `queue_numbers`, `cashier_discount_max_percent`\n(P3-37: the discount percent a cashier gives without a manager; null or \"0.00\": always a manager), `alerts`\n(`open_room_hours`, `void_amount`, `discount_percent`, `unaccepted_online_minutes`, `cash_out_amount`; null: off),\n`holidays` (dates), `booking_slot_minutes` (default length of a booking, null: the server's),\n`booking_confirmation` (P3-38: `auto_send`, `sms`, `cancel_policy`)); `device` (the\nterminal: uuid, type, name, `is_printing_device`; null outside a terminal session); `user` (id, name, role,\npermissions); `stations` (active kitchen stations); `station_routes` (dish to station: by product and by\ncategory; a product route beats its category's); `printers` (active ones this terminal can use: LAN and\nBluetooth printers, and the USB or built-in printers attached to this very terminal); `staff` (id, name, role,\nphoto_url: to pick a waiter); `halls` (open halls and zones), `tables` (their active places; `layout` in grid\ncells of the floor plan, 40 x 24), `shift` (the shift open on this terminal; null outside a terminal session or\nwith none open); P3-31: `offline`, what the till keeps for the limited mode (fees per hall and channel, today's room\nfee and minimum spend per place, the choy-non items, its local number prefix and next number, the limits);\nP3-26: `quick_items`, the one-tap buttons (products marked `quick_add` in the menu, then the\nbranch's per-guest \"choy-non\" items: `source` quick_add | auto_guest, `variant_uuid` to add as a line; prices and\navailability from the POS catalog); P4-21: `entitlements`, the store's plan, status, features and devices (the\nsame as GET /owner/billing/entitlements) for the \"Asosiy tarifda bor\" locks and the unpaid-invoice notice;\nP6-13: `queue`, order numbers (`numbers`, `calling`: the queue_numbers and queue_calling modules) and this till's\nnumber blocks of today (`blocks` start/end/next, `next_number`; a till running low gets its next block here).\nP6-16: `terminal_flow`, how the branch takes cards (`card_mode`), whether this till is a smart kassa, whether to\nask the bank terminal's day total at the Z (`ask_bank_total`, `difference_threshold`); null without the\nterminal_card_flow module.\nP6-26: `booking_rules`, the branch's table booking rules (slot by place kind, lead time, deposit; null without the\ntable_booking module).\nP6-23: `staff_pay`, the clock-in/out for the signed-in person (`clock`, their open work `session`); null without\nthe staff_pay module.\nP6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`\n(personal|pool), `pool_rule` and `pool_period`.\nP6 local bridge: `lan`, this terminal's LAN keys (its device key, the beacon key, the branch's hub and port; the\nhub also its secret and the terminals it lets in) and the signed offline grant of this PIN session; null for a\nnormal staff or owner sign-in and outside a terminal of the branch (pos/packages/pos_lan/README.md).\nP6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,\nquick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's\nswitches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;\n`locks.service_charge_zero` for a stolovaya.",
                 "summary": "POS bootstrap",
                 "tags": [
                     "POS: bootstrap"
@@ -88093,6 +88648,15 @@
                                                                         "sms",
                                                                         "cancel_policy"
                                                                     ]
+                                                                },
+                                                                "auto_print_bill": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "bill_printer": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -88104,7 +88668,9 @@
                                                                 "alerts",
                                                                 "holidays",
                                                                 "booking_slot_minutes",
-                                                                "booking_confirmation"
+                                                                "booking_confirmation",
+                                                                "auto_print_bill",
+                                                                "bill_printer"
                                                             ]
                                                         }
                                                     },
@@ -89439,6 +90005,117 @@
                                                         "pickup",
                                                         "business_day"
                                                     ]
+                                                },
+                                                "lan": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "v": {
+                                                            "type": "integer"
+                                                        },
+                                                        "branch_id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "key_id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "role": {
+                                                            "$ref": "#/components/schemas/LanRole"
+                                                        },
+                                                        "device": {
+                                                            "type": "string"
+                                                        },
+                                                        "device_key": {
+                                                            "type": "string"
+                                                        },
+                                                        "beacon_key": {
+                                                            "type": "string"
+                                                        },
+                                                        "hub": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "device": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "name": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "port": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "device",
+                                                                "name",
+                                                                "port"
+                                                            ]
+                                                        },
+                                                        "hub_secret": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "devices": {
+                                                            "type": [
+                                                                "array",
+                                                                "null"
+                                                            ],
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "type",
+                                                                    "name"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "grant": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "clock_window_seconds": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "v",
+                                                        "branch_id",
+                                                        "key_id",
+                                                        "role",
+                                                        "device",
+                                                        "device_key",
+                                                        "beacon_key",
+                                                        "hub",
+                                                        "hub_secret",
+                                                        "devices",
+                                                        "grant",
+                                                        "clock_window_seconds"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -89465,7 +90142,8 @@
                                                 "queue",
                                                 "booking_rules",
                                                 "labels",
-                                                "takeaway"
+                                                "takeaway",
+                                                "lan"
                                             ]
                                         }
                                     },
@@ -94018,6 +94696,166 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/pos/lan": {
+            "get": {
+                "operationId": "posLan.show",
+                "description": "The same `lan` section as GET /pos/bootstrap, without a staff grant (`grant: null`): the terminal's own device key,\nthe beacon key, the branch's hub and port (the hub also gets `hub_secret` and the terminals it lets in). Only a\nterminal of a branch with its own token; a store-wide terminal gets `data: null`.",
+                "summary": "The terminal's LAN keys",
+                "tags": [
+                    "POS: local bridge"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "v": {
+                                                    "type": "integer"
+                                                },
+                                                "branch_id": {
+                                                    "type": "integer"
+                                                },
+                                                "key_id": {
+                                                    "type": "integer"
+                                                },
+                                                "role": {
+                                                    "$ref": "#/components/schemas/LanRole"
+                                                },
+                                                "device": {
+                                                    "type": "string"
+                                                },
+                                                "device_key": {
+                                                    "type": "string"
+                                                },
+                                                "beacon_key": {
+                                                    "type": "string"
+                                                },
+                                                "hub": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "device": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "port": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "device",
+                                                        "name",
+                                                        "port"
+                                                    ]
+                                                },
+                                                "hub_secret": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "devices": {
+                                                    "type": [
+                                                        "array",
+                                                        "null"
+                                                    ],
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "type",
+                                                            "name"
+                                                        ]
+                                                    }
+                                                },
+                                                "grant": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "clock_window_seconds": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "v",
+                                                "branch_id",
+                                                "key_id",
+                                                "role",
+                                                "device",
+                                                "device_key",
+                                                "beacon_key",
+                                                "hub",
+                                                "hub_secret",
+                                                "devices",
+                                                "grant",
+                                                "clock_window_seconds"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
             }
         },
         "/v1/pos/orders": {
@@ -131794,7 +132632,7 @@
         "/v1/pos/sync": {
             "post": {
                 "operationId": "posSync.store",
-                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).",
                 "summary": "Send the offline queue",
                 "tags": [
                     "POS: sync"
@@ -131868,7 +132706,11 @@
                                                         "bill.pay",
                                                         "order.close",
                                                         "order.course_send",
-                                                        "order.weight"
+                                                        "order.weight",
+                                                        "kitchen.bump",
+                                                        "kitchen.recall",
+                                                        "kitchen.assembled",
+                                                        "bill.request"
                                                     ]
                                                 },
                                                 "occurred_at": {
@@ -131887,6 +132729,13 @@
                                                     "items": {
                                                         "type": "string"
                                                     }
+                                                },
+                                                "origin_device": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "format": "uuid"
                                                 }
                                             },
                                             "required": [
@@ -132221,6 +133070,27 @@
                                                                     "name"
                                                                 ]
                                                             },
+                                                            "origin_device": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "name"
+                                                                ]
+                                                            },
                                                             "occurred_at": {
                                                                 "type": [
                                                                     "string",
@@ -132342,6 +133212,7 @@
                                                             "message",
                                                             "staff",
                                                             "device",
+                                                            "origin_device",
                                                             "occurred_at",
                                                             "received_at",
                                                             "applied_at",
@@ -132555,6 +133426,27 @@
                                                         "name"
                                                     ]
                                                 },
+                                                "origin_device": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "name"
+                                                    ]
+                                                },
                                                 "occurred_at": {
                                                     "type": [
                                                         "string",
@@ -132676,6 +133568,7 @@
                                                 "message",
                                                 "staff",
                                                 "device",
+                                                "origin_device",
                                                 "occurred_at",
                                                 "received_at",
                                                 "applied_at",
@@ -132896,6 +133789,27 @@
                                                                     "name"
                                                                 ]
                                                             },
+                                                            "origin_device": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "name"
+                                                                ]
+                                                            },
                                                             "occurred_at": {
                                                                 "type": [
                                                                     "string",
@@ -133017,6 +133931,7 @@
                                                             "message",
                                                             "staff",
                                                             "device",
+                                                            "origin_device",
                                                             "occurred_at",
                                                             "received_at",
                                                             "applied_at",
@@ -142957,6 +143872,15 @@
                 ],
                 "title": "LabelSize"
             },
+            "LanRole": {
+                "type": "string",
+                "description": "P6 local bridge: what a terminal is on its branch's LAN (GET /pos/bootstrap `lan.role`): the hub (the main till runs the bridge and holds the branch's secret) or a client (a waiter's phone, a KDS, a customer display, another till).\n",
+                "enum": [
+                    "hub",
+                    "client"
+                ],
+                "title": "LanRole"
+            },
             "LengthAwarePaginator": {
                 "type": "object",
                 "properties": {
@@ -145687,7 +146611,7 @@
             },
             "PosSyncOperationType": {
                 "type": "string",
-                "description": "What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight.\n",
+                "description": "What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()).\n",
                 "enum": [
                     "order.open",
                     "order.round",
@@ -145698,7 +146622,11 @@
                     "bill.pay",
                     "order.close",
                     "order.course_send",
-                    "order.weight"
+                    "order.weight",
+                    "kitchen.bump",
+                    "kitchen.recall",
+                    "kitchen.assembled",
+                    "bill.request"
                 ],
                 "title": "PosSyncOperationType"
             },

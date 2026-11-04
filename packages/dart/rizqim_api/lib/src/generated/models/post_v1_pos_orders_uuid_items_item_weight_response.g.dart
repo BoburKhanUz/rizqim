@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidItemsItemWeightResponseFromJson(
 ) => PostV1PosOrdersUuidItemsItemWeightResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data240.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data245.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidItemsItemWeightResponseToJson(

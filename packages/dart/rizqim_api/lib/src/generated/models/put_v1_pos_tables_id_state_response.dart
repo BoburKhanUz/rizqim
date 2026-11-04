@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data269.dart';
+import 'data274.dart';
 
 part 'put_v1_pos_tables_id_state_response.g.dart';
 
@@ -21,7 +21,7 @@ class PutV1PosTablesIdStateResponse {
 
   final bool success;
   final String message;
-  final Data269 data;
+  final Data274 data;
 
   Map<String, Object?> toJson() => _$PutV1PosTablesIdStateResponseToJson(this);
 }

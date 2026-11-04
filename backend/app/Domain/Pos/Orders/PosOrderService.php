@@ -899,7 +899,8 @@ class PosOrderService implements PosOrderOpener
      */
     public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null): Order
     {
-        return DB::transaction(function () use ($order, $version, $actor, $approvalToken) {
+        $asked = false;
+        $result = DB::transaction(function () use ($order, $version, $actor, $approvalToken, &$asked) {
             $locked = Order::whereKey($order->getKey())->lockForUpdate()->firstOrFail();
             $this->assertMutable($locked);
             if ($version !== null && (int) $locked->version !== $version) {
@@ -908,6 +909,7 @@ class PosOrderService implements PosOrderOpener
             if ($locked->bill_requested_at !== null) {
                 return $locked;
             }
+            $asked = true;
             $this->waiters->guard($locked, $actor, $approvalToken);
 
             $locked->forceFill([
@@ -925,6 +927,13 @@ class PosOrderService implements PosOrderOpener
 
             return $locked;
         });
+
+        // The branch prints the pre-check by itself (never fails the request, App\Domain\Pos\Billing\BillPrintRequests)
+        if ($asked) {
+            app(\App\Domain\Pos\Billing\BillPrintRequests::class)->afterBillRequested($result, $actor, $this->permissions->terminalOf($actor));
+        }
+
+        return $result;
     }
 
     /**

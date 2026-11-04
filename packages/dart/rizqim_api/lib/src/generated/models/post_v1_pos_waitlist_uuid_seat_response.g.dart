@@ -11,7 +11,7 @@ PostV1PosWaitlistUuidSeatResponse _$PostV1PosWaitlistUuidSeatResponseFromJson(
 ) => PostV1PosWaitlistUuidSeatResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data277.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data282.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosWaitlistUuidSeatResponseToJson(

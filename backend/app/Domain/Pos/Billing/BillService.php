@@ -57,16 +57,7 @@ final class BillService
             app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($order, $user, $approvalToken);
             self::assertWeighed($order);
 
-            $voided = [];
-            $payable = OrderBill::where('order_id', $order->id)
-                ->whereIn('status', [BillStatus::OPEN->value, BillStatus::PRINTED->value])
-                ->whereNotExists(fn ($payments) => $payments->selectRaw('1')->from('payments')->whereColumn('payments.bill_id', 'order_bills.id'))
-                ->lockForUpdate()
-                ->get();
-            foreach ($payable as $old) {
-                $old->forceFill(['status' => BillStatus::VOID->value, 'voided_at' => now()])->save();
-                $voided[] = ['uuid' => $old->uuid, 'printed_count' => $old->printed_count, 'total' => $old->total];
-            }
+            $voided = $this->voidPayable($order);
 
             $billable = BillableOrder::of($order);
             $plans = $this->splitter->plan($billable, $mode, $parts, $billsSpec);
@@ -91,6 +82,76 @@ final class BillService
         event(new BillChangedBroadcast($order, null, $voided === [] ? 'created' : 'rebilled'));
 
         return $bills;
+    }
+
+    /**
+     * Bills that are not being paid yet (open or printed, no payment) are voided so the order can be billed again.
+     *
+     * @return list<array{uuid: string, printed_count: int, total: string}>
+     */
+    private function voidPayable(Order $order): array
+    {
+        $voided = [];
+        $payable = OrderBill::where('order_id', $order->id)
+            ->whereIn('status', [BillStatus::OPEN->value, BillStatus::PRINTED->value])
+            ->whereNotExists(fn ($payments) => $payments->selectRaw('1')->from('payments')->whereColumn('payments.bill_id', 'order_bills.id'))
+            ->lockForUpdate()
+            ->get();
+        foreach ($payable as $old) {
+            $old->forceFill(['status' => BillStatus::VOID->value, 'voided_at' => now()])->save();
+            $voided[] = ['uuid' => $old->uuid, 'printed_count' => $old->printed_count, 'total' => $old->total];
+        }
+
+        return $voided;
+    }
+
+    /**
+     * The bill to print as a pre-check when the waiter asks for it (BillPrintRequests): the order's one unpaid bill when
+     * it is still up to date, else the order billed again as one bill (older unpaid bills are voided). No permission or
+     * waiter check here (the request that asked was checked), the order's version does not move and the bill is not
+     * "printed" (no copy count, no lock): the till's paper is a pre-check, never the hand-over of the bill. Null when
+     * the order is already being paid or split into several bills: the till works on those.
+     *
+     * @throws PosActionException nothing to bill, a weight pending, the order closed
+     */
+    public function ensureForPrint(User $actor, Order $order, ?Device $device): ?OrderBill
+    {
+        $result = DB::transaction(function () use ($actor, $order, $device) {
+            $order = self::lockOpenOrder($order, null);
+            self::assertWeighed($order);
+
+            $active = OrderBill::where('order_id', $order->id)->where('status', '!=', BillStatus::VOID->value)->lockForUpdate()->orderBy('number')->get();
+            if ($active->contains(fn (OrderBill $bill) => $bill->status === BillStatus::PAID || $bill->payments()->exists())) {
+                return [null, null];
+            }
+            if ($active->count() === 1 && $active->first()->basis === BillableOrder::fingerprint($order)) {
+                return [$active->first(), null];
+            }
+            if ($active->count() > 1 && $active->every(fn (OrderBill $bill) => $bill->basis === BillableOrder::fingerprint($order))) {
+                return [null, null]; // a split the till made
+            }
+
+            $voided = $this->voidPayable($order);
+            $billable = BillableOrder::of($order);
+            $plans = $this->splitter->plan($billable, 'single', 1, []);
+            $bills = $this->splitter->save($order, 'single', $plans, $billable->basis, $actor->id);
+
+            $this->audit->record('pos.bills_created', $order, [], [], array_filter([
+                'mode' => 'single',
+                'auto' => true,
+                'bills' => array_map(fn (OrderBill $bill) => ['uuid' => $bill->uuid, 'total' => $bill->total], $bills),
+                'voided' => $voided ?: null,
+            ]), ['actor' => $actor, 'device' => $device]);
+
+            return [$bills[0], [$order, $voided === [] ? 'created' : 'rebilled']];
+        });
+
+        [$bill, $announce] = $result;
+        if ($announce !== null) {
+            event(new BillChangedBroadcast($announce[0], null, $announce[1]));
+        }
+
+        return $bill;
     }
 
     /**

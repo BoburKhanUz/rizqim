@@ -7,15 +7,11 @@ part of 'data292.dart';
 // **************************************************************************
 
 Data292 _$Data292FromJson(Map<String, dynamic> json) => Data292(
-  user: User.fromJson(json['user'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store.fromJson(json['store'] as Map<String, dynamic>),
-  smsVerificationRequired: json['sms_verification_required'] as bool,
+  rating: json['rating'] as String,
+  reviewCount: (json['review_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data292ToJson(Data292 instance) => <String, dynamic>{
-  'user': instance.user,
-  'store': instance.store,
-  'sms_verification_required': instance.smsVerificationRequired,
+  'rating': instance.rating,
+  'review_count': instance.reviewCount,
 };

@@ -10,6 +10,8 @@ use App\Domain\Pos\Billing\BillStatus;
 use App\Domain\Pos\Billing\OrderCloser;
 use App\Domain\Pos\Billing\PaymentService;
 use App\Domain\Pos\Billing\PosActionException;
+use App\Domain\Pos\Kitchen\KitchenAssembly;
+use App\Domain\Pos\Lan\BranchLan;
 use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Orders\PosLineBuilder;
 use App\Domain\Pos\Orders\PosOrderException;
@@ -36,6 +38,9 @@ use App\Models\PosSyncOperation;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\PermissionService;
+use App\Services\Notifications\OrderAlertService;
+use App\Services\Order\KitchenService;
+use App\Services\Order\OrderTransitionException;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +66,12 @@ use Throwable;
  *  - money: recorded whatever happened; on a cancelled order the order is flagged `refund_needed`, on a bill it can
  *    no longer go to `payment_unallocated`; a bill paid less or more than the server's total is a conflict
  *    (`underpaid`, `overpaid`).
+ *
+ * P6 local bridge (docs/POS_SPEC.md §5.5): an operation the branch's hub relayed for another terminal of the branch
+ * (`origin_device`: a waiter's phone, a KDS) is applied as that terminal's (the staff member signed in there, the
+ * order's device), only when the sender is the branch's hub (BranchLan::acceptsRelayFrom), the origin is an active
+ * terminal of the same branch and the type is relayable (never money, a bill or closing); otherwise it is rejected
+ * (`relay_not_hub`, `origin_unknown`, `origin_wrong_branch`, `origin_revoked`, `relay_not_allowed`).
  */
 final class PosSyncApplier
 {
@@ -90,7 +101,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>}  $op
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string}  $op
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -105,6 +116,7 @@ final class PosSyncApplier
             'store_id' => $device->store_id,
             'branch_id' => $device->branch_id,
             'device_id' => $device->id,
+            'origin_device_id' => null,
             'op_id' => strtolower((string) $op['op_id']),
             'seq' => (int) $op['seq'],
             'type' => (string) $op['type'],
@@ -116,20 +128,25 @@ final class PosSyncApplier
             'client_ref' => $this->clientRef($type, $payload),
         ];
 
+        $origin = isset($op['origin_device']) ? strtolower($op['origin_device']) : null;
         try {
             if ($type === null) {
                 throw new PosSyncException('type_unknown', "Amal turi noma'lum: ilovani yangilang.");
             }
-            $staff = $this->staff($device, $base['staff_id'], $type);
+            // P6: a relayed operation is the origin terminal's (who signed in there, the order's device)
+            $acting = $this->origin($device, $origin, $type, $happenedAt);
+            $base['origin_device_id'] = (int) $acting->id !== (int) $device->id ? (int) $acting->id : null;
+            $staff = $this->staff($acting, $base['staff_id'], $type);
         } catch (PosSyncException $e) {
-            // Nobody to attribute it to (or an unknown type): never applied, money included
-            return $this->rejected($base, $e->reason, $e->getMessage());
+            // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied,
+            // money included
+            return $this->rejected($base, $e->reason, $e->getMessage(), $origin !== null ? ['origin_device' => $origin] : null);
         }
 
         $bills = [];
         try {
-            return DB::transaction(function () use ($device, $type, $staff, $payload, $happenedAt, $clamped, $base, &$bills) {
-                $outcome = $this->run($device, $type, $staff, $payload, $happenedAt);
+            return DB::transaction(function () use ($acting, $type, $staff, $payload, $happenedAt, $clamped, $base, &$bills) {
+                $outcome = $this->run($acting, $type, $staff, $payload, $happenedAt);
                 $bills = $outcome['bills'] ?? [];
                 if ($clamped !== null) {
                     $outcome['flags'] = [...($outcome['flags'] ?? []), $clamped];
@@ -138,7 +155,7 @@ final class PosSyncApplier
 
                 return $this->record($base, $outcome);
             });
-        } catch (PosSyncException|PosOrderException|PosActionException|ValidationException|FiscalException|\App\Domain\Pos\Booking\BookingException|\App\Domain\Pos\Accounts\CustomerAccountException $e) {
+        } catch (PosSyncException|PosOrderException|PosActionException|ValidationException|FiscalException|\App\Domain\Pos\Booking\BookingException|\App\Domain\Pos\Accounts\CustomerAccountException|OrderTransitionException $e) {
             [$reason, $message] = $this->describe($e);
 
             // Money taken is never rejected: it is recorded on the order as it is now
@@ -243,15 +260,48 @@ final class PosSyncApplier
 
     /**
      * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>|null  $result
      */
-    private function rejected(array $base, string $reason, string $message): PosSyncOperation
+    private function rejected(array $base, string $reason, string $message, ?array $result = null): PosSyncOperation
     {
         return PosSyncOperation::create($base + [
             'status' => PosSyncStatus::REJECTED->value,
             'reason' => $reason,
             'error' => $message,
-            'result' => null,
+            'result' => $result,
         ]);
+    }
+
+    /**
+     * P6 local bridge: the terminal an operation is applied as — the sender itself, or (relayed by the branch's hub)
+     * the origin terminal of the same branch.
+     *
+     * @throws PosSyncException
+     */
+    private function origin(Device $device, ?string $origin, PosSyncOperationType $type, ?Carbon $occurredAt): Device
+    {
+        if ($origin === null || $origin === '' || $origin === strtolower((string) $device->uuid)) {
+            return $device;
+        }
+        if (!$type->relayable()) {
+            throw new PosSyncException('relay_not_allowed', "Bu amal faqat kassaning o'zida bajariladi (to'lov, schyot, yopish).");
+        }
+        if (!app(BranchLan::class)->acceptsRelayFrom($device, $occurredAt)) {
+            throw new PosSyncException('relay_not_hub', "Boshqa qurilmaning amalini faqat filialning markaz kassasi yuboradi.");
+        }
+
+        $source = Str::isUuid($origin) ? Device::where('uuid', $origin)->first() : null;
+        if ($source === null || !$source->isTerminal() || (int) $source->store_id !== (int) $device->store_id) {
+            throw new PosSyncException('origin_unknown', 'Amal qilingan qurilma topilmadi.');
+        }
+        if ($source->branch_id === null || (int) $source->branch_id !== (int) $device->branch_id) {
+            throw new PosSyncException('origin_wrong_branch', 'Amal qilingan qurilma boshqa filialniki.');
+        }
+        if ($source->revoked_at !== null) {
+            throw new PosSyncException('origin_revoked', 'Amal qilingan qurilma uzilgan.');
+        }
+
+        return $source;
     }
 
     /**
@@ -279,6 +329,10 @@ final class PosSyncApplier
             PosSyncOperationType::ORDER_CLOSE => $this->close($device, $staff, $payload),
             PosSyncOperationType::ORDER_COURSE_SEND => $this->courseSend($device, $staff, $payload),
             PosSyncOperationType::ORDER_WEIGHT => $this->weight($device, $staff, $payload),
+            PosSyncOperationType::KITCHEN_BUMP => $this->kitchen($device, $staff, $payload, true),
+            PosSyncOperationType::KITCHEN_RECALL => $this->kitchen($device, $staff, $payload, false),
+            PosSyncOperationType::KITCHEN_ASSEMBLED => $this->assembled($device, $staff, $payload),
+            PosSyncOperationType::BILL_REQUEST => $this->billRequest($device, $staff, $payload),
         };
     }
 
@@ -517,6 +571,84 @@ final class PosSyncApplier
     }
 
     /**
+     * P6 kitchen.bump / kitchen.recall: {order, line} — a KDS marked a line ready (or took it back) offline, through the
+     * hub. The same rules as the kitchen display online (KitchenService); bumped already: applied, nothing changes. An
+     * order that left the kitchen meanwhile: rejected (`illegal`, `stale`).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function kitchen(Device $device, User $staff, array $payload, bool $ready): array
+    {
+        $order = $this->posOrder($device, $payload);
+        $ref = $payload['line'] ?? null;
+        // P6-31: a combo part's kitchen line too
+        $query = OrderItem::withComboParts()->where('order_id', $order->id);
+        $item = is_int($ref) || (is_string($ref) && ctype_digit($ref))
+            ? $query->whereKey((int) $ref)->first()
+            : (is_string($ref) && Str::isUuid($ref) ? $query->where('client_line_id', strtolower($ref))->first() : null);
+        if ($item === null) {
+            throw new PosSyncException('line_not_found', 'Taom qatori serverda topilmadi.');
+        }
+
+        $kitchen = app(KitchenService::class);
+        $result = $ready ? $kitchen->bump($order, $item, $staff) : $kitchen->recall($order, $item, $staff);
+        $this->statusAlerts($result['order'], $result['statuses']);
+
+        return $this->finish(Order::findOrFail($order->id), [], $payload, ['changed' => $result['changed']]);
+    }
+
+    /**
+     * P6 kitchen.assembled: {order} — the expo station assembled the order offline (KitchenAssembly). An order that
+     * does not go through the expo (the last line bump made it ready) or was assembled already: applied, nothing to do.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function assembled(Device $device, User $staff, array $payload): array
+    {
+        $order = $this->posOrder($device, $payload);
+        try {
+            $result = app(KitchenAssembly::class)->assemble($order, $staff);
+        } catch (PosOrderException $e) {
+            if ($e->reason !== 'assembly_not_required') {
+                throw $e;
+            }
+
+            return $this->finish(Order::findOrFail($order->id), [], $payload, ['changed' => false]);
+        }
+        $this->statusAlerts($result['order'], $result['statuses']);
+
+        return $this->finish(Order::findOrFail($order->id), [], $payload, ['changed' => $result['changed']]);
+    }
+
+    /**
+     * P6 bill.request: {order} — the waiter asked for the bill offline (PosOrderService::requestBill: the waiter rule,
+     * asked once already: unchanged).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function billRequest(Device $device, User $staff, array $payload): array
+    {
+        $order = $this->openOrder($device, $payload);
+
+        return $this->finish($this->orders->requestBill($order, null, $staff), [], $payload);
+    }
+
+    /**
+     * The customer and courier alerts of the order statuses a kitchen change moved it through (as the KDS online).
+     *
+     * @param  list<OrderStatus>  $statuses
+     */
+    private function statusAlerts(Order $order, array $statuses): void
+    {
+        foreach ($statuses as $status) {
+            app(OrderAlertService::class)->statusChanged($order, $status->value);
+        }
+    }
+
+    /**
      * bill.create: {order, bill (the device's id), expected_total?} — one bill of what is left to bill.
      *
      * @param  array<string, mixed>  $payload
@@ -714,6 +846,8 @@ final class PosSyncApplier
         'order.close' => 'pos.orders.close',
         'order.course_send' => 'pos.orders.course_send',
         'order.weight' => 'pos.orders.weight',
+        'kitchen.assembled' => 'pos.kds.assembled',
+        'bill.request' => 'pos.orders.request_bill',
     ];
 
     /**
@@ -730,8 +864,13 @@ final class PosSyncApplier
             return null;
         }
 
+        $scope = self::SCOPES[$type->value] ?? null;
+        if ($scope === null) {
+            return null;
+        }
+
         $row = \App\Models\IdempotencyKey::query()
-            ->where('scope', self::SCOPES[$type->value])
+            ->where('scope', $scope)
             ->where('actor_type', 'user')
             ->where('actor_id', $staff->id)
             ->where('key', $key)
@@ -1174,6 +1313,7 @@ final class PosSyncApplier
             $e instanceof PosOrderException => [$e->reason, $e->getMessage()],
             $e instanceof PosActionException => [$e->reason, $e->getMessage()],
             $e instanceof FiscalException => [$e->reason, $e->getMessage()],
+            $e instanceof OrderTransitionException => [$e->reason, $e->getMessage()],
             $e instanceof ValidationException => ['invalid', (string) collect($e->errors())->flatten()->first()],
             default => ['invalid', $e->getMessage()],
         };

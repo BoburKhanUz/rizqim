@@ -4,44 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'period2.dart';
+import 'summary3.dart';
+import 'series.dart';
+import 'by_channel2.dart';
+import 'by_branch.dart';
+import 'by_payment_method2.dart';
+import 'by_order_type2.dart';
+
 part 'data150.g.dart';
 
 @JsonSerializable()
 class Data150 {
   const Data150({
-    required this.id,
+    required this.period,
     required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
+    required this.summary,
+    required this.byStatus,
+    required this.series,
+    required this.byChannel,
+    required this.byBranch,
+    required this.byPaymentMethod,
+    required this.byOrderType,
   });
 
   factory Data150.fromJson(Map<String, Object?> json) =>
       _$Data150FromJson(json);
 
-  final int id;
+  final Period2 period;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  final int? branchId;
+  final Summary3 summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  final List<Series> series;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel2> byChannel;
+  @JsonKey(name: 'by_branch')
+  final List<ByBranch> byBranch;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod2> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType2> byOrderType;
 
   Map<String, Object?> toJson() => _$Data150ToJson(this);
 }

@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'staff23.dart';
 import 'device24.dart';
+import 'origin_device3.dart';
 import 'order13.dart';
 import 'resolved_by3.dart';
 
@@ -23,6 +24,7 @@ class Errors2 {
     required this.message,
     required this.staff,
     required this.device,
+    required this.originDevice,
     required this.occurredAt,
     required this.receivedAt,
     required this.appliedAt,
@@ -50,6 +52,8 @@ class Errors2 {
   final String? message;
   final Staff23? staff;
   final Device24? device;
+  @JsonKey(name: 'origin_device')
+  final OriginDevice3? originDevice;
   @JsonKey(name: 'occurred_at')
   final String? occurredAt;
   @JsonKey(name: 'received_at')

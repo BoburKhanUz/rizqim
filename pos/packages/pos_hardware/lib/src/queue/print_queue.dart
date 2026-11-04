@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../printer/lan_transport.dart';
+import '../printer/native_transport.dart';
 import '../printer/printer.dart';
 import '../printer/sunmi_transport.dart';
 import '../printer/windows_spooler.dart';
@@ -110,16 +111,19 @@ class RetryPolicy {
 /// Printer sozlamasidan transport.
 typedef TransportFactory = PrinterTransport Function(PrinterConfig config);
 
-/// Standart transportlar: LAN, Windows spooler, Sunmi.
-PrinterTransport defaultTransportFor(PrinterConfig config) =>
-    switch (config.target) {
-      final LanPrinterTarget t => LanPrinterTransport(
-        t,
-        language: config.language,
-      ),
-      final WindowsPrinterTarget t => WindowsPrinterTransport(t),
-      SunmiPrinterTarget() => SunmiPrinterTransport(),
-    };
+/// Standart transportlar: LAN, Windows spooler, Sunmi, Bluetooth va USB (Android plagini).
+PrinterTransport defaultTransportFor(
+  PrinterConfig config,
+) => switch (config.target) {
+  final LanPrinterTarget t => LanPrinterTransport(t, language: config.language),
+  final WindowsPrinterTarget t => WindowsPrinterTransport(t),
+  SunmiPrinterTarget() => SunmiPrinterTransport(),
+  final BluetoothPrinterTarget t => BluetoothPrinterTransport(
+    t,
+    language: config.language,
+  ),
+  final UsbPrinterTarget t => UsbPrinterTransport(t, language: config.language),
+};
 
 /// Chop etish navbati: har printer uchun alohida ketma-ket navbat (bir printerga bir vaqtda bitta ish, turli
 /// printerlar parallel), vaqtinchalik xatoda (ulanmadi, vaqt tugadi) [RetryPolicy] bo'yicha qayta urinadi.

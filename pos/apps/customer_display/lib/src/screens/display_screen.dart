@@ -2,13 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:pos_ui/customer_display.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../board/board_view.dart';
-import '../cart/cart_view.dart';
 import '../controller/display_controller.dart';
 import '../settings/display_settings.dart';
-import '../widgets/display_type.dart';
 import 'settings_dialog.dart';
 
 /// Mijoz ekrani: kassa cheki, salomlashish yoki raqamlar taxtasi; burchakda aloqa belgisi. Sozlamalar xodimsiz: pastki
@@ -35,7 +34,7 @@ class DisplayScreen extends StatelessWidget {
                       key: ValueKey<DisplayView>(view),
                       child: switch (view) {
                         DisplayView.loading => const _Loading(),
-                        DisplayView.welcome => _Welcome(
+                        DisplayView.welcome => DisplayWelcome(
                           name: controller.storeName,
                         ),
                         DisplayView.cart => CartView(
@@ -77,41 +76,6 @@ class _Loading extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Center(child: CircularProgressIndicator());
-}
-
-class _Welcome extends StatelessWidget {
-  const _Welcome({this.name});
-
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    final RzColors c = context.rz;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.restaurant_rounded, size: 96, color: c.brand),
-            const SizedBox(height: 24),
-            if (name != null)
-              Text(
-                name!,
-                textAlign: TextAlign.center,
-                style: DisplayType.greeting.copyWith(color: c.fg),
-              ),
-            const SizedBox(height: 12),
-            Text(
-              'Xush kelibsiz!',
-              textAlign: TextAlign.center,
-              style: DisplayType.heading.copyWith(color: c.fgMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _NotEnabled extends StatelessWidget {

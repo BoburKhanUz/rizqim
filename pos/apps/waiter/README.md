@@ -63,6 +63,12 @@ modul o'chiq bo'lsa choyxona oqimi o'zgarmaydi, server 403 `module_disabled` ber
 va to'lovni oladi; ofitsiant schyot tuzmaydi va chiqarmaydi (telefonda printer yo'q). Takroriy so'rov o'zgarishsiz
 qaytadi. Kassir schyotni chiqargandan keyin buyurtma o'zgarsa "Schyot eskirdi" ko'rsatiladi.
 
+P6 (A bosqichi): filialda `pos_settings.auto_print_bill` yoqiq bo'lsa (standart) server schyotni o'zi tuzadi va kassa
+`bill.print_requested` bilan uni o'zi chop etadi (`OrderController.autoPrintsBill` matnni o'zgartiradi). **"Schyotni qayta
+chiqarish"** (`OrderController.reprintBill`): buyurtmaning to'lanmagan schyotlari uchun
+`POST /pos/bills/{uuid}/print-request`; ofitsiantda `pos.reprint_bill` yo'q — menejer PIN tasdig'i so'raladi (`Approving`).
+Schyot hali tuzilmagan bo'lsa so'rov yuborilmaydi. Qo'llanma: `docs/guides/uskunalar.md`.
+
 ## Ishga tushirish
 
 ```bash

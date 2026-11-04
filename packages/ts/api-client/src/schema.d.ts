@@ -5168,7 +5168,10 @@ export interface paths {
          *     `unaccepted_online_minutes`, `cash_out_amount` — one cash out of the drawer of at least this, "500000.00" by
          *     default; null: off), `holidays` (YYYY-MM-DD), `booking_slot_minutes` (null: the server default),
          *     `booking_confirmation` (P3-38: `auto_send` true by default — the guest is sent the confirmation when a booking is
-         *     confirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null).
+         *     confirmed; `sms` false by default — SMS costs money; `cancel_policy` the cancellation rule in it, or null),
+         *     `auto_print_bill` (true by default — the waiter's "Schyot so'rash" makes the bill and the till prints the pre-check
+         *     by itself), `bill_printer` (id of a receipt printer of the branch it is printed on; null: the receipt printer of the
+         *     printing till).
          */
         get: operations["branchPosSettings.show"];
         /**
@@ -5179,7 +5182,8 @@ export interface paths {
          *     `alerts` merges key by key (`open_room_hours` 1-72, `void_amount` 0-100000000, `discount_percent` 0-100,
          *     `unaccepted_online_minutes` 1-120, `cash_out_amount` 0-100000000; null switches that alert off); `holidays` replaces the whole list (up to 400 dates); `booking_slot_minutes` 30-1440 (how long a booking without an end
          *     time holds its room; null: the server default); `booking_confirmation` merges key by key (`auto_send`, `sms`
-         *     booleans, `cancel_policy` text up to 300 characters or null). An unknown key is 422.
+         *     booleans, `cancel_policy` text up to 300 characters or null); `auto_print_bill` boolean; `bill_printer` (id of an
+         *     active receipt printer of this branch, or null). An unknown key is 422.
          */
         put: operations["branchPosSettings.update"];
         post?: never;
@@ -6424,6 +6428,53 @@ export interface paths {
          *     adds nothing. A locked subscription: 403 subscription_locked. Audited (settings.pos_template_applied).
          */
         post: operations["posFormat.applyTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/lan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's local bridge
+         * @description `hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first
+         *     paired till), `candidates`: the branch's active tills, `port` (default 18480), `key_id` and `rotated_at`.
+         */
+        get: operations["branchLan.show"];
+        /**
+         * Pick the hub or the port
+         * @description `hub_device_id`: an active till (uuid) of the branch, null: back to the default. `port`: 1024–65535. Send only
+         *     what changes. Audited (settings.pos_lan_changed).
+         */
+        put: operations["branchLan.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/lan/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the branch's LAN key
+         * @description A new secret (`key_id` + 1): every terminal takes its new keys with its next bootstrap (a sign-in or restart) and
+         *     cannot join the LAN until then. Use it when a device was lost. Audited (pos.lan_key_rotated).
+         */
+        post: operations["branchLan.rotate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7780,6 +7831,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/bills/{uuid}/print-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the till to print the bill again
+         * @description The waiter app's "Schyotni qayta chiqarish" (P6 stage A): the branch's printing till prints the bill as a pre-check
+         *     ("Bu fiskal chek emas", marked "NUSXA") on the branch's bill printer; it hears `bill.print_requested`
+         *     (`reprint: true`) on `pos-branch.{id}`. It needs pos.reprint_bill or a manager's `approval_token` for
+         *     it (403 `approval_required`), like a copy printed at the till, and is audited as `pos.bill_reprinted` with the
+         *     requester. Never fiscal; the bill's copy count does not move. A voided bill: 409 `bill_void`. A waiter asks for
+         *     their own orders only (another waiter's: a manager's approval). Answers who prints: `printer_id` (null: that
+         *     till's own receipt printer), `target_device` (null: every till of the branch).
+         */
+        post: operations["posBill.printRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/bookings": {
         parameters: {
             query?: never;
@@ -8143,6 +8220,9 @@ export interface paths {
          *     the staff_pay module.
          *     P6-22: `tips`, whether the payment screen offers a tip (`enabled`: the tips module) and the branch's `mode`
          *     (personal|pool), `pool_rule` and `pool_period`.
+         *     P6 local bridge: `lan`, this terminal's LAN keys (its device key, the beacon key, the branch's hub and port; the
+         *     hub also its secret and the terminals it lets in) and the signed offline grant of this PIN session; null for a
+         *     normal staff or owner sign-in and outside a terminal of the branch (pos/packages/pos_lan/README.md).
          *     P6-11: `format`, the branch's format profile: `profile`, `profile_label`, `mode`, `first_screen` one of hall_map,
          *     quick_counter, booking_calendar, online_orders; `modules`, the effective modules: the profile's with the owner's
          *     switches, minus the law's locks and what the plan lacks; the apps show screens and buttons from this list only;
@@ -8495,6 +8575,28 @@ export interface paths {
          *     caller's (a terminal's) branch.
          */
         get: operations["posFloor.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/lan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The terminal's LAN keys
+         * @description The same `lan` section as GET /pos/bootstrap, without a staff grant (`grant: null`): the terminal's own device key,
+         *     the beacon key, the branch's hub and port (the hub also gets `hub_secret` and the terminals it lets in). Only a
+         *     terminal of a branch with its own token; a store-wide terminal gets `data: null`.
+         */
+        get: operations["posLan.show"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9534,6 +9636,11 @@ export interface paths {
          *     gives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the
          *     last 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including
          *     this batch: the shift does not close while it is not empty. Only a POS terminal's own token.
+         *     P6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'
+         *     phones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types
+         *     kitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an
+         *     origin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,
+         *     origin_revoked, relay_not_allowed).
          */
         post: operations["posSync.store"];
         delete?: never;
@@ -10912,6 +11019,12 @@ export interface components {
          * @enum {string}
          */
         LabelSize: "40x30" | "58x40";
+        /**
+         * LanRole
+         * @description P6 local bridge: what a terminal is on its branch's LAN (GET /pos/bootstrap `lan.role`): the hub (the main till runs the bridge and holds the branch's secret) or a client (a waiter's phone, a KDS, a customer display, another till).
+         * @enum {string}
+         */
+        LanRole: "hub" | "client";
         /** LengthAwarePaginator */
         LengthAwarePaginator: {
             current_page: number;
@@ -11487,10 +11600,10 @@ export interface components {
         };
         /**
          * PosSyncOperationType
-         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight.
+         * @description What a till may do offline (docs/POS_SPEC.md §5.1), each applied through the POS domain services on sync: open a walk-in or room order, add a round, send lines to the kitchen, void an unsent line, mark a line served, make one bill, take cash or card for it, close the order; P6-21 / P6-25: send a held course, enter a line's real weight. P6 local bridge (docs/POS_SPEC.md §5.5): the kitchen's bump, recall and expo assembly and the waiter's bill request, which the hub relays from the KDS and the waiters' phones (relayable()).
          * @enum {string}
          */
-        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight";
+        PosSyncOperationType: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request";
         /** Product */
         Product: {
             id: number;
@@ -27257,6 +27370,8 @@ export interface operations {
                                     sms: boolean;
                                     cancel_policy: string | null;
                                 };
+                                auto_print_bill: boolean;
+                                bill_printer: number | null;
                             };
                         };
                     };
@@ -27295,6 +27410,8 @@ export interface operations {
                         };
                         booking_slot_minutes?: number | null;
                         holidays?: string[];
+                        auto_print_bill?: boolean;
+                        bill_printer?: number | null;
                         booking_confirmation?: {
                             auto_send?: boolean;
                             sms?: boolean;
@@ -27337,6 +27454,8 @@ export interface operations {
                                     sms: boolean;
                                     cancel_policy: string | null;
                                 };
+                                auto_print_bill: boolean;
+                                bill_printer: number | null;
                             };
                         };
                     };
@@ -31717,6 +31836,138 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "branchLan.show": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            key_id: number;
+                            rotated_at: string | null;
+                            port: number;
+                            hub: {
+                                device: string;
+                                name: string | null;
+                                chosen: boolean;
+                            } | null;
+                            candidates: {
+                                uuid: string;
+                                name: string | null;
+                                platform: string | null;
+                                last_seen_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "branchLan.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    hub_device_id?: string | null;
+                    port?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            key_id: number;
+                            rotated_at: string | null;
+                            port: number;
+                            hub: {
+                                device: string;
+                                name: string | null;
+                                chosen: boolean;
+                            } | null;
+                            candidates: {
+                                uuid: string;
+                                name: string | null;
+                                platform: string | null;
+                                last_seen_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "branchLan.rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            key_id: number;
+                            rotated_at: string | null;
+                            port: number;
+                            hub: {
+                                device: string;
+                                name: string | null;
+                                chosen: boolean;
+                            } | null;
+                            candidates: {
+                                uuid: string;
+                                name: string | null;
+                                platform: string | null;
+                                last_seen_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "serviceChargeRules.show": {
@@ -37005,6 +37256,46 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "posBill.printRequest": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            request_id: string;
+                            printer_id: number | null;
+                            target_device: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "booking.index": {
         parameters: {
             query?: {
@@ -39054,6 +39345,8 @@ export interface operations {
                                         sms: boolean;
                                         cancel_policy: string | null;
                                     };
+                                    auto_print_bill: boolean;
+                                    bill_printer: number | null;
                                 };
                             };
                             device: {
@@ -39343,6 +39636,28 @@ export interface operations {
                                     round_the_clock: boolean;
                                 };
                             };
+                            lan: {
+                                v: number;
+                                branch_id: number;
+                                key_id: number;
+                                role: components["schemas"]["LanRole"];
+                                device: string;
+                                device_key: string;
+                                beacon_key: string;
+                                hub: {
+                                    device: string | null;
+                                    name: string | null;
+                                    port: number;
+                                };
+                                hub_secret: string | null;
+                                devices: {
+                                    uuid: string;
+                                    type: string;
+                                    name: string | null;
+                                }[] | null;
+                                grant: string | null;
+                                clock_window_seconds: number;
+                            } | null;
                         };
                     };
                 };
@@ -40525,6 +40840,59 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posLan.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            v: number;
+                            branch_id: number;
+                            key_id: number;
+                            role: components["schemas"]["LanRole"];
+                            device: string;
+                            device_key: string;
+                            beacon_key: string;
+                            hub: {
+                                device: string | null;
+                                name: string | null;
+                                port: number;
+                            };
+                            hub_secret: string | null;
+                            devices: {
+                                uuid: string;
+                                type: string;
+                                name: string | null;
+                            }[] | null;
+                            grant: string | null;
+                            clock_window_seconds: number;
+                        } | null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posOrder.index": {
@@ -48784,11 +49152,13 @@ export interface operations {
                         op_id: string;
                         seq: number;
                         /** @enum {string} */
-                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight";
+                        type: "order.open" | "order.round" | "order.send" | "order.void" | "order.served" | "bill.create" | "bill.pay" | "order.close" | "order.course_send" | "order.weight" | "kitchen.bump" | "kitchen.recall" | "kitchen.assembled" | "bill.request";
                         /** Format: date-time */
                         occurred_at?: string | null;
                         staff_id: number;
                         payload: string[];
+                        /** Format: uuid */
+                        origin_device?: string | null;
                     }[];
                 };
             };
@@ -48887,6 +49257,10 @@ export interface operations {
                                     uuid: string;
                                     name: string | null;
                                 } | null;
+                                origin_device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
                                 occurred_at: string | null;
                                 received_at: string | null;
                                 applied_at: string | null;
@@ -48980,6 +49354,10 @@ export interface operations {
                                 uuid: string;
                                 name: string | null;
                             } | null;
+                            origin_device: {
+                                uuid: string;
+                                name: string | null;
+                            } | null;
                             occurred_at: string | null;
                             received_at: string | null;
                             applied_at: string | null;
@@ -49068,6 +49446,10 @@ export interface operations {
                                     name: string | null;
                                 } | null;
                                 device: {
+                                    uuid: string;
+                                    name: string | null;
+                                } | null;
+                                origin_device: {
                                     uuid: string;
                                     name: string | null;
                                 } | null;

@@ -1,4 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Bluetooth (SPP) printers: paired devices only, so no location. Android 12+ asks for "Nearby devices" at
+         runtime (BLUETOOTH_CONNECT; BLUETOOTH_SCAN only lets a connect cancel a running discovery) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <!-- Optional hardware: the app installs on devices without Bluetooth or USB host -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
     <!-- Android 11+: lets bindService() see the Sunmi printer service (woyou.aidlservice.jiuiv5) -->
     <queries>
         <package android:name="woyou.aidlservice.jiuiv5" />

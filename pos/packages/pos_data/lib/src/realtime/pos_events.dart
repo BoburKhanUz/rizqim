@@ -1,5 +1,6 @@
 import 'package:rizqim_api/rizqim_api.dart';
 
+import '../billing/bill_print_request.dart';
 import '../json.dart';
 
 /// `private-pos-branch.{id}` kanalidagi hodisa. Hodisada faqat id va holat bor (shaxsiy ma'lumot, narx yo'q): ilova
@@ -30,6 +31,11 @@ sealed class PosEvent {
           data,
           _order(j),
           j,
+        ),
+        'bill.print_requested' => PosBillPrintRequested._(
+          name,
+          data,
+          BillPrintRequest.fromJson(data),
         ),
         'order.course_ready' => PosCourseReady._(name, data, _order(j), j),
         'order.transferred' => PosOrderTransferred._(name, data, _order(j), j),
@@ -113,6 +119,17 @@ class PosOrderBillRequested extends PosEvent {
 
   @override
   String? get orderUuid => order.uuid;
+}
+
+/// `bill.print_requested` (P6, A bosqichi): schyotni pre-check sifatida chiqarish so'rovi. Faqat [request] ko'rsatgan
+/// kassa chiqaradi ([BillPrintRequest.isFor]).
+class PosBillPrintRequested extends PosEvent {
+  PosBillPrintRequested._(super.name, super.data, this.request);
+
+  final BillPrintRequest request;
+
+  @override
+  String? get orderUuid => request.orderUuid;
 }
 
 /// `order.course_ready` (P6-21): buyurtma kursining oshxonaga yuborilgan hamma taomi tayyor ("2-kurs tayyor"). Ofitsiant

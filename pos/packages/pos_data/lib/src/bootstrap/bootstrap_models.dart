@@ -227,6 +227,8 @@ class PosSettings {
     this.bookingSlotMinutes,
     this.cashierDiscountMaxPercent,
     this.bookingConfirmation = const PosBookingConfirmationSettings(),
+    this.autoPrintBill = true,
+    this.billPrinter,
   });
 
   factory PosSettings.fromJson(PosJson j) => PosSettings(
@@ -243,6 +245,8 @@ class PosSettings {
     bookingConfirmation: j.has('booking_confirmation')
         ? PosBookingConfirmationSettings.fromJson(j.obj('booking_confirmation'))
         : const PosBookingConfirmationSettings(),
+    autoPrintBill: j.boolean('auto_print_bill', fallback: true),
+    billPrinter: j.intOrNull('bill_printer'),
   );
 
   final PosMode mode;
@@ -263,6 +267,12 @@ class PosSettings {
 
   /// P3-38: mehmonga bron tasdig'ini yuborish sozlamasi.
   final PosBookingConfirmationSettings bookingConfirmation;
+
+  /// P6 (A bosqichi): ofitsiant "Schyot so'rash"ni bosganda schyot avtomatik chiqadi (standart: ha).
+  final bool autoPrintBill;
+
+  /// Schyot chiqadigan printerning serverdagi id'si; `null` — chop etuvchi kassaning chek printeri.
+  final int? billPrinter;
 
   /// [cashierDiscountMaxPercent] foizning yuzdan birlarida (`"10.00"` → 1000); yo'q yoki noto'g'ri — 0.
   int get cashierDiscountMaxHundredths {

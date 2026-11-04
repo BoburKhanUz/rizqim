@@ -4,18 +4,85 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'items59.dart';
+import 'pickup_status.dart';
+import 'assembly2.dart';
+import 'pickup28.dart';
+
 part 'data287.g.dart';
 
 @JsonSerializable()
 class Data287 {
-  const Data287({required this.rating, required this.reviewCount});
+  const Data287({
+    required this.uuid,
+    required this.shortCode,
+    required this.status,
+    required this.type,
+    required this.channel,
+    required this.branchId,
+    required this.hallRef,
+    required this.tableRef,
+    required this.tableLabel,
+    required this.guestsCount,
+    required this.notes,
+    required this.itemsTotal,
+    required this.itemsReady,
+    required this.items,
+    required this.createdAt,
+    required this.acceptedAt,
+    required this.preparingAt,
+    required this.readyAt,
+    required this.canceledAt,
+    required this.waitingSeconds,
+    required this.queueNumber,
+    required this.pickupStatus,
+    required this.assembly,
+    required this.pickup,
+  });
 
   factory Data287.fromJson(Map<String, Object?> json) =>
       _$Data287FromJson(json);
 
-  final String rating;
-  @JsonKey(name: 'review_count')
-  final int reviewCount;
+  final String uuid;
+  @JsonKey(name: 'short_code')
+  final String? shortCode;
+  final String status;
+  final String type;
+  final String channel;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'hall_ref')
+  final String? hallRef;
+  @JsonKey(name: 'table_ref')
+  final String? tableRef;
+  @JsonKey(name: 'table_label')
+  final String? tableLabel;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final String? notes;
+  @JsonKey(name: 'items_total')
+  final int itemsTotal;
+  @JsonKey(name: 'items_ready')
+  final int itemsReady;
+  final List<Items59> items;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'accepted_at')
+  final String? acceptedAt;
+  @JsonKey(name: 'preparing_at')
+  final String? preparingAt;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'canceled_at')
+  final String? canceledAt;
+  @JsonKey(name: 'waiting_seconds')
+  final int waitingSeconds;
+  @JsonKey(name: 'queue_number')
+  final int? queueNumber;
+  @JsonKey(name: 'pickup_status')
+  final PickupStatus? pickupStatus;
+  final Assembly2? assembly;
+  final Pickup28? pickup;
 
   Map<String, Object?> toJson() => _$Data287ToJson(this);
 }

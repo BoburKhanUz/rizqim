@@ -6,9 +6,14 @@ part of 'data152.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data152 _$Data152FromJson(Map<String, dynamic> json) =>
-    Data152(id: (json['id'] as num).toInt());
+Data152 _$Data152FromJson(Map<String, dynamic> json) => Data152(
+  calendar: Calendar.fromJson(json['calendar'] as Map<String, dynamic>),
+  tariffs: (json['tariffs'] as List<dynamic>)
+      .map((e) => Tariffs.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
 
 Map<String, dynamic> _$Data152ToJson(Data152 instance) => <String, dynamic>{
-  'id': instance.id,
+  'calendar': instance.calendar,
+  'tariffs': instance.tariffs,
 };

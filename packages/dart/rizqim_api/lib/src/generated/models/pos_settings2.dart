@@ -21,6 +21,8 @@ class PosSettings2 {
     required this.holidays,
     required this.bookingSlotMinutes,
     required this.bookingConfirmation,
+    required this.autoPrintBill,
+    required this.billPrinter,
   });
 
   factory PosSettings2.fromJson(Map<String, Object?> json) =>
@@ -41,6 +43,10 @@ class PosSettings2 {
   final int? bookingSlotMinutes;
   @JsonKey(name: 'booking_confirmation')
   final BookingConfirmation2 bookingConfirmation;
+  @JsonKey(name: 'auto_print_bill')
+  final bool autoPrintBill;
+  @JsonKey(name: 'bill_printer')
+  final int? billPrinter;
 
   Map<String, Object?> toJson() => _$PosSettings2ToJson(this);
 }

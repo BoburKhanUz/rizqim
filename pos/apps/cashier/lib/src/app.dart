@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_ui/pos_ui.dart' show KeyboardScanListener;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -38,12 +39,16 @@ class _CashierAppState extends State<CashierApp> {
         darkTheme: cashierTheme(RzTheme.dark()),
         themeMode: mode,
         // Navigator'dan yuqorida: dialoglardagi teginish ham hisoblanadi, chiqishda dialoglar yopiladi
-        builder: (BuildContext context, Widget? child) => StaffIdleScope(
-          auth: services.auth,
-          navigator: _navigator,
-          idleTimeout: services.idleTimeout,
-          changes: services.idleChanges,
-          child: child ?? const SizedBox.shrink(),
+        // P6 hardware: a keyboard-wedge barcode scanner anywhere in the app (CashierHardware.scans)
+        builder: (BuildContext context, Widget? child) => KeyboardScanListener(
+          onScan: services.hardware.scans.addKeyboard,
+          child: StaffIdleScope(
+            auth: services.auth,
+            navigator: _navigator,
+            idleTimeout: services.idleTimeout,
+            changes: services.idleChanges,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
         home: AuthGate(services: services),
       ),
@@ -183,6 +188,15 @@ class _TerminalHomeState extends State<TerminalHome> {
     try {
       final PosBootstrap boot = await _session.loadBootstrap();
       _s.printing.configure(boot.printers);
+      // P6 hardware: the till's own second screen (Sunmi D2) shows the cart without the server
+      if (_s.hardware.android) {
+        unawaited(
+          _s.hardware.startCustomerScreen(
+            _s.data.displayFeed,
+            storeName: boot.store.name,
+          ),
+        );
+      }
       // Menyu fonda: ish ekrani uni kutmaydi (buyurtma muharriri o'zi kutadi)
       unawaited(
         _s.data.catalog

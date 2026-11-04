@@ -11,7 +11,7 @@ _$PostV1PosWaitlistUuidNoShowResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosWaitlistUuidNoShowResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data275.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data280.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosWaitlistUuidNoShowResponseToJson(

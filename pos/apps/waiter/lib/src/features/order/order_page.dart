@@ -173,14 +173,42 @@ class _OrderPageState extends State<OrderPage> {
             _ctl.session.can(PosPermissions.ordersManage));
   }
 
+  Future<void> _reprintBill() async {
+    final bool? yes = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Schyotni qayta chiqarish'),
+        content: const Text(
+          "Kassada schyotning nusxasi yana chiqadi (fiskal chek emas). "
+          "Menejer tasdig'i kerak bo'lishi mumkin.",
+        ),
+        actions: <Widget>[
+          RzButton(
+            label: 'Bekor qilish',
+            variant: RzButtonVariant.ghost,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          RzButton(
+            label: 'Chiqarish',
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) await _ctl.reprintBill(_approving);
+  }
+
   Future<void> _requestBill() async {
     final bool? yes = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text("Schyot so'rash"),
-        content: const Text(
-          "Schyot kassirga yuboriladi. To'lovni kassir oladi: ofitsiant "
-          "ilovasida to'lov yo'q.",
+        content: Text(
+          _ctl.autoPrintsBill
+              ? "Schyot kassirga yuboriladi va kassada o'zi chiqadi. To'lovni "
+                    "kassir oladi: ofitsiant ilovasida to'lov yo'q."
+              : "Schyot kassirga yuboriladi. To'lovni kassir oladi: ofitsiant "
+                    "ilovasida to'lov yo'q.",
         ),
         actions: <Widget>[
           RzButton(
@@ -534,6 +562,20 @@ class _OrderPageState extends State<OrderPage> {
                   ),
                 ],
               ),
+              // P6: the bill is on the till already: a copy can be printed again (manager's PIN for the waiter)
+              if (hasItems &&
+                  (_ctl.billRequested ||
+                      (order?.billLocked ?? false))) ...<Widget>[
+                const SizedBox(height: 8),
+                RzButton(
+                  label: 'Schyotni qayta chiqarish',
+                  icon: Icons.print_outlined,
+                  variant: RzButtonVariant.ghost,
+                  size: RzButtonSize.md,
+                  fullWidth: true,
+                  onPressed: act ? () => unawaited(_reprintBill()) : null,
+                ),
+              ],
             ],
           ),
         ),

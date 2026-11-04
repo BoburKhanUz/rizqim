@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings.dart';
+import 'components2.dart';
 
 part 'data165.g.dart';
 
@@ -13,21 +13,14 @@ class Data165 {
   const Data165({
     required this.uuid,
     required this.branchId,
-    required this.period,
-    required this.periodLabel,
-    required this.periodFrom,
-    required this.periodTo,
-    required this.status,
-    required this.statusLabel,
-    required this.grossTotal,
-    required this.payableTotal,
-    required this.paidTotal,
-    required this.linesCount,
-    required this.warnings,
-    required this.computedAt,
-    required this.closedAt,
-    required this.version,
-    required this.createdAt,
+    required this.userId,
+    required this.userName,
+    required this.role,
+    required this.roleLabel,
+    required this.effectiveFrom,
+    required this.components,
+    required this.note,
+    required this.updatedAt,
   });
 
   factory Data165.fromJson(Map<String, Object?> json) =>
@@ -36,32 +29,19 @@ class Data165 {
   final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  @JsonKey(name: 'period_from')
-  final String periodFrom;
-  @JsonKey(name: 'period_to')
-  final String periodTo;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'gross_total')
-  final String grossTotal;
-  @JsonKey(name: 'payable_total')
-  final String payableTotal;
-  @JsonKey(name: 'paid_total')
-  final String paidTotal;
-  @JsonKey(name: 'lines_count')
-  final int linesCount;
-  final List<Warnings> warnings;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'user_id')
+  final int? userId;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  final String? role;
+  @JsonKey(name: 'role_label')
+  final String? roleLabel;
+  @JsonKey(name: 'effective_from')
+  final String effectiveFrom;
+  final List<Components2> components;
+  final String? note;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data165ToJson(this);
 }

@@ -7,19 +7,21 @@ part of 'data270.dart';
 // **************************************************************************
 
 Data270 _$Data270FromJson(Map<String, dynamic> json) => Data270(
-  shiftUuid: json['shift_uuid'] as String?,
-  businessDate: json['business_date'] as String,
-  ownOnly: json['own_only'] as bool,
-  summary: Summary7.fromJson(json['summary'] as Map<String, dynamic>),
-  tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips14.fromJson(e as Map<String, dynamic>))
+  serverTime: json['server_time'] as String,
+  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
+  clockWarning: json['clock_warning'] as bool,
+  stoppedAt: (json['stopped_at'] as num?)?.toInt(),
+  results: (json['results'] as List<dynamic>)
+      .map((e) => Results.fromJson(e as Map<String, dynamic>))
       .toList(),
+  device: Device20.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data270ToJson(Data270 instance) => <String, dynamic>{
-  'shift_uuid': instance.shiftUuid,
-  'business_date': instance.businessDate,
-  'own_only': instance.ownOnly,
-  'summary': instance.summary,
-  'tips': instance.tips,
+  'server_time': instance.serverTime,
+  'clock_skew_seconds': instance.clockSkewSeconds,
+  'clock_warning': instance.clockWarning,
+  'stopped_at': instance.stoppedAt,
+  'results': instance.results,
+  'device': instance.device,
 };

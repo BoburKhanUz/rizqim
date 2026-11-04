@@ -15,6 +15,16 @@ abstract final class SyncOpType {
   /// P6-25: "og'irlikni keyin kiritish" qatorining haqiqiy og'irligi (`{order, line, quantity}`).
   static const String orderWeight = 'order.weight';
 
+  /// P6 lokal ko'prik (POS_SPEC 5.5): KDS qatorni "tayyor" qildi yoki qaytardi (`{order, line}`).
+  static const String kitchenBump = 'kitchen.bump';
+  static const String kitchenRecall = 'kitchen.recall';
+
+  /// P6: yig'ish ekrani buyurtmani yig'di (`{order}`).
+  static const String kitchenAssembled = 'kitchen.assembled';
+
+  /// P6: ofitsiant schyot so'radi (`{order}`).
+  static const String billRequest = 'bill.request';
+
   static const List<String> all = <String>[
     orderOpen,
     orderRound,
@@ -26,6 +36,10 @@ abstract final class SyncOpType {
     orderClose,
     orderCourseSend,
     orderWeight,
+    kitchenBump,
+    kitchenRecall,
+    kitchenAssembled,
+    billRequest,
   ];
 
   /// Ro'yxatdagi nomi ("Sinxronlash xatolari").
@@ -40,6 +54,10 @@ abstract final class SyncOpType {
     orderClose => 'Buyurtma yopildi',
     orderCourseSend => 'Kurs oshxonaga yuborildi',
     orderWeight => "Og'irlik kiritildi",
+    kitchenBump => 'Taom tayyor',
+    kitchenRecall => 'Taom oshxonaga qaytarildi',
+    kitchenAssembled => "Buyurtma yig'ildi",
+    billRequest => "Schyot so'raldi",
     _ => type,
   };
 }
@@ -69,7 +87,8 @@ enum SyncOpStatus {
 
 /// Navbatdagi bitta amal: `op_id` (UUID, ikki marta yuborilsa ham server bir marta qo'llaydi), qurilmadagi ketma-ket
 /// raqam (`seq`), turi, qurilma soati bo'yicha vaqti, kim bajargani va mazmuni (`payload`). Server javobidan keyin —
-/// holati, sababi, xabari va serverdagi id'lar ([refs]).
+/// holati, sababi, xabari va serverdagi id'lar ([refs]). P6 lokal ko'prik: markaz boshqa qurilmadan (ofitsiant
+/// telefoni, KDS) olgan amal [origin] bilan (o'sha qurilma uuid'si; serverga `origin_device`).
 class SyncOperation {
   const SyncOperation({
     required this.opId,
@@ -78,6 +97,7 @@ class SyncOperation {
     required this.occurredAt,
     required this.staffId,
     required this.payload,
+    this.origin,
     this.status = SyncOpStatus.pending,
     this.reason,
     this.message,
@@ -92,6 +112,7 @@ class SyncOperation {
     occurredAt: DateTime.parse(j['occurred_at']! as String),
     staffId: (j['staff_id']! as num).toInt(),
     payload: _map(j['payload']),
+    origin: j['origin_device'] as String?,
   );
 
   final String opId;
@@ -100,6 +121,9 @@ class SyncOperation {
   final DateTime occurredAt;
   final int staffId;
   final Map<String, Object?> payload;
+
+  /// P6: amal qilingan qurilma (markaz LAN orqali olgan bo'lsa), aks holda `null` — shu qurilmaning o'zi.
+  final String? origin;
   final SyncOpStatus status;
   final String? reason;
   final String? message;
@@ -119,6 +143,7 @@ class SyncOperation {
     'occurred_at': occurredAt.toUtc().toIso8601String(),
     'staff_id': staffId,
     'payload': payload,
+    'origin_device': ?origin,
   };
 
   SyncOperation answered(SyncResult r, DateTime at) => SyncOperation(
@@ -128,6 +153,7 @@ class SyncOperation {
     occurredAt: occurredAt,
     staffId: staffId,
     payload: payload,
+    origin: origin,
     status: r.status,
     reason: r.reason,
     message: r.message,

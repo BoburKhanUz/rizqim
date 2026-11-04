@@ -413,4 +413,48 @@ void main() {
       expect(reopened.nextLocalNumber('K1'), 'K1-005');
     });
   });
+
+  group('relayed operations (P6 local bridge)', () {
+    test('an operation taken from another device keeps its op_id and origin, once, across restart and compaction', () async {
+      final MemorySyncStorage disk = MemorySyncStorage();
+      final SyncStore store = await openStore(disk);
+      const String id = '7f2d3c1a-1111-4abc-8def-0123456789ab';
+      final SyncOperation a = await store.enqueue(
+        SyncOpType.orderOpen,
+        <String, Object?>{'order': 'w-1'},
+        staffId: 9,
+        opId: id,
+        origin: 'phone-uuid',
+      );
+      expect(a.opId, id);
+      expect(a.toJson()['origin_device'], 'phone-uuid');
+      // The phone sent it again (its answer was lost on the Wi-Fi): the same operation, nothing new queued
+      final SyncOperation again = await store.enqueue(
+        SyncOpType.orderOpen,
+        <String, Object?>{'order': 'w-1'},
+        staffId: 9,
+        opId: id,
+        origin: 'phone-uuid',
+      );
+      expect(again.seq, a.seq);
+      expect(store.pendingCount, 1);
+      // The till's own operation has no origin on the wire
+      final SyncOperation own = await store.enqueue(
+        SyncOpType.orderRound,
+        <String, Object?>{'order': 'w-1'},
+        staffId: 3,
+      );
+      expect(own.toJson().containsKey('origin_device'), isFalse);
+
+      final SyncStore reopened = await openStore(disk);
+      expect(reopened.find(id)?.origin, 'phone-uuid');
+      await reopened.applyResults(<SyncResult>[
+        SyncResult(opId: id, seq: a.seq, status: SyncOpStatus.applied),
+      ]);
+      await reopened.markReloaded();
+      final SyncStore compacted = await openStore(disk);
+      expect(compacted.find(id), isNull);
+      expect(compacted.pending.single.opId, own.opId);
+    });
+  });
 }

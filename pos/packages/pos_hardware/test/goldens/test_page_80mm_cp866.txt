@@ -1,0 +1,30 @@
+Rizqim choyxonasi
+SINOV CHOP ETISH
+================================================
+Printer: Kassa
+LAN 192.168.1.50:9100
+Qog'oz: 80 mm, 48 belgi
+Jadval: cp866 (ESC t 17)
+Rejim: text
+Vaqt: 03.11.2026 09:30
+------------------------------------------------
+Lotin: O'zbekiston, g'alla, ma'lumot
+ASCII: O'zbekiston, g'alla, ma'lumot
+Kirill: Ўзбекистон, кишлок, галла, хаёт
+Kod sahifasi: АБВГДЕЁЖЗ абвгдеёжз Ўў Кк Гг Хх №
+Rus: Съешь же ещё этих мягких булок
+------------------------------------------------
+123456789012345678901234567890123456789012345678
+Osh (devzira) 2.5 kg                     400 000
+Chapda
+Markazda
+O'ngda
+Qalin matn
+Baland
+Katta
+ NUSXA 
+[QR https://rizqim.uz]
+
+Printer ishlayapti
+[QR https://rizqim.uz module 5]
+[CUT x1]

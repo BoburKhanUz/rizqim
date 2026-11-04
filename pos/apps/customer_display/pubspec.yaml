@@ -17,6 +17,9 @@ dependencies:
     path: ../../packages/pos_core
   pos_data:
     path: ../../packages/pos_data
+  # P6 hardware: the cart, QR and welcome views shared with the cashier's second screen
+  pos_ui:
+    path: ../../packages/pos_ui
   rizqim_api:
     path: ../../../packages/dart/rizqim_api
   rizqim_core:

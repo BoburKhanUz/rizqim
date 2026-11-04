@@ -7,21 +7,19 @@ part of 'data148.dart';
 // **************************************************************************
 
 Data148 _$Data148FromJson(Map<String, dynamic> json) => Data148(
-  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  sort: json['sort'] as String,
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products8.fromJson(e as Map<String, dynamic>))
+  productId: (json['product_id'] as num).toInt(),
+  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
       .toList(),
-  comboParts: (json['combo_parts'] as List<dynamic>)
-      .map((e) => ComboParts.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
+  weightMode: json['weight_mode'] == null
+      ? null
+      : WeightBasis.fromJson(json['weight_mode'] as String),
 );
 
 Map<String, dynamic> _$Data148ToJson(Data148 instance) => <String, dynamic>{
-  'period': instance.period,
-  'branch_id': instance.branchId,
-  'sort': instance.sort,
-  'products': instance.products,
-  'combo_parts': instance.comboParts,
+  'product_id': instance.productId,
+  'quick_multipliers': instance.quickMultipliers,
+  'wait_minutes': instance.waitMinutes,
+  'weight_mode': instance.weightMode,
 };
