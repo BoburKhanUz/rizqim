@@ -25,6 +25,7 @@ Future<void> main() async {
         settings: settings,
         sound: AssetReadySound(),
         realtimeFactory: defaultRealtime,
+        lanStore: SecureStorageStore(),
       ),
     ),
   );

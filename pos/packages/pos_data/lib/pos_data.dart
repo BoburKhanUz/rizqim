@@ -46,6 +46,7 @@ export 'src/http/connectivity.dart';
 export 'src/http/pos_exceptions.dart';
 export 'src/http/pos_http.dart';
 export 'src/json.dart';
+export 'src/lan/pos_lan_route.dart';
 export 'src/menu_day/batch_repository.dart';
 export 'src/menu_day/menu_day_models.dart';
 export 'src/offline/offline_book.dart';

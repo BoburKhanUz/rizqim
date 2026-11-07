@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
+import '../lan/pos_lan_route.dart';
 import '../offline/pos_offline.dart';
 import '../offline/sync_models.dart';
 import 'bill_print_request.dart';
@@ -19,7 +20,22 @@ class BillingRepository {
   final PosHttp _http;
   final PosOffline? offline;
 
+  /// P6 lokal ko'prik (ofitsiant): `lan` rejimida schyot, to'lov, yopish va qaytarish yo'q — ular faqat kassaning
+  /// o'zida (masofadan to'lov yo'q); schyotni qayta chiqarish ham faqat internet bilan (menejer PIN va jurnal
+  /// serverda). Hammasi [PosOfflineUnavailable].
+  PosLanRoute? lan;
+
   bool get _limited => offline?.active ?? false;
+
+  /// `lan` rejimida: amal faqat kassada yoki internet bilan.
+  void _notOnLan(String message) {
+    if (lan?.active ?? false) {
+      throw PosOfflineUnavailable(message, reason: 'not_allowed_on_lan');
+    }
+  }
+
+  static const String _tillOnly =
+      "Internet yo'q: schyot va to'lov faqat kassada.";
 
   /// Oflayn ochilgan buyurtma yoki schyotning server uuid'i (sinxronlangandan keyin), bo'lmasa o'zi.
   String _id(String uuid) => offline?.store.resolve(uuid) ?? uuid;
@@ -39,6 +55,7 @@ class BillingRepository {
 
   /// `GET /pos/orders/{uuid}/bills` ([all] — bekor qilingan schyotlar ham).
   Future<PosBilling> bills(String orderUuid, {bool all = false}) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) return o.billing(orderUuid);
     Object? raw;
@@ -66,7 +83,10 @@ class BillingRepository {
     String billUuid, {
     String? approvalToken,
     String? idempotencyKey,
-  }) {
+  }) async {
+    _notOnLan(
+      "Internet yo'q: schyotni qayta chiqarish faqat internet bilan (yoki kassaning o'zida).",
+    );
     _onlineOnly('schyotni qayta chiqarish');
     return _http.mutate(
       'POST',
@@ -85,6 +105,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return _localBill(o, orderUuid, split, idempotencyKey);
@@ -142,6 +163,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     // Offline the pre-check is printed from the till's own bill (the server never learns it was printed)
     if (o != null && o.active) return o.printBill(billUuid);
@@ -171,6 +193,7 @@ class BillingRepository {
     int? tipStaffId,
     String? tipApprovalToken,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return o.pay(
@@ -206,6 +229,7 @@ class BillingRepository {
     String billUuid, {
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     _onlineOnly('fiskal chekni qayta so\'rash');
     return _fiscalRetry(billUuid, idempotencyKey: idempotencyKey);
   }
@@ -224,6 +248,7 @@ class BillingRepository {
   /// `POST /pos/orders/{uuid}/close`: uzilib qolgan yopishni yakunlash. To'lanmagan — [PosConflict]
   /// `order_not_settled`.
   Future<PosBilling> closeOrder(String orderUuid, {String? idempotencyKey}) {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return Future<PosBilling>.value(o.billing(orderUuid));
@@ -249,6 +274,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     _onlineOnly('pulni qaytarish');
     return _refund(
       paymentUuid: paymentUuid,

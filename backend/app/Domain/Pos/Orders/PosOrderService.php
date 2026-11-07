@@ -896,8 +896,9 @@ class PosOrderService implements PosOrderOpener
      * version and announces order.bill_requested on the branch's channels. Idempotent: asked once already (and no bill
      * printed since), it answers the order unchanged, nothing is announced again. $version is checked when given
      * (409 when stale). orders.manage; the waiter rule (another waiter's order: a manager's approval token).
+     * $autoPrint false (P6 stage B): the LAN hub printed the pre-check already, the branch's automatic print is skipped.
      */
-    public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null): Order
+    public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null, bool $autoPrint = true): Order
     {
         $asked = false;
         $result = DB::transaction(function () use ($order, $version, $actor, $approvalToken, &$asked) {
@@ -928,8 +929,9 @@ class PosOrderService implements PosOrderOpener
             return $locked;
         });
 
-        // The branch prints the pre-check by itself (never fails the request, App\Domain\Pos\Billing\BillPrintRequests)
-        if ($asked) {
+        // The branch prints the pre-check by itself (never fails the request, App\Domain\Pos\Billing\BillPrintRequests);
+        // not when the LAN hub printed it already ($autoPrint false: a relayed request it took offline)
+        if ($asked && $autoPrint) {
             app(\App\Domain\Pos\Billing\BillPrintRequests::class)->afterBillRequested($result, $actor, $this->permissions->terminalOf($actor));
         }
 

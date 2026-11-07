@@ -5,6 +5,7 @@ namespace App\Domain\Pos\Lan;
 use App\Domain\Pos\Setup\PosBootstrap;
 use App\Domain\Pos\Setup\PosSettings;
 use App\Domain\Pos\Sync\PosSyncApplier;
+use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
 use App\Models\Branch;
 use App\Models\BranchLanSettings;
@@ -28,7 +29,8 @@ use Illuminate\Validation\ValidationException;
  *   also gets its signed offline grant (who is signed in, their permissions, 36 hours). A normal staff or owner sign-in
  *   (no terminal) gets nothing.
  * - The hub: the owner's choice while it is an active till of the branch, else the branch's printing till, else the
- *   branch's first paired active till.
+ *   branch's first paired cashier till (DeviceApp, sent at pairing), else its first paired active till whose app is not
+ *   known (paired before the app was recorded). A waiter's phone is never a candidate.
  * - Relays: from the current hub, the device the hub's secret was last given to, or (for an operation that happened
  *   before the secret moved, within 48 hours) the one before it.
  */
@@ -51,7 +53,7 @@ final class BranchLan
     public const SECTION = 'array{v: int, branch_id: int, key_id: int, role: ' . LanRole::class . ', device: string, device_key: string, beacon_key: string, hub: array{device: string|null, name: string|null, port: int}, hub_secret: string|null, devices: list<array{uuid: string, type: string, name: string|null}>|null, grant: string|null, clock_window_seconds: int}';
 
     /** The owner's view (GET/PUT /owner/pos/lan, POST /owner/pos/lan/rotate). */
-    public const VIEW = 'array{branch_id: int, key_id: int, rotated_at: string|null, port: int, hub: array{device: string, name: string|null, chosen: bool}|null, candidates: list<array{uuid: string, name: string|null, platform: string|null, last_seen_at: string|null}>}';
+    public const VIEW = 'array{branch_id: int, key_id: int, rotated_at: string|null, port: int, hub: array{device: string, name: string|null, chosen: bool}|null, candidates: list<array{uuid: string, name: string|null, platform: string|null, app: ' . DeviceApp::class . '|null, last_seen_at: string|null}>}';
 
     public function __construct(
         private readonly PermissionService $permissions,
@@ -83,7 +85,8 @@ final class BranchLan
     }
 
     /**
-     * The active tills (POS terminals) of the branch, oldest first: the hub is one of them.
+     * The active tills (POS terminals) of the branch, oldest first: the hub is one of them. A waiter's phone (a POS
+     * terminal running the waiter app) never is.
      *
      * @return Collection<int, Device>
      */
@@ -94,12 +97,14 @@ final class BranchLan
             ->where('branch_id', $branch->id)
             ->where('type', DeviceType::POS->value)
             ->whereNull('revoked_at')
+            ->where(fn ($query) => $query->whereNull('app')->orWhere('app', '!=', DeviceApp::WAITER->value))
             ->orderBy('id')
             ->get();
     }
 
     /**
-     * The branch's hub now: the owner's choice, the printing till, the first till; null without an active till.
+     * The branch's hub now: the owner's choice, the printing till, the first cashier till, the first till whose app is
+     * not known; null without an active till.
      */
     public function hubOf(Branch $branch, ?BranchLanSettings $settings = null): ?Device
     {
@@ -114,7 +119,7 @@ final class BranchLan
             return $till;
         }
 
-        return $candidates->first();
+        return $candidates->first(fn (Device $device) => $device->app === DeviceApp::CASHIER) ?? $candidates->first();
     }
 
     /**
@@ -193,6 +198,7 @@ final class BranchLan
                 'uuid' => (string) $device->uuid,
                 'name' => $device->name,
                 'platform' => $device->platform,
+                'app' => $device->app?->value,
                 'last_seen_at' => $device->last_seen_at?->toJSON(),
             ])->values()->all(),
         ];

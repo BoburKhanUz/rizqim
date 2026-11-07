@@ -15,9 +15,11 @@ import 'floor/floor_repository.dart';
 import 'hostess/hostess_repository.dart';
 import 'http/connectivity.dart';
 import 'http/pos_http.dart';
+import 'lan/pos_lan_route.dart';
 import 'menu_day/batch_repository.dart';
 import 'offline/pos_offline.dart';
 import 'orders/order_repository.dart';
+import 'realtime/pos_events.dart';
 import 'session/approvals.dart';
 import 'session/pos_session.dart';
 import 'shift/shift_repository.dart';
@@ -104,6 +106,30 @@ class PosData {
 
   StreamSubscription<AuthEvent>? _authSub;
 
+  PosLanRoute? _lan;
+  StreamSubscription<PosEvent>? _lanSub;
+  final StreamController<PosEvent> _lanEvents =
+      StreamController<PosEvent>.broadcast();
+
+  /// P6 lokal ko'prik (ofitsiant ilovasi, `pos_lan` `LanPosRoute`): `lan` rejimida zal, buyurtmalar va ularning
+  /// amallari markaz kassaga; schyot va to'lov — faqat kassada. `null` — yo'q (kassa, eski ilova).
+  PosLanRoute? get lan => _lan;
+
+  set lan(PosLanRoute? route) {
+    if (identical(route, _lan)) return;
+    unawaited(_lanSub?.cancel());
+    _lan = route;
+    floor.lan = route;
+    orders.lan = route;
+    billing.lan = route;
+    _lanSub = route?.events.listen((PosEvent e) {
+      if (!_lanEvents.isClosed) _lanEvents.add(e);
+    });
+  }
+
+  /// Markaz kassa hodisalari server hodisalari shaklida ([PosRefreshScheduler.localEvents]).
+  Stream<PosEvent> get lanEvents => _lanEvents.stream;
+
   /// Internetsiz cheklangan rejim (kassa); ofitsiantda `null`.
   late final PosOffline? offline;
 
@@ -143,6 +169,8 @@ class PosData {
 
   Future<void> dispose() async {
     await _authSub?.cancel();
+    await _lanSub?.cancel();
+    await _lanEvents.close();
     await displayFeed.dispose();
     await offline?.dispose();
     await session.dispose();

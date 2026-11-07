@@ -5,7 +5,9 @@
 ///   imzo, kalit versiyasi, vaqt oynasi, `(device, seq)`), amallar [PosOfflineLanApplier] orqali kassa navbatiga;
 /// * [LanClient] — ofitsiant, KDS va mijoz ekrani tomoni;
 /// * [LanDiscovery], [LanBeacon] — markazni topish (beacon yoki IP/QR);
-/// * [LanModeRule] — `cloud` / `lan` / `alone`.
+/// * [LanModeRule] — `cloud` / `lan` / `alone`;
+/// * [LanLink] — ofitsiant, KDS va mijoz ekranining umumiy boshqaruvchisi (topish, ulanish, rejim, qayta ulanish),
+///   [LanPosRoute] — ofitsiant ilovasining `pos_data` repozitoriylari uchun markaz yo'li.
 library;
 
 export 'src/beacon.dart';
@@ -15,5 +17,7 @@ export 'src/crypto.dart' show LanKeys, LanChannelKey, lanCanonicalJson;
 export 'src/frame.dart';
 export 'src/grant.dart';
 export 'src/hub.dart';
+export 'src/link.dart';
 export 'src/messages.dart';
 export 'src/pos_offline_applier.dart';
+export 'src/pos_route.dart';

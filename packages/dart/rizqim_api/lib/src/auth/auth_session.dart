@@ -108,12 +108,14 @@ class AuthSession {
     String? name,
     String? platform,
     String? appVersion,
+    String? app,
   }) async {
     final PairedTerminal paired = await remote.pair(
       code,
       name: name,
       platform: platform,
       appVersion: appVersion,
+      app: app,
     );
     _terminal = paired;
     _staff = null;

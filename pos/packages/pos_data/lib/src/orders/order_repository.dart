@@ -1,9 +1,11 @@
 import 'package:pos_core/pos_core.dart';
+import 'package:pos_sync/pos_sync.dart' show newUuid;
 
 import '../catalog/catalog_models.dart';
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
 import '../json.dart';
+import '../lan/pos_lan_route.dart';
 import '../offline/pos_offline.dart';
 import '../offline/sync_models.dart';
 import 'order_models.dart';
@@ -28,15 +30,31 @@ class PosOrderRepository {
   final PosHttp _http;
   final PosOffline? offline;
 
+  /// P6 lokal ko'prik (ofitsiant): `lan` rejimida ([PosLanRoute.active]) ko'rish, ochish, bosqich, yuborish (kurs
+  /// ham), og'irlik, yuborilmagan qatorni o'chirish, "berildi" va schyot so'rash markaz kassaga boradi; qolgan amallar
+  /// [PosOfflineUnavailable] (internet kerak).
+  PosLanRoute? lan;
+
   static PosOrder _order(Object? data) => PosOrder.fromJson(dataObject(data));
 
-  bool get _limited => offline?.active ?? false;
+  bool get _viaLan => lan?.active ?? false;
 
-  /// Oflayn ochilgan buyurtmaning server uuid'i (sinxronlangandan keyin), bo'lmasa o'zi.
-  String _id(String uuid) => offline?.store.resolve(uuid) ?? uuid;
+  bool get _limited => (offline?.active ?? false) || _viaLan;
+
+  /// Oflayn (yoki LAN'da) ochilgan buyurtmaning server uuid'i (sinxronlangandan keyin), bo'lmasa o'zi.
+  String _id(String uuid) =>
+      offline?.store.resolve(uuid) ?? lan?.resolve(uuid) ?? uuid;
+
+  /// Markaz kassaga amal: javob — buyurtmaning markazdagi ko'rinishi.
+  Future<PosOrder> _lanOp(
+    String type,
+    Map<String, Object?> payload,
+    String? idempotencyKey,
+  ) async => _order(await lan!.op(type, payload, opId: idempotencyKey));
 
   /// `GET /pos/orders/{uuid}`.
   Future<PosOrder> get(String uuid) async {
+    if (_viaLan) return _order(await lan!.order(uuid));
     final PosOffline? o = offline;
     if (o != null && o.active) return o.order(uuid);
     try {
@@ -59,7 +77,12 @@ class PosOrderRepository {
     Future<PosOrder> Function() online,
     Future<PosOrder> Function(String? key) local, {
     String? idempotencyKey,
+    Future<PosOrder> Function(String? key)? viaLan,
   }) async {
+    if (_viaLan) {
+      if (viaLan == null) _onlineOnly('bu amal');
+      return viaLan!(idempotencyKey);
+    }
     final PosOffline? o = offline;
     if (o != null && o.active) return local(idempotencyKey);
     try {
@@ -86,6 +109,12 @@ class PosOrderRepository {
   /// `GET /pos/orders?scope=open`: filialning ochiq buyurtmalari navbati (POS va qabul qilingan onlayn), eskisi
   /// birinchi, ko'pi bilan 300.
   Future<List<PosOpenOrder>> openOrders({int? branchId}) async {
+    if (_viaLan && branchId == null) {
+      return <PosOpenOrder>[
+        for (final Map<String, Object?> e in await lan!.openOrders())
+          PosOpenOrder.fromJson(PosJson.of(e)),
+      ];
+    }
     final PosOffline? o = offline;
     if (o != null && o.active) return o.openOrders();
     Object? raw;
@@ -133,6 +162,11 @@ class PosOrderRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    if (_viaLan) {
+      return _lanOp('bill.request', <String, Object?>{
+        'order': uuid,
+      }, idempotencyKey);
+    }
     _onlineOnly("schyot so'rash");
     return _post(uuid, 'request-bill', idempotencyKey, <String, Object?>{
       'version': ?version,
@@ -198,6 +232,22 @@ class PosOrderRepository {
       tableLabel: tableLabel,
     ),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) {
+      // The order's id on the hub: the device's own, or the operation's (a retry with the same key is the same order)
+      final String opId = key ?? newUuid();
+      return _lanOp('order.open', <String, Object?>{
+        'order': externalId ?? opId,
+        'channel': channel.wire,
+        'table_id': ?tableId,
+        'guests_count': ?guestsCount,
+        'note': ?note,
+        'table_label': ?tableLabel,
+        'items': <Map<String, Object?>>[
+          for (final PosLineInput i in items) i.toJson(),
+        ],
+        if (send) 'send': true,
+      }, opId);
+    },
   );
 
   /// `POST /pos/orders/{uuid}/rounds`: yangi bosqich. [fireMode] — qatorlarning standart rejimi, [send] — `now`
@@ -228,6 +278,14 @@ class PosOrderRepository {
       idempotencyKey: key,
     ),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.round', <String, Object?>{
+      'order': uuid,
+      'items': <Map<String, Object?>>[
+        for (final PosLineInput i in items) i.toJson(),
+      ],
+      'fire_mode': ?fireMode?.wire,
+      if (send) 'send': true,
+    }, key),
   );
 
   /// `POST /pos/orders/{uuid}/send`: [itemIds] siz — yuborilmagan hamma `now` qator; bilan — aynan shular (`hold`
@@ -246,6 +304,10 @@ class PosOrderRepository {
     }),
     (String? key) => offline!.send(uuid, itemIds: itemIds, idempotencyKey: key),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.send', <String, Object?>{
+      'order': uuid,
+      'lines': ?itemIds,
+    }, key),
   );
 
   /// P6-21 `POST /pos/orders/{uuid}/courses/{n}/send`: "N-kursni yuborish" — kursning ushlab turilgan qatorlari
@@ -265,6 +327,10 @@ class PosOrderRepository {
     ),
     (String? key) => offline!.sendCourse(uuid, courseNo, idempotencyKey: key),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.course_send', <String, Object?>{
+      'order': uuid,
+      'course_no': courseNo,
+    }, key),
   );
 
   /// P6-25 `POST /pos/orders/{uuid}/items/{id}/weight`: "og'irlikni keyin kiritish" qatorining haqiqiy og'irligi
@@ -290,6 +356,11 @@ class PosOrderRepository {
       idempotencyKey: key,
     ),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.weight', <String, Object?>{
+      'order': uuid,
+      'line': itemId,
+      'quantity': quantity.toApiString(),
+    }, key),
   );
 
   /// P6-25 `POST /pos/orders/{uuid}/table-label` (`table_service` moduli): kassada to'langan buyurtmaning stol
@@ -329,6 +400,11 @@ class PosOrderRepository {
     (String? key) =>
         offline!.voidItem(uuid, itemId, reason: reason, idempotencyKey: key),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.items.void', <String, Object?>{
+      'order': uuid,
+      'line': itemId,
+      'reason': ?reason,
+    }, key),
   );
 
   /// `POST /pos/orders/{uuid}/items/{id}/served`: taom mehmonga berildi.
@@ -345,6 +421,10 @@ class PosOrderRepository {
     }),
     (String? key) => offline!.markServed(uuid, itemId, idempotencyKey: key),
     idempotencyKey: idempotencyKey,
+    viaLan: (String? key) => _lanOp('order.served', <String, Object?>{
+      'order': uuid,
+      'line': itemId,
+    }, key),
   );
 
   /// `POST /pos/orders/{uuid}/guests`: mehmonlar soni (choy-non qatorlari server tomonidan qo'shiladi).

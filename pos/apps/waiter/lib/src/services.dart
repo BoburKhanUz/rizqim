@@ -1,4 +1,5 @@
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
@@ -19,6 +20,9 @@ class WaiterServices {
     this.clock,
     this.pollInterval = AppConfig.pollInterval,
     this.livePollInterval = AppConfig.livePollInterval,
+    this.lanEnabled = true,
+    this.lanLinkFactory,
+    this.lanStore,
   }) : data = data ?? PosData(client, clock: clock);
 
   final RizqimClient client;
@@ -29,6 +33,15 @@ class WaiterServices {
   final DateTime Function()? clock;
   final Duration pollInterval;
   final Duration livePollInterval;
+
+  /// P6 lokal ko'prik: internet uzilsa markaz kassa orqali ishlash (bootstrap'da `lan` bo'lsa).
+  final bool lanEnabled;
+
+  /// Testlar uchun: ko'prikni boshqa vaqtlar yoki topish bilan yaratish.
+  final LanLink Function(PosData data)? lanLinkFactory;
+
+  /// Qo'lda kiritilgan markaz manzili saqlanadigan joy (`null` — faqat shu ishga tushish).
+  final SecureKeyValueStore? lanStore;
 
   AuthSession get auth => client.auth;
   PosSession get session => data.session;

@@ -18,7 +18,7 @@ printers.queue.retry(jobId);                          // "Chop etilmadi" ro'yxat
 | Tur | Qanday | Holat |
 |---|---|---|
 | `LanPrinterTarget(host, port: 9100)` | Raw TCP, har ish uchun yangi ulanish; yuborishdan oldin `DLE EOT` bilan qog'oz va qopqoq so'raladi | ishlaydi, emulyator bilan sinalgan |
-| `WindowsPrinterTarget(name)` | USB printer Windows spooler orqali `RAW` turida (`winspool.drv`, dart:ffi, plagin kerak emas; alohida isolate'da) | Dart kodi tayyor, **Windows'da hali sinalmagan** (bu yerda Windows yo'q) |
+| `WindowsPrinterTarget(name)` | USB printer Windows spooler orqali `RAW` turida (`winspool.drv`, dart:ffi, plagin kerak emas; alohida isolate'da) | CI `windows-build` jobida Windows'da sinaladi (`test/windows_test.dart`: printerlar ro'yxati, o'rnatilmagan printerga yozish aniq `offline` xato beradi); haqiqiy USB printerda **hali sinalmagan** |
 | `SunmiPrinterTarget()` | Android plagini (`PosHardwarePlugin`, Sunmi `printerlibrary`), ESC/POS baytlari `sendRAWData` bilan | kanal shartnomasi va Dart tomoni sinalgan; Kotlin kodi `kotlinc` bilan Sunmi `printerlibrary:1.0.24`, Flutter embedding va Android stub'lariga qarshi kompilyatsiya qilingan, lekin APK yig'ilmagan va Sunmi qurilmasida **hali sinalmagan** (bu muhitda Android SDK yo'q) |
 
 | `BluetoothPrinterTarget(mac)` | Android: juftlangan klassik Bluetooth printer, SPP (RFCOMM) orqali raw baytlar; ulanish ishlar orasida ochiq turadi, uzilsa bir marta qayta ulanadi; Android 12+ da "Yaqin-atrofdagi qurilmalar" ruxsati (`BLUETOOTH_CONNECT`) bir marta so'raladi | Dart tomoni soxta kanal bilan sinalgan; Kotlin `kotlinc` bilan API 34 va Flutter embedding'ga qarshi kompilyatsiya qilingan, APK CI `android-build` da yig'iladi; **qurilmada hali sinalmagan** |
@@ -32,7 +32,8 @@ tekshiruvi o'tkazib yuboriladi.
 ## P6 uskunalar: qidirish, skaner, ikkinchi ekran
 
 - **`PrinterDiscovery`** — `scanLan()` (qurilmaning /24 tarmog'ida 9100 porti; 400 ms kutish, bir vaqtda 48 tadan
-  ko'p emas, sof Dart, emulyator bilan sinalgan), `bluetoothPaired()`, `usbDevices()`, `sunmi()` (plagin). Kassada:
+  ko'p emas, sof Dart, emulyator bilan sinalgan), `bluetoothPaired()`, `usbDevices()`, `sunmi()` (plagin), `windowsPrinters()` (Windows: spooler'dagi o'rnatilgan
+  printerlar, virtual printerlar — PDF, XPS, OneNote, faks — oxirida `likelyPrinter: false`). Kassada:
   Sozlamalar → "Printerni qidirish" → printer → vazifa (chek, oshxona, yorliq) → "Sinov cheki" (`buildTestPage`:
   do'kon nomi, printer, kod sahifasi qatori, QR, kesish; yorliqda TSPL stiker) va "Pul qutisini ochish".
 - **`BroadcastScanner`** — qurilmaning ichki skaneri (Sunmi `com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED`; boshqa

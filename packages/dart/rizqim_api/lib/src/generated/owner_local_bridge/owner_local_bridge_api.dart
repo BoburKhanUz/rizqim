@@ -9,6 +9,7 @@ import '../models/get_v1_owner_pos_lan_response.dart';
 import '../models/post_v1_owner_pos_lan_rotate_response.dart';
 import '../models/put_v1_owner_pos_lan_response.dart';
 import '../models/v1_owner_pos_lan_request_body.dart';
+import '../models/v1_owner_pos_lan_rotate_request_body.dart';
 
 part 'owner_local_bridge_api.g.dart';
 
@@ -20,7 +21,9 @@ abstract class OwnerLocalBridgeApi {
   /// The branch's local bridge.
   ///
   /// `hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first.
-  /// paired till), `candidates`: the branch's active tills, `port` (default 18480), `key_id` and `rotated_at`.
+  /// paired cashier till, else the first paired till), `candidates`: the branch's active tills (`app`: the POS app it.
+  /// runs, null when paired before it was recorded; a waiter's phone is never one), `port` (default 18480), `key_id`.
+  /// and `rotated_at`.
   ///
   /// [branchId] - The branch (a branch-bound caller: their own).
   @GET('/v1/owner/pos/lan')
@@ -42,5 +45,7 @@ abstract class OwnerLocalBridgeApi {
   /// A new secret (`key_id` + 1): every terminal takes its new keys with its next bootstrap (a sign-in or restart) and.
   /// cannot join the LAN until then. Use it when a device was lost. Audited (pos.lan_key_rotated).
   @POST('/v1/owner/pos/lan/rotate')
-  Future<PostV1OwnerPosLanRotateResponse> branchLanRotate();
+  Future<PostV1OwnerPosLanRotateResponse> branchLanRotate({
+    @Body() V1OwnerPosLanRotateRequestBody? body,
+  });
 }

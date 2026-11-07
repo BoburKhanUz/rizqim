@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:pos_core/pos_core.dart' show ReceiptHeader;
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_lan/pos_lan.dart' show LanRemoteOp;
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
 import 'features/settings/cashier_prefs.dart';
 import 'hardware/cashier_hardware.dart';
 import 'lan/cashier_lan_hub.dart';
+import 'lan/lan_bill_prints.dart';
+import 'lan/lan_publisher.dart';
 import 'printing/bill_print_service.dart';
 import 'printing/printing_service.dart';
 import 'storage/shell_settings.dart';
@@ -38,6 +41,9 @@ class CashierServices {
        hardware = hardware ?? CashierHardware() {
     // P6 local bridge: from the start (a till reopened offline runs the hub before anyone can sign in)
     unawaited(lan.start());
+    // P6 stage B: the till's own cart and queue go to the LAN devices; a bill asked over the LAN offline prints here
+    lanPublisher.start();
+    lanBills?.start();
   }
 
   /// P6 lokal ko'prik kalitlari saqlanadigan xavfsiz xotira (`null`: saqlanmaydi, testlar).
@@ -49,7 +55,35 @@ class CashierServices {
     auth: client.auth,
     offline: data.offline,
     store: lanStore,
+    printsBill: (LanRemoteOp op) => lanBills?.decide(op) ?? false,
   );
+
+  /// P6 B: kassaning `cart.display` va `queue.*` hodisalari LAN qurilmalariga ([CashierLanHub.publish]).
+  late final LanPublisher lanPublisher = LanPublisher(
+    hub: lan,
+    feed: data.displayFeed,
+    offline: data.offline,
+  );
+
+  /// P6 B: internetsiz paytda ofitsiant LAN orqali so'ragan schyotni shu kassa chiqaradi (`null`: oflayn rejim yo'q).
+  late final LanBillPrints? lanBills = data.offline == null
+      ? null
+      : LanBillPrints(
+          offline: data.offline!,
+          prints: billPrints,
+          now: now,
+          autoPrint: () =>
+              (session.bootstrap ?? data.offline!.storedBootstrap())
+                  ?.branch
+                  .settings
+                  .autoPrintBill ??
+              true,
+          printerId: () =>
+              (session.bootstrap ?? data.offline!.storedBootstrap())
+                  ?.branch
+                  .settings
+                  .billPrinter,
+        );
 
   final RizqimClient client;
 

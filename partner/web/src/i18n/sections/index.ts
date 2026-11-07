@@ -15,6 +15,7 @@ import { menu } from './menu';
 import { orders } from './orders';
 import { permissions } from './permissions';
 import { possetup } from './possetup';
+import { poslan } from './poslan';
 import { quickstick } from './quickstick';
 import { reports } from './reports';
 import { shifts } from './shifts';
@@ -23,7 +24,7 @@ import { takeaway } from './takeaway';
 import { tips } from './tips';
 
 // Every section of texts. A new area adds its file here (one import, one entry, one line in the type below).
-export const SECTIONS = { orders, menu, management, reports, fiscal, fiscalterminal, floor, possetup, bookings, shifts, permissions, billing, audit, format, dailymenu, staffpay, hostess, tips, quickstick, kds, takeaway, combos } as const;
+export const SECTIONS = { orders, menu, management, reports, fiscal, fiscalterminal, floor, possetup, bookings, shifts, permissions, billing, audit, format, dailymenu, staffpay, hostess, tips, quickstick, kds, takeaway, combos, poslan } as const;
 
 export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof menu> &
@@ -46,4 +47,5 @@ export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof quickstick> &
   SectionMessages<typeof kds> &
   SectionMessages<typeof takeaway> &
-  SectionMessages<typeof combos>;
+  SectionMessages<typeof combos> &
+  SectionMessages<typeof poslan>;

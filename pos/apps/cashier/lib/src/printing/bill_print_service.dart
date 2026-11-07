@@ -69,7 +69,13 @@ class BillPrintService {
 
   final BillPrintRequests _seen = BillPrintRequests();
 
-  Future<BillPrintOutcome> handle(BillPrintRequest request) async {
+  /// [localBilling] va [localOrder] berilsa (P6 B bosqichi: markaz LAN orqali olgan so'rov, internetsiz) schyot serverdan
+  /// o'qilmaydi — kassaning o'z ko'rinishi chiqadi.
+  Future<BillPrintOutcome> handle(
+    BillPrintRequest request, {
+    PosBilling? localBilling,
+    PosOrder? localOrder,
+  }) async {
     if (!request.isFor(deviceUuid())) return BillPrintOutcome.notForThisTill;
     if (!_seen.accept(request)) return BillPrintOutcome.duplicate;
 
@@ -85,8 +91,8 @@ class BillPrintService {
     final PosBilling billing;
     final PosOrder order;
     try {
-      billing = await data.billing.bills(request.orderUuid);
-      order = await data.orders.get(request.orderUuid);
+      billing = localBilling ?? await data.billing.bills(request.orderUuid);
+      order = localOrder ?? await data.orders.get(request.orderUuid);
     } on PosNotFound {
       return BillPrintOutcome.stale;
     } on PosException {
@@ -132,6 +138,13 @@ class BillPrintService {
     }
     return BillPrintOutcome.queued;
   }
+
+  /// Shu kassada [printerId] (yoki chek printeri) bilan schyot chiqarsa bo'ladimi (P6 B: markaz LAN so'rovini o'zi
+  /// chiqarishdan oldin so'raydi).
+  bool canPrint(int? printerId) =>
+      ((printerId == null ? null : printing.configFor(printerId)) ??
+          printing.receiptPrinter) !=
+      null;
 
   PrinterConfig? _printerFor(BillPrintRequest request) {
     final int? id = request.printerId;

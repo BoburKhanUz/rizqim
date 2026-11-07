@@ -102,6 +102,18 @@ PrinterStatus statusFromSpoolerBits(int bits) {
   return PrinterStatus.unknown;
 }
 
+/// Windows xato kodi (`GetLastError`) o'zbekcha: eng ko'p uchraydiganlari matn bilan, qolgani raqam bilan. (Dart VM
+/// FFI chaqiruvlari orasida kodni o'zgartirishi mumkin: matn yordamchi, asosiysi xato turi.)
+String windowsErrorText(int code) => switch (code) {
+  5 => 'ruxsat yo\'q, xato 5',
+  1722 || 1726 =>
+    '«Chop etish navbati» (Print Spooler) xizmati ishlamayapti, xato $code',
+  1801 => 'bunday nomli printer o\'rnatilmagan, xato 1801',
+  1804 => 'printer drayveri RAW turini qabul qilmadi, xato 1804',
+  1905 => 'printer Windows\'dan o\'chirilgan, xato 1905',
+  _ => 'xato $code',
+};
+
 /// `winspool.drv` orqali haqiqiy amalga oshirish (dart:ffi, plagin kerak emas). Chaqiruvlar UI'ni to'xtatmasligi
 /// uchun alohida isolate'da bajariladi.
 class FfiRawSpooler implements RawSpooler {
@@ -239,7 +251,7 @@ class _Winspool {
         0) {
       throw PrinterException(
         PrinterErrorKind.offline,
-        'Windows printeri topilmadi: "$name" (xato ${getLastError()}).',
+        'Windows printeri topilmadi: "$name" (${windowsErrorText(getLastError())}).',
       );
     }
     return handle.value;
@@ -259,14 +271,14 @@ void _writeRaw(String printerName, String documentName, Uint8List bytes) {
       if (w.startDoc(h, 1, doc) == 0) {
         throw PrinterException(
           PrinterErrorKind.failed,
-          'StartDocPrinter xatosi ${w.getLastError()}',
+          'StartDocPrinter: ${windowsErrorText(w.getLastError())}',
         );
       }
       try {
         if (w.startPage(h) == 0) {
           throw PrinterException(
             PrinterErrorKind.failed,
-            'StartPagePrinter xatosi ${w.getLastError()}',
+            'StartPagePrinter: ${windowsErrorText(w.getLastError())}',
           );
         }
         final Pointer<Uint8> buffer = arena<Uint8>(bytes.length);
@@ -277,7 +289,7 @@ void _writeRaw(String printerName, String documentName, Uint8List bytes) {
         if (ok == 0 || written.value != bytes.length) {
           throw PrinterException(
             PrinterErrorKind.failed,
-            'WritePrinter xatosi ${w.getLastError()} (${written.value}/${bytes.length} bayt)',
+            'WritePrinter: ${windowsErrorText(w.getLastError())} (${written.value}/${bytes.length} bayt)',
           );
         }
       } finally {
@@ -319,7 +331,7 @@ List<String> _enumPrinters() {
         0) {
       throw PrinterException(
         PrinterErrorKind.failed,
-        'EnumPrinters xatosi ${w.getLastError()}',
+        'EnumPrinters: ${windowsErrorText(w.getLastError())}',
       );
     }
     final Pointer<_PrinterInfo4> infos = buffer.cast<_PrinterInfo4>();

@@ -36,7 +36,8 @@ jobs:
       pospkg: ${{ steps.filter.outputs.pospkg }}
       # P3-33: the POS stack end-to-end test (pos-stack-e2e job)
       posstack: ${{ steps.filter.outputs.posstack }}
-      # P6 hardware: the Android builds of the POS apps (android-build job; Kotlin is compiled only there)
+      # P6 hardware: the Android builds of the POS apps (android-build job; Kotlin is compiled only there). The same
+      # paths gate the Windows builds (windows-build job: pos/** and packages/dart/**)
       android: ${{ steps.filter.outputs.android }}
     steps:
       - uses: actions/checkout@v7
@@ -1090,5 +1091,58 @@ jobs:
           for app in cashier waiter kds customer_display; do
             echo "::group::$app"
             (cd "pos/apps/$app" && flutter build apk --debug --target-platform android-arm64)
+            echo "::endgroup::"
+          done
+
+  # --- P6 Windows: Windows debug builds of the POS apps and the Windows-only tests ---------------------------------
+  # There is no Windows machine in development: the Win32 code (the customer display's full-screen placement on the
+  # second monitor in pos/apps/customer_display/windows/runner/customer_monitor.cpp) is compiled only here, and the
+  # winspool.drv bindings (FfiRawSpooler: printer list, a write to a missing printer fails clearly) and the LAN hub's
+  # sockets (bind on every interface, the UDP beacon, SO_REUSEADDR) run here on real Windows. Same paths as the
+  # android-build job. No real printer: the behaviour with hardware is checked with docs/HARDWARE_TEST.md.
+  windows-build:
+    name: Windows build (POS apps, debug) and Windows tests
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      FLUTTER_VERSION: 3.47.5
+    steps:
+      # The text goldens (test/goldens/*.txt) compare byte for byte: no CRLF on checkout
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # pos_hardware: everything, including test/windows_test.dart's real-spooler group (skipped elsewhere);
+      # pos_lan: the hub and client over real sockets, test/platform_bind_test.dart
+      - name: Tests (pos_hardware, pos_lan)
+        run: |
+          set -e
+          (cd pos/packages/pos_hardware && flutter test)
+          (cd pos/packages/pos_lan && dart test)
+
+      - name: Build Windows debug apps
+        run: |
+          set -e
+          for app in cashier waiter kds customer_display; do
+            echo "::group::$app"
+            (cd "pos/apps/$app" && flutter build windows --debug)
+            rm -rf "pos/apps/$app/build"
             echo "::endgroup::"
           done

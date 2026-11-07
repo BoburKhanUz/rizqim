@@ -22,7 +22,8 @@ enum DiscoveryPurpose {
 }
 
 /// "Printerni qidirish" (P6 uskunalar): tarmoqdagi (9100 port), juftlangan Bluetooth, USB va ichki printerlar
-/// ro'yxati → printerni tanlash → vazifa (chek, oshxona, yorliq) → "Sinov cheki" va "Pul qutisini ochish".
+/// (Android), Windows'da o'rnatilgan printerlar (spooler) ro'yxati → printerni tanlash → vazifa (chek, oshxona,
+/// yorliq) → "Sinov cheki" va "Pul qutisini ochish".
 ///
 /// Printer shu yerda serverga qo'shilmaydi: ega uni boshqaruv panelida (Sozlamalar → Printerlar) ko'rsatilgan manzil
 /// bilan qo'shadi; bu sahifa printer ishlashini va manzilini aniqlash uchun.
@@ -41,8 +42,11 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
   List<DiscoveredPrinter> _bluetooth = const <DiscoveredPrinter>[];
   List<DiscoveredPrinter> _usb = const <DiscoveredPrinter>[];
   DiscoveredPrinter? _sunmi;
+  List<DiscoveredPrinter> _windows = const <DiscoveredPrinter>[];
   String? _bluetoothError;
   String? _usbError;
+  String? _windowsError;
+  bool _windowsRunning = false;
   StreamSubscription<DiscoveredPrinter>? _lanSub;
   bool _lanRunning = false;
   bool _nativeRunning = false;
@@ -70,7 +74,23 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
 
   Future<void> _scanAll() async {
     _scanLan();
-    await _scanNative();
+    await Future.wait(<Future<void>>[_scanNative(), _scanWindows()]);
+  }
+
+  /// Windows: the printers installed in Windows (USB printers come through their driver).
+  Future<void> _scanWindows() async {
+    final PrinterDiscovery d = _discovery;
+    if (!d.windowsSupported) return;
+    setState(() => _windowsRunning = true);
+    final (List<DiscoveredPrinter>, String?) found = await _guard(
+      d.windowsPrinters,
+    );
+    if (!mounted) return;
+    setState(() {
+      _windows = found.$1;
+      _windowsError = found.$2;
+      _windowsRunning = false;
+    });
   }
 
   void _scanLan() {
@@ -153,6 +173,7 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
   Widget build(BuildContext context) {
     final RzColors c = context.rz;
     final bool native = _discovery.nativeSupported;
+    final bool windows = _discovery.windowsSupported;
     return Scaffold(
       backgroundColor: c.page,
       appBar: AppBar(
@@ -161,7 +182,7 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
           IconButton(
             key: const ValueKey<String>('discovery-rescan'),
             tooltip: 'Qayta qidirish',
-            onPressed: _lanRunning || _nativeRunning
+            onPressed: _lanRunning || _nativeRunning || _windowsRunning
                 ? null
                 : () => unawaited(_scanAll()),
             icon: const Icon(Icons.refresh_rounded),
@@ -171,6 +192,18 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          if (windows) ...<Widget>[
+            _listCard(
+              c,
+              DiscoveryKind.windows,
+              _windows,
+              _windowsError,
+              "Windows'da printer o'rnatilmagan. Printerni USB orqali ulang va uning drayverini o'rnating "
+              "(Windows sozlamalari → Bluetooth va qurilmalar → Printerlar va skanerlar), so'ng qayta qidiring.",
+              running: _windowsRunning,
+            ),
+            const SizedBox(height: 16),
+          ],
           PosCard(
             title: DiscoveryKind.lan.label,
             child: Column(
@@ -232,15 +265,24 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
     List<DiscoveredPrinter> list,
     String? error,
     String empty,
-  ) => PosCard(
+  ) => _listCard(c, kind, list, error, empty, running: _nativeRunning);
+
+  Widget _listCard(
+    RzColors c,
+    DiscoveryKind kind,
+    List<DiscoveredPrinter> list,
+    String? error,
+    String empty, {
+    required bool running,
+  }) => PosCard(
     title: kind.label,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (_nativeRunning) const LinearProgressIndicator(),
+        if (running) const LinearProgressIndicator(),
         if (error != null)
           NoticeBanner(message: error, tone: StatusTone.warning)
-        else if (!_nativeRunning && list.isEmpty)
+        else if (!running && list.isEmpty)
           _Empty(empty),
         for (final DiscoveredPrinter p in list) _row(p),
       ],
@@ -254,6 +296,7 @@ class _PrinterDiscoveryPageState extends State<PrinterDiscoveryPage> {
       DiscoveryKind.bluetooth => Icons.bluetooth_rounded,
       DiscoveryKind.usb => Icons.usb_rounded,
       DiscoveryKind.sunmi => Icons.point_of_sale_rounded,
+      DiscoveryKind.windows => Icons.print_outlined,
     };
     return ListTile(
       key: ValueKey<String>('discovered-${p.target.description}'),
@@ -471,6 +514,15 @@ class _PrinterTestSheetState extends State<PrinterTestSheet> {
               NoticeBanner(
                 message: _result!,
                 tone: _ok ? StatusTone.success : StatusTone.danger,
+              ),
+            ],
+            if (p.target case final WindowsPrinterTarget t) ...<Widget>[
+              const SizedBox(height: 16),
+              Text(
+                "Doimiy ishlatish uchun boshqaruv panelida (Sozlamalar → Printerlar) printer qo'shing: ulanish — USB, "
+                "kassa terminali — shu kompyuter, nomi — «${t.printerName}» (Windows'dagi nomi bilan aynan bir xil).",
+                key: const ValueKey<String>('discovery-windows-hint'),
+                style: RzType.footnote.copyWith(color: c.fgMuted),
               ),
             ],
             if (address != null) ...<Widget>[

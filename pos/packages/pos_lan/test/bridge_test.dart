@@ -404,4 +404,63 @@ void main() {
     );
     expect(botir.hubDrained, isTrue);
   });
+
+  test('a bill request the hub prints itself goes into the queue marked printed_on_lan (the server does not print it '
+      'again); one it leaves to the server is not marked', () async {
+    // The till's glue decides per request (the cashier app: offline, auto print on, a bill printer)
+    await hub.dispose();
+    await applier.dispose();
+    final List<String> asked = <String>[];
+    var prints = true;
+    applier = PosOfflineLanApplier(
+      offline: pos.offline!,
+      printsBill: (LanRemoteOp op) {
+        asked.add(op.opId);
+        return prints;
+      },
+    );
+    hub = LanHub(
+      credentials: branch.hubCredentials(),
+      applier: applier,
+      address: InternetAddress.loopbackIPv4,
+      port: 0,
+      beaconEvery: null,
+      advertisedHost: '127.0.0.1',
+    );
+    await hub.start();
+    final LanClient botir = await connect(
+      TestBranch.phone1,
+      grant: branch.grant(TestBranch.phone1, 4, permissions: waiterPerms),
+    );
+    Future<SyncOperation> billAsked(String order) async {
+      expect(
+        (await botir.send(LanOpType.orderOpen, <String, Object?>{
+          'order': order,
+          'channel': 'pos_takeaway',
+          'items': <Object?>[line(1, '1')],
+        })).accepted,
+        isTrue,
+      );
+      final LanOpResult r = await botir.send(
+        LanOpType.billRequest,
+        <String, Object?>{'order': order},
+      );
+      expect(r.accepted, isTrue, reason: '${r.reason} ${r.message}');
+      expect(asked.last, r.opId);
+      return pos.offline!.store.find(r.opId)!;
+    }
+
+    final SyncOperation printed = await billAsked(
+      '9a000000-0000-4000-8000-000000000011',
+    );
+    expect(printed.type, SyncOpType.billRequest);
+    expect(printed.origin, TestBranch.phone1);
+    expect(printed.payload['printed_on_lan'], isTrue);
+
+    prints = false;
+    final SyncOperation left = await billAsked(
+      '9a000000-0000-4000-8000-000000000012',
+    );
+    expect(left.payload.containsKey('printed_on_lan'), isFalse);
+  });
 }

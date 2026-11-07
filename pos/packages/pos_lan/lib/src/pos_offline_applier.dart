@@ -11,7 +11,7 @@ import 'messages.dart';
 /// `op_id` and as its origin), plus what the server checks too: the permission, the branch's modules and the waiter
 /// rule. Every change of the till's queue (its own operations too) becomes `order.changed` and the kitchen's events.
 class PosOfflineLanApplier implements LanOpApplier {
-  PosOfflineLanApplier({required this.offline}) {
+  PosOfflineLanApplier({required this.offline, this.printsBill}) {
     _lastSeq = offline.store.lastSeq;
     _subs
       ..add(offline.store.changes.listen((_) => _onStoreChange()))
@@ -19,6 +19,11 @@ class PosOfflineLanApplier implements LanOpApplier {
   }
 
   final PosOffline offline;
+
+  /// P6 B bosqichi: markaz shu `bill.request` ning pre-check'ini o'zi chiqaradimi (kassa internetsiz va filialda
+  /// "schyotni avtomatik chop etish" yoqilgan). `true` bo'lsa amal navbatga `printed_on_lan: true` bilan yoziladi
+  /// (server navbat yetganda qayta chiqarmaydi); chiqarishni kassa navbatdagi shu amalni ko'rib bajaradi.
+  final bool Function(LanRemoteOp op)? printsBill;
 
   late int _lastSeq;
   bool? _lastCloud;
@@ -206,7 +211,10 @@ class PosOfflineLanApplier implements LanOpApplier {
       case LanOpType.kitchenAssembled:
         await offline.kitchenAssembled(ref);
       case LanOpType.billRequest:
-        await offline.requestBill(ref);
+        await offline.requestBill(
+          ref,
+          printedOnLan: printsBill?.call(op) ?? false,
+        );
       default:
         throw const PosOfflineUnavailable(
           'Bu amal kassada bajariladi.',

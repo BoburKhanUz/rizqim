@@ -3,6 +3,7 @@ import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import 'cashier_lan_hub.dart';
+import 'windows_firewall.dart';
 
 /// P6 lokal ko'prik: yuqori paneldagi "Lokal tarmoq: 3 qurilma" belgisi (faqat markaz kassada). Bosilsa — ulangan
 /// qurilmalar va qo'lda kiritiladigan manzil (IP/QR zaxirasi).
@@ -75,6 +76,7 @@ class LanPeersDialog extends StatelessWidget {
     builder: (BuildContext context, _) {
       final List<LanPeerInfo> peers = hub.peers;
       return AlertDialog(
+        scrollable: true,
         title: Text(LanIndicator.label(peers.length)),
         content: SizedBox(
           width: 420,
@@ -82,9 +84,12 @@ class LanPeersDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              if (peers.isEmpty)
-                const Text("Hozircha hech qanday qurilma ulanmagan.")
-              else
+              if (peers.isEmpty) ...<Widget>[
+                const Text("Hozircha hech qanday qurilma ulanmagan."),
+                // P6 Windows: same Wi-Fi, manual address, the firewall rule
+                const SizedBox(height: 8),
+                LanReachHint(hub: hub),
+              ] else
                 for (final LanPeerInfo p in peers)
                   ListTile(
                     dense: true,

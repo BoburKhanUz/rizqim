@@ -285,6 +285,9 @@ class FakePosState {
   /// qiymat, javobga o'zgartirilmay qo'shiladi. Bo'sh — eski server.
   final Map<String, Object?> bootstrapExtras = <String, Object?>{};
 
+  /// P6: `GET /pos/lan` (terminal token) — the terminal's LAN section; `null` — none.
+  Map<String, Object?>? terminalLan;
+
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
 
@@ -724,6 +727,11 @@ class FakePosState {
       if (!paired) return _unauthorized();
       final FakeResponse? sync = terminalRoutes?.call(method, p, query, data);
       if (sync != null) return sync;
+    }
+    // P6 local bridge: the terminal's LAN keys with its own token (the customer display)
+    if (method == 'GET' && p == '/v1/pos/lan' && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      return _ok(terminalLan);
     }
     if (p.startsWith('/v1/terminal') || p.contains('/staff-session')) {
       if (!paired || token != terminalToken) return _unauthorized();

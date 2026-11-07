@@ -39,7 +39,7 @@ Hammasi `Authorization: Bearer <token>`. Tafsilotlar va barcha muddatlar: [AUTH.
 | Telegram Mini App | Telegram `initData` (HMAC tekshiriladi, `auth_date` 10 daqiqadan eski emas) | `POST /auth/telegram {initData, bot_username, start_param?}` | bitta token, 30 kun; 401 bo'lsa qayta `initData` bilan kiradi |
 | Mobil ilova, hamkor web | Telegram yoki telefon + SMS kod, **`device` obyekti bilan** | `POST /auth/telegram` yoki `POST /auth/phone/send-code` → `POST /auth/phone/verify {phone, code, device}` | access token (15 daqiqa) + refresh token (30 kun) |
 | Tokenni yangilash | refresh token | `POST /auth/refresh {refresh_token, device_uuid}` | yangi juftlik; eskisi sarflanadi |
-| POS/KDS terminal | 8 belgili ulash kodi (egasi panelda oladi) | `POST /devices/pair {code, name?, platform?, app_version?}` | terminal tokeni (365 kun yoki o'chirilguncha) |
+| POS/KDS terminal | 8 belgili ulash kodi (egasi panelda oladi) | `POST /devices/pair {code, name?, platform?, app_version?, app?}` (`app` — P6 B: `cashier`, `waiter`, `kds`, `customer_display`) | terminal tokeni (365 kun yoki o'chirilguncha) |
 | Terminaldagi xodim | PIN yoki `staff_code` + PIN, terminal tokeni bilan | `POST /devices/{uuid}/staff-session {user_id \| staff_code, pin}` | xodim sessiyasi (12 soat), terminalga bog'langan |
 | RIZQIM jamoasi (P4-11, Boshqaruv markazi) | email + parol, keyin TOTP kod (2FA) | `POST /admin/auth/login` → `POST /admin/auth/2fa/verify` (birinchi marta `2fa/setup` → `2fa/confirm`) | admin sessiyasi: 12 soat, 60 daqiqa harakatsizlikda tugaydi; faqat `/admin/*` uchun ("Admin API" bo'limi) |
 
@@ -1862,12 +1862,19 @@ Internet uzilsa asosiy kassa (markaz) Wi-Fi orqali ofitsiant, KDS va mijoz ekran
 |---|---|---|---|
 | GET | `/pos/bootstrap` → `lan` | terminaldagi PIN sessiyasi | shu terminalning LAN kalitlari va oflayn granti (pastda) |
 | GET | `/pos/lan` | terminal tokeni (`auth:device`) | xuddi shu bo'lim, grantsiz (xodimsiz mijoz ekrani uchun); do'kon bo'yicha ulangan terminalga `data: null` |
-| GET | `/owner/pos/lan?branch_id=` | ega, `settings.manage`, PIN sessiyasidan emas | markaz kassa (`hub.device`, `name`, `chosen`), `candidates` (filialning faol kassalari), `port`, `key_id`, `rotated_at` |
+| GET | `/owner/pos/lan?branch_id=` | ega, `settings.manage`, PIN sessiyasidan emas | markaz kassa (`hub.device`, `name`, `chosen`), `candidates` (filialning faol kassalari: `uuid`, `name`, `platform`, `app`, `last_seen_at`; ofitsiant telefoni hech qachon), `port`, `key_id`, `rotated_at` |
 | PUT | `/owner/pos/lan` | ega | `branch_id`, `hub_device_id` (filialning faol kassasi uuid'si yoki `null` — standart), `port` (1024–65535); audit `settings.pos_lan_changed` |
 | POST | `/owner/pos/lan/rotate` | ega | yangi filial siri (`key_id` + 1); audit `pos.lan_key_rotated` (kalitning o'zi hech qayerda yo'q) |
 
 **Markaz:** egasi tanlagan faol kassa; tanlanmagan bo'lsa — filialning "chop etuvchi" kassasi
-(`pos_settings.printing_device_id`), u ham bo'lmasa filialning birinchi ulangan faol POS terminali. Bitta filialda bitta.
+(`pos_settings.printing_device_id`), u ham bo'lmasa filialning birinchi ulangan kassa ilovasi (`devices.app = cashier`),
+u ham bo'lmasa ilovasi noma'lum (B bosqichidan oldin ulangan) birinchi faol POS terminali. Ofitsiant telefoni
+(`app = waiter`) hech qachon markaz bo'lmaydi va `candidates` da yo'q. Bitta filialda bitta.
+
+**Ilova turi (P6 B).** Ilovalar ulanishda `POST /devices/pair` ga `app` yuboradi (`cashier`, `waiter`, `kds`,
+`customer_display`; boshqa qiymat — 422). Kod turiga mos kelsa (`cashier`/`waiter` — `pos`, `kds` — `kds`,
+`customer_display` — `display`) `devices.app` ga yoziladi, mos kelmasa tashlab yuboriladi (ulash buzilmaydi); eski
+qurilmalarda `null`.
 
 **Bootstrap `lan`** (oddiy xodim yoki ega web kirishida, boshqa filial yoki do'kon bo'yicha ulangan terminalda — `null`):
 `v` (1), `branch_id`, `key_id`, `role` (`hub` | `client`), `device` (shu terminal), `device_key` (base64,
@@ -1888,11 +1895,14 @@ amallari 48 soat qabul qilinadi); `origin_device` noma'lum yoki boshqa do'konnik
 `origin_wrong_branch`; uzilgan — `origin_revoked`; `bill.create`, `bill.pay`, `order.close` — `relay_not_allowed`.
 Yangi amal turlari (kassaning o'zi ham yuborishi mumkin): `kitchen.bump` / `kitchen.recall` (`order`, `line`;
 `kitchen.manage`; KDS onlayndagi qoidalar), `kitchen.assembled` (`order`; yig'ish shart bo'lmasa — `applied`,
-`refs.changed: false`), `bill.request` (`order`; `orders.manage`, ofitsiant qoidasi).
+`refs.changed: false`), `bill.request` (`order`, `printed_on_lan?`; `orders.manage`, ofitsiant qoidasi).
+`printed_on_lan: true` (P6 B) — markaz so'rovni internetsiz LAN orqali olib, pre-check'ni o'z printerida chiqargan:
+server navbat yetganda filialning avtomatik schyot chop etishini (`bill.print_requested`) **qayta qilmaydi**.
 
 Migratsiyalar (qo'shimcha, qaytariladigan): `2026_11_16_200100_create_branch_lan_settings_table`,
-`2026_11_16_200200_add_origin_device_to_pos_sync_operations_table`. Testlar: `tests/Feature/PosLan/PosLanKeysTest.php`,
-`PosLanRelayTest.php`, `tests/Unit/PosLan/LanKeysTest.php` (Dart bilan bir xil kalit vektorlari).
+`2026_11_16_200200_add_origin_device_to_pos_sync_operations_table`, `2026_11_17_100100_add_app_to_devices_table` (P6 B).
+Testlar: `tests/Feature/PosLan/PosLanKeysTest.php`, `PosLanRelayTest.php`, `PosLanHubAppTest.php` (P6 B),
+`tests/Unit/PosLan/LanKeysTest.php` (Dart bilan bir xil kalit vektorlari).
 
 ## Kassadagi chegirma va kassir huquqlari (P3-37)
 

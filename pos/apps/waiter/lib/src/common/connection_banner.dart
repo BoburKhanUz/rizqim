@@ -18,6 +18,13 @@ class ConnectionBanner extends StatelessWidget {
     initialData: connectivity.state,
     builder: (BuildContext context, AsyncSnapshot<PosConnectivityState> snap) {
       final PosConnectivityState state = snap.data ?? connectivity.state;
+      // P6: no internet, but the branch's hub (the main till) serves the hall over Wi-Fi
+      if (state.lan) {
+        return const RzOfflineBanner(
+          title: 'Lokal tarmoq',
+          message: "Internet yo'q: buyurtmalar Wi-Fi orqali kassaga boradi. Schyot va to'lov faqat kassada.",
+        );
+      }
       if (state.online) return const SizedBox.shrink();
       return RzOfflineBanner(
         title: "Aloqa yo'q",
@@ -29,5 +36,5 @@ class ConnectionBanner extends StatelessWidget {
   );
 }
 
-/// Yozuv amallari (yuborish, qo'shish ...) uchun: server javob beryaptimi.
-bool isOnline(PosConnectivity connectivity) => connectivity.state.online;
+/// Yozuv amallari (yuborish, qo'shish ...) uchun: server javob beryapti yoki (P6) markaz kassa orqali.
+bool isOnline(PosConnectivity connectivity) => connectivity.state.usable;

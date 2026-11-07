@@ -76,7 +76,9 @@ class OrderController extends ChangeNotifier {
   bool _disposed = false;
 
   PosSession get session => data.session;
-  bool get online => data.connectivity.state.online;
+
+  /// Server javob beryapti yoki (P6) markaz kassa orqali (`lan`).
+  bool get online => data.connectivity.state.usable;
   bool get closed => order != null && !order!.isOpen;
 
   /// Buyurtma boshqa ofitsiantniki va kirgan xodim ofitsiant (menejer va kassirga qoida tegmaydi).
@@ -124,6 +126,8 @@ class OrderController extends ChangeNotifier {
       livePollInterval: livePollInterval,
       eventFilter: (PosEvent e) => e.orderUuid == uuid,
       onRefresh: (PosRefreshReason _) => load(silent: true),
+      // P6: the hub's events in `lan` mode
+      localEvents: data.lanEvents,
     )..start();
     unawaited(load());
   }
@@ -158,7 +162,8 @@ class OrderController extends ChangeNotifier {
   }
 
   Future<void> _loadBill() async {
-    if (order?.billLocked != true) {
+    // P6: bills are the till's over the LAN (not asked for)
+    if (order?.billLocked != true || (data.lan?.active ?? false)) {
       billStale = false;
       return;
     }
@@ -488,6 +493,14 @@ class OrderController extends ChangeNotifier {
   /// `false` va xabar. Muvaffaqiyatli — `true`.
   Future<bool> reprintBill(Approving approving) async {
     if (order == null || busy || !online) return false;
+    // P6: over the LAN there is no reprint (the manager's PIN and the audit are on the server): plainly said
+    if (data.lan?.active ?? false) {
+      const String text =
+          "Internet yo'q: schyotni qayta chiqarish faqat internet bilan (yoki kassaning o'zida).";
+      lastError = text;
+      onNotice?.call(text, error: true);
+      return false;
+    }
     busy = true;
     lastError = null;
     _notify();

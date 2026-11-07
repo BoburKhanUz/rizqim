@@ -8,13 +8,17 @@ import 'package:pos_core/pos_core.dart';
 import '../printer/native_transport.dart';
 import '../printer/printer.dart';
 import '../printer/sunmi_transport.dart';
+import '../printer/windows_spooler.dart';
 
 /// Printer qanday topildi.
 enum DiscoveryKind {
   lan('Tarmoq (LAN)'),
   bluetooth('Bluetooth'),
   usb('USB'),
-  sunmi('Ichki printer');
+  sunmi('Ichki printer'),
+
+  /// Windows'da o'rnatilgan printerlar (spooler: USB, tarmoq yoki virtual).
+  windows('Windows printerlari');
 
   const DiscoveryKind(this.label);
 
@@ -102,13 +106,16 @@ Future<bool> _tcpProbe(String host, int port, Duration timeout) async {
 ///   [PrinterDiscovery.concurrency] tadan ko'p emas);
 /// * [bluetoothPaired] — telefonda juftlangan Bluetooth qurilmalar (plagin);
 /// * [usbDevices] — USB OTG qurilmalar (plagin);
-/// * [sunmi] — Sunmi ichki printeri.
+/// * [sunmi] — Sunmi ichki printeri;
+/// * [windowsPrinters] — Windows'da o'rnatilgan printerlar (spooler, `winspool.drv`).
 class PrinterDiscovery {
   PrinterDiscovery({
     MethodChannel? bluetoothChannel,
     MethodChannel? usbChannel,
     SunmiPrinterTransport? sunmiTransport,
     bool? android,
+    bool? windows,
+    this._spooler,
     Future<List<String>> Function()? localAddresses,
     PortProbe? probe,
     this.concurrency = 48,
@@ -120,6 +127,8 @@ class PrinterDiscovery {
        _android =
            android ??
            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
+       // The host OS, not the target platform override: the spooler is reached through winspool.drv itself
+       _windows = windows ?? (!kIsWeb && Platform.isWindows),
        _localAddresses = localAddresses ?? localIPv4Addresses,
        _probe = probe ?? _tcpProbe;
 
@@ -127,6 +136,8 @@ class PrinterDiscovery {
   final MethodChannel _usb;
   final SunmiPrinterTransport? _sunmi;
   final bool _android;
+  final bool _windows;
+  final RawSpooler? _spooler;
   final Future<List<String>> Function() _localAddresses;
   final PortProbe _probe;
 
@@ -138,6 +149,9 @@ class PrinterDiscovery {
 
   /// Bluetooth, USB va ichki printer qidiriladimi (faqat Android).
   bool get nativeSupported => _android;
+
+  /// Windows printerlari ro'yxati bormi (faqat Windows).
+  bool get windowsSupported => _windows;
 
   /// Tarmoqdagi printerlar: har topilgani darhol oqimga. [subnets] — `192.168.1` kabi uchta oktet (berilmasa —
   /// qurilmaning IPv4 manzillaridan); [onProgress] — tekshirilgan/jami manzillar.
@@ -271,6 +285,36 @@ class PrinterDiscovery {
     );
   }
 
+  /// Windows'da o'rnatilgan printerlar ([RawSpooler.printers]): chek printerlari birinchi, virtual printerlar
+  /// ("Microsoft Print to PDF", "OneNote", faks) oxirida va "printer emasdir" belgisi bilan. Spooler ishlamasa —
+  /// [DiscoveryException] tushunarli matn bilan.
+  Future<List<DiscoveredPrinter>> windowsPrinters() async {
+    if (!_windows) return const <DiscoveredPrinter>[];
+    final RawSpooler spooler = _spooler ?? const FfiRawSpooler();
+    final List<String> names;
+    try {
+      names = await spooler.printers();
+    } on Object catch (e) {
+      throw DiscoveryException(
+        "Windows printerlarini o'qib bo'lmadi: ${e is PrinterException ? e.message : e}. "
+        "«Chop etish navbati» (Print Spooler) xizmati ishlayaptimi? Windows sozlamalari → Bluetooth va qurilmalar → "
+        "Printerlar va skanerlar bo'limini tekshiring.",
+      );
+    }
+    final List<DiscoveredPrinter> found = <DiscoveredPrinter>[
+      for (final String name in names.toSet())
+        if (name.trim().isNotEmpty)
+          DiscoveredPrinter(
+            kind: DiscoveryKind.windows,
+            target: WindowsPrinterTarget(name),
+            name: name,
+            detail: 'Windows drayveri orqali',
+            likelyPrinter: !isVirtualWindowsPrinter(name),
+          ),
+    ];
+    return _printersFirst(found);
+  }
+
   Future<List<Object?>> _call(
     MethodChannel channel,
     String method,
@@ -362,6 +406,26 @@ List<String> subnetsOf(List<String> addresses) {
     if (!out.contains(net)) out.add(net);
   }
   return out;
+}
+
+/// Windows printeri qog'ozga chiqarmaydigan (virtual) printermi: PDF/XPS yozuvchilar, OneNote, faks, masofaviy
+/// ish stoli orqali yo'naltirilgan printerlar. Ro'yxatda qoladi (oxirida), chunki nomdan aniq bilib bo'lmaydi.
+bool isVirtualWindowsPrinter(String name) {
+  final String n = name.toLowerCase();
+  const List<String> hints = <String>[
+    'pdf',
+    'xps',
+    'onenote',
+    'fax',
+    'факс',
+    'document writer',
+    'send to',
+    '(redirected',
+    'перенаправлен',
+    'anydesk',
+    'snagit',
+  ];
+  return hints.any(n.contains);
 }
 
 /// Bluetooth qurilma printerga o'xshaydimi: sinfi "Imaging / Printer" (0x0680 biti) yoki nomida printer belgilari.

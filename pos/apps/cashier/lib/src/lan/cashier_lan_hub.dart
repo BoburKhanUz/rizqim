@@ -21,6 +21,7 @@ class CashierLanHub extends ChangeNotifier {
     required this.offline,
     this.store,
     this.hubFactory,
+    this.printsBill,
   });
 
   final PosSession session;
@@ -34,6 +35,9 @@ class CashierLanHub extends ChangeNotifier {
   final LanHub Function(LanCredentials credentials, LanOpApplier applier)?
   hubFactory;
 
+  /// P6 B: markaz LAN orqali olgan `bill.request` ning pre-check'ini o'zi chiqaradimi ([PosOfflineLanApplier.printsBill]).
+  final bool Function(LanRemoteOp op)? printsBill;
+
   static const String storageKey = 'pos_lan.credentials';
 
   LanHub? _hub;
@@ -44,14 +48,44 @@ class CashierLanHub extends ChangeNotifier {
       <StreamSubscription<Object?>>[];
   Future<void> _work = Future<void>.value();
   bool _disposed = false;
+  final StreamController<LanEvent> _events =
+      StreamController<LanEvent>.broadcast();
 
   bool get running => _hub?.running ?? false;
+
+  /// P6 B: markaz kassada o'zgargan buyurtmalar va oshxona hodisalari (`order.changed`, `kitchen.*`), qurilmalarga
+  /// ketgani bilan bir xil ([LanPublisher] `queue.ready` ni shulardan chiqaradi).
+  Stream<LanEvent> get events => _events.stream;
+
+  /// Markaz tinglayotgan port (ishlamayotgan bo'lsa — bootstrap'dagi).
+  int? get port => _hub?.port ?? _credentials?.port;
+
+  /// Markaz manzili (beacon'dagi IP).
+  String? get host => running ? _hub!.host : null;
+
+  /// P6 B: kassaning o'z hodisasini (`cart.display`, `queue.*`) ulangan qurilmalarga yuboradi ([to] — faqat bittasiga).
+  /// Markaz ishlamasa hech narsa qilmaydi; hech qachon xato bermaydi.
+  void publish(String type, Map<String, Object?> payload, {String? to}) {
+    final LanHub? hub = _hub;
+    if (hub == null || !hub.running) return;
+    try {
+      hub.publish(type, payload, to: to);
+    } on Object {
+      // A device that went away mid-send: the till carries on
+    }
+  }
 
   /// Ulangan qurilmalar.
   List<LanPeerInfo> get peers => _hub?.peers ?? const <LanPeerInfo>[];
 
   /// Shu kassa filialning markazi (kalitlari bor).
   bool get isHub => _credentials?.isHub ?? false;
+
+  /// Bootstrap'da lokal tarmoq bor (kalitlar olingan).
+  bool get configured => _credentials != null;
+
+  /// Filialning markaz kassasi nomi (bootstrap `lan.hub.name`).
+  String? get hubName => _credentials?.hubName;
 
   /// Qurilmalar qo'lda kiritadigan manzil (`rizqim-lan://192.168.1.20:18480?...`).
   String? get link => running ? _hub!.beacon().link : null;
@@ -111,7 +145,10 @@ class CashierLanHub extends ChangeNotifier {
       return;
     }
     await _stop();
-    final PosOfflineLanApplier applier = PosOfflineLanApplier(offline: o);
+    final PosOfflineLanApplier applier = PosOfflineLanApplier(
+      offline: o,
+      printsBill: printsBill,
+    );
     final LanHub next =
         hubFactory?.call(creds, applier) ??
         LanHub(credentials: creds, applier: applier);
@@ -126,7 +163,13 @@ class CashierLanHub extends ChangeNotifier {
     }
     _applier = applier;
     _hub = next;
-    _subs.add(next.changes.listen((_) => notifyListeners()));
+    _subs
+      ..add(next.changes.listen((_) => notifyListeners()))
+      ..add(
+        applier.events.listen((LanEvent e) {
+          if (!_events.isClosed) _events.add(e);
+        }),
+      );
     _notify();
   }
 
@@ -182,6 +225,7 @@ class CashierLanHub extends ChangeNotifier {
     }
     _subs.clear();
     unawaited(_stop());
+    unawaited(_events.close());
     super.dispose();
   }
 }

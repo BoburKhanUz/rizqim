@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'device_app.dart';
+
 part 'candidates2.g.dart';
 
 @JsonSerializable()
@@ -12,6 +14,7 @@ class Candidates2 {
     required this.uuid,
     required this.name,
     required this.platform,
+    required this.app,
     required this.lastSeenAt,
   });
 
@@ -21,6 +24,7 @@ class Candidates2 {
   final String uuid;
   final String? name;
   final String? platform;
+  final DeviceApp? app;
   @JsonKey(name: 'last_seen_at')
   final String? lastSeenAt;
 

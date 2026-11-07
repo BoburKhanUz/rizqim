@@ -183,9 +183,13 @@ class PosRefreshScheduler {
     this.pollInterval = const Duration(seconds: 15),
     this.livePollInterval = const Duration(seconds: 60),
     this.debounce = const Duration(milliseconds: 300),
+    this.localEvents,
   });
 
   final PosRealtime? realtime;
+
+  /// P6 lokal ko'prik: markaz kassa hodisalari (`PosData.lanEvents`) — [eventFilter] bilan xuddi server hodisalaridek.
+  final Stream<PosEvent>? localEvents;
   final Future<void> Function(PosRefreshReason reason) onRefresh;
 
   /// Qaysi hodisa yuklashni boshlaydi (`null` — hech qaysi: faqat polling va resync).
@@ -211,20 +215,22 @@ class PosRefreshScheduler {
   void start() {
     if (_started) return;
     _started = true;
+    void onEvent(PosEvent e) {
+      final bool Function(PosEvent)? filter = eventFilter;
+      if (filter == null || !filter(e)) return;
+      _debounce?.cancel();
+      _debounce = Timer(debounce, () => _trigger(PosRefreshReason.event));
+    }
+
     final PosRealtime? rt = realtime;
     if (rt != null) {
       _subs
         ..add(rt.states.listen((_) => _arm()))
         ..add(rt.resubscribed.listen((_) => _trigger(PosRefreshReason.resync)))
-        ..add(
-          rt.events.listen((PosEvent e) {
-            final bool Function(PosEvent)? filter = eventFilter;
-            if (filter == null || !filter(e)) return;
-            _debounce?.cancel();
-            _debounce = Timer(debounce, () => _trigger(PosRefreshReason.event));
-          }),
-        );
+        ..add(rt.events.listen(onEvent));
     }
+    final Stream<PosEvent>? local = localEvents;
+    if (local != null) _subs.add(local.listen(onEvent));
     _arm();
   }
 

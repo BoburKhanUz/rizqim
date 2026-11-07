@@ -4194,8 +4194,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited)
-         * @description `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.
+         * POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)
+         * @description `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
+         *     (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
+         *     code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
          */
         post: operations["terminal.pair"];
         delete?: never;
@@ -6444,7 +6446,9 @@ export interface paths {
         /**
          * The branch's local bridge
          * @description `hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first
-         *     paired till), `candidates`: the branch's active tills, `port` (default 18480), `key_id` and `rotated_at`.
+         *     paired cashier till, else the first paired till), `candidates`: the branch's active tills (`app`: the POS app it
+         *     runs, null when paired before it was recorded; a waiter's phone is never one), `port` (default 18480), `key_id`
+         *     and `rotated_at`.
          */
         get: operations["branchLan.show"];
         /**
@@ -10847,11 +10851,18 @@ export interface components {
             smart_kassa: boolean;
             fiscal_kassa_id: string | null;
             display_for_device_id: number | null;
+            app: components["schemas"]["DeviceApp"] | null;
             user?: components["schemas"]["User"] | null;
             store?: components["schemas"]["Store"] | null;
             branch?: components["schemas"]["Branch"] | null;
             refresh_tokens?: components["schemas"]["RefreshToken"][];
         };
+        /**
+         * DeviceApp
+         * @description P6 stage B: which POS app a terminal runs, as the app says when it pairs (POST /devices/pair `app`). A waiter's phone and a cashier till are both `pos` terminals; the branch's default LAN hub is a cashier till, never a waiter's phone (App\Domain\Pos\Lan\BranchLan). Devices paired before this was recorded have none (null).
+         * @enum {string}
+         */
+        DeviceApp: "cashier" | "waiter" | "kds" | "customer_display";
         /**
          * DeviceType
          * @enum {string}
@@ -24460,6 +24471,7 @@ export interface operations {
                     name?: string | null;
                     platform?: string | null;
                     app_version?: string | null;
+                    app?: components["schemas"]["DeviceApp"] | null;
                 };
             };
         };
@@ -31872,6 +31884,7 @@ export interface operations {
                                 uuid: string;
                                 name: string | null;
                                 platform: string | null;
+                                app: components["schemas"]["DeviceApp"] | null;
                                 last_seen_at: string | null;
                             }[];
                         };
@@ -31894,6 +31907,8 @@ export interface operations {
                     /** Format: uuid */
                     hub_device_id?: string | null;
                     port?: number;
+                    /** @description The branch (a branch-bound caller: their own). */
+                    branch_id?: number;
                 };
             };
         };
@@ -31920,6 +31935,7 @@ export interface operations {
                                 uuid: string;
                                 name: string | null;
                                 platform: string | null;
+                                app: components["schemas"]["DeviceApp"] | null;
                                 last_seen_at: string | null;
                             }[];
                         };
@@ -31937,7 +31953,14 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The branch (a branch-bound caller: their own). */
+                    branch_id?: number;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -31961,6 +31984,7 @@ export interface operations {
                                 uuid: string;
                                 name: string | null;
                                 platform: string | null;
+                                app: components["schemas"]["DeviceApp"] | null;
                                 last_seen_at: string | null;
                             }[];
                         };

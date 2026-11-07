@@ -142,7 +142,7 @@ qo'llanadi), `occurred_at` (markaz vaqti, ISO 8601), `staff_id` (grantdagi bilan
 | `order.served` | `order`, `line` | `orders.manage` | — |
 | `kitchen.bump` / `kitchen.recall` | `order`, `line` | `kitchen.manage` | — |
 | `kitchen.assembled` | `order` | `kitchen.manage` | `kds_expo` |
-| `bill.request` | `order` | `orders.manage` | — |
+| `bill.request` | `order` (markaz relay'ida `printed_on_lan?` — pastda, 9) | `orders.manage` | — |
 
 Grant xatosi (`welcome.grant_error`: `grant_invalid`, `grant_device`, `wrong_branch`, `key_mismatch`,
 `grant_expired`) bilan ulanish qoladi, lekin amal `grant_required` bilan rad etiladi; `staff_id` grantdagidan boshqa —
@@ -197,6 +197,68 @@ final LanOpResult r = await client.send(LanOpType.orderRound, {'order': uuid, 'i
 client.events.listen(...);              // order.changed, kitchen.ticket, lan.state ...
 ```
 
+## 9. Ilovalarda: ofitsiant, KDS, mijoz ekrani (stage B)
+
+**`LanLink`** — uchala ilovaning umumiy mijoz boshqaruvchisi (Flutter'siz):
+
+- **Kalitlar:** ofitsiant va KDS — PIN bilan kirilgandagi `GET /pos/bootstrap` `lan` qismi (grant bilan; faqat
+  xotirada, xodim chiqsa ko'prik to'xtaydi); mijoz ekrani — terminal tokeni bilan `GET /pos/lan` (grantsiz: faqat
+  hodisalar), qurilmaning xavfsiz xotirasida saqlanadi (ekran internetsiz qayta ochilsa ham ulanadi); `key_mismatch`
+  yoki `unknown_device` dan keyin internet qaytgach yangidan olinadi.
+- **Rejim:** ilova o'z so'rovi serverga yetdi/yetmadi deb aytadi (`reportCloud`); server yo'q paytda `LanLink` o'zi
+  har 15 soniyada `GET /health` (tokensiz) bilan tekshiradi. `cloud` da LAN bo'sh (ulanish ham, beacon tinglash ham
+  yo'q); server javob bermasa — ulanadi (`lan`, topilmasa `alone` va 2/5/10/30 soniyada qayta urinadi); `cloud` ga
+  faqat `LanModeRule` bo'yicha (`cloud: true, pending: 0`) qaytadi va ulanishni yopadi.
+- **Topish tartibi:** qo'lda kiritilgan manzil (IP yoki `rizqim-lan://` havola; qurilmada saqlanadi) → oxirgi
+  ishlagan manzil → UDP beacon (3 soniya; Android'da shu vaqt `WifiManager.MulticastLock` ushlanadi —
+  `pos_hardware` `WifiMulticastLock`, ruxsat `CHANGE_WIFI_MULTICAST_STATE`) → `127.0.0.1` (Windows'da kassa bilan bir
+  kompyuterdagi mijoz ekrani).
+- **Belgi:** ofitsiant — yuqori paneldagi aloqa belgisi "Lokal tarmoq" / "Aloqa yo'q" (bosilsa: markaz, xato, qo'lda
+  manzil) va lenta; KDS — "Lokal tarmoq" / "Internet yo'q" (bosilsa — xuddi shunday); mijoz ekrani — burchakda kichik
+  "Lokal tarmoq" yoki "Aloqa yo'q", manzil — ekran sozlamalarida (pastki chap burchakni 2 soniya bosib turish).
+
+**Ofitsiant** (`LanPosRoute` → `pos_data` `PosLanRoute`): `lan` rejimida `FloorRepository`, `PosOrderRepository`
+zal xaritasini, ochiq buyurtmalarni va buyurtmani markazdan (`state.get`, `order.get`) oladi; `open`, `addRound`,
+`send`, `sendCourse`, `setWeight`, `voidItem`, `markServed`, `requestBill` — markazga `op` (`Idempotency-Key` →
+`op_id`, javob kelmasa xuddi shu kalit bilan qayta yuborilsa bir marta qo'llanadi); qolgan amallar (ko'chirish,
+mehmonlar soni, chegirma ...) — "Internet yo'q: ... faqat internet tiklangach". Markaz rad etsa — uning sababi va
+xabari (`approval_required`, `staff_mismatch` ...). Ekranlar markaz hodisalarini (`order.changed`, `kitchen.*`)
+server hodisalari kabi oladi (`PosData.lanEvents`). Schyot, to'lov, yopish, qaytarish — `BillingRepository` da
+`not_allowed_on_lan`.
+
+**Schyotni qayta chiqarish LAN orqali yo'q** (B1 qarori): nusxa uchun `pos.reprint_bill` yoki menejer PIN'i kerak,
+menejer PIN'ini internetsiz tekshirib bo'lmaydi (bootstrap'da PIN xeshlari yo'q, 5.4) va nusxaning jurnali
+(`pos.bill_reprinted`) serverda — internetsiz chiqarilgan nusxa izsiz qolar edi (pulni ikki marta yig'ish xavfi).
+Ofitsiant ilovasi `lan` da "Internet yo'q: schyotni qayta chiqarish faqat internet bilan (yoki kassaning o'zida)"
+deydi; birinchi schyot (`bill.request`, avtomatik chop etish) ishlaydi.
+
+**KDS** (`LanKitchenService`): onlayn paytdagi oxirgi ro'yxat saqlanadi; `lan` da doska shu ro'yxat + markazning
+`order.changed` (chipta buyurtmaning markazdagi ko'rinishidan qayta yasaladi), `kitchen.item_status`, `kitchen.ticket`
+(noma'lum buyurtma `order.get` bilan so'raladi). "Tayyor", "Qaytarish", "Yig'ildi" — `kitchen.bump` / `kitchen.recall`
+/ `kitchen.assembled`. "Buyurtma tayyor" (butun buyurtma) va raqamni tayyor qilish — LAN amali yo'q, oddiy xabar
+(taomlar birma-bir "Tayyor"; hammasi tayyor bo'lsa kassa `queue.ready` ni o'zi e'lon qiladi). Kutish vaqti markaz
+soati bo'yicha (`hubNow`): planshet soati farq qilsa ham to'g'ri.
+
+**Mijoz ekrani:** `cart.display` (faqat ekran kuzatadigan kassa markazning o'zi bo'lsa; bir ishga tushishda `seq`
+kichigi tashlanadi), `queue.ready` / `queue.called` (ovoz va yirik raqam, bir raqam bir marta), `queue.handed`,
+`order.changed` dagi `queue` (yangi raqam "Tayyorlanmoqda"ga). `lan` paytida server so'ralmaydi; `cloud` ga qaytgach
+darhol serverdan yangilanadi.
+
+**Markaz kassa** (`pos/apps/cashier` `lib/src/lan/`): `CashierLanHub` markazni bootstrap kalitlari bilan ishga
+tushiradi; `LanPublisher` kassaning o'z hodisalarini tarqatadi — `cart.display` (`DisplayFeed` dagi joriy chek, serverni
+kutmasdan; yangi ulangan mijoz ekraniga oxirgi chek darhol), `queue.ready` / `queue.called` / `queue.handed` (kassadagi
+"Tayyor", "Qayta chaqirish", "Berildi"), va internetsiz paytda navbat raqami bor buyurtmaning hamma taomi tayyor
+bo'lsa `queue.ready` (onlayn buni server e'lon qiladi); kassaning internetsiz amallari (`kitchen.*`, `order.changed`)
+navbat orqali `PosOfflineLanApplier` dan o'tadi. `LanBillPrints`: kassa internetsiz, filialda "schyotni avtomatik
+chop etish" yoqilgan va kassada printer bor bo'lsa, LAN orqali kelgan `bill.request` navbatga `printed_on_lan: true`
+bilan yoziladi va pre-check kassaning o'z printerida bir marta chiqadi (so'rov id'si — `op_id`; navbatga schyot
+yozilmaydi); server navbat yetganda uni qayta chiqarmaydi. Internet bor paytda markaz chiqarmaydi — server
+odatdagidek `bill.print_requested` yuboradi (bir so'rov — bitta qog'oz). Sozlamalardagi "Lokal tarmoq" bo'limi:
+holat, IP, port, ulangan qurilmalar, qo'lda ulanish uchun QR (`rizqim-lan://...`), hech kim ulanmagan bo'lsa —
+Wi-Fi va Windows ruxsat qoidasi bo'yicha maslahat. Markazni ega tanlaydi (boshqaruv paneli: Kassa sozlamalari →
+Lokal tarmoq); tanlanmagan bo'lsa server kassa ilovasini (`devices.app = cashier`) oladi, ofitsiant telefonini hech
+qachon.
+
 ## Sinov
 
 ```bash
@@ -208,7 +270,9 @@ qoidasi; `hub_test.dart` — haqiqiy soketlar (localhost): tanilmagan qurilma, n
 `hello`siz kadr, qayta yuborilgan va eskirgan kadr, buzilgan imzo, soxta/eskirgan grant, kassaga tegishli amallar,
 hodisalar tarqalishi, beacon (HTTP va UDP); `bridge_test.dart` — soxta backend ustidagi haqiqiy `PosOffline`: markaz +
 2 ofitsiant + KDS + mijoz ekrani, ofitsiant qoidasi, huquq va modul, `op_id` bir marta, internet qaytgach navbat
-tartib bilan va `origin_device` bilan serverga.
+tartib bilan va `origin_device` bilan serverga; `link_test.dart` — `LanLink` va `LanPosRoute` haqiqiy markaz bilan
+(ikki tomonga rejim almashishi, "navbat yetdi" qoidasi, markaz yo'qolishi, noto'g'ri kalit, beacon va multicast qulfi,
+ofitsiant repozitoriylari markaz orqali); `platform_bind_test.dart` — barcha interfeyslar, `127.0.0.1`, beacon porti.
 
 Kassada: `pos/apps/cashier/lib/src/lan/` (`CashierLanHub` — bootstrap'dan ishga tushadi, kalitlar xavfsiz xotirada,
 markaz emas bo'lsa to'xtaydi; yuqori paneldagi "Lokal tarmoq: N qurilma" belgisi va IP/QR manzili).

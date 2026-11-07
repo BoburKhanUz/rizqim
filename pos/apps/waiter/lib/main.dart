@@ -20,6 +20,7 @@ Future<void> main() async {
       services: WaiterServices(
         client: client,
         realtimeFactory: defaultRealtime,
+        lanStore: SecureStorageStore(),
       ),
     ),
   );

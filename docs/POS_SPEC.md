@@ -953,6 +953,18 @@ Shartnomaning to'liq matni (kadr, kalitlar, xabarlar) — [`pos/packages/pos_lan
   markazdagi menyu nusxasidan) va serverdagi huquqlar bilan: xodim huquqi, filial modullari, ofitsiant qoidasi (boshqa
   ofitsiantning buyurtmasi — internetsiz menejer tasdig'i yo'q).
 - **To'lov, schyot tuzish, yopish, qaytarish, chegirma — faqat kassaning o'zida.** Masofadan to'lov yo'q.
+- **Mijoz ilovalari (P6 B):** ofitsiant, KDS va mijoz ekrani bitta `LanLink` bilan ishlaydi — server javob bermasa
+  markazni topadi (qo'lda manzil, beacon — Android'da Wi-Fi multicast qulfi bilan, Windows'da `127.0.0.1`), belgi
+  "Lokal tarmoq" / "Internet yo'q"; server qaytib, markaz navbati yetgach o'zi odatdagi rejimga o'tadi. **Schyotni
+  qayta chiqarish internetsiz yo'q** (menejer PIN'i va nusxa jurnali serverda): ofitsiant ilovasi buni oddiy aytadi.
+  Tafsilot — `pos_lan` README 9.
+- **Markaz kassa (P6 B):** markaz — ega tanlagan kassa, aks holda chop etuvchi kassa, u ham bo'lmasa kassa ilovasi
+  (ilovalar ulanishda `app` ni aytadi: `cashier`, `waiter`, `kds`, `customer_display`); ofitsiant telefoni hech qachon
+  markaz bo'lmaydi. Ega boshqaruv panelida (Kassa sozlamalari → Lokal tarmoq) markazni, portni tanlaydi va kalitni
+  almashtiradi (tasdiq bilan). Kassa o'z chekini (`cart.display`) va navbat amallarini (`queue.*`) LAN qurilmalariga
+  ham yuboradi; internetsiz paytda LAN orqali so'ralgan schyotni (avtomatik chop etish yoqilgan bo'lsa) o'z printerida
+  bir marta chiqaradi va amalni `printed_on_lan` bilan belgilaydi — server keyin qayta chiqarmaydi. Kassa
+  sozlamalarida "Lokal tarmoq" bo'limi: holat, IP, port, ulangan qurilmalar, qo'lda ulanish uchun QR.
 - **Xavfsizlik:** server har filialga sir saqlaydi (ega yangilaydi, audit). Har qurilma o'z kalitini (siridan hosil
   qilingan) faqat o'z bootstrap'ida oladi — oddiy xodim yoki ega web sessiyasida emas; sirning o'zi faqat markazda. Har
   xabar shifrlanadi va HMAC-SHA256 bilan imzolanadi; vaqt oynasi (±2 daqiqa) va `(qurilma, seq)` bo'yicha qayta

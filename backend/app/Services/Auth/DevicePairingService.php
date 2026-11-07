@@ -2,6 +2,7 @@
 
 namespace App\Services\Auth;
 
+use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
 use App\Models\Branch;
 use App\Models\Device;
@@ -85,7 +86,10 @@ class DevicePairingService
     /**
      * Spend a code (as typed: ABCD-EFGH, abcdefgh, ...) and create the terminal with its token.
      *
-     * @param  array{name?: ?string, platform?: ?string, app_version?: ?string}  $details
+     * P6 stage B: `app` (DeviceApp) is kept when it runs on the code's terminal type, else dropped (pairing never fails
+     * over it).
+     *
+     * @param  array{name?: ?string, platform?: ?string, app_version?: ?string, app?: ?string}  $details
      * @return array{device: Device, token: string}
      *
      * @throws AuthTokenException
@@ -102,10 +106,12 @@ class DevicePairingService
                 throw new AuthTokenException("Kod noto'g'ri yoki muddati o'tgan.", 'pairing_invalid', 422);
             }
 
+            $app = DeviceApp::tryFrom((string) ($details['app'] ?? ''));
             $device = Device::create([
                 'store_id' => $pairing->store_id,
                 'branch_id' => $pairing->branch_id,
                 'type' => $pairing->type->value,
+                'app' => $app !== null && $app->deviceType() === $pairing->type ? $app->value : null,
                 'name' => $details['name'] ?? $pairing->name ?? $pairing->type->label(),
                 'platform' => $details['platform'] ?? null,
                 'app_version' => $details['app_version'] ?? null,
@@ -127,6 +133,7 @@ class DevicePairingService
 
             $this->audit->record('device.paired', $device, [], [], [
                 'type' => $device->type->value,
+                'app' => $device->app?->value,
                 'name' => $device->name,
                 'platform' => $device->platform,
             ], ['actor' => $pairing->creator, 'device' => $device]);

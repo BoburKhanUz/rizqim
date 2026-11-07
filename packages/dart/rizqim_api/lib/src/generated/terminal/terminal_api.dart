@@ -20,9 +20,11 @@ part 'terminal_api.g.dart';
 abstract class TerminalApi {
   factory TerminalApi(Dio dio, {String? baseUrl}) = _TerminalApi;
 
-  /// POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited).
+  /// POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited).
   ///
-  /// `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.
+  /// `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`.
+  /// (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the.
+  /// code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
   @POST('/v1/devices/pair')
   Future<PostV1DevicesPairResponse> terminalPair({
     @Body() required V1DevicesPairRequestBody body,

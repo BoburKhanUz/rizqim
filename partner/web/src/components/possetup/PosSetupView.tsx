@@ -12,15 +12,17 @@ import { BookingRulesPanel } from './BookingRulesPanel';
 import { BranchSettingsPanel } from './BranchSettingsPanel';
 import { FormatPanel } from './FormatPanel';
 import { LabelSettingsPanel } from './LabelSettingsPanel';
+import { LanPanel } from './LanPanel';
 import { PrintersPanel } from './PrintersPanel';
 import { RoutesPanel } from './RoutesPanel';
 import { StationsPanel } from './StationsPanel';
 import { PackagingRulesPanel, PickupSettingsPanel, RoundTheClockPanel } from './TakeawayPanels';
 import { WaitlistPanel } from './WaitlistPanel';
 
-type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock';
+type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'lan' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock';
 // P6-11: the branch's format comes first (it decides the till's mode and modules)
-const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings'];
+// P6 stage B: the local bridge (the hub till, the port, the key) for every format
+const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings', 'lan'];
 // P6-24/P6-26: the restaurant floor's tabs appear with their modules (table_booking, hostess); a choyxona's page stays as it was
 const MODULE_TABS: Array<{ id: Tab; module: string }> = [
   { id: 'rules', module: 'table_booking' },
@@ -48,7 +50,7 @@ export function PosSetupView() {
   const tabs = [...TABS, ...MODULE_TABS.filter((entry) => modules.has(entry.module)).map((entry) => entry.id)];
   // The module a tab needs went off (in the Format tab): back to the first
   const shown: Tab = tabs.includes(tab) ? tab : 'format';
-  const tabLabel = (id: Tab) => (id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
+  const tabLabel = (id: Tab) => (id === 'lan' ? t('poslan_tab') : id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
 
   if (access.ready && !access.can('settings.manage')) {
     return (
@@ -78,6 +80,7 @@ export function PosSetupView() {
             {shown === 'routes' && <RoutesPanel branchId={choice.branchId} />}
             {shown === 'printers' && <PrintersPanel branchId={choice.branchId} />}
             {shown === 'settings' && <BranchSettingsPanel branchId={choice.branchId} />}
+            {shown === 'lan' && <LanPanel branchId={choice.branchId} />}
             {shown === 'rules' && <BookingRulesPanel branchId={choice.branchId} enabled={modules.has('table_booking')} />}
             {shown === 'labels' && <LabelSettingsPanel branchId={choice.branchId} enabled={modules.has('labels')} />}
             {shown === 'waitlist' && <WaitlistPanel branchId={choice.branchId} enabled={modules.has('hostess')} />}

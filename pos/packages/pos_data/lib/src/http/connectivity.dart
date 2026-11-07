@@ -30,6 +30,11 @@ class PosConnectivity {
     _set(_state.copyWith(online: false, lastError: error));
   }
 
+  /// P6 lokal ko'prik: qurilma markaz kassa orqali ishlayapti (`lan` rejimi) yoki yo'q.
+  void setLan(bool lan) {
+    _set(_state.copyWith(lan: lan));
+  }
+
   /// Oflayn navbatdagi amallar soni (P3-31).
   void setPendingOperations(int count) {
     _set(_state.copyWith(pendingOperations: count));
@@ -38,6 +43,7 @@ class PosConnectivity {
   void _set(PosConnectivityState next) {
     final bool changed =
         next.online != _state.online ||
+        next.lan != _state.lan ||
         next.pendingOperations != _state.pendingOperations ||
         next.lastContactAt != _state.lastContactAt;
     _state = next;
@@ -53,6 +59,7 @@ class PosConnectivityState {
     this.lastContactAt,
     this.lastError,
     this.pendingOperations = 0,
+    this.lan = false,
   });
 
   /// Oxirgi so'rovga javob keldi (hali so'rov bo'lmagan bo'lsa ham `true`).
@@ -65,16 +72,25 @@ class PosConnectivityState {
   /// Oflayn navbatdagi amallar (P3-31).
   final int pendingOperations;
 
+  /// P6 lokal ko'prik: server yo'q (yoki markaz navbati hali serverga yetmagan), buyurtmalar markaz kassa orqali
+  /// (`lan` rejimi, ofitsiant ilovasi). [online] — serverning o'zi.
+  final bool lan;
+
+  /// Buyurtma amallari mumkin: server javob beryapti yoki markaz kassa orqali.
+  bool get usable => online || lan;
+
   PosConnectivityState copyWith({
     bool? online,
     DateTime? lastContactAt,
     Object? lastError = _keep,
     int? pendingOperations,
+    bool? lan,
   }) => PosConnectivityState(
     online: online ?? this.online,
     lastContactAt: lastContactAt ?? this.lastContactAt,
     lastError: identical(lastError, _keep) ? this.lastError : lastError,
     pendingOperations: pendingOperations ?? this.pendingOperations,
+    lan: lan ?? this.lan,
   );
 
   static const Object _keep = Object();

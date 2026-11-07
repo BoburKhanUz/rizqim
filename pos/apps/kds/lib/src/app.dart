@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import 'app_config.dart';
 import 'billing/kds_plan.dart';
 import 'board/kitchen_board_controller.dart';
+import 'lan/kds_lan.dart';
 import 'realtime/branch_realtime.dart';
 import 'screens/kitchen_board_screen.dart';
 import 'screens/pairing_screen.dart';
@@ -32,6 +34,8 @@ class KdsServices {
     this.clock,
     this.pollInterval = AppConfig.pollInterval,
     this.livePollInterval = AppConfig.livePollInterval,
+    this.lanEnabled = true,
+    this.lanLinkFactory,
   }) : sound = sound ?? SilentTicketSound(),
        stations = stations ?? StationSelectionController(MemorySettingsStore());
 
@@ -42,11 +46,14 @@ class KdsServices {
   /// Oshpaz tanlagan sexlar (qurilmada saqlanadi).
   final StationSelectionController stations;
 
-  /// Sexlar, ketgan buyurtma tafsiloti va qozon (xodim PIN sessiyasi bilan).
-  late final KitchenSetupService setup = KitchenSetupService(
-    client.dio,
-    clock: clock,
-  );
+  /// Sexlar, ketgan buyurtma tafsiloti va qozon (xodim PIN sessiyasi bilan). P6: bootstrap'ning `lan` qismi ham.
+  late final LanSetupService setup = LanSetupService(client.dio, clock: clock);
+
+  /// P6 lokal ko'prik: internet uzilsa doska markaz kassa orqali (bootstrap'da `lan` bo'lsa).
+  final bool lanEnabled;
+
+  /// Testlar uchun: ko'prikni boshqa vaqtlar yoki topish bilan yaratish.
+  final LanLink Function(KitchenSetupService setup)? lanLinkFactory;
 
   /// P4-21: tarif (tarifda KDS bormi, to'lanmagan hisob-faktura xabari). Xodim kirganda ishga tushadi.
   late final KdsPlanController plan = KdsPlanController(
@@ -239,6 +246,9 @@ class TerminalHome extends StatefulWidget {
 
 class _TerminalHomeState extends State<TerminalHome> {
   BranchRealtime? _realtime;
+  KdsLan? _lan;
+  StreamSubscription<Object?>? _lanSub;
+  LanMode? _lanMode;
   KitchenBoardController? _board;
   late final StreamSubscription<AuthEvent> _authSub;
   StreamSubscription<RealtimeEvent>? _eventSub;
@@ -256,6 +266,19 @@ class _TerminalHomeState extends State<TerminalHome> {
     super.initState();
     _realtime = _s.realtimeFactory?.call(_s.client, widget.terminal)?..start();
     _eventSub = _realtime?.events.listen(_onLockedEvent);
+    if (_s.lanEnabled) {
+      final KdsLan lan = KdsLan(
+        setup: _s.setup,
+        link: _s.lanLinkFactory?.call(_s.setup),
+        clock: _s.clock,
+      )..start();
+      _lan = lan;
+      // The section comes with the stations (GET /pos/bootstrap with the cook's PIN session)
+      _s.setup.onLan = (Map<String, Object?>? section) =>
+          unawaited(lan.setSection(_auth.staff == null ? null : section));
+      _lanSub = lan.link.events.listen((_) => _board?.refresh());
+      lan.addListener(_onLan);
+    }
     _authSub = _auth.events.listen(_onAuth);
     if (_auth.staff != null) _openBoard();
   }
@@ -266,6 +289,13 @@ class _TerminalHomeState extends State<TerminalHome> {
     unawaited(_authSub.cancel());
     unawaited(_eventSub?.cancel());
     _board?.dispose();
+    if (_lan != null) {
+      _s.setup.onLan = null;
+      unawaited(_lanSub?.cancel());
+      _lan!
+        ..removeListener(_onLan)
+        ..dispose();
+    }
     unawaited(_realtime?.dispose());
     _waiting.dispose();
     super.dispose();
@@ -282,6 +312,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         _s.plan.stop();
         _board?.dispose();
         _board = null;
+        unawaited(_lan?.setSection(null));
         _notice = switch (e.reason) {
           'idle' => "Ekranga uzoq tegilmagani uchun chiqildi. Davom etish uchun PIN tering.",
           'expired' ||
@@ -298,8 +329,11 @@ class _TerminalHomeState extends State<TerminalHome> {
     final StaffSession? staff = _auth.staff;
     if (staff == null) return;
     _board?.dispose();
+    final KdsLan? lan = _lan;
     _board = KitchenBoardController(
-      service: _s.client.kitchen,
+      service: lan == null
+          ? _s.client.kitchen
+          : LanKitchenService(cloud: _s.client.kitchen, lan: lan),
       settings: _s.settings,
       sound: _s.sound,
       realtime: _realtime,
@@ -313,6 +347,14 @@ class _TerminalHomeState extends State<TerminalHome> {
     )..start();
     // P4-21: the plan notice (an unpaid invoice, KDS not in the plan); the board never stops for it
     _s.plan.start();
+  }
+
+  /// P6: the mode changed (onto the hub, or back on the server): the board reloads from where its data is now.
+  void _onLan() {
+    final LanMode mode = _lan!.mode;
+    if (mode == _lanMode) return;
+    _lanMode = mode;
+    unawaited(_board?.refresh());
   }
 
   /// PIN ekranida (doska yopiq) oshxonaga yangi buyurtma kelsa ovoz chalinadi va son ko'rsatiladi. Hodisada faqat
@@ -343,6 +385,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         realtime: _realtime,
         clock: _s.clock,
         plan: _s.plan,
+        lan: _lan,
       );
     }
     return StaffSignInScreen(

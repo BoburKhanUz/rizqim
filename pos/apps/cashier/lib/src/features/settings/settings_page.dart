@@ -10,6 +10,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../hardware/cashier_hardware.dart';
+import '../../lan/lan_settings_card.dart';
 import '../../printing/printing_service.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
@@ -186,6 +187,9 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
           _device(c, scope, boot),
+          const SizedBox(height: 16),
+          // P6 stage B: the local bridge (hub state, devices, the manual IP/QR)
+          LanSettingsCard(hub: scope.services.lan),
           const SizedBox(height: 16),
           ScannerCard(scans: scope.services.hardware.scans),
         ],

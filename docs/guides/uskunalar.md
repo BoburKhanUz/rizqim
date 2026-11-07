@@ -20,12 +20,13 @@ ro'yxat bo'yicha tekshirish — [HARDWARE_TEST.md](../HARDWARE_TEST.md).
 8. [Schyotni avtomatik chiqarish](#8-schyotni-avtomatik-chiqarish)
 9. [Lokal tarmoq: internet uzilsa ham zal ishlaydi](#9-lokal-tarmoq-internet-uzilsa-ham-zal-ishlaydi)
 10. [Muammolar va yechimlar](#10-muammolar-va-yechimlar)
+11. [Windows kassa](#11-windows-kassa)
 
 ## 1. Qaysi uskuna nima bilan ishlaydi
 
 | Uskuna | Qanday ulanadi | Holati |
 |---|---|---|
-| Windows monoblok va kassa | USB printer (Windows drayveri orqali), LAN printer, printer orqali kassa qutisi | ishlaydi |
+| Windows monoblok va kassa | USB printer (Windows drayveri orqali), LAN printer, printer orqali kassa qutisi; ikkinchi monitorda mijoz ekrani; lokal tarmoq markazi ([11-bo'lim](#11-windows-kassa)) | USB va LAN printer ishlaydi; printer qidirish, ikkinchi monitor va markaz hozircha sinalmagan |
 | Sunmi (V2, V2 Pro, D2) | ichki printer; D2'da ikkinchi ekran | ichki printer ishlaydi; D2 ikkinchi ekrani hozircha sinalmagan |
 | Android planshet | LAN printer; Bluetooth va USB (OTG) printer | LAN ishlaydi; Bluetooth va USB hozircha sinalmagan |
 | Oshxona printeri | LAN (port 9100) | ishlaydi |
@@ -86,7 +87,8 @@ Android 12 va yangisida ilova **Yaqin atrofdagi qurilmalar** ruxsatini so'raydi 
 ### USB printer
 
 - **Windows kassa**: printer Windows'da o'rnatilgan bo'lsin (drayver). Panelda **Ulanish: USB** va **Kassa terminali**. Printer nomi serverdagi
-  nom bilan bir xil bo'lishi kerak (boshqacha bo'lsa, kassa sozlamalarida almashtiring).
+  nom bilan bir xil bo'lishi kerak (boshqacha bo'lsa, kassa sozlamalarida almashtiring). Aniq nomni kassada **Printerni qidirish** →
+  **Windows printerlari** ro'yxatida ko'rasiz ([11-bo'lim](#11-windows-kassa)).
 - **Android (OTG kabel)**: <!-- TEKSHIRILMAGAN: Android USB OTG printer hozir yozilmoqda --> **hozircha sinalmagan.** Printerni ulaganda Android
   "USB qurilmaga ruxsat" so'raydi — ruxsat bering.
 
@@ -177,22 +179,34 @@ Endi:
 ### Belgilar
 
 - Kassada **"Lokal tarmoq: 3 qurilma"** — markazga ulangan qurilmalar soni.
-- Ofitsiant va oshxona ilovasida holat belgisi: **bulut** (internet bor, oddiy ish), **lokal** (internet yo'q, markaz bor — ish davom etadi),
-  **yolg'iz** (na internet, na markaz — faqat ko'rish, yangi buyurtma ochilmaydi).
+- Ofitsiant va oshxona ilovasida holat belgisi: odatdagi (internet bor), **"Lokal tarmoq"** (internet yo'q, markaz bor — ish davom etadi),
+  **"Aloqa yo'q"** / **"Internet yo'q"** (na internet, na markaz — faqat ko'rish, yangi buyurtma ochilmaydi). Mijoz ekranining burchagida kichik
+  "Lokal tarmoq" yoki "Aloqa yo'q".
+- Lokal rejimda ofitsiant **schyotni qayta chiqara olmaydi** (menejer PIN'i internetsiz tekshirilmaydi) — kassada chiqaring. Oshxonada
+  "Buyurtma tayyor" o'rniga taomlarni birma-bir **Tayyor** qiling.
 - Lokal rejimdan oddiy rejimga qaytish faqat markazdagi navbat serverga yetgandan keyin bo'ladi.
 
 ### Sozlash
 
-1. Asosiy kassani markaz deb belgilang (**Sozlamalar** → **Lokal tarmoq**). Filialda bitta markaz bo'ladi.
+1. Ega boshqaruv panelida markaz kassani tanlaydi: **Kassa sozlamalari** → **Lokal tarmoq** → **Markaz**. Tanlanmasa — chop etuvchi
+   kassa, u ham bo'lmasa birinchi ulangan kassa (ofitsiant telefoni hech qachon markaz bo'lmaydi). Filialda bitta markaz bo'ladi. Kassaning
+   o'zida **Sozlamalar** → **Lokal tarmoq** bo'limi holatni, IP, portni, ulangan qurilmalarni va qo'lda ulanish uchun QR'ni ko'rsatadi.
 2. Hamma qurilma bitta Wi-Fi'da bo'lsin (routerda "klientlar bir-birini ko'rmasin" / AP isolation **o'chiq**).
-3. Har qurilma bir marta internet bilan kirsin (kalit shu paytda keladi). Keyin ular markazni o'zi topadi; topmasa, sozlamalarda IP yoki QR
-   kiriting.
+3. Har qurilma bir marta internet bilan kirsin (kalit shu paytda keladi). Keyin ular markazni o'zi topadi; topmasa, markaz manzilini
+   (kassadagi IP yoki `rizqim-lan://...`) qo'lda kiriting: ofitsiant — yuqoridagi aloqa belgisini bosing; oshxona — "Lokal tarmoq" /
+   "Internet yo'q" belgisini bosing; mijoz ekrani — pastki chap burchakni 2 soniya bosib turing → **Lokal tarmoq**.
 4. Qurilmalar vaqti to'g'ri bo'lsin (avtomatik vaqt yoqiq).
 
 ### Nima qilmaslik
 
 - Markaz kassani yopib, boshqa kassada ishlayverish: markaz o'chiq bo'lsa lokal rejim ishlamaydi.
 - Wi-Fi'ni o'chirib qo'yish: lokal rejim Wi-Fi'ga tayanadi. Internet kabeli uzilsa ham Wi-Fi router yoqiq tursin (UPS).
+
+### Telefon yo'qolsa: kalitni almashtirish
+
+Boshqaruv panelida **Kassa sozlamalari** → **Lokal tarmoq** → **Kalitni almashtirish** (tasdiqlang). Har kassa, telefon va ekran yangi kalitni
+keyingi kirishda (yoki qayta ishga tushganda) oladi; ungacha lokal tarmoqqa ulanmaydi — buni internet bor paytda qiling. Yo'qolgan telefonni
+**Sozlamalar** → **Qurilmalar** da o'chirib qo'ying.
 
 Texnik tavsif: [POS_SPEC.md](../POS_SPEC.md) 5.5 va [pos_lan README](../../pos/packages/pos_lan/README.md).
 
@@ -209,3 +223,62 @@ Texnik tavsif: [POS_SPEC.md](../POS_SPEC.md) 5.5 va [pos_lan README](../../pos/p
 | "Schyotni qayta chiqarish" menejer PIN'ini so'raydi | ofitsiantda huquq yo'q | menejer o'z PIN'ini kiritadi (to'g'ri ishlayapti) |
 | Lokal rejimda ofitsiant buyurtma ocha olmaydi ("yolg'iz") | markaz o'chiq yoki Wi-Fi yo'q | asosiy kassani yoqing, Wi-Fi'ni tekshiring |
 | Oshxona ekrani internet uzilganda chipta olmayapti | lokal tarmoq sozlanmagan | 9-bo'limdagi sozlashni bajaring (hozircha sinalmagan) |
+| Windows kassada qurilmalar markazga ulanmaydi | Windows xavfsizlik devori (firewall) | "Lokal tarmoq" belgisini bosing → **Ruxsat berish** yoki [11-bo'lim](#11-windows-kassa)dagi buyruq |
+| Windows kassada "Windows printeri topilmadi" | paneldagi nom Windows'dagidan farq qiladi | **Printerni qidirish** dagi nomni panelga aynan yozing |
+
+## 11. Windows kassa
+
+<!-- TEKSHIRILMAGAN: Windows bo'limi CI'da yig'ilgan va testlangan (windows-build), haqiqiy Windows kompyuterda sinalmagan -->
+
+**Hozircha sinalmagan.** Kassa ilovasi Windows 10/11 (64 bit) da ishlaydi. Tekshirish ro'yxati — [HARDWARE_TEST.md](../HARDWARE_TEST.md) 5-bo'lim.
+
+### USB printer
+
+1. Printerni USB bilan ulang va **ishlab chiqaruvchining drayverini** o'rnating (Xprinter, Rongta, Epson va h.k. saytidan). Windows'ning
+   o'zidan "sinov sahifasi" chiqsin.
+2. Kassada **Sozlamalar** → **Printerni qidirish**: **Windows printerlari** ro'yxatida printer ko'rinadi (PDF, OneNote, faks kabi "virtual"
+   printerlar oxirida, "printer emasdir" deb). Tanlang → **Chek** → **Sinov cheki**, **Pul qutisini ochish**.
+3. Panelda printer qo'shing: **Ulanish: USB**, **Kassa terminali** = shu kompyuter, **Nomi** — ro'yxatdagi nomi bilan **aynan bir xil**.
+
+Kassa baytlarni drayverga "RAW" holida beradi (drayver ularni o'zgartirmaydi), shuning uchun kesish, QR va kassa qutisi printerning o'z
+buyruqlari bilan ishlaydi. Ro'yxat bo'sh va "Print Spooler" haqida yozilsa — Windows'ning **Chop etish navbati** xizmati to'xtagan:
+kompyuterni qayta yuklang yoki `services.msc` da **Print Spooler** ni yoqing.
+
+### Ikkinchi monitor — mijoz ekrani
+
+Mijozga qaragan monitorni kompyuterga ulang (Windows **Displey** sozlamasida **Kengaytirish**) va shu kompyuterda **Mijoz ekrani**
+ilovasini o'rnating. U ikkinchi monitorda o'zi **to'liq ekran** ochiladi, kassa oynasi va klaviatura (skaner) asosiy monitorda qoladi.
+Mijoz ekrani kassaga shu kompyuter ichida (`127.0.0.1`) ulanadi — internet va firewall sozlamasi shart emas. Ulash — oddiy mijoz ekrani
+kabi ([mijoz-ekrani.md](mijoz-ekrani.md)).
+
+Qo'shimcha (yorliq xususiyatlarida **Obyekt** oxiriga yoziladi): `--monitor=2` — qaysi monitor (chapdan sanaladi), `--fullscreen` —
+bitta monitorli kompyuterda ham to'liq ekran (faqat mijoz ekrani uchun alohida kompyuter yoki televizor), `--windowed` — oddiy oyna.
+Monitor uzilsa, ekran asosiy monitorda oddiy oynaga qaytadi; qayta ulansa — yana to'liq ekran. Chiqish: **Alt+F4**.
+
+Ikkala ilovani **Ishga tushirish** papkasiga qo'ying (`Win+R` → `shell:startup`, avval kassa, keyin mijoz ekrani yorlig'i), shunda
+kompyuter yoqilganda o'zi ochiladi.
+
+### Skaner
+
+USB skaner Windows'da klaviatura sifatida ishlaydi (drayver kerak emas). Skanerni "klaviatura (HID)" rejimiga va kod oxirida **Enter**
+yuboradigan qilib sozlang. Skaner kodi doim **fokusdagi oynaga** yoziladi — shuning uchun mijoz ekrani fokusni olmaydigan qilib ochiladi;
+boshqa oyna ochilgan bo'lsa, kassa oynasini bir marta bosing.
+
+### Kassa — lokal tarmoq markazi
+
+Windows kassa filialning markazi bo'lishi mumkin ([9-bo'lim](#9-lokal-tarmoq-internet-uzilsa-ham-zal-ishlaydi)). Buning uchun Windows
+xavfsizlik devori (firewall) boshqa qurilmalarga **18480** portni ochishi kerak — **bir marta**:
+
+- Kassa birinchi marta markaz bo'lganda Windows "ruxsat berasizmi?" deb so'rasa — **Ruxsat berish** (administrator paroli bilan).
+- Yoki kassada yuqoridagi **Lokal tarmoq: 0 qurilma** belgisini bosing → **Ruxsat berish** → Windows so'raganda **Ha**. Kassa kerakli
+  qoidalarni (`Rizqim POS lokal tarmoq`) o'zi qo'shadi va oldin bosilgan "Bekor qilish" ning to'sig'ini olib tashlaydi.
+- Yoki kompyuter ustasi administrator buyruq oynasida bajaradi:
+
+  ```
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=any
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=any
+  ```
+
+Oshxona ekrani yoki mijoz ekrani **boshqa** Windows kompyuterda bo'lsa, o'sha kompyuterda ham shu buyruqlar bajariladi (u markaz
+beacon'ini eshitishi uchun); topmasa, sozlamalarda kassa IP'sini qo'lda kiriting. Markaz kompyuter **uyquga ketmasin** (Quvvat va uyqu →
+Hech qachon) va Windows yangilanishi ish vaqtida qayta yuklamasin (**Faol soatlar**).

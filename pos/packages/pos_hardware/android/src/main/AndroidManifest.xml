@@ -8,6 +8,11 @@
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
 
+    <!-- P6 local bridge: the till's UDP beacon reaches the waiter, KDS and display apps while they hold a
+         WifiManager.MulticastLock (normal permissions, granted at install) -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
     <!-- Optional hardware: the app installs on devices without Bluetooth or USB host -->
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

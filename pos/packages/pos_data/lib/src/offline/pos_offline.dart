@@ -686,8 +686,10 @@ class PosOffline {
     return order(uuid);
   }
 
-  /// P6: ofitsiant schyot so'radi (bir marta; schyotni kassa tuzadi).
-  Future<PosOrder> requestBill(String uuid) async {
+  /// P6: ofitsiant schyot so'radi (bir marta; schyotni kassa tuzadi). [printedOnLan] (P6 B bosqichi): markaz so'rovni
+  /// LAN orqali internetsiz oldi va pre-check'ni o'zi chiqaradi — amalda `printed_on_lan: true`, server navbat yetganda
+  /// uni qayta chiqarmaydi.
+  Future<PosOrder> requestBill(String uuid, {bool printedOnLan = false}) async {
     _guard('orders.manage');
     final PosOrder current = order(uuid);
     if (!current.isOpen) {
@@ -696,6 +698,7 @@ class PosOffline {
     if (current.billRequestedAt != null) return current;
     await _enqueue(SyncOpType.billRequest, <String, Object?>{
       'order': uuid,
+      if (printedOnLan) 'printed_on_lan': true,
       'view': <String, Object?>{'staff_name': _staffName()},
     });
     return order(uuid);

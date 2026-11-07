@@ -623,8 +623,10 @@ final class PosSyncApplier
     }
 
     /**
-     * P6 bill.request: {order} — the waiter asked for the bill offline (PosOrderService::requestBill: the waiter rule,
-     * asked once already: unchanged).
+     * P6 bill.request: {order, printed_on_lan?} — the waiter asked for the bill offline (PosOrderService::requestBill:
+     * the waiter rule, asked once already: unchanged). `printed_on_lan: true` (P6 stage B): the hub took the request
+     * over the LAN while the server was out of reach and printed the pre-check itself, so the branch's automatic bill
+     * print (BillPrintRequests) does not print it again now.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -633,7 +635,7 @@ final class PosSyncApplier
     {
         $order = $this->openOrder($device, $payload);
 
-        return $this->finish($this->orders->requestBill($order, null, $staff), [], $payload);
+        return $this->finish($this->orders->requestBill($order, null, $staff, null, ($payload['printed_on_lan'] ?? false) !== true), [], $payload);
     }
 
     /**

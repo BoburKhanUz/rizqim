@@ -5,7 +5,7 @@
 /// P6-32: stakan stikeri va paket yorlig'i label printerga TSPL buyruqlari bilan ([TsplRenderer], [PosPrinters.printLabel]).
 /// P6 uskunalar: Android'da Bluetooth (SPP) va USB OTG printerlar ([BluetoothPrinterTarget], [UsbPrinterTarget]),
 /// printerni qidirish ([PrinterDiscovery]), ichki skaner ([BroadcastScanner]) va kassaning ikkinchi ekrani
-/// ([CustomerScreen], Sunmi D2 turi).
+/// ([CustomerScreen], Sunmi D2 turi), lokal ko'prik beacon'i uchun Wi-Fi multicast qulfi ([WifiMulticastLock]).
 /// Testlar uchun soxta printer va LAN emulyatori: `package:pos_hardware/testing.dart`.
 library;
 
@@ -15,6 +15,7 @@ export 'src/escpos/code_page.dart';
 export 'src/escpos/esc_pos_builder.dart';
 export 'src/escpos/esc_pos_decoder.dart';
 export 'src/escpos/layout_renderer.dart';
+export 'src/network/wifi_multicast_lock.dart';
 export 'src/pos_printers.dart';
 export 'src/printer/lan_transport.dart'
     show LanPrinterTransport, parseStatusBytes, parseTsplStatus;

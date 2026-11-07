@@ -77,6 +77,13 @@ flutter build apk --release --dart-define=...        # Android (uz.rizqim.custom
 flutter build windows --release --dart-define=...    # Windows
 ```
 
+**Windows: kassaning ikkinchi monitori** (P6). Ilova kassa bilan bitta kompyuterda ishlaydi; ikkinchi monitor bo'lsa runner
+(`windows/runner/customer_monitor.cpp`, Win32, Dart paketi emas) oynani birinchi kadrdan oldin o'sha monitorga ramkasiz to'liq ekran
+qilib qo'yadi va fokusni kassadan olmaydi (klaviatura skaneri kassaga yozaveradi); monitor uzilsa/ulansa (`WM_DISPLAYCHANGE`) qayta
+joylashadi. Buyruq qatori: `--monitor=N` (chapdan N-monitor), `--fullscreen` (bitta monitorda ham), `--windowed` (hech qachon).
+Kassaga lokal ko'prik orqali `127.0.0.1` da ulanadi (firewall kerak emas). Tanlov mantig'i (`customer_monitor.h`) Win32'siz yozilgan;
+Win32 qismi faqat CI `windows-build` jobida kompilyatsiya qilinadi. Batafsil: `docs/guides/uskunalar.md` 11-bo'lim.
+
 Android'da ekran o'chib qolmaydi (`FLAG_KEEP_SCREEN_ON`). Windows/Linux'da televizorga ulangan kompyuterda ekran saqlovchi va
 uyqu rejimini tizim sozlamalarida o'chiring. Ovoz Linux'da GStreamer orqali (`gstreamer1.0-plugins-base`/`-good`).
 

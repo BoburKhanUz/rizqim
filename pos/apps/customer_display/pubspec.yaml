@@ -20,6 +20,11 @@ dependencies:
   # P6 hardware: the cart, QR and welcome views shared with the cashier's second screen
   pos_ui:
     path: ../../packages/pos_ui
+  # P6 local bridge: a LAN client of the till (pos_lan), the Wi-Fi multicast lock for its beacon (pos_hardware)
+  pos_hardware:
+    path: ../../packages/pos_hardware
+  pos_lan:
+    path: ../../packages/pos_lan
   rizqim_api:
     path: ../../../packages/dart/rizqim_api
   rizqim_core:

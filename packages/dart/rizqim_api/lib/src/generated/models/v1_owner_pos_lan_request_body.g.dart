@@ -11,6 +11,7 @@ V1OwnerPosLanRequestBody _$V1OwnerPosLanRequestBodyFromJson(
 ) => V1OwnerPosLanRequestBody(
   hubDeviceId: json['hub_device_id'] as String?,
   port: (json['port'] as num?)?.toInt(),
+  branchId: (json['branch_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$V1OwnerPosLanRequestBodyToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$V1OwnerPosLanRequestBodyToJson(
 ) => <String, dynamic>{
   'hub_device_id': instance.hubDeviceId,
   'port': instance.port,
+  'branch_id': instance.branchId,
 };

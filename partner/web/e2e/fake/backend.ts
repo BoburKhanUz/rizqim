@@ -9,6 +9,7 @@ import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
 import { FakeHostess } from './hostess'
 import { FakeKds } from './kds'
+import { FakeLan } from './lan'
 import { FakeMenu } from './menu'
 import { FakeOrders } from './orders'
 import { FakePermissions } from './permissions'
@@ -118,6 +119,8 @@ export class FakeBackend {
   kds: FakeKds
   combos: FakeCombos
   takeaway: FakeTakeaway
+  // P6 stage B: the branch's local bridge (Kassa sozlamalari → Lokal tarmoq)
+  lan: FakeLan
 
   constructor() {
     this.orders = new FakeOrders(this)
@@ -139,6 +142,7 @@ export class FakeBackend {
     this.kds = new FakeKds(this)
     this.combos = new FakeCombos(this)
     this.takeaway = new FakeTakeaway(this)
+    this.lan = new FakeLan(this)
     this.accounts.set(OWNER.phone, [OWNER])
   }
 
@@ -300,7 +304,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway]) {
+    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

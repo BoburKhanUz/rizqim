@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "customer_monitor.h"
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -64,6 +65,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    // P6 Windows: a monitor plugged in or out
+    case WM_DISPLAYCHANGE:
+      OnCustomerScreenDisplayChange(hwnd);
       break;
   }
 

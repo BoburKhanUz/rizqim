@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'device_app.dart';
+
 part 'v1_devices_pair_request_body.g.dart';
 
 @JsonSerializable()
@@ -13,6 +15,7 @@ class V1DevicesPairRequestBody {
     this.name,
     this.platform,
     this.appVersion,
+    this.app,
   });
 
   factory V1DevicesPairRequestBody.fromJson(Map<String, Object?> json) =>
@@ -23,6 +26,7 @@ class V1DevicesPairRequestBody {
   final String? platform;
   @JsonKey(name: 'app_version')
   final String? appVersion;
+  final DeviceApp? app;
 
   Map<String, Object?> toJson() => _$V1DevicesPairRequestBodyToJson(this);
 }

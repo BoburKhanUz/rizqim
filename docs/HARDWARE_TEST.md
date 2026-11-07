@@ -23,7 +23,7 @@ Foydalanuvchi uchun qo'llanma — [guides/uskunalar.md](guides/uskunalar.md). Te
 |---|---|---|---|---|
 | Sunmi (kassa) | | kassa | | |
 | Android planshet (asosiy kassa — markaz) | | kassa | | |
-| Windows monoblok | | kassa | | |
+| Windows monoblok | | kassa (markaz) + mijoz ekrani (2-monitor) | | |
 | Ofitsiant telefon 1 | | ofitsiant | | |
 | Ofitsiant telefon 2 | | ofitsiant | | |
 | Oshxona planshet | | oshxona ekrani | | |
@@ -38,7 +38,7 @@ Foydalanuvchi uchun qo'llanma — [guides/uskunalar.md](guides/uskunalar.md). Te
 | USB (Android) | | USB OTG | 58/80 | chek | |
 | LAN oshxona | | LAN | 80 | oshxona | |
 | LAN yorliq | | LAN (TSPL) | 40×30 | yorliq | |
-| Windows USB | | Windows | 80 | chek | |
+| Windows USB | | USB (Windows spooler) | 80 | chek | Windows'dagi nomi: |
 
 - [ ] Hamma qurilma bitta Wi-Fi tarmog'ida (router: ulangan qurilmalar bir-birini ko'ra olishi kerak, "AP isolation" /
   "client isolation" **o'chiq**). Routerda LAN printerlarga doimiy IP berilgan.
@@ -123,15 +123,87 @@ Qurilma: Sunmi V2 / V2 Pro / D2 (qaysi biri bo'lsa).
 - [ ] Fast food to'lovidan keyin stakan stikeri: raqam, hajm, ichimlik nomi to'g'ri. Paket yorlig'i ham.
 - [ ] Yorliq tugasa: to'lov to'xtamaydi, banner "Stiker chop etilmadi" + **Qayta urinish**.
 
-## 5. Windows USB printer
+## 5. Windows kassa (USB printer, ikkinchi monitor, skaner, lokal tarmoq markazi)
 
-- [ ] Printer drayveri Windows'da o'rnatilgan; Windows'dan "sinov sahifasi" chiqadi.
-- [ ] Printer nomi **serverdagi nomi bilan bir xil** (yoki kassa sozlamalarida almashtirilgan).
-- [ ] Panelda printer: **Ulanish: USB**, **Kassa terminali** = shu monoblok.
-- [ ] Kassa ilovasi (Windows): **Sinov cheki** chiqdi; kesish va kassa qutisi (printer orqali) ishladi.
-- [ ] Haqiqiy sotuv va schyot chop etish. O'zbek harflari.
-- [ ] USB'ni uzib ulang: ilova printerni qayta topadi (qayta ishga tushirmasdan).
-- [ ] Windows'ni qayta yuklang: kassa ilovasi o'zi ochiladi (agar shunday sozlangan) va printer ishlaydi.
+Qurilma: Windows 10/11 monoblok yoki kompyuter (64 bit), kassa ilovasi `rizqim_cashier.exe`; ikkinchi monitor (mijoz ekrani)
+va USB chek printeri. Windows kodi faqat CI'da (`windows-build` job: ilovalar yig'iladi, spooler va LAN testlari Windows'da
+ishlaydi) tekshirilgan, haqiqiy Windows kompyuterda **hali sinalmagan**. <!-- TEKSHIRILMAGAN: Windows bo'limi butunlay -->
+
+### 5.1. USB printer (Windows spooler orqali)
+
+- [ ] Printer drayveri Windows'da o'rnatilgan (**Sozlamalar → Bluetooth va qurilmalar → Printerlar va skanerlar**); Windows'dan
+  "sinov sahifasi" chiqadi.
+- [ ] Kassa ilovasi: **Sozlamalar** → **Printerni qidirish**. Birinchi kartada **Windows printerlari**: o'rnatilgan printerlar,
+  chek printeri yuqorida, "Microsoft Print to PDF", "OneNote", faks — oxirida "printer emasdir" belgisi bilan. <!-- TEKSHIRILMAGAN -->
+- [ ] Printer yo'q bo'lsa — "Windows'da printer o'rnatilmagan" matni; **Chop etish navbati** (Print Spooler) xizmati to'xtatilgan
+  bo'lsa (`services.msc` → Print Spooler → To'xtatish) — "Print Spooler xizmati ishlayaptimi?" ogohlantirishi, ilova qotmaydi.
+  Xizmatni qayta yoqing.
+- [ ] Printerni tanlang → **Chek** → **Sinov cheki**: sahifa chiqdi (do'kon nomi, printer nomi, kod sahifasi qatori, QR, kesish).
+  O'zbek harflari to'g'ri (aks holda **Matnni rasm sifatida**).
+- [ ] **Pul qutisini ochish**: printerga ulangan quti ochildi.
+- [ ] Sinov oynasidagi yozuvga qarab panelda printer qo'shing: **Ulanish: USB**, **Kassa terminali** = shu kompyuter, **Nomi** —
+  Windows'dagi nomi bilan **aynan bir xil** (masalan `XP-80C`). Nom boshqacha bo'lsa chek chiqmaydi: "Windows printeri topilmadi".
+- [ ] Haqiqiy sotuv va schyot chop etish. 20 ta ketma-ket chek: hammasi chiqdi, tartib to'g'ri.
+- [ ] Printer kabelini uzing → chek yuboring: "Chop etilmadi" banneri (yoki chek Windows navbatida turadi — qaysi biri bo'lganini
+  yozing); ulang → **Qayta urinish** → chiqdi. Ilova qayta ishga tushirilmadi.
+- [ ] Windows'ni qayta yuklang: kassa ilovasi o'zi ochiladi (yorliq **Ishga tushirish** papkasida: `Win+R` → `shell:startup`) va
+  printer ishlaydi.
+
+### 5.2. Ikkinchi monitor: mijoz ekrani
+
+Mijoz ekrani — alohida ilova (`rizqim_customer_display.exe`), xuddi shu kompyuterda ishlaydi va kassaga **lokal tarmoq orqali
+`127.0.0.1` da** ulanadi (Windows xavfsizlik devori o'z kompyuteri ichidagi ulanishni to'smaydi). Ikkinchi monitor bo'lsa ilova o'zi
+o'sha monitorda **to'liq ekran** (ramkasiz) ochiladi va kassa oynasidan fokusni olmaydi. <!-- TEKSHIRILMAGAN -->
+
+- [ ] Ikkinchi monitorni ulang; Windows'da **Displey → Kengaytirish** ("Extend", "Takrorlash" emas).
+- [ ] Mijoz ekrani ilovasini oching: u ikkinchi monitorda to'liq ekran ochildi, kassa ilovasi asosiy monitorda qoldi va
+  klaviatura (skaner) hali kassada (kassada skanerlang — kod kassaga keldi).
+- [ ] Mijoz ekranini birinchi marta ulang (panel → Qurilmalar → ulash kodi, turi **Mijoz ekrani**) — sichqoncha bilan ekranni bosib
+  kodni kiriting.
+- [ ] Monitorlar 3 ta bo'lsa yoki boshqa monitor kerak bo'lsa: yorliq xususiyatlarida **Obyekt** oxiriga `--monitor=2` (chapdan
+  hisoblaganda 2-monitor) qo'shing. `--windowed` — oddiy oyna (sinov uchun), `--fullscreen` — bitta monitor bo'lsa ham to'liq ekran
+  (faqat mijoz ekrani bo'lgan alohida kompyuter yoki televizor).
+- [ ] Ikkinchi monitor kabelini sug'urib oling: mijoz ekrani asosiy monitorda oddiy oynaga qaytdi (yo'qolib qolmadi); qayta ulang —
+  yana ikkinchi monitorda to'liq ekran.
+- [ ] Kassada taom qo'shing: mijoz ekranida 1 soniyadan kam kechikish bilan chiqdi; to'lovdan keyin "Rahmat".
+- [ ] Internetni uzing: mijoz ekrani kassadan (`127.0.0.1`) ma'lumot olishda davom etdi. <!-- TEKSHIRILMAGAN: mijoz ekranining lokal tarmoq mijozi stage B (B1) da yozilmoqda; markazni o'zi topmasa sozlamalarda `127.0.0.1` ni qo'lda kiriting -->
+- [ ] Mijoz ekranini ham **Ishga tushirish** papkasiga qo'ying (kassadan keyin ochilsin) va qayta yuklashda tekshiring.
+
+### 5.3. Skaner (Windows)
+
+- [ ] USB skaner "klaviatura (HID)" rejimida (Windows uni klaviatura deb taniydi, drayver kerak emas), kod oxirida Enter.
+- [ ] 6-bo'limdagi qadamlarni Windows kassada bajaring. Klaviatura tili (**EN**/**RU**/**UZ**) skaner kodini o'zgartirmasligini
+  tekshiring: kirill tartibida (RU) skanerlang — raqamli kod to'g'ri, harfli kod buzilsa yozing. <!-- TEKSHIRILMAGAN -->
+
+### 5.4. Windows kassa — lokal tarmoq markazi va xavfsizlik devori (firewall)
+
+Markaz kassaga boshqa qurilmalar (ofitsiant telefoni, oshxona ekrani) **TCP 18480** porti orqali ulanadi, beacon **UDP 18480** ga
+yuboriladi. Windows Defender Firewall buni standart holatda to'sadi. <!-- TEKSHIRILMAGAN -->
+
+- [ ] Kassa ilovasi birinchi marta markaz bo'lganda Windows "Windows Security Alert / Brandmauer" oynasini ko'rsatsa: **Ruxsat berish**
+  (Allow access) — administrator paroli bilan. **Bekor qilish** bosilsa Windows ilovani to'sib qo'yadi — keyingi qadam buni tuzatadi.
+- [ ] Kassada **Lokal tarmoq: 0 qurilma** belgisini bosing: qurilma yo'q bo'lsa yordam matni chiqadi; qoida yo'q bo'lsa
+  "Windows xavfsizlik devori 18480-portni to'sib qo'yishi mumkin" va **Ruxsat berish** tugmasi. Bosing → Windows UAC so'raydi → **Ha**
+  → "Ruxsat berildi". (Tugma ilovaning to'suvchi qoidalarini o'chiradi va `Rizqim POS lokal tarmoq` nomli TCP, UDP va dastur
+  qoidalarini qo'shadi.)
+- [ ] Yoki qo'lda bir marta (administrator PowerShell yoki "Command Prompt (Admin)"):
+
+  ```
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=any
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=any
+  ```
+
+  Port panelda boshqacha bo'lsa — o'sha raqam. **Windows Defender Firewall → Kengaytirilgan sozlamalar → Kirish qoidalari** da
+  `rizqim_cashier` uchun **Bloklash** qoidasi bo'lsa — o'chiring (bloklash qoidasi ruxsatdan ustun).
+- [ ] Ofitsiant telefonidan markazga ulaning (7-bo'lim): kassada qurilmalar soni oshdi. Telefonda brauzer bilan
+  `http://<kassa IP>:18480/lan/v1/beacon` ochiladi (beacon JSON).
+- [ ] Oshxona ekrani yoki mijoz ekrani **boshqa Windows kompyuterda** bo'lsa, o'sha kompyuterda ham UDP qoidasini qo'shing (beacon'ni
+  eshitishi uchun); topmasa — sozlamalarda kassa IP'sini qo'lda kiriting.
+- [ ] Windows'da kassa bir nechta tarmoqqa ulangan bo'lsa (Wi-Fi va kabel, VPN, VirtualBox adapteri): beacon'dagi IP qurilmalar
+  tarmog'idagi IP'mi? Qurilma topmasa — `ipconfig` dagi to'g'ri IP'ni qo'lda kiriting va qaysi adapterlar borligini yozing.
+- [ ] Kompyuter uyquga ketmaydi (**Quvvat va uyqu → Hech qachon**), Windows yangilanishi ish vaqtida qayta yuklamaydi (**Faol
+  soatlar**) — markaz o'chsa zal lokal rejimda ishlay olmaydi.
+- [ ] 8-bo'lim mashqini Windows kassa markaz bo'lganda bir marta bajaring.
 
 ## 6. 2D skaner (USB / Bluetooth klaviatura rejimi)
 
@@ -144,7 +216,7 @@ Qurilma: Sunmi V2 / V2 Pro / D2 (qaysi biri bo'lsa).
 
 ## 7. Lokal ko'prik: asosiy tayyorgarlik
 
-> Lokal ko'prik (LAN bridge) hali qurilmoqda. Bu bo'lim uni **birinchi marta** yoqqanda bajariladi. <!-- TEKSHIRILMAGAN: lokal ko'prik (markaz, beacon, ofitsiant/KDS/mijoz ekrani mijozlari) hozir yozilmoqda -->
+> Lokal ko'prik (LAN bridge) kodi yozilgan va avtomatik sinalgan (localhost), haqiqiy Wi-Fi va qurilmalarda hali sinalmagan. Bu bo'lim uni **birinchi marta** yoqqanda bajariladi. <!-- TEKSHIRILMAGAN: lokal ko'prik (markaz, beacon, ofitsiant/KDS/mijoz ekrani mijozlari) haqiqiy uskunada sinalmagan -->
 
 - [ ] Asosiy kassa (planshet yoki monoblok) **markaz** deb belgilangan (sozlamalar → **Lokal tarmoq**). Boshqa kassalar markaz emas.
 - [ ] Kassada **"Lokal tarmoq: N qurilma"** belgisi bor (internet bor paytda ham ko'rinadi, 0 yoki ulanganlar soni).
@@ -155,10 +227,30 @@ Qurilma: Sunmi V2 / V2 Pro / D2 (qaysi biri bo'lsa).
   ilova buni tushunarli aytadi.
 - [ ] Brauzer yoki boshqa qurilma markazga ulanishga urinadi (kalitsiz): rad etiladi.
 
+**Mijoz ilovalari (ofitsiant, KDS, mijoz ekrani)** <!-- TEKSHIRILMAGAN: B1 mijozlari haqiqiy telefon/planshetda sinalmagan -->
+
+- [ ] Internet bor paytda ofitsiant, oshxona va mijoz ekrani markazga **ulanmaydi** (kassada qurilmalar soni 0 bo'lishi to'g'ri: ko'prik
+  faqat internet uzilganda ishga tushadi). Belgi yo'q yoki odatdagi ("Jonli").
+- [ ] Android telefon (ayniqsa Xiaomi/Samsung, ekran yoqiq, quvvat tejash yoqiq) internet uzilgach markazni **beacon orqali o'zi topadi**
+  (qo'lda manzilsiz) — 10 soniyadan kam. Topmasa: qaysi model, Android versiyasi; keyin qo'lda manzil bilan sinang (Wi-Fi multicast qulfi
+  ishlamagan bo'lishi mumkin).
+- [ ] Qo'lda manzil: ofitsiant — yuqoridagi aloqa belgisini bosing; oshxona — "Lokal tarmoq"/"Internet yo'q" belgisini bosing; mijoz ekrani —
+  pastki chap burchakni 2 soniya bosib turing → **Lokal tarmoq**. `192.168.1.20` yoki kassadagi `rizqim-lan://...` matni → **Ulanish**. Ilova
+  qayta ochilganda manzil saqlangan.
+- [ ] Mijoz ekrani **internetsiz qayta ishga tushirilsa** ham kassaga ulanadi (kaliti qurilmada saqlangan) va kassadagi chekni ko'rsatadi.
+- [ ] Oshxona planshetining soatini 5 daqiqa oldinga/orqaga suring: lokal rejimda chiptadagi kutish vaqti baribir to'g'ri (kassa soati bo'yicha).
+- [ ] Ofitsiant lokal rejimda **"Schyotni qayta chiqarish"** bosadi: "Internet yo'q: schyotni qayta chiqarish faqat internet bilan (yoki kassaning
+  o'zida)" deyiladi (to'g'ri: menejer PIN'i internetsiz tekshirilmaydi). Birinchi schyot ("Schyot so'rash") ishlaydi.
+- [ ] Oshxonada lokal rejimda **"Buyurtma tayyor"** (butun buyurtma): oddiy xabar, taomlarni birma-bir "Tayyor" qilish ishlaydi.
+
 ## 8. Lokal ko'prik: internet uzildi mashqi (asosiy sinov)
 
 Maqsad: internet uzilsa ham zal ishlashini isbotlash. Bu sinov **20–30 daqiqa**, 2 ofitsiant, 1 kassir, 1 oshpaz kerak. Soat va
 daqiqalarni yozib boring.
+
+Shu mashqning avtomatik varianti (haqiqiy server, kassadagi `LanHub`, LAN mijozlari localhost'da, printer emulyatori) —
+`e2e/pos/test/internet_outage_lan_test.dart` (`scripts/pos-e2e.sh`). U Wi-Fi, haqiqiy telefonlar va printerni tekshirmaydi:
+bu bo'lim shular uchun.
 
 **Boshlanish holati:** hamma qurilma Wi-Fi'da, internet bor, smena ochiq, kassada "Lokal tarmoq: 4 qurilma" (yoki shuncha).
 
@@ -269,7 +361,7 @@ Natijalar jadvali:
 | 2. Bluetooth | | | |
 | 3. Android USB | | | |
 | 4. LAN printerlar | | | |
-| 5. Windows USB | | | |
+| 5. Windows kassa (USB, monitor, skaner, firewall) | | | |
 | 6. 2D skaner | | | |
 | 7. Lokal ko'prik: tayyorgarlik | | | |
 | 8. Internet uzildi mashqi | | | |

@@ -63,7 +63,7 @@ describe('the Stiker va yorliq tab', () => {
   it('is not on the page without the labels module', async () => {
     await open(['quick_counter']);
     await screen.findByRole('tab', { name: 'Format' });
-    await waitFor(() => expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Format', 'Sexlar', "Yo'naltirish", 'Printerlar', 'Kassa sozlamalari']));
+    await waitFor(() => expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Format', 'Sexlar', "Yo'naltirish", 'Printerlar', 'Kassa sozlamalari', 'Lokal tarmoq']));
   });
 
   it('comes with the module and shows the defaults', async () => {

@@ -129,6 +129,9 @@ export * from './api/floor';
 export * from './hooks/floor';
 export * from './api/posSetup';
 export * from './hooks/posSetup';
+// P6 stage B: the branch's local bridge (the hub till, the port, the key rotation)
+export * from './api/posLan';
+export * from './hooks/posLan';
 // P6-11: the branch's format profile, module switches and sample stations and menu
 export * from './api/posFormat';
 export * from './hooks/posFormat';

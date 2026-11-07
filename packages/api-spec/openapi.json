@@ -37476,8 +37476,8 @@
         "/v1/devices/pair": {
             "post": {
                 "operationId": "terminal.pair",
-                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.",
-                "summary": "POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited)",
+                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).",
+                "summary": "POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)",
                 "tags": [
                     "Terminal"
                 ],
@@ -37512,6 +37512,16 @@
                                             "null"
                                         ],
                                         "maxLength": 32
+                                    },
+                                    "app": {
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/schemas/DeviceApp"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -60721,7 +60731,7 @@
         "/v1/owner/pos/lan": {
             "get": {
                 "operationId": "branchLan.show",
-                "description": "`hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first\npaired till), `candidates`: the branch's active tills, `port` (default 18480), `key_id` and `rotated_at`.",
+                "description": "`hub`: the till that runs the bridge (`chosen`: the owner picked it; otherwise the printing till, else the first\npaired cashier till, else the first paired till), `candidates`: the branch's active tills (`app`: the POS app it\nruns, null when paired before it was recorded; a waiter's phone is never one), `port` (default 18480), `key_id`\nand `rotated_at`.",
                 "summary": "The branch's local bridge",
                 "tags": [
                     "Owner: local bridge"
@@ -60813,6 +60823,16 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "app": {
+                                                                "anyOf": [
+                                                                    {
+                                                                        "$ref": "#/components/schemas/DeviceApp"
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            },
                                                             "last_seen_at": {
                                                                 "type": [
                                                                     "string",
@@ -60824,6 +60844,7 @@
                                                             "uuid",
                                                             "name",
                                                             "platform",
+                                                            "app",
                                                             "last_seen_at"
                                                         ]
                                                     }
@@ -60877,6 +60898,10 @@
                                         "type": "integer",
                                         "minimum": 1024,
                                         "maximum": 65535
+                                    },
+                                    "branch_id": {
+                                        "type": "integer",
+                                        "description": "The branch (a branch-bound caller: their own)."
                                     }
                                 }
                             }
@@ -60960,6 +60985,16 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "app": {
+                                                                "anyOf": [
+                                                                    {
+                                                                        "$ref": "#/components/schemas/DeviceApp"
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            },
                                                             "last_seen_at": {
                                                                 "type": [
                                                                     "string",
@@ -60971,6 +61006,7 @@
                                                             "uuid",
                                                             "name",
                                                             "platform",
+                                                            "app",
                                                             "last_seen_at"
                                                         ]
                                                     }
@@ -61012,6 +61048,21 @@
                 "tags": [
                     "Owner: local bridge"
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "branch_id": {
+                                        "type": "integer",
+                                        "description": "The branch (a branch-bound caller: their own)."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -61089,6 +61140,16 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "app": {
+                                                                "anyOf": [
+                                                                    {
+                                                                        "$ref": "#/components/schemas/DeviceApp"
+                                                                    },
+                                                                    {
+                                                                        "type": "null"
+                                                                    }
+                                                                ]
+                                                            },
                                                             "last_seen_at": {
                                                                 "type": [
                                                                     "string",
@@ -61100,6 +61161,7 @@
                                                             "uuid",
                                                             "name",
                                                             "platform",
+                                                            "app",
                                                             "last_seen_at"
                                                         ]
                                                     }
@@ -143348,6 +143410,16 @@
                             "null"
                         ]
                     },
+                    "app": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DeviceApp"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
                     "user": {
                         "anyOf": [
                             {
@@ -143408,9 +143480,21 @@
                     "sync_clock_skew_seconds",
                     "smart_kassa",
                     "fiscal_kassa_id",
-                    "display_for_device_id"
+                    "display_for_device_id",
+                    "app"
                 ],
                 "title": "Device"
+            },
+            "DeviceApp": {
+                "type": "string",
+                "description": "P6 stage B: which POS app a terminal runs, as the app says when it pairs (POST /devices/pair `app`). A waiter's phone and a cashier till are both `pos` terminals; the branch's default LAN hub is a cashier till, never a waiter's phone (App\\Domain\\Pos\\Lan\\BranchLan). Devices paired before this was recorded have none (null).\n",
+                "enum": [
+                    "cashier",
+                    "waiter",
+                    "kds",
+                    "customer_display"
+                ],
+                "title": "DeviceApp"
             },
             "DeviceType": {
                 "type": "string",

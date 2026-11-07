@@ -45,6 +45,8 @@ class _PairingScreenState extends State<PairingScreen> {
         name: 'Mijoz ekrani',
         platform: defaultTargetPlatform.name,
         appVersion: AppConfig.version,
+        // P6 B: the server's default LAN hub is a cashier till, never a waiter's phone
+        app: 'customer_display',
       );
       // AuthGate ekranni o'zi almashtiradi
     } on InvalidPairingCodeException catch (e) {
