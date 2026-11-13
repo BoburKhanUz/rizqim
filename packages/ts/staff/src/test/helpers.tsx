@@ -127,6 +127,7 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     discount_kind: null,
     discount_value: null,
     discount_reason: null,
+    promo_note: null,
     discount_by: null,
     // Who issued the fiscal receipt (P4-31)
     fiscalized_by: null,

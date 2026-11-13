@@ -27,7 +27,9 @@ use Illuminate\Support\Collection;
  * of refunds:
  *
  *  - member_daily_limit: the member's charges of the day plus this one over their `daily_limit`;
- *  - member_meals_used: the member's meals of the day (bills charged and not fully refunded) already `meals_per_day`;
+ *  - member_meals_used: the member's meals of the day already `meals_per_day`; a meal is an ORDER charged and not fully
+ *    refunded (review C8: the bills of one split order are one meal, and the meal comes back only when every bill of
+ *    the order is refunded);
  *  - account_monthly_limit: the account's charges of the calendar month of that business day over `monthly_limit`;
  *  - the credit limit stays the account's (`account_credit_limit` for a corporate account).
  *
@@ -65,6 +67,18 @@ final class CorporateAccounts
         }
 
         return PosSettings::businessDate($at ?? now(), StoreTimezone::of(Store::find($account->store_id)), PosSettings::DEFAULT_BUSINESS_DAY_START);
+    }
+
+    /**
+     * A talon code as those who only read reports see it (review S1): the first and last characters, the rest stars
+     * (two each from eight characters, one each from five; a shorter code all stars).
+     */
+    public static function maskCode(string $code): string
+    {
+        $length = strlen($code);
+        $keep = $length >= 8 ? 2 : ($length >= 5 ? 1 : 0);
+
+        return $keep > 0 ? substr($code, 0, $keep) . str_repeat('*', $length - 2 * $keep) . substr($code, -$keep) : str_repeat('*', $length);
     }
 
     public static function normalizeCode(?string $code): ?string
@@ -107,17 +121,19 @@ final class CorporateAccounts
     }
 
     /**
-     * What a member ate on a business day: the net sum and the meals (bills charged and not fully refunded).
+     * What a member ate on a business day: the net sum and the meals (orders charged and not fully refunded; `orders`
+     * their keys, see mealKeys).
      *
-     * @return array{amount: Money, meals: int}
+     * @return array{amount: Money, meals: int, orders: list<string>}
      */
     public function memberDay(CustomerAccountMember $member, string $date): array
     {
         $entries = CustomerAccountEntry::where('member_id', $member->id)
             ->whereDate('business_date', $date)
             ->get(['type', 'amount', 'bill_uuid', 'idempotency_key']);
+        $orders = self::mealKeys($entries);
 
-        return ['amount' => self::net($entries), 'meals' => self::meals($entries)];
+        return ['amount' => self::net($entries), 'meals' => count($orders), 'orders' => $orders];
     }
 
     /**
@@ -139,7 +155,7 @@ final class CorporateAccounts
      *
      * @throws CustomerAccountException
      */
-    public function assertCanCharge(CustomerAccount $account, ?CustomerAccountMember $member, Money $amount, string $date): void
+    public function assertCanCharge(CustomerAccount $account, ?CustomerAccountMember $member, Money $amount, string $date, ?string $billUuid = null): void
     {
         if ($member === null && $account->talon_mode->needsMember()) {
             throw new CustomerAccountException("Bu korxona hisobida har bir to'lov xodim talonining kodi yoki telefoni bilan yoziladi.", 'member_required');
@@ -159,7 +175,9 @@ final class CorporateAccounts
                     ['daily_limit' => $member->daily_limit, 'used' => $day['amount']->toString(), 'available' => $left->toString(), 'business_date' => $date],
                 );
             }
-            if ($member->meals_per_day !== null && $day['meals'] >= (int) $member->meals_per_day) {
+            // Another bill of an order already counted today is the same meal (review C8)
+            $sameMeal = $billUuid !== null && in_array(self::orderKeyOf($billUuid), $day['orders'], true);
+            if ($member->meals_per_day !== null && !$sameMeal && $day['meals'] >= (int) $member->meals_per_day) {
                 throw new CustomerAccountException(
                     "\"{$member->name}\" bugungi ovqatini olgan: kuniga {$member->meals_per_day} marta.",
                     'member_meals_used',
@@ -219,11 +237,12 @@ final class CorporateAccounts
     /**
      * The monthly statement of a corporate account (`month` YYYY-MM): what each member ate on each business day of the
      * month (net of refunds; charges without a member in a row of their own), the totals by member, by day and in all,
-     * and the repayments received in the month.
+     * and the repayments received in the month. With `branchId` (a branch-bound reader of a store-wide account) only
+     * the entries of that branch count; the debt stays the account's.
      *
-     * @return array{month: string, from: string, to: string, days: list<string>, rows: list<array{member: array{uuid: string, name: string, code: string, is_active: bool}|null, cells: list<array{date: string, amount: string, meals: int}>, amount: string, meals: int}>, day_totals: list<array{date: string, amount: string, meals: int}>, total: string, meals: int, repaid_total: string, monthly_limit: string|null, balance: string}
+     * @return array{month: string, from: string, to: string, days: list<string>, rows: list<array{member: array{uuid: string, name: string, code: string, is_active: bool}|null, cells: list<array{date: string, amount: string, meals: int}>, amount: string, meals: int}>, day_totals: list<array{date: string, amount: string, meals: int}>, total: string, meals: int, repaid_total: string, monthly_limit: string|null, balance: string, branch_id: int|null}
      */
-    public function statement(CustomerAccount $account, string $month): array
+    public function statement(CustomerAccount $account, string $month, ?int $branchId = null): array
     {
         [$first, $last] = self::monthRange($month);
         $days = [];
@@ -235,6 +254,7 @@ final class CorporateAccounts
             ->whereNotNull('business_date')
             ->whereDate('business_date', '>=', $first)
             ->whereDate('business_date', '<=', $last)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->orderBy('id')
             ->get(['id', 'type', 'amount', 'bill_uuid', 'idempotency_key', 'member_id', 'business_date']);
 
@@ -278,6 +298,7 @@ final class CorporateAccounts
         $tz = StoreTimezone::of(Store::find($account->store_id));
         $repaid = Money::of((string) CustomerAccountEntry::where('customer_account_id', $account->id)
             ->where('type', CustomerAccountEntryType::REPAYMENT->value)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('created_at', '>=', Carbon::parse($first, $tz)->startOfDay()->utc())
             ->where('created_at', '<', Carbon::parse($last, $tz)->addDay()->startOfDay()->utc())
             ->sum('amount'))->abs();
@@ -294,6 +315,7 @@ final class CorporateAccounts
             'repaid_total' => $repaid->toString(),
             'monthly_limit' => $account->monthly_limit,
             'balance' => $account->balance,
+            'branch_id' => $branchId,
         ];
     }
 
@@ -330,11 +352,23 @@ final class CorporateAccounts
     }
 
     /**
-     * Meals: the bills charged whose charge is not fully refunded.
+     * Meals: the orders charged whose charges are not fully refunded.
      *
      * @param  Collection<int, CustomerAccountEntry>  $entries
      */
     private static function meals(Collection $entries): int
+    {
+        return count(self::mealKeys($entries));
+    }
+
+    /**
+     * The meals among `entries` (review C8): their charges and reversals summed by the bill's ORDER (the bills of a split
+     * order are one meal), the orders with something left; a bill not found (a direct ledger call) is its own meal.
+     *
+     * @param  Collection<int, CustomerAccountEntry>  $entries
+     * @return list<string>
+     */
+    private static function mealKeys(Collection $entries): array
     {
         $byBill = [];
         foreach ($entries as $entry) {
@@ -344,9 +378,26 @@ final class CorporateAccounts
             if ($bill === null) {
                 continue;
             }
-            $byBill[$bill] = Money::of($byBill[$bill] ?? '0')->plus($entry->amount)->toString();
+            $byBill[$bill] = Money::of($byBill[$bill] ?? '0')->plus($entry->amount);
+        }
+        $orders = $byBill !== [] ? OrderBill::whereIn('uuid', array_map('strval', array_keys($byBill)))->pluck('order_id', 'uuid')->all() : [];
+
+        $byOrder = [];
+        foreach ($byBill as $bill => $net) {
+            $key = isset($orders[$bill]) ? 'order:' . $orders[$bill] : "bill:{$bill}";
+            $byOrder[$key] = ($byOrder[$key] ?? Money::zero())->plus($net);
         }
 
-        return count(array_filter($byBill, fn (string $net) => Money::of($net)->isPositive()));
+        return array_keys(array_filter($byOrder, fn (Money $net) => $net->isPositive()));
+    }
+
+    /**
+     * The meal key (see mealKeys) a charge of `billUuid` counts under.
+     */
+    private static function orderKeyOf(string $billUuid): string
+    {
+        $orderId = OrderBill::where('uuid', $billUuid)->value('order_id');
+
+        return $orderId !== null ? "order:{$orderId}" : "bill:{$billUuid}";
     }
 }

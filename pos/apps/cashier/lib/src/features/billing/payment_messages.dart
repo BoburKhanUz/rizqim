@@ -53,6 +53,10 @@ String? paymentRefusalText(Object error) {
     'qr_already_paid' => "Bu QR allaqachon to'langan.",
     'qr_refund_failed' =>
       "${_provider(d['provider'])} to'lovni qaytarmadi. QR to'lovi naqd bilan qaytarilmaydi: birozdan keyin qayta urinib ko'ring yoki menejerga ayting.",
+    // Review P6 wave 4 (C2): the provider did not answer (or the refund is still being asked): never cash
+    'qr_refund_unknown' =>
+      "To'lov tizimi javob bermadi — holat tekshirilmoqda. Pul mijozga qaytgan bo'lsa, qaytarish o'zi yoziladi. "
+          "Birozdan so'ng \"Holatni tekshirish\" ni bosing; naqd bilan qaytarmang.",
     'qr_partial_refund_unsupported' =>
       "QR to'lovini faqat to'liq qaytarish mumkin: ${money('left')}. Summani to'liq kiriting.",
     'bill_paid' => "Schyot allaqachon to'langan.",

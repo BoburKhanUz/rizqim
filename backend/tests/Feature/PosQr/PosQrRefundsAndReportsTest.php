@@ -77,11 +77,13 @@ class PosQrRefundsAndReportsTest extends TestCase
         $this->assertSame(0, PosRefund::count());
         $this->assertSame('paid', Payment::findOrFail($qr->payment_id)->status->value);
         $this->assertSame(['paid', '0.00'], [$qr->refresh()->status->value, $qr->refunded_amount]);
-        $this->assertFalse(QrRefunds::requested($qr));
+        $this->assertSame('failed', \App\Models\PosQrRefundAttempt::sole()->status->value);
 
+        // Review P6W4 C2: tried again, Click does not answer: maybe reversed, recorded as unknown (never failed)
         Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('timeout'));
-        $this->refund($qr, '143000')->assertStatus(409)->assertJsonPath('data.reason', 'qr_refund_failed');
+        $this->refund($qr, '143000')->assertStatus(409)->assertJsonPath('data.reason', 'qr_refund_unknown');
         $this->assertSame(0, PosRefund::count());
+        $this->assertSame('unknown', \App\Models\PosQrRefundAttempt::sole()->status->value);
     }
 
     public function test_click_and_payme_refund_only_the_whole_payment(): void
@@ -186,6 +188,8 @@ class PosQrRefundsAndReportsTest extends TestCase
 
     public function test_the_uzqr_gateway_is_set_in_the_fiscal_settings(): void
     {
+        // An e2e stand: real Click/Payme webhooks, the UzQR sandbox allowed by name (review P6W4 S3)
+        config(['qr_payments.simulate_drivers' => ['uzqr']]);
         $this->owner('PUT', '/owner/fiscal/settings', ['tin' => '123456789', 'tax_regime' => 'vat', 'fiscal_settings' => ['uzqr' => ['driver' => 'sandbox']]])->assertOk();
         $this->assertSame(['driver' => 'sandbox'], $this->store->refresh()->fiscal_settings['uzqr']);
         $this->owner('GET', '/owner/pos/qr-payments?branch_id=' . $this->branch->id)->assertJsonPath('data.merchants.2.configured', true)->assertJsonPath('data.merchants.2.driver', 'uzqr:sandbox');
@@ -195,5 +199,29 @@ class PosQrRefundsAndReportsTest extends TestCase
 
         $this->owner('PUT', '/owner/fiscal/settings', ['fiscal_settings' => ['uzqr' => ['driver' => null]]])->assertOk();
         $this->assertArrayNotHasKey('uzqr', $this->store->refresh()->fiscal_settings);
+    }
+
+    public function test_the_sandbox_uzqr_gateway_is_never_offered_on_a_real_money_stand(): void
+    {
+        // Review P6W4 S3: sandbox off and no allow-list: the sandbox gateway is not a driver the owner can pick
+        $this->assertArrayNotHasKey('sandbox', \App\Domain\Pos\QrPayments\QrProviders::uzqrDrivers());
+        $this->owner('PUT', '/owner/fiscal/settings', ['tin' => '123456789', 'tax_regime' => 'vat', 'fiscal_settings' => ['uzqr' => ['driver' => 'sandbox']]])
+            ->assertStatus(422)->assertJsonValidationErrors(['fiscal_settings.uzqr.driver']);
+
+        // One stored before (or by hand) is not a gateway: UzQR not configured, nothing simulated
+        $this->store->forceFill(['fiscal_settings' => ['enabled' => true, 'uzqr' => ['driver' => 'sandbox']]])->save();
+        $this->owner('GET', '/owner/pos/qr-payments?branch_id=' . $this->branch->id)->assertJsonPath('data.merchants.2.configured', false);
+        [, $bill] = $this->billed();
+        $this->qr($bill, 'uzqr')->assertStatus(409)->assertJsonPath('data.reason', 'provider_not_configured');
+
+        // A QR made while it was allowed cannot be confirmed by simulate any more (APP_ENV alone never allows it)
+        config(['qr_payments.simulate_drivers' => ['uzqr']]);
+        $uuid = $this->qr($bill, 'uzqr')->assertCreated()->assertJsonPath('data.qr.simulated', true)->json('data.qr.uuid');
+        config(['qr_payments.simulate_drivers' => []]);
+        $this->pos('GET', "/qr/{$uuid}")->assertOk()->assertJsonPath('data.qr.simulated', false);
+        $this->pos('POST', "/qr/{$uuid}/simulate-paid")->assertNotFound();
+        config(['qr_payments.simulate_drivers' => ['click']]);
+        $this->pos('POST', "/qr/{$uuid}/simulate-paid")->assertStatus(409)->assertJsonPath('data.reason', 'qr_not_simulated');
+        $this->assertSame('pending', $this->qrModel($uuid)->status->value);
     }
 }

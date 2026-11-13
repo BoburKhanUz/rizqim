@@ -350,12 +350,18 @@ class _AccountsPageState extends State<AccountsPage> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: <Widget>[
           Text(
-            a.balance.format(),
+            a.balance.abs().format(),
             style: RzType.headline.copyWith(
               color: a.balance.isPositive ? c.dangerSoftFg : c.fgMuted,
               fontWeight: FontWeight.w700,
             ),
           ),
+          // Review P6 wave 4 (C7): a refund after a repayment leaves the customer's credit
+          if (a.balance.isNegative)
+            Text(
+              "Ortiqcha to'lov",
+              style: RzType.footnote.copyWith(color: c.fgMuted),
+            ),
           if (a.isBlocked)
             const TonePill(
               label: "To'xtatilgan",
@@ -407,8 +413,8 @@ class _AccountsPageState extends State<AccountsPage> {
                 children: <Widget>[
                   _stat(
                     c,
-                    'Qarz',
-                    a.balance.format(),
+                    a.balance.isNegative ? "Ortiqcha to'lov" : 'Qarz',
+                    a.balance.abs().format(),
                     a.balance.isPositive ? c.dangerSoftFg : c.fg,
                   ),
                   _stat(c, 'Limit', a.creditLimit?.format() ?? 'Cheksiz', c.fg),

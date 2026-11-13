@@ -122,6 +122,8 @@ const STATEMENT: CorporateStatement = {
   repaid_total: '50000.00',
   monthly_limit: '5000000.00',
   balance: '196000.00',
+  branch_id: null,
+  masked: false,
 };
 
 const base = (over: Parameters<typeof mockFetch>[0] = {}, keys?: string[]) =>
@@ -276,6 +278,31 @@ describe('Korxona hisobi', () => {
     expect(saveBlob.mock.calls[0]![1]).toBe('korxona-navoiy-zavodi-2026-11.xlsx');
     const exportCall = calls.find((call) => new URL(call.url).pathname.endsWith('/export'))!;
     expect(new URL(exportCall.url).searchParams.get('month')).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it('an overpayment is shown as such; a branch-scoped, masked statement says so', async () => {
+    base({
+      [`GET ${ROOT}`]: () => ok({ account: company({ balance: '-30000.00' }), entries: [] }),
+      [`GET ${ROOT}/corporate-statement`]: () =>
+        ok({
+          ...STATEMENT,
+          account: { ...STATEMENT.account, inn: '30*****67', contact_phone: '+998 90 *** ** 67' },
+          balance: '-30000.00',
+          branch_id: 7,
+          masked: true,
+        }),
+    });
+    const typing = userEvent.setup();
+    renderPage(<CorporateAccountView uuid={UUID} />);
+    expect(await screen.findByText("Ortiqcha to'lov")).toBeInTheDocument();
+    expect(screen.getByText("30 000 so'm")).toBeInTheDocument();
+    await typing.click(screen.getByRole('tab', { name: 'Oylik hisobot' }));
+    const invoice = await screen.findByRole('region', { name: /Hisob-faktura/ });
+    expect(within(invoice).getByText('30*****67')).toBeInTheDocument();
+    expect(within(invoice).getByText("Ortiqcha to'lov")).toBeInTheDocument();
+    expect(within(invoice).queryByText('Hozirgi qarz')).not.toBeInTheDocument();
+    expect(within(invoice).getByText(/faqat sizning filialingizdagi yozuvlar/)).toBeInTheDocument();
+    expect(within(invoice).getByText(/Talon kodlari, STIR va telefon yashirilgan/)).toBeInTheDocument();
   });
 
   it('a nasiya account has no members page; without reports.view the statement says so', async () => {

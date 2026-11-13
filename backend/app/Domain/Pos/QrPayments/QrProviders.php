@@ -56,11 +56,41 @@ final class QrProviders
     }
 
     /**
+     * The UzQR gateways a store may pick (review P6W4 S3: the sandbox one only on a sandbox stand, or with "uzqr" in
+     * qr_payments.simulate_drivers — never on a real-money stand, where its QR is unpayable).
+     *
      * @return array<string, class-string<UzQrGateway>>
      */
     public static function uzqrDrivers(): array
     {
-        return (array) config('qr_payments.uzqr.drivers', []);
+        $drivers = (array) config('qr_payments.uzqr.drivers', []);
+        if (!self::sandboxed(QrProvider::UZQR)) {
+            unset($drivers['sandbox']);
+        }
+
+        return $drivers;
+    }
+
+    /**
+     * Review P6W4 S3: whether this provider's sandbox may be used here (config qr_payments.sandbox, or the provider in
+     * qr_payments.simulate_drivers).
+     */
+    public static function sandboxed(QrProvider $provider): bool
+    {
+        return (bool) config('qr_payments.sandbox') || in_array($provider->value, (array) config('qr_payments.simulate_drivers', []), true);
+    }
+
+    /**
+     * Whether POST /pos/qr/{uuid}/simulate-paid may confirm this request: simulation on, a sandbox driver, and the
+     * sandbox allowed for its provider (not only a non-production APP_ENV).
+     */
+    public function simulates(PosQrPayment $qr): bool
+    {
+        try {
+            return (bool) config('qr_payments.simulate') && self::sandboxed($qr->provider) && $this->of($qr)->simulated();
+        } catch (\LogicException) {
+            return false;
+        }
     }
 
     /**

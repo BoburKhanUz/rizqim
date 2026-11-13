@@ -77,7 +77,8 @@ abstract class PosQrPaymentsApi {
   /// Confirm a sandbox QR (demo).
   ///
   /// Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):.
-  /// exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production): 404.
+  /// exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production, or.
+  /// neither `QR_PAYMENTS_SANDBOX` nor `QR_PAYMENTS_SIMULATE_DRIVERS` set): 404.
   /// Needs pos.take_payment.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).

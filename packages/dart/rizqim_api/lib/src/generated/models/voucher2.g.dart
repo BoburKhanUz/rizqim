@@ -27,7 +27,9 @@ Voucher2 _$Voucher2FromJson(Map<String, dynamic> json) => Voucher2(
   blocked: json['blocked'] == null
       ? null
       : Blocked7.fromJson(json['blocked'] as Map<String, dynamic>),
-  print: Print6.fromJson(json['print'] as Map<String, dynamic>),
+  print: json['print'] == null
+      ? null
+      : Print6.fromJson(json['print'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 

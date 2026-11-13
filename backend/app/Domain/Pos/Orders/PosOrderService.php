@@ -688,7 +688,7 @@ class PosOrderService implements PosOrderOpener
                 'discount_value' => $value->toString(),
                 'discount_reason' => $reason,
                 'discount_by' => $actor->id,
-            ]) + ['promo_code_id' => null])->save(); // P6-43: a discount set by hand replaces a promo code's
+            ]) + ['promo_code_id' => null, 'promo_note' => null])->save(); // P6-43: a discount set by hand replaces a promo code's
             $this->charges->recalculate($order);
             $after = $this->discountState($order);
 

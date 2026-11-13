@@ -135,6 +135,19 @@ describe('Sertifikatlar', () => {
     expect(screen.queryByRole('button', { name: 'K7QM-4XPA-9HTR ni bloklash' })).toBeNull();
   });
 
+  it('shows a reports-only reader the masked codes the server sends, with a plain hint', async () => {
+    open({ 'GET /api/v1/owner/pos/vouchers': () => page([voucher({ code: 'K7QM-****-9HTR', print: null })]) }, ['reports.view']);
+    const table = await screen.findByRole('table', { name: 'Sertifikatlar' });
+    expect(within(table).getByText('K7QM-****-9HTR')).toBeInTheDocument();
+    expect(screen.getByText("Kodlar yashirilgan: to'liq kodni sertifikatlarni boshqaradigan xodim ko'radi. Qidirish uchun kodni to'liq yozing.")).toBeInTheDocument();
+  });
+
+  it('gives no hint to a manager', async () => {
+    open();
+    await screen.findByRole('table', { name: 'Sertifikatlar' });
+    expect(screen.queryByText(/Kodlar yashirilgan/)).toBeNull();
+  });
+
   it('refuses a person who may not read it', async () => {
     open({}, ['orders.view']);
     expect(await screen.findByText("Bu bo'limni ko'rishga ruxsatingiz yo'q.")).toBeInTheDocument();

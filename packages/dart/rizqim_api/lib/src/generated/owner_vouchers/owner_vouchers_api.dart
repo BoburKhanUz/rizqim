@@ -26,7 +26,8 @@ abstract class OwnerVouchersApi {
   ///
   /// Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`.
   /// includes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),.
-  /// `from`/`to` (sold on these dates).
+  /// `from`/`to` (sold on these dates). Without vouchers.manage the codes are masked (`print` null) and `q` finds a.
+  /// certificate by its whole code only.
   ///
   /// [status] - active, used, blocked or expired.
   ///
@@ -51,8 +52,8 @@ abstract class OwnerVouchersApi {
 
   /// Gift certificates (Excel).
   ///
-  /// The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked) on the "Sertifikatlar".
-  /// sheet and the period report on "Hisobot". Each export is recorded in the audit log.
+  /// The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked, codes masked without.
+  /// vouchers.manage) on the "Sertifikatlar" sheet and the period report on "Hisobot". Each export is recorded in the audit log.
   ///
   /// [status] - active, used, blocked or expired.
   ///
@@ -94,7 +95,8 @@ abstract class OwnerVouchersApi {
   /// One gift certificate, with its history.
   ///
   /// Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The.
-  /// buyer's phone is shown in full to vouchers.manage.
+  /// buyer's phone, the code and the `print` block are shown in full to vouchers.manage only (masked code, no `print`.
+  /// for reports.view).
   @GET('/v1/owner/pos/vouchers/{uuid}')
   Future<GetV1OwnerPosVouchersUuidResponse> vouchersShow({
     @Path('uuid') required String uuid,

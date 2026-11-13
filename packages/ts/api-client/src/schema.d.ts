@@ -6718,7 +6718,8 @@ export interface paths {
          * Gift certificates
          * @description Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`
          *     includes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),
-         *     `from`/`to` (sold on these dates).
+         *     `from`/`to` (sold on these dates). Without vouchers.manage the codes are masked (`print` null) and `q` finds a
+         *     certificate by its whole code only.
          */
         get: operations["vouchers.index"];
         put?: never;
@@ -6738,8 +6739,8 @@ export interface paths {
         };
         /**
          * Gift certificates (Excel)
-         * @description The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked) on the "Sertifikatlar"
-         *     sheet and the period report on "Hisobot". Each export is recorded in the audit log.
+         * @description The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked, codes masked without
+         *     vouchers.manage) on the "Sertifikatlar" sheet and the period report on "Hisobot". Each export is recorded in the audit log.
          */
         get: operations["vouchers.export"];
         put?: never;
@@ -6782,7 +6783,8 @@ export interface paths {
         /**
          * One gift certificate, with its history
          * @description Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The
-         *     buyer's phone is shown in full to vouchers.manage.
+         *     buyer's phone, the code and the `print` block are shown in full to vouchers.manage only (masked code, no `print`
+         *     for reports.view).
          */
         get: operations["vouchers.show"];
         put?: never;
@@ -8637,8 +8639,9 @@ export interface paths {
          * Find a member at the till
          * @description By the talon's `code` (scanned or typed) or the member's `phone`: the member, their company's account and what
          *     is left today (the branch's business day) and this month, for the cashier to see before charging. A member of
-         *     another store, or of an account of another branch: 404 `member_not_found`. Needs customer_accounts.manage or
-         *     pos.take_payment.
+         *     another store, or of an account of another branch: 404 `member_not_found`. Found by `phone`, the talon `code` comes
+         *     masked (the charge by phone needs no code). Not gated by the corporate_accounts module: an existing account is
+         *     still charged at the till when the module is off. Needs customer_accounts.manage or pos.take_payment.
          */
         get: operations["corporateAccount.lookup"];
         put?: never;
@@ -8703,7 +8706,10 @@ export interface paths {
          * Monthly statement of a corporate account
          * @description `month` (YYYY-MM; default: this month in the store's time zone): what each member ate on each business day
          *     (net of refunds; `meals` = bills), charges without a member in a row of their own (`member` null), the totals by
-         *     day and in all, the repayments received in the month and the debt now. Needs reports.view.
+         *     day and in all, the repayments received in the month and the debt now (below zero: the company's overpayment,
+         *     "Ortiqcha to'lov"). Talon codes, the INN and the contact phone are masked (`masked: true`) unless the caller holds
+         *     customer_accounts.manage for the account. A branch-bound reader of a store-wide account sees only their branch's
+         *     charges and repayments (`branch_id`: that branch; null: all). Needs reports.view.
          */
         get: operations["corporateAccount.statement"];
         put?: never;
@@ -8725,7 +8731,7 @@ export interface paths {
          * Monthly statement as Excel
          * @description The statement of GET .../corporate-statement as an .xlsx file: sheet "Hisobot" (a member per row, a business day
          *     per column, the totals), sheet "Hisob-faktura" (the company, the month, the totals, the debt) — openspout, texts
-         *     as text. Audited (customer_account.statement_exported). Needs reports.view.
+         *     as text; masked and scoped as the statement. Audited (customer_account.statement_exported). Needs reports.view.
          */
         get: operations["corporateAccount.export"];
         put?: never;
@@ -9814,7 +9820,8 @@ export interface paths {
         /**
          * Confirm a sandbox QR (demo)
          * @description Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):
-         *     exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production): 404.
+         *     exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production, or
+         *     neither `QR_PAYMENTS_SANDBOX` nor `QR_PAYMENTS_SIMULATE_DRIVERS` set): 404.
          *     Needs pos.take_payment.
          */
         post: operations["posQrPayment.simulatePaid"];
@@ -11816,6 +11823,7 @@ export interface components {
             kitchen_fire_at: string | null;
             /** Format: date-time */
             kitchen_fired_at: string | null;
+            promo_note: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -33433,7 +33441,7 @@ export interface operations {
                                     value: string;
                                     valid_from: string;
                                     valid_until: string | null;
-                                };
+                                } | null;
                                 created_at: string | null;
                             }[];
                             meta: {
@@ -33631,7 +33639,7 @@ export interface operations {
                                     value: string;
                                     valid_from: string;
                                     valid_until: string | null;
-                                };
+                                } | null;
                                 created_at: string | null;
                             };
                             entries: {
@@ -33732,7 +33740,7 @@ export interface operations {
                                 value: string;
                                 valid_from: string;
                                 valid_until: string | null;
-                            };
+                            } | null;
                             created_at: string | null;
                         };
                     };
@@ -33814,7 +33822,7 @@ export interface operations {
                                 value: string;
                                 valid_from: string;
                                 valid_until: string | null;
-                            };
+                            } | null;
                             created_at: string | null;
                         };
                     };
@@ -37438,6 +37446,7 @@ export interface operations {
                                     discount_value: string | null;
                                     discount_reason: string | null;
                                     discount_by: number | null;
+                                    promo_note: string | null;
                                     service_charge_amount: string;
                                     place_fee_amount: string;
                                     room_fee_amount: string;
@@ -41867,6 +41876,8 @@ export interface operations {
                             repaid_total: string;
                             monthly_limit: string | null;
                             balance: string;
+                            branch_id: number | null;
+                            masked: boolean;
                         };
                     };
                 };
@@ -43088,6 +43099,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -43295,6 +43307,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44306,6 +44319,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44524,6 +44538,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44743,6 +44758,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45238,6 +45254,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45459,6 +45476,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45677,6 +45695,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45945,6 +45964,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46171,6 +46191,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46399,6 +46420,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46626,6 +46648,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46854,6 +46877,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47072,6 +47096,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47291,6 +47316,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47509,6 +47535,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47728,6 +47755,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47945,6 +47973,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -48158,6 +48187,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -48609,6 +48639,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -48854,6 +48885,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -49072,6 +49104,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -49290,6 +49323,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -49509,6 +49543,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -52400,7 +52435,7 @@ export interface operations {
                                 value: string;
                                 valid_from: string;
                                 valid_until: string | null;
-                            };
+                            } | null;
                             created_at: string | null;
                         };
                     };
@@ -52477,7 +52512,7 @@ export interface operations {
                                     value: string;
                                     valid_from: string;
                                     valid_until: string | null;
-                                };
+                                } | null;
                                 created_at: string | null;
                             };
                             entries: {

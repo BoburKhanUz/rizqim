@@ -105,7 +105,7 @@ class CustomerAccountService implements CustomerAccountLedger
             if ($account->isCorporate()) {
                 $businessDate = $this->corporate->businessDateOf($billUuid, $account);
                 $member = $this->corporate->memberOf($account, $memberCode, $memberPhone);
-                $this->corporate->assertCanCharge($account, $member, $amount, $businessDate);
+                $this->corporate->assertCanCharge($account, $member, $amount, $businessDate, $billUuid);
             }
 
             $balance = Money::of($account->balance)->plus($amount);
@@ -160,8 +160,9 @@ class CustomerAccountService implements CustomerAccountLedger
     /**
      * Review P3-35 (CustomerAccountLedger): the bill's nasiya part refunded at the till: the debt goes down by
      * `amount` with an adjustment keyed by the bill and the refund (`reference`; the same one again is a no-op). Never more than
-     * the bill was charged less what was reversed before, never more than the debt left (409 `more_than_debt`: the
-     * guest repaid it already; the manager settles that by hand).
+     * the bill was charged less what was reversed before. Review C7: never refused because the debt was repaid already
+     * (a refund is never blocked): the balance may go below zero — the customer's (company's) credit, "Ortiqcha to'lov"
+     * in the statement and the account card, used by the next charges.
      */
     public function reverse(string $accountUuid, Money $amount, string $billUuid, string $reference, int $approvedByUserId): void
     {
@@ -192,15 +193,6 @@ class CustomerAccountService implements CustomerAccountLedger
             if ($amount->isGreaterThan($left)) {
                 throw new CustomerAccountException("Bu schyot nasiyaga {$left->toString()} so'm yozilgan: undan ko'pini qaytarib bo'lmaydi.", 'reverse_exceeds_charge', 409, ['left' => $left->toString()]);
             }
-            if ($amount->isGreaterThan($account->balance)) {
-                throw new CustomerAccountException(
-                    "Mijoz qarzining bir qismini to'lagan: qolgan qarz {$account->balance} so'm. Farqni menejer qo'lda hal qilsin.",
-                    'more_than_debt',
-                    409,
-                    ['balance' => $account->balance],
-                );
-            }
-
             $actor = auth()->user();
             $entry = $this->record($account, CustomerAccountEntryType::ADJUSTMENT, $amount->negated(), [
                 'note' => "Kassada qaytarildi: schyotning nasiya qismi",
@@ -221,7 +213,8 @@ class CustomerAccountService implements CustomerAccountLedger
             ], ['store_id' => (int) $account->store_id, 'branch_id' => $entry->branch_id !== null ? (int) $entry->branch_id : null]);
 
             $this->alerts->send((int) $account->store_id, "↩️ Nasiya qaytarildi: " . PosOwnerAlerts::sum($amount)
-                . "\nMijoz: {$account->name}\nQolgan qarz: " . PosOwnerAlerts::sum($account->balance)
+                . "\nMijoz: {$account->name}"
+                . (Money::of($account->balance)->isNegative() ? "\nOrtiqcha to'lov: " . PosOwnerAlerts::sum(Money::of($account->balance)->abs()) : "\nQolgan qarz: " . PosOwnerAlerts::sum($account->balance))
                 . ($approver !== null ? "\nTasdiqladi: {$approver->name}" : ''));
         });
     }
@@ -310,8 +303,8 @@ class CustomerAccountService implements CustomerAccountLedger
     }
 
     /**
-     * A manager's correction: `amount` > 0 adds to the debt, < 0 takes from it (a write-off). The debt never goes
-     * below zero.
+     * A manager's correction: `amount` > 0 adds to the debt, < 0 takes from it (a write-off). A write-off never takes
+     * the debt below zero; adding is always allowed (it also corrects an overpayment left by a refund, review C7).
      */
     public function adjust(CustomerAccount $account, Money $amount, string $note, User $actor, ?int $deviceId, ?int $branchId): CustomerAccountEntry
     {
@@ -321,7 +314,7 @@ class CustomerAccountService implements CustomerAccountLedger
 
         return DB::transaction(function () use ($account, $amount, $note, $actor, $deviceId, $branchId) {
             $account = CustomerAccount::whereKey($account->id)->lockForUpdate()->firstOrFail();
-            if (Money::of($account->balance)->plus($amount)->isNegative()) {
+            if ($amount->isNegative() && Money::of($account->balance)->plus($amount)->isNegative()) {
                 throw new CustomerAccountException("Tuzatishdan keyin qarz manfiy bo'lib qoladi: qarz {$account->balance} so'm.", 'more_than_debt');
             }
 

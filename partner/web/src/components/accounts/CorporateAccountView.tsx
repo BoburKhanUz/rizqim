@@ -92,7 +92,7 @@ export function CorporateAccountView({ uuid }: { uuid: string }) {
       />
       <Notice message={notice} />
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 print:hidden">
-        <Summary label={t('corp_balance')} value={money(account.balance)} strong />
+        <Summary {...balanceSummary(account.balance, money, t('corp_balance'), t('corp_overpaid'))} strong />
         <Summary label={t('corp_monthlyLimit')} value={account.monthly_limit ? money(account.monthly_limit) : t('corp_noMonthlyLimit')} />
         <Summary label={t('corp_activeMembers')} value={String(account.members_count ?? 0)} />
         <Summary label={t('corp_talonMode')} value={t(`corp_talon_${account.talon_mode ?? 'none'}` as const)} note={account.charge_approval ? t('corp_approvalOn') : t('corp_approvalOff')} />
@@ -132,6 +132,12 @@ export function CorporateAccountView({ uuid }: { uuid: string }) {
       )}
     </>
   );
+}
+
+// A balance below zero is the company's overpayment (a refund after the invoice was paid): shown as such, not as a debt
+function balanceSummary(balance: string, money: (value: string) => string, debt: string, overpaid: string) {
+  const over = Number(balance) < 0;
+  return { label: over ? overpaid : debt, value: money(over ? balance.replace(/^-/, '') : balance) };
 }
 
 function Summary({ label, value, note, strong }: { label: string; value: string; note?: string; strong?: boolean }) {
@@ -373,7 +379,10 @@ function Invoice({ data, money }: { data: CorporateStatement; money: (value: str
             [t('corp_st_total'), money(data.total)],
             [t('corp_st_meals'), String(data.meals)],
             [t('corp_st_repaid'), money(data.repaid_total)],
-            [t('corp_st_balance'), money(data.balance)],
+            ...(() => {
+              const balance = balanceSummary(data.balance, money, t('corp_st_balance'), t('corp_overpaid'));
+              return [[balance.label, balance.value]];
+            })(),
           ].map(([label, value]) => (
             <div key={label} className="flex flex-col gap-1 rounded-control bg-surface-2 p-3 print:bg-transparent">
               <dt className="text-footnote font-bold text-fg-muted">{label}</dt>
@@ -381,6 +390,8 @@ function Invoice({ data, money }: { data: CorporateStatement; money: (value: str
             </div>
           ))}
         </dl>
+        {data.branch_id !== null && data.branch_id !== undefined && <p className="text-footnote text-fg-muted">{t('corp_st_branchOnly')}</p>}
+        {data.masked && <p className="text-footnote text-fg-muted">{t('corp_st_masked')}</p>}
         {data.monthly_limit && (
           <p className="text-footnote text-fg-muted">
             {t('corp_st_monthlyLimit')}: {money(data.monthly_limit)}

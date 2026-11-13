@@ -133,19 +133,21 @@ class PosQrPaymentController extends PosBillingController
      * Confirm a sandbox QR (demo)
      *
      * Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):
-     * exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production): 404.
+     * exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production, or
+     * neither `QR_PAYMENTS_SANDBOX` nor `QR_PAYMENTS_SIMULATE_DRIVERS` set): 404.
      * Needs pos.take_payment.
      */
     #[ApiDocResponse(200, type: self::ONE)]
     public function simulatePaid(Request $request, string $uuid): JsonResponse
     {
-        if (!(bool) config('qr_payments.simulate')) {
+        // Review P6W4 S3: only on a sandbox stand (or one allowing a provider's sandbox), never by APP_ENV alone
+        if (!(bool) config('qr_payments.simulate') || (!(bool) config('qr_payments.sandbox') && (array) config('qr_payments.simulate_drivers', []) === [])) {
             throw new HttpResponseException($this->error('Topilmadi.', [], 404));
         }
         $user = $this->staff($request);
         $this->requireIdempotencyKey($request);
         $qr = $this->qr($user, $uuid);
-        if (!app(QrProviders::class)->of($qr)->simulated()) {
+        if (!app(QrProviders::class)->simulates($qr)) {
             throw PosActionException::conflict('qr_not_simulated', "Bu QR haqiqiy provayderniki: uni faqat mijoz to'lovi tasdiqlaydi.");
         }
 

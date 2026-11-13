@@ -14,10 +14,14 @@ use Illuminate\Support\Facades\DB;
  * entry carrying the balance after it. A voucher is spent in any branch of its store; it pays nothing once blocked,
  * used up or past its last business day (valid_until, the branch's business date: a 02:00 payment is still the day
  * before's). One redemption per voucher and bill (409 `voucher_already_on_bill`): a retried payment is answered by
- * its Idempotency-Key before it gets here.
+ * its Idempotency-Key before it gets here. A refund onto a voucher past its date extends it to the refund's business day
+ * + 30 days; onto a blocked one it is recorded and the voucher stays blocked (review C6, entry note).
  */
 class VoucherLedgerService implements VoucherLedger
 {
+    /** Review C6: how long a refund keeps an expired voucher spendable, from the refund's business day */
+    public const REFUND_EXTENSION_DAYS = 30;
+
     public function redeem(int $storeId, string $code, Money $amount, string $billUuid, ?int $branchId, ?int $userId, ?int $deviceId, ?int $shiftId): array
     {
         $normalized = VoucherCode::normalize($code);
@@ -108,21 +112,35 @@ class VoucherLedgerService implements VoucherLedger
             $branchId = $shiftId !== null ? \App\Models\PosShift::whereKey($shiftId)->value('branch_id') : null;
             $branch = $branchId !== null ? Branch::find((int) $branchId) : null;
             $after = Money::of($voucher->balance)->plus($amount);
-            $voucher->forceFill([
+            $today = VoucherState::today($voucher, $branch);
+            // Review C6: an expired voucher would strand the refunded value, so it gets the refund's business day + 30
+            // days; a blocked one keeps the value and stays blocked (the manager unblocks it or not)
+            $note = null;
+            $extend = [];
+            if (VoucherState::of($voucher, $branch) === VoucherStatus::EXPIRED) {
+                $until = \Carbon\CarbonImmutable::parse($today)->addDays(self::REFUND_EXTENSION_DAYS);
+                $extend = ['valid_until' => $until->toDateString()];
+                $note = "Muddati o'tgan edi: " . $until->format('d.m.Y') . ' gacha uzaytirildi.';
+            } elseif ($voucher->status === VoucherStatus::BLOCKED) {
+                $note = 'Sertifikat bloklangan: summa unda saqlandi, menejer hal qiladi.';
+            }
+            $voucher->forceFill($extend + [
                 'balance' => $after->toString(),
-                // A used-up voucher holds money again; a blocked one stays blocked, an expired one stays past its date
-                'status' => $voucher->status === VoucherStatus::USED ? VoucherStatus::ACTIVE : $voucher->status,
+                // A used-up or expired voucher holds money again (an expired one with its new date); a blocked one
+                // stays blocked
+                'status' => in_array($voucher->status, [VoucherStatus::USED, VoucherStatus::EXPIRED], true) ? VoucherStatus::ACTIVE : $voucher->status,
             ])->save();
             VoucherEntry::create([
                 'voucher_id' => $voucher->id,
                 'store_id' => $voucher->store_id,
                 'type' => VoucherEntryType::REFUND,
                 'branch_id' => $branch?->id,
-                'business_date' => VoucherState::today($voucher, $branch),
+                'business_date' => $today,
                 'amount' => $amount->toString(),
                 'balance_after' => $after->toString(),
                 'bill_uuid' => $billUuid,
                 'refund_uuid' => $refundUuid,
+                'note' => $note,
                 'shift_id' => $shiftId,
                 'device_id' => $deviceId,
                 'user_id' => $userId,

@@ -31,7 +31,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * with filters, one certificate with its history, block and unblock (vouchers.manage, audited), the period report
  * (sold, redeemed, outstanding liability) and the Excel export. Reading: vouchers.manage or reports.view. A
  * branch-bound caller sees the certificates sold in their branch; another store's: 404. The buyer's phone is masked
- * except in one certificate's own view for vouchers.manage.
+ * except in one certificate's own view for vouchers.manage. Review S1: a reader without vouchers.manage gets the codes
+ * masked (list, one certificate, Excel; no `print` block) and finds a certificate by its whole code only.
  */
 #[Group('Owner: vouchers', "Sovg'a sertifikatlari: ro'yxat, tarix, bloklash, hisobot va Excel (P6-43).")]
 class VouchersController extends ManagementController
@@ -43,7 +44,8 @@ class VouchersController extends ManagementController
      *
      * Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`
      * includes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),
-     * `from`/`to` (sold on these dates).
+     * `from`/`to` (sold on these dates). Without vouchers.manage the codes are masked (`print` null) and `q` finds a
+     * certificate by its whole code only.
      */
     #[QueryParameter('status', description: 'active, used, blocked or expired.', type: 'string', required: false)]
     #[QueryParameter('q', description: 'Code, buyer name or phone digits.', type: 'string', required: false)]
@@ -57,9 +59,10 @@ class VouchersController extends ManagementController
         $request->validate(['per_page' => 'nullable|integer|min:1|max:100']);
         $page = $this->filtered($request)->orderByDesc('id')->paginate((int) $request->input('per_page', 30));
         $presenter = app(VoucherPresenter::class);
+        $mask = !$this->permissions->allows($request->user(), Permission::VOUCHERS_MANAGE);
 
         return $this->success([
-            'vouchers' => collect($page->items())->map(fn (Voucher $voucher) => $presenter->voucher($voucher))->values()->all(),
+            'vouchers' => collect($page->items())->map(fn (Voucher $voucher) => $presenter->voucher($voucher, false, null, $mask))->values()->all(),
             'meta' => [
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
@@ -91,8 +94,8 @@ class VouchersController extends ManagementController
     /**
      * Gift certificates (Excel)
      *
-     * The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked) on the "Sertifikatlar"
-     * sheet and the period report on "Hisobot". Each export is recorded in the audit log.
+     * The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked, codes masked without
+     * vouchers.manage) on the "Sertifikatlar" sheet and the period report on "Hisobot". Each export is recorded in the audit log.
      */
     #[QueryParameter('status', description: 'active, used, blocked or expired.', type: 'string', required: false)]
     #[QueryParameter('q', description: 'Code, buyer name or phone digits.', type: 'string', required: false)]
@@ -111,7 +114,8 @@ class VouchersController extends ManagementController
         if ($path === false) {
             abort(500, "Faylni tayyorlab bo'lmadi.");
         }
-        app(VoucherExport::class)->write($vouchers, $report, Branch::where('store_id', $storeId)->pluck('name', 'id')->all(), $path);
+        $mask = !$this->permissions->allows($request->user(), Permission::VOUCHERS_MANAGE);
+        app(VoucherExport::class)->write($vouchers, $report, Branch::where('store_id', $storeId)->pluck('name', 'id')->all(), $path, $mask);
 
         app(AuditLogger::class)->record('voucher.exported', null, [], [], array_filter([
             'rows' => $vouchers->count(),
@@ -119,6 +123,7 @@ class VouchersController extends ManagementController
             'to' => $to,
             'branch_id' => $branch?->id,
             'status' => $request->input('status'),
+            'codes_masked' => $mask ?: null,
         ], fn ($value) => $value !== null), ['actor' => $request->user()]);
 
         return response()->download($path, "sertifikatlar-{$from}-{$to}.xlsx", [
@@ -131,7 +136,8 @@ class VouchersController extends ManagementController
      * One gift certificate, with its history
      *
      * Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The
-     * buyer's phone is shown in full to vouchers.manage.
+     * buyer's phone, the code and the `print` block are shown in full to vouchers.manage only (masked code, no `print`
+     * for reports.view).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{voucher: ' . VoucherPresenter::VOUCHER . ', entries: list<' . VoucherPresenter::ENTRY . '>}}')]
     public function show(Request $request, string $uuid): JsonResponse
@@ -141,7 +147,7 @@ class VouchersController extends ManagementController
         $full = $this->permissions->allows($request->user(), Permission::VOUCHERS_MANAGE, $voucher);
 
         return $this->success([
-            'voucher' => $presenter->voucher($voucher, $full),
+            'voucher' => $presenter->voucher($voucher, $full, null, !$full),
             'entries' => VoucherEntry::where('voucher_id', $voucher->id)->with('user:id,name')->orderByDesc('id')->limit(200)->get()
                 ->map(fn (VoucherEntry $entry) => $presenter->entry($entry))->values()->all(),
         ]);
@@ -212,9 +218,13 @@ class VouchersController extends ManagementController
             $code = VoucherCode::normalize($q);
             $digits = \App\Domain\Pos\Booking\UzPhone::searchDigits($q);
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], mb_strtolower($q)) . '%';
-            $query->where(function (Builder $query) use ($code, $digits, $like, $q) {
-                $query->whereRaw('lower(buyer_name) like ?', [$like])
-                    ->orWhere('code', 'like', '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], strtoupper($q)) . '%');
+            // Review S1: a part of a code finds certificates for vouchers.manage only (no guessing a masked code)
+            $partial = $this->permissions->allows($request->user(), Permission::VOUCHERS_MANAGE);
+            $query->where(function (Builder $query) use ($code, $digits, $like, $q, $partial) {
+                $query->whereRaw('lower(buyer_name) like ?', [$like]);
+                if ($partial) {
+                    $query->orWhere('code', 'like', '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], strtoupper($q)) . '%');
+                }
                 if ($code !== null) {
                     $query->orWhere('code', $code);
                 }

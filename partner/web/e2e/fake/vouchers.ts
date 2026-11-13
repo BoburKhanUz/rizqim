@@ -1,6 +1,7 @@
 // Gift certificates of the fake backend (docs/API.md P6-43 "Sertifikat va vaucher"): two certificates of the store (one
 // partly spent, one whole), each with its history, the period report and block / unblock. Enough for the panel's flows;
-// the balances, the receipts and the report's sums are the backend's and its tests.
+// the balances, the receipts and the report's sums are the backend's and its tests. Review S1: a reader without
+// vouchers.manage gets the codes masked and no `print` block, and finds a certificate by its whole code only.
 import type { FakeBackend } from './backend'
 import { fail, ok, type FakeRequest, type Reply } from './types'
 
@@ -51,10 +52,15 @@ export class FakeVouchers {
     void this.backend
   }
 
+  private manages(): boolean {
+    return this.backend.account.permissions.includes('vouchers.manage')
+  }
+
   private view(voucher: Certificate) {
+    const full = this.manages()
     return {
       uuid: voucher.uuid,
-      code: voucher.code,
+      code: full ? voucher.code : `${voucher.code.slice(0, 4)}-****-${voucher.code.slice(-4)}`,
       kind: 'gift',
       face_value: voucher.face_value,
       balance: voucher.balance,
@@ -69,6 +75,7 @@ export class FakeVouchers {
       note: null,
       fiscal: { receipt_uuid: null, status: 'issued' },
       blocked: voucher.blocked,
+      print: full ? { store: 'Lazzat Oshxona', code: voucher.code, qr: voucher.code, value: voucher.face_value, valid_from: DAY, valid_until: '2027-11-16' } : null,
       created_at: `${DAY}T10:00:00+05:00`,
     }
   }
@@ -101,7 +108,7 @@ export class FakeVouchers {
 
     if (req.method === 'GET' && path === '') {
       const q = (req.query.q ?? '').toUpperCase()
-      const rows = this.vouchers.filter((voucher) => (!req.query.status || voucher.status === req.query.status) && (!q || voucher.code.includes(q) || (voucher.buyer.name ?? '').toUpperCase().includes(q)))
+      const rows = this.vouchers.filter((voucher) => (!req.query.status || voucher.status === req.query.status) && (!q || (this.manages() ? voucher.code.includes(q) : voucher.code === q) || (voucher.buyer.name ?? '').toUpperCase().includes(q)))
       return ok({ vouchers: rows.map((voucher) => this.view(voucher)), meta: { current_page: 1, last_page: 1, per_page: 30, total: rows.length } })
     }
     if (req.method === 'GET' && path === '/report') return ok(this.report(req.query))

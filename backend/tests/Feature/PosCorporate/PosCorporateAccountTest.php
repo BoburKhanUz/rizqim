@@ -138,8 +138,8 @@ class PosCorporateAccountTest extends TestCase
             ->assertForbidden()->assertJsonPath('data.reason', 'module_disabled');
         $nasiya = (string) $this->api($this->manager, 'POST', '/api/v1/pos/customer-accounts', ['name' => 'Zavod'], ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data.uuid');
         $this->api($this->manager, 'PATCH', "/api/v1/pos/customer-accounts/{$nasiya}", ['kind' => 'corporate'])->assertForbidden()->assertJsonPath('data.reason', 'module_disabled');
-        // Members and the lookup are setup and a new flow: gated as well
-        $this->api($this->manager, 'GET', '/api/v1/pos/customer-accounts/members/lookup?code=1234567890')->assertForbidden()->assertJsonPath('data.reason', 'module_disabled');
+        // Review S4: the till's lookup is not gated (an existing account is still charged); members are (setup)
+        $this->api($this->manager, 'GET', '/api/v1/pos/customer-accounts/members/lookup?code=1234567890')->assertNotFound()->assertJsonPath('data.reason', 'member_not_found');
         // A nasiya account has no members
         $this->branch->forceFill(['pos_settings' => PosSettings::withFormat($this->branch->fresh()->pos_settings, FormatProfile::STOLOVAYA, [])])->save();
         $this->api($this->manager, 'POST', "/api/v1/pos/customer-accounts/{$nasiya}/members", ['name' => 'Aziz'], ['Idempotency-Key' => (string) Str::uuid()])

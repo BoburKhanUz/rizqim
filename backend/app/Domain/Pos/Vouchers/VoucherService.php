@@ -56,6 +56,9 @@ class VoucherService
 
     public const SALE_TENDERS = [PosTender::CASH, PosTender::CARD, PosTender::QR];
 
+    /** Review C12: how long a certificate's advance receipt that was not issued is sent again on its own */
+    public const RECEIPT_RETRY_DAYS = 3;
+
     public function __construct(
         protected ShiftService $shifts,
         protected AuditLogger $audit,
@@ -170,22 +173,55 @@ class VoucherService
         }
 
         if ($voucher->fiscal_receipt_uuid === null) {
-            $this->issue($voucher, new FiscalDocument(
-                FiscalReceiptType::ADVANCE,
-                (int) $voucher->store_id,
-                (int) $branch->id,
-                $device?->id,
-                [$line],
-                [new FiscalPayment(BookingDepositService::formOf((string) $voucher->sale_tender), Money::of($voucher->face_value), cardType: $voucher->sale_card_type, transactionId: $voucher->sale_transaction_id)],
-                Money::of($voucher->face_value),
-                "voucher:{$voucher->uuid}:advance",
-                null,
-                PosVouchersServiceProvider::FISCAL_SUBJECT,
-                (int) $voucher->id,
-            ));
+            $this->issue($voucher, $this->advanceDocument($voucher, $line, (int) $branch->id, $device?->id));
         }
 
         return $voucher->refresh();
+    }
+
+    /**
+     * Review C12: the advance receipts of certificates sold in the last RECEIPT_RETRY_DAYS days that were not issued
+     * (`error`: never asked for; `failed`: the provider refused) are sent again under the same receipt key
+     * (FiscalIssuer::reissue: the same receipt, never a second). Returns how many were sent.
+     */
+    public function retryReceipts(int $limit = 100): int
+    {
+        $vouchers = Voucher::whereIn('fiscal_status', ['error', 'failed'])
+            ->where('sold_at', '>=', now()->subDays(self::RECEIPT_RETRY_DAYS))
+            ->orderBy('id')->limit($limit)->get();
+        foreach ($vouchers as $voucher) {
+            try {
+                $store = Store::findOrFail($voucher->store_id);
+                $line = $this->line(app(FiscalLineBuilder::class)->forCharge($store, 'deposit', Money::of($voucher->face_value)));
+                $this->issue($voucher, $this->advanceDocument($voucher, $line, $voucher->branch_id !== null ? (int) $voucher->branch_id : null, $voucher->sold_device_id !== null ? (int) $voucher->sold_device_id : null), true);
+            } catch (Throwable $e) {
+                // One certificate never holds up the others (a fiscal setup problem stays visible as `error`)
+                report($e);
+            }
+        }
+
+        return $vouchers->count();
+    }
+
+    /**
+     * The certificate's ADVANCE receipt: one "deposit" line, the sale's tender; its key is the voucher's.
+     */
+    private function advanceDocument(Voucher $voucher, FiscalLine $line, ?int $branchId, ?int $deviceId): FiscalDocument
+    {
+        return new FiscalDocument(
+            FiscalReceiptType::ADVANCE,
+            (int) $voucher->store_id,
+            $branchId,
+            $deviceId,
+            [$line],
+            [new FiscalPayment(BookingDepositService::formOf((string) $voucher->sale_tender), Money::of($voucher->face_value), cardType: $voucher->sale_card_type, transactionId: $voucher->sale_transaction_id)],
+            Money::of($voucher->face_value),
+            "voucher:{$voucher->uuid}:advance",
+            null,
+            PosVouchersServiceProvider::FISCAL_SUBJECT,
+            (int) $voucher->id,
+            $voucher->sold_at,
+        );
     }
 
     /**
@@ -300,12 +336,14 @@ class VoucherService
 
     /**
      * The money is already recorded: a receipt that cannot be issued now stays visible as fiscal_status `error`
-     * (the fiscal queue retries a `pending` one) instead of failing the sale.
+     * (the fiscal queue retries a `pending` one; retryReceipts() an `error` or `failed` one) instead of failing the
+     * sale. `$again`: reissue (a receipt the provider refused is sent again as the same receipt).
      */
-    private function issue(Voucher $voucher, FiscalDocument $document): void
+    private function issue(Voucher $voucher, FiscalDocument $document, bool $again = false): void
     {
         try {
-            $result = app(FiscalIssuer::class)->issue($document);
+            $issuer = app(FiscalIssuer::class);
+            $result = $again ? $issuer->reissue($document) : $issuer->issue($document);
         } catch (Throwable $e) {
             report($e);
             Log::warning("Voucher {$voucher->uuid}: the advance receipt failed: {$e->getMessage()}");

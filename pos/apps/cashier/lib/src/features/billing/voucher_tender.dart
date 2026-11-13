@@ -9,13 +9,12 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import 'cashier_ui.dart';
 import 'payment_messages.dart';
 
-/// Sertifikat kodi ko'rinishimi (`XXXX-XXXX-XXXX`: 12 ta lotin harf yoki raqam; bo'shliq va chiziqcha hisobga olinmaydi)
-/// — skaner kodi qaysi maydonga ketishini tanlash uchun.
+/// Sertifikat kodi ko'rinishimi (`XXXX-XXXX-XXXX`: serverning VoucherCode alifbosidagi aynan 12 belgi; bo'shliq va
+/// chiziqcha hisobga olinmaydi) — skaner kodi qaysi maydonga ketishini tanlash uchun. Review P6 wave 4 (C11): only the
+/// backend's 24-character alphabet (no 0/O, 1/I/L, 2/Z, 5/S, 7, 8/B), so a custom talon code is not taken for one.
 bool looksLikeVoucherCode(String code) {
   final String chars = code.toUpperCase().replaceAll(RegExp(r'[\s\-_]'), '');
-  return chars.length == 12 &&
-      RegExp(r'^[A-Z0-9]+$').hasMatch(chars) &&
-      RegExp(r'[A-Z]').hasMatch(chars);
+  return RegExp(r'^[ACDEFGHJKMNPQRTUVWXY3469]{12}$').hasMatch(chars);
 }
 
 /// P6-43: "Sertifikat" to'lovi holati (to'lov sahifasida): kod (skaner yoki terish) → qidirish (qoldiq, muddat,
@@ -26,6 +25,9 @@ class VoucherTenderController extends ChangeNotifier {
   PosVoucherLookup? found;
   bool busy = false;
   String? error;
+
+  /// The last lookup found no certificate with this code (404): a scanned code may be a talon then.
+  bool notFound = false;
 
   PosVoucher? get voucher => found?.voucher;
 
@@ -40,6 +42,7 @@ class VoucherTenderController extends ChangeNotifier {
     }
     busy = true;
     error = null;
+    notFound = false;
     notifyListeners();
     try {
       final PosVoucherLookup r = await data.vouchers.lookup(c);
@@ -58,6 +61,7 @@ class VoucherTenderController extends ChangeNotifier {
       }
     } on PosException catch (e) {
       found = null;
+      notFound = e is PosNotFound;
       error = paymentRefusalText(e) ?? e.message;
     } finally {
       busy = false;
@@ -68,6 +72,7 @@ class VoucherTenderController extends ChangeNotifier {
   void clear() {
     found = null;
     error = null;
+    notFound = false;
     code.clear();
     amount.clear();
     notifyListeners();

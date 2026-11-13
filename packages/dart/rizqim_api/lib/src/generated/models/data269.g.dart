@@ -48,6 +48,7 @@ Data269 _$Data269FromJson(Map<String, dynamic> json) => Data269(
       .map((e) => Items47.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountBy: (json['discount_by'] as num?)?.toInt(),
+  promoNote: json['promo_note'] as String?,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   roomFeeAmount: json['room_fee_amount'] as String,
@@ -104,6 +105,7 @@ Map<String, dynamic> _$Data269ToJson(Data269 instance) => <String, dynamic>{
   'discount_value': instance.discountValue,
   'discount_reason': instance.discountReason,
   'discount_by': instance.discountBy,
+  'promo_note': instance.promoNote,
   'service_charge_amount': instance.serviceChargeAmount,
   'place_fee_amount': instance.placeFeeAmount,
   'room_fee_amount': instance.roomFeeAmount,

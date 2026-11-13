@@ -123,7 +123,8 @@ class FakeQrBackend {
         }
         if (qr['status'] == 'pending') {
           qr['status'] = 'cancelled';
-          qr['cancel_reason'] = 'cashier';
+          // The reason the till gave (`?reason=`), `cashier` by default
+          qr['cancel_reason'] = r.query['reason'] ?? 'cashier';
         }
       }
       return _ok(<String, Object?>{'qr': qr});

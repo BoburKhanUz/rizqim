@@ -42,6 +42,11 @@ final class SandboxUzQrGateway implements UzQrGateway
         return QrRefundResult::done('sbx-refund-' . substr(sha1($id . $amount->toString() . microtime()), 0, 12));
     }
 
+    public function refundStatus(string $id, Money $amount, Store $store): QrRefundResult
+    {
+        return QrRefundResult::done('sbx-refund-' . substr(sha1($id . $amount->toString()), 0, 12));
+    }
+
     /**
      * The EMV string (tag + two-digit length + value), with its CRC.
      */

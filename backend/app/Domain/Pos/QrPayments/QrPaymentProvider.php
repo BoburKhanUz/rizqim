@@ -32,6 +32,12 @@ interface QrPaymentProvider
     /** Give $amount of a paid request back to the customer through the provider. */
     public function refund(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult;
 
+    /**
+     * Review P6W4 C2: whether an earlier reversal of $amount went through (a timeout left it unknown): done = the money
+     * went back, failed = the provider says it did not, unknown = it does not say (yet).
+     */
+    public function refundStatus(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult;
+
     /** Whether the cashier's simulate endpoint may confirm its requests (sandboxes only). */
     public function simulated(): bool;
 }

@@ -13,8 +13,10 @@ use App\Support\Money;
  * P6-43 (D3): a discount voucher is a store promo code applied to a POS order. The code must be the store's own
  * (a platform-wide code is the online checkout's), active, not expired, within its usage limit and the order's dishes
  * at least its minimum; the discount is the order's discount (PosOrderService::promoDiscount) with the reason
- * `promo:<CODE>` — a percentage without a cap stays a percent (worked out again with every line change), a fixed
- * amount or a capped percentage is the amount worked out now. One code per order (409 `promo_already_applied`: take it
+ * `promo:<CODE>` — a percentage without a cap stays a percent, a fixed amount or a capped percentage is stored as the
+ * amount worked out now; with every later change of the order the charges recalculation works the discount out again
+ * from the code (PosChargesCalculator::discountOf) and drops the code once the dishes fall under its minimum (review C1:
+ * `pos.order.promo_dropped`, the order's `promo_note`). One code per order (409 `promo_already_applied`: take it
  * off first); a discount typed by hand later replaces it. The cashier's discount limit does not apply. Usage is
  * counted as for online orders: orders.promo_code_id (a cancelled order gives it back, PromoCode::redemptions); the
  * per-customer limit is not checked at the till (a POS order has no customer). Online only.
@@ -68,6 +70,7 @@ class PosPromoService
                 'discount_reason' => 'promo:' . $promo->code,
                 'discount_by' => $actor->id,
                 'promo_code_id' => $promo->id,
+                'promo_note' => null,
             ];
         });
     }
@@ -89,6 +92,7 @@ class PosPromoService
                 'discount_by' => null,
                 'discount' => '0.00',
                 'promo_code_id' => null,
+                'promo_note' => null,
             ];
         });
     }

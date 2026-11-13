@@ -86,6 +86,9 @@ class _PaymentPageState extends State<PaymentPage> {
 
   /// To'landi, chek kutilmoqda.
   PosBillResult? _pending;
+
+  /// The bill is settled and its receipt/close flow ran ([_afterPayment] once per bill).
+  bool _finished = false;
   PosException? _blocking;
 
   // P6-22: choy puli (shu formadagi to'lov ustiga) va kimga (shaxsiy rejim)
@@ -166,6 +169,10 @@ class _PaymentPageState extends State<PaymentPage> {
   bool get _prepaymentUsed =>
       _parts.any((_Part p) => p.input.tender == PosTender.prepayment);
 
+  /// Review P6 wave 4 (C3): the dynamic QR this bill is waiting for (as the till last saw it).
+  PosQrPayment? get _waitingQr =>
+      _scope.services.qrGuard?.pendingFor(_bill.uuid);
+
   bool get _accountUsed =>
       _parts.any((_Part p) => p.input.tender == PosTender.account);
 
@@ -194,13 +201,26 @@ class _PaymentPageState extends State<PaymentPage> {
     if (code.isEmpty) return;
     final bool voucherLike = looksLikeVoucherCode(code);
     if (_tab == PosTender.voucher || voucherLike && _hasVouchers) {
+      // Review P6 wave 4 (C11): a certificate-shaped code that is no certificate (404) is tried as a talon
+      final bool fallback = _tab != PosTender.voucher && _hasCorporate;
       if (_tab != PosTender.voucher) _selectTab(PosTender.voucher);
-      scanIntoVoucher(_voucher, _scope.data, _remaining, code);
+      unawaited(_scanVoucher(code, fallback: fallback));
     } else if (_hasCorporate) {
-      if (_tab != PosTender.account) _selectTab(PosTender.account);
-      setState(() => _corporateMode = true);
-      scanIntoCorporate(_corporate, _scope.data, _remaining, code);
+      _scanTalon(code);
     }
+  }
+
+  Future<void> _scanVoucher(String code, {required bool fallback}) async {
+    await _voucher.lookup(_scope.data, _remaining, scanned: code);
+    if (!mounted || !fallback || !_voucher.notFound) return;
+    _voucher.clear();
+    _scanTalon(code);
+  }
+
+  void _scanTalon(String code) {
+    if (_tab != PosTender.account) _selectTab(PosTender.account);
+    setState(() => _corporateMode = true);
+    scanIntoCorporate(_corporate, _scope.data, _remaining, code);
   }
 
   @override
@@ -456,6 +476,22 @@ class _PaymentPageState extends State<PaymentPage> {
         tipToken = _tipApproval;
       }
     }
+    // Review P6 wave 4 (C3): offline, a QR on this bill may still be paid from the customer's phone
+    final PosQrPayment? waitingQr = limitedMode(context) ? _waitingQr : null;
+    final PosBill billBefore = _bill;
+    if (waitingQr != null) {
+      final bool sure = await confirmAction(
+        context,
+        title: 'QR hali kutilmoqda',
+        message:
+            "Bu schyotga ${waitingQr.providerLabel ?? waitingQr.provider?.label ?? 'QR'} QR (${waitingQr.amount.format()}) "
+            "yaratilgan va u hali to'lanishi mumkin. Mijoz QR orqali to'lamaganiga ishonch hosil qiling. Internet "
+            "tiklangach kassa QR'ni tekshiradi: to'lanmagan bo'lsa bekor qiladi, to'langan bo'lsa bu pul yuborilmaydi "
+            "va uni mijozga qaytarasiz.",
+        confirmLabel: "To'lamagan — olaman",
+      );
+      if (!sure || !mounted) return;
+    }
     final PosMoney tipped = PosMoney.sum(<PosMoney>[
       for (final PosTenderInput t in tenders) t.tip ?? PosMoney.zero,
     ]);
@@ -481,6 +517,16 @@ class _PaymentPageState extends State<PaymentPage> {
       );
       _tipApproval = null;
       _tipApprovalFor = null;
+      if (waitingQr != null) {
+        // Recorded with who confirmed it: checked against the server before the payment is sent
+        await _scope.services.qrGuard?.record(
+          billBefore: billBefore,
+          qr: waitingQr,
+          tenders: tenders,
+          staffId: _scope.session.staffId,
+          staffName: _scope.session.staffName,
+        );
+      }
       if (!mounted) return;
       _bill = r.bill;
       _parts.clear();
@@ -561,8 +607,11 @@ class _PaymentPageState extends State<PaymentPage> {
     PosBillResult r, {
     required bool openDrawer,
   }) async {
+    // Review P6 wave 4 (C11): once per bill — a QR confirmation and "To'lash" may both answer with the paid bill
+    if (_finished) return;
     final ReceiptPrinter printer = ReceiptPrinter.of(context);
     if (r.bill.fiscal.status == 'issued') {
+      _finished = true;
       await printSale(context, r.bill, widget.order, openDrawer: openDrawer);
       if (!mounted) return;
       Navigator.pop(
@@ -572,6 +621,7 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
     if (r.bill.fiscal.status == 'offline') {
+      _finished = true;
       // P3-31: the money is taken offline; the sale receipt is registered and printed once the till is back online
       if (openDrawer) printer.openDrawer();
       showPosMessage(
@@ -598,6 +648,7 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
     // Pul olindi, chek kutilmoqda
+    _finished = true;
     if (openDrawer) printer.openDrawer();
     setState(() => _pending = r);
   }
@@ -665,7 +716,11 @@ class _PaymentPageState extends State<PaymentPage> {
           widget.billsCount > 1 ? "To'lov · ${_bill.number}-schyot" : "To'lov",
         ),
       ),
-      body: _pending != null ? _fiscalWaiting(c) : _form(c),
+      // Review P6 wave 4 (C3): the page follows the till going offline and back (the QR panel's state)
+      body: OfflineStatusBuilder(
+        builder: (BuildContext context, _) =>
+            _pending != null ? _fiscalWaiting(c) : _form(c),
+      ),
     );
   }
 
@@ -875,7 +930,11 @@ class _PaymentPageState extends State<PaymentPage> {
     final bool limited = limitedMode(context);
     if (limited && _tab != PosTender.cash && _tab != PosTender.card) {
       _tab = PosTender.cash;
+      // The form follows (a QR tab open when the network went must not send a QR tender offline)
+      _draft = TenderDraft(amount: _remaining);
+      _formError = null;
     }
+    final bool qrOffline = limited && _waitingQr != null;
     return PosCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -904,16 +963,18 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
           ],
           const SizedBox(height: 16),
-          // P6-41: a QR waiting for the customer stays alive (polling, events) while another tab is open
-          if (_dynamicQr && (_tab == PosTender.qr || _qrActive))
+          // P6-41: a QR waiting for the customer stays alive (polling, events) while another tab is open; review P6
+          // wave 4 (C3): offline it stays in sight — the provider may still confirm it
+          if (_dynamicQr && (_tab == PosTender.qr || _qrActive) || qrOffline)
             Offstage(
-              offstage: _tab != PosTender.qr,
+              offstage: !qrOffline && _tab != PosTender.qr,
               child: QrPaymentPanel(
                 key: _qrPanel,
                 bill: _bill,
                 amount: _remaining,
                 order: widget.order,
                 billsCount: widget.billsCount,
+                offline: limited,
                 onPaid: (PosBillResult r) => unawaited(_onQrPaid(r)),
                 onManual: () => setState(() {
                   _manualQr = true;

@@ -51,6 +51,7 @@ class Data256 {
     required this.discountValue,
     required this.items,
     required this.discountBy,
+    required this.promoNote,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.roomFeeAmount,
@@ -121,6 +122,8 @@ class Data256 {
   final String? discountReason;
   @JsonKey(name: 'discount_by')
   final int? discountBy;
+  @JsonKey(name: 'promo_note')
+  final String? promoNote;
   @JsonKey(name: 'service_charge_amount')
   final String serviceChargeAmount;
   @JsonKey(name: 'place_fee_amount')

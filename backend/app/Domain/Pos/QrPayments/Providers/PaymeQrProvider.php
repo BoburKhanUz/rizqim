@@ -23,6 +23,8 @@ use Illuminate\Support\Facades\Log;
  * metody-subscribe-api/receipts.cancel) with the Merchant API transaction id, which is the Payme receipt id (an
  * assumption to confirm with Payme when the first store connects). Payme then calls CancelTransaction for the
  * performed transaction, which the webhook accepts only while this refund asks for it. The whole payment only.
+ * Review P6W4 C2: no answer (a timeout, a connection error, a 5xx) is `unknown`; the status is asked with
+ * `receipts.check` (state 50: cancelled, i.e. reversed; 4: still paid).
  */
 final class PaymeQrProvider implements QrPaymentProvider
 {
@@ -81,9 +83,15 @@ final class PaymeQrProvider implements QrPaymentProvider
                     'params' => ['id' => $qr->provider_transaction_id],
                 ]);
         } catch (\Throwable $e) {
-            Log::warning('Payme receipts.cancel failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+            // Sent, maybe done: only receipts.check (or Payme's CancelTransaction callback) says (review P6W4 C2)
+            Log::warning('Payme receipts.cancel not answered: ' . $e->getMessage(), ['qr' => $qr->uuid]);
 
-            return QrRefundResult::failed("Payme bilan aloqa bo'lmadi");
+            return QrRefundResult::unknown("Payme javob bermadi");
+        }
+        if ($response->serverError()) {
+            Log::warning('Payme receipts.cancel answered ' . $response->status(), ['qr' => $qr->uuid]);
+
+            return QrRefundResult::unknown("Payme javob bermadi");
         }
 
         $error = $response->json('error');
@@ -100,6 +108,41 @@ final class PaymeQrProvider implements QrPaymentProvider
         }
 
         return QrRefundResult::failed(is_string($message) && $message !== '' ? "Payme rad etdi: {$message}" : 'Payme rad etdi');
+    }
+
+    public function refundStatus(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult
+    {
+        $merchant = StoreMerchant::credential($store, 'payme', 'merchant_id');
+        $key = StoreMerchant::credential($store, 'payme', 'secret_key');
+        if ($merchant === null || $key === null || $qr->provider_transaction_id === null) {
+            return QrRefundResult::unknown("Payme kassa sozlamalari yoki tranzaksiya raqami yo'q");
+        }
+
+        try {
+            $response = Http::connectTimeout(5)->timeout(20)->acceptJson()->asJson()
+                ->withHeaders(['X-Auth' => "{$merchant}:{$key}"])
+                ->post((string) config('qr_payments.payme.api_url'), [
+                    'id' => $refundUuid,
+                    'method' => 'receipts.check',
+                    'params' => ['id' => $qr->provider_transaction_id],
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('Payme receipts.check not answered: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+
+            return QrRefundResult::unknown("Payme javob bermadi");
+        }
+
+        $state = $response->json('result.state');
+        if ($response->successful() && is_numeric($state)) {
+            if ((int) $state === 50) {
+                return QrRefundResult::done($qr->provider_transaction_id);
+            }
+            if ((int) $state === 4) {
+                return QrRefundResult::failed("Payme to'lovni qaytarmagan");
+            }
+        }
+
+        return QrRefundResult::unknown("Payme holatni aytmadi");
     }
 
     public function simulated(): bool

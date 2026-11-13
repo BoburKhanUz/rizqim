@@ -167,8 +167,10 @@ BACKEND_ENV=(
   TELEGRAM_ALLOW_MOCK_AUTH=false
   E2E_POS_SEED_FILE="$RUN/seed.json"
   # P6-49: the till's Click/Payme QR through the stores' own merchant settings and the real webhooks (never the sandbox
-  # provider), the sandbox UzQR confirmed by its simulate endpoint, a Click reversal answered by the test's fake
-  QR_PAYMENTS_SANDBOX=false QR_PAYMENTS_SIMULATE=true CLICK_MERCHANT_API_URL="http://127.0.0.1:$CLICK_API_PORT/v2/merchant"
+  # provider), the sandbox UzQR confirmed by its simulate endpoint, a Click reversal answered by the test's fake.
+  # With the sandbox off, the UzQR sandbox gateway and simulate-paid exist only for the providers named here
+  QR_PAYMENTS_SANDBOX=false QR_PAYMENTS_SIMULATE=true QR_PAYMENTS_SIMULATE_DRIVERS=uzqr
+  CLICK_MERCHANT_API_URL="http://127.0.0.1:$CLICK_API_PORT/v2/merchant"
   # The cook's polls, the waiters' and the till's calls arrive together: more than one PHP worker (php artisan serve
   # honours it only with --no-reload, below)
   PHP_CLI_SERVER_WORKERS=6

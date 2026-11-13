@@ -39,13 +39,18 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * Members: customer_accounts.manage (setup: the corporate_accounts module). Lookup: customer_accounts.manage or
  * pos.take_payment. Statement and its Excel file: reports.view. Another store's account or member: 404; a
  * branch's account only in that branch, as for nasiya.
+ *
+ * Review S1/S2: the statement and its Excel file show talon codes (CorporateAccounts::maskCode), the INN and the contact
+ * phone masked unless the caller may manage the account (customer_accounts.manage); a branch-bound reader of a
+ * store-wide account gets the statement of their branch's entries only (`branch_id`). Review S5: a lookup by phone gives
+ * the talon code masked.
  */
 #[Group('POS: corporate accounts', "Korxona hisobi: xodimlar (talon), kunlik limit va abonement, kassada qidirish, oylik hisobot va Excel (P6-44).")]
 class CorporateAccountController extends MenuStaffController
 {
     public const MEMBER = 'array{uuid: string, name: string, phone: string|null, code: string, daily_limit: string|null, meals_per_day: int|null, is_active: bool, note: string|null, created_at: string|null, updated_at: string|null}';
 
-    public const STATEMENT = 'array{account: array{uuid: string, name: string, company_name: string|null, inn: string|null, contact_name: string|null, contact_phone: string|null, invoice_email: string|null, talon_mode: \App\Domain\Pos\Accounts\TalonMode}, month: string, from: string, to: string, days: list<string>, rows: list<array{member: array{uuid: string, name: string, code: string, is_active: bool}|null, cells: list<array{date: string, amount: string, meals: int}>, amount: string, meals: int}>, day_totals: list<array{date: string, amount: string, meals: int}>, total: string, meals: int, repaid_total: string, monthly_limit: string|null, balance: string}';
+    public const STATEMENT = 'array{account: array{uuid: string, name: string, company_name: string|null, inn: string|null, contact_name: string|null, contact_phone: string|null, invoice_email: string|null, talon_mode: \App\Domain\Pos\Accounts\TalonMode}, month: string, from: string, to: string, days: list<string>, rows: list<array{member: array{uuid: string, name: string, code: string, is_active: bool}|null, cells: list<array{date: string, amount: string, meals: int}>, amount: string, meals: int}>, day_totals: list<array{date: string, amount: string, meals: int}>, total: string, meals: int, repaid_total: string, monthly_limit: string|null, balance: string, branch_id: int|null, masked: bool}';
 
     private const MAX_BULK = 500;
 
@@ -277,8 +282,9 @@ class CorporateAccountController extends MenuStaffController
      *
      * By the talon's `code` (scanned or typed) or the member's `phone`: the member, their company's account and what
      * is left today (the branch's business day) and this month, for the cashier to see before charging. A member of
-     * another store, or of an account of another branch: 404 `member_not_found`. Needs customer_accounts.manage or
-     * pos.take_payment.
+     * another store, or of an account of another branch: 404 `member_not_found`. Found by `phone`, the talon `code` comes
+     * masked (the charge by phone needs no code). Not gated by the corporate_accounts module: an existing account is
+     * still charged at the till when the module is off. Needs customer_accounts.manage or pos.take_payment.
      */
     #[QueryParameter('code', 'The talon code (QR or badge).', type: 'string')]
     #[QueryParameter('phone', "The member's phone, when there is no talon.", type: 'string')]
@@ -315,7 +321,8 @@ class CorporateAccountController extends MenuStaffController
                 'name' => (string) $member->name,
                 // The till shows the phone masked (PII)
                 'phone' => PiiMask::phone($member->phone),
-                'code' => (string) $member->code,
+                // Review S5: the talon itself only to whoever showed it
+                'code' => CorporateAccounts::normalizeCode($request->input('code')) !== null ? (string) $member->code : CorporateAccounts::maskCode((string) $member->code),
                 'daily_limit' => $member->daily_limit,
                 'meals_per_day' => $member->meals_per_day !== null ? (int) $member->meals_per_day : null,
                 'is_active' => (bool) $member->is_active,
@@ -329,15 +336,18 @@ class CorporateAccountController extends MenuStaffController
      *
      * `month` (YYYY-MM; default: this month in the store's time zone): what each member ate on each business day
      * (net of refunds; `meals` = bills), charges without a member in a row of their own (`member` null), the totals by
-     * day and in all, the repayments received in the month and the debt now. Needs reports.view.
+     * day and in all, the repayments received in the month and the debt now (below zero: the company's overpayment,
+     * "Ortiqcha to'lov"). Talon codes, the INN and the contact phone are masked (`masked: true`) unless the caller holds
+     * customer_accounts.manage for the account. A branch-bound reader of a store-wide account sees only their branch's
+     * charges and repayments (`branch_id`: that branch; null: all). Needs reports.view.
      */
     #[QueryParameter('month', 'YYYY-MM; default: the current month.', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::STATEMENT . '}')]
     public function statement(Request $request, string $uuid): JsonResponse
     {
-        [$account, $month] = $this->statementOf($request, $uuid);
+        [$account, $month, $branchId, $full] = $this->statementOf($request, $uuid);
 
-        return $this->success(['account' => self::accountHead($account)] + app(CorporateAccounts::class)->statement($account, $month));
+        return $this->success(['account' => self::accountHead($account, $full)] + self::masked(app(CorporateAccounts::class)->statement($account, $month, $branchId), $full));
     }
 
     /**
@@ -345,14 +355,14 @@ class CorporateAccountController extends MenuStaffController
      *
      * The statement of GET .../corporate-statement as an .xlsx file: sheet "Hisobot" (a member per row, a business day
      * per column, the totals), sheet "Hisob-faktura" (the company, the month, the totals, the debt) — openspout, texts
-     * as text. Audited (customer_account.statement_exported). Needs reports.view.
+     * as text; masked and scoped as the statement. Audited (customer_account.statement_exported). Needs reports.view.
      */
     #[QueryParameter('month', 'YYYY-MM; default: the current month.', type: 'string')]
     #[ApiDocResponse(200, 'An .xlsx file: sheets "Hisobot" and "Hisob-faktura"', type: 'string')]
     public function export(Request $request, string $uuid): BinaryFileResponse
     {
-        [$account, $month] = $this->statementOf($request, $uuid);
-        $statement = app(CorporateAccounts::class)->statement($account, $month);
+        [$account, $month, $branchId, $full] = $this->statementOf($request, $uuid);
+        $statement = self::masked(app(CorporateAccounts::class)->statement($account, $month, $branchId), $full);
 
         $path = tempnam(sys_get_temp_dir(), 'rizqim-corporate-');
         if ($path === false) {
@@ -360,14 +370,14 @@ class CorporateAccountController extends MenuStaffController
         }
 
         try {
-            self::write($path, $account, $statement);
+            self::write($path, $account, $statement, $full);
         } catch (\Throwable $e) {
             @unlink($path);
 
             throw $e;
         }
 
-        $this->audit->record('customer_account.statement_exported', $account, [], [], ['month' => $month, 'rows' => count($statement['rows'])], ['actor' => $request->user()]);
+        $this->audit->record('customer_account.statement_exported', $account, [], [], array_filter(['month' => $month, 'rows' => count($statement['rows']), 'branch_id' => $branchId, 'masked' => !$full]), ['actor' => $request->user()]);
         $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower((string) \Illuminate\Support\Str::ascii((string) $account->name))), '-');
 
         return response()->download($path, 'korxona-' . ($slug !== '' ? $slug : 'hisob') . "-{$month}.xlsx", [
@@ -379,7 +389,7 @@ class CorporateAccountController extends MenuStaffController
     /**
      * @param  array<string, mixed>  $statement
      */
-    private static function write(string $path, CustomerAccount $account, array $statement): void
+    private static function write(string $path, CustomerAccount $account, array $statement, bool $full): void
     {
         $bold = (new Style())->setFontBold();
         $writer = new Writer();
@@ -418,12 +428,13 @@ class CorporateAccountController extends MenuStaffController
         foreach ([
             ['Hisob', (string) $account->name],
             ['Korxona', (string) ($account->company_name ?? '')],
-            ['STIR', (string) ($account->inn ?? '')],
+            ['STIR', (string) (($full ? $account->inn : CustomerAccountController::maskInn($account->inn)) ?? '')],
             ['Mas\'ul shaxs', (string) ($account->contact_name ?? '')],
-            ['Telefon', (string) (PiiMask::formatPhone($account->contact_phone) ?? '')],
+            ['Telefon', (string) (($full ? PiiMask::formatPhone($account->contact_phone) : PiiMask::phone($account->contact_phone)) ?? '')],
             ['Hisob-faktura uchun e-pochta', (string) ($account->invoice_email ?? '')],
             ['Oy', (string) $statement['month']],
             ['Davr', $statement['from'] . ' — ' . $statement['to']],
+            ...($statement['branch_id'] !== null ? [['Filial', (string) (\App\Models\Branch::whereKey($statement['branch_id'])->value('name') ?? '')]] : []),
         ] as $pair) {
             $writer->addRow(XlsxExporter::row($pair));
         }
@@ -432,36 +443,78 @@ class CorporateAccountController extends MenuStaffController
         $writer->addRow(XlsxExporter::row(['Ovqatlar soni', (int) $statement['meals']]));
         $writer->addRow(XlsxExporter::row(['Oy davomida to\'langan (so\'m)', Money::of($statement['repaid_total'])->toFloat()]));
         $writer->addRow(XlsxExporter::row(['Oylik limit (so\'m)', $statement['monthly_limit'] !== null ? Money::of($statement['monthly_limit'])->toFloat() : 'Cheksiz']));
-        $writer->addRow(XlsxExporter::row(['Hozirgi qarz (so\'m)', Money::of($statement['balance'])->toFloat()], $bold));
+        // Review C7: a refund after the invoice was paid leaves the company's credit
+        $balance = Money::of($statement['balance']);
+        $writer->addRow(XlsxExporter::row($balance->isNegative() ? ['Ortiqcha to\'lov (so\'m)', $balance->abs()->toFloat()] : ['Hozirgi qarz (so\'m)', $balance->toFloat()], $bold));
         $writer->close();
     }
 
     /**
-     * @return array{0: CustomerAccount, 1: string}
+     * The account, the month, the branch whose entries alone count (a branch-bound reader of a store-wide account;
+     * null: all) and whether the caller sees codes and details in full (customer_accounts.manage for the account).
+     *
+     * @return array{0: CustomerAccount, 1: string, 2: int|null, 3: bool}
      */
     private function statementOf(Request $request, string $uuid): array
     {
         $request->validate(['month' => 'nullable|date_format:Y-m'], UzValidation::messages());
-        $account = $this->corporate($request, $uuid, Permission::REPORTS_VIEW);
+        $user = $request->user();
+        $acting = $this->permissions->actingBranchId($user);
+        $account = $this->visible($request)->where('uuid', $uuid)->first();
+        if ($account === null) {
+            throw new HttpResponseException($this->error('Hisob topilmadi.', [], 404));
+        }
+        $branchId = null;
+        if ($account->branch_id === null && $acting !== null && $acting !== PermissionService::NO_BRANCH && $user->role !== \App\Enums\UserRole::SUPER_ADMIN) {
+            // A store-wide account read from one branch: allowed, with that branch's entries only
+            if (!$this->permissions->has($user, Permission::REPORTS_VIEW)) {
+                throw new HttpResponseException($this->error('Ruxsat etilmagan', [], 403));
+            }
+            $branchId = (int) $acting;
+        } else {
+            $this->authorizeFor($request, Permission::REPORTS_VIEW, $account);
+        }
+        if (!$account->isCorporate()) {
+            throw new HttpResponseException($this->error('Bu nasiya hisobi: xodimlar va oylik hisobot faqat korxona hisobida.', ['reason' => 'account_not_corporate'], 422));
+        }
         $month = $request->filled('month')
             ? (string) $request->input('month')
             : Carbon::now(StoreTimezone::of(Store::find($account->store_id)))->format('Y-m');
 
-        return [$account, $month];
+        return [$account, $month, $branchId, $this->permissions->allows($user, Permission::CUSTOMER_ACCOUNTS_MANAGE, $account)];
+    }
+
+    /**
+     * The statement with its talon codes masked unless `full` (review S1).
+     *
+     * @param  array<string, mixed>  $statement
+     * @return array<string, mixed>
+     */
+    private static function masked(array $statement, bool $full): array
+    {
+        if (!$full) {
+            foreach ($statement['rows'] as $index => $row) {
+                if ($row['member'] !== null) {
+                    $statement['rows'][$index]['member']['code'] = CorporateAccounts::maskCode((string) $row['member']['code']);
+                }
+            }
+        }
+
+        return $statement + ['masked' => !$full];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function accountHead(CustomerAccount $account): array
+    private static function accountHead(CustomerAccount $account, bool $full): array
     {
         return [
             'uuid' => (string) $account->uuid,
             'name' => (string) $account->name,
             'company_name' => $account->company_name,
-            'inn' => $account->inn,
+            'inn' => $full ? $account->inn : CustomerAccountController::maskInn($account->inn),
             'contact_name' => $account->contact_name,
-            'contact_phone' => $account->contact_phone,
+            'contact_phone' => $full ? $account->contact_phone : PiiMask::phone($account->contact_phone),
             'invoice_email' => $account->invoice_email,
             'talon_mode' => $account->talon_mode->value,
         ];

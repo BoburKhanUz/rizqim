@@ -30,6 +30,7 @@ class QrPaymentPanel extends StatefulWidget {
     this.order,
     this.billsCount = 1,
     this.onActive,
+    this.offline = false,
   });
 
   final PosBill bill;
@@ -47,6 +48,10 @@ class QrPaymentPanel extends StatefulWidget {
 
   /// Kutilayotgan QR bor/yo'q (to'lov sahifasi "To'lash" ni shunga qarab tushuntiradi).
   final ValueChanged<bool>? onActive;
+
+  /// Review P6 wave 4 (C3): kassa internetsiz rejimda — kutilayotgan QR ko'rinib turadi ("Aloqa yo'q — to'lov tizimi
+  /// hali tasdiqlashi mumkin"), yangi QR va bekor qilish yo'q; aloqa qaytgach holat qayta o'qiladi.
+  final bool offline;
 
   @override
   State<QrPaymentPanel> createState() => _QrPaymentPanelState();
@@ -99,6 +104,8 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
     if (old.amount != widget.amount && !_pending) {
       _amount.text = moneyText(widget.amount);
     }
+    // Back online: what the provider did meanwhile
+    if (old.offline && !widget.offline) unawaited(_refresh());
   }
 
   @override
@@ -114,6 +121,13 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
 
   /// The bill already has a pending QR (the payment page was closed and opened again): it is shown, not a new one.
   Future<void> _restore() async {
+    final PosQrPayment? known = _scope.services.qrGuard?.pendingFor(
+      widget.bill.uuid,
+    );
+    if (widget.offline) {
+      if (known != null) _show(known);
+      return;
+    }
     try {
       final List<PosQrPayment> list = await _scope.data.qr.forBill(
         widget.bill.uuid,
@@ -136,6 +150,7 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
   }
 
   void _show(PosQrPayment qr) {
+    _scope.services.qrGuard?.note(widget.bill.uuid, qr);
     setState(() {
       _qr = qr;
       _error = null;
@@ -169,6 +184,7 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
 
   void _apply(PosQrPayment next) {
     final PosQrStatus before = _qr?.status ?? PosQrStatus.unknown;
+    _scope.services.qrGuard?.note(widget.bill.uuid, next);
     setState(() => _qr = next);
     if (next.status == PosQrStatus.pending) return;
     _poll?.cancel();
@@ -218,15 +234,21 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
   }
 
   Future<void> _create() async {
-    final PosMoney amount = _requested;
+    final PosQrPayment? old = _qr;
+    if (old != null && old.held && old.status == PosQrStatus.pending) return;
+    // Review P6 wave 4 (C11): "Yangi QR" over a waiting one asks for what is due now (parts may have been added
+    // meanwhile), never more than the QR it replaces
+    final bool renew = old != null && old.status == PosQrStatus.pending;
+    final PosMoney amount = renew
+        ? (old.amount < widget.amount ? old.amount : widget.amount)
+        : _requested;
+    if (renew) _amount.text = moneyText(amount);
     if (amount > widget.amount) {
       setState(
         () => _error = "Summa qoldiqdan ko'p: ${widget.amount.format()}.",
       );
       return;
     }
-    final PosQrPayment? old = _qr;
-    if (old != null && old.held && old.status == PosQrStatus.pending) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -531,7 +553,9 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  qr.held
+                  widget.offline
+                      ? "Aloqa yo'q — to'lov tizimi hali tasdiqlashi mumkin"
+                      : qr.held
                       ? "Mijoz to'lamoqda (provayder tasdiqlashini kuting)"
                       : "Mijoz to'lashini kutmoqda · ${_left(qr)}",
                   key: const ValueKey<String>('qr-status'),
@@ -543,7 +567,11 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
           ),
           const SizedBox(height: 4),
           Text(
-            "To'langach chek o'zi chiqadi.",
+            widget.offline
+                ? "Internet tiklangach kassa QR holatini o'zi tekshiradi. Naqd yoki karta olishdan oldin mijoz QR orqali "
+                      "to'lamaganiga ishonch hosil qiling."
+                : "To'langach chek o'zi chiqadi.",
+            key: const ValueKey<String>('qr-note'),
             textAlign: TextAlign.center,
             style: RzType.footnote.copyWith(color: c.fgMuted),
           ),
@@ -560,20 +588,22 @@ class _QrPaymentPanelState extends State<QrPaymentPanel> {
                 variant: RzButtonVariant.secondary,
                 onPressed: _busy ? null : _printOnBill,
               ),
-              RzButton(
-                key: const ValueKey<String>('qr-renew'),
-                label: 'Yangi QR',
-                icon: Icons.refresh_rounded,
-                variant: RzButtonVariant.secondary,
-                onPressed: _busy || qr.held ? null : _create,
-              ),
-              RzButton(
-                key: const ValueKey<String>('qr-cancel'),
-                label: 'Bekor qilish',
-                icon: Icons.close_rounded,
-                variant: RzButtonVariant.ghost,
-                onPressed: _busy || qr.held ? null : _cancel,
-              ),
+              if (!widget.offline) ...<Widget>[
+                RzButton(
+                  key: const ValueKey<String>('qr-renew'),
+                  label: 'Yangi QR',
+                  icon: Icons.refresh_rounded,
+                  variant: RzButtonVariant.secondary,
+                  onPressed: _busy || qr.held ? null : _create,
+                ),
+                RzButton(
+                  key: const ValueKey<String>('qr-cancel'),
+                  label: 'Bekor qilish',
+                  icon: Icons.close_rounded,
+                  variant: RzButtonVariant.ghost,
+                  onPressed: _busy || qr.held ? null : _cancel,
+                ),
+              ],
             ],
           ),
         ],

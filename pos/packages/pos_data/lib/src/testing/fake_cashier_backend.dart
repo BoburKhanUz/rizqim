@@ -1523,6 +1523,18 @@ class FakeCashierBackend {
                 },
               });
             }
+            if (qrRefundUnknown) {
+              // Review P6 wave 4 (C2): the provider did not answer — the attempt is `unknown`, a retry asks its status
+              return const FakeResponse(409, <String, Object?>{
+                'success': false,
+                'message':
+                    "To'lov tizimi javob bermadi — holat tekshirilmoqda.",
+                'data': <String, Object?>{
+                  'reason': 'qr_refund_unknown',
+                  'state': 'qr_refund_unknown',
+                },
+              });
+            }
             if (qrRefundFails) {
               return FakeResponse(409, <String, Object?>{
                 'success': false,
@@ -1811,7 +1823,7 @@ class FakeCashierBackend {
   }
 
   /// P3-35 (`CustomerAccountLedger::reverse`): the bill's nasiya part off the customer's debt (an adjustment); never
-  /// more than the bill was charged (409 `reverse_exceeds_charge`) nor than the debt left (409 `more_than_debt`).
+  /// more than the bill was charged (409 `reverse_exceeds_charge`); the debt may go below zero (review P6 wave 4, C7).
   FakeResponse? _reverseCharge(
     Map<String, Object?> payment,
     Map<String, Object?> bill,
@@ -1854,17 +1866,8 @@ class FakeCashierBackend {
         },
       });
     }
-    if (amount > _t(account['balance'])) {
-      return FakeResponse(409, <String, Object?>{
-        'success': false,
-        'message':
-            "Mijoz qarzining bir qismini to'lagan: qolgan qarz ${account['balance']} so'm. Farqni menejer qo'lda hal qilsin.",
-        'data': <String, Object?>{
-          'reason': 'more_than_debt',
-          'balance': account['balance'],
-        },
-      });
-    }
+    // Review P6 wave 4 (C7): never refused because the debt was repaid already — the balance may go below zero (the
+    // customer's credit, "Ortiqcha to'lov")
     _entry(
       account,
       'adjustment',
@@ -3968,7 +3971,7 @@ class FakeCashierBackend {
 
   // --- tayyor ma'lumotlar ----------------------------------------------------------------------------------------------
 
-  /// Nasiya hisobi ([debt] — qarz).
+  /// Nasiya hisobi ([debt] — qarz; manfiy — ortiqcha to'lov).
   String seedAccount({
     required String name,
     String? phone,
@@ -3994,6 +3997,8 @@ class FakeCashierBackend {
     accounts[uuid] = a;
     _available(a);
     if (_t(debt) > 0) _entry(a, 'charge', _t(debt));
+    // Below zero: the customer's credit after a refund (review P6 wave 4, C7)
+    if (_t(debt) < 0) _entry(a, 'adjustment', _t(debt));
     return uuid;
   }
 
@@ -4159,6 +4164,9 @@ class FakeCashierBackend {
 
   /// P6-41: provayder QR to'lovini qaytarmaydi (409 `qr_refund_failed`).
   bool qrRefundFails = false;
+
+  /// Review P6 wave 4: provayder javob bermadi (409 `qr_refund_unknown`); qayta urinish holatni so'raydi.
+  bool qrRefundUnknown = false;
 
   /// P6-43: sotilgan sertifikatlar (X/Z uchun): `shift_uuid`, `tender`, `amount`, `code`.
   final List<Map<String, Object?>> voucherSales = <Map<String, Object?>>[];
@@ -4735,10 +4743,10 @@ class FakeCashierBackend {
     };
   }
 
+  /// Review P6 wave 4: not gated by the corporate_accounts module (S4: an existing account is charged at the till with
+  /// the module off); found by phone, the talon code comes masked (S5, CorporateAccounts::maskCode).
   FakeResponse _memberLookup(FakeRequest r) {
-    if (_moduleOff('corporate_accounts')) {
-      return _moduleDisabled('corporate_accounts');
-    }
+    final bool byCode = (r.query['code'] ?? '').trim().isNotEmpty;
     final Map<String, Object?>? member = _memberBy(
       code: r.query['code'],
       phone: r.query['phone'],
@@ -4746,7 +4754,21 @@ class FakeCashierBackend {
     if (member == null) {
       return _refusal(404, 'member_not_found', 'Xodim topilmadi.');
     }
-    return _ok(_lookupOf(member));
+    final Map<String, Object?> found = _lookupOf(member);
+    if (!byCode) {
+      (found['member']! as Map<String, Object?>)['code'] = maskTalon(
+        '${member['code']}',
+      );
+    }
+    return _ok(found);
+  }
+
+  /// CorporateAccounts::maskCode: the first and last characters (two each from eight, one each from five), the rest
+  /// stars.
+  static String maskTalon(String code) {
+    final int keep = code.length >= 8 ? 2 : (code.length >= 5 ? 1 : 0);
+    if (keep == 0) return '*' * code.length;
+    return '${code.substring(0, keep)}${'*' * (code.length - 2 * keep)}${code.substring(code.length - keep)}';
   }
 
   FakeResponse _membersOf(String accountUuid, bool manage) {

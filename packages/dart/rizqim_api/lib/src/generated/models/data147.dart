@@ -59,7 +59,7 @@ class Data147 {
   final String? note;
   final Fiscal6 fiscal;
   final Blocked4? blocked;
-  final Print3 print;
+  final Print3? print;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

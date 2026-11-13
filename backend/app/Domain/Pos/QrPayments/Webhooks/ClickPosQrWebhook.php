@@ -22,7 +22,8 @@ use Illuminate\Http\Request;
  *    expired, cancelled or the bill changed: -9 (Click does not take the money).
  *  - Complete (action 1): the bill takes the `qr` payment (QrPaymentService::confirm; its sale receipt is Rizqim's).
  *    A repeat of the same click_trans_id: the same success (`Already confirmed`); a confirmation the bill cannot
- *    take: -9 — on a Complete error Click cancels the payment and returns the money to the customer.
+ *    take: -9 — on a Complete error Click cancels the payment and returns the money to the customer. A Complete
+ *    carrying `error` < 0 (Click gave the payment up) releases the hold: pending again in time, else expired.
  *  - Never queues SubmitClickFiscalData: Rizqim issues the receipt, Click must not register another (POS_SPEC §4).
  */
 final class ClickPosQrWebhook
@@ -53,6 +54,11 @@ final class ClickPosQrWebhook
         }
 
         if ((int) $request->input('error') < 0) {
+            // Review P6W4 C10: Click gave the payment up (Complete with an error): the request is not held any more
+            if ($action === '1') {
+                $this->service->release($qr, $clickTransId);
+            }
+
             return $this->error(-9, 'Transaction error');
         }
         if (!is_numeric($amount) || !Money::of($amount)->equals($qr->amount)) {

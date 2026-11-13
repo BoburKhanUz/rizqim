@@ -108,6 +108,9 @@ export const corporate = defineSection({
     corp_st_empty: "Bu oyda korxona hisobiga yozilgan tushlik yo'q.",
     corp_st_byDay: "Kunlar bo'yicha (biznes kun)",
     corp_st_forbidden: 'Oylik hisobotni ko\'rish uchun "Hisobotlar" ruxsati kerak.',
+    corp_overpaid: "Ortiqcha to'lov",
+    corp_st_branchOnly: "Bu hisob butun do'konniki: hisobotda faqat sizning filialingizdagi yozuvlar.",
+    corp_st_masked: "Talon kodlari, STIR va telefon yashirilgan: ularni ko'rish uchun \"Nasiya hisoblari\" ruxsati kerak.",
   },
   ru: {
     corp_kindFilter: 'Тип счёта',
@@ -213,6 +216,9 @@ export const corporate = defineSection({
     corp_st_empty: 'В этом месяце на счёт предприятия ничего не записано.',
     corp_st_byDay: 'По дням (рабочий день)',
     corp_st_forbidden: 'Для месячного отчёта нужно право «Отчёты».',
+    corp_overpaid: 'Переплата',
+    corp_st_branchOnly: 'Счёт общий для магазина: в отчёте только записи вашего филиала.',
+    corp_st_masked: 'Коды талонов, ИНН и телефон скрыты: нужно право «Счета насия».',
   },
   en: {
     corp_kindFilter: 'Account type',
@@ -318,5 +324,8 @@ export const corporate = defineSection({
     corp_st_empty: 'Nothing was put on the company account this month.',
     corp_st_byDay: 'By day (business day)',
     corp_st_forbidden: 'The monthly statement needs the "Reports" permission.',
+    corp_overpaid: 'Overpaid',
+    corp_st_branchOnly: 'A store-wide account: the statement shows only your branch\'s entries.',
+    corp_st_masked: 'Talon codes, the INN and the phone are hidden: they need the "Customer accounts" permission.',
   },
 });

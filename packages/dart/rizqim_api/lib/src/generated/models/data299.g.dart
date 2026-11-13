@@ -27,7 +27,9 @@ Data299 _$Data299FromJson(Map<String, dynamic> json) => Data299(
   blocked: json['blocked'] == null
       ? null
       : Blocked6.fromJson(json['blocked'] as Map<String, dynamic>),
-  print: Print5.fromJson(json['print'] as Map<String, dynamic>),
+  print: json['print'] == null
+      ? null
+      : Print5.fromJson(json['print'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 

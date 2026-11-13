@@ -53,6 +53,11 @@ final class SandboxQrProvider implements QrPaymentProvider
         return QrRefundResult::done('sandbox-refund-' . $refundUuid);
     }
 
+    public function refundStatus(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult
+    {
+        return QrRefundResult::done('sandbox-refund-' . $refundUuid);
+    }
+
     public function simulated(): bool
     {
         return true;

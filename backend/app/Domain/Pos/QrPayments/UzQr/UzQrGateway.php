@@ -30,4 +30,7 @@ interface UzQrGateway
     public function supportsPartialRefund(): bool;
 
     public function refund(string $id, Money $amount, Store $store): QrRefundResult;
+
+    /** Review P6W4 C2: whether an earlier refund of $amount went through (done / failed: it did not / unknown). */
+    public function refundStatus(string $id, Money $amount, Store $store): QrRefundResult;
 }

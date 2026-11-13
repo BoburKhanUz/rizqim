@@ -70,6 +70,15 @@ final class UzQrProvider implements QrPaymentProvider
         return $this->gateway->refund($qr->gateway_reference, $amount, $store);
     }
 
+    public function refundStatus(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult
+    {
+        if ($this->gateway === null || $qr->gateway_reference === null) {
+            return QrRefundResult::unknown("UzQR shlyuzi sozlanmagan");
+        }
+
+        return $this->gateway->refundStatus($qr->gateway_reference, $amount, $store);
+    }
+
     public function simulated(): bool
     {
         return $this->gatewayName === 'sandbox';

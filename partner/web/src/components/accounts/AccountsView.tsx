@@ -169,7 +169,14 @@ export function AccountsView() {
                         {account.phone ?? '—'}
                       </Td>
                       <Td numeric className={cx('whitespace-nowrap font-bold', owes && 'text-danger-soft-fg')}>
-                        {money(account.balance)}
+                        {Number(account.balance) < 0 ? (
+                          <>
+                            {money(account.balance.replace(/^-/, ''))}
+                            <span className="block text-footnote font-normal text-fg-muted">{t('corp_overpaid')}</span>
+                          </>
+                        ) : (
+                          money(account.balance)
+                        )}
                       </Td>
                       <Td numeric className="whitespace-nowrap">
                         {limitText(account, money, t)}

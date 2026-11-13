@@ -18,6 +18,10 @@ class CorporateTenderController extends ChangeNotifier {
   bool busy = false;
   String? error;
 
+  /// The phone the member was found by (review P6 wave 4, S5: then the lookup gives the talon code masked and the
+  /// charge goes by the phone); `null` — found by the talon code.
+  String? foundByPhone;
+
   /// Telefon raqamimi (9+ raqam, harfsiz) — aks holda talon kodi.
   static bool _isPhone(String q) {
     final String digits = q.replaceAll(RegExp(r'\D'), '');
@@ -36,10 +40,12 @@ class CorporateTenderController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final PosCorporateLookup r = _isPhone(q)
+      final bool phone = _isPhone(q);
+      final PosCorporateLookup r = phone
           ? await data.accounts.lookupMember(phone: q)
           : await data.accounts.lookupMember(code: q);
       found = r;
+      foundByPhone = phone ? q : null;
       PosMoney a = due;
       for (final PosMoney? cap in <PosMoney?>[
         r.dailyAvailable,
@@ -52,6 +58,7 @@ class CorporateTenderController extends ChangeNotifier {
       error = refusalOf(r, a);
     } on PosException catch (e) {
       found = null;
+      foundByPhone = null;
       error = paymentRefusalText(e) ?? e.message;
     } finally {
       busy = false;
@@ -103,6 +110,7 @@ class CorporateTenderController extends ChangeNotifier {
 
   void clear() {
     found = null;
+    foundByPhone = null;
     error = null;
     query.clear();
     amount.clear();
@@ -335,7 +343,9 @@ class CorporateTenderForm extends StatelessWidget {
     input: PosTenderInput.account(
       amount,
       accountUuid: f.accountUuid,
-      memberCode: f.code,
+      // Found by phone the code is masked: the server finds the member by the same phone
+      memberCode: ctl.foundByPhone == null ? f.code : null,
+      memberPhone: ctl.foundByPhone,
     ),
     label: 'Korxona · ${f.companyName ?? f.accountName} · ${f.memberName}',
     error: null,

@@ -15,6 +15,9 @@ Kerak: PHP 8.3 (`pdo_pgsql`), `backend/` da `composer install`, ildizda `flutter
 Postgres. Baza: `POS_E2E_DB_DATABASE` (standart `rizqim_pos_e2e`; nomida `e2e` yoki `testing` bo'lishi shart — har safar
 tozalanadi). Portlar bo'sh bo'lganini oladi (standart 18200 va 18280; 18290 — stolovaya sinovining soxta Click merchant API'si, backend QR qaytarishda unga murojaat qiladi). Skript o'z config keshini `e2e/pos/.run` da saqlaydi:
 dasturchining `backend/.env` yoki keshiga tegmaydi. Serverlar logi shu yerda (`.run/backend.log`, `.run/reverb.log`).
+QR: skript `QR_PAYMENTS_SANDBOX=false` (Click va Payme haqiqiy webhooklar orqali) va `QR_PAYMENTS_SIMULATE_DRIVERS=uzqr`
+beradi — sandbox o'chiq bo'lsa, UzQR sandbox shlyuzi va `simulate-paid` faqat shu ro'yxatdagi provayder uchun bor
+(`APP_ENV` ning o'zi hech qachon yoqmaydi; review P6W4 S3).
 
 `dart test` ni to'g'ridan-to'g'ri yurgizmang: `POS_E2E_API_URL`, `POS_E2E_REVERB_URL`, `POS_E2E_REVERB_KEY`,
 `POS_E2E_SEED_FILE` kerak, ularni skript beradi.

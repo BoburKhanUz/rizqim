@@ -19,8 +19,9 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
             Route::post('/vouchers/sell', [PosVoucherController::class, 'sell'])->middleware(['pos.module:vouchers', EnsureIdempotency::class . ':pos.vouchers.sell']);
             Route::get('/vouchers/{code}', [PosVoucherController::class, 'show'])->where('code', '[A-Za-z0-9\- ]{12,20}');
         });
-        // A discount voucher: a store promo code on a POS order (the waiter's phone too)
-        Route::post('/orders/{uuid}/promo', [PosVoucherController::class, 'applyPromo'])->whereUuid('uuid')->middleware(['permission:orders.manage', 'pos.module:vouchers', EnsureIdempotency::class . ':pos.orders.promo']);
+        // A discount voucher: a store promo code on a POS order (the waiter's phone too); typing codes: 10 a minute
+        // per staff member and per terminal (review S6, PosVouchersServiceProvider)
+        Route::post('/orders/{uuid}/promo', [PosVoucherController::class, 'applyPromo'])->whereUuid('uuid')->middleware(['permission:orders.manage', 'pos.module:vouchers', 'throttle:pos-promo', EnsureIdempotency::class . ':pos.orders.promo']);
         Route::delete('/orders/{uuid}/promo', [PosVoucherController::class, 'removePromo'])->whereUuid('uuid')->middleware(['permission:orders.manage', EnsureIdempotency::class . ':pos.orders.promo_remove']);
     });
 

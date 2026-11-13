@@ -23,6 +23,8 @@ Data231 _$Data231FromJson(Map<String, dynamic> json) => Data231(
   repaidTotal: json['repaid_total'] as String,
   monthlyLimit: json['monthly_limit'] as String?,
   balance: json['balance'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  masked: json['masked'] as bool,
 );
 
 Map<String, dynamic> _$Data231ToJson(Data231 instance) => <String, dynamic>{
@@ -38,4 +40,6 @@ Map<String, dynamic> _$Data231ToJson(Data231 instance) => <String, dynamic>{
   'repaid_total': instance.repaidTotal,
   'monthly_limit': instance.monthlyLimit,
   'balance': instance.balance,
+  'branch_id': instance.branchId,
+  'masked': instance.masked,
 };

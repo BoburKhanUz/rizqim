@@ -227,6 +227,10 @@ class PosQrTillTest extends TestCase
         [, $bill] = $this->billed();
         $uuid = $this->qr($bill)->json('data.qr.uuid');
 
+        // Review P6W4 S3: with neither the sandbox nor an allowed provider sandbox the endpoint does not exist
+        $this->pos('POST', "/qr/{$uuid}/simulate-paid")->assertNotFound();
+        // An e2e stand allowing the UzQR sandbox: a real Click QR is still never simulated
+        config(['qr_payments.simulate_drivers' => ['uzqr']]);
         $this->pos('POST', "/qr/{$uuid}/simulate-paid")->assertStatus(409)->assertJsonPath('data.reason', 'qr_not_simulated');
     }
 

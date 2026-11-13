@@ -124,8 +124,11 @@ Qaytarish odatdagidek ([kassa.md](kassa.md#14-pulni-qaytarish), smena ichida, sa
 **provayder orqali** qaytadi: Click to'lovni bekor qiladi, Payme chekni bekor qiladi, UzQR — shlyuz.
 
 - Click va Payme **faqat to'liq** qaytaradi. Qisman qaytarish so'ralsa: "QR to'lovni qisman qaytarib bo'lmaydi" xabari chiqadi.
-- Provayder rad etsa yoki javob bermasa, qaytarish **qilinmaydi** va oddiy xabar chiqadi. QR to'lovni **hech qachon jimgina naqd
-  bilan qaytarmaydi**. Biroz kutib qayta urining yoki menejerga ayting.
+- Provayder rad etsa, qaytarish **qilinmaydi** va oddiy xabar chiqadi. QR to'lovni **hech qachon jimgina naqd bilan
+  qaytarmaydi**. Biroz kutib qayta urining yoki menejerga ayting.
+- To'lov tizimi **javob bermasa**, "To'lov tizimi javob bermadi — holat tekshirilmoqda" xabari chiqadi va **Holatni tekshirish**
+  tugmasi paydo bo'ladi. Birozdan so'ng uni bosing: kassa xuddi shu qaytarishni qayta tekshiradi (ikki marta qaytarilmaydi).
+  Pul mijozga qaytgan bo'lsa, qaytarish o'zi yoziladi. **Naqd bilan qaytarmang.**
 - Qo'lda tasdiqlangan **statik QR** (internetsiz yoki modul yo'q) avvalgidek qaytariladi.
 
 
@@ -157,6 +160,13 @@ yetmaydi" chiqadi. Sotuv cheki baribir **to'liq summaga**, sertifikat qismi "old
 
 Sertifikat bilan to'langan schyotni qaytarsangiz, pul **sertifikatga qaytadi** (naqd emas): qoldiq yana ko'payadi.
 
+- Sertifikat muddati o'tib bo'lgan bo'lsa, qaytarish uni **qaytarilgan kundan 30 kunga uzaytiradi** (tarixda yozib qo'yiladi):
+  mijoz pulini yo'qotmaydi.
+- Sertifikat **bloklangan** bo'lsa, summa unga yoziladi, lekin u bloklangan qoladi: blokdan chiqarishni menejer hal qiladi.
+
+Avans cheki darhol chiqmasa (provayder javob bermadi), sertifikat baribir sotilgan bo'ladi; tizim chekni 3 kun davomida har
+soatda o'zi qayta yuboradi (ikkinchi chek chiqmaydi).
+
 ### Panelda: ro'yxat, hisobot, bloklash
 
 Panelda **Sertifikatlar** sahifasi:
@@ -165,6 +175,10 @@ Panelda **Sertifikatlar** sahifasi:
   **Bloklangan / muddati o'tgan**.
 - Ro'yxat: kod, holat (**Faol**, **Ishlatilgan**, **Bloklangan**, **Muddati o'tgan**), qiymat, qoldiq, kim sotgan; kod, xaridor
   yoki telefon bo'yicha qidirish. Xaridor telefoni niqoblangan ko'rinadi.
+- Kod — pulning o'zi: faqat hisobot ko'rish huquqi bor xodim (sertifikatlarni boshqarmaydigan) kodni yashirilgan ko'radi
+  (`K7QM-****-9HTR`, Excelda ham) va sertifikatni faqat to'liq kod bilan qidira oladi. To'liq kodni ega va menejer ko'radi.
+- **Qolgan majburiyat** biznes kun bo'yicha: tungi 00:00–05:00 hali kechagi kun (shu soatda kechagacha amal qiladigan
+  sertifikat hali to'laydi va majburiyatda turadi).
 - **Tarix** — sertifikatning har bir harakati (sotildi, to'landi, qaytarildi, bloklandi).
 - **Bloklash** — yo'qolgan yoki o'g'irlangan sertifikatni to'xtatadi (sabab yoziladi; qoldiq saqlanadi). **Blokdan chiqarish** uni
   qaytaradi. Faqat sertifikatlarni boshqarish huquqi bor xodim (menejer, ega) qila oladi.
@@ -180,6 +194,12 @@ Kodni hozircha RIZQIM jamoasi (marketing) do'kon uchun yaratadi: panelda kod yar
   ("Promo-kod BAHOR10"). Kod qo'llangach shu qatordan uni olib tashlash mumkin ("Promo-kod olib tashlansinmi?").
 - **Ofitsiant telefonida:** buyurtma menyusida **Promo-kod** ([ofitsiant.md](ofitsiant.md)). Taom qo'shilgan bo'lishi kerak.
 - Bitta buyurtmaga **bitta** kod. Qo'lda berilgan chegirma kod bilan almashadi.
+- Chegirma buyurtma o'zgarganda **qayta hisoblanadi**: taom olib tashlansa yoki qo'shilsa, kod chegirmasi yangi summadan
+  chiqadi (foiz — yangi summaning foizi, kod chegarasidan va taomlar summasidan ko'p emas). Taomlar kodning **minimal
+  summasi**dan tushib ketsa, kod **olib tashlanadi**: chegirma 0, buyurtmada "Promo-kod ... olib tashlandi: taomlar summasi
+  kamida ... bo'lishi kerak." izohi turadi: kassada u buyurtma panelida ko'rinadi (ega audit jurnalida ham ko'radi). Taom qo'shilgach kodni qayta qo'llash mumkin.
+- Kodni ketma-ket ko'p kiritib bo'lmaydi: bitta xodim yoki bitta kassa daqiqasiga **10 marta**; ko'pi "Promo-kod juda ko'p
+  marta kiritildi. Bir daqiqadan so'ng qayta urinib ko'ring." xabarini oladi.
 - Kassirning chegirma limiti promo-kodga tegmaydi (kodni ega o'zi belgilagan). Ofitsiantga ofitsiant qoidasi ishlaydi.
 - Rad etilganda sababi aytiladi: kod topilmadi, faol emas, minimal buyurtma summasiga yetmadi, limit tugadi, chegirma bermaydi.
 - Faqat **onlayn**: internetsiz "Internet yo'q: sertifikat va promo-kod faqat server bilan ishlaydi. Naqd yoki karta bilan oling."
@@ -254,6 +274,12 @@ Chek: sotuv cheki schyotning **to'liq summasiga**, korxonaga yozilgan qismi **kr
 to'lagach kredit cheki chiqadi. Tushlikni qaytarsangiz, xodimning o'sha kuni limiti **tiklanadi**. Korxona tushligi uchun egaga
 alohida xabar yuborilmaydi: hamma narsa oylik hisobotda.
 
+Abonementda **bitta buyurtma — bitta ovqat**: tushlik ikki schyotga bo'linsa ham bitta ovqat sanaladi; ovqat buyurtmaning hamma
+schyotlari qaytarilgandagina qaytadi. Korxona hisob-fakturani to'lab bo'lgandan keyin ham tushlikni qaytarish mumkin: hisobda
+**Ortiqcha to'lov** paydo bo'ladi va keyingi tushliklar undan ayiriladi (nasiyada ham xuddi shunday). Xodimni telefon bilan
+topsangiz, kassa talon kodini to'liq ko'rsatmaydi (yulduzchalar bilan) — yozish baribir ishlaydi. Ega korxona hisobi modulini
+o'chirsa ham, mavjud korxona hisoblariga kassada yozish to'xtamaydi (yangi xodim qo'shish — modul bilan).
+
 ## 9. Oylik hisobot va Excel
 
 Panelda korxona hisobi → **Oylik hisobot** (huquq: **Hisobotlar**). **Oy**ni tanlang:
@@ -261,7 +287,13 @@ Panelda korxona hisobi → **Oylik hisobot** (huquq: **Hisobotlar**). **Oy**ni t
 - jadval: **xodim × kun** (biznes kun bo'yicha summa), har xodimning jami va ovqatlari soni, oxirida **Jami**; xodimsiz yozuvlar
   **Xodimsiz (korxona)** qatorida;
 - **Oy davomida yozilgan**, **Ovqatlar soni**, **Oy davomida to'langan**, **Hozirgi qarz**, **Oylik limit**;
-- qaytarilgan tushliklar ayirilgan.
+- qaytarilgan tushliklar ayirilgan;
+- korxona ortiqcha to'lagan bo'lsa (masalan, to'langan tushlik keyin qaytarilgan) — **Hozirgi qarz** o'rniga **Ortiqcha to'lov**.
+
+Kim nimani ko'radi: **Nasiya hisoblari** huquqi bor xodim (ega, menejer) talon kodlarini, STIR va telefonni to'liq ko'radi;
+faqat **Hisobotlar** huquqi bor xodimga ular yulduzchalar bilan ko'rsatiladi (hisobotda ham, Excel'da ham) — talon kodi bilan
+korxona hisobiga ovqat yozish mumkin. Bitta filialga bog'langan menejer do'kon bo'yicha (filialsiz) korxona hisobining hisobotini
+faqat **o'z filiali** tushliklari va to'lovlari bilan ko'radi.
 
 **Excel yuklab olish** ikki varaq beradi: **Hisobot** (Xodim, Talon kodi, 1..31-kun, Jami, Ovqatlar) va **Hisob-faktura** (korxona,
 STIR, mas'ul, e-pochta, oy, yozilgan summa, ovqatlar, to'langan, oylik limit, hozirgi qarz). Faylni korxona buxgalteriyasiga
@@ -281,8 +313,18 @@ Naqd va karta ishlayveradi. Yangi imkoniyatlar serverga bog'liq (qoldiq va limit
 | Korxona hisobiga yozish | mumkin emas; xodim naqd yoki karta bilan to'laydi |
 | Kassa, ofitsiant telefoni | oddiy ishlaydi ([kassa.md](kassa.md#20-internet-uzilsa)) |
 
-Kutilayotgan QR bo'lib internet uzilsa, to'lov kelganini internet qaytgach kassa o'zi ko'radi; shubha bo'lsa mijozga avval to'lov
-kelganini tekshiring, so'ng yana urinmang.
+### Kutilayotgan QR bo'lib internet uzilsa
+
+QR ekranda **qoladi** va "**Aloqa yo'q — to'lov tizimi hali tasdiqlashi mumkin**" yozuvi chiqadi: mijoz shu paytda to'lashi
+mumkin. Internetsiz **Yangi QR** va **Bekor qilish** tugmalari yo'q (**Schyotga chop etish** bor).
+
+- Shu schyotga naqd yoki karta olmoqchi bo'lsangiz, kassa so'raydi: "Mijoz QR orqali to'lamaganiga ishonch hosil qiling"
+  (**To'lamagan — olaman**). Avval mijozdan so'rang.
+- Internet qaytgach kassa avval QR'ni tekshiradi:
+  - **to'lanmagan** — QR bekor qilinadi, naqd yoki karta to'lovi serverga yuboriladi;
+  - **to'lov tizimi allaqachon olgan** — naqd yoki karta to'lovi **yozilmaydi**, ish ekranining tepasida qizil xabar chiqadi:
+    pulni mijozga qaytaring. Qaytargach xabardagi **Qaytarildi** tugmasini bosing (kim qaytargani yoziladi);
+  - **to'lov tizimi hali ushlab turibdi** — to'lov kutadi va keyinroq qayta uriniladi.
 
 ## 11. X va Z hisobotda
 

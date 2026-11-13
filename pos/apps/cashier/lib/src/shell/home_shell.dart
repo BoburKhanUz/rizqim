@@ -7,6 +7,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 
 import '../features/billing/billing_page.dart';
 import '../features/billing/cashier_ui.dart' show showPosMessage;
+import '../features/billing/qr_offline_guard.dart';
 import '../features/order/kitchen_tickets.dart';
 import '../services.dart';
 import 'destinations.dart';
@@ -224,6 +225,8 @@ class _HomeShellState extends State<HomeShell> {
               // P4-21: an unpaid invoice, in plain words; the till keeps working
               const PlanNoticeBanner(),
               const LimitedModeBanner(),
+              // Review P6 wave 4 (C3): money taken offline over a QR the provider paid — give it back
+              const QrOfflineReturnBanner(),
               if (_priceNotices.isNotEmpty)
                 SyncPriceBanner(
                   notices: _priceNotices,

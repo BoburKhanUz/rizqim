@@ -139,4 +139,30 @@ class PosCorporateTillTest extends TestCase
         // Aziz may eat for 60 000 again today
         $this->pay($this->lunch('60000'), [['tender' => 'account', 'amount' => '60000', 'account_uuid' => $this->company->uuid, 'member_code' => '5550001111']])->assertOk();
     }
+
+    public function test_a_split_lunch_is_one_meal_and_it_comes_back_only_when_the_whole_order_is_refunded(): void
+    {
+        // C8: a subscription member, one meal a day; the lunch's order is split into two bills
+        $bobur = CustomerAccountMember::create([
+            'store_id' => $this->store->id, 'customer_account_id' => $this->company->id, 'name' => 'Bobur',
+            'code' => '5550002222', 'meals_per_day' => 1,
+        ]);
+        $this->openShift();
+        $tender = fn (string $amount) => [['tender' => 'account', 'amount' => $amount, 'account_uuid' => $this->company->uuid, 'member_code' => '5550002222']];
+        $bills = $this->bill($this->posOrder([['Tushlik', '1', '40000']]), 'equal', ['parts' => 2])->assertCreated()->json('data.bills');
+        $this->pay($bills[0]['uuid'], $tender('20000'))->assertOk();
+        $this->pay($bills[1]['uuid'], $tender('20000'))->assertOk()->assertJsonPath('data.bill.status', 'paid');
+        $usage = app(\App\Domain\Pos\Accounts\CorporateAccounts::class)->memberDay($bobur, '2026-11-22');
+        $this->assertSame(['40000.00', 1], [$usage['amount']->toString(), $usage['meals']]);
+
+        // A second lunch the same day: refused
+        $this->pay($this->lunch('30000'), $tender('30000'))->assertStatus(422)->assertJsonPath('data.reason', 'member_meals_used');
+
+        // One bill of the order refunded: the meal is still eaten; both refunded: it comes back
+        $payments = Payment::where('provider', 'account')->orderBy('id')->get();
+        $this->pos('POST', '/refunds', ['payment_uuid' => $payments[0]->uuid, 'amount' => '20000', 'reason' => 'Qaytarildi', 'approval_token' => $this->approval('pos.refund')])->assertCreated();
+        $this->pay($this->lunch('30000'), $tender('30000'))->assertStatus(422)->assertJsonPath('data.reason', 'member_meals_used');
+        $this->pos('POST', '/refunds', ['payment_uuid' => $payments[1]->uuid, 'amount' => '20000', 'reason' => 'Qaytarildi', 'approval_token' => $this->approval('pos.refund')])->assertCreated();
+        $this->pay($this->lunch('30000'), $tender('30000'))->assertOk();
+    }
 }

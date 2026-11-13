@@ -59,7 +59,7 @@ class Vouchers {
   final String? note;
   final Fiscal4 fiscal;
   final Blocked? blocked;
-  final Print print;
+  final Print? print;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

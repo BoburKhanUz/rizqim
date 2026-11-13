@@ -64020,7 +64020,7 @@
         "/v1/owner/pos/vouchers": {
             "get": {
                 "operationId": "vouchers.index",
-                "description": "Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`\nincludes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),\n`from`/`to` (sold on these dates).",
+                "description": "Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`\nincludes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),\n`from`/`to` (sold on these dates). Without vouchers.manage the codes are masked (`print` null) and `q` finds a\ncertificate by its whole code only.",
                 "summary": "Gift certificates",
                 "tags": [
                     "Owner: vouchers"
@@ -64292,7 +64292,10 @@
                                                                 ]
                                                             },
                                                             "print": {
-                                                                "type": "object",
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
                                                                 "properties": {
                                                                     "store": {
                                                                         "type": [
@@ -64408,7 +64411,7 @@
         "/v1/owner/pos/vouchers/export": {
             "get": {
                 "operationId": "vouchers.export",
-                "description": "The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked) on the \"Sertifikatlar\"\nsheet and the period report on \"Hisobot\". Each export is recorded in the audit log.",
+                "description": "The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked, codes masked without\nvouchers.manage) on the \"Sertifikatlar\" sheet and the period report on \"Hisobot\". Each export is recorded in the audit log.",
                 "summary": "Gift certificates (Excel)",
                 "tags": [
                     "Owner: vouchers"
@@ -64720,7 +64723,7 @@
         "/v1/owner/pos/vouchers/{uuid}": {
             "get": {
                 "operationId": "vouchers.show",
-                "description": "Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The\nbuyer's phone is shown in full to vouchers.manage.",
+                "description": "Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The\nbuyer's phone, the code and the `print` block are shown in full to vouchers.manage only (masked code, no `print`\nfor reports.view).",
                 "summary": "One gift certificate, with its history",
                 "tags": [
                     "Owner: vouchers"
@@ -64950,7 +64953,10 @@
                                                             ]
                                                         },
                                                         "print": {
-                                                            "type": "object",
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
                                                             "properties": {
                                                                 "store": {
                                                                     "type": [
@@ -65394,7 +65400,10 @@
                                                     ]
                                                 },
                                                 "print": {
-                                                    "type": "object",
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
                                                     "properties": {
                                                         "store": {
                                                             "type": [
@@ -65725,7 +65734,10 @@
                                                     ]
                                                 },
                                                 "print": {
-                                                    "type": "object",
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
                                                     "properties": {
                                                         "store": {
                                                             "type": [
@@ -77567,6 +77579,12 @@
                                                                             "null"
                                                                         ]
                                                                     },
+                                                                    "promo_note": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
                                                                     "service_charge_amount": {
                                                                         "type": "string"
                                                                     },
@@ -78277,6 +78295,7 @@
                                                                     "discount_value",
                                                                     "discount_reason",
                                                                     "discount_by",
+                                                                    "promo_note",
                                                                     "service_charge_amount",
                                                                     "place_fee_amount",
                                                                     "room_fee_amount",
@@ -95540,7 +95559,7 @@
         "/v1/pos/customer-accounts/members/lookup": {
             "get": {
                 "operationId": "corporateAccount.lookup",
-                "description": "By the talon's `code` (scanned or typed) or the member's `phone`: the member, their company's account and what\nis left today (the branch's business day) and this month, for the cashier to see before charging. A member of\nanother store, or of an account of another branch: 404 `member_not_found`. Needs customer_accounts.manage or\npos.take_payment.",
+                "description": "By the talon's `code` (scanned or typed) or the member's `phone`: the member, their company's account and what\nis left today (the branch's business day) and this month, for the cashier to see before charging. A member of\nanother store, or of an account of another branch: 404 `member_not_found`. Found by `phone`, the talon `code` comes\nmasked (the charge by phone needs no code). Not gated by the corporate_accounts module: an existing account is\nstill charged at the till when the module is off. Needs customer_accounts.manage or pos.take_payment.",
                 "summary": "Find a member at the till",
                 "tags": [
                     "POS: corporate accounts"
@@ -96798,7 +96817,7 @@
         "/v1/pos/customer-accounts/{uuid}/corporate-statement": {
             "get": {
                 "operationId": "corporateAccount.statement",
-                "description": "`month` (YYYY-MM; default: this month in the store's time zone): what each member ate on each business day\n(net of refunds; `meals` = bills), charges without a member in a row of their own (`member` null), the totals by\nday and in all, the repayments received in the month and the debt now. Needs reports.view.",
+                "description": "`month` (YYYY-MM; default: this month in the store's time zone): what each member ate on each business day\n(net of refunds; `meals` = bills), charges without a member in a row of their own (`member` null), the totals by\nday and in all, the repayments received in the month and the debt now (below zero: the company's overpayment,\n\"Ortiqcha to'lov\"). Talon codes, the INN and the contact phone are masked (`masked: true`) unless the caller holds\ncustomer_accounts.manage for the account. A branch-bound reader of a store-wide account sees only their branch's\ncharges and repayments (`branch_id`: that branch; null: all). Needs reports.view.",
                 "summary": "Monthly statement of a corporate account",
                 "tags": [
                     "POS: corporate accounts"
@@ -97014,6 +97033,15 @@
                                                 },
                                                 "balance": {
                                                     "type": "string"
+                                                },
+                                                "branch_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "masked": {
+                                                    "type": "boolean"
                                                 }
                                             },
                                             "required": [
@@ -97028,7 +97056,9 @@
                                                 "meals",
                                                 "repaid_total",
                                                 "monthly_limit",
-                                                "balance"
+                                                "balance",
+                                                "branch_id",
+                                                "masked"
                                             ]
                                         }
                                     },
@@ -97050,7 +97080,7 @@
         "/v1/pos/customer-accounts/{uuid}/corporate-statement/export": {
             "get": {
                 "operationId": "corporateAccount.export",
-                "description": "The statement of GET .../corporate-statement as an .xlsx file: sheet \"Hisobot\" (a member per row, a business day\nper column, the totals), sheet \"Hisob-faktura\" (the company, the month, the totals, the debt) — openspout, texts\nas text. Audited (customer_account.statement_exported). Needs reports.view.",
+                "description": "The statement of GET .../corporate-statement as an .xlsx file: sheet \"Hisobot\" (a member per row, a business day\nper column, the totals), sheet \"Hisob-faktura\" (the company, the month, the totals, the debt) — openspout, texts\nas text; masked and scoped as the statement. Audited (customer_account.statement_exported). Needs reports.view.",
                 "summary": "Monthly statement as Excel",
                 "tags": [
                     "POS: corporate accounts"
@@ -101786,6 +101816,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -102496,6 +102532,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -102790,6 +102827,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -103500,6 +103543,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -107608,6 +107652,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -108318,6 +108368,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -108645,6 +108696,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -109355,6 +109412,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -109688,6 +109746,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -110398,6 +110462,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -112092,6 +112157,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -112802,6 +112873,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -113140,6 +113212,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -113850,6 +113928,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -114175,6 +114254,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -114885,6 +114970,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -115361,6 +115447,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -116071,6 +116163,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -116408,6 +116501,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -117118,6 +117217,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -117468,6 +117568,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -118178,6 +118284,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -118520,6 +118627,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -119230,6 +119343,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -119569,6 +119683,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -120279,6 +120399,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -120603,6 +120724,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -121313,6 +121440,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -121646,6 +121774,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -122356,6 +122490,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -122683,6 +122818,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -123393,6 +123534,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -123720,6 +123862,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -124430,6 +124578,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -124748,6 +124897,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -125458,6 +125613,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -125758,6 +125914,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -126468,6 +126630,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -127785,6 +127948,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -128495,6 +128664,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -128951,6 +129121,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -129661,6 +129837,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -129991,6 +130168,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -130701,6 +130884,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -131028,6 +131212,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -131738,6 +131928,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -132069,6 +132260,12 @@
                                                         "null"
                                                     ]
                                                 },
+                                                "promo_note": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "service_charge_amount": {
                                                     "type": "string"
                                                 },
@@ -132779,6 +132976,7 @@
                                                 "discount_value",
                                                 "discount_reason",
                                                 "discount_by",
+                                                "promo_note",
                                                 "service_charge_amount",
                                                 "place_fee_amount",
                                                 "room_fee_amount",
@@ -133251,7 +133449,7 @@
         "/v1/pos/qr/{uuid}/simulate-paid": {
             "post": {
                 "operationId": "posQrPayment.simulatePaid",
-                "description": "Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):\nexactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production): 404.\nNeeds pos.take_payment.",
+                "description": "Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):\nexactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production, or\nneither `QR_PAYMENTS_SANDBOX` nor `QR_PAYMENTS_SIMULATE_DRIVERS` set): 404.\nNeeds pos.take_payment.",
                 "summary": "Confirm a sandbox QR (demo)",
                 "tags": [
                     "POS: QR payments"
@@ -143771,7 +143969,10 @@
                                                     ]
                                                 },
                                                 "print": {
-                                                    "type": "object",
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
                                                     "properties": {
                                                         "store": {
                                                             "type": [
@@ -144087,7 +144288,10 @@
                                                             ]
                                                         },
                                                         "print": {
-                                                            "type": "object",
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
                                                             "properties": {
                                                                 "store": {
                                                                     "type": [
@@ -154421,6 +154625,12 @@
                         ],
                         "format": "date-time"
                     },
+                    "promo_note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -154652,6 +154862,7 @@
                     "pickup_at",
                     "kitchen_fire_at",
                     "kitchen_fired_at",
+                    "promo_note",
                     "type",
                     "address"
                 ],

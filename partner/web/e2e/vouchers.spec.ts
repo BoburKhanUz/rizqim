@@ -1,4 +1,4 @@
-import { expect, openSignedIn, test } from './fixtures'
+import { expect, openSignedIn, OWNER, test } from './fixtures'
 
 // P6-43 "Sertifikatlar": the owner reads the certificates' report and list, opens one's history, blocks a lost one with a
 // reason (and unblocks it), and downloads the Excel file.
@@ -42,4 +42,14 @@ test('the Excel file is downloaded', async ({ page, signIn, reverb }) => {
   await expect(page.getByRole('table', { name: 'Sertifikatlar' })).toBeVisible()
   const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Excel yuklab olish' }).click()])
   expect(file.suggestedFilename()).toMatch(/^sertifikatlar-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}\.xlsx$/)
+})
+
+test('a reports-only reader sees the codes masked and no block button', async ({ page, signIn, reverb }) => {
+  void reverb
+  await openSignedIn(page, signIn, '/vouchers', { ...OWNER, id: 9, name: 'Dilshod', role: 'manager', phone: '+998901112233', permissions: ['reports.view'] })
+  const list = page.getByRole('table', { name: 'Sertifikatlar' })
+  await expect(list).toContainText('K7QM-****-9HTR')
+  await expect(list).not.toContainText('K7QM-4XPA-9HTR')
+  await expect(page.getByText(/Kodlar yashirilgan/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /ni bloklash$/ })).toHaveCount(0)
 })

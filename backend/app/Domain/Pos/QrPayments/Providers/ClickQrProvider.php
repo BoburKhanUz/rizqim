@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\Log;
  * (DELETE /payment/reversal/{service_id}/{payment_id}, header `Auth: merchant_user_id:sha1(timestamp + secret_key):
  * timestamp`; https://docs.click.uz/merchant-api-request/): the whole payment only, so a partial refund is refused
  * before any money moves. It needs `merchant_user_id` from the Click merchant cabinet in payment_settings.click.
+ * Review P6W4 C2: no answer (a timeout, a connection error, a 5xx) is `unknown`, not a refusal; the status of a
+ * reversal is asked with GET /payment/status/{service_id}/{payment_id} (`payment_status` below 0: cancelled, i.e.
+ * reversed; 2: still paid; an assumption to confirm with Click when the first store connects).
  */
 final class ClickQrProvider implements QrPaymentProvider
 {
@@ -64,16 +67,9 @@ final class ClickQrProvider implements QrPaymentProvider
 
     public function refund(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult
     {
-        $credentials = [
-            'merchant_user_id' => (string) StoreMerchant::credential($store, 'click', 'merchant_user_id'),
-            'secret_key' => (string) StoreMerchant::credential($store, 'click', 'secret_key'),
-            'service_id' => (string) StoreMerchant::credential($store, 'click', 'service_id'),
-        ];
-        if (in_array('', $credentials, true)) {
-            return QrRefundResult::failed("Click merchant sozlamalarida merchant_user_id, service_id yoki kalit yo'q");
-        }
-        if (!is_numeric($qr->provider_transaction_id)) {
-            return QrRefundResult::failed("Click to'lov raqami topilmadi");
+        $credentials = $this->credentials($store);
+        if (($refused = $this->unusable($qr, $credentials)) !== null) {
+            return $refused;
         }
 
         try {
@@ -81,9 +77,15 @@ final class ClickQrProvider implements QrPaymentProvider
                 ->withHeaders(['Auth' => app(ClickMerchantApi::class)->authHeader($credentials, now()->getTimestamp())])
                 ->delete(rtrim((string) config('qr_payments.click.api_url'), '/') . "/payment/reversal/{$credentials['service_id']}/{$qr->provider_transaction_id}");
         } catch (\Throwable $e) {
-            Log::warning('Click reversal failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+            // Sent, maybe done: only Click's status says (review P6W4 C2)
+            Log::warning('Click reversal not answered: ' . $e->getMessage(), ['qr' => $qr->uuid]);
 
-            return QrRefundResult::failed("Click bilan aloqa bo'lmadi");
+            return QrRefundResult::unknown("Click javob bermadi");
+        }
+        if ($response->serverError()) {
+            Log::warning('Click reversal answered ' . $response->status(), ['qr' => $qr->uuid]);
+
+            return QrRefundResult::unknown("Click javob bermadi");
         }
 
         $code = $response->json('error_code');
@@ -95,6 +97,64 @@ final class ClickQrProvider implements QrPaymentProvider
         $note = $response->json('error_note');
 
         return QrRefundResult::failed(is_string($note) && $note !== '' ? "Click rad etdi: {$note}" : 'Click rad etdi');
+    }
+
+    public function refundStatus(PosQrPayment $qr, Store $store, Money $amount, string $refundUuid): QrRefundResult
+    {
+        $credentials = $this->credentials($store);
+        if (($refused = $this->unusable($qr, $credentials)) !== null) {
+            return QrRefundResult::unknown((string) $refused->message);
+        }
+
+        try {
+            $response = Http::connectTimeout(5)->timeout(20)->acceptJson()
+                ->withHeaders(['Auth' => app(ClickMerchantApi::class)->authHeader($credentials, now()->getTimestamp())])
+                ->get(rtrim((string) config('qr_payments.click.api_url'), '/') . "/payment/status/{$credentials['service_id']}/{$qr->provider_transaction_id}");
+        } catch (\Throwable $e) {
+            Log::warning('Click payment status not answered: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+
+            return QrRefundResult::unknown("Click javob bermadi");
+        }
+
+        $code = $response->json('error_code');
+        $status = $response->json('payment_status');
+        if ($response->successful() && is_numeric($code) && (int) $code === 0 && is_numeric($status)) {
+            if ((int) $status < 0) {
+                return QrRefundResult::done((string) $qr->provider_transaction_id);
+            }
+            if ((int) $status === 2) {
+                return QrRefundResult::failed("Click to'lovni qaytarmagan");
+            }
+        }
+
+        return QrRefundResult::unknown("Click holatni aytmadi");
+    }
+
+    /**
+     * @return array{merchant_user_id: string, secret_key: string, service_id: string}
+     */
+    private function credentials(Store $store): array
+    {
+        return [
+            'merchant_user_id' => (string) StoreMerchant::credential($store, 'click', 'merchant_user_id'),
+            'secret_key' => (string) StoreMerchant::credential($store, 'click', 'secret_key'),
+            'service_id' => (string) StoreMerchant::credential($store, 'click', 'service_id'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $credentials
+     */
+    private function unusable(PosQrPayment $qr, array $credentials): ?QrRefundResult
+    {
+        if (in_array('', $credentials, true)) {
+            return QrRefundResult::failed("Click merchant sozlamalarida merchant_user_id, service_id yoki kalit yo'q");
+        }
+        if (!is_numeric($qr->provider_transaction_id)) {
+            return QrRefundResult::failed("Click to'lov raqami topilmadi");
+        }
+
+        return null;
     }
 
     public function simulated(): bool

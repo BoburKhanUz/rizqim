@@ -145,6 +145,7 @@ class PosOrder {
     this.discountValue,
     this.discountReason,
     this.discountBy,
+    this.promoNote,
     this.serviceChargeAmount = PosMoney.zero,
     this.placeFeeAmount = PosMoney.zero,
     this.roomFeeAmount = PosMoney.zero,
@@ -188,6 +189,7 @@ class PosOrder {
     discountValue: j.strOrNull('discount_value'),
     discountReason: j.strOrNull('discount_reason'),
     discountBy: j.intOrNull('discount_by'),
+    promoNote: j.strOrNull('promo_note'),
     serviceChargeAmount: j.money('service_charge_amount'),
     placeFeeAmount: j.money('place_fee_amount'),
     roomFeeAmount: j.money('room_fee_amount'),
@@ -262,6 +264,10 @@ class PosOrder {
 
   /// Chegirmani bergan xodim id'si.
   final int? discountBy;
+
+  /// Promo-kod olib tashlangani haqida oddiy izoh (taomlar summasi kod
+  /// minimumidan tushib ketdi); bo'lmasa null.
+  final String? promoNote;
   final PosMoney serviceChargeAmount;
   final PosMoney placeFeeAmount;
   final PosMoney roomFeeAmount;

@@ -24,12 +24,14 @@ use Illuminate\Support\Facades\Log;
  *  - CheckPerformTransaction: `{allow: true}` WITHOUT `detail`, so Payme registers no fiscal receipt (Rizqim issues
  *    the sale receipt; POS_SPEC §4 "no double fiscal"). Not found -31050; wrong amount (tiyin) -31001; paid, expired,
  *    cancelled or the bill changed -31051; another transaction already on it -31099.
- *  - CreateTransaction: holds the request (the expiry waits) for this transaction id; the same id again: the same
- *    answer; a request no longer payable: -31008.
+ *  - CreateTransaction: holds the request (the expiry waits for Payme's own pending window, 12 h,
+ *    qr_payments.payme.hold_minutes; review P6W4 C9) for this transaction id; the same id again: the same answer; a
+ *    request no longer payable: -31008. A bill change (or the cashier's cancel) during the hold still cancels it on
+ *    our side: PerformTransaction is then refused (-31008) and CancelTransaction answers the cancelled state (-1).
  *  - PerformTransaction: the bill takes the `qr` payment (QrPaymentService::confirm), once; refused: -31008 (Payme then
  *    cancels the transaction on its timeout: the money is not taken).
  *  - CancelTransaction: a pending one is cancelled (state -1); a performed one only while Rizqim's refund asked for it
- *    (QrRefunds, Payme receipts.cancel; state -2), otherwise -31007 — the bill's money is taken back by a refund at the
+ *    (QrRefunds: an open refund attempt, Payme receipts.cancel; state -2), otherwise -31007 — the bill's money is taken back by a refund at the
  *    till, never behind its back.
  *  - CheckTransaction: the state; SetFiscalData: answered, never recorded (Payme registers no receipt for these).
  */
@@ -162,11 +164,13 @@ final class PaymePosQrWebhook
                 if (!QrRefunds::requested($qr)) {
                     return $this->error($id, -31007, 'Unable to cancel transaction');
                 }
-                // Asked by Rizqim's refund (receipts.cancel): recorded without locking the row the refund will update
+                // Asked by Rizqim's refund (receipts.cancel, its attempt committed before the call: review P6W4 C2).
+                // Once recorded, the attempt ends `refunded` even if receipts.cancel then answers an error or nothing
                 $payload = $qr->provider_payload ?? [];
                 $payload['payme'] = $payme + ['cancel_time' => now()->getTimestampMs(), 'cancel_reason' => $reason];
                 PosQrPayment::whereKey($qr->id)->update(['provider_payload' => json_encode($payload)]);
                 $qr->provider_payload = $payload;
+                QrRefunds::cancelledByProvider($qr);
             }
         }
 

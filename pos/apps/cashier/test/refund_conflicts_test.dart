@@ -143,52 +143,54 @@ void main() {
     },
   );
 
-  testWidgets(
-    'the guest repaid part of the debt: more_than_debt stays in the dialog with the server text',
-    (WidgetTester tester) async {
-      final P22 p = P22();
-      p.state.openShift();
-      final String account = p.backend.seedAccount(
-        name: 'Jamshid',
-        limit: '1000000.00',
-      );
-      final String booking = p.backend.seedBooking(
-        tableId: 2,
-        start: p.h.now.add(const Duration(minutes: 10)),
-        deposit: '50000.00',
-      );
-      await pumpHome(tester, p.h, name: manager);
-      final String billUuid = await paidWithDepositAndNasiya(
-        tester,
-        p,
-        account: account,
-        booking: booking,
-      );
-      final PosAccountWithEntries before = await settle(
-        tester,
-        p.h.data.accounts.get(account),
-      );
-      await settle(
-        tester,
-        p.h.data.accounts.repay(
-          account,
-          amount: before.account.balance - const PosMoney.som(1000),
-          tender: 'cash',
-        ),
-      );
-      await openBilling(tester, p.backend.bills.keys.single);
-      await tapKey(tester, 'refund-$billUuid');
-      await tapText(tester, 'Nasiya · ', contains: true);
-      await tapText(tester, "Xato to'lov");
-      await tapButton(tester, 'Qaytarish');
-      expect(p.backend.refunds, isEmpty);
-      expect(
-        find.textContaining("Mijoz qarzining bir qismini to'lagan"),
-        findsOneWidget,
-      );
-      expect(find.textContaining('1000.00'), findsOneWidget);
-    },
-  );
+  testWidgets('the guest repaid part of the debt: the refund still goes through, the balance goes below zero (review P6 wave 4, '
+      'C7: no more_than_debt)', (WidgetTester tester) async {
+    final P22 p = P22();
+    p.state.openShift();
+    final String account = p.backend.seedAccount(
+      name: 'Jamshid',
+      limit: '1000000.00',
+    );
+    final String booking = p.backend.seedBooking(
+      tableId: 2,
+      start: p.h.now.add(const Duration(minutes: 10)),
+      deposit: '50000.00',
+    );
+    await pumpHome(tester, p.h, name: manager);
+    final String billUuid = await paidWithDepositAndNasiya(
+      tester,
+      p,
+      account: account,
+      booking: booking,
+    );
+    final PosAccountWithEntries before = await settle(
+      tester,
+      p.h.data.accounts.get(account),
+    );
+    await settle(
+      tester,
+      p.h.data.accounts.repay(
+        account,
+        amount: before.account.balance - const PosMoney.som(1000),
+        tender: 'cash',
+      ),
+    );
+    await openBilling(tester, p.backend.bills.keys.single);
+    await tapKey(tester, 'refund-$billUuid');
+    await tapText(tester, 'Nasiya · ', contains: true);
+    await tapText(tester, "Xato to'lov");
+    await tapButton(tester, 'Qaytarish');
+    expect(p.backend.refunds.single['method'], 'account');
+    expect(
+      find.textContaining("Mijoz qarzining bir qismini to'lagan"),
+      findsNothing,
+    );
+    final PosAccountWithEntries after = await settle(
+      tester,
+      p.h.data.accounts.get(account),
+    );
+    expect(after.account.balance.isNegative, isTrue);
+  });
 
   testWidgets(
     'every payment refunded: the open order may be cancelled from the bill screen',

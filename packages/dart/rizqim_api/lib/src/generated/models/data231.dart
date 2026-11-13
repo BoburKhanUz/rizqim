@@ -25,6 +25,8 @@ class Data231 {
     required this.repaidTotal,
     required this.monthlyLimit,
     required this.balance,
+    required this.branchId,
+    required this.masked,
   });
 
   factory Data231.fromJson(Map<String, Object?> json) =>
@@ -45,6 +47,9 @@ class Data231 {
   @JsonKey(name: 'monthly_limit')
   final String? monthlyLimit;
   final String balance;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final bool masked;
 
   Map<String, Object?> toJson() => _$Data231ToJson(this);
 }

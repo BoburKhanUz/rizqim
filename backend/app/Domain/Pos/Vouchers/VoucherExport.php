@@ -14,7 +14,7 @@ use OpenSpout\Writer\XLSX\Writer;
 
 /**
  * P6-43: the certificates as an Excel workbook (openspout, as App\Services\Finance\Reports\MonthlyRevenueExport):
- * "Sertifikatlar" — one row per certificate (the buyer's phone masked), "Hisobot" — the period report (VoucherReport).
+ * "Sertifikatlar" — one row per certificate (the buyer's phone masked; the code masked with `$maskCodes`, review S1), "Hisobot" — the period report (VoucherReport).
  * Amounts are numbers; every text is a string cell (never a formula: a buyer's name is typed by a cashier).
  */
 final class VoucherExport
@@ -26,7 +26,7 @@ final class VoucherExport
      * @param  array<string, mixed>  $report  VoucherReport::build()
      * @param  array<int, string>  $branches  id => name
      */
-    public function write(Collection $vouchers, array $report, array $branches, string $path): void
+    public function write(Collection $vouchers, array $report, array $branches, string $path, bool $maskCodes = false): void
     {
         $bold = (new Style())->setFontBold();
         $number = fn (mixed $amount) => Money::of((string) $amount)->toFloat();
@@ -37,7 +37,7 @@ final class VoucherExport
         $writer->addRow(self::row(self::HEADERS, $bold));
         foreach ($vouchers as $voucher) {
             $writer->addRow(self::row([
-                (string) $voucher->code,
+                $maskCodes ? VoucherCode::mask((string) $voucher->code) : (string) $voucher->code,
                 VoucherState::of($voucher)->label(),
                 $number($voucher->face_value),
                 $number($voucher->balance),

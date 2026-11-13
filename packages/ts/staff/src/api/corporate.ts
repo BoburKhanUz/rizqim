@@ -116,7 +116,12 @@ export interface CorporateStatement {
   meals: number;
   repaid_total: string;
   monthly_limit: string | null;
+  // The debt now; below zero: the company's overpayment ("Ortiqcha to'lov", a refund after the invoice was paid)
   balance: string;
+  // A branch-bound reader of a store-wide account: only this branch's entries count; null: all
+  branch_id: number | null;
+  // Talon codes, the INN and the contact phone masked (the reader lacks customer_accounts.manage)
+  masked: boolean;
 }
 
 export interface CorporateMemberLookup {

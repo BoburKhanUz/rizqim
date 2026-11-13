@@ -59,7 +59,8 @@ sealed class PosEvent {
         'pos.lan_changed' => PosLanChanged._(name, data, j),
         'qr.paid' ||
         'qr.cancelled' ||
-        'qr.expired' => PosQrPaymentChanged._(name, data, j),
+        'qr.expired' ||
+        'qr.pending' => PosQrPaymentChanged._(name, data, j),
         'queue.preparing' ||
         'queue.ready' ||
         'queue.handed' ||
@@ -425,7 +426,8 @@ class PosMenuAvailabilityChanged extends PosEvent {
 }
 
 /// `qr.paid` | `qr.cancelled` | `qr.expired` (P6-41): kassadagi QR to'landi (schyot to'lovni oldi), bekor qilindi
-/// yoki vaqti tugadi. Kassa `GET /pos/qr/{uuid}` va schyotni qayta oladi.
+/// yoki vaqti tugadi; `qr.pending` (review P6W4 C10): provayder to'lovdan voz kechdi, QR yana kutilmoqda (ushlanmagan).
+/// Kassa `GET /pos/qr/{uuid}` va schyotni qayta oladi.
 class PosQrPaymentChanged extends PosEvent {
   PosQrPaymentChanged._(super.name, super.data, PosJson j)
     : qrUuid = j.obj('qr').str('uuid'),

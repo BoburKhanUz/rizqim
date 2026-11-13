@@ -11,7 +11,6 @@ use App\Models\Store;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -236,7 +235,9 @@ class PosQrWebhooksTest extends TestCase
         $this->payme('CancelTransaction', ['id' => 'pm-tx-5', 'reason' => 5])->assertJsonPath('error.code', -31007);
         $this->assertSame('paid', $qr->refresh()->status->value);
 
-        Cache::put('pos-qr-refund:' . $qr->uuid, true, 60);
+        // A refund attempt of Rizqim asks for it (review P6W4 C2: committed before receipts.cancel is sent)
+        $qr->refresh();
+        \App\Models\PosQrRefundAttempt::create(['store_id' => $qr->store_id, 'qr_payment_id' => $qr->id, 'payment_id' => $qr->payment_id, 'order_id' => $qr->order_id, 'bill_id' => $qr->bill_id, 'shift_id' => $qr->shift_id, 'amount' => $qr->amount, 'reason' => 'Mijoz qaytardi', 'user_id' => $qr->created_by, 'status' => 'requested']);
         $cancel = $this->payme('CancelTransaction', ['id' => 'pm-tx-5', 'reason' => 5])->assertJsonPath('result.state', -2);
         $this->payme('CancelTransaction', ['id' => 'pm-tx-5', 'reason' => 5])->assertJsonPath('result.cancel_time', $cancel->json('result.cancel_time'));
         $this->payme('CheckTransaction', ['id' => 'pm-tx-5'])->assertJsonPath('result.state', -2)->assertJsonPath('result.reason', 5);

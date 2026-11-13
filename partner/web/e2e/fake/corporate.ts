@@ -100,6 +100,8 @@ export class FakeCorporate {
       repaid_total: '50000.00',
       monthly_limit: '5000000.00',
       balance: '196000.00',
+      branch_id: null,
+      masked: false,
     }
   }
 

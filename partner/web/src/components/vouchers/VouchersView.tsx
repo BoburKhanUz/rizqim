@@ -161,6 +161,8 @@ export function VouchersView() {
           </Field>
         </div>
 
+        {!canManage && <p className="text-body text-fg-muted">{t('vch_codesMasked')}</p>}
+
         {list.isError && !list.data ? (
           <InlineError title={t('loadErrorTitle')} message={errorText(list.error, t)} retryLabel={t('retry')} retrying={list.isFetching} onRetry={() => void list.refetch()} />
         ) : !list.data ? (

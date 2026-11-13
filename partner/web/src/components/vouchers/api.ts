@@ -37,7 +37,8 @@ export interface Person {
 
 export interface Voucher {
   uuid: string;
-  // XXXX-XXXX-XXXX; the printed QR carries the same text
+  // XXXX-XXXX-XXXX; the printed QR carries the same text. Review S1: masked ("K7QM-****-9HTR") for a reader without
+  // vouchers.manage — the code is the money
   code: string;
   kind: 'gift' | 'discount';
   face_value: string;
@@ -55,6 +56,8 @@ export interface Voucher {
   note: string | null;
   fiscal: { receipt_uuid: string | null; status: string | null };
   blocked: { at: string | null; reason: string | null } | null;
+  // What the certificate slip prints; null for a reader without vouchers.manage
+  print?: { store: string | null; code: string; qr: string; value: string; valid_from: string; valid_until: string | null } | null;
   created_at: string | null;
 }
 

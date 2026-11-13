@@ -67,6 +67,20 @@ void main() {
     expect(given.discountReason, 'Doimiy mijoz');
     expect(given.discountBy, 3);
     expect(given.hasDiscount, isTrue);
+    expect(given.promoNote, isNull);
+    // Review C1: a promo code dropped by the server leaves a plain note
+    final PosOrder dropped = PosOrder.fromJson(
+      PosJson.of(<String, Object?>{
+        'uuid': 'u',
+        'status': 'accepted',
+        'channel': 'pos_hall',
+        'version': 4,
+        'promo_note': "Promo-kod MIN80 olib tashlandi: taomlar summasi kamida 80 000 so'm bo'lishi kerak.",
+        'items': <Object?>[],
+      }),
+    );
+    expect(dropped.promoNote, startsWith('Promo-kod MIN80 olib tashlandi'));
+    expect(dropped.hasDiscount, isFalse);
   });
 
   test(

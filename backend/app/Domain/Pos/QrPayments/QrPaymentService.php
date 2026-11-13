@@ -39,7 +39,9 @@ use Illuminate\Support\Str;
  *  - one pending QR per bill: a new one cancels the old; a change of the bill (rebilled, split, voided, paid in
  *    another way, a discount) cancels it (cancelStale(), on order.bill_changed) and its confirmation is refused;
  *  - it expires after the branch's `expiry_minutes` unless the provider already started taking the money
- *    (`held_at`: Click Prepare, Payme CreateTransaction), which holds it for qr_payments.hold_minutes more;
+ *    (`held_at`: Click Prepare, Payme CreateTransaction), which holds it for qr_payments.hold_minutes more (Payme:
+ *    qr_payments.payme.hold_minutes, its own 12 h pending window; review P6W4 C9); a Click Complete with an error
+ *    releases the hold (release(), C10); a UzQR's gateway is asked before it expires and a late "paid" is taken (C5);
  *  - a confirmation the bill cannot take (expired, cancelled, bill changed, no open shift) is refused, so the provider
  *    does not take the money (Click reverses on a Complete error, Payme times the transaction out);
  *  - offline the till cannot ask for one (it needs the server): the static QR confirmed by hand stays.
@@ -180,32 +182,20 @@ final class QrPaymentService
     }
 
     /**
-     * The request as it is now: expired when its time ran out; a pending UzQR asks its gateway (the till's poll).
+     * The request as it is now: a pending UzQR asks its gateway first (the till's poll; review P6W4 C5: a bank push
+     * paid just before the expiry is accepted, money already moved), then expired when its time ran out.
      */
     public function refresh(PosQrPayment $qr): PosQrPayment
     {
         $qr->refresh();
+        if (($qr->status === QrPaymentStatus::PENDING || $this->lateUzQr($qr)) && $this->askUzQr($qr)) {
+            return $qr->refresh();
+        }
         if ($qr->status !== QrPaymentStatus::PENDING) {
             return $qr;
         }
         if ($this->isExpired($qr)) {
-            return $this->expire($qr);
-        }
-
-        if ($qr->provider === QrProvider::UZQR && $qr->gateway_reference !== null) {
-            $driver = $this->providers->of($qr);
-            $gateway = $driver instanceof Providers\UzQrProvider ? $driver->gateway() : null;
-            try {
-                $status = $gateway?->status($qr->gateway_reference, Store::findOrFail($qr->store_id));
-            } catch (\Throwable $e) {
-                Log::warning('UzQR status check failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
-                $status = null;
-            }
-            if (($status['status'] ?? null) === 'paid') {
-                $this->confirm($qr, (string) ($status['transaction_id'] ?? $qr->gateway_reference));
-            } elseif (($status['status'] ?? null) === 'cancelled') {
-                $this->cancelBy($qr, 'provider_cancelled');
-            }
+            return $this->expire($qr, true);
         }
 
         return $qr->refresh();
@@ -216,19 +206,23 @@ final class QrPaymentService
      * 'already_confirmed' for a repeat of the same transaction, 'already_paid' when another transaction paid it,
      * 'refused' when the bill cannot take it (the request is then cancelled or expired, so the money is not taken).
      *
+     * Review P6W4 C5: $late — the UzQR gateway reports it paid (the money moved): accepted past its expiry (also once
+     * expired by time); if the bill can no longer take it, it is marked for reconciliation (unmatched()), never dropped.
+     *
      * @param  array<string, mixed>  $payload  what the provider sent (kept on the request)
      * @return 'paid'|'already_confirmed'|'already_paid'|'refused'
      */
-    public function confirm(PosQrPayment $qr, string $transactionId, array $payload = []): string
+    public function confirm(PosQrPayment $qr, string $transactionId, array $payload = [], bool $late = false): string
     {
         $qr->refresh();
         if ($qr->status === QrPaymentStatus::PAID || $qr->status === QrPaymentStatus::REFUNDED) {
             return $qr->provider_transaction_id === $transactionId ? 'already_confirmed' : 'already_paid';
         }
-        if ($qr->status !== QrPaymentStatus::PENDING) {
+        $late = $late && $qr->provider === QrProvider::UZQR && ($qr->status === QrPaymentStatus::PENDING || $this->lateUzQr($qr));
+        if (!$late && $qr->status !== QrPaymentStatus::PENDING) {
             return 'refused';
         }
-        if ($this->isExpired($qr)) {
+        if (!$late && $this->isExpired($qr)) {
             $this->expire($qr);
 
             return 'refused';
@@ -239,7 +233,7 @@ final class QrPaymentService
         $device = $qr->device_id !== null ? Device::find($qr->device_id) : null;
         $shift = $this->shiftFor($qr, $device);
         if ($user === null || $shift === null) {
-            $this->cancelBy($qr, 'shift_closed');
+            $late ? $this->unmatched($qr, $transactionId, 'shift_closed') : $this->cancelBy($qr, 'shift_closed');
 
             return 'refused';
         }
@@ -253,9 +247,9 @@ final class QrPaymentService
                 $shift->uuid,
                 null,
                 $device,
-                function () use ($qr, $bill, $transactionId, $payload) {
+                function () use ($qr, $bill, $transactionId, $payload, $late) {
                     $locked = PosQrPayment::whereKey($qr->id)->lockForUpdate()->firstOrFail();
-                    if ($locked->status !== QrPaymentStatus::PENDING) {
+                    if ($locked->status !== QrPaymentStatus::PENDING && !($late && $this->lateUzQr($locked))) {
                         throw new QrConfirmationLost();
                     }
                     $payment = Payment::where('bill_id', $bill->id)->where('provider', PosTender::QR->value)
@@ -264,6 +258,8 @@ final class QrPaymentService
                     $locked->forceFill([
                         'status' => QrPaymentStatus::PAID,
                         'paid_at' => now(),
+                        'cancelled_at' => null,
+                        'cancel_reason' => null,
                         'provider_transaction_id' => $transactionId,
                         'payment_id' => $payment->id,
                         'shift_id' => $payment->shift_id,
@@ -281,7 +277,7 @@ final class QrPaymentService
                 return $qr->provider_transaction_id === $transactionId ? 'already_confirmed' : 'already_paid';
             }
             Log::info('POS QR confirmation refused by the bill', ['qr' => $qr->uuid, 'reason' => $e->reason]);
-            $this->cancelBy($qr, 'payment_refused:' . $e->reason);
+            $late ? $this->unmatched($qr, $transactionId, $e->reason) : $this->cancelBy($qr, 'payment_refused:' . $e->reason);
 
             return 'refused';
         }
@@ -329,6 +325,36 @@ final class QrPaymentService
         ])->save();
 
         return $qr;
+    }
+
+    /**
+     * Review P6W4 C10: the provider gave up the transaction that held the request (Click Complete with error < 0): the
+     * hold is released — pending again while in time (qr.pending: the till may show it or make a new one), else expired.
+     */
+    public function release(PosQrPayment $qr, string $transactionId): void
+    {
+        $released = DB::transaction(function () use ($qr, $transactionId) {
+            $qr = PosQrPayment::whereKey($qr->id)->lockForUpdate()->firstOrFail();
+            if ($qr->status !== QrPaymentStatus::PENDING || $qr->held_at === null || $qr->provider_transaction_id !== $transactionId) {
+                return null;
+            }
+            $qr->forceFill([
+                'held_at' => null,
+                'provider_transaction_id' => null,
+                'provider_payload' => array_merge($qr->provider_payload ?? [], ['released' => ['transaction_id' => $transactionId, 'at' => now()->toIso8601String()]]),
+            ])->save();
+
+            return $qr;
+        });
+        if ($released === null) {
+            return;
+        }
+        if ($this->isExpired($released)) {
+            $this->expire($released);
+
+            return;
+        }
+        $this->announce($released);
     }
 
     /**
@@ -382,7 +408,11 @@ final class QrPaymentService
             return false;
         }
         if ($qr->held_at !== null) {
-            return $qr->held_at->copy()->addMinutes((int) config('qr_payments.hold_minutes', 10))->max($qr->expires_at)->isPast();
+            // Review P6W4 C9: a Payme transaction stays pending at Payme for its own window (12 h): a late
+            // PerformTransaction is still taken (money not refused); the till shows "Mijoz to'lamoqda" meanwhile
+            $hold = $qr->provider === QrProvider::PAYME ? (int) config('qr_payments.payme.hold_minutes', 720) : (int) config('qr_payments.hold_minutes', 10);
+
+            return $qr->held_at->copy()->addMinutes($hold)->max($qr->expires_at)->isPast();
         }
 
         return $qr->expires_at->isPast();
@@ -438,8 +468,88 @@ final class QrPaymentService
         return $current !== null && (int) $current->branch_id === (int) $qr->branch_id ? $current : null;
     }
 
-    private function expire(PosQrPayment $qr): PosQrPayment
+    /**
+     * Review P6W4 C5: a UzQR expired by time within the hold window may still be reported paid by its gateway.
+     */
+    private function lateUzQr(PosQrPayment $qr): bool
     {
+        return $qr->provider === QrProvider::UZQR && $qr->status === QrPaymentStatus::EXPIRED && $qr->cancel_reason === 'expired'
+            && $qr->cancelled_at !== null && $qr->cancelled_at->gt(now()->subMinutes((int) config('qr_payments.hold_minutes', 10)));
+    }
+
+    /**
+     * Asks a UzQR's gateway (outside any transaction): paid — confirmed (late: past its expiry too); cancelled there —
+     * cancelled. True when the answer settled it.
+     */
+    private function askUzQr(PosQrPayment $qr): bool
+    {
+        if ($qr->provider !== QrProvider::UZQR || $qr->gateway_reference === null) {
+            return false;
+        }
+        $driver = $this->providers->of($qr);
+        $gateway = $driver instanceof Providers\UzQrProvider ? $driver->gateway() : null;
+        try {
+            $status = $gateway?->status($qr->gateway_reference, Store::findOrFail($qr->store_id));
+        } catch (\Throwable $e) {
+            Log::warning('UzQR status check failed: ' . $e->getMessage(), ['qr' => $qr->uuid]);
+            $status = null;
+        }
+        if (($status['status'] ?? null) === 'paid') {
+            $this->confirm($qr, (string) ($status['transaction_id'] ?? $qr->gateway_reference), ['uzqr' => 'status'], true);
+
+            return true;
+        }
+        if (($status['status'] ?? null) === 'cancelled' && $qr->status === QrPaymentStatus::PENDING) {
+            $this->cancelBy($qr, 'provider_cancelled');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Review P6W4 C5: the gateway took the money but the bill can no longer take it (paid otherwise, changed, the shift
+     * closed): kept for reconciliation — never dropped — with the provider's transaction (`cancel_reason`
+     * paid_unmatched, audit pos.qr_paid_unmatched); the manager gives the money back from the gateway's cabinet.
+     */
+    private function unmatched(PosQrPayment $qr, string $transactionId, string $reason): void
+    {
+        $marked = DB::transaction(function () use ($qr, $transactionId, $reason) {
+            $qr = PosQrPayment::whereKey($qr->id)->lockForUpdate()->firstOrFail();
+            if ($qr->status === QrPaymentStatus::PAID || $qr->status === QrPaymentStatus::REFUNDED) {
+                return null;
+            }
+            $qr->forceFill([
+                'status' => $qr->status === QrPaymentStatus::PENDING ? QrPaymentStatus::CANCELLED : $qr->status,
+                'cancelled_at' => $qr->cancelled_at ?? now(),
+                'cancel_reason' => 'paid_unmatched',
+                'provider_transaction_id' => mb_substr($transactionId, 0, 100),
+                'provider_payload' => array_merge($qr->provider_payload ?? [], ['unmatched' => ['transaction_id' => $transactionId, 'reason' => $reason, 'at' => now()->toIso8601String()]]),
+            ])->save();
+            $this->audit->record('pos.qr_paid_unmatched', Order::find($qr->order_id), [], [], [
+                'qr' => $qr->uuid,
+                'bill' => $qr->bill_uuid,
+                'provider' => $qr->provider->value,
+                'amount' => $qr->amount,
+                'transaction' => $transactionId,
+                'reason' => $reason,
+            ], ['store_id' => (int) $qr->store_id, 'branch_id' => (int) $qr->branch_id]);
+
+            return $qr;
+        });
+        if ($marked !== null) {
+            Log::error('POS QR paid at the provider but not taken by the bill: reconcile', ['qr' => $marked->uuid, 'reason' => $reason]);
+            event(new QrPaymentBroadcast($marked, (string) Order::whereKey($marked->order_id)->value('uuid')));
+        }
+    }
+
+    private function expire(PosQrPayment $qr, bool $asked = false): PosQrPayment
+    {
+        // Review P6W4 C5: a UzQR's gateway is asked before it expires (a bank push paid at the last second)
+        if (!$asked && $qr->status === QrPaymentStatus::PENDING && $this->askUzQr($qr)) {
+            return $qr->refresh();
+        }
         $expired = DB::transaction(function () use ($qr) {
             $qr = PosQrPayment::whereKey($qr->id)->lockForUpdate()->firstOrFail();
             if ($qr->status !== QrPaymentStatus::PENDING || !$this->isExpired($qr)) {

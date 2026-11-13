@@ -184,13 +184,14 @@ final class FiscalSettings
     }
 
     /**
-     * P6-42: the dynamic UzQR gateway the store chose (a key of config('qr_payments.uzqr.drivers')), else null.
+     * P6-42: the dynamic UzQR gateway the store chose (a key of QrProviders::uzqrDrivers(): the sandbox one only on a
+     * sandbox stand, review P6W4 S3), else null.
      */
     public function uzqrDriver(): ?string
     {
         $driver = is_array($this->raw['uzqr'] ?? null) ? ($this->raw['uzqr']['driver'] ?? null) : null;
 
-        return is_string($driver) && array_key_exists($driver, (array) config('qr_payments.uzqr.drivers', [])) ? $driver : null;
+        return is_string($driver) && array_key_exists($driver, \App\Domain\Pos\QrPayments\QrProviders::uzqrDrivers()) ? $driver : null;
     }
 
     /**
@@ -238,7 +239,7 @@ final class FiscalSettings
             'fiscal_settings.combo_fiscal_mode' => ['sometimes', 'nullable', 'string', Rule::enum(ComboFiscalMode::class)],
             // P6-42: the UzQR gateway at the till
             'fiscal_settings.uzqr' => ['sometimes', 'array'],
-            'fiscal_settings.uzqr.driver' => ['sometimes', 'nullable', 'string', Rule::in(array_keys((array) config('qr_payments.uzqr.drivers', [])))],
+            'fiscal_settings.uzqr.driver' => ['sometimes', 'nullable', 'string', Rule::in(array_keys(\App\Domain\Pos\QrPayments\QrProviders::uzqrDrivers()))],
         ], \App\Support\UzValidation::messages([
             'tin.regex' => "STIR 9 ta raqamdan iborat bo'lishi kerak.",
             'tax_regime.in' => "Soliq rejimi noto'g'ri: vat, vat_simplified yoki turnover.",

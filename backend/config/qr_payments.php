@@ -12,7 +12,13 @@ return [
     // simulate endpoint). Never on in production.
     'sandbox' => (bool) env('QR_PAYMENTS_SANDBOX', false),
 
-    // POST /pos/qr/{uuid}/simulate-paid confirms a sandbox QR (a sandbox driver only); off in production
+    // Review P6W4 S3: the providers whose sandbox may still be used while `sandbox` is off (comma-separated; only
+    // "uzqr" has a sandbox driver to pick): an e2e stand that drives the real Click/Payme webhooks but has no bank for
+    // UzQR (QR_PAYMENTS_SIMULATE_DRIVERS=uzqr). The sandbox UzQR gateway is offered only with `sandbox` or this.
+    'simulate_drivers' => array_values(array_filter(array_map('trim', explode(',', (string) env('QR_PAYMENTS_SIMULATE_DRIVERS', ''))))),
+
+    // POST /pos/qr/{uuid}/simulate-paid confirms a sandbox QR (a sandbox driver only, and only with `sandbox` on or
+    // the provider in `simulate_drivers`: QrProviders::simulates); off in production
     'simulate' => (bool) env('QR_PAYMENTS_SIMULATE', env('APP_ENV', 'production') !== 'production'),
 
     // How long a QR stays valid by default, and the range the owner may set (minutes)
@@ -32,11 +38,15 @@ return [
     'payme' => [
         // Subscribe API (receipts.cancel; X-Auth: merchant_id:key) — the Merchant API transaction id is the receipt id
         'api_url' => env('PAYME_API_URL', 'https://checkout.paycom.uz/api'),
+        // A created (held) Payme transaction may stay pending at Payme this long (its 12 h timeout): the QR stays
+        // payable meanwhile instead of refusing a late PerformTransaction (review P6W4 C9)
+        'hold_minutes' => 720,
     ],
 
     'uzqr' => [
         // name => class implementing App\Domain\Pos\QrPayments\UzQr\UzQrGateway (the real bank/provider driver comes
-        // with P3-32); a store picks one in stores.fiscal_settings.uzqr.driver
+        // with P3-32); a store picks one in stores.fiscal_settings.uzqr.driver. `sandbox` is registered only while
+        // `sandbox` is on or "uzqr" is in `simulate_drivers` (QrProviders::uzqrDrivers)
         'drivers' => [
             'sandbox' => App\Domain\Pos\QrPayments\UzQr\SandboxUzQrGateway::class,
         ],

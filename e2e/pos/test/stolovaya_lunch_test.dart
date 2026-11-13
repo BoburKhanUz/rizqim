@@ -940,7 +940,8 @@ void main() {
         expect(before.accountUuid, corporateUuid);
         expect(before.companyName, 'Paxta Tekstil MChJ');
         expect(before.memberName, m.name);
-        expect(before.code, m.code);
+        // Review S5: a phone lookup gives the talon code masked (the charge by phone needs none)
+        expect(before.code, byPhone ? isNot(m.code) : m.code);
         expect(before.talonMode, 'daily_limit');
         expect(before.chargeApproval, isFalse);
         expect(
@@ -2103,9 +2104,57 @@ void main() {
       final XlsxFile file = XlsxFile.parse(bytes);
       expect(file.sheetNames, <String>['Hisobot', 'Hisob-faktura']);
       final String text = file.allText;
+      // The owner (customer_accounts.manage) sees every talon code in full
       for (final Member m in paxta.take(11)) {
         expect(text, contains(m.code));
         expect(text, contains(m.name));
+      }
+
+      // Review S1: a reader with reports.view only (the owner lets cashiers see reports) gets the codes masked
+      Future<void> cashiersSeeReports(bool? allowed) async {
+        await owner.put<Object?>(
+          '/v1/owner/permissions',
+          data: <String, Object?>{
+            'role': 'cashier',
+            'permission': 'reports.view',
+            'allowed': allowed,
+          },
+        );
+      }
+
+      await cashiersSeeReports(true);
+      try {
+        final Dio reader = till1.terminal.client.dio;
+        final Map<String, Object?> masked = asMap(
+          asMap(
+            (await reader.get<Object?>(
+              '/v1/pos/customer-accounts/$corporateUuid/corporate-statement',
+              queryParameters: <String, Object?>{'month': month},
+            )).data,
+          )['data'],
+        );
+        expect(masked['masked'], isTrue);
+        expect(money(masked['total']), total);
+        final Set<String> codes = <String>{
+          for (final Map<String, Object?> row in asList(masked['rows']))
+            if (row['member'] != null) asMap(row['member'])['code']! as String,
+        };
+        for (final Member m in paxta) {
+          expect(codes, isNot(contains(m.code)), reason: m.name);
+        }
+        final XlsxFile readerFile = XlsxFile.parse(
+          (await reader.get<List<int>>(
+            '/v1/pos/customer-accounts/$corporateUuid/corporate-statement/export',
+            queryParameters: <String, Object?>{'month': month},
+            options: Options(responseType: ResponseType.bytes),
+          )).data!,
+        );
+        for (final Member m in paxta.take(11)) {
+          expect(readerFile.allText, isNot(contains(m.code)), reason: m.name);
+          expect(readerFile.allText, contains(m.name));
+        }
+      } finally {
+        await cashiersSeeReports(null);
       }
     });
   });

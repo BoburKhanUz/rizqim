@@ -215,7 +215,8 @@ void main() {
     final PosCorporateLookup byPhone = await h.pos.accounts.lookupMember(
       phone: '90 111 22 33',
     );
-    expect(byPhone.code, 'PT-1');
+    // Review P6 wave 4 (S5): found by phone the talon comes masked
+    expect(byPhone.code, '****');
     expect(byPhone.dailyAvailable, const PosMoney.som(40000));
     expect(byPhone.memberPhone, '+99890 *** ** 33');
     expect(byPhone.chargeApproval, isFalse);

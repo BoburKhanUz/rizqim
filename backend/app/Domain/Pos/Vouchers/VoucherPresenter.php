@@ -13,18 +13,19 @@ use App\Support\Money;
 /**
  * P6-43: a voucher as the till and the partner web show it. The buyer's phone is masked unless `$full` (the owner's
  * own view of one voucher). `print`: what the certificate slip shows (pos_core template): the store, the code and its
- * QR text, the value and the validity.
+ * QR text, the value and the validity. Review S1: with `$maskCode` (a partner web reader without vouchers.manage) the
+ * code is masked (VoucherCode::mask — it is the money) and `print` is null.
  */
 final class VoucherPresenter
 {
-    public const VOUCHER = 'array{uuid: string, code: string, kind: string, face_value: string, balance: string, currency: string, valid_from: string, valid_until: string|null, status: string, status_label: string, branch: array{id: int, name: string|null}|null, sale: array{tender: string, card_type: string|null, transaction_id: string|null, reference: string|null, shift_id: int|null, sold_at: string|null, sold_by: array{id: int, name: string|null}|null}, buyer: array{name: string|null, phone: string|null}, note: string|null, fiscal: array{receipt_uuid: string|null, status: string|null}, blocked: array{at: string|null, reason: string|null}|null, print: array{store: string|null, code: string, qr: string, value: string, valid_from: string, valid_until: string|null}, created_at: string|null}';
+    public const VOUCHER = 'array{uuid: string, code: string, kind: string, face_value: string, balance: string, currency: string, valid_from: string, valid_until: string|null, status: string, status_label: string, branch: array{id: int, name: string|null}|null, sale: array{tender: string, card_type: string|null, transaction_id: string|null, reference: string|null, shift_id: int|null, sold_at: string|null, sold_by: array{id: int, name: string|null}|null}, buyer: array{name: string|null, phone: string|null}, note: string|null, fiscal: array{receipt_uuid: string|null, status: string|null}, blocked: array{at: string|null, reason: string|null}|null, print: array{store: string|null, code: string, qr: string, value: string, valid_from: string, valid_until: string|null}|null, created_at: string|null}';
 
     public const ENTRY = 'array{uuid: string, type: string, type_label: string, amount: string, balance_after: string, business_date: string|null, bill_uuid: string|null, refund_uuid: string|null, tender: string|null, branch_id: int|null, shift_id: int|null, user: array{id: int, name: string|null}|null, note: string|null, created_at: string|null}';
 
     /**
      * @return array<string, mixed>
      */
-    public function voucher(Voucher $voucher, bool $full = false, ?Branch $at = null): array
+    public function voucher(Voucher $voucher, bool $full = false, ?Branch $at = null, bool $maskCode = false): array
     {
         $status = VoucherState::of($voucher, $at);
         $branch = $voucher->branch_id !== null ? Branch::find($voucher->branch_id) : null;
@@ -32,7 +33,7 @@ final class VoucherPresenter
 
         return [
             'uuid' => (string) $voucher->uuid,
-            'code' => (string) $voucher->code,
+            'code' => $maskCode ? VoucherCode::mask((string) $voucher->code) : (string) $voucher->code,
             'kind' => $voucher->kind->value,
             'face_value' => Money::of($voucher->face_value)->toString(),
             'balance' => Money::of($voucher->balance)->toString(),
@@ -58,7 +59,7 @@ final class VoucherPresenter
             'note' => $voucher->note,
             'fiscal' => ['receipt_uuid' => $voucher->fiscal_receipt_uuid, 'status' => $voucher->fiscal_status],
             'blocked' => $voucher->blocked_at !== null ? ['at' => $voucher->blocked_at->toIso8601String(), 'reason' => $voucher->block_reason] : null,
-            'print' => [
+            'print' => $maskCode ? null : [
                 'store' => Store::whereKey($voucher->store_id)->value('name'),
                 'code' => (string) $voucher->code,
                 'qr' => (string) $voucher->code,

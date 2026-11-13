@@ -24,11 +24,7 @@ final class QrPaymentPresenter
     public function present(PosQrPayment $qr): array
     {
         $amount = Money::of($qr->amount)->toString();
-        try {
-            $simulated = $qr->status === QrPaymentStatus::PENDING && $this->providers->of($qr)->simulated() && (bool) config('qr_payments.simulate');
-        } catch (\LogicException) {
-            $simulated = false;
-        }
+        $simulated = $qr->status === QrPaymentStatus::PENDING && $this->providers->simulates($qr);
 
         return [
             'uuid' => (string) $qr->uuid,

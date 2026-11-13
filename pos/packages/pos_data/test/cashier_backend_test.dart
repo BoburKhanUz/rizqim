@@ -424,23 +424,18 @@ void main() {
         const PosMoney.som(20000),
       );
 
-      // The guest repays part of the debt: more than is left of it cannot come off
+      // The guest repays part of the debt: the refund is never refused for it (review P6 wave 4, C7) — the balance
+      // goes below zero (the customer's credit)
       await h.pos.accounts.repay(
         account,
         amount: nasiya - const PosMoney.som(10000),
         tender: 'cash',
       );
-      final PosConflict debt = await _throws<PosConflict>(
-        () => refund(credit, const PosMoney.som(15000)),
-      );
-      expect(debt.reason, PosReasons.moreThanDebt);
-      expect(debt.message, contains('10000.00'));
-
-      final PosRefund off = await refund(credit, const PosMoney.som(10000));
+      final PosRefund off = await refund(credit, const PosMoney.som(15000));
       expect(off.method, 'account');
       expect(
         (await h.pos.accounts.get(account)).account.balance,
-        PosMoney.zero,
+        const PosMoney.som(-5000),
       );
       // Neither moved cash (the repayment did, before)
       expect(

@@ -144,6 +144,14 @@ void main() {
       }),
       isA<PosQrPaymentChanged>(),
     );
+    // Review P6W4 C10: Click gave the payment up, the QR is pending (not held) again
+    final PosQrPaymentChanged released = PosEvent.fromWire(
+      'qr.pending',
+      <String, Object?>{
+        'qr': <String, Object?>{'uuid': 'q3', 'status': 'pending'},
+      },
+    ) as PosQrPaymentChanged;
+    expect((released.qrUuid, released.paid), ('q3', false));
     expect(
       PosEvent.fromWire('qr.cancelled', <String, Object?>{}),
       isA<PosUnknownEvent>(),
