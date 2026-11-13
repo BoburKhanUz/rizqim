@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'receipt13.dart';
+import 'receipt9.dart';
 
 part 'fiscal16.g.dart';
 
@@ -24,7 +24,7 @@ class Fiscal16 {
   @JsonKey(name: 'receipt_uuid')
   final String? receiptUuid;
   final String? error;
-  final Receipt13? receipt;
+  final Receipt9? receipt;
 
   Map<String, Object?> toJson() => _$Fiscal16ToJson(this);
 }

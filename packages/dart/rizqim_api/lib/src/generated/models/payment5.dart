@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'qr2.dart';
+import 'qr3.dart';
 
 part 'payment5.g.dart';
 
@@ -23,7 +23,7 @@ class Payment5 {
   final String? method;
   final String? tendered;
   final String? change;
-  final Qr2? qr;
+  final Qr3? qr;
 
   Map<String, Object?> toJson() => _$Payment5ToJson(this);
 }

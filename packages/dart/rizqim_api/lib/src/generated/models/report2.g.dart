@@ -12,10 +12,13 @@ Report2 _$Report2FromJson(Map<String, dynamic> json) => Report2(
   period: Period5.fromJson(json['period'] as Map<String, dynamic>),
   sales: Sales3.fromJson(json['sales'] as Map<String, dynamic>),
   byTender: (json['by_tender'] as List<dynamic>)
-      .map((e) => ByTender2.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByTender3.fromJson(e as Map<String, dynamic>))
       .toList(),
   cards: (json['cards'] as List<dynamic>)
       .map((e) => Cards2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  qrProviders: (json['qr_providers'] as List<dynamic>)
+      .map((e) => QrProviders2.fromJson(e as Map<String, dynamic>))
       .toList(),
   byChannel: (json['by_channel'] as List<dynamic>)
       .map((e) => ByChannel4.fromJson(e as Map<String, dynamic>))
@@ -32,6 +35,7 @@ Report2 _$Report2FromJson(Map<String, dynamic> json) => Report2(
   deposits: Deposits2.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit5.fromJson(json['credit'] as Map<String, dynamic>),
   tips: Tips11.fromJson(json['tips'] as Map<String, dynamic>),
+  vouchers: Vouchers3.fromJson(json['vouchers'] as Map<String, dynamic>),
   cash: Cash3.fromJson(json['cash'] as Map<String, dynamic>),
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements2.fromJson(e as Map<String, dynamic>))
@@ -45,6 +49,7 @@ Map<String, dynamic> _$Report2ToJson(Report2 instance) => <String, dynamic>{
   'sales': instance.sales,
   'by_tender': instance.byTender,
   'cards': instance.cards,
+  'qr_providers': instance.qrProviders,
   'by_channel': instance.byChannel,
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
@@ -54,6 +59,7 @@ Map<String, dynamic> _$Report2ToJson(Report2 instance) => <String, dynamic>{
   'deposits': instance.deposits,
   'credit': instance.credit,
   'tips': instance.tips,
+  'vouchers': instance.vouchers,
   'cash': instance.cash,
   'movements': instance.movements,
 };

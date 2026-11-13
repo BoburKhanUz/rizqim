@@ -7,27 +7,39 @@ part of 'data156.dart';
 // **************************************************************************
 
 Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
-  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  dayStartsAt: json['day_starts_at'] as String,
+  stationId: (json['station_id'] as num?)?.toInt(),
+  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
+  orders: Orders.fromJson(json['orders'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations8.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products7.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  hours: (json['hours'] as List<dynamic>)
+      .map((e) => Hours.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  expo: json['expo'] == null
+      ? null
+      : Expo.fromJson(json['expo'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data156ToJson(Data156 instance) => <String, dynamic>{
-  'id': instance.id,
   'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'day_starts_at': instance.dayStartsAt,
+  'station_id': instance.stationId,
+  'summary': instance.summary,
+  'orders': instance.orders,
+  'stations': instance.stations,
+  'products': instance.products,
+  'hours': instance.hours,
+  'expo': instance.expo,
 };

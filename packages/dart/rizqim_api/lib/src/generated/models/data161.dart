@@ -8,13 +8,20 @@ part 'data161.g.dart';
 
 @JsonSerializable()
 class Data161 {
-  const Data161({required this.path, required this.url});
+  const Data161({
+    required this.branchId,
+    required this.weekendDays,
+    required this.holidays,
+  });
 
   factory Data161.fromJson(Map<String, Object?> json) =>
       _$Data161FromJson(json);
 
-  final String path;
-  final String url;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'weekend_days')
+  final List<int> weekendDays;
+  final List<String> holidays;
 
   Map<String, Object?> toJson() => _$Data161ToJson(this);
 }

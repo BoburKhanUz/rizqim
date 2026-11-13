@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'taken4.dart';
 import 'applied4.dart';
-import 'refunded4.dart';
+import 'refunded5.dart';
 
 part 'deposits4.g.dart';
 
@@ -23,7 +23,7 @@ class Deposits4 {
 
   final Taken4 taken;
   final Applied4 applied;
-  final Refunded4 refunded;
+  final Refunded5 refunded;
 
   Map<String, Object?> toJson() => _$Deposits4ToJson(this);
 }

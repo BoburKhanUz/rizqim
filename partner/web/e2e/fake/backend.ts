@@ -4,6 +4,7 @@
 import { FakeBilling } from './billing'
 import { FakeBookings } from './bookings'
 import { FakeCombos } from './combos'
+import { FakeCorporate } from './corporate'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
@@ -20,6 +21,7 @@ import { FakeStaffPay } from './staffpay'
 import { FakeTeam } from './team'
 import { FakeTerminal } from './terminal'
 import { FakeTips } from './tips'
+import { FakeVouchers } from './vouchers'
 import { FakeZones } from './zones'
 import { fail, ok, unauthenticated, type FakeRequest, type RecordedCall, type Reply } from './types'
 
@@ -41,6 +43,8 @@ export const OWNER_PERMISSIONS = [
   'staff_pay.view', 'staff_pay.manage',
   // P6-22: tips (choy puli): corrections and the pool split
   'tips.manage',
+  // P6-43: gift certificates (block, unblock)
+  'vouchers.manage',
 ]
 
 export interface Account {
@@ -116,6 +120,10 @@ export class FakeBackend {
   terminal: FakeTerminal
   staffPay: FakeStaffPay
   tips: FakeTips
+  // P6-44: customer accounts with a corporate one ("Korxona hisobi")
+  corporate: FakeCorporate
+  // P6-43: gift certificates ("Sertifikatlar")
+  vouchers: FakeVouchers
   kds: FakeKds
   combos: FakeCombos
   takeaway: FakeTakeaway
@@ -139,6 +147,8 @@ export class FakeBackend {
     this.terminal = new FakeTerminal(this)
     this.staffPay = new FakeStaffPay(this)
     this.tips = new FakeTips(this)
+    this.corporate = new FakeCorporate(this)
+    this.vouchers = new FakeVouchers(this)
     this.kds = new FakeKds(this)
     this.combos = new FakeCombos(this)
     this.takeaway = new FakeTakeaway(this)
@@ -304,7 +314,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan]) {
+    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

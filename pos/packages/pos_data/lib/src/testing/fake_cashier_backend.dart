@@ -1244,7 +1244,9 @@ class FakeCashierBackend {
                 ? p['tender']
                 : 'cash',
             'amount': p['amount'],
-            'prepayment': p['tender'] == 'prepayment',
+            // P6-43: a gift certificate part is prepaid like a deposit offset
+            'prepayment':
+                p['tender'] == 'prepayment' || p['tender'] == 'voucher',
             'credit': p['tender'] == 'account',
             'card_type': p['card_type'],
             'transaction_id': p['transaction_id'],

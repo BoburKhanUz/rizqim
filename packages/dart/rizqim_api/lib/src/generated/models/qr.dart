@@ -4,17 +4,63 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'display3.dart';
+
 part 'qr.g.dart';
 
 @JsonSerializable()
 class Qr {
-  const Qr({this.payload, this.label, this.provider});
+  const Qr({
+    required this.uuid,
+    required this.billUuid,
+    required this.orderUuid,
+    required this.provider,
+    required this.providerLabel,
+    required this.amount,
+    required this.status,
+    required this.payload,
+    required this.display,
+    required this.expiresAt,
+    required this.held,
+    required this.paidAt,
+    required this.cancelledAt,
+    required this.cancelReason,
+    required this.paymentUuid,
+    required this.refundedAmount,
+    required this.simulated,
+    required this.createdAt,
+  });
 
   factory Qr.fromJson(Map<String, Object?> json) => _$QrFromJson(json);
 
-  final String? payload;
-  final String? label;
-  final String? provider;
+  final String uuid;
+  @JsonKey(name: 'bill_uuid')
+  final String billUuid;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  final String provider;
+  @JsonKey(name: 'provider_label')
+  final String providerLabel;
+  final String amount;
+  final String status;
+  final String payload;
+  final Display3 display;
+  @JsonKey(name: 'expires_at')
+  final String expiresAt;
+  final bool held;
+  @JsonKey(name: 'paid_at')
+  final String? paidAt;
+  @JsonKey(name: 'cancelled_at')
+  final String? cancelledAt;
+  @JsonKey(name: 'cancel_reason')
+  final String? cancelReason;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  @JsonKey(name: 'refunded_amount')
+  final String refundedAmount;
+  final bool simulated;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$QrToJson(this);
 }

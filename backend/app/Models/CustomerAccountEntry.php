@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \App\Domain\Pos\Accounts\CustomerAccountEntryType $type
  * @property numeric-string $amount
  * @property numeric-string $balance_after
+ * @property int|null $member_id
+ * @property \Illuminate\Support\Carbon|null $business_date
  */
 class CustomerAccountEntry extends Model
 {
@@ -23,6 +25,7 @@ class CustomerAccountEntry extends Model
         'type' => \App\Domain\Pos\Accounts\CustomerAccountEntryType::class,
         'amount' => 'decimal:2',
         'balance_after' => 'decimal:2',
+        'business_date' => 'date:Y-m-d',
     ];
 
     /**
@@ -39,6 +42,14 @@ class CustomerAccountEntry extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<CustomerAccountMember, $this>
+     */
+    public function member(): BelongsTo
+    {
+        return $this->belongsTo(CustomerAccountMember::class, 'member_id');
     }
 
     /**

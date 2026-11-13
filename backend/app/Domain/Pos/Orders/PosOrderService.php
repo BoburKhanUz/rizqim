@@ -677,7 +677,7 @@ class PosOrderService implements PosOrderOpener
             }
             $approvedBy = $this->waiters->guard($order, $actor, $approvedBy === null ? $approvalToken : null, $approvedBy) ?? $approvedBy;
 
-            $order->forceFill($removing ? [
+            $order->forceFill(($removing ? [
                 'discount_kind' => null,
                 'discount_value' => null,
                 'discount_reason' => null,
@@ -688,7 +688,7 @@ class PosOrderService implements PosOrderOpener
                 'discount_value' => $value->toString(),
                 'discount_reason' => $reason,
                 'discount_by' => $actor->id,
-            ])->save();
+            ]) + ['promo_code_id' => null])->save(); // P6-43: a discount set by hand replaces a promo code's
             $this->charges->recalculate($order);
             $after = $this->discountState($order);
 
@@ -705,6 +705,39 @@ class PosOrderService implements PosOrderOpener
 
             return ['charges_changed', []];
         }, null, false);
+    }
+
+    /**
+     * P6-43: a store promo code as the order's discount (App\Domain\Pos\Vouchers\PosPromoService). `$columns` gets the
+     * locked order and its dishes' subtotal and returns the discount columns to set (with `promo_code_id`; all null to
+     * take the promo off). The cashier's discount limit does not apply (a valid code is the store's own offer); the
+     * waiter rule does, and, as for discount(), 409 `paid_bill_affected` once a bill of the order is being paid.
+     * Audited (`pos.order.promo`, old and new).
+     *
+     * @param  Closure(Order, Money): array<string, mixed>  $columns
+     */
+    public function promoDiscount(Order $order, int $version, User $actor, Closure $columns): Order
+    {
+        return $this->mutate($order, $version, $actor, function (Order $order) use ($actor, $columns) {
+            if ($this->hasTakenBills($order)) {
+                throw new PosOrderException(
+                    "Buyurtmaning schyoti to'lanmoqda yoki to'langan: chegirmani o'zgartirish uchun avval to'lovni qaytaring.",
+                    409,
+                    'paid_bill_affected',
+                );
+            }
+
+            $items = $this->charges->compute($order)->itemsSubtotal;
+            $before = $this->discountState($order) + ['promo_code_id' => $order->getAttribute('promo_code_id')];
+            $order->forceFill($columns($order, $items))->save();
+            $this->charges->recalculate($order);
+
+            $this->audit->record('pos.order.promo', $order, $before, $this->discountState($order) + ['promo_code_id' => $order->getAttribute('promo_code_id')], [
+                'items_subtotal' => $items->toString(),
+            ], ['actor' => $actor]);
+
+            return ['charges_changed', []];
+        });
     }
 
     /**

@@ -35,7 +35,12 @@ use Illuminate\Support\Facades\DB;
  *  - qr: a static or dynamic QR confirmed by the cashier (`reference`: the provider's id, optional);
  *  - prepayment: the booking's deposit (AdvanceLedger::apply), at most what is available, once per bill;
  *  - account (nasiya): the customer account is charged (CustomerAccountLedger::charge), approved by someone holding
- *    customer_accounts.manage (the cashier themselves, or a manager's approval token), once per bill.
+ *    customer_accounts.manage (the cashier themselves, or a manager's approval token), once per bill. P6-44: a
+ *    corporate account names its member (`member_code`: the talon, or `member_phone`); its limits are the ledger's,
+ *    and its charge needs the approval only when the account's `charge_approval` is on;
+ *  - voucher (P6-43): a gift certificate (`voucher_code`) spent on the bill (VoucherLedger::redeem: at most its
+ *    balance, once per voucher and bill, refused when blocked, used up or expired); its money was received and
+ *    receipted as an advance when it was sold, so the sale receipt shows this part as `prepayment`. Online only.
  *
  * Nothing may go over what the bill still owes. Every payment lands in the shift (cash in its drawer). When the bill
  * is covered its sale receipt is asked for (BillFiscalizer); the bill is paid, and the order closed once all bills
@@ -70,10 +75,11 @@ final class PaymentService
         private readonly TipService $tips,
         private readonly PosModules $modules,
         private readonly \App\Services\Auth\PermissionService $permissions,
+        private readonly \App\Domain\Pos\Contracts\VoucherLedger $vouchers,
     ) {}
 
     /**
-     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null, tip_amount?: string|null, tip_from_change?: string|bool|null}>  $tenders
+     * @param  list<array{tender: string, amount: string, tendered_amount?: string|null, card_type?: string|null, transaction_id?: string|null, card_last4?: string|null, reference?: string|null, account_uuid?: string|null, member_code?: string|null, member_phone?: string|null, voucher_code?: string|null, tip_amount?: string|null, tip_from_change?: string|bool|null}>  $tenders
      * @param  int|null  $tipStaffId  P6-22: the staff member the cashier gave the tips to (personal mode)
      * @param  string|null  $tipApprovalToken  a manager's approval (tips.manage) for a tip to someone other than the waiter
      * @param  int|null  $offlineWaiterId  offline: the order's waiter as the till saw it when it took the money
@@ -174,9 +180,17 @@ final class PaymentService
                     $this->advances->apply($order, $tender['amount'], $bill->uuid);
                 }
                 if ($tender['tender'] === PosTender::ACCOUNT) {
-                    $approvedBy = $this->approvals->authorize($user, Permission::CUSTOMER_ACCOUNTS_MANAGE, $order, $approvalToken, $device) ?? $user->id;
-                    $this->accounts->charge((string) $tender['account_uuid'], $tender['amount'], $bill->uuid, $approvedBy);
-                    $payload = ['account_uuid' => $tender['account_uuid'], 'approved_by' => $approvedBy];
+                    // P6-44: a corporate account without `charge_approval` is charged by the cashier alone (its limits apply)
+                    $approvedBy = $this->accounts->approvalRequired((string) $tender['account_uuid'], (int) $order->store_id)
+                        ? ($this->approvals->authorize($user, Permission::CUSTOMER_ACCOUNTS_MANAGE, $order, $approvalToken, $device) ?? $user->id)
+                        : $user->id;
+                    $this->accounts->charge((string) $tender['account_uuid'], $tender['amount'], $bill->uuid, $approvedBy, $tender['member_code'], $tender['member_phone']);
+                    $payload = ['account_uuid' => $tender['account_uuid'], 'approved_by' => $approvedBy] + array_filter(['member_code' => $tender['member_code']], fn ($value) => $value !== null);
+                }
+                if ($tender['tender'] === PosTender::VOUCHER) {
+                    // P6-43: the certificate's balance, under its lock (two tills at once: one wins, 409 voucher_insufficient)
+                    $voucher = $this->vouchers->redeem((int) $order->store_id, (string) $tender['voucher_code'], $tender['amount'], $bill->uuid, (int) $order->branch_id, (int) $user->id, $device?->id, (int) $shift->id);
+                    $payload = ['voucher_uuid' => $voucher['uuid'], 'voucher_code' => $voucher['code'], 'form' => $voucher['form'], 'balance_after' => $voucher['balance_after']];
                 }
 
                 $payment = Payment::create([
@@ -250,7 +264,7 @@ final class PaymentService
 
     /**
      * @param  list<array<string, mixed>>  $tenders
-     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, account_uuid: string|null, tip: Money|null, tip_method: TipMethod, tip_source: TipSource}>
+     * @return list<array{tender: PosTender, amount: Money, tendered: Money|null, change: Money|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, account_uuid: string|null, member_code: string|null, member_phone: string|null, voucher_code: string|null, tip: Money|null, tip_method: TipMethod, tip_source: TipSource}>
      *
      * @throws PosActionException
      */
@@ -329,10 +343,24 @@ final class PaymentService
             }
 
             $account = null;
+            $memberCode = null;
+            $memberPhone = null;
             if ($tender === PosTender::ACCOUNT) {
                 $account = trim((string) ($input['account_uuid'] ?? ''));
                 if ($account === '') {
                     throw PosActionException::invalid('account_required', 'Nasiya hisobini tanlang.', ['index' => $i]);
+                }
+                // P6-44: the corporate member (talon code or phone)
+                $memberCode = filled($input['member_code'] ?? null) ? mb_substr(trim((string) $input['member_code']), 0, 32) : null;
+                $memberPhone = filled($input['member_phone'] ?? null) ? mb_substr(trim((string) $input['member_phone']), 0, 32) : null;
+            }
+
+            // P6-43: the gift certificate's code as typed or scanned
+            $voucherCode = null;
+            if ($tender === PosTender::VOUCHER) {
+                $voucherCode = \App\Domain\Pos\Vouchers\VoucherCode::normalize((string) ($input['voucher_code'] ?? ''));
+                if ($voucherCode === null) {
+                    throw PosActionException::invalid('voucher_code_required', "Sertifikat kodini kiriting (XXXX-XXXX-XXXX).", ['index' => $i]);
                 }
             }
 
@@ -346,6 +374,9 @@ final class PaymentService
                 'card_last4' => $last4,
                 'reference' => filled($input['reference'] ?? null) ? mb_substr(trim((string) $input['reference']), 0, 100) : null,
                 'account_uuid' => $account,
+                'member_code' => $memberCode,
+                'member_phone' => $memberPhone,
+                'voucher_code' => $voucherCode,
                 'tip' => $tip,
                 'tip_method' => $tipMethod ?? TipMethod::CASH,
                 'tip_source' => $fromChange ? TipSource::CHANGE : TipSource::TENDER,

@@ -4,20 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account2.dart';
-import 'entry.dart';
+import 'channel6.dart';
+import 'branch18.dart';
+import 'category.dart';
+import 'products.dart';
+import 'availability.dart';
 
 part 'data220.g.dart';
 
 @JsonSerializable()
 class Data220 {
-  const Data220({required this.account, required this.entry});
+  const Data220({
+    required this.channel,
+    required this.menuVersion,
+    required this.branch,
+    required this.categories,
+    required this.products,
+    required this.availability,
+  });
 
   factory Data220.fromJson(Map<String, Object?> json) =>
       _$Data220FromJson(json);
 
-  final Account2 account;
-  final Entry entry;
+  final Channel6 channel;
+  @JsonKey(name: 'menu_version')
+  final String menuVersion;
+  final Branch18 branch;
+  final List<Category> categories;
+  final List<Products> products;
+  final Availability availability;
 
   Map<String, Object?> toJson() => _$Data220ToJson(this);
 }

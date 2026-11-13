@@ -4,18 +4,74 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'staff24.dart';
+import 'device22.dart';
+import 'origin_device2.dart';
+import 'order14.dart';
+import 'resolved_by2.dart';
+
 part 'data294.g.dart';
 
 @JsonSerializable()
 class Data294 {
-  const Data294({required this.rating, required this.reviewCount});
+  const Data294({
+    required this.opId,
+    required this.seq,
+    required this.type,
+    required this.typeLabel,
+    required this.status,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.originDevice,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
+  });
 
   factory Data294.fromJson(Map<String, Object?> json) =>
       _$Data294FromJson(json);
 
-  final String rating;
-  @JsonKey(name: 'review_count')
-  final int reviewCount;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String status;
+  final String? reason;
+  final String? message;
+  final Staff24? staff;
+  final Device22? device;
+  @JsonKey(name: 'origin_device')
+  final OriginDevice2? originDevice;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order14? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data294ToJson(this);
 }

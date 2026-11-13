@@ -7,21 +7,19 @@ part of 'data297.dart';
 // **************************************************************************
 
 Data297 _$Data297FromJson(Map<String, dynamic> json) => Data297(
-  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
-  store: json['store'] == null
-      ? null
-      : Store4.fromJson(json['store'] as Map<String, dynamic>),
-  branch: json['branch'] == null
-      ? null
-      : Branch16.fromJson(json['branch'] as Map<String, dynamic>),
-  branches: (json['branches'] as List<dynamic>)
-      .map((e) => Branches3.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String?,
+  businessDate: json['business_date'] as String,
+  ownOnly: json['own_only'] as bool,
+  summary: Summary7.fromJson(json['summary'] as Map<String, dynamic>),
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips15.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data297ToJson(Data297 instance) => <String, dynamic>{
-  'device': instance.device,
-  'store': instance.store,
-  'branch': instance.branch,
-  'branches': instance.branches,
+  'shift_uuid': instance.shiftUuid,
+  'business_date': instance.businessDate,
+  'own_only': instance.ownOnly,
+  'summary': instance.summary,
+  'tips': instance.tips,
 };

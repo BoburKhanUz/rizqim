@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data171.dart';
+import 'data178.dart';
 
 part 'post_v1_owner_staff_pay_statements_uuid_close_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1OwnerStaffPayStatementsUuidCloseResponse {
 
   final bool success;
   final String message;
-  final Data171 data;
+  final Data178 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1OwnerStaffPayStatementsUuidCloseResponseToJson(this);

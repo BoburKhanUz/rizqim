@@ -17,7 +17,7 @@ V1PosSyncRequestBody _$V1PosSyncRequestBodyFromJson(
       : DateTime.parse(json['sent_at'] as String),
   queue: json['queue'] == null
       ? null
-      : Queue28.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue30.fromJson(json['queue'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$V1PosSyncRequestBodyToJson(

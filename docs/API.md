@@ -231,7 +231,7 @@ terminal faqat `private-pos-branch.{branchId}` kanaliga qo'shila oladi (boshqa k
 |---|---|---|
 | `private-store.{storeId}` | ega, filialsiz menejer | `order.created`, `order.status_changed`, `order.assigned`, `menu.availability_changed` |
 | `private-branch.{branchId}` | shu filial menejeri, ega | xuddi shu |
-| `private-pos-branch.{branchId}` (P2-11) | filialda ishlaydigan hamma: shu filialda `orders.view` huquqi bor xodim (ega va filialsiz xodim — do'konning istalgan filiali; filialga biriktirilgan menejer, kassir, ofitsiant, oshpaz — o'z filiali; terminaldagi PIN sessiyasi — faqat terminal filiali) va shu filialning ulangan POS/KDS terminali (terminal tokeni bilan; filialsiz ulangan terminal — do'konning har bir filiali) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed`; POS hodisalari (P3-12, P3-17, P3-18), P3-26 `order.bill_requested`, P6 `bill.print_requested`, P6-21 `order.course_ready` va P6-13 `queue.preparing`, `queue.ready`, `queue.handed`, `queue.canceled` |
+| `private-pos-branch.{branchId}` (P2-11) | filialda ishlaydigan hamma: shu filialda `orders.view` huquqi bor xodim (ega va filialsiz xodim — do'konning istalgan filiali; filialga biriktirilgan menejer, kassir, ofitsiant, oshpaz — o'z filiali; terminaldagi PIN sessiyasi — faqat terminal filiali) va shu filialning ulangan POS/KDS terminali (terminal tokeni bilan; filialsiz ulangan terminal — do'konning har bir filiali) | `order.created`, `order.status_changed`, `order.assigned`, `kitchen.item_status_changed`, `menu.availability_changed`; POS hodisalari (P3-12, P3-17, P3-18), P3-26 `order.bill_requested`, P6 `bill.print_requested`, P6-21 `order.course_ready` va P6-13 `queue.preparing`, `queue.ready`, `queue.handed`, `queue.canceled`, P6-41 `qr.paid`, `qr.cancelled`, `qr.expired` |
 | `private-courier.{userId}` | kuryerning o'zi (o'rnini bosgan ega/menejer ham) | `order.status_changed`, `order.assigned` |
 | `private-user.{userId}` | mijozning o'zi | `order.status_changed` |
 | `menu.{storeId}` | ochiq, obunasiz | `menu.availability_changed` |
@@ -1043,6 +1043,44 @@ boshqa filial hisobi, limitdan oshish — rad etiladi; bitta schyot bitta marta 
 sotuv cheki** chiqadi (P3-18), har bir qarz to'loviga esa **kredit (CREDIT) cheki** (QR va fiskal belgisiz; do'konning
 `credit` xizmati qatori, to'lov shakli to'lov usuli bo'yicha). Egaga Telegram xabari: chegaradan
 (`POS_CREDIT_ALERT_THRESHOLD`, standart 500 000 so'm) katta har bir yangi nasiya va har bir qarz to'lovi.
+
+### Korxona hisobi va talon (P6-44)
+
+Hisob turi (`kind`): `customer` (nasiya, yuqoridagidek) yoki `corporate` — korxona, uning xodimlari talon bilan ovqatlanadi.
+Korxona hisobi — oddiy mijoz hisobi (`/pos/customer-accounts`, qarz, ko'chirma, qarz to'lovi kredit cheki bilan) va qo'shimcha
+maydonlar: `company_name`, `inn` (STIR 9 yoki JShShIR 14 raqam; ro'yxatlarda `30*****67` ko'rinishida), `contact_name`,
+`contact_phone`, `invoice_email`, `monthly_limit` (`null` — yo'q), `charge_approval` (korxona uchun standart `false`: kassir
+tushlikni o'zi yozadi; nasiya — doim tasdiq bilan), `talon_mode` (`TalonMode`: `none` — korxona bo'yicha, xodim ixtiyoriy;
+`daily_limit` — har to'lovda xodim, kunlik summa; `subscription` — abonement, kuniga ovqat soni), `members_count` (faol
+xodimlar). Korxona qilish (`kind: corporate` POST/PATCH) `corporate_accounts` modulini so'raydi (403 `module_disabled`;
+stolovaya profilida yoqiq; tarifda `customer_accounts` bilan); xodimi bor hisobni nasiyaga qaytarib bo'lmaydi (422
+`account_has_members`). `GET /pos/customer-accounts?kind=corporate|customer`.
+
+| Endpoint | Ruxsat | Vazifasi |
+|---|---|---|
+| `GET /pos/customer-accounts/{uuid}/members?q&active` | `customer_accounts.manage` | `{members[], active_count}` (faollar birinchi): `uuid, name, phone, code, daily_limit, meals_per_day, is_active, note`. Nasiya hisobi — 422 `account_not_corporate` |
+| `POST /pos/customer-accounts/{uuid}/members` | xuddi shu + modul `corporate_accounts` | `name`, `phone` (do'kon xodimlari orasida yagona), `code` (talon: 4–32 lotin harf, raqam, `-`; bo'sh — 10 xonali tasodifiy raqam; do'konda yagona), `daily_limit` (biznes kunga summa), `meals_per_day` (1–20), `note`. Audit `customer_account.member_created` |
+| `PATCH /pos/customer-accounts/{uuid}/members/{member}` | xuddi shu | faqat yuborilgani; `is_active: false` — talon to'xtaydi; `regenerate_code: true` — yangi kod (eski talon ishlamaydi). Audit `customer_account.member_updated` |
+| `POST /pos/customer-accounts/{uuid}/members/bulk` | xuddi shu | `lines` — qatoriga "Ism;telefon" (uchinchi ustun — o'z kodi), `daily_limit`, `meals_per_day` hammasiga; 500 qatorgacha; hammasi yoki hech biri: xato qator bo'lsa 422 `bulk_invalid`, `data.lines[{line, reason, message}]` (`name_required`, `phone_invalid`, `phone_duplicate`, `phone_taken`, `code_invalid`, `code_duplicate`, `code_taken`). Audit `customer_account.members_imported` |
+| `GET /pos/customer-accounts/members/lookup?code|phone` | `customer_accounts.manage` yoki `pos.take_payment` + modul | kassada: `{account{uuid, name, company_name, talon_mode, charge_approval, is_blocked, credit_limit, balance}, member{..., phone niqoblangan}, usage{business_date, member{amount, meals, daily_limit, daily_available, meals_per_day, meals_left}, month{amount, monthly_limit, available}, credit_available}}`. Boshqa do'kon yoki boshqa filial hisobi xodimi — 404 `member_not_found` |
+| `GET /pos/customer-accounts/{uuid}/corporate-statement?month=YYYY-MM` | `reports.view` | oylik hisobot (standart — joriy oy): `{account, month, from, to, days[], rows[{member\|null, cells[{date, amount, meals}], amount, meals}], day_totals[], total, meals, repaid_total, monthly_limit, balance}` — xodim × biznes kun, qaytarilganlar ayirilgan (`meals` — to'liq qaytarilmagan schyotlar), xodimsiz yozuvlar `member: null` qatorida, `repaid_total` — oy ichida olingan qarz to'lovlari |
+| `GET /pos/customer-accounts/{uuid}/corporate-statement/export?month` | `reports.view` | `.xlsx` (openspout): "Hisobot" (Xodim, Talon kodi, 1..31-kun, Jami, Ovqatlar; oxirgi qator Jami) va "Hisob-faktura" (korxona, STIR, mas'ul, e-pochta, oy, yozilgan, ovqatlar, to'langan, oylik limit, hozirgi qarz). Audit `customer_account.statement_exported` |
+
+**Kassada yozish.** Mavjud `POST /pos/bills/{uuid}/payments` `account` tenderi: `account_uuid` va `member_code` (talon) yoki
+`member_phone`. Qoidalar `CustomerAccountService::charge` da, hisob qatori qulfi ostida (ikki kassa bir xodimning oxirgi
+ovqatini ololmaydi), schyot filialining **biznes kuni** bo'yicha (Asia/Tashkent, kun `business_day_starts_at` dan, standart
+05:00: 04:59 dagi tushlik — kechagi kun): 422 `member_required` (talon rejimida xodim yo'q), `member_inactive`,
+`member_daily_limit` (`data.daily_limit, used, available, business_date`), `member_meals_used`, `account_monthly_limit`
+(kalendar oyi, biznes kunlar; `data.monthly_limit, used, available`), `account_credit_limit` (korxonaning `credit_limit` i),
+`account_blocked`; 404 `member_not_found`. `charge_approval: false` — menejer tasdig'i so'ralmaydi (`approved_by` — kassir);
+`true` — nasiyadek (403 `approval_required`). Yozuv `member_id` va `business_date` bilan; to'lov `payload` ga `member_code`.
+Sotuv cheki schyotning to'liq summasiga, korxona qismi `credit` (nasiyadek). Kassadagi qaytarish (`POST /pos/refunds`)
+xodimning o'sha kunini qaytaradi (yozuv o'sha `member_id` va `business_date` bilan). Korxona tushligi uchun egaga Telegram
+xabari yuborilmaydi (oylik hisobot bor). **Internetsiz** korxona hisobiga yozib bo'lmaydi (limitlar serverda; `POST /pos/sync`
+faqat naqd va karta) — kassa oddiy xabar beradi, naqd/karta qoladi. Talon — xodimning kodi (QR/beydj; `pos_core`
+`layoutCorporateTalon`); u "ishlatilib" tugamaydi, limitlar serverda sanaladi; abonement = `meals_per_day` + oylik hisobotdagi
+ovqatlar soni. Migratsiya `2026_11_19_300000` (`customer_accounts` ustunlari, `customer_account_members`,
+`customer_account_entries.member_id, business_date`). Testlar: `tests/Feature/PosCorporate/*`.
 
 ### Real-time
 
@@ -4176,3 +4214,104 @@ Qo'shimcha maydonlar va qoidalar:
 - Kombo, slot yoki tanlov o'zgarsa (yaratish, tahrir, o'chirish/yoqish, o'chirish) `menu_version` o'zgaradi.
 - Fiskal sozlama: `fiscal_settings.combo_fiscal_mode` — `single` (standart) | `split` (`ComboFiscalMode`).
 - `GET /owner/reports/top-products`: `combo_parts[{name, in_combos, alone, total}]`.
+
+## Sertifikat va vaucher, promo-kod kassada (P6-43)
+
+Qoidalar va fiskal: [POS_SPEC.md](POS_SPEC.md) §2.9 "Sovg'a sertifikati". Hammasi `/api/v1` ostida. Sotish va promo-kod —
+yangi oqim (`pos.module:vouchers`, Asosiy+; `vouchers` moduli tarifda `deposits` bilan); sertifikat bilan to'lash va kod bo'yicha
+qidirish modul so'ramaydi (to'lov hech qachon to'xtamaydi). Faqat onlayn: internetsiz kassa sertifikatni sota ham, ishlata ham
+olmaydi (qoldiq serverda) — oddiy xabar, naqd/karta qoladi. Boshqa do'konning kodi — 404. Pul — o'nlik satr; kod `XXXX-XXXX-XXXX`
+(QR — shu matn; bo'shliq, chiziqcha, kichik harf normalizatsiya qilinadi). Xaridor telefoni ro'yxatlarda niqoblangan.
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `POST /pos/vouchers/sell {face_value, tender: cash\|card\|qr, card_type?, transaction_id?, reference?, buyer_name?, buyer_phone?, valid_until?, note?, shift_uuid?, branch_id?}` | `pos.take_payment` + modul `vouchers` | `Idempotency-Key` majburiy (o'sha kalit — o'sha sertifikat). Qiymat 1 000–100 000 000 butun so'm; karta — `card_type` va `transaction_id` majburiy; `valid_until` — oxirgi biznes kun (standart 1 yil). Pul terminalning ochiq smenasiga (409 `shift_not_open`, `shift_closed`), keyin **ADVANCE** (bo'nak) cheki (`deposit` MXIK, qator nomi "Sovg'a sertifikati (avans)"). 201: `VOUCHER` + `print{store, code, qr, value, valid_from, valid_until}`. 422 `face_value_invalid`, `tender_invalid`, `card_type_required`, `transaction_id_required`, `buyer_phone_invalid`, `valid_until_invalid`, `mxik_missing`. Audit `voucher.sold` |
+| `GET /pos/vouchers/{code}` | `pos.take_payment` | `{voucher, entries[]}` (oxirgi 10). `status`: active\|used\|blocked\|expired (biznes kun `valid_until` dan o'tsa — expired). 404 `voucher_not_found` |
+| `POST /pos/orders/{uuid}/promo {version, code}` | `orders.manage` + modul `vouchers` | do'konning o'z promo-kodi buyurtma chegirmasi bo'ladi (`discount_reason: promo:<KOD>`): cheklovsiz foiz — foiz bo'lib qoladi, qat'iy summa yoki chegarali foiz — hozirgi summa. Kassir chegirma limiti ishlamaydi, ofitsiant qoidasi ishlaydi. Bitta buyurtmaga bitta kod (409 `promo_already_applied`); qo'lda berilgan chegirma kodni almashtiradi. Ishlatish onlayndek sanaladi (`orders.promo_code_id`; bekor qilingan buyurtma qaytaradi; mijoz bo'yicha limit kassada tekshirilmaydi). 404 `promo_not_found` (noma'lum, boshqa do'konniki yoki platforma kodi), 422 `promo_inactive`, `promo_min_order` (`data.min_order_amount`), `promo_limit_reached`, `promo_no_discount`; 409 `paid_bill_affected`, `version_conflict`. Audit `pos.order.promo` |
+| `DELETE /pos/orders/{uuid}/promo?version=` | `orders.manage` | kod va chegirma olib tashlanadi (modul so'ralmaydi). 422 `promo_not_applied` |
+| `GET /owner/pos/vouchers?status&q&branch_id&from&to&per_page` | `vouchers.manage` yoki `reports.view` | ro'yxat (yangisi birinchi, 100 tagacha sahifa): `{vouchers[], meta}`; `q` — kod, xaridor ismi yoki telefon raqamlari; `from/to` — sotilgan sana |
+| `GET /owner/pos/vouchers/report?branch_id&from&to` | `vouchers.manage` yoki `reports.view` | biznes kunlar (≤ 366, standart bugun): `{sold{count, amount, by_tender[]}, redeemed, refunded, net_change, outstanding, blocked, expired, as_of}` — `outstanding` bugungi majburiyat (to'lay oladigan qoldiq) |
+| `GET /owner/pos/vouchers/export?…` | `vouchers.manage` yoki `reports.view` | `.xlsx`: "Sertifikatlar" (Kod, Holat, Qiymat, Qoldiq, Sotilgan, Filial, To'lov turi, Amal qiladi, Xaridor, Telefon — niqoblangan, Izoh; 5 000 qatorgacha) va "Hisobot". Audit `voucher.exported` |
+| `GET /owner/pos/vouchers/{uuid}` | `vouchers.manage` yoki `reports.view` | `{voucher, entries[]}` (200 tagacha: sale, redemption, refund, block, unblock — `balance_after`, `bill_uuid`, `business_date`); telefon to'liq faqat `vouchers.manage` ga |
+| `POST /owner/pos/vouchers/{uuid}/block {reason}` / `.../unblock {reason?}` | `vouchers.manage` | 409 `voucher_blocked` / `voucher_not_blocked`. Audit `voucher.blocked` / `voucher.unblocked` |
+
+Mavjud endpointlarga qo'shimchalar:
+- `POST /pos/bills/{uuid}/payments`: yangi tender `voucher` (`tenders[].voucher_code`): ko'pi bilan qoldiq va schyot qarzi, bitta
+  sertifikat bitta schyotda bir marta; qulf ostida (ikki kassa birdan — biri o'tadi, ikkinchisiga 409 `voucher_insufficient`,
+  `data.balance`). 422 `voucher_code_required`; 404 `voucher_not_found`; 409 `voucher_blocked`, `voucher_expired`
+  (`data.valid_until`), `voucher_used`, `voucher_already_on_bill`. To'lov `payload {voucher_uuid, voucher_code, form,
+  balance_after}`. Sotuv cheki schyotning to'liq summasiga; sertifikat qismi `prepayment: true` sotilgandagi shaklda (bo'nak →
+  sotuv). `POST /pos/sync` dan kelmaydi (oflayn faqat naqd va karta).
+- `POST /pos/refunds`: `voucher` to'lovini qaytarish pulni sertifikatga qaytaradi (`refund` yozuvi, naqd emas; qaytarish chekida
+  `prepayment`); 409 `reverse_exceeds_applied`.
+- X/Z (`ShiftReport`): `by_tender[]` da `voucher`; `vouchers {sold{count, amount, cash, card, qr}, redeemed{count, amount}}` —
+  sotilgan sertifikat sotuvga kirmaydi (bo'nak); `cash.vouchers` (naqd sotilgan sertifikatlar, kutilgan naqdga qo'shiladi).
+- Ruxsat: `vouchers.manage` (menejer va ega standart; berib bo'ladigan). Modul `vouchers` (kafe, restoran, qahvaxona profillarida
+  yoqiq). Migratsiya: `2026_11_19_200100` (`vouchers`, `voucher_entries`).
+
+## QR to'lov kassada: Click, Payme, UzQR (P6-41, P6-42)
+
+docs/POS_SPEC.md 2.9 "QR", 2.10. Modul `qr_payments` (har tarifda; kafe, restoran, qahvaxona, fast food profillarida yoqiq)
+faqat QR yaratish va sozlamani o'zgartirishni to'sadi: o'qish, bekor qilish, provayder tasdig'i va qaytarish hech qachon
+so'ramaydi. POS QR doim **do'konniki** (STORE): pul do'konning o'z Click/Payme merchant hisobiga tushadi
+(`payment_settings.click` — `service_id`, `merchant_id`, `merchant_user_id`, `secret_key`; `payment_settings.payme` —
+`merchant_id`, `secret_key`; `payment_account_type = own_account`), webhook do'kon kaliti bilan tekshiriladi, platforma
+kaliti hech qachon. UzQR — `UzQrGateway` drayveri (`fiscal_settings.uzqr.driver`, hozircha faqat `sandbox`; haqiqiy bank
+drayveri P3-32 ga bog'liq). Pul — o'nlik satr. Ichki tuzilma: `App\Domain\Pos\QrPayments`.
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `POST /pos/bills/{uuid}/qr {provider?: click\|payme\|uzqr, amount?, shift_uuid?}` | `pos.take_payment` + modul | `Idempotency-Key` majburiy. Schyot qarziga (yoki `amount` — aralash to'lovning QR qismi) QR; `provider` bo'lmasa — filialning asosiysi. Bitta schyotga bitta `pending`: yangisi eskisini bekor qiladi (`replaced`). 201 `{qr}`: `payload` (Click/Payme to'lov havolasi `pos_qr_<uuid>` hisobi bilan yoki UzQR EMV qatori) — schyotga chop etiladi, `display {payload, label, provider}` — mijoz ekraniga (`PosDisplayPayment.qr`). 422 `qr_provider_disabled`, `overpayment` (`data.due`), `mxik_missing`; 409 `provider_not_configured` (`data.provider`), `shift_not_open`, `bill_paid`, `bill_void`, `bill_awaiting_fiscal`, `order_changed`, `bill_changed`. Audit `pos.qr_created` |
+| `GET /pos/bills/{uuid}/qr` | `orders.view` | `{qrs[]}` (yangisi birinchi, 20 tagacha) |
+| `GET /pos/qr/{uuid}` | `orders.view` | `{qr}` — realtime yo'q kassa uchun so'rab turish; vaqti o'tgan QR shu yerda ham `expired` bo'ladi; kutilayotgan UzQR shlyuzdan so'raladi |
+| `DELETE /pos/qr/{uuid}?reason=` | `pos.take_payment` | kassir QR'ni qaytarib oladi (`cancelled`, `cashier`); keyingi callback rad etiladi. Tugagan — o'zicha; to'langan — 409 `qr_already_paid` (qaytarish qiling). Audit `pos.qr_cancelled` |
+| `POST /pos/qr/{uuid}/simulate-paid` | `pos.take_payment` | faqat sinov drayveri QR'i (`simulated: true`; demo va e2e): webhook bilan bir xil tasdiq. Haqiqiy provayder — 409 `qr_not_simulated`; `QR_PAYMENTS_SIMULATE` o'chiq (production) — 404 |
+| `GET /owner/pos/qr-payments?branch_id` | `settings.manage` (PIN sessiyasidan emas) | `{settings{branch_id, enabled, providers[], default_provider, expiry_minutes, updated_at}, merchants[{provider, label, configured, driver}], options}` — kalitlar ko'rsatilmaydi |
+| `PUT /owner/pos/qr-payments {branch_id?, providers?, default_provider?, expiry_minutes?}` | `settings.manage` + modul | faqat o'zgargani; `default_provider` yoqilganlar orasida (422); `expiry_minutes` 1–30 (standart 5). Audit `settings.qr_payments_changed` |
+
+`QR` (`qr`): `uuid, bill_uuid, order_uuid, provider, provider_label, amount, status` (`pending` \| `paid` \| `cancelled` \|
+`expired` \| `refunded`), `payload, display, expires_at, held` (provayder to'lashni boshlagan: muddat yana
+`qr_payments.hold_minutes` = 10 daqiqa kutadi), `paid_at, cancelled_at, cancel_reason` (`cashier`, `replaced`,
+`bill_changed`, `shift_closed`, `payment_refused:<kod>`, `provider_cancelled`, `payme_cancel:<n>`, `expired`),
+`payment_uuid, refunded_amount, simulated, created_at`.
+
+**Tasdiq (webhooklar).** Mavjud `POST /payments/click/webhook` va `/payments/payme/webhook` hisob `pos_qr_<uuid>` bo'lsa
+(Click `merchant_trans_id`, Payme `account.order_id`; Payme'da — shunday QR'ning tranzaksiya `id` si ham) so'rovni
+buyurtma mantig'idan oldin POS QR'ga beradi:
+- Click Prepare (`action 0`): QR `pending`, vaqtida, schyot qarzi summasidan kam emas, `amount` tiyinigacha teng; javob
+  `merchant_prepare_id` = QR `id`. Xatolar: imzo (do'kon kaliti) — `-1`, summa — `-2`, to'langan — `-4`, topilmadi — `-5`,
+  bekor/eskirgan/schyot o'zgargan — `-9`. Complete (`action 1`): schyot `qr` to'lovini oladi (`reference` = `click_trans_id`,
+  `payload {qr_payment_uuid, qr_provider}`), sotuv chekini Rizqim chiqaradi; takror — o'sha muvaffaqiyat (`Already
+  confirmed`); boshqa tranzaksiya — `-4`; qabul qilib bo'lmasa — `-9` (Click pulni qaytaradi). `SubmitClickFiscalData`
+  hech qachon navbatga qo'yilmaydi.
+- Payme: `CheckPerformTransaction` — `{allow: true}` **`detail` siz** (Payme chek ro'yxatdan o'tkazmaydi); `-31050`
+  topilmadi, `-31001` summa (tiyin), `-31051` to'langan/eskirgan/bekor/schyot o'zgargan, `-31099` boshqa tranzaksiya
+  kutilmoqda. `CreateTransaction` QR'ni ushlaydi (`create_time` = Payme `time`; `transaction` = QR `id`, takror — o'sha
+  javob, qabul qilib bo'lmasa `-31008`). `PerformTransaction` — schyot to'lovi (bir marta; rad — `-31008`, Payme o'z vaqti
+  tugagach bekor qiladi). `CancelTransaction`: kutilayotgan — `state -1`; bajarilgan — faqat Rizqim qaytarishi so'raganda
+  (`receipts.cancel`) `state -2`, aks holda `-31007`. `CheckTransaction` — holat; `SetFiscalData` — javob `success`, lekin
+  **yozilmaydi** (chek Rizqimniki). Avtorizatsiya: `Paycom:<do'konning Payme kaliti>` (`-32504`).
+- Tasdiq QR yaratilgan smenaga tushadi; u yopilgan bo'lsa — kassaning hozirgi ochiq smenasiga; yo'q bo'lsa QR bekor
+  (`shift_closed`) va callback rad etiladi.
+
+**Qaytarish.** `POST /pos/refunds` provayder tasdiqlagan QR to'lovi uchun avval provayderdan qaytarishni so'raydi: Click
+`DELETE {CLICK_MERCHANT_API_URL}/payment/reversal/{service_id}/{payment_id}` (`Auth: merchant_user_id:sha1(timestamp +
+secret_key):timestamp`), Payme Subscribe API `receipts.cancel {id: <Merchant API tranzaksiya id>}` (`X-Auth:
+merchant_id:key`; taxmin: Merchant API tranzaksiya id si — Payme chek id si, birinchi do'kon ulanganda Payme bilan
+tasdiqlanadi), UzQR — shlyuz `refund`. Click va Payme — faqat to'liq (422 `qr_partial_refund_unsupported`, `data.left`);
+rad yoki javob yo'q — 409 `qr_refund_failed` (`data.provider`), qaytarish yozilmaydi. To'liq qaytarilgan QR `refunded`.
+Statik QR (qo'lda) — avvalgidek.
+
+**Real-time.** `pos-branch.{id}`: `qr.paid`, `qr.cancelled`, `qr.expired` — `{qr {uuid, bill_uuid, order_uuid, provider,
+status}, changed_at}` (faqat id va holat); `order.bill_changed` ham avvalgidek.
+
+**Bootstrap, X/Z.** `GET /pos/bootstrap` → `qr_payments {enabled, providers[] (yoqilgan va ulangan, asosiysi birinchi),
+default_provider, expiry_minutes}`. X/Z: `qr_providers [{provider: click|payme|uzqr|manual, count, amount}]` (`manual` —
+qo'lda tasdiqlangan statik QR; komissiya hisoblanmaydi). `fiscal_settings.uzqr {driver}` — `PUT /owner/fiscal/settings`.
+
+**Internetsiz.** Dinamik QR server bilan: kassa oddiy xabar ko'rsatadi va statik QR'ni qo'lda tasdiqlashni taklif qiladi.
+
+**Sozlama (config/qr_payments.php).** `QR_PAYMENTS_SANDBOX` (demo/e2e: hamma provayder sinov drayverida, merchant
+kerak emas), `QR_PAYMENTS_SIMULATE` (production'da o'chiq), `QR_PAYMENTS_RETURN_URL`, `CLICK_MERCHANT_API_URL`,
+`PAYME_API_URL`. Ish: `pos:expire-qr-payments` (har daqiqa). Migratsiyalar `2026_11_19_100100` (`pos_qr_payments`),
+`2026_11_19_100200` (`pos_qr_settings`).

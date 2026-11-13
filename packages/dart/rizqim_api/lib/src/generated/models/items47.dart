@@ -5,9 +5,9 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'modifiers30.dart';
-import 'added_by19.dart';
-import 'voided_by19.dart';
-import 'weighed_by19.dart';
+import 'added_by20.dart';
+import 'voided_by20.dart';
+import 'weighed_by20.dart';
 
 part 'items47.g.dart';
 
@@ -85,13 +85,13 @@ class Items47 {
   @JsonKey(name: 'ready_at')
   final String? readyAt;
   @JsonKey(name: 'added_by')
-  final AddedBy19? addedBy;
+  final AddedBy20? addedBy;
   @JsonKey(name: 'added_at')
   final String? addedAt;
   @JsonKey(name: 'voided_at')
   final String? voidedAt;
   @JsonKey(name: 'voided_by')
-  final VoidedBy19? voidedBy;
+  final VoidedBy20? voidedBy;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
   @JsonKey(name: 'course_no')
@@ -101,7 +101,7 @@ class Items47 {
   @JsonKey(name: 'weight_basis')
   final String? weightBasis;
   @JsonKey(name: 'weighed_by')
-  final WeighedBy19? weighedBy;
+  final WeighedBy20? weighedBy;
   @JsonKey(name: 'weighed_at')
   final String? weighedAt;
 

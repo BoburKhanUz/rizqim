@@ -31,11 +31,12 @@ use Illuminate\Support\Facades\DB;
  * to be offset again, refunded or retained in bookings), a nasiya part (PosTender::ACCOUNT) comes off the customer's
  * debt (CustomerAccountLedger::reverse); neither moves cash. Every refund asks for a REFUND receipt naming the bill's
  * sale receipt, its payment in the refunded payment's form (the deposit part as `prepayment`, the nasiya part as
- * `credit`). A payment refunded in full is `refunded`; an order whose payments all are, too (and may be cancelled).
+ * `credit`). P6-43: a gift certificate part (PosTender::VOUCHER) goes back onto the certificate (VoucherLedger::
+ * reverse; `prepayment` on the refund receipt), never as cash. A payment refunded in full is `refunded`; an order whose payments all are, too (and may be cancelled).
  */
 final class RefundService
 {
-    public const TENDERS = [PosTender::CASH, PosTender::CARD, PosTender::QR, PosTender::PREPAYMENT, PosTender::ACCOUNT];
+    public const TENDERS = [PosTender::CASH, PosTender::CARD, PosTender::QR, PosTender::PREPAYMENT, PosTender::ACCOUNT, PosTender::VOUCHER];
 
     public function __construct(
         private readonly ShiftService $shifts,
@@ -46,6 +47,7 @@ final class RefundService
         private readonly ShiftOwnerSummary $owner,
         private readonly AdvanceLedger $advances,
         private readonly CustomerAccountLedger $accounts,
+        private readonly \App\Domain\Pos\Contracts\VoucherLedger $vouchers,
     ) {}
 
     /**
@@ -117,6 +119,18 @@ final class RefundService
                     throw PosActionException::conflict('account_unknown', "Nasiya to'lovining hisobi topilmadi: qarzni menejer qo'lda tuzatsin.");
                 }
                 $this->accounts->reverse($account, $amount, $bill->uuid, (string) $refund->uuid, $approvedBy ?? (int) $user->id);
+            }
+            if ($tender === PosTender::VOUCHER) {
+                // P6-43: back onto the gift certificate, never cash
+                $voucher = (string) (($payment->payload ?? [])['voucher_uuid'] ?? '');
+                if ($voucher === '') {
+                    throw PosActionException::conflict('voucher_unknown', "Sertifikat to'lovining sertifikati topilmadi.");
+                }
+                $this->vouchers->reverse($voucher, $amount, $bill->uuid, (string) $refund->uuid, (int) $user->id, $device?->id, (int) $shift->id);
+            }
+            if ($tender === PosTender::QR) {
+                // P6-41: a QR the provider confirmed goes back through that provider (refused: the refund is not made)
+                app(\App\Domain\Pos\QrPayments\QrRefunds::class)->reverse($payment, $amount, $refund);
             }
 
             if ($left->minus($amount)->isZero()) {

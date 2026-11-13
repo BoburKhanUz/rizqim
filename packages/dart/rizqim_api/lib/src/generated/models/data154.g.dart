@@ -7,17 +7,11 @@ part of 'data154.dart';
 // **************************************************************************
 
 Data154 _$Data154FromJson(Map<String, dynamic> json) => Data154(
-  branchId: (json['branch_id'] as num).toInt(),
-  weekendDays: (json['weekend_days'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
-  holidays: (json['holidays'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  productId: (json['product_id'] as num).toInt(),
+  modifierGroups: json['modifier_groups'] as String,
 );
 
 Map<String, dynamic> _$Data154ToJson(Data154 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'weekend_days': instance.weekendDays,
-  'holidays': instance.holidays,
+  'product_id': instance.productId,
+  'modifier_groups': instance.modifierGroups,
 };

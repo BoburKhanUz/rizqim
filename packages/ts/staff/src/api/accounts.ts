@@ -8,6 +8,11 @@ import type { JsonRequest, OkData } from './types';
 // Reading needs `customer_accounts.manage` or `pos.take_payment`, opening and editing `customer_accounts.manage`. The debt
 // changes only through entries (a credit sale, a repayment at the till, a manager's adjustment): there is no way to set it here.
 
+// P6-44: an account is nasiya (`customer`) or a company's (`corporate`, members with talons and limits: api/corporate.ts)
+export type CustomerAccountKind = 'customer' | 'corporate';
+// How a corporate account's people eat: the company as a whole, a daily sum per member, or meals per day (abonement)
+export type TalonMode = 'none' | 'daily_limit' | 'subscription';
+
 export type CustomerAccounts = OkData<'customerAccount.index'>;
 export type CustomerAccount = CustomerAccounts['accounts'][number];
 export type Debtors = OkData<'customerAccount.debtors'>;
@@ -21,23 +26,25 @@ export interface CustomerAccountsQuery {
   // Name, group name or phone digits
   q?: string;
   debtors?: boolean;
+  // P6-44: only nasiya or only corporate accounts
+  kind?: CustomerAccountKind;
   per_page?: number;
   page?: number;
 }
 
 // GET /pos/customer-accounts (customer_accounts.manage or pos.take_payment): paged search
 export async function fetchCustomerAccounts(api: StaffApi, query: CustomerAccountsQuery = {}): Promise<CustomerAccounts> {
-  return unwrap(await api.client.GET('/v1/pos/customer-accounts', { params: { query: query as never } })).data;
+  return unwrap(await api.client.GET('/v1/pos/customer-accounts', { params: { query: query as never } })).data as CustomerAccounts;
 }
 
 // GET /pos/customer-accounts/debtors: everyone who owes, the biggest debt first, and the total
 export async function fetchDebtors(api: StaffApi): Promise<Debtors> {
-  return unwrap(await api.client.GET('/v1/pos/customer-accounts/debtors')).data;
+  return unwrap(await api.client.GET('/v1/pos/customer-accounts/debtors')).data as Debtors;
 }
 
 // GET /pos/customer-accounts/{uuid}: the account and its last 20 entries
 export async function fetchCustomerAccount(api: StaffApi, uuid: string): Promise<AccountDetail> {
-  return unwrap(await api.client.GET('/v1/pos/customer-accounts/{uuid}', { params: { path: { uuid } } })).data;
+  return unwrap(await api.client.GET('/v1/pos/customer-accounts/{uuid}', { params: { path: { uuid } } })).data as AccountDetail;
 }
 
 // GET .../statement: the debt at the start and the end of the range, totals by kind and the entries
@@ -47,10 +54,10 @@ export async function fetchAccountStatement(api: StaffApi, uuid: string, range: 
 
 // POST: `credit_limit` null is no limit, 0 is no credit at all. The phone is unique in the store.
 export async function createCustomerAccount(api: StaffApi, input: CustomerAccountInput, key: string = newIdempotencyKey()): Promise<CustomerAccount> {
-  return unwrap(await api.client.POST('/v1/pos/customer-accounts', { body: input, ...withIdempotency(key) })).data;
+  return unwrap(await api.client.POST('/v1/pos/customer-accounts', { body: input as never, ...withIdempotency(key) })).data as CustomerAccount;
 }
 
 // PATCH: the credit limit, the block (new credit stops, repayments are still taken), the name, the group, the note
 export async function updateCustomerAccount(api: StaffApi, uuid: string, patch: CustomerAccountPatch, key: string = newIdempotencyKey()): Promise<CustomerAccount> {
-  return unwrap(await api.client.PATCH('/v1/pos/customer-accounts/{uuid}', { params: { path: { uuid } }, body: patch, ...withIdempotency(key) })).data;
+  return unwrap(await api.client.PATCH('/v1/pos/customer-accounts/{uuid}', { params: { path: { uuid } }, body: patch as never, ...withIdempotency(key) })).data as CustomerAccount;
 }

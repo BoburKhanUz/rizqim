@@ -11,7 +11,7 @@ GetV1PosWaitlistResponse _$GetV1PosWaitlistResponseFromJson(
 ) => GetV1PosWaitlistResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data279.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data301.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosWaitlistResponseToJson(

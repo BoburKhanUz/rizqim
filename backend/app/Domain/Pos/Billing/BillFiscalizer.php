@@ -35,7 +35,8 @@ use Throwable;
  *    after its share of the discount) and its charges (room fee, minimum spend top-up, service charge, place fee);
  *  - the payments map one to one: cash, card (card type and the bank terminal's transaction id), QR as they are;
  *    the part paid from a booking deposit (PosTender::PREPAYMENT) as `prepayment: true` in the deposit's own form
- *    (the advance receipt was issued when it was taken: bo'nak → sotuv, research §5); the part closed on credit
+ *    (the advance receipt was issued when it was taken: bo'nak → sotuv, research §5), and so the part paid with a gift
+ *    certificate (PosTender::VOUCHER, P6-43: receipted as an advance when sold); the part closed on credit
  *    (PosTender::ACCOUNT, nasiya) as `credit: true` (not money received now; research §5: the sale receipt is for
  *    the full amount when the food is served, a CREDIT receipt follows each repayment, P3-17);
  *  - the bill becomes `paid` only once its receipt is `issued`; a pending or failed receipt leaves the order
@@ -312,6 +313,8 @@ final class BillFiscalizer
                 PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id'), cardLast4: $payment->getAttribute('card_last4')),
                 PosTender::QR => new FiscalPayment(FiscalPaymentForm::QR, $amount),
                 PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
+                // P6-43: a gift certificate was receipted as an advance when sold: its part is prepayment, in the sale's form
+                PosTender::VOUCHER => new FiscalPayment($this->voucherForm($payment), $amount, prepayment: true),
                 // Nasiya: the full sale is receipted now, the money comes later with CREDIT receipts (P3-17); the
                 // form is a placeholder until the provider says how an unpaid part is shown (T4)
                 PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, credit: true),
@@ -348,6 +351,8 @@ final class BillFiscalizer
         return match (PosTender::tryFrom((string) $payment->provider)) {
             PosTender::PREPAYMENT => new FiscalPayment($this->depositForm($bill), $amount, prepayment: true),
             PosTender::ACCOUNT => new FiscalPayment(FiscalPaymentForm::CASH, $amount, credit: true),
+            // P6-43: back onto the gift certificate (the advance), no money leaves the till
+            PosTender::VOUCHER => new FiscalPayment($this->voucherForm($payment), $amount, prepayment: true),
             default => new FiscalPayment(
                 form: $this->formOf((string) $payment->provider),
                 amount: $amount,
@@ -356,6 +361,14 @@ final class BillFiscalizer
                 cardLast4: $payment->getAttribute('card_last4'),
             ),
         };
+    }
+
+    /**
+     * P6-43: the form the gift certificate was sold in (its advance receipt's), kept on the payment at redemption.
+     */
+    private function voucherForm(Payment $payment): FiscalPaymentForm
+    {
+        return FiscalPaymentForm::tryFrom((string) (($payment->payload ?? [])['form'] ?? '')) ?? FiscalPaymentForm::CASH;
     }
 
     private function formOf(string $tender): FiscalPaymentForm

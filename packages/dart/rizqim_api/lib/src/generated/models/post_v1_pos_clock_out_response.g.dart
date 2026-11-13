@@ -11,7 +11,7 @@ PostV1PosClockOutResponse _$PostV1PosClockOutResponseFromJson(
 ) => PostV1PosClockOutResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data214.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data223.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosClockOutResponseToJson(

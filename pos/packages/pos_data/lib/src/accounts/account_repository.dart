@@ -37,6 +37,15 @@ class CustomerAccountRepository {
     (Object? data) => PosDebtors.fromJson(dataObject(data)),
   );
 
+  /// P6-44: korxona xodimini talon kodi ([code] — skaner yoki terilgan) yoki [phone] bilan topish, bugungi va oylik
+  /// qoldiq bilan. Topilmasa 404 `member_not_found`; modul yopiq bo'lsa 403 `module_disabled`.
+  Future<PosCorporateLookup> lookupMember({String? code, String? phone}) =>
+      _http.get(
+        '/v1/pos/customer-accounts/members/lookup',
+        (Object? data) => PosCorporateLookup.fromJson(dataObject(data)),
+        query: <String, Object?>{'code': code, 'phone': phone},
+      );
+
   /// Hisob va oxirgi 20 yozuv.
   Future<PosAccountWithEntries> get(String uuid) =>
       _http.get('/v1/pos/customer-accounts/$uuid', _withEntries);

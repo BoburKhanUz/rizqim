@@ -12,7 +12,7 @@ _$PostV1PosOrdersUuidChargesChargeRestoreResponseFromJson(
 ) => PostV1PosOrdersUuidChargesChargeRestoreResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data237.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data252.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidChargesChargeRestoreResponseToJson(

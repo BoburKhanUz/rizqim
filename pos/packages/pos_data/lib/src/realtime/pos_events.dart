@@ -57,6 +57,9 @@ sealed class PosEvent {
         ),
         'display.cart' => PosDisplayCartChanged._(name, data, j),
         'pos.lan_changed' => PosLanChanged._(name, data, j),
+        'qr.paid' ||
+        'qr.cancelled' ||
+        'qr.expired' => PosQrPaymentChanged._(name, data, j),
         'queue.preparing' ||
         'queue.ready' ||
         'queue.handed' ||
@@ -419,6 +422,28 @@ class PosMenuAvailabilityChanged extends PosEvent {
 
   final String? reason;
   final List<({String type, int id, bool available})> items;
+}
+
+/// `qr.paid` | `qr.cancelled` | `qr.expired` (P6-41): kassadagi QR to'landi (schyot to'lovni oldi), bekor qilindi
+/// yoki vaqti tugadi. Kassa `GET /pos/qr/{uuid}` va schyotni qayta oladi.
+class PosQrPaymentChanged extends PosEvent {
+  PosQrPaymentChanged._(super.name, super.data, PosJson j)
+    : qrUuid = j.obj('qr').str('uuid'),
+      billUuid = j.obj('qr').strOrNull('bill_uuid'),
+      orderUuid = j.obj('qr').strOrNull('order_uuid'),
+      provider = j.obj('qr').strOrNull('provider'),
+      status = j.obj('qr').strOrNull('status');
+
+  final String qrUuid;
+  final String? billUuid;
+  @override
+  final String? orderUuid;
+  final String? provider;
+
+  /// `paid`, `cancelled`, `expired`.
+  final String? status;
+
+  bool get paid => status == 'paid';
 }
 
 /// Noma'lum yoki o'qib bo'lmagan hodisa.

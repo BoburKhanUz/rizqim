@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'items53.dart';
+import 'items55.dart';
 
 part 'batch_writeoffs.g.dart';
 
@@ -16,7 +16,7 @@ class BatchWriteoffs {
       _$BatchWriteoffsFromJson(json);
 
   final int count;
-  final List<Items53> items;
+  final List<Items55> items;
 
   Map<String, Object?> toJson() => _$BatchWriteoffsToJson(this);
 }

@@ -7,17 +7,13 @@ part of 'data224.dart';
 // **************************************************************************
 
 Data224 _$Data224FromJson(Map<String, dynamic> json) => Data224(
-  businessDate: json['business_date'] as String,
-  preparing: (json['preparing'] as List<dynamic>)
-      .map((e) => Preparing.fromJson(e as Map<String, dynamic>))
+  accounts: (json['accounts'] as List<dynamic>)
+      .map((e) => Accounts.fromJson(e as Map<String, dynamic>))
       .toList(),
-  ready: (json['ready'] as List<dynamic>)
-      .map((e) => Ready.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  meta: Meta2.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data224ToJson(Data224 instance) => <String, dynamic>{
-  'business_date': instance.businessDate,
-  'preparing': instance.preparing,
-  'ready': instance.ready,
+  'accounts': instance.accounts,
+  'meta': instance.meta,
 };

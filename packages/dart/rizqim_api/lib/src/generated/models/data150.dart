@@ -4,48 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period2.dart';
-import 'summary3.dart';
-import 'series.dart';
-import 'by_channel2.dart';
-import 'by_branch.dart';
-import 'by_payment_method2.dart';
-import 'by_order_type2.dart';
-
 part 'data150.g.dart';
 
 @JsonSerializable()
 class Data150 {
   const Data150({
-    required this.period,
+    required this.id,
     required this.branchId,
-    required this.summary,
-    required this.byStatus,
-    required this.series,
-    required this.byChannel,
-    required this.byBranch,
-    required this.byPaymentMethod,
-    required this.byOrderType,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data150.fromJson(Map<String, Object?> json) =>
       _$Data150FromJson(json);
 
-  final Period2 period;
+  final int id;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Summary3 summary;
-  @JsonKey(name: 'by_status')
-  final Map<String, int> byStatus;
-  final List<Series> series;
-  @JsonKey(name: 'by_channel')
-  final List<ByChannel2> byChannel;
-  @JsonKey(name: 'by_branch')
-  final List<ByBranch> byBranch;
-  @JsonKey(name: 'by_payment_method')
-  final List<ByPaymentMethod2> byPaymentMethod;
-  @JsonKey(name: 'by_order_type')
-  final List<ByOrderType2> byOrderType;
+  final int branchId;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data150ToJson(this);
 }

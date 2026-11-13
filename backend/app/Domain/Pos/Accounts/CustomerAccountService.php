@@ -35,6 +35,9 @@ use Throwable;
  *
  * The owner hears on Telegram about each credit of at least config('pos_bookings.credit_alert_threshold') and about
  * every repayment.
+ *
+ * P6-44: a corporate account's charge also checks its member and limits (CorporateAccounts) and records the member and
+ * the business day; it needs a manager's approval only when the account's `charge_approval` is on (approvalRequired).
  */
 class CustomerAccountService implements CustomerAccountLedger
 {
@@ -43,9 +46,21 @@ class CustomerAccountService implements CustomerAccountLedger
     public function __construct(
         protected AuditLogger $audit,
         protected PosOwnerAlerts $alerts,
+        protected CorporateAccounts $corporate,
     ) {}
 
-    public function charge(string $accountUuid, Money $amount, string $billUuid, int $approvedByUserId): void
+    /**
+     * P6-44: a corporate account's charge needs a manager's approval only when its `charge_approval` is on; nasiya
+     * always does. Unknown (or another store's) accounts answer true: the charge refuses them anyway.
+     */
+    public function approvalRequired(string $accountUuid, int $storeId): bool
+    {
+        $account = CustomerAccount::where('uuid', $accountUuid)->where('store_id', $storeId)->first(['id', 'kind', 'charge_approval']);
+
+        return $account === null || !$account->isCorporate() || $account->charge_approval;
+    }
+
+    public function charge(string $accountUuid, Money $amount, string $billUuid, int $approvedByUserId, ?string $memberCode = null, ?string $memberPhone = null): void
     {
         if (!$amount->isPositive() || $amount->isGreaterThan(self::MAX_AMOUNT)) {
             throw new CustomerAccountException("Nasiya summasi noto'g'ri.", 'invalid_amount');
@@ -56,7 +71,7 @@ class CustomerAccountService implements CustomerAccountLedger
             throw new CustomerAccountException('Tasdiqlagan menejer topilmadi.', 'approver_unknown');
         }
 
-        $entry = DB::transaction(function () use ($accountUuid, $amount, $billUuid, $approver) {
+        $entry = DB::transaction(function () use ($accountUuid, $amount, $billUuid, $approver, $memberCode, $memberPhone) {
             $account = CustomerAccount::where('uuid', $accountUuid)->lockForUpdate()->first();
 
             // Tenant check: the contract carries no store, the approving manager's store is the bill's store
@@ -84,12 +99,23 @@ class CustomerAccountService implements CustomerAccountLedger
                 throw new CustomerAccountException("\"{$account->name}\" nasiya hisobi bloklangan.", 'account_blocked');
             }
 
+            // P6-44: a corporate account's member, daily, meals and monthly limits, by the bill's business day
+            $member = null;
+            $businessDate = null;
+            if ($account->isCorporate()) {
+                $businessDate = $this->corporate->businessDateOf($billUuid, $account);
+                $member = $this->corporate->memberOf($account, $memberCode, $memberPhone);
+                $this->corporate->assertCanCharge($account, $member, $amount, $businessDate);
+            }
+
             $balance = Money::of($account->balance)->plus($amount);
             if ($account->credit_limit !== null && $balance->isGreaterThan($account->credit_limit)) {
                 $room = Money::max(Money::zero(), Money::of($account->credit_limit)->minus($account->balance));
                 throw new CustomerAccountException(
-                    "Nasiya limiti yetmaydi: limit {$account->credit_limit} so'm, qarz {$account->balance} so'm, yana ko'pi bilan {$room->toString()} so'm yozish mumkin.",
-                    'credit_limit_exceeded',
+                    $account->isCorporate()
+                        ? "Korxona hisobining kredit limiti yetmaydi: limit {$account->credit_limit} so'm, qarz {$account->balance} so'm, yana ko'pi bilan {$room->toString()} so'm yozish mumkin."
+                        : "Nasiya limiti yetmaydi: limit {$account->credit_limit} so'm, qarz {$account->balance} so'm, yana ko'pi bilan {$room->toString()} so'm yozish mumkin.",
+                    $account->isCorporate() ? 'account_credit_limit' : 'credit_limit_exceeded',
                     422,
                     ['credit_limit' => $account->credit_limit, 'balance' => $account->balance, 'available' => $room->toString()],
                 );
@@ -101,14 +127,18 @@ class CustomerAccountService implements CustomerAccountLedger
                 'user_id' => $actor instanceof User ? $actor->id : $approver->id,
                 'approved_by' => $approver->id,
                 'branch_id' => $approver->branch_id ?? $account->branch_id,
+                'member_id' => $member?->id,
+                'business_date' => $businessDate,
             ]);
 
-            $this->audit->record('customer_account.charged', $account, [], [], [
+            $this->audit->record('customer_account.charged', $account, [], [], array_filter([
                 'entry_uuid' => $entry->uuid,
                 'amount' => $amount->toString(),
                 'bill_uuid' => $billUuid,
                 'approved_by' => $approver->id,
-            ], ['store_id' => (int) $account->store_id, 'branch_id' => $entry->branch_id !== null ? (int) $entry->branch_id : null]);
+                'member_uuid' => $member?->uuid,
+                'business_date' => $businessDate,
+            ], fn ($value) => $value !== null), ['store_id' => (int) $account->store_id, 'branch_id' => $entry->branch_id !== null ? (int) $entry->branch_id : null]);
 
             return [$account, $entry];
         });
@@ -118,7 +148,8 @@ class CustomerAccountService implements CustomerAccountLedger
         }
 
         [$account] = $entry;
-        if ($amount->isGreaterThanOrEqualTo((string) config('pos_bookings.credit_alert_threshold', '0'))) {
+        // P6-44: a corporate lunch is routine (the monthly statement shows them), only nasiya is announced
+        if (!$account->isCorporate() && $amount->isGreaterThanOrEqualTo((string) config('pos_bookings.credit_alert_threshold', '0'))) {
             $this->alerts->send((int) $account->store_id, '💳 Nasiyaga yozildi: ' . PosOwnerAlerts::sum($amount)
                 . "\nMijoz: {$account->name}" . ($account->group_name ? " ({$account->group_name})" : '')
                 . "\nJami qarz: " . PosOwnerAlerts::sum($account->balance)
@@ -177,6 +208,9 @@ class CustomerAccountService implements CustomerAccountLedger
                 'user_id' => $actor instanceof User ? $actor->id : $approver?->id,
                 'approved_by' => $approver?->id,
                 'branch_id' => $charge->branch_id ?? $account->branch_id,
+                // P6-44: the refund gives the member's day back (the same business day as the charge)
+                'member_id' => $charge?->member_id,
+                'business_date' => $charge?->business_date?->toDateString(),
             ]);
 
             $this->audit->record('customer_account.charge_reversed', $account, [], [], [

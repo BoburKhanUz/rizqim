@@ -4,12 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall2.dart';
-import 'table2.dart';
-import 'waiter5.dart';
-import 'queue3.dart';
-import 'pickup3.dart';
-import 'online.dart';
+import 'customer_account_kind.dart';
+import 'talon_mode.dart';
 
 part 'data229.g.dart';
 
@@ -17,85 +13,72 @@ part 'data229.g.dart';
 class Data229 {
   const Data229({
     required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.channel,
-    required this.type,
+    required this.name,
+    required this.phone,
+    required this.groupName,
     required this.branchId,
-    required this.version,
-    required this.hall,
-    required this.table,
-    required this.hallRef,
-    required this.tableRef,
-    required this.tableLabel,
-    required this.guestsCount,
-    required this.waiter,
-    required this.itemsCount,
-    required this.subtotal,
-    required this.totalPrice,
-    required this.paymentStatus,
-    required this.billLocked,
-    required this.billRequested,
-    required this.fiscalPending,
-    required this.bookingId,
-    required this.businessDate,
-    required this.queue,
-    required this.pickup,
-    required this.openedAt,
-    required this.closedAt,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.kind,
+    required this.kindLabel,
+    required this.companyName,
+    required this.inn,
+    required this.contactName,
+    required this.contactPhone,
+    required this.invoiceEmail,
+    required this.monthlyLimit,
+    required this.chargeApproval,
+    required this.talonMode,
+    required this.membersCount,
+    required this.createdAt,
     required this.updatedAt,
-    required this.online,
   });
 
   factory Data229.fromJson(Map<String, Object?> json) =>
       _$Data229FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String channel;
-  final String type;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final int version;
-  final Hall2? hall;
-  final Table2? table;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'table_label')
-  final String? tableLabel;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final Waiter5? waiter;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  final String subtotal;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  @JsonKey(name: 'bill_locked')
-  final bool billLocked;
-  @JsonKey(name: 'bill_requested')
-  final bool billRequested;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final Queue3? queue;
-  final Pickup3? pickup;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  final CustomerAccountKind kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'company_name')
+  final String? companyName;
+  final String? inn;
+  @JsonKey(name: 'contact_name')
+  final String? contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
+  @JsonKey(name: 'invoice_email')
+  final String? invoiceEmail;
+  @JsonKey(name: 'monthly_limit')
+  final String? monthlyLimit;
+  @JsonKey(name: 'charge_approval')
+  final bool chargeApproval;
+  @JsonKey(name: 'talon_mode')
+  final TalonMode talonMode;
+  @JsonKey(name: 'members_count')
+  final int membersCount;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
-  final Online? online;
 
   Map<String, Object?> toJson() => _$Data229ToJson(this);
 }

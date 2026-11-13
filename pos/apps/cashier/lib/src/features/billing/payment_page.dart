@@ -172,6 +172,9 @@ class _PaymentPageState extends State<PaymentPage> {
         case PosTender.account:
           _accountAmount.text = moneyText(_accountDefault());
           if (_accounts == null) unawaited(_searchAccounts());
+        // P6-43: the certificate tab comes with stage B (pos_data PosVoucherRepository is ready)
+        case PosTender.voucher:
+          break;
       }
     });
   }
@@ -247,6 +250,9 @@ class _PaymentPageState extends State<PaymentPage> {
           PosTenderInput.account(amount, accountUuid: a.uuid),
           'Nasiyaga · ${a.name}',
         );
+      case PosTender.voucher:
+        _formError = "Sertifikat bilan to'lov keyingi yangilanishda.";
+        return null;
     }
   }
 
@@ -777,6 +783,8 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             PosTender.prepayment => _prepaymentForm(c),
             PosTender.account => _accountForm(c),
+            // P6-43: never selected yet (stage B adds the certificate tab)
+            PosTender.voucher => const SizedBox.shrink(),
           },
           if (_tabTakesTip) _tipSection(c),
           const SizedBox(height: 16),

@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'modifier_display_mode.dart';
-import 'modifiers42.dart';
+import 'modifiers44.dart';
 
 part 'modifier_group_request.g.dart';
 
@@ -46,7 +46,7 @@ class ModifierGroupRequest {
   final int? sortOrder;
   @JsonKey(name: 'is_active')
   final bool? isActive;
-  final List<Modifiers42>? modifiers;
+  final List<Modifiers44>? modifiers;
 
   Map<String, Object?> toJson() => _$ModifierGroupRequestToJson(this);
 }

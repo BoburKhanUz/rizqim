@@ -4,16 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'weight_basis.dart';
+
 part 'data155.g.dart';
 
 @JsonSerializable()
 class Data155 {
-  const Data155({required this.id});
+  const Data155({
+    required this.productId,
+    required this.quickMultipliers,
+    required this.waitMinutes,
+    required this.weightMode,
+  });
 
   factory Data155.fromJson(Map<String, Object?> json) =>
       _$Data155FromJson(json);
 
-  final int id;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'quick_multipliers')
+  final List<int>? quickMultipliers;
+  @JsonKey(name: 'wait_minutes')
+  final int? waitMinutes;
+  @JsonKey(name: 'weight_mode')
+  final WeightBasis? weightMode;
 
   Map<String, Object?> toJson() => _$Data155ToJson(this);
 }

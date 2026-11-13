@@ -7,21 +7,15 @@ part of 'data132.dart';
 // **************************************************************************
 
 Data132 _$Data132FromJson(Map<String, dynamic> json) => Data132(
-  branchId: (json['branch_id'] as num).toInt(),
-  enabled: json['enabled'] as bool,
-  locked: json['locked'] as bool,
-  orderTypes: (json['order_types'] as List<dynamic>)
-      .map((e) => OrderTypes.fromJson(e as Map<String, dynamic>))
+  settings: Settings.fromJson(json['settings'] as Map<String, dynamic>),
+  merchants: (json['merchants'] as List<dynamic>)
+      .map((e) => Merchants.fromJson(e as Map<String, dynamic>))
       .toList(),
-  rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  options: Options4.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data132ToJson(Data132 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'enabled': instance.enabled,
-  'locked': instance.locked,
-  'order_types': instance.orderTypes,
-  'rows': instance.rows,
+  'settings': instance.settings,
+  'merchants': instance.merchants,
+  'options': instance.options,
 };

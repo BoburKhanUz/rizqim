@@ -9,67 +9,39 @@ part 'entries2.g.dart';
 @JsonSerializable()
 class Entries2 {
   const Entries2({
-    required this.uuid,
+    required this.id,
     required this.branchId,
-    required this.businessDate,
-    required this.guestName,
-    required this.guestPhone,
-    required this.guestPhoneMasked,
-    required this.partySize,
-    required this.quotedWaitMinutes,
-    required this.note,
-    required this.status,
-    required this.statusLabel,
-    required this.position,
-    required this.waitedMinutes,
-    required this.diningTableId,
-    required this.tableName,
-    required this.orderUuid,
-    required this.notifiedAt,
-    required this.seatedAt,
-    required this.closedAt,
-    required this.version,
+    required this.type,
+    required this.subjectId,
+    required this.subjectUuid,
+    required this.name,
+    required this.reason,
+    required this.until,
+    required this.createdBy,
+    required this.createdByName,
     required this.createdAt,
   });
 
   factory Entries2.fromJson(Map<String, Object?> json) =>
       _$Entries2FromJson(json);
 
-  final String uuid;
+  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'guest_name')
-  final String guestName;
-  @JsonKey(name: 'guest_phone')
-  final String? guestPhone;
-  @JsonKey(name: 'guest_phone_masked')
-  final String? guestPhoneMasked;
-  @JsonKey(name: 'party_size')
-  final int partySize;
-  @JsonKey(name: 'quoted_wait_minutes')
-  final int? quotedWaitMinutes;
-  final String? note;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final int? position;
-  @JsonKey(name: 'waited_minutes')
-  final int waitedMinutes;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_name')
-  final String? tableName;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'notified_at')
-  final String? notifiedAt;
-  @JsonKey(name: 'seated_at')
-  final String? seatedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
+  final String type;
+  @JsonKey(name: 'subject_id')
+  final int subjectId;
+  @JsonKey(name: 'subject_uuid')
+  final dynamic subjectUuid;
+  final dynamic name;
+  final String? reason;
+  final String? until;
+  @JsonKey(name: 'created_by')
+  final int? createdBy;
+
+  /// The store's own staff only (a super admin's entry shows no name)
+  @JsonKey(name: 'created_by_name')
+  final String? createdByName;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

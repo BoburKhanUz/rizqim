@@ -7,31 +7,33 @@ part of 'data243.dart';
 // **************************************************************************
 
 Data243 _$Data243FromJson(Map<String, dynamic> json) => Data243(
-  orderUuid: json['order_uuid'] as String,
-  number: (json['number'] as num).toInt(),
-  businessDate: json['business_date'] as String?,
-  status: json['status'] == null
-      ? null
-      : PickupStatus.fromJson(json['status'] as String),
-  channel: json['channel'] as String,
-  orderStatus: json['order_status'] as String,
-  readyAt: json['ready_at'] as String?,
-  calledAt: json['called_at'] as String?,
-  callCount: (json['call_count'] as num).toInt(),
-  handedAt: json['handed_at'] as String?,
-  openedAt: json['opened_at'] as String?,
+  v: (json['v'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  keyId: (json['key_id'] as num).toInt(),
+  role: LanRole.fromJson(json['role'] as String),
+  device: json['device'] as String,
+  deviceKey: json['device_key'] as String,
+  beaconKey: json['beacon_key'] as String,
+  hub: Hub5.fromJson(json['hub'] as Map<String, dynamic>),
+  hubSecret: json['hub_secret'] as String?,
+  devices: (json['devices'] as List<dynamic>?)
+      ?.map((e) => Devices4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  grant: json['grant'] as String?,
+  clockWindowSeconds: (json['clock_window_seconds'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data243ToJson(Data243 instance) => <String, dynamic>{
-  'order_uuid': instance.orderUuid,
-  'number': instance.number,
-  'business_date': instance.businessDate,
-  'status': instance.status,
-  'channel': instance.channel,
-  'order_status': instance.orderStatus,
-  'ready_at': instance.readyAt,
-  'called_at': instance.calledAt,
-  'call_count': instance.callCount,
-  'handed_at': instance.handedAt,
-  'opened_at': instance.openedAt,
+  'v': instance.v,
+  'branch_id': instance.branchId,
+  'key_id': instance.keyId,
+  'role': instance.role,
+  'device': instance.device,
+  'device_key': instance.deviceKey,
+  'beacon_key': instance.beaconKey,
+  'hub': instance.hub,
+  'hub_secret': instance.hubSecret,
+  'devices': instance.devices,
+  'grant': instance.grant,
+  'clock_window_seconds': instance.clockWindowSeconds,
 };

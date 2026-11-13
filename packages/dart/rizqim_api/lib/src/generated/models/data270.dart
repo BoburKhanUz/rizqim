@@ -4,74 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device18.dart';
-import 'opened_by7.dart';
-import 'closed_by10.dart';
-import 'summary6.dart';
-import 'bank_terminal2.dart';
+import 'pickup_status.dart';
 
 part 'data270.g.dart';
 
 @JsonSerializable()
 class Data270 {
   const Data270({
-    required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
+    required this.orderUuid,
+    required this.number,
     required this.businessDate,
+    required this.status,
+    required this.channel,
+    required this.orderStatus,
+    required this.readyAt,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
     required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
-    required this.summary,
-    required this.bankTerminal,
   });
 
   factory Data270.fromJson(Map<String, Object?> json) =>
       _$Data270FromJson(json);
 
-  final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device18? device;
+  @JsonKey(name: 'order_uuid')
+  final String orderUuid;
+  final int number;
   @JsonKey(name: 'business_date')
-  final String businessDate;
+  final String? businessDate;
+  final PickupStatus? status;
+  final String channel;
+  @JsonKey(name: 'order_status')
+  final String orderStatus;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
   @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy7? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy10? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
-  final Summary6? summary;
-  @JsonKey(name: 'bank_terminal')
-  final BankTerminal2? bankTerminal;
+  final String? openedAt;
 
   Map<String, Object?> toJson() => _$Data270ToJson(this);
 }

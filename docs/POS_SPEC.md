@@ -270,15 +270,50 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
   - **naqd** (`cash`) — berilgan summa va qaytim hisoblanadi;
   - **karta** (`card`) — bankning **alohida** terminali, kassir summani o'zi teradi va "to'landi"ni tasdiqlaydi. Karta
     turi va terminal tranzaksiya raqami **majburiy** (chek rekvizitlari talabi);
-  - **QR** (`qr`) — **dinamik UzQR** (schyot summasiga QR, avtomatik tasdiq va fiskal chek) provayder orqali, imkon
-    bo'lsa P3-32 da; ungacha **statik QR** — kassir qo'lda tasdiqlaydi;
+  - **QR** (`qr`) — P6-41/P6-42 (modul `qr_payments`, har tarifda): **dinamik QR** schyot qarziga (yoki aralash
+    to'lovning QR qismiga) — Click (do'konning o'z Click hisobi, SHOP API Prepare/Complete), Payme (do'konning o'z
+    kassasi, Merchant API) yoki **UzQR** (`UzQrGateway` drayveri: hozircha `sandbox`, haqiqiy bank drayveri P3-32 ga
+    bog'liq; `fiscal_settings.uzqr.driver`). Kassir QR'ni schyotga chop etadi va mijoz ekraniga yuboradi; mijoz
+    to'lagach provayder o'zi tasdiqlaydi (kassir hech narsa bosmaydi): schyot `qr` to'lovini oladi (`reference` —
+    provayder tranzaksiyasi), bir marta (takroriy callback — hech narsa), QR yaratilgan smenaga (yopilgan bo'lsa —
+    kassaning ochiq smenasiga, yo'q bo'lsa rad). Summa tiyinigacha mos bo'lishi shart. Schyotga bitta kutilayotgan QR:
+    yangisi eskisini, schyot o'zgarishi (qayta tuzish, bo'lish, boshqa to'lov, chegirma) uni bekor qiladi; vaqti
+    (filial sozlamasi, 1–30 daqiqa, standart 5) o'tsa `expired` — provayder to'lashni boshlagan QR yana 10 daqiqa kutadi.
+    Bekor qilingan, eskirgan yoki schyot qabul qila olmaydigan QR uchun callback provayder xato kodi bilan rad etiladi —
+    pul olinmaydi (Click Complete xatosida to'lovni qaytaradi, Payme tranzaksiyani o'z vaqti tugagach bekor qiladi).
+    **Fiskal chekni Rizqim chiqaradi**: Click fiskal ma'lumoti (`SubmitClickFiscalData`) yuborilmaydi, Payme
+    `CheckPerformTransaction` `detail` siz javob oladi va `SetFiscalData` yozilmaydi (4-bo'lim, ikki marta chek yo'q).
+    Internetsiz dinamik QR yo'q — oddiy xabar, **statik QR** kassir qo'lda tasdiqlaydi (avvalgidek). Qaytarish — 2.10;
   - **avans** (`prepayment`) — bron avansidan ayirish (`AdvanceLedger`). Yopishda avtomatik taklif qilinadi. Sotuv cheki
     baribir **to'liq summaga** chiqadi, avans qismi unda "oldindan to'langan" deb belgilanadi (4.4);
   - **nasiyaga yopish** (`account`) — telefon bilan aniqlangan mijoz yoki guruh hisobiga, limit ichida, har doim
     menejer tasdig'i bilan (`CustomerAccountLedger`). Kassaga pul tushmaydi. Sotuv cheki to'liq summaga chiqadi, qarz
     to'langanda kredit cheki (4.4).
+    **Korxona hisobi** (P6-44, modul `corporate_accounts`, Asosiy+; stolovaya profilida yoqiq): hisob turi `corporate`,
+    xodimlari **talon** — xodimning kodi (QR chop etilgan kartochka yoki beydj; kassada skanerlanadi yoki teriladi) yoki
+    telefoni bilan topiladi. Xodimning **kunlik limiti** (summa) va/yoki **kuniga ovqat soni** (abonement), korxonaning
+    **oylik limiti** va kredit limiti filialning **biznes kuni** bo'yicha (Asia/Tashkent, kun `business_day_starts_at` dan,
+    standart 05:00) serverda, hisob qulfi ostida tekshiriladi; kassaga kunda qancha qolgani ko'rsatiladi. Korxona hisobida
+    menejer tasdig'i ega yoqsagina so'raladi (standart — kassir o'zi yozadi). Sotuv cheki to'liq summaga, korxona qismi
+    kredit (nasiyadek); qaytarish xodimning kunini qaytaradi. Talon ishlatilib tugamaydi — yo'qolsa ega yangi kod beradi.
+    Internetsiz korxona hisobiga yozilmaydi (limitlar serverda) — oddiy xabar, naqd/karta qoladi. Oy oxirida
+    "xodim × kun" hisoboti, Excel va hisob-faktura qisqachasi (panel, `reports.view`);
+  - **sovg'a sertifikati** (`voucher`, P6-43) — kod (`XXXX-XXXX-XXXX` yoki QR) bo'yicha, ko'pi bilan sertifikat qoldig'i;
+    bitta sertifikat bitta schyotda bir marta, qoldiq sertifikat qatori qulfi ostida kamayadi (ikki kassa birdan — biri
+    o'tadi). Bloklangan, to'liq ishlatilgan yoki muddati (oxirgi biznes kuni `valid_until`) o'tgan sertifikat to'lamaydi.
+    Sotuv cheki **to'liq summaga**, sertifikat qismi "oldindan to'langan" (`prepayment`, sertifikat sotilgandagi shaklda) —
+    bron avansidek. Bunday schyotni qaytarish pulni **sertifikatga** qaytaradi, naqd emas;
   - **P2P o'tkazma to'lov turi emas** (0-bo'lim); kassir ekranida o'rniga QR taklif qilinadi.
   Bank terminaliga summani avtomatik yuborish — keyingi bosqich (ochiq protokol yo'q).
+- **Sovg'a sertifikatini sotish** (P6-43, modul `vouchers`, Asosiy+): menyudan tashqari sotuv — qiymat (butun so'm), naqd,
+  karta yoki QR, ixtiyoriy xaridor (ism, telefon — ro'yxatlarda niqoblangan) va muddat (standart 1 yil). Pul terminalning
+  ochiq smenasiga tushadi; **bo'nak (ADVANCE) cheki** chiqadi (`deposit` xizmati MXIK'i, qator nomi "Sovg'a sertifikati
+  (avans)") — bu tushum emas: X/Z da sotuvdan alohida ("Sertifikatlar: sotildi"), naqdi kutilgan naqdga qo'shiladi.
+  Sertifikat kodi va QR bosiladi (do'kon, kod, qiymat, muddat). Chegirma vaucheri — do'konning **promo-kodi** buyurtmaga
+  (`POST /pos/orders/{uuid}/promo`): chegirma sababi `promo:<KOD>`, kassir limiti ishlamaydi, bitta buyurtmaga bitta kod,
+  ishlatish onlayn buyurtmalardek sanaladi. Sertifikat va promo-kod **faqat onlayn** (internetsiz — oddiy xabar, naqd/karta
+  qoladi). Ega: "Sertifikatlar" sahifasi — ro'yxat, tarix, bloklash (`vouchers.manage`, audit), davr hisoboti (sotildi,
+  ishlatildi, qolgan majburiyat) va Excel.
 - **Chek chiqmaguncha sotuv yopilmaydi.** Schyot to'langach backend sotuv chekini so'raydi (`FiscalIssuer`). Provayder
   javob bermasa, buyurtma **"fiskal kutmoqda"** holatida qoladi, chek navbatda qayta yuboriladi (4.5).
 - Hamma schyot to'langan va cheklari chiqqan bo'lsa, buyurtma **yopiladi**: holati `delivered`, `payment_status =
@@ -300,6 +335,7 @@ birida kanal belgisi, turi (zal, olib ketish, yetkazish), holati va vaqti.
 | Schyotni qayta chiqarish | "NUSXA" belgisi | `pos.reprint_bill` (kassirda ham bor, P3-37) |
 | Kassaga kirim / chiqim | kategoriya; "boshqa" bo'lsa izoh; chiqim kassadagidan ko'p emas | `pos.cash_in_out` (kassirda ham bor, P3-37); katta chiqim — egaga xabar |
 | Yopilgan buyurtma bo'yicha pul qaytarish (smena ichida, naqd, karta yoki QR) | sabab, qaysi to'lovdan; **qaytarish cheki** asl sotuv chekiga bog'lanadi | **yangi** `pos.refund` (P3-18) |
+| Provayder tasdiqlagan QR to'lovni qaytarish (P6-41) | smena ichida, sabab; pul **provayder orqali** qaytadi (Click — to'lovni bekor qilish (reversal), Payme — `receipts.cancel`, UzQR — shlyuz); Click va Payme faqat **to'liq** (422 `qr_partial_refund_unsupported`); provayder rad etsa yoki javob bermasa qaytarish **qilinmaydi** (409 `qr_refund_failed`, oddiy xabar) — QR to'lovi hech qachon jimgina naqd qaytarilmaydi; qaytarish cheki avvalgidek. Statik (qo'lda tasdiqlangan) QR — avvalgidek | `pos.refund` |
 | Schyotning avans yoki nasiya qismini qaytarish (P3-35) | sabab; kassadan pul chiqmaydi: avans qismi bron avansiga qaytadi (keyin qaytariladi yoki ushlab qolinadi), nasiya qismi mijoz qarzidan ayiriladi (qarz to'langan bo'lsa — menejer qo'lda); **qaytarish cheki** asl sotuv chekiga bog'lanadi (4.4) | `pos.refund` |
 | To'lovi olingan schyotga tegadigan o'zgarish (qatorni o'chirish, mehmon soni, ko'chirish, xizmat haqini olib tashlash) | rad etiladi (409 `paid_bill_affected`): avval to'lovni qaytarish (P3-35) | — |
 | To'langan buyurtmani bekor qilish | faqat qaytarish cheki bilan: avval har bir to'lov to'liq qaytariladi, keyin yopilgan buyurtma bekor qilinadi (P3-37: holati `canceled`, `closed_at` qoladi, yangi chek chiqmaydi); qisman qaytarilgan yoki qaytarilmagan yopiq buyurtma — 422 `order_closed` | `orders.cancel` (yo'q bo'lsa menejer PIN) + `pos.refund` |

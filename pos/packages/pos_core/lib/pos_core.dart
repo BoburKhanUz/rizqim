@@ -4,6 +4,7 @@
 library;
 
 export 'src/documents/common.dart';
+export 'src/documents/corporate_talon.dart';
 export 'src/documents/fiscal_receipt.dart';
 export 'src/documents/label_documents.dart';
 export 'src/documents/station_ticket.dart';
@@ -13,6 +14,7 @@ export 'src/documents/shift_report.dart';
 export 'src/floor.dart';
 export 'src/format.dart';
 export 'src/labels/label_layout.dart';
+export 'src/layout/corporate_talon_layout.dart';
 export 'src/layout/label_templates.dart';
 export 'src/layout/station_ticket_layout.dart';
 export 'src/layout/pre_check_layout.dart';

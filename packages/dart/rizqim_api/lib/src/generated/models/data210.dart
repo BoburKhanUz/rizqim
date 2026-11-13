@@ -4,97 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'store2.dart';
-import 'branch13.dart';
-import 'device10.dart';
-import 'user14.dart';
-import 'stations9.dart';
-import 'station_routes.dart';
-import 'printers.dart';
-import 'staff16.dart';
-import 'halls.dart';
-import 'tables5.dart';
-import 'shift.dart';
-import 'quick_items.dart';
-import 'offline2.dart';
-import 'terminal_flow.dart';
-import 'staff_pay.dart';
-import 'format2.dart';
-import 'tips6.dart';
-import 'entitlements.dart';
-import 'queue2.dart';
-import 'booking_rules.dart';
-import 'labels.dart';
-import 'takeaway.dart';
-import 'lan.dart';
+import 'lines21.dart';
+import 'room_fee4.dart';
+import 'channels3.dart';
 
 part 'data210.g.dart';
 
 @JsonSerializable()
 class Data210 {
   const Data210({
-    required this.serverTime,
-    required this.menuVersion,
-    required this.store,
-    required this.branch,
-    required this.device,
-    required this.user,
-    required this.stations,
-    required this.stationRoutes,
-    required this.printers,
-    required this.staff,
-    required this.halls,
-    required this.tables,
-    required this.shift,
-    required this.quickItems,
-    required this.offline,
-    required this.terminalFlow,
-    required this.staffPay,
-    required this.format,
-    required this.tips,
-    required this.entitlements,
-    required this.queue,
-    required this.bookingRules,
-    required this.labels,
-    required this.takeaway,
-    required this.lan,
+    required this.text,
+    required this.lines,
+    required this.roomFee,
+    required this.channels,
   });
 
   factory Data210.fromJson(Map<String, Object?> json) =>
       _$Data210FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  @JsonKey(name: 'menu_version')
-  final String menuVersion;
-  final Store2 store;
-  final Branch13 branch;
-  final Device10? device;
-  final User14 user;
-  final List<Stations9> stations;
-  @JsonKey(name: 'station_routes')
-  final StationRoutes stationRoutes;
-  final List<Printers> printers;
-  final List<Staff16> staff;
-  final List<Halls> halls;
-  final List<Tables5> tables;
-  final Shift? shift;
-  @JsonKey(name: 'quick_items')
-  final List<QuickItems> quickItems;
-  final Offline2 offline;
-  @JsonKey(name: 'terminal_flow')
-  final TerminalFlow? terminalFlow;
-  @JsonKey(name: 'staff_pay')
-  final StaffPay? staffPay;
-  final Format2 format;
-  final Tips6 tips;
-  final Entitlements entitlements;
-  final Queue2 queue;
-  @JsonKey(name: 'booking_rules')
-  final BookingRules? bookingRules;
-  final Labels? labels;
-  final Takeaway takeaway;
-  final Lan? lan;
+  final String text;
+  final List<Lines21> lines;
+  @JsonKey(name: 'room_fee')
+  final RoomFee4? roomFee;
+  final Channels3 channels;
 
   Map<String, Object?> toJson() => _$Data210ToJson(this);
 }

@@ -31,7 +31,7 @@ Bill3 _$Bill3FromJson(Map<String, dynamic> json) => Bill3(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal7.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal11.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
       .map((e) => Items7.fromJson(e as Map<String, dynamic>))
       .toList(),

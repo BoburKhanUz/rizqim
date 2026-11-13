@@ -7,51 +7,41 @@ part of 'data169.dart';
 // **************************************************************************
 
 Data169 _$Data169FromJson(Map<String, dynamic> json) => Data169(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  period: json['period'] as String,
-  periodLabel: json['period_label'] as String,
-  periodFrom: json['period_from'] as String,
-  periodTo: json['period_to'] as String,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  grossTotal: json['gross_total'] as String,
-  payableTotal: json['payable_total'] as String,
-  paidTotal: json['paid_total'] as String,
-  linesCount: (json['lines_count'] as num).toInt(),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  version: (json['version'] as num).toInt(),
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: json['role'] as String,
+  roleLabel: json['role_label'] as String,
+  branch: json['branch'] == null
+      ? null
+      : Branch13.fromJson(json['branch'] as Map<String, dynamic>),
+  courierType: json['courier_type'] as String?,
+  phone: json['phone'] as String?,
+  loginPhoneEnabled: json['login_phone_enabled'] as bool,
+  loginPhoneProof: json['login_phone_proof'] == null
+      ? null
+      : LoginPhoneProof.fromJson(json['login_phone_proof'] as String?),
+  hasPin: json['has_pin'] as bool,
+  staffCode: json['staff_code'] as String?,
+  telegramLinked: json['telegram_linked'] as bool,
+  invitePending: json['invite_pending'] as bool,
+  canEdit: json['can_edit'] as bool,
   createdAt: json['created_at'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines8.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts.fromJson(e as Map<String, dynamic>))
-      .toList(),
 );
 
 Map<String, dynamic> _$Data169ToJson(Data169 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'branch_id': instance.branchId,
-  'period': instance.period,
-  'period_label': instance.periodLabel,
-  'period_from': instance.periodFrom,
-  'period_to': instance.periodTo,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'gross_total': instance.grossTotal,
-  'payable_total': instance.payableTotal,
-  'paid_total': instance.paidTotal,
-  'lines_count': instance.linesCount,
-  'warnings': instance.warnings,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'version': instance.version,
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'role_label': instance.roleLabel,
+  'branch': instance.branch,
+  'courier_type': instance.courierType,
+  'phone': instance.phone,
+  'login_phone_enabled': instance.loginPhoneEnabled,
+  'login_phone_proof': instance.loginPhoneProof,
+  'has_pin': instance.hasPin,
+  'staff_code': instance.staffCode,
+  'telegram_linked': instance.telegramLinked,
+  'invite_pending': instance.invitePending,
+  'can_edit': instance.canEdit,
   'created_at': instance.createdAt,
-  'lines': instance.lines,
-  'open_shifts': instance.openShifts,
 };

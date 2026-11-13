@@ -6,8 +6,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'period5.dart';
 import 'sales3.dart';
-import 'by_tender2.dart';
+import 'by_tender3.dart';
 import 'cards2.dart';
+import 'qr_providers2.dart';
 import 'by_channel4.dart';
 import 'by_waiter2.dart';
 import 'discounts2.dart';
@@ -17,6 +18,7 @@ import 'refunds6.dart';
 import 'deposits2.dart';
 import 'credit5.dart';
 import 'tips11.dart';
+import 'vouchers3.dart';
 import 'cash3.dart';
 import 'movements2.dart';
 
@@ -31,6 +33,7 @@ class Report2 {
     required this.sales,
     required this.byTender,
     required this.cards,
+    required this.qrProviders,
     required this.byChannel,
     required this.byWaiter,
     required this.discounts,
@@ -40,6 +43,7 @@ class Report2 {
     required this.deposits,
     required this.credit,
     required this.tips,
+    required this.vouchers,
     required this.cash,
     required this.movements,
   });
@@ -54,8 +58,10 @@ class Report2 {
   final Period5 period;
   final Sales3 sales;
   @JsonKey(name: 'by_tender')
-  final List<ByTender2> byTender;
+  final List<ByTender3> byTender;
   final List<Cards2> cards;
+  @JsonKey(name: 'qr_providers')
+  final List<QrProviders2> qrProviders;
   @JsonKey(name: 'by_channel')
   final List<ByChannel4> byChannel;
   @JsonKey(name: 'by_waiter')
@@ -68,6 +74,7 @@ class Report2 {
   final Deposits2 deposits;
   final Credit5 credit;
   final Tips11 tips;
+  final Vouchers3 vouchers;
   final Cash3 cash;
   final List<Movements2> movements;
 

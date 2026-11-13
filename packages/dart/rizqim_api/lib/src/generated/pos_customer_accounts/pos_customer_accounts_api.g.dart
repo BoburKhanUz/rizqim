@@ -24,12 +24,14 @@ class _PosCustomerAccountsApi implements PosCustomerAccountsApi {
   Future<GetV1PosCustomerAccountsResponse> customerAccountIndex({
     String? q,
     bool? debtors,
+    CustomerAccountKind? kind,
     int? perPage,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
       r'q': q,
       r'debtors': debtors,
+      r'kind': kind?.toJson(),
       r'per_page': perPage,
     };
     queryParameters.removeWhere((k, v) => v == null);

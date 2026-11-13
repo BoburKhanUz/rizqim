@@ -8,15 +8,11 @@ part 'qr2.g.dart';
 
 @JsonSerializable()
 class Qr2 {
-  const Qr2({
-    required this.payload,
-    required this.label,
-    required this.provider,
-  });
+  const Qr2({this.payload, this.label, this.provider});
 
   factory Qr2.fromJson(Map<String, Object?> json) => _$Qr2FromJson(json);
 
-  final String payload;
+  final String? payload;
   final String? label;
   final String? provider;
 

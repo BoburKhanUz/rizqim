@@ -21,7 +21,7 @@ Entry2 _$Entry2FromJson(Map<String, dynamic> json) => Entry2(
   branchId: (json['branch_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User17.fromJson(json['user'] as Map<String, dynamic>),
+      : User18.fromJson(json['user'] as Map<String, dynamic>),
   approvedBy: json['approved_by'] == null
       ? null
       : ApprovedBy4.fromJson(json['approved_by'] as Map<String, dynamic>),

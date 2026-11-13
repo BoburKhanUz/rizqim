@@ -13,7 +13,7 @@ Staff6 _$Staff6FromJson(Map<String, dynamic> json) => Staff6(
   roleLabel: json['role_label'] as String,
   branch: json['branch'] == null
       ? null
-      : Branch10.fromJson(json['branch'] as Map<String, dynamic>),
+      : Branch14.fromJson(json['branch'] as Map<String, dynamic>),
   courierType: json['courier_type'] as String?,
   phone: json['phone'] as String?,
   loginPhoneEnabled: json['login_phone_enabled'] as bool,

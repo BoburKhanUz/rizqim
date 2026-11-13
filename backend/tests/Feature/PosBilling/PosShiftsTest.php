@@ -139,7 +139,7 @@ class PosShiftsTest extends TestCase
 
         $report = $this->posAs($this->manager, 'GET', "/shifts/{$shift->uuid}/x-report")->assertOk()->json('data.report');
 
-        $this->assertSame(['cash' => '70000.00', 'card' => '100000.00', 'qr' => '0.00', 'prepayment' => '50000.00', 'account' => '0.00'], array_column($report['by_tender'], 'amount', 'tender'));
+        $this->assertSame(['cash' => '70000.00', 'card' => '100000.00', 'qr' => '0.00', 'prepayment' => '50000.00', 'account' => '0.00', 'voucher' => '0.00'], array_column($report['by_tender'], 'amount', 'tender'));
         $this->assertSame([['card_type' => 'uzcard', 'count' => 1, 'amount' => '100000.00']], $report['cards']);
         $this->assertSame([['channel' => 'pos_hall', 'orders' => 1, 'amount' => '220000.00']], $report['by_channel']);
         $this->assertSame($this->waiter->id, $report['by_waiter'][0]['waiter_id']);

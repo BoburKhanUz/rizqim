@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/customer_account_kind.dart';
 import '../models/get_v1_pos_customer_accounts_debtors_response.dart';
 import '../models/get_v1_pos_customer_accounts_response.dart';
 import '../models/get_v1_pos_customer_accounts_uuid_response.dart';
@@ -34,18 +35,24 @@ abstract class PosCustomerAccountsApi {
   ///
   /// [debtors] - Only accounts with a debt.
   ///
+  /// [kind] - P6-44: only nasiya (customer) or corporate accounts.
+  ///
   /// [perPage] - Up to 100 (default 30).
   @GET('/v1/pos/customer-accounts')
   Future<GetV1PosCustomerAccountsResponse> customerAccountIndex({
     @Query('q') String? q,
     @Query('debtors') bool? debtors,
+    @Query('kind') CustomerAccountKind? kind,
     @Query('per_page') int? perPage,
   });
 
   /// Open a customer account.
   ///
   /// `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),.
-  /// `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). Needs.
+  /// `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). P6-44: `kind`.
+  /// corporate (needs the corporate_accounts module) with `company_name`, `inn` (9 or 14 digits), `contact_name`,.
+  /// `contact_phone`, `invoice_email`, `monthly_limit` (null: none), `charge_approval` (default false for a.
+  /// corporate account: a lunch at the till needs no manager), `talon_mode` none|daily_limit|subscription. Needs.
   /// customer_accounts.manage; P3-26: a cashier at the till (pos.take_payment) sends a manager's one-time.
   /// `approval_token` for customer_accounts.manage (POST /pos/approvals; 403 `approval_required` without).
   ///
@@ -70,7 +77,8 @@ abstract class PosCustomerAccountsApi {
 
   /// Change a customer account.
   ///
-  /// Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). Needs.
+  /// Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). P6-44: the corporate.
+  /// fields as on create; back to `kind` customer only without members (422 `account_has_members`). Needs.
   /// customer_accounts.manage; P3-26: a cashier (pos.take_payment) sends a manager's one-time `approval_token` for it.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.

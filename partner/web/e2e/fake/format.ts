@@ -3,6 +3,7 @@
 // rows (GET /owner/service-fees) live here too: the Format page reads them to warn that a stolovaya takes no service charge.
 import type { FakeBackend } from './backend'
 import { FakeLabels } from './labels'
+import { FakeQrPayments } from './qrpayments'
 import { fail, ok, type FakeRequest, type Reply } from './types'
 
 interface Profile {
@@ -99,6 +100,8 @@ const MODULES: Array<{ key: string; label: string; description: string; plan?: s
   { key: 'packaging', label: 'Qadoq', description: "Olib ketish va yetkazishda qadoq qatori qoida bo'yicha." },
   { key: 'scheduled_pickup', label: 'Olib ketish vaqti', description: 'Mijoz olib ketish vaqtini tanlaydi.' },
   { key: 'round_the_clock', label: '24/7 ish', description: 'Kechayu kunduz ishlaydigan filial.' },
+  // P6-41/P6-42: the QR payments tab
+  { key: 'qr_payments', label: 'Click, Payme va UzQR kassada', description: "Schyot summasiga QR, to'lov avtomatik tasdiqlanadi." },
 ]
 
 export interface FakeServiceFeeRow {
@@ -124,9 +127,12 @@ export class FakeFormat {
   serviceFees: FakeServiceFeeRow[] = []
   /** P6-32: the branch's sticker and label settings (the labels module). */
   labels: FakeLabels
+  /** P6-41/P6-42: the branch's QR payment settings (the qr_payments module). */
+  qr: FakeQrPayments
 
   constructor(readonly backend: FakeBackend) {
     this.labels = new FakeLabels(backend, () => this.has('labels'))
+    this.qr = new FakeQrPayments(backend, () => this.has('qr_payments'))
   }
 
   /** Whether a module is on for the branch now (the owner's switch over the profile, minus the plan's lock). */
@@ -217,6 +223,8 @@ export class FakeFormat {
     const path = req.path
     const sticker = this.labels.handle(req, body)
     if (sticker) return sticker
+    const qr = this.qr.handle(req, body)
+    if (qr) return qr
     if (req.method === 'GET' && path === '/v1/owner/pos/format') return ok(this.view(Number(req.query.branch_id ?? 1)))
     if (req.method === 'PUT' && path === '/v1/owner/pos/format') return this.update(body ?? {})
     if (req.method === 'POST' && path === '/v1/owner/pos/format/template') {
