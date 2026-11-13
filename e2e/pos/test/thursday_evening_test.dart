@@ -1330,6 +1330,10 @@ List<PosTenderInput> tendersFor(
         amount,
         accountUuid: accountUuid,
       ),
+      // The choyxona evening never pays by certificate (P6-43 has its own drill)
+      PosTender.voucher => throw StateError(
+        'voucher tender is not part of this drill',
+      ),
     });
   }
   return out;

@@ -32,6 +32,7 @@ final class RolePermissions
                 P::ORDERS_TRANSFER, P::HOSTESS_MANAGE, // P6-24/P6-26
                 P::STAFF_PAY_VIEW, // P6-23: sees the work sessions and pay statements; the rules and payouts stay the owner's (grantable)
                 P::TIPS_MANAGE, // P6-22: corrects a tip with a reason, splits and closes the tip pool
+                P::VOUCHERS_MANAGE, // P6-43: blocks a gift certificate, sees the liability report
             ],
             // Closes bills and takes payment; cancelling, refunds and voids need a manager. A discount up to the
             // branch's pos_settings.cashier_discount_max_percent comes with pos.take_payment (P3-37, PosOrderService)

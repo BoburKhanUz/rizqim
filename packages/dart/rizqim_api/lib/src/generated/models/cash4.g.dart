@@ -19,6 +19,7 @@ Cash4 _$Cash4FromJson(Map<String, dynamic> json) => Cash4(
   repayments: json['repayments'] as String,
   tips: json['tips'] as String,
   tipPayouts: json['tip_payouts'] as String,
+  vouchers: json['vouchers'] as String,
   expected: json['expected'] as String,
 );
 
@@ -35,5 +36,6 @@ Map<String, dynamic> _$Cash4ToJson(Cash4 instance) => <String, dynamic>{
   'repayments': instance.repayments,
   'tips': instance.tips,
   'tip_payouts': instance.tipPayouts,
+  'vouchers': instance.vouchers,
   'expected': instance.expected,
 };

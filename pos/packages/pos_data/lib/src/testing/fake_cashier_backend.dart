@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'fake_pos_state.dart';
+import 'fake_qr_backend.dart';
+import 'fake_voucher_backend.dart';
 
 /// Soxta backend'ning kassa qismi (P3-22): schyot va bo'lish, to'lov (aralash, avans, nasiya), fiskal chek ("fiskal
 /// kutmoqda" va qayta urinish), qaytarish, smena (kassa harakatlari, X, Z), bron (taqvim, to'qnashuv, oldindan
@@ -143,6 +145,12 @@ class FakeCashierBackend {
       };
     }
     if (m == 'POST' && p == '/v1/pos/refunds') return _refund(r);
+    // P6-43: a store promo code as the order's discount
+    if ((m == 'POST' || m == 'DELETE') &&
+        (x = _match(r'^/v1/pos/orders/([^/]+)/promo$', p)) != null) {
+      final Map<String, Object?>? order = state.orders[x!.group(1)];
+      if (order != null) return _promo(order, r);
+    }
     if (m == 'POST' &&
         (x = _match(
               r'^/v1/pos/orders/([^/]+)/(cancel|merge|discount|items/(\d+)/void|charges/([a-z_]+)/waive)$',
@@ -995,6 +1003,7 @@ class FakeCashierBackend {
       });
     }
     Map<String, Object?>? account;
+    Map<String, Object?>? member;
     Map<String, Object?>? booking;
     for (final Map<String, Object?> t in tenders) {
       switch (t['tender']) {
@@ -1036,13 +1045,18 @@ class FakeCashierBackend {
             });
           }
         case 'account':
-          final FakeResponse? needs = state.authorize(
-            r.member,
-            'customer_accounts.manage',
-            r.data['approval_token'],
-          );
-          if (needs != null) return needs;
-          account = accounts['${t['account_uuid']}'];
+          // P6-44: a corporate account with `charge_approval: false` needs no manager's PIN
+          final Map<String, Object?>? found = accounts['${t['account_uuid']}'];
+          final bool corporate = found?['kind'] == 'corporate';
+          if (!corporate || found?['charge_approval'] == true) {
+            final FakeResponse? needs = state.authorize(
+              r.member,
+              'customer_accounts.manage',
+              r.data['approval_token'],
+            );
+            if (needs != null) return needs;
+          }
+          account = found;
           if (account == null) {
             return _fail(422, 'account_not_found', 'Nasiya hisobi topilmadi.');
           }
@@ -1053,12 +1067,18 @@ class FakeCashierBackend {
               "Bu hisobga yangi nasiya to'xtatilgan.",
             );
           }
+          if (corporate) {
+            final (FakeResponse?, Map<String, Object?>?) checked =
+                _corporateCharge(account, t);
+            if (checked.$1 != null) return checked.$1!;
+            member = checked.$2;
+          }
           final Object? limit = account['credit_limit'];
           if (limit != null &&
               _t(account['balance']) + _t(t['amount']) > _t(limit)) {
             return _fail(
               422,
-              'credit_limit_exceeded',
+              corporate ? 'account_credit_limit' : 'credit_limit_exceeded',
               'Nasiya limiti yetmaydi.',
             );
           }
@@ -1087,6 +1107,9 @@ class FakeCashierBackend {
         'shift_uuid': state.shift!['uuid'],
         'refunded_amount': '0.00',
         if (t['tender'] == 'account') 'account_uuid': t['account_uuid'],
+        if (t['tender'] == 'account' && member != null)
+          'member_code': member['code'],
+        if (t['tender'] == 'voucher') 'voucher_code': t['voucher_code'],
       });
       if (t['tender'] == 'account' && account != null) {
         _entry(
@@ -1095,7 +1118,7 @@ class FakeCashierBackend {
           amount,
           billUuid: '${bill['uuid']}',
           user: r.member,
-        );
+        )['member_uuid'] = member?['uuid'];
       }
       if (t['tender'] == 'prepayment' && booking != null) {
         _applyDeposit(booking, amount);
@@ -1105,6 +1128,8 @@ class FakeCashierBackend {
       ..['paid_amount'] = _m(_t(bill['paid_amount']) + sum)
       ..['due_amount'] = _m(due - sum);
     if (due - sum == 0) _issueSale(bill, order);
+    // P6-41: a pending QR for more than the bill still owes can no longer be paid
+    _cancelQrsAbove(bill, due - sum);
     _billEvent(order, bill, 'paid');
     return _ok(<String, Object?>{
       'bill': bill,
@@ -1244,7 +1269,9 @@ class FakeCashierBackend {
                 ? p['tender']
                 : 'cash',
             'amount': p['amount'],
-            'prepayment': p['tender'] == 'prepayment',
+            // P6-43: a gift certificate part is prepaid like a deposit offset
+            'prepayment':
+                p['tender'] == 'prepayment' || p['tender'] == 'voucher',
             'credit': p['tender'] == 'account',
             'card_type': p['card_type'],
             'transaction_id': p['transaction_id'],
@@ -1448,6 +1475,7 @@ class FakeCashierBackend {
             'qr',
             'prepayment',
             'account',
+            'voucher',
           ].contains(p['tender'])) {
             return _fail(
               422,
@@ -1482,6 +1510,58 @@ class FakeCashierBackend {
               'not_enough_cash',
               "Kassada buncha naqd pul yo'q.",
             );
+          }
+          // P6-41: a provider-confirmed QR payment is reversed by the provider: whole, or refused
+          if (p['tender'] == 'qr' && p['qr_payment_uuid'] != null) {
+            if (amount < left) {
+              return FakeResponse(422, <String, Object?>{
+                'success': false,
+                'message': "QR to'lovini faqat to'liq qaytarish mumkin.",
+                'data': <String, Object?>{
+                  'reason': 'qr_partial_refund_unsupported',
+                  'left': _m(left),
+                },
+              });
+            }
+            if (qrRefundUnknown) {
+              // Review P6 wave 4 (C2): the provider did not answer — the attempt is `unknown`, a retry asks its status
+              return const FakeResponse(409, <String, Object?>{
+                'success': false,
+                'message':
+                    "To'lov tizimi javob bermadi — holat tekshirilmoqda.",
+                'data': <String, Object?>{
+                  'reason': 'qr_refund_unknown',
+                  'state': 'qr_refund_unknown',
+                },
+              });
+            }
+            if (qrRefundFails) {
+              return FakeResponse(409, <String, Object?>{
+                'success': false,
+                'message': "Provayder to'lovni qaytarmadi.",
+                'data': <String, Object?>{
+                  'reason': 'qr_refund_failed',
+                  'provider': p['qr_provider'],
+                },
+              });
+            }
+            final Map<String, Object?>? qr =
+                qrBackend?.qrs['${p['qr_payment_uuid']}'];
+            if (qr != null) {
+              qr
+                ..['status'] = 'refunded'
+                ..['refunded_amount'] = _m(amount);
+            }
+          }
+          // P6-43: a certificate part goes back to the certificate (never cash)
+          if (p['tender'] == 'voucher') {
+            final Map<String, Object?>? v = voucherBackend
+                ?.vouchers[FakeVoucherBackend.normalize(p['voucher_code'])];
+            if (v != null) {
+              v
+                ..['balance'] = _m(_t(v['balance']) + amount)
+                ..['status'] = 'active';
+            }
           }
           final Map<String, Object?> order = state.orders[e.key]!;
           if (p['tender'] == 'prepayment') {
@@ -1743,7 +1823,7 @@ class FakeCashierBackend {
   }
 
   /// P3-35 (`CustomerAccountLedger::reverse`): the bill's nasiya part off the customer's debt (an adjustment); never
-  /// more than the bill was charged (409 `reverse_exceeds_charge`) nor than the debt left (409 `more_than_debt`).
+  /// more than the bill was charged (409 `reverse_exceeds_charge`); the debt may go below zero (review P6 wave 4, C7).
   FakeResponse? _reverseCharge(
     Map<String, Object?> payment,
     Map<String, Object?> bill,
@@ -1786,17 +1866,8 @@ class FakeCashierBackend {
         },
       });
     }
-    if (amount > _t(account['balance'])) {
-      return FakeResponse(409, <String, Object?>{
-        'success': false,
-        'message':
-            "Mijoz qarzining bir qismini to'lagan: qolgan qarz ${account['balance']} so'm. Farqni menejer qo'lda hal qilsin.",
-        'data': <String, Object?>{
-          'reason': 'more_than_debt',
-          'balance': account['balance'],
-        },
-      });
-    }
+    // Review P6 wave 4 (C7): never refused because the debt was repaid already — the balance may go below zero (the
+    // customer's credit, "Ortiqcha to'lov")
     _entry(
       account,
       'adjustment',
@@ -1881,8 +1952,17 @@ class FakeCashierBackend {
         .where((Map<String, Object?> e) => e['tender'] == 'cash')
         .fold(0, (int s, Map<String, Object?> e) => s - _t(e['amount']));
     final int opening = _t(shift['opening_cash']);
+    // P6-43: certificates sold in this shift (an advance: not a sale; cash into the drawer)
+    final List<Map<String, Object?>> sold = <Map<String, Object?>>[
+      for (final Map<String, Object?> v in voucherSales)
+        if (v['shift_uuid'] == id) v,
+    ];
+    int soldBy(String t) =>
+        sumOf(sold.where((Map<String, Object?> v) => v['tender'] == t));
+    final int cashVouchers = soldBy('cash');
     final int expected =
         opening +
+        cashVouchers +
         cashSales +
         moveSum('cash_in') +
         cashDeposits +
@@ -1929,6 +2009,7 @@ class FakeCashierBackend {
           'qr',
           'prepayment',
           'account',
+          if (tender('voucher').isNotEmpty) 'voucher',
         ])
           <String, Object?>{
             'tender': t,
@@ -1936,6 +2017,44 @@ class FakeCashierBackend {
             'amount': _m(sumOf(tender(t))),
           },
       ],
+      if (tender('qr').isNotEmpty)
+        'qr_providers': <Object?>[
+          for (final String provider in <String>{
+            for (final Map<String, Object?> p in tender('qr'))
+              '${p['qr_provider'] ?? 'manual'}',
+          })
+            <String, Object?>{
+              'provider': provider,
+              'count': tender('qr')
+                  .where(
+                    (Map<String, Object?> p) =>
+                        '${p['qr_provider'] ?? 'manual'}' == provider,
+                  )
+                  .length,
+              'amount': _m(
+                sumOf(
+                  tender('qr').where(
+                    (Map<String, Object?> p) =>
+                        '${p['qr_provider'] ?? 'manual'}' == provider,
+                  ),
+                ),
+              ),
+            },
+        ],
+      if (sold.isNotEmpty || tender('voucher').isNotEmpty)
+        'vouchers': <String, Object?>{
+          'sold': <String, Object?>{
+            'count': sold.length,
+            'amount': _m(sumOf(sold)),
+            'cash': _m(cashVouchers),
+            'card': _m(soldBy('card')),
+            'qr': _m(soldBy('qr')),
+          },
+          'redeemed': <String, Object?>{
+            'count': tender('voucher').length,
+            'amount': _m(sumOf(tender('voucher'))),
+          },
+        },
       'cards': <Object?>[
         for (final MapEntry<String, int> c in cards.entries)
           <String, Object?>{'card_type': c.key, 'amount': _m(c.value)},
@@ -2008,6 +2127,7 @@ class FakeCashierBackend {
         'deposits': _m(cashDeposits),
         'deposit_refunds': _m(cashDepositRefunds),
         'repayments': _m(cashRepay),
+        if (sold.isNotEmpty) 'vouchers': _m(cashVouchers),
         'expected': _m(expected),
       },
       'movements': <Object?>[
@@ -3406,6 +3526,16 @@ class FakeCashierBackend {
     if (!manage && !perms.contains('pos.take_payment')) {
       return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
     }
+    // P6-44: a corporate member at the till (code or phone) and an account's members (talons)
+    if (m == 'GET' && p == '/v1/pos/customer-accounts/members/lookup') {
+      return _memberLookup(r);
+    }
+    final RegExpMatch? membersOf = RegExp(
+      r'^/v1/pos/customer-accounts/([^/]+)/members$',
+    ).firstMatch(p);
+    if (m == 'GET' && membersOf != null) {
+      return _membersOf(membersOf.group(1)!, manage);
+    }
     if (m == 'GET' && p == '/v1/pos/customer-accounts') {
       final String q = (r.query['q'] ?? '').toLowerCase();
       final String digits = q.replaceAll(RegExp(r'\D'), '');
@@ -3841,7 +3971,7 @@ class FakeCashierBackend {
 
   // --- tayyor ma'lumotlar ----------------------------------------------------------------------------------------------
 
-  /// Nasiya hisobi ([debt] — qarz).
+  /// Nasiya hisobi ([debt] — qarz; manfiy — ortiqcha to'lov).
   String seedAccount({
     required String name,
     String? phone,
@@ -3867,6 +3997,8 @@ class FakeCashierBackend {
     accounts[uuid] = a;
     _available(a);
     if (_t(debt) > 0) _entry(a, 'charge', _t(debt));
+    // Below zero: the customer's credit after a refund (review P6 wave 4, C7)
+    if (_t(debt) < 0) _entry(a, 'adjustment', _t(debt));
     return uuid;
   }
 
@@ -4020,6 +4152,722 @@ class FakeCashierBackend {
       ],
       emit: false,
     );
+  }
+
+  // --- P6-41/P6-43/P6-44: QR, sertifikat, promo-kod, korxona ---------------------------------------------------------
+
+  /// P6-41: dinamik QR yo'llari ([useQr]); `null` — yo'q (QR tugmasi statik, qo'lda).
+  FakeQrBackend? qrBackend;
+
+  /// P6-43: sertifikat yo'llari ([useVouchers]).
+  FakeVoucherBackend? voucherBackend;
+
+  /// P6-41: provayder QR to'lovini qaytarmaydi (409 `qr_refund_failed`).
+  bool qrRefundFails = false;
+
+  /// Review P6 wave 4: provayder javob bermadi (409 `qr_refund_unknown`); qayta urinish holatni so'raydi.
+  bool qrRefundUnknown = false;
+
+  /// P6-43: sotilgan sertifikatlar (X/Z uchun): `shift_uuid`, `tender`, `amount`, `code`.
+  final List<Map<String, Object?>> voucherSales = <Map<String, Object?>>[];
+  final Map<String, Map<String, Object?>> _voucherByKey =
+      <String, Map<String, Object?>>{};
+
+  /// P6-44: talon kodi → korxona xodimi (`uuid`, `account_uuid`, `name`, `phone`, `code`, `daily_limit`,
+  /// `meals_per_day`, `is_active`).
+  final Map<String, Map<String, Object?>> members =
+      <String, Map<String, Object?>>{};
+
+  /// P6-43: do'konning promo-kodlari (katta harf) → `percent` yoki `amount`, `min_order`, `active`, `used`.
+  final Map<String, Map<String, Object?>> promoCodes =
+      <String, Map<String, Object?>>{};
+
+  bool _moduleOff(String module) {
+    final Map<String, Object?>? format = state.format;
+    if (format == null) return false;
+    final Object? modules = format['modules'];
+    return modules is List && !modules.contains(module);
+  }
+
+  FakeResponse _moduleDisabled(String module) =>
+      FakeResponse(403, <String, Object?>{
+        'success': false,
+        'message': "Bu modul filialda o'chirilgan.",
+        'code': 'module_disabled',
+        'module': module,
+        'data': <String, Object?>{
+          'reason': 'module_disabled',
+          'module': module,
+          'profile': state.format?['profile'],
+        },
+      });
+
+  static FakeResponse _refusal(
+    int status,
+    String reason,
+    String message, [
+    Map<String, Object?> extra = const <String, Object?>{},
+  ]) => FakeResponse(status, <String, Object?>{
+    'success': false,
+    'message': message,
+    'data': <String, Object?>{'reason': reason, ...extra},
+  });
+
+  /// P6-41: dinamik QR yoqiladi: bootstrap `qr_payments`, `POST /pos/bills/{uuid}/qr` (summa sukut — qarz, smena,
+  /// ortiqcha to'lov), `simulate-paid` va [confirmQr] — schyot `qr` to'lovini oladi (provayder tasdig'i).
+  FakeQrBackend useQr({
+    List<String> providers = const <String>['click', 'payme', 'uzqr'],
+    String? defaultProvider,
+    int expiryMinutes = 5,
+  }) {
+    final FakeQrBackend? existing = qrBackend;
+    if (existing != null) return existing;
+    final FakeQrBackend qr = FakeQrBackend(state);
+    final FakeResponse? Function(FakeRequest request)? next = state.extraRoutes;
+    state.extraRoutes = (FakeRequest r) =>
+        _qrRoute(r, expiryMinutes) ?? next?.call(r);
+    state.bootstrapExtras['qr_payments'] = <String, Object?>{
+      'enabled': true,
+      'providers': providers,
+      'default_provider': defaultProvider ?? providers.first,
+      'expiry_minutes': expiryMinutes,
+    };
+    return qrBackend = qr;
+  }
+
+  FakeResponse? _qrRoute(FakeRequest r, int expiryMinutes) {
+    final FakeQrBackend qr = qrBackend!;
+    final RegExpMatch? create = RegExp(r'^/v1/pos/bills/([^/]+)/qr$')
+        .firstMatch(r.path);
+    if (create != null && r.method == 'POST') {
+      final FakeResponse? denied = state.authorize(
+        r.member,
+        'pos.take_payment',
+        null,
+      );
+      if (denied != null) return denied;
+      if (_moduleOff('qr_payments')) return _moduleDisabled('qr_payments');
+      if (state.shift == null) {
+        return _refusal(
+          409,
+          'shift_not_open',
+          "Smena ochilmagan: QR uchun avval smenani oching.",
+        );
+      }
+      final (Map<String, Object?>, Map<String, Object?>)? found = _bill(
+        create.group(1)!,
+      );
+      if (found == null) return _fail(404, null, 'Schyot topilmadi.');
+      final Map<String, Object?> bill = found.$1;
+      if (bill['status'] == 'paid') {
+        return _refusal(409, 'bill_paid', "Schyot to'langan.");
+      }
+      final int due = _t(bill['due_amount']);
+      final int amount = r.data['amount'] == null ? due : _t(r.data['amount']);
+      if (amount <= 0 || amount > due) {
+        return _refusal(
+          422,
+          'overpayment',
+          "QR summasi schyot qoldig'idan ko'p: qoldiq ${_m(due)} so'm.",
+          <String, Object?>{'due': _m(due)},
+        );
+      }
+      final FakeResponse? res = qr.handle(
+        FakeRequest(
+          method: r.method,
+          path: r.path,
+          query: r.query,
+          data: <String, Object?>{
+            ...r.data,
+            'provider':
+                r.data['provider'] ??
+                (state.bootstrapExtras['qr_payments']!
+                    as Map<String, Object?>)['default_provider'],
+            'amount': _m(amount),
+          },
+          member: r.member,
+          idempotencyKey: r.idempotencyKey,
+        ),
+      );
+      final Object? body = res?.body;
+      if (res != null && res.status == 201 && body is Map) {
+        final Map<String, Object?> made =
+            ((body['data']! as Map<String, Object?>)['qr']!)
+                as Map<String, Object?>;
+        made
+          ..['expires_at'] = _iso(
+            state.now().add(Duration(minutes: expiryMinutes)),
+          )
+          ..['created_at'] = _iso(state.now());
+      }
+      return res;
+    }
+    final RegExpMatch? one = RegExp(r'^/v1/pos/qr/([^/]+)(/simulate-paid)?$')
+        .firstMatch(r.path);
+    if (one != null) {
+      final Map<String, Object?>? q = qr.qrs[one.group(1)];
+      if (q == null) return null;
+      if (one.group(2) != null && r.method == 'POST') {
+        confirmQr(one.group(1)!);
+        return _ok(<String, Object?>{'qr': q});
+      }
+      if (r.method == 'GET' &&
+          q['status'] == 'pending' &&
+          q['held'] != true &&
+          state.now().isAfter(DateTime.parse('${q['expires_at']}'))) {
+        expireQr(one.group(1)!);
+      }
+      if (r.method == 'DELETE' && q['status'] == 'pending') {
+        // The fake QR layer cancels it; the till hears it like the server says it
+        final FakeResponse? res = qr.handle(r);
+        state.emit('qr.cancelled', _qrEvent(q));
+        return res;
+      }
+    }
+    return null;
+  }
+
+  Map<String, Object?> _qrEvent(Map<String, Object?> q) => <String, Object?>{
+    'qr': <String, Object?>{
+      'uuid': q['uuid'],
+      'bill_uuid': q['bill_uuid'],
+      'order_uuid': null,
+      'provider': q['provider'],
+      'status': q['status'],
+    },
+    'changed_at': _iso(state.now()),
+  };
+
+  /// P6-41: provayder tasdiqladi (webhook): schyot `qr` to'lovini oladi (`reference` — provayder tranzaksiyasi), qarz
+  /// tugasa sotuv cheki; `qr.paid` va `order.bill_changed`. Takroriy tasdiq — hech narsa (idempotent).
+  void confirmQr(String uuid) {
+    final FakeQrBackend qr = qrBackend!;
+    final Map<String, Object?>? q = qr.qrs[uuid];
+    if (q == null || q['status'] != 'pending') return;
+    final (Map<String, Object?>, Map<String, Object?>)? found = _bill(
+      '${q['bill_uuid']}',
+    );
+    if (found == null) return;
+    final (Map<String, Object?> bill, Map<String, Object?> order) = found;
+    final int amount = _t(q['amount']);
+    final int due = _t(bill['due_amount']);
+    final String paymentUuid = _uuid('p');
+    (bill['payments']! as List<Object?>).add(<String, Object?>{
+      'uuid': paymentUuid,
+      'tender': 'qr',
+      'amount': _m(amount),
+      'tendered_amount': null,
+      'change_amount': null,
+      'card_type': null,
+      'transaction_id': null,
+      'card_last4': null,
+      'reference': '${q['provider']}-${uuid.substring(uuid.length - 6)}',
+      'status': 'paid',
+      'paid_at': _iso(state.now()),
+      'shift_uuid': state.shift?['uuid'],
+      'refunded_amount': '0.00',
+      'qr_payment_uuid': uuid,
+      'qr_provider': q['provider'],
+    });
+    bill
+      ..['paid_amount'] = _m(_t(bill['paid_amount']) + amount)
+      ..['due_amount'] = _m(due - amount);
+    if (due - amount <= 0) _issueSale(bill, order);
+    qr.confirm(uuid);
+    q['payment_uuid'] = paymentUuid;
+    _billEvent(order, bill, 'paid');
+  }
+
+  /// P6-41: QR vaqti tugadi (`expired`, `qr.expired`).
+  void expireQr(String uuid) {
+    final Map<String, Object?>? q = qrBackend?.qrs[uuid];
+    if (q == null || q['status'] != 'pending') return;
+    q
+      ..['status'] = 'expired'
+      ..['cancel_reason'] = 'expired';
+    state.emit('qr.expired', _qrEvent(q));
+  }
+
+  /// P6-41: provayder to'lashni boshladi (`held`: yangi QR so'ralmaydi).
+  void holdQr(String uuid) => qrBackend?.qrs[uuid]?['held'] = true;
+
+  void _cancelQrsAbove(Map<String, Object?> bill, int due) {
+    for (final Map<String, Object?> q
+        in qrBackend?.qrs.values ?? const <Map<String, Object?>>[]) {
+      if (q['bill_uuid'] == bill['uuid'] &&
+          q['status'] == 'pending' &&
+          _t(q['amount']) > due) {
+        q
+          ..['status'] = 'cancelled'
+          ..['cancel_reason'] = 'bill_changed';
+        state.emit('qr.cancelled', _qrEvent(q));
+      }
+    }
+  }
+
+  /// P6-43: sertifikat yoqiladi: sotish (modul, smena, karta maydonlari, bo'nak cheki, smenaga pul, idempotent),
+  /// kod bo'yicha qidirish, `voucher` tenderi (qoldiq kamayadi), qaytarish sertifikatga.
+  FakeVoucherBackend useVouchers() {
+    final FakeVoucherBackend? existing = voucherBackend;
+    if (existing != null) return existing;
+    final FakeVoucherBackend v = FakeVoucherBackend(state);
+    final FakeResponse? Function(FakeRequest request)? next = state.extraRoutes;
+    state.extraRoutes = (FakeRequest r) =>
+        _voucherSell(r, next) ?? next?.call(r);
+    return voucherBackend = v;
+  }
+
+  FakeResponse? _voucherSell(
+    FakeRequest r,
+    FakeResponse? Function(FakeRequest request)? next,
+  ) {
+    if (r.path != '/v1/pos/vouchers/sell' || r.method != 'POST') return null;
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'pos.take_payment',
+      null,
+    );
+    if (denied != null) return denied;
+    if (_moduleOff('vouchers')) return _moduleDisabled('vouchers');
+    final String? key = r.idempotencyKey;
+    if (key != null && _voucherByKey.containsKey(key)) {
+      return _ok(_voucherByKey[key], status: 201);
+    }
+    final int value = _t(r.data['face_value']);
+    if (value < 100000 || value > 10000000000 || value % 100 != 0) {
+      return _refusal(
+        422,
+        'face_value_invalid',
+        "Qiymat 1 000 dan 100 000 000 so'mgacha butun son bo'lsin.",
+      );
+    }
+    final String tender = '${r.data['tender'] ?? ''}';
+    if (!<String>['cash', 'card', 'qr'].contains(tender)) {
+      return _refusal(422, 'tender_invalid', "To'lov turi noto'g'ri.");
+    }
+    if (tender == 'card' && '${r.data['card_type'] ?? ''}'.isEmpty) {
+      return _refusal(422, 'card_type_required', 'Karta turini tanlang.');
+    }
+    if (tender == 'card' &&
+        '${r.data['transaction_id'] ?? ''}'.trim().isEmpty) {
+      return _refusal(
+        422,
+        'transaction_id_required',
+        'Terminal tranzaksiya raqamini kiriting.',
+      );
+    }
+    final FakeResponse? res = next?.call(r);
+    final Object? body = res?.body;
+    if (res == null || res.status != 201 || body is! Map) return res;
+    final Map<String, Object?> v = body['data']! as Map<String, Object?>;
+    final String receipt = _uuid('r');
+    receipts[receipt] = _simpleReceipt(
+      receipt,
+      'advance',
+      value,
+      "Sovg'a sertifikati (avans)",
+      tender,
+      prepayment: false,
+    );
+    final String? phone = r.data['buyer_phone'] as String?;
+    v
+      ..['fiscal'] = <String, Object?>{
+        'receipt_uuid': receipt,
+        'status': 'issued',
+      }
+      ..['buyer'] = <String, Object?>{
+        'name': r.data['buyer_name'],
+        'phone': phone == null || phone.length < 6
+            ? phone
+            : '${phone.substring(0, 6)}*****${phone.substring(phone.length - 2)}',
+      };
+    (v['sale']! as Map<String, Object?>)
+      ..['tender'] = tender
+      ..['card_type'] = r.data['card_type']
+      ..['transaction_id'] = r.data['transaction_id']
+      ..['sold_at'] = _iso(state.now());
+    if (r.data['valid_until'] != null) {
+      v['valid_until'] = r.data['valid_until'];
+      (v['print']! as Map<String, Object?>)['valid_until'] =
+          r.data['valid_until'];
+    }
+    voucherSales.add(<String, Object?>{
+      'shift_uuid': state.shift?['uuid'],
+      'tender': tender,
+      'amount': _m(value),
+      'code': v['code'],
+    });
+    if (key != null) _voucherByKey[key] = v;
+    return res;
+  }
+
+  /// P6-43: promo-kod ([percent] yoki [amount], [minOrder] — taomlar summasidan).
+  void seedPromo(
+    String code, {
+    String? percent,
+    String? amount,
+    String? minOrder,
+    bool active = true,
+  }) => promoCodes[code.toUpperCase()] = <String, Object?>{
+    'percent': percent,
+    'amount': amount,
+    'min_order': minOrder,
+    'active': active,
+    'used': 0,
+  };
+
+  /// `POST /pos/orders/{uuid}/promo` va `DELETE ...?version=` (P6-43): kod buyurtma chegirmasi (`promo:<KOD>`).
+  FakeResponse _promo(Map<String, Object?> order, FakeRequest r) {
+    final FakeResponse? denied = state.authorize(
+      r.member,
+      'orders.manage',
+      null,
+    );
+    if (denied != null) return denied;
+    final bool apply = r.method == 'POST';
+    if (apply && _moduleOff('vouchers')) return _moduleDisabled('vouchers');
+    final Object? version = apply
+        ? r.data['version']
+        : int.tryParse(r.query['version'] ?? '');
+    if (version != null && version != order['version']) {
+      return _refusal(
+        409,
+        'version_conflict',
+        "Buyurtma boshqa qurilmada o'zgartirildi. Uni qayta yuklang va amalni takrorlang.",
+        <String, Object?>{'version': order['version']},
+      );
+    }
+    final String current = '${order['discount_reason'] ?? ''}';
+    if (!apply) {
+      if (!current.startsWith('promo:')) {
+        return _refusal(422, 'promo_not_applied', "Buyurtmada promo-kod yo'q.");
+      }
+      final Map<String, Object?>? promo = promoCodes[current.substring(6)];
+      if (promo != null) promo['used'] = (promo['used']! as int) - 1;
+      order
+        ..['discount_kind'] = null
+        ..['discount_value'] = null
+        ..['discount_reason'] = null
+        ..['discount_by'] = null;
+      state.touchOrder(order, 'charges_changed');
+      return _ok(order, message: 'Promo-kod olib tashlandi.');
+    }
+    final String code = '${r.data['code'] ?? ''}'.trim().toUpperCase();
+    if (current.startsWith('promo:')) {
+      return _refusal(
+        409,
+        'promo_already_applied',
+        'Buyurtmada promo-kod bor: avval uni olib tashlang.',
+      );
+    }
+    final Map<String, Object?>? promo = promoCodes[code];
+    if (promo == null) {
+      return _refusal(404, 'promo_not_found', 'Promo-kod topilmadi.');
+    }
+    if (promo['active'] != true) {
+      return _refusal(422, 'promo_inactive', 'Promo-kod faol emas.');
+    }
+    var subtotal = 0;
+    for (final Object? i in (order['items'] as List<Object?>?) ?? <Object?>[]) {
+      final Map<String, Object?> item = (i! as Map<Object?, Object?>)
+          .cast<String, Object?>();
+      if (item['kitchen_status'] != 'void') subtotal += _t(item['total_price']);
+    }
+    if (promo['min_order'] != null && subtotal < _t(promo['min_order'])) {
+      return _refusal(
+        422,
+        'promo_min_order',
+        "Promo-kod ${_m(_t(promo['min_order']))} so'mdan katta buyurtmaga.",
+        <String, Object?>{'min_order_amount': promo['min_order']},
+      );
+    }
+    final bool percent = promo['percent'] != null;
+    order
+      ..['discount_kind'] = percent ? 'percent' : 'amount'
+      ..['discount_value'] = percent ? promo['percent'] : promo['amount']
+      ..['discount_reason'] = 'promo:$code'
+      ..['discount_by'] = r.member['id'];
+    promo['used'] = (promo['used']! as int) + 1;
+    state.touchOrder(order, 'charges_changed');
+    return _ok(order, message: "Promo-kod qo'llandi.");
+  }
+
+  /// P6-44: korxona hisobi ([talonMode] `none`, `daily_limit`, `subscription`; [chargeApproval] `false` — menejer
+  /// PIN'i so'ralmaydi).
+  String seedCorporate({
+    required String name,
+    String? company,
+    String talonMode = 'daily_limit',
+    bool chargeApproval = false,
+    String? monthlyLimit,
+    String? creditLimit,
+    bool blocked = false,
+  }) {
+    final String uuid = seedAccount(
+      name: name,
+      limit: creditLimit,
+      blocked: blocked,
+    );
+    accounts[uuid]!.addAll(<String, Object?>{
+      'kind': 'corporate',
+      'company_name': company,
+      'talon_mode': talonMode,
+      'charge_approval': chargeApproval,
+      'monthly_limit': monthlyLimit,
+      'members_count': 0,
+    });
+    return uuid;
+  }
+
+  /// P6-44: korxona xodimi (talon kodi qaytadi).
+  String seedMember(
+    String accountUuid, {
+    required String name,
+    required String code,
+    String? phone,
+    String? dailyLimit,
+    int? mealsPerDay,
+    bool active = true,
+  }) {
+    members[code] = <String, Object?>{
+      'uuid': _uuid('m'),
+      'account_uuid': accountUuid,
+      'name': name,
+      'phone': phone,
+      'code': code,
+      'daily_limit': dailyLimit,
+      'meals_per_day': mealsPerDay,
+      'is_active': active,
+      'note': null,
+    };
+    final Map<String, Object?> a = accounts[accountUuid]!;
+    a['members_count'] = members.values
+        .where(
+          (Map<String, Object?> m) =>
+              m['account_uuid'] == accountUuid && m['is_active'] == true,
+        )
+        .length;
+    return code;
+  }
+
+  static String? _maskPhone(Object? phone) {
+    final String p = '${phone ?? ''}';
+    if (p.length < 6) return phone as String?;
+    return '${p.substring(0, 6)} *** ** ${p.substring(p.length - 2)}';
+  }
+
+  Map<String, Object?>? _memberBy({Object? code, Object? phone}) {
+    if (code != null && '$code'.trim().isNotEmpty) {
+      return members['$code'.trim().toUpperCase()] ?? members['$code'.trim()];
+    }
+    final String digits = '${phone ?? ''}'.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 9) return null;
+    for (final Map<String, Object?> m in members.values) {
+      if ('${m['phone'] ?? ''}'
+          .replaceAll(RegExp(r'\D'), '')
+          .endsWith(digits.substring(digits.length - 9))) {
+        return m;
+      }
+    }
+    return null;
+  }
+
+  /// Xodimning bugungi (soxta: hamma yozuvlari) summasi va ovqatlari, hisobning oy summasi.
+  ({int amount, int meals, int month}) _usage(Map<String, Object?> member) {
+    final List<Map<String, Object?>> list =
+        entries['${member['account_uuid']}'] ?? <Map<String, Object?>>[];
+    var amount = 0;
+    var meals = 0;
+    var month = 0;
+    for (final Map<String, Object?> e in list) {
+      if (e['type'] != 'charge') continue;
+      month += _t(e['amount']);
+      if (e['member_uuid'] == member['uuid']) {
+        amount += _t(e['amount']);
+        meals++;
+      }
+    }
+    return (amount: amount, meals: meals, month: month);
+  }
+
+  Map<String, Object?> _lookupOf(Map<String, Object?> member) {
+    final Map<String, Object?> a = accounts['${member['account_uuid']}']!;
+    final ({int amount, int meals, int month}) u = _usage(member);
+    final Object? daily = member['daily_limit'];
+    final int? meals = member['meals_per_day'] as int?;
+    final Object? monthly = a['monthly_limit'];
+    final Object? credit = a['credit_limit'];
+    return <String, Object?>{
+      'account': <String, Object?>{
+        'uuid': a['uuid'],
+        'name': a['name'],
+        'company_name': a['company_name'],
+        'talon_mode': a['talon_mode'],
+        'charge_approval': a['charge_approval'],
+        'is_blocked': a['is_blocked'],
+        'credit_limit': credit,
+        'balance': a['balance'],
+      },
+      'member': <String, Object?>{
+        'uuid': member['uuid'],
+        'name': member['name'],
+        'phone': _maskPhone(member['phone']),
+        'code': member['code'],
+        'daily_limit': daily,
+        'meals_per_day': meals,
+        'is_active': member['is_active'],
+      },
+      'usage': <String, Object?>{
+        'business_date': _date(state.now()),
+        'member': <String, Object?>{
+          'amount': _m(u.amount),
+          'meals': u.meals,
+          'daily_limit': daily,
+          'daily_available': daily == null
+              ? null
+              : _m(math.max(0, _t(daily) - u.amount)),
+          'meals_per_day': meals,
+          'meals_left': meals == null ? null : math.max(0, meals - u.meals),
+        },
+        'month': <String, Object?>{
+          'amount': _m(u.month),
+          'monthly_limit': monthly,
+          'available': monthly == null
+              ? null
+              : _m(math.max(0, _t(monthly) - u.month)),
+        },
+        'credit_available': credit == null
+            ? null
+            : _m(math.max(0, _t(credit) - _t(a['balance']))),
+      },
+    };
+  }
+
+  /// Review P6 wave 4: not gated by the corporate_accounts module (S4: an existing account is charged at the till with
+  /// the module off); found by phone, the talon code comes masked (S5, CorporateAccounts::maskCode).
+  FakeResponse _memberLookup(FakeRequest r) {
+    final bool byCode = (r.query['code'] ?? '').trim().isNotEmpty;
+    final Map<String, Object?>? member = _memberBy(
+      code: r.query['code'],
+      phone: r.query['phone'],
+    );
+    if (member == null) {
+      return _refusal(404, 'member_not_found', 'Xodim topilmadi.');
+    }
+    final Map<String, Object?> found = _lookupOf(member);
+    if (!byCode) {
+      (found['member']! as Map<String, Object?>)['code'] = maskTalon(
+        '${member['code']}',
+      );
+    }
+    return _ok(found);
+  }
+
+  /// CorporateAccounts::maskCode: the first and last characters (two each from eight, one each from five), the rest
+  /// stars.
+  static String maskTalon(String code) {
+    final int keep = code.length >= 8 ? 2 : (code.length >= 5 ? 1 : 0);
+    if (keep == 0) return '*' * code.length;
+    return '${code.substring(0, keep)}${'*' * (code.length - 2 * keep)}${code.substring(code.length - keep)}';
+  }
+
+  FakeResponse _membersOf(String accountUuid, bool manage) {
+    if (!manage) return _fail(403, null, "Bu amal uchun ruxsat yo'q.");
+    final Map<String, Object?>? a = accounts[accountUuid];
+    if (a == null) return _fail(404, null, 'Hisob topilmadi.');
+    if (a['kind'] != 'corporate') {
+      return _refusal(422, 'account_not_corporate', 'Bu korxona hisobi emas.');
+    }
+    final List<Map<String, Object?>> list =
+        <Map<String, Object?>>[
+          for (final Map<String, Object?> m in members.values)
+            if (m['account_uuid'] == accountUuid) m,
+        ]..sort(
+          (Map<String, Object?> x, Map<String, Object?> y) =>
+              (y['is_active'] == true ? 1 : 0) -
+              (x['is_active'] == true ? 1 : 0),
+        );
+    return _ok(<String, Object?>{
+      'members': list,
+      'active_count': list
+          .where((Map<String, Object?> m) => m['is_active'] == true)
+          .length,
+    });
+  }
+
+  /// Korxona hisobiga yozish qoidalari (`CustomerAccountService::charge`): xodim kerakmi, faolmi, kunlik limit,
+  /// kuniga ovqat, oylik limit. Rad — javob, aks holda xodim (yoki `null` — korxona bo'yicha).
+  (FakeResponse?, Map<String, Object?>?) _corporateCharge(
+    Map<String, Object?> account,
+    Map<String, Object?> t,
+  ) {
+    final bool given =
+        '${t['member_code'] ?? ''}'.trim().isNotEmpty ||
+        '${t['member_phone'] ?? ''}'.trim().isNotEmpty;
+    final Map<String, Object?>? member = given
+        ? _memberBy(code: t['member_code'], phone: t['member_phone'])
+        : null;
+    if (!given) {
+      if (account['talon_mode'] != 'none') {
+        return (
+          _refusal(422, 'member_required', 'Xodimning talon kodini kiriting.'),
+          null,
+        );
+      }
+      return (null, null);
+    }
+    if (member == null || member['account_uuid'] != account['uuid']) {
+      return (_refusal(404, 'member_not_found', 'Xodim topilmadi.'), null);
+    }
+    if (member['is_active'] != true) {
+      return (
+        _refusal(422, 'member_inactive', "Xodimning taloni to'xtatilgan."),
+        null,
+      );
+    }
+    final int amount = _t(t['amount']);
+    final ({int amount, int meals, int month}) u = _usage(member);
+    final Object? daily = member['daily_limit'];
+    if (daily != null && u.amount + amount > _t(daily)) {
+      return (
+        _refusal(
+          422,
+          'member_daily_limit',
+          'Xodimning kunlik limiti yetmaydi.',
+          <String, Object?>{
+            'daily_limit': daily,
+            'used': _m(u.amount),
+            'available': _m(math.max(0, _t(daily) - u.amount)),
+            'business_date': _date(state.now()),
+          },
+        ),
+        null,
+      );
+    }
+    final int? meals = member['meals_per_day'] as int?;
+    if (meals != null && u.meals >= meals) {
+      return (
+        _refusal(422, 'member_meals_used', 'Xodim bugungi ovqatini olgan.'),
+        null,
+      );
+    }
+    final Object? monthly = account['monthly_limit'];
+    if (monthly != null && u.month + amount > _t(monthly)) {
+      return (
+        _refusal(
+          422,
+          'account_monthly_limit',
+          'Korxonaning oylik limiti yetmaydi.',
+          <String, Object?>{
+            'monthly_limit': monthly,
+            'used': _m(u.month),
+            'available': _m(math.max(0, _t(monthly) - u.month)),
+          },
+        ),
+        null,
+      );
+    }
+    return (null, member);
   }
 
   // --- yordamchi -------------------------------------------------------------------------------------------------------

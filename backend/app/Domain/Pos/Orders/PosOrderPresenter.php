@@ -65,6 +65,8 @@ class PosOrderPresenter
             'discount_value' => $order->getAttribute('discount_value') !== null ? (string) $order->getAttribute('discount_value') : null,
             'discount_reason' => $order->getAttribute('discount_reason'),
             'discount_by' => $order->getAttribute('discount_by') !== null ? (int) $order->getAttribute('discount_by') : null,
+            // Review C1: why the order's promo code was dropped (the dishes fell under its minimum); null otherwise
+            'promo_note' => $order->getAttribute('promo_note'),
             'service_charge_amount' => (string) $order->service_charge_amount,
             'place_fee_amount' => (string) $order->place_fee_amount,
             'room_fee_amount' => (string) $order->room_fee_amount,

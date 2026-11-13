@@ -8,18 +8,13 @@ part 'refunded.g.dart';
 
 @JsonSerializable()
 class Refunded {
-  const Refunded({
-    required this.count,
-    required this.amount,
-    required this.cash,
-  });
+  const Refunded({required this.count, required this.amount});
 
   factory Refunded.fromJson(Map<String, Object?> json) =>
       _$RefundedFromJson(json);
 
   final int count;
   final String amount;
-  final String cash;
 
   Map<String, Object?> toJson() => _$RefundedToJson(this);
 }

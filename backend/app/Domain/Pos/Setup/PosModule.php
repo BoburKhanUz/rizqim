@@ -57,6 +57,11 @@ enum PosModule: string
     case SCHEDULED_PICKUP = 'scheduled_pickup';
     case ROUND_THE_CLOCK = 'round_the_clock';
 
+    // Wave 4 "To'lov va chek" (docs/PHASE6_PLAN.md §9)
+    case QR_PAYMENTS = 'qr_payments';
+    case VOUCHERS = 'vouchers';
+    case CORPORATE_ACCOUNTS = 'corporate_accounts';
+
     public function label(): string
     {
         return match ($this) {
@@ -95,6 +100,9 @@ enum PosModule: string
             self::PACKAGING => 'Qadoq',
             self::SCHEDULED_PICKUP => 'Olib ketish vaqti',
             self::ROUND_THE_CLOCK => '24/7 ish',
+            self::QR_PAYMENTS => "Click, Payme va UzQR kassada",
+            self::VOUCHERS => "Sovg'a sertifikati va vaucher",
+            self::CORPORATE_ACCOUNTS => 'Korxona hisobi va talon',
         };
     }
 
@@ -139,6 +147,9 @@ enum PosModule: string
             self::PACKAGING => "Olib ketish va yetkazishda qadoq qatori qoida bo'yicha (o'z MXIK'i va narxi bilan).",
             self::SCHEDULED_PICKUP => "Mijoz olib ketish vaqtini tanlaydi: oshxonaga tayyorlash vaqtidan oldin avtomatik chiqadi.",
             self::ROUND_THE_CLOCK => "Kechayu kunduz ishlaydigan filial: yarim tundan o'tadigan smena, biznes kun boshlanishi bo'yicha raqam.",
+            self::QR_PAYMENTS => "Schyot summasiga Click, Payme yoki UzQR QR kodi: mijoz skanerlaydi, to'lov avtomatik tasdiqlanadi.",
+            self::VOUCHERS => "Sovg'a sertifikatini sotish (bo'nak cheki) va to'lovda ishlatish, qoldiq va muddat; promo-kod kassada.",
+            self::CORPORATE_ACCOUNTS => "Korxona hisobi: xodimlar ro'yxati, kunlik limit, talon va oylik hisobot.",
         };
     }
 
@@ -152,6 +163,8 @@ enum PosModule: string
      * staff pay) with the service charge. Wave 3 the same way: the combo, quick modifiers, packaging, the pickup time
      * and 24/7 are on Start (§7: "kombo va tez modifikatorlar ataylab Start'da"), the expo screen (KDS v2) goes with the
      * kitchen display and the cup stickers and labels (Asosiy) with it too (the label printer sits next to the KDS).
+     * Wave 4: the QR payments at the till are on every plan; the gift certificates and vouchers (Asosiy) go with the
+     * deposits (both are an advance receipted before the sale), the corporate accounts (Asosiy) with the nasiya.
      */
     public function planFeature(): ?PlanFeature
     {
@@ -167,6 +180,8 @@ enum PosModule: string
             self::HOSTESS, self::TABLE_BOOKING => PlanFeature::BOOKINGS,
             self::GUEST_SPLIT, self::SERVICE_CHARGE_RULES, self::TIPS, self::STAFF_PAY => PlanFeature::SERVICE_CHARGE,
             self::KDS_EXPO, self::LABELS => PlanFeature::KDS,
+            self::VOUCHERS => PlanFeature::DEPOSITS,
+            self::CORPORATE_ACCOUNTS => PlanFeature::CUSTOMER_ACCOUNTS,
             default => null,
         };
     }

@@ -7,7 +7,7 @@ part of 'branch9.dart';
 // **************************************************************************
 
 Branch9 _$Branch9FromJson(Map<String, dynamic> json) =>
-    Branch9(id: (json['id'] as num).toInt(), name: json['name'] as String);
+    Branch9(id: (json['id'] as num).toInt(), name: json['name'] as String?);
 
 Map<String, dynamic> _$Branch9ToJson(Branch9 instance) => <String, dynamic>{
   'id': instance.id,

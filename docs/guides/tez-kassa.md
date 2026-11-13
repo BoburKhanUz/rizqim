@@ -152,6 +152,8 @@ Karta bankning **alohida terminalida** olinadi (terminal "faqat terminal" rejimi
 RRN va oxirgi 4 raqam Rizqim chekida chiqadi; kun oxirida bank hisoboti bilan solishtirish shular bo'yicha bo'ladi.
 Summani eski fiskal kassaga **qayta termang** — chekni faqat Rizqim chiqaradi.
 
+Karta o'rniga mijoz **QR** (Click, Payme, UzQR) bilan to'lashi mumkin: to'lov o'zi tasdiqlanadi, RRN kerak emas ([tolov-va-chek.md](tolov-va-chek.md#3-qr-tolov-kassada)). Korxona xodimi talon kodi bilan: [tolov-va-chek.md](tolov-va-chek.md#8-korxona-hisobi-kassada).
+
 ## 12. Z va bank terminalining kunlik jami
 
 Kun oxirida ([kassa.md](kassa.md#z--smenani-yopish)):
@@ -239,6 +241,8 @@ tartib.
    bosishda takrorlaydi. Kunlik taomlarni belgilang — ular faqat menyudagi kunlari sotiladi.
 3. **Komplekslar**: to'plam nomi, narxi, tarkibi (birinchi, ikkinchi, salat, non...).
 4. Liniya oxiridagi kassaga ikkinchi ekran (mijoz ekrani) qo'ysangiz, mijoz chek va jamini ko'radi.
+5. **Korxona hisobi**: yaqin korxonalar xodimlari talon kodi bilan ovqatlansin desangiz, panelda korxona va xodimlarni qo'shing; kassada **Nasiya** → **Korxona**. Kunlik limit, abonement, oylik hisobot va Excel: [tolov-va-chek.md](tolov-va-chek.md#7-korxona-hisobi-va-talon-panelda-sozlash).
+6. **QR to'lov** (Click, Payme, UzQR) va sovg'a sertifikati: [tolov-va-chek.md](tolov-va-chek.md). Liniyada QR to'lov kassir tugma bosmasdan tasdiqlanadi.
 
 Format va modullarni keyin ham o'zgartirish mumkin: ochiq buyurtmalar, schyotlar va smena o'zgarmaydi. **To'lov olish,
 chek, smena va qaytarish hech qachon to'xtamaydi.**

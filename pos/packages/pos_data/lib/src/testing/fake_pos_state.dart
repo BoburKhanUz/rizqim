@@ -1678,6 +1678,11 @@ class FakePosState {
     return amount > subtotal ? subtotal : amount;
   }
 
+  /// Buyurtma o'zgardi (versiya, jami qayta hisoblanadi, `order.items_changed`): boshqa soxta yo'llar uchun (P6-43
+  /// promo-kod [FakeCashierBackend] da).
+  void touchOrder(Map<String, Object?> order, String change) =>
+      _touch(order, change);
+
   void _touch(
     Map<String, Object?> order,
     String change, {

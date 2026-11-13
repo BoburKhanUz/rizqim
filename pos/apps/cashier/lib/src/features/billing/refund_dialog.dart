@@ -9,6 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/pos_scope.dart';
 import 'cashier_ui.dart';
+import 'payment_messages.dart';
 import 'receipts.dart';
 
 /// Qaytarib bo'ladigan to'lov turlari (P3-35: avans va nasiya qismlari ham).
@@ -18,6 +19,8 @@ const List<String> refundableTenders = <String>[
   'qr',
   'prepayment',
   'account',
+  // P6-43: back to the certificate
+  'voucher',
 ];
 
 /// To'lovdan hali qaytarilmagan summa ([refunds] — schyotlar ro'yxatidagi qaytarishlar).
@@ -49,6 +52,7 @@ String refundEffect(String tender) => switch (tender) {
         "yoki ushlab qolish mumkin (Bronlar bo'limida).",
   'account' =>
     "Kassadan pul chiqmaydi: summa mijozning nasiya qarzidan ayiriladi.",
+  'voucher' => "Kassadan pul chiqmaydi: summa sertifikatga qaytadi (keyingi xaridda ishlatiladi).",
   _ => '',
 };
 
@@ -96,6 +100,10 @@ class _RefundDialogState extends State<_RefundDialog> {
   /// Javobsiz qolgan qaytarish: aynan o'zi (kalit, tasdiq) qayta yuboriladi, ikki marta qaytarilmaydi.
   final LostRequest _lost = LostRequest();
 
+  /// Review P6 wave 4 (C2): the provider did not answer (409 `qr_refund_unknown`): "Holatni tekshirish" sends the same
+  /// refund again — the server asks the provider's status first ("already reversed" is recorded as the refund).
+  bool _unknown = false;
+
   static const List<String> _presets = <String>[
     'Taom sifatsiz',
     "Xato to'lov",
@@ -127,7 +135,10 @@ class _RefundDialogState extends State<_RefundDialog> {
           : null;
     });
     if (_error != null) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _unknown = false;
+    });
     final PosScope scope = PosScope.of(context);
     try {
       final PosRefund refund = await _lost.run<PosRefund>(
@@ -168,6 +179,9 @@ class _RefundDialogState extends State<_RefundDialog> {
           '${refund.amount.format()} bron avansiga qaytdi: kassadan pul chiqmadi.',
         'account' =>
           'Mijoz qarzi ${refund.amount.format()} ga kamaydi: kassadan pul chiqmadi.',
+        // P6-43: back to the certificate, never cash
+        'voucher' =>
+          '${refund.amount.format()} sertifikatga qaytdi: kassadan pul chiqmadi.',
         _ => '${refund.amount.format()} qaytarildi.',
       });
       Navigator.pop(context, refund);
@@ -188,8 +202,12 @@ class _RefundDialogState extends State<_RefundDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          // Kept in the dialog: the cashier reads why (more_than_debt, reverse_exceeds_*...) and picks another amount
+          _unknown = e is PosConflict && e.reason == 'qr_refund_unknown';
+          // Kept in the dialog: the cashier reads why (reverse_exceeds_*...) and picks another amount
+          // P6-41: a QR payment is reversed by the provider (whole only; a refusal keeps it blocked, never cash)
           _error = switch (e) {
+            final PosException x when paymentRefusalText(x) != null =>
+              paymentRefusalText(x),
             final PosValidationException v => v.firstError,
             final PosException x => x.message,
             _ => null,
@@ -274,6 +292,19 @@ class _RefundDialogState extends State<_RefundDialog> {
                 Text(
                   _error!,
                   style: RzType.body.copyWith(color: c.dangerSoftFg),
+                ),
+              ],
+              if (_unknown) ...<Widget>[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: RzButton(
+                    key: const ValueKey<String>('refund-check'),
+                    label: 'Holatni tekshirish',
+                    icon: Icons.refresh_rounded,
+                    variant: RzButtonVariant.secondary,
+                    onPressed: _busy ? null : _submit,
+                  ),
                 ),
               ],
             ],

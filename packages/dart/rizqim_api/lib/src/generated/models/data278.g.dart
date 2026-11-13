@@ -6,50 +6,9 @@ part of 'data278.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data278 _$Data278FromJson(Map<String, dynamic> json) => Data278(
-  uuid: json['uuid'] as String,
-  method: json['method'] as String,
-  source: json['source'] as String?,
-  amount: json['amount'] as String,
-  originalAmount: json['original_amount'] as String,
-  mode: json['mode'] as String,
-  staff: json['staff'] == null
-      ? null
-      : Staff28.fromJson(json['staff'] as Map<String, dynamic>),
-  holders: (json['holders'] as List<dynamic>)
-      .map((e) => Holders11.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  businessDate: json['business_date'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  shiftUuid: json['shift_uuid'] as String?,
-  recordedBy: json['recorded_by'] == null
-      ? null
-      : RecordedBy11.fromJson(json['recorded_by'] as Map<String, dynamic>),
-  closed: json['closed'] as bool,
-  corrections: (json['corrections'] as List<dynamic>)
-      .map((e) => Corrections18.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  createdAt: json['created_at'] as String?,
-);
+Data278 _$Data278FromJson(Map<String, dynamic> json) =>
+    Data278(qr: Qr4.fromJson(json['qr'] as Map<String, dynamic>));
 
 Map<String, dynamic> _$Data278ToJson(Data278 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'method': instance.method,
-  'source': instance.source,
-  'amount': instance.amount,
-  'original_amount': instance.originalAmount,
-  'mode': instance.mode,
-  'staff': instance.staff,
-  'holders': instance.holders,
-  'business_date': instance.businessDate,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'shift_uuid': instance.shiftUuid,
-  'recorded_by': instance.recordedBy,
-  'closed': instance.closed,
-  'corrections': instance.corrections,
-  'created_at': instance.createdAt,
+  'qr': instance.qr,
 };

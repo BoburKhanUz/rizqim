@@ -6,8 +6,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'period7.dart';
 import 'sales7.dart';
-import 'by_tender4.dart';
+import 'by_tender5.dart';
 import 'cards4.dart';
+import 'qr_providers4.dart';
 import 'by_channel6.dart';
 import 'by_waiter4.dart';
 import 'discounts4.dart';
@@ -17,6 +18,7 @@ import 'refunds8.dart';
 import 'deposits4.dart';
 import 'credit7.dart';
 import 'tips13.dart';
+import 'vouchers5.dart';
 import 'cash5.dart';
 import 'movements4.dart';
 import 'pending_receipts2.dart';
@@ -32,6 +34,7 @@ class Summary6 {
     required this.sales,
     required this.byTender,
     required this.cards,
+    required this.qrProviders,
     required this.byChannel,
     required this.byWaiter,
     required this.discounts,
@@ -41,6 +44,7 @@ class Summary6 {
     required this.deposits,
     required this.credit,
     required this.tips,
+    required this.vouchers,
     required this.cash,
     required this.movements,
     this.openOrders,
@@ -57,8 +61,10 @@ class Summary6 {
   final Period7 period;
   final Sales7 sales;
   @JsonKey(name: 'by_tender')
-  final List<ByTender4> byTender;
+  final List<ByTender5> byTender;
   final List<Cards4> cards;
+  @JsonKey(name: 'qr_providers')
+  final List<QrProviders4> qrProviders;
   @JsonKey(name: 'by_channel')
   final List<ByChannel6> byChannel;
   @JsonKey(name: 'by_waiter')
@@ -71,6 +77,7 @@ class Summary6 {
   final Deposits4 deposits;
   final Credit7 credit;
   final Tips13 tips;
+  final Vouchers5 vouchers;
   final Cash5 cash;
   final List<Movements4> movements;
   @JsonKey(name: 'open_orders')

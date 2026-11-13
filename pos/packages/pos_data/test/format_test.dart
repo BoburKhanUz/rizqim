@@ -96,6 +96,10 @@ void main() {
         'packaging',
         'scheduled_pickup',
         'round_the_clock',
+        // Wave 4
+        'qr_payments',
+        'vouchers',
+        'corporate_accounts',
       ]);
       expect(PosModule.fromWire('kds'), PosModule.kds);
       expect(PosModule.fromWire('nope'), isNull);

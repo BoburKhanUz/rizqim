@@ -219,6 +219,12 @@ Route::prefix('v1')->group(function () {
     // P6-34: packaging rules, the pickup time, 24/7 business days (owner, till, Mini App pickup slots)
     require __DIR__ . '/api_pos_takeaway.php';
 
+    // P6-43: gift certificates (sell, look up), promo codes on POS orders, the owner's certificates page
+    require __DIR__ . '/api_pos_vouchers.php';
+
+    // P6-41/P6-42: Click, Payme and UzQR dynamic QR at the till: owner settings, the till's QR, poll, cancel
+    require __DIR__ . '/api_pos_qr.php';
+
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")
     require __DIR__ . '/api_admin.php';

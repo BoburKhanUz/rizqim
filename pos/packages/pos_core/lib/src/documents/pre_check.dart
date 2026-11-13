@@ -88,6 +88,8 @@ final class PreCheck {
     this.prepaid = PosMoney.zero,
     this.splitCount,
     this.isCopy = false,
+    this.paymentQr,
+    this.paymentQrLabel,
   });
 
   final ReceiptHeader header;
@@ -109,6 +111,13 @@ final class PreCheck {
   /// Kishi boshiga summa uchun ulushlar soni; `null` bo'lsa [guests] (1 dan katta bo'lsa).
   final int? splitCount;
   final bool isCopy;
+
+  /// P6-41: dinamik to'lov QR'i (Click/Payme havolasi yoki UzQR EMV qatori) — schyot ostida chop etiladi, mijoz telefon
+  /// bilan to'laydi; `null` — QR yo'q.
+  final String? paymentQr;
+
+  /// QR ostidagi yozuv ("Click orqali to'lang: 143 000 so'm").
+  final String? paymentQrLabel;
 
   PosMoney get itemsTotal =>
       PosMoney.sum(items.map((PreCheckItem i) => i.amount));

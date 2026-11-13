@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data187.dart';
+import 'data194.dart';
 
 part 'get_v1_pos_bill_print_requests_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1PosBillPrintRequestsResponse {
 
   final bool success;
   final String message;
-  final Data187 data;
+  final Data194 data;
 
   Map<String, Object?> toJson() =>
       _$GetV1PosBillPrintRequestsResponseToJson(this);

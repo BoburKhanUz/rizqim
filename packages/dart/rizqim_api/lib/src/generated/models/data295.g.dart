@@ -7,17 +7,17 @@ part of 'data295.dart';
 // **************************************************************************
 
 Data295 _$Data295FromJson(Map<String, dynamic> json) => Data295(
-  enabled: json['enabled'] as bool,
-  minLeadMinutes: (json['min_lead_minutes'] as num).toInt(),
-  slotMinutes: (json['slot_minutes'] as num).toInt(),
-  slots: (json['slots'] as List<dynamic>)
-      .map((e) => Slots5.fromJson(e as Map<String, dynamic>))
+  serverTime: json['server_time'] as String,
+  device: Device23.fromJson(json['device'] as Map<String, dynamic>),
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors2.fromJson(e as Map<String, dynamic>))
       .toList(),
+  errorsCount: (json['errors_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data295ToJson(Data295 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
-  'min_lead_minutes': instance.minLeadMinutes,
-  'slot_minutes': instance.slotMinutes,
-  'slots': instance.slots,
+  'server_time': instance.serverTime,
+  'device': instance.device,
+  'errors': instance.errors,
+  'errors_count': instance.errorsCount,
 };

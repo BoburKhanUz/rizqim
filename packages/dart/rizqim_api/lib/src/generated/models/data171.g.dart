@@ -7,51 +7,57 @@ part of 'data171.dart';
 // **************************************************************************
 
 Data171 _$Data171FromJson(Map<String, dynamic> json) => Data171(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
+  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
   period: json['period'] as String,
   periodLabel: json['period_label'] as String,
-  periodFrom: json['period_from'] as String,
-  periodTo: json['period_to'] as String,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  grossTotal: json['gross_total'] as String,
-  payableTotal: json['payable_total'] as String,
-  paidTotal: json['paid_total'] as String,
-  linesCount: (json['lines_count'] as num).toInt(),
-  warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings4.fromJson(e as Map<String, dynamic>))
+  periods: (json['periods'] as List<dynamic>)
+      .map((e) => Periods.fromJson(e as Map<String, dynamic>))
       .toList(),
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  version: (json['version'] as num).toInt(),
-  createdAt: json['created_at'] as String?,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines10.fromJson(e as Map<String, dynamic>))
+  salesAttribution: json['sales_attribution'] as String,
+  salesAttributionLabel: json['sales_attribution_label'] as String,
+  salesAttributions: (json['sales_attributions'] as List<dynamic>)
+      .map((e) => SalesAttributions.fromJson(e as Map<String, dynamic>))
       .toList(),
-  openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts3.fromJson(e as Map<String, dynamic>))
+  componentTypes: (json['component_types'] as List<dynamic>)
+      .map((e) => ComponentTypes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  guaranteeModes: (json['guarantee_modes'] as List<dynamic>)
+      .map((e) => GuaranteeModes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  guaranteePer: (json['guarantee_per'] as List<dynamic>)
+      .map((e) => GuaranteePer.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  percentBases: (json['percent_bases'] as List<dynamic>)
+      .map((e) => PercentBases.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  eventTypes: (json['event_types'] as List<dynamic>)
+      .map((e) => EventTypes.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  roles: (json['roles'] as List<dynamic>)
+      .map((e) => Roles4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  staff: (json['staff'] as List<dynamic>)
+      .map((e) => Staff7.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  rules: (json['rules'] as List<dynamic>)
+      .map((e) => Rules3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data171ToJson(Data171 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'branch_id': instance.branchId,
+  'branch': instance.branch,
   'period': instance.period,
   'period_label': instance.periodLabel,
-  'period_from': instance.periodFrom,
-  'period_to': instance.periodTo,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'gross_total': instance.grossTotal,
-  'payable_total': instance.payableTotal,
-  'paid_total': instance.paidTotal,
-  'lines_count': instance.linesCount,
-  'warnings': instance.warnings,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'version': instance.version,
-  'created_at': instance.createdAt,
-  'lines': instance.lines,
-  'open_shifts': instance.openShifts,
+  'periods': instance.periods,
+  'sales_attribution': instance.salesAttribution,
+  'sales_attribution_label': instance.salesAttributionLabel,
+  'sales_attributions': instance.salesAttributions,
+  'component_types': instance.componentTypes,
+  'guarantee_modes': instance.guaranteeModes,
+  'guarantee_per': instance.guaranteePer,
+  'percent_bases': instance.percentBases,
+  'event_types': instance.eventTypes,
+  'roles': instance.roles,
+  'staff': instance.staff,
+  'rules': instance.rules,
 };

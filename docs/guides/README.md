@@ -16,6 +16,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 | [choy-puli-va-ish-haqi.md](choy-puli-va-ish-haqi.md) | Ega (va buxgalter) | **Choy puli va ofitsiant ish haqi**: choy puli rejimlari (shaxsiy yoki umumiy qozon) va bo'lish qoidalari (misollar bilan), qozonni bo'lish va yopish (davr qoidasi), tuzatish, kassadan choy pulini berish va uning ish haqidan ayrilishi; ish haqi qoidalari (smena, soatbay, sotuvdan %, xizmat haqidan %, garant, tadbir) misollar bilan, stol o'tkazilganda sotuv kimga, hisob-kitob, kassadan to'lash, ish vaqti, xizmat haqi qoidalari |
 | [uskunalar.md](uskunalar.md) | Ega, kassir, planshetni sozlovchi | **Uskunalar va lokal tarmoq**: printerlar (Sunmi ichki, Bluetooth, USB, LAN, yorliq), printerni qidirish va sinov cheki, kassa qutisi, skaner, Sunmi D2 ikkinchi ekrani; **schyotni avtomatik chiqarish** (ofitsiant "Schyot so'rash" bosganda kassa o'zi chop etadi, "Schyotni qayta chiqarish" menejer PIN'i bilan); **lokal tarmoq**: internet uzilsa ham zal ishlaydi; muammolar. Haqiqiy uskunada sinash ro'yxati — [HARDWARE_TEST.md](../HARDWARE_TEST.md) |
 | [mijoz-ekrani.md](mijoz-ekrani.md) | Ega, kassir | **Mijoz ekrani** (bepul): kassaning ikkinchi ekrani (chek, jami, to'lov QR'i, "Rahmat") va "Tayyorlanmoqda / Tayyor" raqamlar taxtasi; kod bilan ulash, rejim tanlash, ovoz, aloqa uzilsa, muammolar |
+| [tolov-va-chek.md](tolov-va-chek.md) | Ega, menejer, kassir | **To'lov va chek**: QR to'lov (Click, Payme, UzQR: o'z merchant hisobi, webhook manzillari, kassada, qaytarish, internetsiz), sovg'a sertifikati (sotish, ishlatish, qaytarish, bloklash, hisobot), promo-kod, korxona hisobi va talon (xodimlar, limitlar, ro'yxatdan qo'shish, talon chop etish, kassada yozish, oylik hisobot va Excel) |
 | [mini-app-xodim.md](mini-app-xodim.md) | Ega, menejer, kuryer | Telegram Mini App: buyurtmalar, stop-list va qozon, xodimlar va PIN, filial ish vaqti, kuryer qadamlari |
 | [boshqaruv-markazi.md](boshqaruv-markazi.md) | RIZQIM jamoasi (superadmin, operator, yordam, moliya, savdo) | Birinchi ishga tushirish (birinchi superadmin, 2FA, jamoa), kirish va 2FA, `Ctrl+K` qidiruv; Bugun, Ko'rsatkichlar, Buyurtmalar (aralashish, pul qaytarish), Ovqatxonalar (karta, ulash jarayoni, CRM), POS va obunalar, Moliya (payout, ikki kishilik qoida, tuzatish), Mijozlar va yordam (bloklash, shikoyatlar), Marketing, Monitoring, Integratsiyalar, Tizim sozlamalari, jamoa, rollar, jurnal, Excel eksport; kundalik ishlar qadamma-qadam; qaysi amal kod va sabab so'rashi; telefonlarni kim ko'rishi |
 
@@ -31,6 +32,7 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Kassir**: [kassa.md](kassa.md) (butun qo'llanma; avval 1–4-bo'limlar). Tez kassa (osh markazi, somsaxona, stolovaya) yoki
   telefonda ishlasangiz: [tez-kassa.md](tez-kassa.md).
 - **Fast food yoki qahvaxona egasi**: [fast-food.md](fast-food.md) (kombo, stiker, qadoq, oldindan buyurtma, sexlar), avval [tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash).
+- **Click, Payme yoki UzQR QR to'lovni, sovg'a sertifikati yoki korxona hisobini (stolovaya) yoqadigan ega**: [tolov-va-chek.md](tolov-va-chek.md). Kassir uchun shu qo'llanmaning 3, 5, 6 va 8-bo'limlari.
 - **Printer, skaner yoki lokal tarmoqni sozlaydigan odam**: [uskunalar.md](uskunalar.md).
 - **Mijoz ekrani yoki raqamlar taxtasini ulaydigan odam**: [mijoz-ekrani.md](mijoz-ekrani.md).
 - **Ofitsiant**: [ofitsiant.md](ofitsiant.md). Restoran yoki kafede qo'shimcha: [restoran.md](restoran.md).
@@ -74,6 +76,9 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Menejer tasdig'i** — kassirda huquq bo'lmagan amalni menejer o'z PIN'i bilan tasdiqlashi.
 - **Smena** — bitta kassaning ish davri. **X** — smenani yopmasdan oraliq hisobot, **Z** — smenani yopish hisoboti.
 - **Bron, avans, "Keldi"** — oldindan band qilingan xona; bron uchun oldindan olingan pul; mehmonlar kelganda bronni buyurtmaga aylantirish.
+- **Dinamik QR** — kassa schyot summasiga chiqaradigan Click, Payme yoki UzQR kodi: mijoz skanerlaydi, to'lov o'zi tasdiqlanadi (kassir hech narsa bosmaydi). **Statik QR** — do'konning doimiy QR kodi, pul kelganini kassir qo'lda tasdiqlaydi.
+- **Sovg'a sertifikati** — oldindan sotilgan summa (kod `XXXX-XXXX-XXXX`): keyin shu summa bilan to'lanadi. Sotilganda tushum emas, avans. **Promo-kod** — chegirma kodi.
+- **Korxona hisobi va talon** — korxonaning xodimlari kodi (talon) bilan ovqatlanadi, summa korxona hisobiga yoziladi, oy oxirida hisob-faktura (stolovaya).
 - **Nasiya** — pulni keyinroq to'lash sharti bilan hisobga yozish. Qarz to'langanda kredit cheki chiqadi.
 - **MXIK** — taom yoki xizmatning 17 xonali soliq tasnifi kodi. Fiskal chekda majburiy.
 - **STIR** — korxonaning 9 xonali soliq to'lovchi raqami.

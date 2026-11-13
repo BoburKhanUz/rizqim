@@ -25,7 +25,9 @@ use Illuminate\Validation\ValidationException;
  *       "sandbox": {"latency_ms": 0, "fail_attempts": 0, "failure_rate": 0, "reject": false},
  *       "deposit_refund_receipt": null,   // P3-17 booking deposits (FLAGS); null: their default
  *       "retained_deposit_receipt": null,
- *       "combo_fiscal_mode": "single"     // P6-31 (ComboFiscalMode): a combo as one line, or split by its parts
+ *       "combo_fiscal_mode": "single",    // P6-31 (ComboFiscalMode): a combo as one line, or split by its parts
+ *       "uzqr": {"driver": null}          // P6-42: the dynamic UzQR gateway at the till (config qr_payments.uzqr.drivers;
+ *                                         // null: UzQR not offered); App\Domain\Pos\QrPayments\QrProviders
  *     }
  *
  * A charge field left out (or null) takes config('fiscal.charges.<key>.<field>').
@@ -157,7 +159,7 @@ final class FiscalSettings
     /**
      * Everything with its defaults, as the settings endpoints return it.
      *
-     * @return array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null, combo_fiscal_mode: ComboFiscalMode}
+     * @return array{enabled: bool, driver: string, active_driver: string, smart_kassa_driver: string, charges: array<string, array{name: string, mxik: string|null, package_code: string|null, unit: string}>, sandbox: array{latency_ms: int, fail_attempts: int, failure_rate: int, reject: bool}, deposit_refund_receipt: bool|null, retained_deposit_receipt: bool|null, combo_fiscal_mode: ComboFiscalMode, uzqr: array{driver: string|null}}
      */
     public function toArray(): array
     {
@@ -176,7 +178,20 @@ final class FiscalSettings
             'deposit_refund_receipt' => $this->flag('deposit_refund_receipt'),
             'retained_deposit_receipt' => $this->flag('retained_deposit_receipt'),
             'combo_fiscal_mode' => $this->comboFiscalMode(),
+            // P6-42: the UzQR gateway (a known driver), else null
+            'uzqr' => ['driver' => $this->uzqrDriver()],
         ];
+    }
+
+    /**
+     * P6-42: the dynamic UzQR gateway the store chose (a key of QrProviders::uzqrDrivers(): the sandbox one only on a
+     * sandbox stand, review P6W4 S3), else null.
+     */
+    public function uzqrDriver(): ?string
+    {
+        $driver = is_array($this->raw['uzqr'] ?? null) ? ($this->raw['uzqr']['driver'] ?? null) : null;
+
+        return is_string($driver) && array_key_exists($driver, \App\Domain\Pos\QrPayments\QrProviders::uzqrDrivers()) ? $driver : null;
     }
 
     /**
@@ -222,11 +237,15 @@ final class FiscalSettings
             'fiscal_settings.retained_deposit_receipt' => ['sometimes', 'nullable', 'boolean'],
             // P6-31: a combo as one fiscal line (single) or by its parts (split)
             'fiscal_settings.combo_fiscal_mode' => ['sometimes', 'nullable', 'string', Rule::enum(ComboFiscalMode::class)],
+            // P6-42: the UzQR gateway at the till
+            'fiscal_settings.uzqr' => ['sometimes', 'array'],
+            'fiscal_settings.uzqr.driver' => ['sometimes', 'nullable', 'string', Rule::in(array_keys(\App\Domain\Pos\QrPayments\QrProviders::uzqrDrivers()))],
         ], \App\Support\UzValidation::messages([
             'tin.regex' => "STIR 9 ta raqamdan iborat bo'lishi kerak.",
             'tax_regime.in' => "Soliq rejimi noto'g'ri: vat, vat_simplified yoki turnover.",
             'fiscal_settings.driver.in' => "Fiskal drayver noto'g'ri.",
             'fiscal_settings.smart_kassa_driver.in' => "Smart-kassa drayveri noto'g'ri.",
+            'fiscal_settings.uzqr.driver.in' => "UzQR drayveri noto'g'ri.",
             'fiscal_settings.charges.*.mxik.regex' => "MXIK kodi 17 ta raqamdan iborat bo'lishi kerak.",
             'fiscal_settings.charges.*.package_code.regex' => "Qadoq kodi faqat raqamlardan iborat bo'lishi kerak (ko'pi bilan 20 ta).",
         ]), [
@@ -327,6 +346,15 @@ final class FiscalSettings
                 unset($stored['combo_fiscal_mode']);
             } else {
                 $stored['combo_fiscal_mode'] = (string) $input['combo_fiscal_mode'];
+            }
+        }
+
+        // P6-42: the UzQR gateway (null: none)
+        if (is_array($input['uzqr'] ?? null) && array_key_exists('driver', $input['uzqr'])) {
+            if ($input['uzqr']['driver'] === null) {
+                unset($stored['uzqr']);
+            } else {
+                $stored['uzqr'] = ['driver' => (string) $input['uzqr']['driver']];
             }
         }
 

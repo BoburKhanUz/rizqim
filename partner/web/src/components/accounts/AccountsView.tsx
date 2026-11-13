@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { BookUser, Pencil, Plus, ScrollText, Search } from 'lucide-react';
+import Link from 'next/link';
+import { BookUser, Building2, Pencil, Plus, ScrollText, Search } from 'lucide-react';
 import { Button, Card, EmptyState, Field, InlineError, Skeleton, cx, fieldClass, formatMoney, PageHeader, Notice, Pill } from '@rizqim/ui';
-import { useCustomerAccounts, useDebtors, type CustomerAccount } from '@rizqim/staff';
+import { useCustomerAccounts, useDebtors, type CustomerAccount, type CustomerAccountKind } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { PlanButton, PlanNotice } from '../billing/PlanGate';
 import { useCan } from '../management/access';
@@ -26,6 +27,8 @@ export function AccountsView() {
   const { t, language } = useI18n();
   const access = useCan();
   const [tab, setTab] = useState<'all' | 'debtors'>('all');
+  // P6-44: nasiya, company accounts or both
+  const [kind, setKind] = useState<CustomerAccountKind | 'all'>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState<{ account: CustomerAccount | null } | null>(null);
@@ -33,7 +36,7 @@ export function AccountsView() {
   const [notice, setNotice] = useState<string | null>(null);
   const debtors = useDebtors();
   const q = search.trim();
-  const list = useCustomerAccounts({ ...(q ? { q } : {}), ...(tab === 'debtors' ? { debtors: true } : {}), per_page: PER_PAGE, page });
+  const list = useCustomerAccounts({ ...(q ? { q } : {}), ...(tab === 'debtors' ? { debtors: true } : {}), ...(kind !== 'all' ? { kind } : {}), per_page: PER_PAGE, page });
   const money = (value: string) => formatMoney(value, language);
 
   if (access.ready && !access.can('customer_accounts.manage')) {
@@ -89,6 +92,22 @@ export function AccountsView() {
               </button>
             ))}
           </div>
+          <div role="group" aria-label={t('corp_kindFilter')} className="flex gap-1 rounded-control border border-line bg-surface p-1">
+            {(['all', 'customer', 'corporate'] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={kind === id}
+                onClick={() => {
+                  setKind(id);
+                  setPage(1);
+                }}
+                className={cx('min-h-11 rounded-control px-4 text-body font-bold focus-visible:outline-2 focus-visible:outline-brand', kind === id ? 'bg-brand-soft text-brand-soft-fg' : 'text-fg-muted hover:bg-surface-2')}
+              >
+                {t(`corp_kind_${id}`)}
+              </button>
+            ))}
+          </div>
           <Field label={t('acct_search')}>
             {(control) => (
               <div className="relative">
@@ -138,13 +157,26 @@ export function AccountsView() {
                   const owes = Number(account.balance) > 0;
                   return (
                     <tr key={account.uuid}>
-                      <Td className="font-bold">{account.name}</Td>
+                      <Td className="font-bold">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {account.name}
+                          {account.kind === 'corporate' && <Pill tone="info">{t('corp_pill')}</Pill>}
+                        </span>
+                        {account.kind === 'corporate' && <span className="block text-footnote font-normal text-fg-muted">{t('corp_membersCount', { n: account.members_count ?? 0 })}</span>}
+                      </Td>
                       <Td muted>{account.group_name ?? '—'}</Td>
                       <Td muted className="whitespace-nowrap">
                         {account.phone ?? '—'}
                       </Td>
                       <Td numeric className={cx('whitespace-nowrap font-bold', owes && 'text-danger-soft-fg')}>
-                        {money(account.balance)}
+                        {Number(account.balance) < 0 ? (
+                          <>
+                            {money(account.balance.replace(/^-/, ''))}
+                            <span className="block text-footnote font-normal text-fg-muted">{t('corp_overpaid')}</span>
+                          </>
+                        ) : (
+                          money(account.balance)
+                        )}
                       </Td>
                       <Td numeric className="whitespace-nowrap">
                         {limitText(account, money, t)}
@@ -156,7 +188,17 @@ export function AccountsView() {
                         {account.is_blocked ? <Pill tone="danger">{t('acct_blocked')}</Pill> : owes ? <Pill tone="warning">{t('acct_owes')}</Pill> : <Pill tone="success">{t('acct_clear')}</Pill>}
                       </Td>
                       <Td>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          {account.kind === 'corporate' && (
+                            <Link
+                              href={`/accounts/${account.uuid}`}
+                              aria-label={t('corp_openAria', { name: account.name })}
+                              className="inline-flex min-h-11 items-center gap-2 rounded-control border border-line bg-surface px-4 text-body font-bold text-fg hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-brand"
+                            >
+                              <Building2 aria-hidden="true" className="size-4" />
+                              {t('corp_open')}
+                            </Link>
+                          )}
                           <Button variant="secondary" icon={ScrollText} aria-label={t('acct_statementAria', { name: account.name })} onClick={() => setStatement(account)}>
                             {t('acct_statement')}
                           </Button>
@@ -178,6 +220,7 @@ export function AccountsView() {
       {dialog && (
         <AccountDialog
           account={dialog.account}
+          initialKind={kind === 'corporate' ? 'corporate' : 'customer'}
           onClose={() => setDialog(null)}
           onSaved={(saved) => {
             setNotice(dialog.account ? t('acct_saved', { name: saved.name }) : t('acct_created', { name: saved.name }));

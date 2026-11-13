@@ -12,7 +12,7 @@ _$PostV1OwnerStaffPayStatementsUuidLinesLinePayResponseFromJson(
 ) => PostV1OwnerStaffPayStatementsUuidLinesLinePayResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data173.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data180.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic>

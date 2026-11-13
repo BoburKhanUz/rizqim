@@ -45,7 +45,12 @@ enum PosModule {
   kdsExpo('kds_expo', "Yig'ish ekrani va sex vaqtlari"),
   packaging('packaging', 'Qadoq'),
   scheduledPickup('scheduled_pickup', 'Olib ketish vaqti'),
-  roundTheClock('round_the_clock', '24/7 ish');
+  roundTheClock('round_the_clock', '24/7 ish'),
+
+  // 4-to'lqin "To'lov va chek"
+  qrPayments('qr_payments', 'Click, Payme va UzQR kassada'),
+  vouchers('vouchers', "Sovg'a sertifikati va vaucher"),
+  corporateAccounts('corporate_accounts', 'Korxona hisobi va talon');
 
   const PosModule(this.wire, this.label);
 

@@ -14,12 +14,13 @@ import { FormatPanel } from './FormatPanel';
 import { LabelSettingsPanel } from './LabelSettingsPanel';
 import { LanPanel } from './LanPanel';
 import { PrintersPanel } from './PrintersPanel';
+import { QrPaymentsPanel } from './QrPaymentsPanel';
 import { RoutesPanel } from './RoutesPanel';
 import { StationsPanel } from './StationsPanel';
 import { PackagingRulesPanel, PickupSettingsPanel, RoundTheClockPanel } from './TakeawayPanels';
 import { WaitlistPanel } from './WaitlistPanel';
 
-type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'lan' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock';
+type Tab = 'format' | 'stations' | 'routes' | 'printers' | 'settings' | 'lan' | 'rules' | 'waitlist' | 'labels' | 'packaging' | 'pickup' | 'roundClock' | 'qr';
 // P6-11: the branch's format comes first (it decides the till's mode and modules)
 // P6 stage B: the local bridge (the hub till, the port, the key) for every format
 const TABS: Tab[] = ['format', 'stations', 'routes', 'printers', 'settings', 'lan'];
@@ -33,6 +34,8 @@ const MODULE_TABS: Array<{ id: Tab; module: string }> = [
   { id: 'packaging', module: 'packaging' },
   { id: 'pickup', module: 'scheduled_pickup' },
   { id: 'roundClock', module: 'round_the_clock' },
+  // P6-41/P6-42: the QR payments at the till (Click, Payme, UzQR) appear with the qr_payments module
+  { id: 'qr', module: 'qr_payments' },
 ];
 // P6-34: the tabs whose labels live in the takeaway section
 const TAKEAWAY_TABS = { packaging: 'tkw_tab_packaging', pickup: 'tkw_tab_pickup', roundClock: 'tkw_tab_roundClock' } as const;
@@ -50,7 +53,7 @@ export function PosSetupView() {
   const tabs = [...TABS, ...MODULE_TABS.filter((entry) => modules.has(entry.module)).map((entry) => entry.id)];
   // The module a tab needs went off (in the Format tab): back to the first
   const shown: Tab = tabs.includes(tab) ? tab : 'format';
-  const tabLabel = (id: Tab) => (id === 'lan' ? t('poslan_tab') : id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
+  const tabLabel = (id: Tab) => (id === 'lan' ? t('poslan_tab') : id === 'rules' ? t('hst_tab_rules') : id === 'waitlist' ? t('hst_tab_waitlist') : id === 'labels' ? t('qs_lbl_tab') : id === 'qr' ? t('qrp_tab') : isTakeawayTab(id) ? t(TAKEAWAY_TABS[id]) : t(`pos_tab_${id}`));
 
   if (access.ready && !access.can('settings.manage')) {
     return (
@@ -87,6 +90,7 @@ export function PosSetupView() {
             {shown === 'packaging' && <PackagingRulesPanel branchId={choice.branchId} enabled={modules.has('packaging')} />}
             {shown === 'pickup' && <PickupSettingsPanel branchId={choice.branchId} enabled={modules.has('scheduled_pickup')} />}
             {shown === 'roundClock' && <RoundTheClockPanel branchId={choice.branchId} enabled={modules.has('round_the_clock')} />}
+            {shown === 'qr' && <QrPaymentsPanel branchId={choice.branchId} enabled={modules.has('qr_payments')} />}
           </div>
         </div>
       )}

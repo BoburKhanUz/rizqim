@@ -11,6 +11,7 @@ import '../../shell/pos_scope.dart';
 import '../billing/cashier_ui.dart';
 import 'account_form.dart';
 import 'repayment_dialog.dart';
+import 'talon_dialog.dart';
 
 /// Nasiya hisoblari (POS_SPEC 2.9, 2.13; 13-ekran 16): qarzdorlar (eng katta qarz birinchi) va jami qarz, telefon yoki
 /// ism bo'yicha qidiruv, hisob ko'chirmasi, qarz to'lovi (kredit cheki), hisob ochish va tahrirlash (limit, to'xtatish —
@@ -349,12 +350,18 @@ class _AccountsPageState extends State<AccountsPage> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: <Widget>[
           Text(
-            a.balance.format(),
+            a.balance.abs().format(),
             style: RzType.headline.copyWith(
               color: a.balance.isPositive ? c.dangerSoftFg : c.fgMuted,
               fontWeight: FontWeight.w700,
             ),
           ),
+          // Review P6 wave 4 (C7): a refund after a repayment leaves the customer's credit
+          if (a.balance.isNegative)
+            Text(
+              "Ortiqcha to'lov",
+              style: RzType.footnote.copyWith(color: c.fgMuted),
+            ),
           if (a.isBlocked)
             const TonePill(
               label: "To'xtatilgan",
@@ -406,8 +413,8 @@ class _AccountsPageState extends State<AccountsPage> {
                 children: <Widget>[
                   _stat(
                     c,
-                    'Qarz',
-                    a.balance.format(),
+                    a.balance.isNegative ? "Ortiqcha to'lov" : 'Qarz',
+                    a.balance.abs().format(),
                     a.balance.isPositive ? c.dangerSoftFg : c.fg,
                   ),
                   _stat(c, 'Limit', a.creditLimit?.format() ?? 'Cheksiz', c.fg),
@@ -441,6 +448,16 @@ class _AccountsPageState extends State<AccountsPage> {
                       size: RzButtonSize.lg,
                       variant: RzButtonVariant.secondary,
                       onPressed: () => _edit(account: a),
+                    ),
+                  // P6-44: the members' talons (the code as a QR) on the receipt printer
+                  if (a.isCorporate)
+                    RzButton(
+                      key: const ValueKey<String>('talon-print'),
+                      label: 'Talon chop etish',
+                      icon: Icons.badge_outlined,
+                      size: RzButtonSize.lg,
+                      variant: RzButtonVariant.secondary,
+                      onPressed: () => unawaited(showTalonDialog(context, a)),
                     ),
                 ],
               ),

@@ -4,16 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall13.dart';
-import 'table13.dart';
-import 'waiter16.dart';
+import 'hall3.dart';
+import 'table3.dart';
+import 'waiter6.dart';
 import 'discount_kind.dart';
-import 'pickup14.dart';
-import 'charges16.dart';
-import 'offline12.dart';
-import 'queue14.dart';
-import 'courses11.dart';
-import 'items38.dart';
+import 'pickup4.dart';
+import 'charges7.dart';
+import 'offline3.dart';
+import 'queue4.dart';
+import 'courses2.dart';
+import 'items23.dart';
 
 part 'data245.g.dart';
 
@@ -51,6 +51,7 @@ class Data245 {
     required this.discountValue,
     required this.items,
     required this.discountBy,
+    required this.promoNote,
     required this.serviceChargeAmount,
     required this.placeFeeAmount,
     required this.roomFeeAmount,
@@ -81,8 +82,8 @@ class Data245 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall13? hall;
-  final Table13? table;
+  final Hall3? hall;
+  final Table3? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -91,7 +92,7 @@ class Data245 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter16? waiter;
+  final Waiter6? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -121,6 +122,8 @@ class Data245 {
   final String? discountReason;
   @JsonKey(name: 'discount_by')
   final int? discountBy;
+  @JsonKey(name: 'promo_note')
+  final String? promoNote;
   @JsonKey(name: 'service_charge_amount')
   final String serviceChargeAmount;
   @JsonKey(name: 'place_fee_amount')
@@ -131,17 +134,17 @@ class Data245 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup14? pickup;
+  final Pickup4? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges16 charges;
-  final Offline12? offline;
-  final Queue14? queue;
+  final Charges7 charges;
+  final Offline3? offline;
+  final Queue4? queue;
   final int rounds;
-  final List<Courses11> courses;
+  final List<Courses2> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
-  final List<Items38> items;
+  final List<Items23> items;
 
   Map<String, Object?> toJson() => _$Data245ToJson(this);
 }

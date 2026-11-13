@@ -43,7 +43,7 @@ final class ShiftOwnerSummary
         $uzs = number_format(Money::of($refund->amount)->toFloat(), 0, '.', ' ') . " so'm";
         $order = Order::find($refund->order_id);
         $approver = $approvedBy !== null ? User::find($approvedBy) : null;
-        $methods = ['cash' => 'naqd', 'card' => 'karta', 'qr' => 'QR', 'prepayment' => 'avansga', 'account' => 'nasiyadan'];
+        $methods = ['cash' => 'naqd', 'card' => 'karta', 'qr' => 'QR', 'prepayment' => 'avansga', 'account' => 'nasiyadan', 'voucher' => 'sertifikatga'];
 
         $this->notify((int) $refund->store_id, implode("\n", array_filter([
             "Pul qaytarildi: {$uzs} (" . ($methods[$refund->method] ?? $refund->method) . ')',
@@ -91,7 +91,7 @@ final class ShiftOwnerSummary
     {
         $uzs = fn (mixed $amount) => number_format(Money::of(is_numeric($amount) ? (string) $amount : 0)->toFloat(), 0, '.', ' ') . " so'm";
         $branch = Branch::find($shift->branch_id);
-        $tenders = ['cash' => 'Naqd', 'card' => 'Karta', 'qr' => 'QR', 'prepayment' => 'Avansdan', 'account' => 'Nasiya'];
+        $tenders = ['cash' => 'Naqd', 'card' => 'Karta', 'qr' => 'QR', 'prepayment' => 'Avansdan', 'account' => 'Nasiya', 'voucher' => 'Sertifikatdan'];
 
         $lines = [
             "Z-hisobot #{$shift->z_number}" . ($shift->force_closed ? ' (majburan yopildi)' : ''),
@@ -115,6 +115,11 @@ final class ShiftOwnerSummary
         // P6-22: tips on their own line (not revenue, not on the receipts)
         if (Money::of(is_numeric($report['tips']['amount'] ?? null) ? (string) $report['tips']['amount'] : 0)->isPositive()) {
             $lines[] = 'Choy puli: ' . $uzs($report['tips']['amount']) . ' (naqd ' . $uzs($report['cash']['tips'] ?? 0) . ', berildi ' . $uzs($report['cash']['tip_payouts'] ?? 0) . ')';
+        }
+        // P6-43: gift certificates sold (an advance, not in the takings) and spent on bills
+        $sold = $report['vouchers']['sold']['amount'] ?? 0;
+        if (Money::of(is_numeric($sold) ? (string) $sold : 0)->isPositive() || (int) ($report['vouchers']['redeemed']['count'] ?? 0) > 0) {
+            $lines[] = 'Sertifikat: sotildi ' . $uzs($sold) . ', ishlatildi ' . $uzs($report['vouchers']['redeemed']['amount'] ?? 0);
         }
         $lines[] = 'Kutilgan naqd: ' . $uzs($shift->expected_cash) . ', sanaldi: ' . $uzs($shift->counted_cash);
         $difference = Money::of($shift->difference);

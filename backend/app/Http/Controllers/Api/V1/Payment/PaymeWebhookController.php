@@ -48,6 +48,12 @@ class PaymeWebhookController extends Controller
         $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
         $id = $payload['id'] ?? null;
 
+        // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`, or a transaction one holds) confirms a bill, never an order:
+        // the store's own key, no `detail` and no SetFiscalData record (Rizqim issues the receipt)
+        if (\App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook::claims($params)) {
+            return app(\App\Domain\Pos\QrPayments\Webhooks\PaymePosQrWebhook::class)->handle($request, (string) $method, $params, $id);
+        }
+
         // 1. Basic Auth check for Payme (merchant key validation)
         if (!$this->authorizePayme($request, $params)) {
             return response()->json([

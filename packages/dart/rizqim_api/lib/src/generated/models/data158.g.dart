@@ -7,31 +7,21 @@ part of 'data158.dart';
 // **************************************************************************
 
 Data158 _$Data158FromJson(Map<String, dynamic> json) => Data158(
+  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
   branchId: (json['branch_id'] as num?)?.toInt(),
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
+  sort: json['sort'] as String,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products8.fromJson(e as Map<String, dynamic>))
       .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
+  comboParts: (json['combo_parts'] as List<dynamic>)
+      .map((e) => ComboParts.fromJson(e as Map<String, dynamic>))
       .toList(),
-  serviceChargeRules: ServiceChargeRules2.fromJson(
-    json['service_charge_rules'] as Map<String, dynamic>,
-  ),
-  serviceChargeNotice: json['service_charge_notice'] as String?,
 );
 
 Map<String, dynamic> _$Data158ToJson(Data158 instance) => <String, dynamic>{
+  'period': instance.period,
   'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
-  'service_charge_rules': instance.serviceChargeRules,
-  'service_charge_notice': instance.serviceChargeNotice,
+  'sort': instance.sort,
+  'products': instance.products,
+  'combo_parts': instance.comboParts,
 };

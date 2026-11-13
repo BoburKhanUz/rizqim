@@ -24,7 +24,9 @@ import 'session/approvals.dart';
 import 'session/pos_session.dart';
 import 'shift/shift_repository.dart';
 import 'staffpay/staff_pay_repository.dart';
+import 'qr/qr_payment_repository.dart';
 import 'tips/tip_repository.dart';
+import 'vouchers/voucher_repository.dart';
 
 /// Kassa va ofitsiant ilovalari uchun bitta kirish nuqtasi: hamma repozitoriy bitta [RizqimClient] (bitta Dio, token
 /// va 401 boshqaruvi) ustida.
@@ -85,6 +87,8 @@ class PosData {
     hostess = HostessRepository(http);
     staffClock = StaffClockRepository(http);
     tips = PosTipsRepository(http);
+    vouchers = PosVoucherRepository(http, offline: offline);
+    qr = PosQrPaymentRepository(http, offline: offline);
     final PosOffline? o = offline;
     if (o != null) {
       o
@@ -163,6 +167,12 @@ class PosData {
 
   /// P6-22: smenaning choy pullari va menejer tuzatishi (choy puli to'lov bilan olinadi).
   late final PosTipsRepository tips;
+
+  /// P6-43: sovg'a sertifikatini sotish, kod bo'yicha qidirish va promo-kod (faqat internet bilan).
+  late final PosVoucherRepository vouchers;
+
+  /// P6-41/P6-42: schyot summasiga Click, Payme yoki UzQR dinamik QR (provayder o'zi tasdiqlaydi; internet bilan).
+  late final PosQrPaymentRepository qr;
 
   AuthSession get auth => client.auth;
   PosConnectivity get connectivity => http.connectivity;

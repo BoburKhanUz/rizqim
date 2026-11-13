@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data274.dart';
+import 'data294.dart';
 
 part 'post_v1_pos_sync_errors_op_id_resolve_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosSyncErrorsOpIdResolveResponse {
 
   final bool success;
   final String message;
-  final Data274 data;
+  final Data294 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosSyncErrorsOpIdResolveResponseToJson(this);

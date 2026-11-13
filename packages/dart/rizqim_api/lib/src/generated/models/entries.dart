@@ -4,44 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'user14.dart';
+
 part 'entries.g.dart';
 
 @JsonSerializable()
 class Entries {
   const Entries({
-    required this.id,
-    required this.branchId,
+    required this.uuid,
     required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
+    required this.typeLabel,
+    required this.amount,
+    required this.balanceAfter,
+    required this.businessDate,
+    required this.billUuid,
+    required this.refundUuid,
+    required this.tender,
+    required this.branchId,
+    required this.shiftId,
+    required this.user,
+    required this.note,
     required this.createdAt,
   });
 
   factory Entries.fromJson(Map<String, Object?> json) =>
       _$EntriesFromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
+  final String uuid;
   final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  final String amount;
+  @JsonKey(name: 'balance_after')
+  final String balanceAfter;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'refund_uuid')
+  final String? refundUuid;
+  final String? tender;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'shift_id')
+  final int? shiftId;
+  final User14? user;
+  final String? note;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

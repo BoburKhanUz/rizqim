@@ -7,6 +7,7 @@ import {
   CookingPot,
   ClipboardList,
   Coins,
+  Gift,
   HandCoins,
   History,
   Hourglass,
@@ -44,6 +45,7 @@ import type { MessageKey } from '@/i18n';
 //              settings.manage, changing halls the owner or manager role)
 //   bookings   the booking calendar (bookings.manage)
 //   accounts   customer accounts, nasiya (customer_accounts.manage)
+//   vouchers   gift certificates: list, history, block, report and Excel (vouchers.manage / reports.view; P6-43)
 //   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
 //   tips       tips (choy puli): report, pool split, tip settings, service charge rules (reports.view / tips.manage /
 //              settings.manage; P6-22)
@@ -70,6 +72,7 @@ export type NavKey =
   | 'shifts'
   | 'tips'
   | 'accounts'
+  | 'vouchers'
   | 'staff'
   | 'branches'
   | 'zones'
@@ -108,6 +111,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'shifts', href: '/shifts', label: 'nav_shifts', anyOf: ['pos.close_shift', 'reports.view'], icon: Timer },
   { key: 'tips', href: '/tips', label: 'nav_tips', anyOf: ['reports.view', 'tips.manage', 'settings.manage'], icon: PiggyBank },
   { key: 'accounts', href: '/accounts', label: 'nav_accounts', anyOf: ['customer_accounts.manage'], icon: HandCoins },
+  // P6-43: gift certificates sold at the till
+  { key: 'vouchers', href: '/vouchers', label: 'vch_nav', anyOf: ['vouchers.manage', 'reports.view'], icon: Gift },
   { key: 'staff', href: '/staff', label: 'nav_staff', anyOf: ['staff.view'], icon: Users },
   { key: 'branches', href: '/branches', label: 'nav_branches', anyOf: ['branches.manage', 'settings.manage'], icon: Store },
   { key: 'zones', href: '/zones', label: 'nav_zones', anyOf: ['zones.manage'], icon: Map },

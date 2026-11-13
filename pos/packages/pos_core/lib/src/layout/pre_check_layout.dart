@@ -68,6 +68,13 @@ PrintLayout layoutPreCheck(PreCheck c, PaperWidth paper) {
       bold: true,
     );
   }
+  if (c.paymentQr != null && c.paymentQr!.isNotEmpty) {
+    // P6-41: the bill's dynamic payment QR (the provider confirms it; the receipt is Rizqim's)
+    w.divider();
+    w.center("QR orqali to'lash", bold: true);
+    w.qr(c.paymentQr!);
+    if (c.paymentQrLabel != null) w.center(c.paymentQrLabel!);
+  }
   w.divider();
   w.center('*** Bu fiskal chek emas ***', bold: true);
   w.center("Fiskal chek to'lovdan keyin beriladi");

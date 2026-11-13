@@ -7,13 +7,23 @@ part of 'data204.dart';
 // **************************************************************************
 
 Data204 _$Data204FromJson(Map<String, dynamic> json) => Data204(
-  booking: Booking3.fromJson(json['booking'] as Map<String, dynamic>),
-  payment: Payment2.fromJson(json['payment'] as Map<String, dynamic>),
-  fiscal: Fiscal10.fromJson(json['fiscal'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  rooms: (json['rooms'] as List<dynamic>)
+      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unassigned: (json['unassigned'] as List<dynamic>)
+      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data204ToJson(Data204 instance) => <String, dynamic>{
-  'booking': instance.booking,
-  'payment': instance.payment,
-  'fiscal': instance.fiscal,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'rooms': instance.rooms,
+  'unassigned': instance.unassigned,
 };

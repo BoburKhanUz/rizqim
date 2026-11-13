@@ -29,6 +29,10 @@ use Illuminate\Support\Facades\DB;
  * P6-22: tips (choy puli) are not revenue: they are their own section (`tips`, App\Domain\Pos\Tips\ShiftTips), never
  * in `sales` or `by_tender`. Cash tips stay in the drawer (cash.tips, read from pos_tips like the deposits) until paid
  * out: a `wage` movement of category `tips` (cash.tip_payouts, not in cash.wages).
+ *
+ * P6-43: gift certificates are their own section (`vouchers`, App\Domain\Pos\Vouchers\ShiftVouchers): one sold is an
+ * advance (never in `sales`; its cash counts toward the expected cash, cash.vouchers, read from voucher_entries), one
+ * spent is the `voucher` tender (in `by_tender`, the prepayment part of the sale receipt, like a deposit offset).
  */
 final class ShiftReport
 {
@@ -38,7 +42,7 @@ final class ShiftReport
     public const MOVEMENT = 'array{uuid: string, type: string, category: string|null, amount: string, note: string|null, employee: array{id: int, name: string|null}|null, user: array{id: int, name: string|null}|null, approved_by: int|null, approver?: array{id: int, name: string|null}|null, created_at: string|null}';
 
     /** The fields of the X report (ShiftPresenter::SUMMARY adds the Z report's own). */
-    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, packaging: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, tips: ' . \App\Domain\Pos\Tips\ShiftTips::SHAPE . ', cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, tips: string, tip_payouts: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
+    public const REPORT_FIELDS = 'shift_uuid: string, generated_at: string, period: array{from: string, to: string|null}, sales: array{bills: int, received: string, refunded: string, net: string, bills_total: string, subtotal: string, discount: string, room_fee: string, min_spend_topup: string, service_charge: string, place_fee: string, packaging: string, average_bill: string}, by_tender: list<array{tender: string, count: int, amount: string}>, cards: list<array{card_type: string, count: int, amount: string}>, qr_providers: ' . \App\Domain\Pos\QrPayments\ShiftQrPayments::SHAPE . ', by_channel: list<array{channel: string, orders: int, amount: string}>, by_waiter: list<array{waiter_id: int|null, name: string|null, orders: int, bills: int, amount: string, service_charge: string}>, discounts: ' . self::COUNT_AMOUNT . ', voids: ' . self::COUNT_AMOUNT . ', batch_writeoffs: ' . \App\Domain\Pos\Menu\ShiftWriteOffs::SHAPE . ', refunds: array{count: int, amount: string, by_method: list<array{method: string, count: int, amount: string}>}, deposits: array{taken: array{count: int, amount: string, cash: string}, applied: ' . self::COUNT_AMOUNT . ', refunded: array{count: int, amount: string, cash: string}}, credit: array{sales: ' . self::COUNT_AMOUNT . ', repayments: array{count: int, amount: string, cash: string}}, tips: ' . \App\Domain\Pos\Tips\ShiftTips::SHAPE . ', vouchers: ' . \App\Domain\Pos\Vouchers\ShiftVouchers::SHAPE . ', cash: array{opening: string, sales: string, refunds: string, cash_in: string, cash_out: string, wages: string, purchases: string, deposits: string, deposit_refunds: string, repayments: string, tips: string, tip_payouts: string, vouchers: string, expected: string}, movements: list<' . self::MOVEMENT . '>';
 
     /** The X report (and, as kept at closing, the Z report's body: ShiftPresenter::SUMMARY). */
     public const REPORT = 'array{' . self::REPORT_FIELDS . '}';
@@ -129,6 +133,10 @@ final class ShiftReport
         $tips = app(\App\Domain\Pos\Tips\ShiftTips::class);
         $cashTips = $tips->cash($shift);
         $expected = $expected->plus($deposits['taken_cash'])->plus($repayments['cash'])->minus($deposits['refunded_cash'])->plus($cashTips);
+        // P6-43: cash gift certificates sold on the shift (an advance, not a sale)
+        $vouchers = app(\App\Domain\Pos\Vouchers\ShiftVouchers::class);
+        $voucherCash = $vouchers->cash($shift);
+        $expected = $expected->plus($voucherCash);
         $tipPayouts = $movements->filter(fn (CashMovement $movement) => $movement->type === CashMovementType::WAGE && $movement->category === 'tips');
 
         $employees = User::whereIn('id', $movements->pluck('employee_id')->merge($movements->pluck('user_id'))->merge($movements->pluck('approved_by'))->filter()->unique())->pluck('name', 'id');
@@ -160,6 +168,8 @@ final class ShiftReport
             ],
             'by_tender' => $byTender,
             'cards' => $cards,
+            // P6-41: the `qr` payments by provider (click, payme, uzqr; manual: a static QR confirmed by hand)
+            'qr_providers' => app(\App\Domain\Pos\QrPayments\ShiftQrPayments::class)->forShift($shift),
             'by_channel' => $byChannel,
             'by_waiter' => $byWaiter,
             'discounts' => [
@@ -187,6 +197,8 @@ final class ShiftReport
             ],
             // P6-22: tips on their own lines (not revenue)
             'tips' => $tips->forShift($shift),
+            // P6-43: gift certificates sold (advances) and spent (the prepayment part of sale receipts)
+            'vouchers' => $vouchers->forShift($shift),
             'cash' => [
                 'opening' => Money::of($shift->opening_cash)->toString(),
                 'sales' => $cashOf(CashMovementType::SALE),
@@ -201,6 +213,7 @@ final class ShiftReport
                 // P6-22: cash tips in the drawer, and the ones paid out to the staff
                 'tips' => $cashTips->toString(),
                 'tip_payouts' => $this->sum($tipPayouts->pluck('amount')),
+                'vouchers' => $voucherCash->toString(),
                 'expected' => $expected->toString(),
             ],
             'movements' => $movements->map(fn (CashMovement $movement) => [

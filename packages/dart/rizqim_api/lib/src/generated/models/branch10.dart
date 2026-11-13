@@ -14,7 +14,7 @@ class Branch10 {
       _$Branch10FromJson(json);
 
   final int id;
-  final String name;
+  final String? name;
 
   Map<String, Object?> toJson() => _$Branch10ToJson(this);
 }

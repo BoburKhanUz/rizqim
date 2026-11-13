@@ -9,41 +9,41 @@ part 'data183.g.dart';
 @JsonSerializable()
 class Data183 {
   const Data183({
-    required this.id,
+    required this.uuid,
     required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
-    required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
-    required this.createdAt,
+    required this.userId,
+    required this.userName,
+    required this.businessDate,
+    required this.clockInAt,
+    required this.clockOutAt,
+    required this.abandoned,
+    required this.open,
+    required this.minutes,
+    required this.source,
+    required this.note,
   });
 
   factory Data183.fromJson(Map<String, Object?> json) =>
       _$Data183FromJson(json);
 
-  final int id;
+  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'user_id')
+  final int userId;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'clock_in_at')
+  final String clockInAt;
+  @JsonKey(name: 'clock_out_at')
+  final String? clockOutAt;
+  final bool abandoned;
+  final bool open;
+  final int minutes;
+  final String source;
+  final String? note;
 
   Map<String, Object?> toJson() => _$Data183ToJson(this);
 }

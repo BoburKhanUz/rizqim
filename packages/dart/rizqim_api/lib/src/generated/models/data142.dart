@@ -4,48 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'settings4.dart';
+import 'options7.dart';
+
 part 'data142.g.dart';
 
 @JsonSerializable()
 class Data142 {
-  const Data142({
-    required this.id,
-    required this.branchId,
-    required this.name,
-    required this.purpose,
-    required this.connection,
-    required this.address,
-    required this.port,
-    required this.paperWidth,
-    required this.stationId,
-    required this.deviceId,
-    required this.isActive,
-    required this.encoding,
-    required this.printAsImage,
-  });
+  const Data142({required this.settings, required this.options});
 
   factory Data142.fromJson(Map<String, Object?> json) =>
       _$Data142FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String name;
-  final String purpose;
-  final String connection;
-  final String? address;
-  final int? port;
-  @JsonKey(name: 'paper_width')
-  final int paperWidth;
-  @JsonKey(name: 'station_id')
-  final int? stationId;
-  @JsonKey(name: 'device_id')
-  final String? deviceId;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? encoding;
-  @JsonKey(name: 'print_as_image')
-  final bool printAsImage;
+  final Settings4 settings;
+  final Options7 options;
 
   Map<String, Object?> toJson() => _$Data142ToJson(this);
 }

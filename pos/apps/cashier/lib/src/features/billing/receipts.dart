@@ -120,6 +120,8 @@ PreCheck preCheckOf({
   int billsCount = 1,
   PosMoney prepaid = PosMoney.zero,
   bool copy = false,
+  String? paymentQr,
+  String? paymentQrLabel,
 }) => PreCheck(
   header: header,
   printedAt: now.toLocal(),
@@ -182,6 +184,9 @@ PreCheck preCheckOf({
   prepaid: prepaid,
   splitCount: bill.guestsShare,
   isCopy: copy,
+  // P6-41: the dynamic payment QR under the bill
+  paymentQr: paymentQr,
+  paymentQrLabel: paymentQrLabel,
 );
 
 String? _percent(String? raw) {
@@ -478,6 +483,75 @@ FiscalReceipt advanceReceiptOf({
     ?_nonFiscalNote(detail),
   ].join('\n'),
 );
+
+/// P6-43: sovg'a sertifikati sotuvining bo'nak (avans) cheki. [detail] — serverdagi chek (sotish javobidagi
+/// `fiscal.receipt_uuid` bo'yicha).
+FiscalReceipt voucherAdvanceReceiptOf({
+  required PosVoucher voucher,
+  required ReceiptHeader header,
+  required DateTime now,
+  PosFiscalReceiptDetail? detail,
+  String? cashier,
+  String? cardType,
+  String? transactionId,
+}) => FiscalReceipt(
+  type: FiscalReceiptType.advance,
+  header: header,
+  number: detail?.receiptNumber ?? voucher.code,
+  issuedAt: (detail?.issuedAt ?? now).toLocal(),
+  lines:
+      _linesOf(detail) ??
+      <ReceiptLine>[
+        ReceiptLine(
+          name: "Sovg'a sertifikati (avans)",
+          quantity: const ItemQuantity(PosQuantity.one),
+          unitPrice: voucher.faceValue,
+          amount: voucher.faceValue,
+        ),
+      ],
+  payments: <ReceiptPayment>[
+    _payment(
+      voucher.saleTender.wire,
+      voucher.faceValue,
+      cardType: cardType,
+      reference: transactionId,
+    ),
+  ],
+  cashier: cashier,
+  customerName: voucher.buyerName,
+  fiscal: _fiscalOf(detail),
+  note: <String>[
+    'Sertifikat: ${voucher.code}',
+    ?_nonFiscalNote(detail),
+  ].join('\n'),
+);
+
+/// P6-43: sertifikat varag'i (`print` blokidan).
+GiftCertificate giftCertificateOf({
+  required PosVoucher voucher,
+  required ReceiptHeader header,
+  required DateTime now,
+  bool copy = false,
+}) {
+  final PosVoucherPrint p = voucher.print;
+  return GiftCertificate(
+    header: p.store == null
+        ? header
+        : ReceiptHeader(
+            storeName: p.store!,
+            address: header.address,
+            phone: header.phone,
+          ),
+    code: p.code,
+    qr: p.qr,
+    value: p.value,
+    validFrom: DateTime.tryParse(p.validFrom) ?? now,
+    validUntil: p.validUntil == null ? null : DateTime.tryParse(p.validUntil!),
+    buyerName: voucher.buyerName,
+    printedAt: now.toLocal(),
+    isCopy: copy,
+  );
+}
 
 /// Kredit cheki (nasiya qarzi to'lovi). [detail] — serverdagi chek (P3-26: qarz to'lovi javobi olib keladi).
 FiscalReceipt creditReceiptOf({

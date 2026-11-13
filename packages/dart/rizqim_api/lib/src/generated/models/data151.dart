@@ -4,32 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period3.dart';
-import 'products8.dart';
-import 'combo_parts.dart';
-
 part 'data151.g.dart';
 
 @JsonSerializable()
 class Data151 {
   const Data151({
-    required this.period,
+    required this.id,
     required this.branchId,
-    required this.sort,
-    required this.products,
-    required this.comboParts,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data151.fromJson(Map<String, Object?> json) =>
       _$Data151FromJson(json);
 
-  final Period3 period;
+  final int id;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final String sort;
-  final List<Products8> products;
-  @JsonKey(name: 'combo_parts')
-  final List<ComboParts> comboParts;
+  final int branchId;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data151ToJson(this);
 }

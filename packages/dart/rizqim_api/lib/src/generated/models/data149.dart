@@ -4,50 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'summary2.dart';
-import 'orders.dart';
-import 'stations8.dart';
-import 'products7.dart';
-import 'hours.dart';
-import 'expo.dart';
-
 part 'data149.g.dart';
 
 @JsonSerializable()
 class Data149 {
   const Data149({
+    required this.id,
     required this.branchId,
-    required this.from,
-    required this.to,
-    required this.timezone,
-    required this.dayStartsAt,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
     required this.stationId,
-    required this.summary,
-    required this.orders,
-    required this.stations,
-    required this.products,
-    required this.hours,
-    required this.expo,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data149.fromJson(Map<String, Object?> json) =>
       _$Data149FromJson(json);
 
+  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String from;
-  final String to;
-  final String timezone;
-  @JsonKey(name: 'day_starts_at')
-  final String dayStartsAt;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
   @JsonKey(name: 'station_id')
   final int? stationId;
-  final Summary2 summary;
-  final Orders orders;
-  final List<Stations8> stations;
-  final List<Products7> products;
-  final List<Hours> hours;
-  final Expo? expo;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data149ToJson(this);
 }

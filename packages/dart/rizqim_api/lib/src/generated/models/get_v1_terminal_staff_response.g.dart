@@ -12,7 +12,7 @@ GetV1TerminalStaffResponse _$GetV1TerminalStaffResponseFromJson(
   success: json['success'] as bool,
   message: json['message'] as String,
   data: (json['data'] as List<dynamic>)
-      .map((e) => Data298.fromJson(e as Map<String, dynamic>))
+      .map((e) => Data320.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -6,9 +6,14 @@ part of 'data293.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data293 _$Data293FromJson(Map<String, dynamic> json) =>
-    Data293(received: json['received'] as bool);
+Data293 _$Data293FromJson(Map<String, dynamic> json) => Data293(
+  errors: (json['errors'] as List<dynamic>)
+      .map((e) => Errors.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  meta: Meta3.fromJson(json['meta'] as Map<String, dynamic>),
+);
 
 Map<String, dynamic> _$Data293ToJson(Data293 instance) => <String, dynamic>{
-  'received': instance.received,
+  'errors': instance.errors,
+  'meta': instance.meta,
 };

@@ -7,35 +7,33 @@ part of 'data150.dart';
 // **************************************************************************
 
 Data150 _$Data150FromJson(Map<String, dynamic> json) => Data150(
-  period: Period2.fromJson(json['period'] as Map<String, dynamic>),
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  summary: Summary3.fromJson(json['summary'] as Map<String, dynamic>),
-  byStatus: Map<String, int>.from(json['by_status'] as Map),
-  series: (json['series'] as List<dynamic>)
-      .map((e) => Series.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byChannel: (json['by_channel'] as List<dynamic>)
-      .map((e) => ByChannel2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byBranch: (json['by_branch'] as List<dynamic>)
-      .map((e) => ByBranch.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byPaymentMethod: (json['by_payment_method'] as List<dynamic>)
-      .map((e) => ByPaymentMethod2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byOrderType: (json['by_order_type'] as List<dynamic>)
-      .map((e) => ByOrderType2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  name: json['name'] as String,
+  purpose: json['purpose'] as String,
+  connection: json['connection'] as String,
+  address: json['address'] as String?,
+  port: (json['port'] as num?)?.toInt(),
+  paperWidth: (json['paper_width'] as num).toInt(),
+  stationId: (json['station_id'] as num?)?.toInt(),
+  deviceId: json['device_id'] as String?,
+  isActive: json['is_active'] as bool,
+  encoding: json['encoding'] as String?,
+  printAsImage: json['print_as_image'] as bool,
 );
 
 Map<String, dynamic> _$Data150ToJson(Data150 instance) => <String, dynamic>{
-  'period': instance.period,
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'summary': instance.summary,
-  'by_status': instance.byStatus,
-  'series': instance.series,
-  'by_channel': instance.byChannel,
-  'by_branch': instance.byBranch,
-  'by_payment_method': instance.byPaymentMethod,
-  'by_order_type': instance.byOrderType,
+  'name': instance.name,
+  'purpose': instance.purpose,
+  'connection': instance.connection,
+  'address': instance.address,
+  'port': instance.port,
+  'paper_width': instance.paperWidth,
+  'station_id': instance.stationId,
+  'device_id': instance.deviceId,
+  'is_active': instance.isActive,
+  'encoding': instance.encoding,
+  'print_as_image': instance.printAsImage,
 };

@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Pos;
 
 use App\Domain\Pos\Accounts\CustomerAccountEntryType;
+use App\Domain\Pos\Accounts\CustomerAccountKind;
+use App\Domain\Pos\Accounts\TalonMode;
 use App\Domain\Pos\Accounts\CustomerAccountService;
 use App\Domain\Pos\Billing\PosFiscalReceipt;
 use App\Domain\Pos\Booking\ApprovalGate;
 use App\Domain\Pos\Booking\UzPhone;
 use App\Domain\Pos\Contracts\PosTender;
+use App\Domain\Pos\Setup\PosModule;
+use App\Domain\Pos\Setup\PosModules;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\Menu\MenuStaffController;
 use App\Models\CustomerAccount;
@@ -28,6 +32,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -35,11 +40,16 @@ use Illuminate\Validation\ValidationException;
  * and taking a repayment: customer_accounts.manage or pos.take_payment (the cashier takes the money); creating,
  * changing, blocking and correcting them: customer_accounts.manage (owner, manager). A store-wide account is seen in
  * every branch; an account of a branch only there (and by store-wide staff). Another store's account: 404.
+ *
+ * P6-44: an account's `kind` is `customer` (nasiya) or `corporate` (a company: details, monthly limit, talon mode,
+ * whether a charge at the till needs a manager's approval; members and the monthly statement in
+ * CorporateAccountController). Making an account corporate needs the `corporate_accounts` module. In lists the INN
+ * is masked.
  */
 #[Group('POS: customer accounts', "Nasiya hisoblari: limit, qarz, qarzdorlar, ko'chirma va qarz to'lovi kredit cheki bilan (P3-17).")]
 class CustomerAccountController extends MenuStaffController
 {
-    public const ACCOUNT = 'array{uuid: string, name: string, phone: string|null, group_name: string|null, branch_id: int|null, credit_limit: string|null, balance: string, available_credit: string|null, is_blocked: bool, note: string|null, created_at: string|null, updated_at: string|null}';
+    public const ACCOUNT = 'array{uuid: string, name: string, phone: string|null, group_name: string|null, branch_id: int|null, credit_limit: string|null, balance: string, available_credit: string|null, is_blocked: bool, note: string|null, kind: \\App\\Domain\\Pos\\Accounts\\CustomerAccountKind, kind_label: string, company_name: string|null, inn: string|null, contact_name: string|null, contact_phone: string|null, invoice_email: string|null, monthly_limit: string|null, charge_approval: bool, talon_mode: \\App\\Domain\\Pos\\Accounts\\TalonMode, members_count: int, created_at: string|null, updated_at: string|null}';
 
     public const ENTRY = 'array{uuid: string, type: string, type_label: string, amount: string, balance_after: string, bill_uuid: string|null, tender: string|null, card_type: string|null, transaction_id: string|null, fiscal_receipt_uuid: string|null, fiscal_status: string|null, branch_id: int|null, user: array{id: int, name: string|null}|null, approved_by: array{id: int, name: string|null}|null, note: string|null, created_at: string|null}';
 
@@ -59,6 +69,7 @@ class CustomerAccountController extends MenuStaffController
      */
     #[QueryParameter('q', 'Name, group name or phone digits.', type: 'string')]
     #[QueryParameter('debtors', 'Only accounts with a debt.', type: 'bool')]
+    #[QueryParameter('kind', 'P6-44: only nasiya (customer) or corporate accounts.', type: CustomerAccountKind::class)]
     #[QueryParameter('per_page', 'Up to 100 (default 30).', type: 'int')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{accounts: list<' . self::ACCOUNT . '>, meta: array{current_page: int, last_page: int, per_page: int, total: int}}}')]
     public function index(Request $request): JsonResponse
@@ -66,6 +77,7 @@ class CustomerAccountController extends MenuStaffController
         $request->validate([
             'q' => 'nullable|string|max:100',
             'debtors' => 'nullable|boolean',
+            'kind' => ['nullable', Rule::enum(CustomerAccountKind::class)],
             'per_page' => 'nullable|integer|min:1|max:100',
         ], UzValidation::messages());
 
@@ -84,10 +96,13 @@ class CustomerAccountController extends MenuStaffController
         if ($request->boolean('debtors')) {
             $query->where('balance', '>', 0)->orderByDesc('balance');
         }
+        if ($request->filled('kind')) {
+            $query->where('kind', (string) $request->input('kind'));
+        }
         $page = $query->orderBy('name')->orderBy('id')->paginate((int) $request->input('per_page', 30));
 
         return $this->success([
-            'accounts' => collect($page->items())->map(fn (CustomerAccount $account) => $this->present($account))->values()->all(),
+            'accounts' => collect($page->items())->map(fn (CustomerAccount $account) => $this->present($account, list: true))->values()->all(),
             'meta' => [
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
@@ -113,7 +128,7 @@ class CustomerAccountController extends MenuStaffController
             'total_debt' => $total->toString(),
             'count' => $count,
             'accounts' => $query->orderByDesc('balance')->orderBy('id')->limit(500)->get()
-                ->map(fn (CustomerAccount $account) => $this->present($account))->values()->all(),
+                ->map(fn (CustomerAccount $account) => $this->present($account, list: true))->values()->all(),
         ]);
     }
 
@@ -121,7 +136,10 @@ class CustomerAccountController extends MenuStaffController
      * Open a customer account
      *
      * `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),
-     * `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). Needs
+     * `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). P6-44: `kind`
+     * corporate (needs the corporate_accounts module) with `company_name`, `inn` (9 or 14 digits), `contact_name`,
+     * `contact_phone`, `invoice_email`, `monthly_limit` (null: none), `charge_approval` (default false for a
+     * corporate account: a lunch at the till needs no manager), `talon_mode` none|daily_limit|subscription. Needs
      * customer_accounts.manage; P3-26: a cashier at the till (pos.take_payment) sends a manager's one-time
      * `approval_token` for customer_accounts.manage (POST /pos/approvals; 403 `approval_required` without).
      */
@@ -137,6 +155,15 @@ class CustomerAccountController extends MenuStaffController
             'note' => 'nullable|string|max:500',
             'branch_id' => UzValidation::rowId(),
             'approval_token' => 'nullable|string|max:255',
+            'kind' => ['sometimes', Rule::enum(CustomerAccountKind::class)],
+            'company_name' => 'nullable|string|max:160',
+            'inn' => ['nullable', 'string', 'regex:/^\s*(\d{9}|\d{14})\s*$/'],
+            'contact_name' => 'nullable|string|max:120',
+            'contact_phone' => 'nullable|string|max:32',
+            'invoice_email' => 'nullable|email|max:160',
+            'monthly_limit' => 'nullable|numeric|min:0|max:999999999|decimal:0,2',
+            'charge_approval' => 'sometimes|boolean',
+            'talon_mode' => ['sometimes', Rule::enum(TalonMode::class)],
         ], UzValidation::messages()), null);
         $user = $request->user();
         $manages = $this->permissions->allows($user, Permission::CUSTOMER_ACCOUNTS_MANAGE);
@@ -148,6 +175,8 @@ class CustomerAccountController extends MenuStaffController
             // A cashier's account belongs to the branch they work in (a terminal session: the terminal's)
             $branchId = $this->actingBranch($user) ?? ($user->branch_id !== null ? (int) $user->branch_id : null);
         }
+
+        $data = $this->corporateDefaults($request, $data, null, $branchId);
 
         $account = DB::transaction(function () use ($request, $approvals, $user, $data, $branchId) {
             $account = new CustomerAccount($data + ['store_id' => $this->storeId($request), 'branch_id' => $branchId, 'created_by' => $user->id]);
@@ -179,7 +208,8 @@ class CustomerAccountController extends MenuStaffController
     /**
      * Change a customer account
      *
-     * Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). Needs
+     * Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). P6-44: the corporate
+     * fields as on create; back to `kind` customer only without members (422 `account_has_members`). Needs
      * customer_accounts.manage; P3-26: a cashier (pos.take_payment) sends a manager's one-time `approval_token` for it.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::ACCOUNT . '}')]
@@ -195,9 +225,19 @@ class CustomerAccountController extends MenuStaffController
             'note' => 'nullable|string|max:500',
             'branch_id' => UzValidation::rowId(),
             'approval_token' => 'nullable|string|max:255',
+            'kind' => ['sometimes', Rule::enum(CustomerAccountKind::class)],
+            'company_name' => 'nullable|string|max:160',
+            'inn' => ['nullable', 'string', 'regex:/^\s*(\d{9}|\d{14})\s*$/'],
+            'contact_name' => 'nullable|string|max:120',
+            'contact_phone' => 'nullable|string|max:32',
+            'invoice_email' => 'nullable|email|max:160',
+            'monthly_limit' => 'nullable|numeric|min:0|max:999999999|decimal:0,2',
+            'charge_approval' => 'sometimes|boolean',
+            'talon_mode' => ['sometimes', Rule::enum(TalonMode::class)],
         ], UzValidation::messages()), $account);
         unset($data['approval_token']);
         $user = $request->user();
+        $data = $this->corporateDefaults($request, $data, $account, $account->branch_id !== null ? (int) $account->branch_id : null);
 
         DB::transaction(function () use ($request, $approvals, $user, $account, $data) {
             $approvedBy = $approvals->approver($user, Permission::CUSTOMER_ACCOUNTS_MANAGE->value, $request->input('approval_token'), $this->permissions->terminalOf($user)?->id, $account);
@@ -347,6 +387,7 @@ class CustomerAccountController extends MenuStaffController
         $acting = $this->permissions->actingBranchId($request->user());
 
         return CustomerAccount::query()
+            ->withCount(['members' => fn (Builder $query) => $query->where('is_active', true)])
             ->where('store_id', $this->storeId($request))
             ->when($acting !== null, fn (Builder $query) => $query->where(fn (Builder $query) => $query->whereNull('branch_id')->orWhere('branch_id', $acting)));
     }
@@ -398,9 +439,27 @@ class CustomerAccountController extends MenuStaffController
         if (array_key_exists('is_blocked', $data)) {
             $data['is_blocked'] = (bool) $data['is_blocked'];
         }
-        foreach (['name', 'group_name', 'note'] as $field) {
+        foreach (['name', 'group_name', 'note', 'company_name', 'contact_name', 'invoice_email'] as $field) {
             if (isset($data[$field]) && is_string($data[$field])) {
-                $data[$field] = trim($data[$field]);
+                $data[$field] = trim($data[$field]) !== '' ? trim($data[$field]) : null;
+            }
+        }
+        if (array_key_exists('contact_phone', $data)) {
+            $raw = $data['contact_phone'] !== null ? trim((string) $data['contact_phone']) : '';
+            $data['contact_phone'] = $raw !== '' ? UzPhone::normalize($raw) : null;
+            if ($raw !== '' && $data['contact_phone'] === null) {
+                throw ValidationException::withMessages(['contact_phone' => "Telefon raqami noto'g'ri: +998XXXXXXXXX yoki 9 xonali raqam."]);
+            }
+        }
+        if (array_key_exists('inn', $data)) {
+            $data['inn'] = $data['inn'] !== null && trim((string) $data['inn']) !== '' ? (string) preg_replace('/\s+/', '', (string) $data['inn']) : null;
+        }
+        if (array_key_exists('monthly_limit', $data)) {
+            $data['monthly_limit'] = $data['monthly_limit'] !== null ? Money::of((string) $data['monthly_limit'])->toString() : null;
+        }
+        foreach (['charge_approval'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = (bool) $data[$field];
             }
         }
 
@@ -408,9 +467,54 @@ class CustomerAccountController extends MenuStaffController
     }
 
     /**
+     * P6-44: an account becoming corporate needs the corporate_accounts module (of its branch, or of the store) and,
+     * unless the owner chose, needs no manager's approval at the till; back to nasiya only without members, with the
+     * approval again.
+     *
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function present(CustomerAccount $account): array
+    private function corporateDefaults(Request $request, array $data, ?CustomerAccount $account, ?int $branchId): array
+    {
+        $kind = isset($data['kind']) ? CustomerAccountKind::from((string) $data['kind']) : ($account->kind ?? CustomerAccountKind::CUSTOMER);
+        $becomesCorporate = $kind === CustomerAccountKind::CORPORATE && ($account === null || !$account->isCorporate());
+
+        if ($becomesCorporate) {
+            $modules = app(PosModules::class);
+            $branch = $branchId !== null ? \App\Models\Branch::find($branchId) : null;
+            $branch !== null
+                ? $modules->assertEnabled($branch, PosModule::CORPORATE_ACCOUNTS)
+                : $modules->assertEnabledInStore($this->storeId($request), PosModule::CORPORATE_ACCOUNTS);
+            $data['charge_approval'] ??= false;
+        }
+        if ($kind === CustomerAccountKind::CUSTOMER) {
+            if ($account !== null && $account->isCorporate() && $account->members()->exists()) {
+                throw new HttpResponseException($this->error("Bu korxona hisobida xodimlar bor: avval ularni boshqa hisobga o'tkazing yoki korxona turini qoldiring.", ['reason' => 'account_has_members'], 422));
+            }
+            // Nasiya always asks for the manager's approval and has no talons
+            $data['charge_approval'] = true;
+            $data['talon_mode'] = TalonMode::NONE->value;
+        }
+
+        return $data;
+    }
+
+    /**
+     * The INN as lists show it: the first two and the last two digits.
+     */
+    public static function maskInn(?string $inn): ?string
+    {
+        if ($inn === null || strlen($inn) < 5) {
+            return $inn;
+        }
+
+        return substr($inn, 0, 2) . str_repeat('*', strlen($inn) - 4) . substr($inn, -2);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function present(CustomerAccount $account, bool $list = false): array
     {
         $available = $account->credit_limit !== null
             ? Money::max(Money::zero(), Money::of($account->credit_limit)->minus($account->balance))->toString()
@@ -427,6 +531,18 @@ class CustomerAccountController extends MenuStaffController
             'available_credit' => $available,
             'is_blocked' => (bool) $account->is_blocked,
             'note' => $account->note,
+            // P6-44
+            'kind' => $account->kind->value,
+            'kind_label' => $account->kind->label(),
+            'company_name' => $account->company_name,
+            'inn' => $list ? self::maskInn($account->inn) : $account->inn,
+            'contact_name' => $account->contact_name,
+            'contact_phone' => $account->contact_phone,
+            'invoice_email' => $account->invoice_email,
+            'monthly_limit' => $account->monthly_limit,
+            'charge_approval' => !$account->isCorporate() || (bool) $account->charge_approval,
+            'talon_mode' => $account->talon_mode->value,
+            'members_count' => $account->isCorporate() ? (int) ($account->getAttribute('members_count') ?? $account->members()->where('is_active', true)->count()) : 0,
             'created_at' => $account->created_at?->toJSON(),
             'updated_at' => $account->updated_at?->toJSON(),
         ];
@@ -472,6 +588,12 @@ class CustomerAccountController extends MenuStaffController
             'credit_limit' => $account->credit_limit,
             'is_blocked' => (bool) $account->is_blocked,
             'branch_id' => $account->branch_id,
+            'kind' => $account->kind->value,
+            'company_name' => $account->company_name,
+            'inn' => self::maskInn($account->inn),
+            'monthly_limit' => $account->monthly_limit,
+            'charge_approval' => (bool) $account->charge_approval,
+            'talon_mode' => $account->talon_mode->value,
         ];
     }
 }

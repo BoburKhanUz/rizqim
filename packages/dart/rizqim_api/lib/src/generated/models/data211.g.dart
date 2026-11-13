@@ -7,25 +7,11 @@ part of 'data211.dart';
 // **************************************************************************
 
 Data211 _$Data211FromJson(Map<String, dynamic> json) => Data211(
-  channel: Channel6.fromJson(json['channel'] as String),
-  menuVersion: json['menu_version'] as String,
-  branch: Branch14.fromJson(json['branch'] as Map<String, dynamic>),
-  categories: (json['categories'] as List<dynamic>)
-      .map((e) => Category.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  availability: Availability.fromJson(
-    json['availability'] as Map<String, dynamic>,
-  ),
+  channel: Channel4.fromJson(json['channel'] as String),
+  queued: json['queued'] as bool,
 );
 
 Map<String, dynamic> _$Data211ToJson(Data211 instance) => <String, dynamic>{
   'channel': instance.channel,
-  'menu_version': instance.menuVersion,
-  'branch': instance.branch,
-  'categories': instance.categories,
-  'products': instance.products,
-  'availability': instance.availability,
+  'queued': instance.queued,
 };

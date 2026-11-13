@@ -4,19 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings3.dart';
+import 'period2.dart';
+import 'summary3.dart';
+import 'series.dart';
+import 'by_channel2.dart';
+import 'by_branch.dart';
+import 'by_payment_method2.dart';
+import 'by_order_type2.dart';
 
 part 'data157.g.dart';
 
 @JsonSerializable()
 class Data157 {
-  const Data157({required this.channels, required this.settings});
+  const Data157({
+    required this.period,
+    required this.branchId,
+    required this.summary,
+    required this.byStatus,
+    required this.series,
+    required this.byChannel,
+    required this.byBranch,
+    required this.byPaymentMethod,
+    required this.byOrderType,
+  });
 
   factory Data157.fromJson(Map<String, Object?> json) =>
       _$Data157FromJson(json);
 
-  final List<dynamic> channels;
-  final List<Settings3> settings;
+  final Period2 period;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Summary3 summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  final List<Series> series;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel2> byChannel;
+  @JsonKey(name: 'by_branch')
+  final List<ByBranch> byBranch;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod2> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType2> byOrderType;
 
   Map<String, Object?> toJson() => _$Data157ToJson(this);
 }

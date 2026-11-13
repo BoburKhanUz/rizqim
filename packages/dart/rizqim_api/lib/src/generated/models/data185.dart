@@ -4,30 +4,46 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'entries2.dart';
-import 'summary4.dart';
-
 part 'data185.g.dart';
 
 @JsonSerializable()
 class Data185 {
   const Data185({
+    required this.uuid,
     required this.branchId,
-    required this.from,
-    required this.to,
-    required this.entries,
-    required this.summary,
+    required this.userId,
+    required this.userName,
+    required this.businessDate,
+    required this.clockInAt,
+    required this.clockOutAt,
+    required this.abandoned,
+    required this.open,
+    required this.minutes,
+    required this.source,
+    required this.note,
   });
 
   factory Data185.fromJson(Map<String, Object?> json) =>
       _$Data185FromJson(json);
 
+  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String from;
-  final String to;
-  final List<Entries2> entries;
-  final Summary4 summary;
+  @JsonKey(name: 'user_id')
+  final int userId;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'clock_in_at')
+  final String clockInAt;
+  @JsonKey(name: 'clock_out_at')
+  final String? clockOutAt;
+  final bool abandoned;
+  final bool open;
+  final int minutes;
+  final String source;
+  final String? note;
 
   Map<String, Object?> toJson() => _$Data185ToJson(this);
 }

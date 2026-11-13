@@ -16,7 +16,10 @@ use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Models\Order;
 use App\Models\OrderChargeWaiver;
+use App\Models\PromoCode;
+use App\Services\Audit\AuditLogger;
 use App\Services\Order\DiningFeeCalculator;
+use App\Services\Promo\PromoCodeService;
 use App\Support\Money;
 
 /**
@@ -25,7 +28,10 @@ use App\Support\Money;
  *
  *   items             = Σ total_price of the lines that are not void
  *   discount          = the till's discount (P3-37): a percent of the items, whole so'm, half-up, worked out again
- *                       with every line change; an amount, never more than the items. Without one, orders.discount
+ *                       with every line change; an amount, never more than the items. Without one, orders.discount.
+ *                       A promo code (orders.promo_code_id, P6-43) is worked out again from the code with every
+ *                       change: min(fixed value or % of the items, the code's cap, the items); under the code's
+ *                       minimum the code is dropped (recalculate(), review C1)
  *   after discount    = max(0, items − discount)
  *   service charge    = after discount × percent / 100, whole so'm, half-up — the percent of the order's hall
  *                       (service_fee_settings.hall_id), else the branch's, else the store's (DiningFeeCalculator)
@@ -149,10 +155,17 @@ class PosChargesCalculator
 
     /**
      * The order's discount on $items (P3-37): `percent` → items × value / 100, whole so'm, half-up; `amount` → the
-     * value in whole so'm, at most the items; no kind → orders.discount as stored.
+     * value in whole so'm, at most the items; no kind → orders.discount as stored. A promo code on the order (review C1):
+     * the code's discount on $items now (PromoCodeService::calculate: the fixed value or the percent, the code's cap, at
+     * most the items), 0 under its minimum.
      */
     public static function discountOf(Order $order, Money $items): Money
     {
+        $promo = self::promoOf($order);
+        if ($promo !== null) {
+            return $items->isLessThan($promo->min_order_amount) ? Money::zero() : app(PromoCodeService::class)->calculate($promo, $items);
+        }
+
         $kind = $order->getAttribute('discount_kind');
         $value = $order->getAttribute('discount_value');
         if ($kind === null || $value === null) {
@@ -174,6 +187,31 @@ class PosChargesCalculator
     {
         $charges = $this->compute($order);
 
+        // Review C1: a promo code whose minimum the dishes no longer reach is dropped (its use given back), audited,
+        // with a plain note for the till and the waiter; one still holding keeps the amount it gives now
+        $promo = $order->channel->isPos() ? self::promoOf($order) : null;
+        if ($promo !== null && $charges->itemsSubtotal->isLessThan($promo->min_order_amount)) {
+            $before = ['promo_code_id' => (int) $promo->id, 'discount' => Money::of($order->discount)->toString(), 'reason' => $order->getAttribute('discount_reason')];
+            $min = \App\Domain\Pos\Accounts\PosOwnerAlerts::sum((string) $promo->min_order_amount);
+            $order->forceFill([
+                'discount_kind' => null,
+                'discount_value' => null,
+                'discount_reason' => null,
+                'discount_by' => null,
+                'discount' => '0.00',
+                'promo_code_id' => null,
+                'promo_note' => "Promo-kod {$promo->code} olib tashlandi: taomlar summasi kamida {$min} bo'lishi kerak.",
+            ]);
+            $charges = $this->compute($order);
+            app(AuditLogger::class)->record('pos.order.promo_dropped', $order, $before, ['promo_code_id' => null, 'discount' => '0.00', 'reason' => null], [
+                'promo' => $promo->code,
+                'items_subtotal' => $charges->itemsSubtotal->toString(),
+                'min_order_amount' => Money::of((string) $promo->min_order_amount)->toString(),
+            ]);
+        } elseif ($promo !== null && $order->getAttribute('discount_kind') === 'amount') {
+            $order->forceFill(['discount_value' => $charges->discount->toString()]);
+        }
+
         if ($order->channel->isPos()) {
             $order->forceFill([
                 'subtotal' => $charges->itemsSubtotal->toString(),
@@ -190,5 +228,15 @@ class PosChargesCalculator
         }
 
         return $charges;
+    }
+
+    /**
+     * The promo code applied to the order (P6-43), or null.
+     */
+    protected static function promoOf(Order $order): ?PromoCode
+    {
+        $id = $order->getAttribute('promo_code_id');
+
+        return $id !== null ? PromoCode::find((int) $id) : null;
     }
 }

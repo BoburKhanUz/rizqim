@@ -178,7 +178,13 @@ class PosBillController extends PosBillingController
      * last four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the
      * receipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
      * per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;
-     * once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
+     * once per bill; P6-44: a corporate account takes `member_code` — the talon — or `member_phone`, needs the
+     * approval only when its `charge_approval` is on, and is refused over its limits: 422 `member_required`,
+     * `member_inactive`, `member_daily_limit`, `member_meals_used`, `account_monthly_limit`, `account_credit_limit`,
+     * 404 `member_not_found`), `voucher` (P6-43: a gift certificate, `voucher_code` as printed or scanned; at most its
+     * balance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,
+     * 409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;
+     * online only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
      * The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
      * covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
      * order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
@@ -208,6 +214,11 @@ class PosBillController extends PosBillingController
             'tenders.*.card_last4' => 'nullable|string|max:4',
             'tenders.*.reference' => 'nullable|string|max:100',
             'tenders.*.account_uuid' => 'nullable|uuid',
+            // P6-43: the gift certificate spent (`voucher` tender)
+            'tenders.*.voucher_code' => 'nullable|string|max:32',
+            // P6-44: a corporate account's member: the talon code or the phone
+            'tenders.*.member_code' => 'nullable|string|max:32',
+            'tenders.*.member_phone' => 'nullable|string|max:32',
             // P6-22: a tip on top of the tender, or the cash change left as one
             'tenders.*.tip_amount' => ['nullable', 'numeric', 'gt:0', 'max:9999999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'tenders.*.tip_from_change' => 'nullable|boolean',

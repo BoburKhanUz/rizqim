@@ -19,6 +19,9 @@ extension WaiterModules on PosSession {
   /// "Og'irlikni keyin kiritish" taomlari.
   bool get weightLaterOn => hasModule(PosModule.weightLater);
 
+  /// Promo-kod buyurtmada (sertifikat va vaucher moduli).
+  bool get promoOn => hasModule(PosModule.vouchers);
+
   /// Stolni boshqa ofitsiantga berish.
   bool get transferOn => hasModule(PosModule.waiterTransfer);
 

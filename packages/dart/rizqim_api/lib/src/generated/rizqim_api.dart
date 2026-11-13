@@ -45,8 +45,10 @@ import 'owner_menu_modifiers/owner_menu_modifiers_api.dart';
 import 'owner_staff_access/owner_staff_access_api.dart';
 import 'owner_pos_format/owner_pos_format_api.dart';
 import 'owner_local_bridge/owner_local_bridge_api.dart';
+import 'owner_qr_payments/owner_qr_payments_api.dart';
 import 'owner_service_charge_rules/owner_service_charge_rules_api.dart';
 import 'owner_tips/owner_tips_api.dart';
+import 'owner_vouchers/owner_vouchers_api.dart';
 import 'owner_printers/owner_printers_api.dart';
 import 'owner_channel_prices/owner_channel_prices_api.dart';
 import 'owner_menu/owner_menu_api.dart';
@@ -58,14 +60,17 @@ import 'owner_staff/owner_staff_api.dart';
 import 'owner_staff_pay/owner_staff_pay_api.dart';
 import 'owner_stop_list/owner_stop_list_api.dart';
 import 'pos_billing/pos_billing_api.dart';
+import 'pos_qr_payments/pos_qr_payments_api.dart';
 import 'pos_bookings/pos_bookings_api.dart';
 import 'pos_bootstrap/pos_bootstrap_api.dart';
 import 'pos_staff_pay/pos_staff_pay_api.dart';
 import 'pos_customer_accounts/pos_customer_accounts_api.dart';
+import 'pos_corporate_accounts/pos_corporate_accounts_api.dart';
 import 'pos_customer_display/pos_customer_display_api.dart';
 import 'pos_orders/pos_orders_api.dart';
 import 'pos_local_bridge/pos_local_bridge_api.dart';
 import 'pos_queue_numbers/pos_queue_numbers_api.dart';
+import 'pos_vouchers/pos_vouchers_api.dart';
 import 'pos_sync/pos_sync_api.dart';
 import 'pos_hostess/pos_hostess_api.dart';
 import 'pos_tips/pos_tips_api.dart';
@@ -136,8 +141,10 @@ class RizqimApi {
   OwnerStaffAccessApi? _ownerStaffAccess;
   OwnerPosFormatApi? _ownerPosFormat;
   OwnerLocalBridgeApi? _ownerLocalBridge;
+  OwnerQrPaymentsApi? _ownerQrPayments;
   OwnerServiceChargeRulesApi? _ownerServiceChargeRules;
   OwnerTipsApi? _ownerTips;
+  OwnerVouchersApi? _ownerVouchers;
   OwnerPrintersApi? _ownerPrinters;
   OwnerChannelPricesApi? _ownerChannelPrices;
   OwnerMenuApi? _ownerMenu;
@@ -149,14 +156,17 @@ class RizqimApi {
   OwnerStaffPayApi? _ownerStaffPay;
   OwnerStopListApi? _ownerStopList;
   PosBillingApi? _posBilling;
+  PosQrPaymentsApi? _posQrPayments;
   PosBookingsApi? _posBookings;
   PosBootstrapApi? _posBootstrap;
   PosStaffPayApi? _posStaffPay;
   PosCustomerAccountsApi? _posCustomerAccounts;
+  PosCorporateAccountsApi? _posCorporateAccounts;
   PosCustomerDisplayApi? _posCustomerDisplay;
   PosOrdersApi? _posOrders;
   PosLocalBridgeApi? _posLocalBridge;
   PosQueueNumbersApi? _posQueueNumbers;
+  PosVouchersApi? _posVouchers;
   PosSyncApi? _posSync;
   PosHostessApi? _posHostess;
   PosTipsApi? _posTips;
@@ -292,6 +302,9 @@ class RizqimApi {
   OwnerLocalBridgeApi get ownerLocalBridge =>
       _ownerLocalBridge ??= OwnerLocalBridgeApi(_dio, baseUrl: _baseUrl);
 
+  OwnerQrPaymentsApi get ownerQrPayments =>
+      _ownerQrPayments ??= OwnerQrPaymentsApi(_dio, baseUrl: _baseUrl);
+
   OwnerServiceChargeRulesApi get ownerServiceChargeRules =>
       _ownerServiceChargeRules ??= OwnerServiceChargeRulesApi(
         _dio,
@@ -300,6 +313,9 @@ class RizqimApi {
 
   OwnerTipsApi get ownerTips =>
       _ownerTips ??= OwnerTipsApi(_dio, baseUrl: _baseUrl);
+
+  OwnerVouchersApi get ownerVouchers =>
+      _ownerVouchers ??= OwnerVouchersApi(_dio, baseUrl: _baseUrl);
 
   OwnerPrintersApi get ownerPrinters =>
       _ownerPrinters ??= OwnerPrintersApi(_dio, baseUrl: _baseUrl);
@@ -334,6 +350,9 @@ class RizqimApi {
   PosBillingApi get posBilling =>
       _posBilling ??= PosBillingApi(_dio, baseUrl: _baseUrl);
 
+  PosQrPaymentsApi get posQrPayments =>
+      _posQrPayments ??= PosQrPaymentsApi(_dio, baseUrl: _baseUrl);
+
   PosBookingsApi get posBookings =>
       _posBookings ??= PosBookingsApi(_dio, baseUrl: _baseUrl);
 
@@ -346,6 +365,9 @@ class RizqimApi {
   PosCustomerAccountsApi get posCustomerAccounts =>
       _posCustomerAccounts ??= PosCustomerAccountsApi(_dio, baseUrl: _baseUrl);
 
+  PosCorporateAccountsApi get posCorporateAccounts => _posCorporateAccounts ??=
+      PosCorporateAccountsApi(_dio, baseUrl: _baseUrl);
+
   PosCustomerDisplayApi get posCustomerDisplay =>
       _posCustomerDisplay ??= PosCustomerDisplayApi(_dio, baseUrl: _baseUrl);
 
@@ -357,6 +379,9 @@ class RizqimApi {
 
   PosQueueNumbersApi get posQueueNumbers =>
       _posQueueNumbers ??= PosQueueNumbersApi(_dio, baseUrl: _baseUrl);
+
+  PosVouchersApi get posVouchers =>
+      _posVouchers ??= PosVouchersApi(_dio, baseUrl: _baseUrl);
 
   PosSyncApi get posSync => _posSync ??= PosSyncApi(_dio, baseUrl: _baseUrl);
 

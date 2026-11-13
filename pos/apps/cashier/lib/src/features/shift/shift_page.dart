@@ -16,6 +16,7 @@ import '../billing/cashier_ui.dart';
 import 'cash_movement_dialog.dart';
 import '../../counter/counter_format.dart';
 import 'shift_report_mapping.dart';
+import '../vouchers/voucher_sell_dialog.dart';
 import 'tip_payout_dialog.dart';
 import 'x_report_view.dart';
 import 'z_close_page.dart';
@@ -119,6 +120,14 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
           : ShiftReportView(cur.report!).expectedCash,
     );
     if (m != null && mounted) await refresh();
+  }
+
+  /// P6-43: sovg'a sertifikati sotish (bo'nak cheki va varaq chop etiladi), keyin hisobot yangilanadi.
+  Future<void> _sellVoucher() async {
+    final PosVoucher? v = await showVoucherSellDialog(context);
+    if (v == null || !mounted) return;
+    unawaited(refresh());
+    await showVoucherPreview(context, v);
   }
 
   /// P6-22: kassadagi naqd choy pulini xodimga berish — `tips.manage` yoki menejer PIN'i.
@@ -377,6 +386,18 @@ class _ShiftPageState extends State<ShiftPage> with RefreshingState {
               variant: RzButtonVariant.secondary,
               onPressed: cashOps ? () => _movement(incoming: false) : null,
             ),
+            // P6-43: a gift certificate is sold here (money into this shift, an advance receipt)
+            if (session.hasModule(PosModule.vouchers))
+              RzButton(
+                key: const ValueKey<String>('voucher-sell'),
+                label: 'Sertifikat sotish',
+                icon: Icons.card_giftcard_rounded,
+                size: RzButtonSize.lg,
+                variant: RzButtonVariant.secondary,
+                onPressed: !limited && session.can(PosPermissions.takePayment)
+                    ? () => unawaited(_sellVoucher())
+                    : null,
+              ),
             // P6-22: the cash tips in the drawer go to the staff (wage / tips, apart from wages on the X/Z)
             if (session.hasModule(PosModule.tips) &&
                 v != null &&

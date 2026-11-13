@@ -7,11 +7,25 @@ part of 'data220.dart';
 // **************************************************************************
 
 Data220 _$Data220FromJson(Map<String, dynamic> json) => Data220(
-  account: Account2.fromJson(json['account'] as Map<String, dynamic>),
-  entry: Entry.fromJson(json['entry'] as Map<String, dynamic>),
+  channel: Channel6.fromJson(json['channel'] as String),
+  menuVersion: json['menu_version'] as String,
+  branch: Branch18.fromJson(json['branch'] as Map<String, dynamic>),
+  categories: (json['categories'] as List<dynamic>)
+      .map((e) => Category.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  availability: Availability.fromJson(
+    json['availability'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data220ToJson(Data220 instance) => <String, dynamic>{
-  'account': instance.account,
-  'entry': instance.entry,
+  'channel': instance.channel,
+  'menu_version': instance.menuVersion,
+  'branch': instance.branch,
+  'categories': instance.categories,
+  'products': instance.products,
+  'availability': instance.availability,
 };

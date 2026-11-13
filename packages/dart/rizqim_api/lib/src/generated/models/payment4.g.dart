@@ -12,7 +12,7 @@ Payment4 _$Payment4FromJson(Map<String, dynamic> json) => Payment4(
   change: json['change'] as String?,
   qr: json['qr'] == null
       ? null
-      : Qr.fromJson(json['qr'] as Map<String, dynamic>),
+      : Qr2.fromJson(json['qr'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Payment4ToJson(Payment4 instance) => <String, dynamic>{

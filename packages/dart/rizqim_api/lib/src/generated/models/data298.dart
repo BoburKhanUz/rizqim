@@ -4,28 +4,63 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'staff28.dart';
+import 'holders11.dart';
+import 'recorded_by11.dart';
+import 'corrections18.dart';
+
 part 'data298.g.dart';
 
 @JsonSerializable()
 class Data298 {
   const Data298({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
+    required this.uuid,
+    required this.method,
+    required this.source,
+    required this.amount,
+    required this.originalAmount,
+    required this.mode,
+    required this.staff,
+    required this.holders,
+    required this.businessDate,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.shiftUuid,
+    required this.recordedBy,
+    required this.closed,
+    required this.corrections,
+    required this.createdAt,
   });
 
   factory Data298.fromJson(Map<String, Object?> json) =>
       _$Data298FromJson(json);
 
-  final int id;
-  final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  final String uuid;
+  final String method;
+  final String? source;
+  final String amount;
+  @JsonKey(name: 'original_amount')
+  final String originalAmount;
+  final String mode;
+  final Staff28? staff;
+  final List<Holders11> holders;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'recorded_by')
+  final RecordedBy11? recordedBy;
+  final bool closed;
+  final List<Corrections18> corrections;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data298ToJson(this);
 }

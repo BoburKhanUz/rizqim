@@ -7,7 +7,7 @@ part of 'qr2.dart';
 // **************************************************************************
 
 Qr2 _$Qr2FromJson(Map<String, dynamic> json) => Qr2(
-  payload: json['payload'] as String,
+  payload: json['payload'] as String?,
   label: json['label'] as String?,
   provider: json['provider'] as String?,
 );

@@ -31,19 +31,19 @@ Items47 _$Items47FromJson(Map<String, dynamic> json) => Items47(
   readyAt: json['ready_at'] as String?,
   addedBy: json['added_by'] == null
       ? null
-      : AddedBy19.fromJson(json['added_by'] as Map<String, dynamic>),
+      : AddedBy20.fromJson(json['added_by'] as Map<String, dynamic>),
   addedAt: json['added_at'] as String?,
   voidedAt: json['voided_at'] as String?,
   voidedBy: json['voided_by'] == null
       ? null
-      : VoidedBy19.fromJson(json['voided_by'] as Map<String, dynamic>),
+      : VoidedBy20.fromJson(json['voided_by'] as Map<String, dynamic>),
   voidReason: json['void_reason'] as String?,
   courseNo: (json['course_no'] as num?)?.toInt(),
   weightStatus: json['weight_status'] as String?,
   weightBasis: json['weight_basis'] as String?,
   weighedBy: json['weighed_by'] == null
       ? null
-      : WeighedBy19.fromJson(json['weighed_by'] as Map<String, dynamic>),
+      : WeighedBy20.fromJson(json['weighed_by'] as Map<String, dynamic>),
   weighedAt: json['weighed_at'] as String?,
 );
 

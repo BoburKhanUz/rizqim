@@ -4,25 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'prices.dart';
+import 'sold.dart';
+import 'redeemed.dart';
+import 'refunded.dart';
+import 'outstanding.dart';
+import 'blocked2.dart';
+import 'expired.dart';
 
 part 'data145.g.dart';
 
 @JsonSerializable()
 class Data145 {
   const Data145({
-    required this.productId,
-    required this.channels,
-    required this.prices,
+    required this.from,
+    required this.to,
+    required this.branchId,
+    required this.sold,
+    required this.redeemed,
+    required this.refunded,
+    required this.netChange,
+    required this.outstanding,
+    required this.blocked,
+    required this.expired,
+    required this.asOf,
   });
 
   factory Data145.fromJson(Map<String, Object?> json) =>
       _$Data145FromJson(json);
 
-  @JsonKey(name: 'product_id')
-  final int productId;
-  final List<dynamic> channels;
-  final List<Prices> prices;
+  final String from;
+  final String to;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final Sold sold;
+  final Redeemed redeemed;
+  final Refunded refunded;
+  @JsonKey(name: 'net_change')
+  final String netChange;
+  final Outstanding outstanding;
+  final Blocked2 blocked;
+  final Expired expired;
+  @JsonKey(name: 'as_of')
+  final String asOf;
 
   Map<String, Object?> toJson() => _$Data145ToJson(this);
 }

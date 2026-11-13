@@ -410,6 +410,8 @@ To'liq tushuntirish va kassirning standart qoidalari — [Kassa sozlash qo'llanm
 
 O'zgartirgach **Saqlash** ni bosing.
 
+**Kassada QR to'lov** uchun shu yerda do'konning **o'z** Click/Payme kalitlari kiritiladi, provayderni yoqish esa **Kassa sozlamalari** → **QR to'lov** da: [tolov-va-chek.md](tolov-va-chek.md#2-qr-tolov-panelda-sozlash). Sovg'a sertifikatlari alohida **Sertifikatlar** sahifasida, korxona hisoblari (stolovaya) **Nasiya** sahifasida: [tolov-va-chek.md](tolov-va-chek.md#5-sovga-sertifikati), [tolov-va-chek.md](tolov-va-chek.md#7-korxona-hisobi-va-talon-panelda-sozlash).
+
 ### Xizmat haqi
 
 Zal buyurtmalari uchun: **Xizmat haqi** (hisobdan foiz, 0 dan 30 gacha) va **Joy narxi** (**Har bir mehmon uchun** yoki **Har bir stol uchun**).

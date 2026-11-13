@@ -4,27 +4,71 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user_role.dart';
+import 'warnings7.dart';
+import 'lines13.dart';
+import 'open_shifts6.dart';
 
 part 'data181.g.dart';
 
 @JsonSerializable()
 class Data181 {
   const Data181({
-    required this.id,
-    required this.name,
-    required this.role,
+    required this.uuid,
     required this.branchId,
+    required this.period,
+    required this.periodLabel,
+    required this.periodFrom,
+    required this.periodTo,
+    required this.status,
+    required this.statusLabel,
+    required this.grossTotal,
+    required this.payableTotal,
+    required this.paidTotal,
+    required this.linesCount,
+    required this.warnings,
+    required this.computedAt,
+    required this.closedAt,
+    required this.version,
+    required this.createdAt,
+    required this.lines,
+    required this.openShifts,
   });
 
   factory Data181.fromJson(Map<String, Object?> json) =>
       _$Data181FromJson(json);
 
-  final int id;
-  final String name;
-  final UserRole role;
+  final String uuid;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
+  final int branchId;
+  final String period;
+  @JsonKey(name: 'period_label')
+  final String periodLabel;
+  @JsonKey(name: 'period_from')
+  final String periodFrom;
+  @JsonKey(name: 'period_to')
+  final String periodTo;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  @JsonKey(name: 'gross_total')
+  final String grossTotal;
+  @JsonKey(name: 'payable_total')
+  final String payableTotal;
+  @JsonKey(name: 'paid_total')
+  final String paidTotal;
+  @JsonKey(name: 'lines_count')
+  final int linesCount;
+  final List<Warnings7> warnings;
+  @JsonKey(name: 'computed_at')
+  final String? computedAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  final int version;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  final List<Lines13> lines;
+  @JsonKey(name: 'open_shifts')
+  final List<OpenShifts6> openShifts;
 
   Map<String, Object?> toJson() => _$Data181ToJson(this);
 }

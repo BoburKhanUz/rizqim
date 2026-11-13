@@ -11,7 +11,7 @@ PutV1OwnerStaffIdRoleResponse _$PutV1OwnerStaffIdRoleResponseFromJson(
 ) => PutV1OwnerStaffIdRoleResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data181.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data188.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerStaffIdRoleResponseToJson(

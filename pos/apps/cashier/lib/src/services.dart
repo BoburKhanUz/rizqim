@@ -6,6 +6,7 @@ import 'package:pos_lan/pos_lan.dart' show LanBillPrints, LanRemoteOp;
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
+import 'features/billing/qr_offline_guard.dart';
 import 'features/settings/cashier_prefs.dart';
 import 'hardware/cashier_hardware.dart';
 import 'lan/cashier_lan_hub.dart';
@@ -37,14 +38,30 @@ class CashierServices {
     CashierHardware? hardware,
     this.lanStore,
     this.billPrintPoll = const Duration(minutes: 1),
-  }) : data = data ?? PosData(client, clock: clock, offlineStore: offlineStore),
+    this.qrPollInterval = const Duration(seconds: 3),
+  }) : data =
+           data ??
+           PosData(
+             client,
+             clock: clock,
+             offlineStore: offlineStore,
+             // Review P6 wave 4 (C3): a QR pending when cash was taken offline is read again before the payment goes
+             syncTransport: offlineStore == null
+                 ? null
+                 : QrOfflineGuard(clock: clock),
+           ),
        printing = printing ?? CashierPrinting(),
        hardware = hardware ?? CashierHardware() {
+    final SyncTransport? transport = this.data.offline?.sender.transport;
+    if (transport is QrOfflineGuard) qrGuard = transport..attach(this.data);
     // P6 local bridge: from the start (a till reopened offline runs the hub before anyone can sign in)
     unawaited(lan.start());
     // P6 stage B: the till's own cart and queue go to the LAN devices; a bill asked over the LAN offline prints here
     lanPublisher.start();
   }
+
+  /// Review P6 wave 4 (C3): offlayn to'lov va kutilayotgan dinamik QR (`null` — oflayn rejim yo'q yoki [data] tashqaridan).
+  QrOfflineGuard? qrGuard;
 
   /// Review P6 uskunalar/LAN (C2): o'tkazib yuborilgan schyot so'rovlari shu oraliqda ham o'qiladi
   /// ([BillPrintService.catchUp]; real-time sozlanmagan kassa ham chiqaradi). `null` — faqat hodisalarda.
@@ -131,6 +148,9 @@ class CashierServices {
   /// Real-time jonli bo'lmaganda ro'yxatlar shu oraliqda yangilanadi ([PosRefreshScheduler]).
   final Duration pollInterval;
   final Duration livePollInterval;
+
+  /// P6-41: kutilayotgan QR holati shu oraliqda so'raladi (real-time bo'lmasa ham to'lov o'zi ko'rinadi).
+  final Duration qrPollInterval;
 
   AuthSession get auth => client.auth;
   PosSession get session => data.session;

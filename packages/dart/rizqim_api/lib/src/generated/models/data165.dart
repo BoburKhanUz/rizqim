@@ -4,44 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components2.dart';
+import 'service_charge_rules2.dart';
 
 part 'data165.g.dart';
 
 @JsonSerializable()
 class Data165 {
   const Data165({
-    required this.uuid,
     required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.role,
-    required this.roleLabel,
-    required this.effectiveFrom,
-    required this.components,
-    required this.note,
-    required this.updatedAt,
+    required this.hallId,
+    required this.serviceChargePercent,
+    required this.serviceChargeChannels,
+    required this.placeFeeAmount,
+    required this.placeFeeMode,
+    required this.placeFeeChannels,
+    required this.serviceChargeRules,
+    required this.serviceChargeNotice,
   });
 
   factory Data165.fromJson(Map<String, Object?> json) =>
       _$Data165FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'user_id')
-  final int? userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  final String? role;
-  @JsonKey(name: 'role_label')
-  final String? roleLabel;
-  @JsonKey(name: 'effective_from')
-  final String effectiveFrom;
-  final List<Components2> components;
-  final String? note;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final int? branchId;
+
+  /// P3-12: a hall's own row (null: the branch's or the store's)
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
+  @JsonKey(name: 'service_charge_percent')
+  final String serviceChargePercent;
+  @JsonKey(name: 'service_charge_channels')
+  final List<String>? serviceChargeChannels;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'place_fee_mode')
+  final String placeFeeMode;
+  @JsonKey(name: 'place_fee_channels')
+  final List<String>? placeFeeChannels;
+
+  /// P6-22: the row's service charge variants and notice (PUT /owner/pos/service-charge-rules)
+  @JsonKey(name: 'service_charge_rules')
+  final ServiceChargeRules2 serviceChargeRules;
+  @JsonKey(name: 'service_charge_notice')
+  final String? serviceChargeNotice;
 
   Map<String, Object?> toJson() => _$Data165ToJson(this);
 }

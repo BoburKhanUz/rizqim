@@ -200,6 +200,10 @@ tasdig'i bilan.
 
 Hisobni bo'lish (teng yoki taom bo'yicha) — kassada. Shuni hisob so'rashda mehmonlarga ayting, kassirga ham.
 
+### Promo-kod
+
+Filialda sovg'a sertifikati va vaucher moduli yoqilgan bo'lsa, buyurtma menyusida (yuqoridagi uch nuqta) **Promo-kod** bor: kodni yozing, **Qo'llash**. Chegirma schyotda "Promo-kod KOD" qatori bo'lib chiqadi; **Promo-kodni olib tashlash** uni qaytaradi. Bitta buyurtmaga bitta kod. Internet bo'lmasa "Internet yo'q: sertifikat va promo-kod faqat server bilan ishlaydi" deyiladi: mehmonga chegirma bo'lmasa, kassirga ayting. Batafsil: [tolov-va-chek.md](tolov-va-chek.md#6-promo-kod).
+
 ## 8. Mehmonlar soni va ko'chirish
 
 Tepada menyu (⋮):

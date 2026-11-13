@@ -2,6 +2,7 @@ import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 
 import '../billing/cashier_ui.dart';
+import '../billing/payment_messages.dart' show qrProviderLabel;
 
 /// X/Z hisobotining ekrandagi va chop etiladigan ko'rinishi (`report` / `summary`, docs/API.md "Smena, kassa, X va Z";
 /// tiplangan [PosShiftReport] dan) va `pos_core` [ShiftReport] ga aylantirish.
@@ -96,6 +97,37 @@ class ShiftReportView {
     return left > expectedCash ? expectedCash : left;
   }
 
+  /// P6-41: QR to'lovlar provayder bo'yicha (Click, Payme, UzQR, qo'lda — statik QR).
+  List<ReportAmount> get qrProviderLines => <ReportAmount>[
+    for (final PosQrProviderTotal p in report.qrProviders)
+      if (p.count > 0 || p.amount.isPositive)
+        ReportAmount(qrProviderLabel(p.provider), p.amount, count: p.count),
+  ];
+
+  /// P6-43: smenadagi sertifikatlar.
+  PosShiftVouchers get vouchers => report.vouchers;
+
+  /// Sotilgan (bo'nak — sotuvga kirmaydi; to'lov turi bo'yicha) va schyotlarda ishlatilgan sertifikatlar.
+  List<ReportAmount> get voucherLines {
+    final PosShiftVouchers v = vouchers;
+    if (v.isEmpty) return const <ReportAmount>[];
+    return <ReportAmount>[
+      ReportAmount("Sotildi (bo'nak)", v.soldAmount, count: v.soldCount),
+      if (v.soldCash.isPositive) ReportAmount('  naqd', v.soldCash),
+      if (v.soldCard.isPositive) ReportAmount('  karta', v.soldCard),
+      if (v.soldQr.isPositive) ReportAmount('  QR', v.soldQr),
+      ReportAmount(
+        'Schyotlarda ishlatildi',
+        v.redeemedAmount,
+        count: v.redeemedCount,
+      ),
+    ];
+  }
+
+  /// Kassadagi naqd sertifikat puli (`cash.vouchers`; kutilgan naqdga kiradi).
+  PosMoney get cashVouchers =>
+      vouchers.drawerCash.isPositive ? vouchers.drawerCash : vouchers.soldCash;
+
   /// X/Z dagi choy puli qatorlari (chop etish va ekran uchun).
   List<ReportAmount> get tipLines {
     final PosTipsSummary t = tips;
@@ -168,6 +200,9 @@ class ShiftReportView {
         if (cashIn.isPositive) ReportAmount('Kirim', cashIn),
         // P6-22: the cash tips stay in the drawer (in the expected cash), apart from the sales
         if (cashTips.isPositive) ReportAmount('Choy puli (naqd)', cashTips),
+        // P6-43: certificates sold for cash (an advance, not a sale) are in the drawer too
+        if (cashVouchers.isPositive)
+          ReportAmount('Sertifikat (naqd)', cashVouchers),
       ],
       cashOut: <ReportAmount>[
         if (purchases.isPositive) ReportAmount('Bozorlik', purchases),
@@ -177,6 +212,8 @@ class ShiftReportView {
         if (cashOut.isPositive) ReportAmount('Chiqim', cashOut),
       ],
       tips: tipLines,
+      vouchers: voucherLines,
+      qrProviders: qrProviderLines,
       countedCash: counted,
       denominations: <CashDenomination>[
         if (denominations != null)

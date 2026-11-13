@@ -11,7 +11,7 @@ GetV1PosClockResponse _$GetV1PosClockResponseFromJson(
 ) => GetV1PosClockResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data212.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data221.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosClockResponseToJson(

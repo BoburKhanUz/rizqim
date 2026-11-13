@@ -18,6 +18,12 @@ class PosCustomerAccount {
     this.note,
     this.createdAt,
     this.updatedAt,
+    this.kind = 'customer',
+    this.companyName,
+    this.monthlyLimit,
+    this.chargeApproval = true,
+    this.talonMode = 'none',
+    this.membersCount = 0,
   });
 
   factory PosCustomerAccount.fromJson(PosJson j) => PosCustomerAccount(
@@ -33,6 +39,12 @@ class PosCustomerAccount {
     note: j.strOrNull('note'),
     createdAt: j.dateOrNull('created_at'),
     updatedAt: j.dateOrNull('updated_at'),
+    kind: j.strOrNull('kind') ?? 'customer',
+    companyName: j.strOrNull('company_name'),
+    monthlyLimit: j.moneyOrNull('monthly_limit'),
+    chargeApproval: j.boolean('charge_approval', fallback: true),
+    talonMode: j.strOrNull('talon_mode') ?? 'none',
+    membersCount: j.intOrNull('members_count') ?? 0,
   );
 
   final String uuid;
@@ -57,6 +69,163 @@ class PosCustomerAccount {
   final String? note;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// P6-44: `customer` (nasiya) yoki `corporate` (korxona: xodimlar talon bilan).
+  final String kind;
+  final String? companyName;
+
+  /// Korxona: oylik limit (`null` — yo'q).
+  final PosMoney? monthlyLimit;
+
+  /// Kassada menejer tasdig'i kerakmi (nasiya — doim; korxona — egasining tanlovi).
+  final bool chargeApproval;
+
+  /// `none` | `daily_limit` | `subscription`.
+  final String talonMode;
+  final int membersCount;
+
+  bool get isCorporate => kind == 'corporate';
+}
+
+/// P6-44: korxona hisobining xodimi (`GET /pos/customer-accounts/{uuid}/members`): talon kodi, kunlik limit, kuniga
+/// ovqat soni.
+class PosAccountMember {
+  const PosAccountMember({
+    required this.uuid,
+    required this.name,
+    required this.code,
+    this.phone,
+    this.dailyLimit,
+    this.mealsPerDay,
+    this.active = true,
+    this.note,
+  });
+
+  factory PosAccountMember.fromJson(PosJson j) => PosAccountMember(
+    uuid: j.str('uuid'),
+    name: j.str('name'),
+    code: j.str('code'),
+    phone: j.strOrNull('phone'),
+    dailyLimit: j.moneyOrNull('daily_limit'),
+    mealsPerDay: j.intOrNull('meals_per_day'),
+    active: j.boolean('is_active', fallback: true),
+    note: j.strOrNull('note'),
+  );
+
+  final String uuid;
+  final String name;
+
+  /// Talon kodi (QR ichida ham shu).
+  final String code;
+  final String? phone;
+  final PosMoney? dailyLimit;
+  final int? mealsPerDay;
+  final bool active;
+  final String? note;
+}
+
+/// P6-44: kassada topilgan korxona xodimi (`GET /pos/customer-accounts/members/lookup`): hisob, xodim (telefon
+/// yashirilgan) va bugun / shu oy qancha qolgani. Internetsiz ishlamaydi (limitlar serverda): kassa naqd yoki karta taklif
+/// qiladi.
+class PosCorporateLookup {
+  const PosCorporateLookup({
+    required this.accountUuid,
+    required this.accountName,
+    required this.memberUuid,
+    required this.memberName,
+    required this.code,
+    required this.businessDate,
+    this.companyName,
+    this.talonMode = 'none',
+    this.chargeApproval = false,
+    this.accountBlocked = false,
+    this.memberActive = true,
+    this.memberPhone,
+    this.dailyLimit,
+    this.mealsPerDay,
+    this.usedToday = PosMoney.zero,
+    this.mealsToday = 0,
+    this.dailyAvailable,
+    this.mealsLeft,
+    this.monthUsed = PosMoney.zero,
+    this.monthlyLimit,
+    this.monthAvailable,
+    this.creditAvailable,
+  });
+
+  factory PosCorporateLookup.fromJson(PosJson j) {
+    final PosJson account = j.obj('account');
+    final PosJson member = j.obj('member');
+    final PosJson usage = j.obj('usage');
+    final PosJson? day = usage.objOrNull('member');
+    final PosJson month = usage.obj('month');
+    return PosCorporateLookup(
+      accountUuid: account.str('uuid'),
+      accountName: account.str('name'),
+      companyName: account.strOrNull('company_name'),
+      talonMode: account.strOrNull('talon_mode') ?? 'none',
+      chargeApproval: account.boolean('charge_approval'),
+      accountBlocked: account.boolean('is_blocked'),
+      memberUuid: member.str('uuid'),
+      memberName: member.str('name'),
+      memberPhone: member.strOrNull('phone'),
+      code: member.str('code'),
+      memberActive: member.boolean('is_active', fallback: true),
+      dailyLimit: member.moneyOrNull('daily_limit'),
+      mealsPerDay: member.intOrNull('meals_per_day'),
+      businessDate: usage.str('business_date'),
+      usedToday: day?.money('amount') ?? PosMoney.zero,
+      mealsToday: day?.intOrNull('meals') ?? 0,
+      dailyAvailable: day?.moneyOrNull('daily_available'),
+      mealsLeft: day?.intOrNull('meals_left'),
+      monthUsed: month.money('amount'),
+      monthlyLimit: month.moneyOrNull('monthly_limit'),
+      monthAvailable: month.moneyOrNull('available'),
+      creditAvailable: usage.moneyOrNull('credit_available'),
+    );
+  }
+
+  final String accountUuid;
+  final String accountName;
+  final String? companyName;
+  final String talonMode;
+
+  /// `true` — to'lovda menejer tasdig'i ham kerak.
+  final bool chargeApproval;
+  final bool accountBlocked;
+  final String memberUuid;
+  final String memberName;
+
+  /// Yashirilgan ("+998 90 *** ** 33").
+  final String? memberPhone;
+  final String code;
+  final bool memberActive;
+  final PosMoney? dailyLimit;
+  final int? mealsPerDay;
+
+  /// Filialning biznes kuni (YYYY-MM-DD).
+  final String businessDate;
+  final PosMoney usedToday;
+  final int mealsToday;
+
+  /// Bugun yana qancha (`null` — kunlik limit yo'q).
+  final PosMoney? dailyAvailable;
+
+  /// Bugun yana necha marta (`null` — cheklanmagan).
+  final int? mealsLeft;
+  final PosMoney monthUsed;
+  final PosMoney? monthlyLimit;
+  final PosMoney? monthAvailable;
+  final PosMoney? creditAvailable;
+
+  /// [amount] ni yozish mumkinmi (serverdagi qoidalar bilan bir xil; oxirgi so'z — serverniki).
+  bool allows(PosMoney amount) =>
+      memberActive &&
+      !accountBlocked &&
+      (dailyAvailable == null || amount <= dailyAvailable!) &&
+      (mealsLeft == null || mealsLeft! > 0) &&
+      (monthAvailable == null || amount <= monthAvailable!) &&
+      (creditAvailable == null || amount <= creditAvailable!);
 }
 
 /// Hisob yozuvi: `charge` (+), `repayment` (−), `adjustment` (±).

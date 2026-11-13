@@ -12,10 +12,13 @@ Summary6 _$Summary6FromJson(Map<String, dynamic> json) => Summary6(
   period: Period7.fromJson(json['period'] as Map<String, dynamic>),
   sales: Sales7.fromJson(json['sales'] as Map<String, dynamic>),
   byTender: (json['by_tender'] as List<dynamic>)
-      .map((e) => ByTender4.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByTender5.fromJson(e as Map<String, dynamic>))
       .toList(),
   cards: (json['cards'] as List<dynamic>)
       .map((e) => Cards4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  qrProviders: (json['qr_providers'] as List<dynamic>)
+      .map((e) => QrProviders4.fromJson(e as Map<String, dynamic>))
       .toList(),
   byChannel: (json['by_channel'] as List<dynamic>)
       .map((e) => ByChannel6.fromJson(e as Map<String, dynamic>))
@@ -32,6 +35,7 @@ Summary6 _$Summary6FromJson(Map<String, dynamic> json) => Summary6(
   deposits: Deposits4.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit7.fromJson(json['credit'] as Map<String, dynamic>),
   tips: Tips13.fromJson(json['tips'] as Map<String, dynamic>),
+  vouchers: Vouchers5.fromJson(json['vouchers'] as Map<String, dynamic>),
   cash: Cash5.fromJson(json['cash'] as Map<String, dynamic>),
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements4.fromJson(e as Map<String, dynamic>))
@@ -53,6 +57,7 @@ Map<String, dynamic> _$Summary6ToJson(Summary6 instance) => <String, dynamic>{
   'sales': instance.sales,
   'by_tender': instance.byTender,
   'cards': instance.cards,
+  'qr_providers': instance.qrProviders,
   'by_channel': instance.byChannel,
   'by_waiter': instance.byWaiter,
   'discounts': instance.discounts,
@@ -62,6 +67,7 @@ Map<String, dynamic> _$Summary6ToJson(Summary6 instance) => <String, dynamic>{
   'deposits': instance.deposits,
   'credit': instance.credit,
   'tips': instance.tips,
+  'vouchers': instance.vouchers,
   'cash': instance.cash,
   'movements': instance.movements,
   'open_orders': instance.openOrders,

@@ -436,6 +436,8 @@ LAN printerga marka chiqadi.
 | **Egaga xabar chegaralari** | Pastda |
 | **Bayram kunlari** | Xona narxi kalendaridagi ro'yxat bilan bitta |
 
+**QR to'lov** (Click, Payme, UzQR) uchun alohida **QR to'lov** yorlig'i bor: provayderlar, birinchi taklif qilinadigani va QR amal qilish vaqti. O'z merchant hisobini ulash va webhook manzillari: [tolov-va-chek.md](tolov-va-chek.md#2-qr-tolov-panelda-sozlash).
+
 **Egaga xabar chegaralari** — chegara oshsa, sizga Telegram'da xabar keladi (belgini olib tashlasangiz, shu xabar o'chadi):
 
 - **Xona uzoq ochiq** — soat (standart 6): xona shuncha soatdan ortiq ochiq tursa.
@@ -696,6 +698,8 @@ Qanday ishlaydi:
   chiqadi ([Ikki marta hisoblamaslik](#ikki-marta-hisoblamaslik)).
 - 500 000 so'mdan (standart) katta yangi nasiya va har bir qarz to'lovi haqida sizga Telegram'ga xabar keladi.
 - Tavsiya: har bir hisobga limit qo'ying, guruhlarga (kompaniya) alohida hisob oching.
+
+**Korxona hisobi** (stolovaya): hisob turi **Korxona** — xodimlar talon kodi bilan ovqatlanadi, kunlik va oylik limit, oy oxirida hisobot va Excel. Batafsil: [tolov-va-chek.md](tolov-va-chek.md#7-korxona-hisobi-va-talon-panelda-sozlash).
 
 Telefonda: Mini App → **Profil** → **Qarzdorlar**: kim qancha qarz (eng kattasi birinchi), jami qarz, limit, bloklanganligi, qo'ng'iroq qilish tugmasi.
 

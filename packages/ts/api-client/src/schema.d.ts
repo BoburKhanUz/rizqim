@@ -6485,6 +6485,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/pos/qr-payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's QR payment settings
+         * @description `providers`: offered at the till (each also needs its merchant account: `merchants[].configured` — Click and
+         *     Payme: the store's own merchant account with its keys in the payment settings and "o'z hisobi" on; UzQR: a gateway
+         *     in the fiscal settings, `fiscal_settings.uzqr.driver`); `default_provider`; `expiry_minutes` (1–30, default 5);
+         *     `enabled`: the branch has the `qr_payments` module.
+         */
+        get: operations["qrPaymentSettings.show"];
+        /**
+         * Change the branch's QR payment settings
+         * @description Send what changes: `providers` (a list of click, payme, uzqr; may be empty), `default_provider` (one of them, or
+         *     null), `expiry_minutes` (1–30). Needs the `qr_payments` module (403 module_disabled); a locked subscription
+         *     changes nothing (403 subscription_locked). Audited (settings.qr_payments_changed).
+         */
+        put: operations["qrPaymentSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/pos/service-charge-rules": {
         parameters: {
             query?: never;
@@ -6672,6 +6701,135 @@ export interface paths {
          *     `nothing_to_correct`, `reason_required`, `staff_not_found`. Audited (pos.tip_corrected).
          */
         post: operations["tips.correct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gift certificates
+         * @description Newest first, paginated (`per_page` up to 100). Filters: `status` (active, used, blocked, expired — `expired`
+         *     includes the active ones past their date), `q` (code, buyer name or phone digits), `branch_id` (where sold),
+         *     `from`/`to` (sold on these dates). Without vouchers.manage the codes are masked (`print` null) and `q` finds a
+         *     certificate by its whole code only.
+         */
+        get: operations["vouchers.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gift certificates (Excel)
+         * @description The filtered list (as GET /owner/pos/vouchers, at most 5 000 rows; buyer phones masked, codes masked without
+         *     vouchers.manage) on the "Sertifikatlar" sheet and the period report on "Hisobot". Each export is recorded in the audit log.
+         */
+        get: operations["vouchers.export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gift certificate report
+         * @description For business days `from`..`to` (default today; at most 366 days): sold (the advances, by tender), redeemed on
+         *     bills, refunded back onto certificates, the period's net change of the liability; as of today the outstanding
+         *     liability (what certificates can still pay), and what is blocked or expired unused. `branch_id`: one branch.
+         */
+        get: operations["vouchers.report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One gift certificate, with its history
+         * @description Every entry (sale, redemptions with their bills, refunds back onto it, blocks), newest first (up to 200). The
+         *     buyer's phone, the code and the `print` block are shown in full to vouchers.manage only (masked code, no `print`
+         *     for reports.view).
+         */
+        get: operations["vouchers.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers/{uuid}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block a gift certificate
+         * @description It pays nothing until unblocked (lost, stolen, sold by mistake); `reason` required. 409 `voucher_blocked` when it
+         *     already is. Needs vouchers.manage; audited.
+         */
+        post: operations["vouchers.block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/vouchers/{uuid}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unblock a gift certificate
+         * @description It pays again what is left on it (optional `reason`). 409 `voucher_not_blocked`. Needs vouchers.manage; audited.
+         */
+        post: operations["vouchers.unblock"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7838,7 +7996,13 @@ export interface paths {
          *     last four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the
          *     receipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once
          *     per bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;
-         *     once per bill). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
+         *     once per bill; P6-44: a corporate account takes `member_code` — the talon — or `member_phone`, needs the
+         *     approval only when its `charge_approval` is on, and is refused over its limits: 422 `member_required`,
+         *     `member_inactive`, `member_daily_limit`, `member_meals_used`, `account_monthly_limit`, `account_credit_limit`,
+         *     404 `member_not_found`), `voucher` (P6-43: a gift certificate, `voucher_code` as printed or scanned; at most its
+         *     balance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,
+         *     409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;
+         *     online only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
          *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
          *     covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
          *     order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
@@ -7904,6 +8068,39 @@ export interface paths {
          *     till's own receipt printer), `target_device` (null: every till of the branch).
          */
         post: operations["posBill.printRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bills/{uuid}/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A bill's QR requests
+         * @description The bill's QR requests, newest first (`pending` is the one to show; at most one). Needs orders.view.
+         */
+        get: operations["posQrPayment.index"];
+        put?: never;
+        /**
+         * Show a QR for the bill
+         * @description Makes a dynamic QR for what the bill still owes (or `amount` of it, the QR part of a mixed payment): `provider`
+         *     click, payme or uzqr (default: the branch's default provider). Print `payload` on the bill and send `display` to
+         *     the customer display (PosDisplayPayment.qr). One pending QR per bill: a new one cancels the old. The provider
+         *     confirms the payment by itself (no cashier action): the bill takes a `qr` payment (`reference` = the provider's
+         *     transaction id) and its sale receipt is issued by Rizqim (the provider registers none). Valid for the branch's
+         *     `expiry_minutes`. Needs the `qr_payments` module (403 module_disabled), pos.take_payment and an open shift (409
+         *     `shift_not_open`); 422 `qr_provider_disabled` (the branch does not offer it), 409 `provider_not_configured` (the
+         *     store's own Click/Payme merchant account, or the UzQR gateway, is not set up), 422 `overpayment` (`due`),
+         *     `mxik_missing`; 409 `bill_paid`, `bill_void`, `bill_awaiting_fiscal`, `order_changed`, `bill_changed`. Offline
+         *     the till cannot make one: it offers the static QR confirmed by hand.
+         */
+        post: operations["posQrPayment.store"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8397,7 +8594,10 @@ export interface paths {
         /**
          * Open a customer account
          * @description `name` required; `phone` (+998…, unique in the store), `group_name`, `credit_limit` (null: no limit; 0: no credit),
-         *     `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). Needs
+         *     `note`, `branch_id` (only that branch; default: store-wide, a branch-bound manager's own branch). P6-44: `kind`
+         *     corporate (needs the corporate_accounts module) with `company_name`, `inn` (9 or 14 digits), `contact_name`,
+         *     `contact_phone`, `invoice_email`, `monthly_limit` (null: none), `charge_approval` (default false for a
+         *     corporate account: a lunch at the till needs no manager), `talon_mode` none|daily_limit|subscription. Needs
          *     customer_accounts.manage; P3-26: a cashier at the till (pos.take_payment) sends a manager's one-time
          *     `approval_token` for customer_accounts.manage (POST /pos/approvals; 403 `approval_required` without).
          */
@@ -8428,6 +8628,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/customer-accounts/members/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find a member at the till
+         * @description By the talon's `code` (scanned or typed) or the member's `phone`: the member, their company's account and what
+         *     is left today (the branch's business day) and this month, for the cashier to see before charging. A member of
+         *     another store, or of an account of another branch: 404 `member_not_found`. Found by `phone`, the talon `code` comes
+         *     masked (the charge by phone needs no code). Not gated by the corporate_accounts module: an existing account is
+         *     still charged at the till when the module is off. Needs customer_accounts.manage or pos.take_payment.
+         */
+        get: operations["corporateAccount.lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/customer-accounts/{uuid}": {
         parameters: {
             query?: never;
@@ -8444,7 +8668,8 @@ export interface paths {
         head?: never;
         /**
          * Change a customer account
-         * @description Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). Needs
+         * @description Only the fields sent change; `is_blocked: true` stops new credit (repayments still work). P6-44: the corporate
+         *     fields as on create; back to `kind` customer only without members (422 `account_has_members`). Needs
          *     customer_accounts.manage; P3-26: a cashier (pos.take_payment) sends a manager's one-time `approval_token` for it.
          */
         patch: operations["customerAccount.update"];
@@ -8468,6 +8693,124 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/corporate-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly statement of a corporate account
+         * @description `month` (YYYY-MM; default: this month in the store's time zone): what each member ate on each business day
+         *     (net of refunds; `meals` = bills), charges without a member in a row of their own (`member` null), the totals by
+         *     day and in all, the repayments received in the month and the debt now (below zero: the company's overpayment,
+         *     "Ortiqcha to'lov"). Talon codes, the INN and the contact phone are masked (`masked: true`) unless the caller holds
+         *     customer_accounts.manage for the account. A branch-bound reader of a store-wide account sees only their branch's
+         *     charges and repayments (`branch_id`: that branch; null: all). Needs reports.view.
+         */
+        get: operations["corporateAccount.statement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/corporate-statement/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly statement as Excel
+         * @description The statement of GET .../corporate-statement as an .xlsx file: sheet "Hisobot" (a member per row, a business day
+         *     per column, the totals), sheet "Hisob-faktura" (the company, the month, the totals, the debt) — openspout, texts
+         *     as text; masked and scoped as the statement. Audited (customer_account.statement_exported). Needs reports.view.
+         */
+        get: operations["corporateAccount.export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Members of a corporate account
+         * @description Everyone of the company (active first, then by name), with their talon code and limits. `q`: name, code or phone
+         *     digits; `active`: only active (1) or inactive (0) ones.
+         */
+        get: operations["corporateAccount.members"];
+        put?: never;
+        /**
+         * Add a member
+         * @description `name` required; `phone` (+998…, unique among the store's members), `code` (the talon: 4–32 letters, digits
+         *     or "-"; default: ten random digits; unique in the store), `daily_limit` (sum per business day; null: none),
+         *     `meals_per_day` (subscription; null: none), `note`. Needs customer_accounts.manage.
+         */
+        post: operations["corporateAccount.storeMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/members/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add members from pasted lines
+         * @description `lines`: one member per line, "name;phone" (the phone may be empty; a third column, when given, is the talon code).
+         *     `daily_limit` and `meals_per_day` apply to each. Up to 500 lines; blank lines are skipped. All or nothing: any bad line
+         *     (no name, a wrong phone, a phone or code already in the store or twice in the paste) answers 422 `bulk_invalid`
+         *     with `lines: [{line, reason, message}]` and adds no one. Needs customer_accounts.manage.
+         */
+        post: operations["corporateAccount.bulk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/customer-accounts/{uuid}/members/{member}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a member
+         * @description Only the fields sent change; `is_active: false` stops their talon (the till refuses it: `member_inactive`);
+         *     `regenerate_code: true` gives them a new talon code (the old chit stops working). Needs customer_accounts.manage.
+         */
+        patch: operations["corporateAccount.updateMember"];
         trace?: never;
     };
     "/v1/pos/customer-accounts/{uuid}/repayments": {
@@ -9218,6 +9561,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/orders/{uuid}/promo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a promo code to a POS order
+         * @description A discount voucher is a store promo code: `code` becomes the order's discount on the dishes with the reason
+         *     `promo:<CODE>` (a percentage without a cap stays a percent; a fixed amount, or a capped percentage, is worked
+         *     out now). The cashier's discount limit does not apply; the waiter rule does. One code per order: 409
+         *     `promo_already_applied` (take it off first); a discount typed by hand later replaces it. Usage counts as for
+         *     online orders (a cancelled order gives it back). 404 `promo_not_found` (unknown, another store's, or a
+         *     platform-wide code), 422 `promo_inactive`, `promo_min_order`, `promo_limit_reached`, `promo_no_discount`; 409
+         *     `paid_bill_affected`, `version_conflict`. Needs orders.manage and the `vouchers` module; online only.
+         */
+        post: operations["posVoucher.applyPromo"];
+        /**
+         * Take the promo code off a POS order
+         * @description The order's discount goes with it (422 `promo_not_applied` when it has none). Needs orders.manage.
+         */
+        delete: operations["posVoucher.removePromo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/orders/{uuid}/ready": {
         parameters: {
             query?: never;
@@ -9400,6 +9773,58 @@ export interface paths {
         get: operations["posTakeaway.slots"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/qr/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A QR request
+         * @description Its status now (the till's poll when it has no realtime): `pending`, `paid`, `cancelled` (`cancel_reason`:
+         *     cashier, replaced, bill_changed, shift_closed, payment_refused:<code>, provider_cancelled, payme_cancel:<n>),
+         *     `expired` or `refunded`. Reading it expires it when its time ran out; a pending UzQR asks its gateway. Needs
+         *     orders.view.
+         */
+        get: operations["posQrPayment.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel a QR
+         * @description The cashier takes the QR back (the customer pays another way): its later confirmation is refused, so the provider
+         *     does not take the money. Already cancelled or expired: returned as it is; paid: 409 `qr_already_paid` (refund
+         *     it instead). Optional `reason` (audited). Needs pos.take_payment.
+         */
+        delete: operations["posQrPayment.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/qr/{uuid}/simulate-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a sandbox QR (demo)
+         * @description Plays the provider's confirmation for a QR of a sandbox driver (`simulated: true`; demo and e2e stands):
+         *     exactly what a real webhook does. A real provider's QR: 409 `qr_not_simulated`; switched off (production, or
+         *     neither `QR_PAYMENTS_SANDBOX` nor `QR_PAYMENTS_SIMULATE_DRIVERS` set): 404.
+         *     Needs pos.take_payment.
+         */
+        post: operations["posQrPayment.simulatePaid"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9833,6 +10258,55 @@ export interface paths {
          *     Idempotent. Audited (pos.tip_corrected).
          */
         post: operations["posTips.correct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/vouchers/sell": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sell a gift certificate
+         * @description A non-menu sale: `face_value` (whole so'm, 1 000 – 100 000 000) paid by `tender` cash, card (`card_type` and the
+         *     terminal's `transaction_id` required) or qr (optional `reference`); optional `buyer_name`, `buyer_phone`
+         *     (+998…), `valid_until` (the last business day it pays, default a year), `note`. The money lands in the open shift
+         *     of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under `vouchers.sold`, apart from the
+         *     sales — and an ADVANCE receipt is issued for it (`fiscal`). The answer carries the code and its `print` block
+         *     (store, code, QR text, value, validity) for the certificate slip. 422 `face_value_invalid`, `tender_invalid`,
+         *     `card_type_required`, `transaction_id_required`, `buyer_phone_invalid`, `valid_until_invalid`, `mxik_missing`.
+         *     The same Idempotency-Key returns the same certificate. Needs pos.take_payment and the `vouchers` module.
+         */
+        post: operations["posVoucher.sell"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/vouchers/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up a gift certificate
+         * @description By the code as printed or scanned (spaces, dashes and lower case are fine): its balance, validity and status
+         *     (`expired` once its last business day has passed), the buyer's phone masked, and its last 10 entries. Another
+         *     store's or an unknown code: 404 `voucher_not_found`. Needs pos.take_payment.
+         */
+        get: operations["posVoucher.show"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10841,6 +11315,12 @@ export interface components {
          * @enum {string}
          */
         CourierType: "own" | "fleet";
+        /**
+         * CustomerAccountKind
+         * @description customer_accounts.kind (P6-44): `customer` is nasiya as in P3-17 (a person or a group; a charge at the till always needs customer_accounts.manage or a manager's approval); `corporate` is a company whose staff eat on its account (members with talons, daily limits or meals per day, a monthly limit and statement; a charge needs approval only when the owner switched `charge_approval` on).
+         * @enum {string}
+         */
+        CustomerAccountKind: "customer" | "corporate";
         /** DeliveryZone */
         DeliveryZone: {
             id: number;
@@ -11343,6 +11823,7 @@ export interface components {
             kitchen_fire_at: string | null;
             /** Format: date-time */
             kitchen_fired_at: string | null;
+            promo_note: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -11606,7 +12087,7 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund" | "orders.transfer" | "hostess.manage" | "staff_pay.view" | "staff_pay.manage" | "tips.manage";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund" | "orders.transfer" | "hostess.manage" | "staff_pay.view" | "staff_pay.manage" | "tips.manage" | "vouchers.manage";
         /**
          * PickupStatus
          * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a POS counter order before its lines went to the kitchen, an online pickup order of a branch without `queue_calling`). A POS counter order is tracked in every format (its kitchen lines outlive a payment taken first); only where `queue_calling` is on is it shown on the board and announced.
@@ -11779,6 +12260,12 @@ export interface components {
             store?: components["schemas"]["Store"] | null;
             orders?: components["schemas"]["Order"][];
         };
+        /**
+         * QrProvider
+         * @description P6-41/P6-42: who takes the money of a dynamic QR shown at the till. Click and Payme confirm it through their webhooks into the store's own merchant account; UzQR (the national interbank QR) through the store's UzQR gateway (UzQrGateway, P3-32-dependent; a sandbox until then).
+         * @enum {string}
+         */
+        QrProvider: "click" | "payme" | "uzqr";
         /** RefreshToken */
         RefreshToken: {
             id: number;
@@ -12053,6 +12540,12 @@ export interface components {
          * @enum {string}
          */
         SubscriptionStatus: "trialing" | "active" | "past_due" | "locked" | "cancelled";
+        /**
+         * TalonMode
+         * @description customer_accounts.talon_mode (P6-44), how a corporate account's people eat: - none: the company is charged as a whole; naming a member is optional (recorded when given);  - daily_limit: every charge names a member (the talon: their code, or their phone), at most their `daily_limit`    sum per business day;  - subscription (abonement): every charge names a member, at most their `meals_per_day` charges per business day; the    monthly statement counts the meals. A member's `daily_limit`, when set, is checked in this mode too.  "Talon" is the member's code (printed as a QR chit or on a badge), not a paper ticket that is used up: the limits are counted on the server, so a lost or copied chit can only be used within its owner's limits.
+         * @enum {string}
+         */
+        TalonMode: "none" | "daily_limit" | "subscription";
         /** TariffPlan */
         TariffPlan: {
             id: number;
@@ -32043,6 +32536,115 @@ export interface operations {
             401: components["responses"]["AuthenticationException"];
         };
     };
+    "qrPaymentSettings.show": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own when omitted). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings: {
+                                branch_id: number;
+                                enabled: boolean;
+                                providers: string[];
+                                default_provider: string | null;
+                                expiry_minutes: number;
+                                updated_at: string | null;
+                            };
+                            merchants: {
+                                provider: string;
+                                label: string;
+                                configured: boolean;
+                                driver: string;
+                            }[];
+                            options: {
+                                providers: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                expiry_min: number;
+                                expiry_max: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "qrPaymentSettings.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    providers?: components["schemas"]["QrProvider"][];
+                    default_provider?: components["schemas"]["QrProvider"] | null;
+                    expiry_minutes?: number;
+                    /** @description The branch (a branch-bound caller: their own when omitted). */
+                    branch_id?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settings: {
+                                branch_id: number;
+                                enabled: boolean;
+                                providers: string[];
+                                default_provider: string | null;
+                                expiry_minutes: number;
+                                updated_at: string | null;
+                            };
+                            merchants: {
+                                provider: string;
+                                label: string;
+                                configured: boolean;
+                                driver: string;
+                            }[];
+                            options: {
+                                providers: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                                expiry_min: number;
+                                expiry_max: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "serviceChargeRules.show": {
         parameters: {
             query?: {
@@ -32752,6 +33354,475 @@ export interface operations {
                                 approved_by: number | null;
                                 created_at: string | null;
                             }[];
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "vouchers.index": {
+        parameters: {
+            query?: {
+                /** @description active, used, blocked or expired. */
+                status?: string;
+                /** @description Code, buyer name or phone digits. */
+                q?: string;
+                /** @description Where it was sold. */
+                branch_id?: number;
+                /** @description Sold on or after (YYYY-MM-DD). */
+                from?: string;
+                /** @description Sold on or before (YYYY-MM-DD). */
+                to?: string;
+                /** @description Up to 100 (default 30). */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            vouchers: {
+                                uuid: string;
+                                code: string;
+                                kind: string;
+                                face_value: string;
+                                balance: string;
+                                currency: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                                status: string;
+                                status_label: string;
+                                branch: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                sale: {
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    shift_id: number | null;
+                                    sold_at: string | null;
+                                    sold_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                };
+                                buyer: {
+                                    name: string | null;
+                                    phone: string | null;
+                                };
+                                note: string | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                blocked: {
+                                    at: string | null;
+                                    reason: string | null;
+                                } | null;
+                                print: {
+                                    store: string | null;
+                                    code: string;
+                                    qr: string;
+                                    value: string;
+                                    valid_from: string;
+                                    valid_until: string | null;
+                                } | null;
+                                created_at: string | null;
+                            }[];
+                            meta: {
+                                current_page: number;
+                                last_page: number;
+                                per_page: number;
+                                total: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "vouchers.export": {
+        parameters: {
+            query?: {
+                /** @description active, used, blocked or expired. */
+                status?: string;
+                /** @description Code, buyer name or phone digits. */
+                q?: string;
+                /** @description Where it was sold. */
+                branch_id?: number;
+                /** @description First business day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last business day (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    "vouchers.report": {
+        parameters: {
+            query?: {
+                /** @description One branch (a branch-bound caller: their own). */
+                branch_id?: number;
+                /** @description First business day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last business day (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            from: string;
+                            to: string;
+                            branch_id: number | null;
+                            sold: {
+                                count: number;
+                                amount: string;
+                                by_tender: {
+                                    tender: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
+                            };
+                            redeemed: {
+                                count: number;
+                                amount: string;
+                            };
+                            refunded: {
+                                count: number;
+                                amount: string;
+                            };
+                            net_change: string;
+                            outstanding: {
+                                count: number;
+                                amount: string;
+                            };
+                            blocked: {
+                                count: number;
+                                amount: string;
+                            };
+                            expired: {
+                                count: number;
+                                amount: string;
+                            };
+                            as_of: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "vouchers.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            voucher: {
+                                uuid: string;
+                                code: string;
+                                kind: string;
+                                face_value: string;
+                                balance: string;
+                                currency: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                                status: string;
+                                status_label: string;
+                                branch: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                sale: {
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    shift_id: number | null;
+                                    sold_at: string | null;
+                                    sold_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                };
+                                buyer: {
+                                    name: string | null;
+                                    phone: string | null;
+                                };
+                                note: string | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                blocked: {
+                                    at: string | null;
+                                    reason: string | null;
+                                } | null;
+                                print: {
+                                    store: string | null;
+                                    code: string;
+                                    qr: string;
+                                    value: string;
+                                    valid_from: string;
+                                    valid_until: string | null;
+                                } | null;
+                                created_at: string | null;
+                            };
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                business_date: string | null;
+                                bill_uuid: string | null;
+                                refund_uuid: string | null;
+                                tender: string | null;
+                                branch_id: number | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "vouchers.block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            code: string;
+                            kind: string;
+                            face_value: string;
+                            balance: string;
+                            currency: string;
+                            valid_from: string;
+                            valid_until: string | null;
+                            status: string;
+                            status_label: string;
+                            branch: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            sale: {
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                sold_at: string | null;
+                                sold_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                            };
+                            buyer: {
+                                name: string | null;
+                                phone: string | null;
+                            };
+                            note: string | null;
+                            fiscal: {
+                                receipt_uuid: string | null;
+                                status: string | null;
+                            };
+                            blocked: {
+                                at: string | null;
+                                reason: string | null;
+                            } | null;
+                            print: {
+                                store: string | null;
+                                code: string;
+                                qr: string;
+                                value: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                            } | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "vouchers.unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    reason?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            code: string;
+                            kind: string;
+                            face_value: string;
+                            balance: string;
+                            currency: string;
+                            valid_from: string;
+                            valid_until: string | null;
+                            status: string;
+                            status_label: string;
+                            branch: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            sale: {
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                sold_at: string | null;
+                                sold_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                            };
+                            buyer: {
+                                name: string | null;
+                                phone: string | null;
+                            };
+                            note: string | null;
+                            fiscal: {
+                                receipt_uuid: string | null;
+                                status: string | null;
+                            };
+                            blocked: {
+                                at: string | null;
+                                reason: string | null;
+                            } | null;
+                            print: {
+                                store: string | null;
+                                code: string;
+                                qr: string;
+                                value: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                            } | null;
                             created_at: string | null;
                         };
                     };
@@ -36150,63 +37221,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        error: string;
-                        /** @constant */
-                        error_note: "Action not found";
-                    } | {
-                        click_trans_id: string;
-                        merchant_trans_id: string;
-                        merchant_confirm_id: number;
-                        /** @constant */
-                        error: 0;
-                        /** @enum {string} */
-                        error_note: "Success" | "Already confirmed";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Transaction cancelled";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Already paid";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Transaction does not exist";
-                    } | {
-                        click_trans_id: string;
-                        merchant_trans_id: string;
-                        merchant_prepare_id: number;
-                        /** @constant */
-                        error: 0;
-                        /** @constant */
-                        error_note: "Success";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Incorrect amount";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Order is not payable via Click";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Transaction error";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Signature verification failed";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "User/Order not found";
-                    } | {
-                        error: string;
-                        /** @constant */
-                        error_note: "Topup request not found";
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -36225,292 +37240,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Internal server error";
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Method not found";
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            success: boolean;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Receipt not found";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            message: string;
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Invalid parameter: fiscal_data.status_code";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Invalid parameter: fiscal_data";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Invalid parameter: type";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Invalid parameter: id";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            transactions: {
-                                id: string | null;
-                                time: number;
-                                amount: number;
-                                account: string;
-                                create_time: number;
-                                perform_time: number;
-                                cancel_time: number;
-                                transaction: string;
-                                state: number;
-                                reason: string | null;
-                                receivers: null;
-                            }[];
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Invalid statement period";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            create_time: number;
-                            perform_time: number;
-                            cancel_time: number;
-                            transaction: string;
-                            state: number;
-                            reason: string | null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Transaction not found";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            cancel_time: number;
-                            transaction: string;
-                            state: number;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Unable to cancel transaction";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            create_time: number;
-                            transaction: string;
-                            /** @constant */
-                            state: 1;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Order is awaiting payment by another transaction";
-                            /** @constant */
-                            data: "order_id";
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: null | [
-                                string,
-                                "Incorrect amount"
-                            ] | [
-                                string,
-                                "Order not found",
-                                "order_id"
-                            ] | [
-                                string,
-                                "Order is not payable",
-                                "order_id"
-                            ] | [
-                                string,
-                                "Order already paid",
-                                "order_id"
-                            ] | [
-                                string,
-                                "Order is not payable via Payme",
-                                "order_id"
-                            ] | [
-                                string,
-                                "Topup already paid" | "Topup is not payable",
-                                "order_id"
-                            ];
-                            message: string;
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Transaction timed out";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Unable to perform operation";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Transaction belongs to another order";
-                            /** @constant */
-                            data: "order_id";
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Order not found";
-                            /** @constant */
-                            data: "order_id";
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Transaction id is required";
-                            data: null;
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        result: {
-                            allow: boolean;
-                            detail: {
-                                /** @constant */
-                                receipt_type: 0;
-                                shipping: {
-                                    /** @constant */
-                                    title: "Yetkazib berish";
-                                    price: number;
-                                };
-                                items: unknown[];
-                            };
-                        };
-                    } | {
-                        /** @constant */
-                        jsonrpc: "2.0";
-                        id: unknown;
-                        error: {
-                            code: string;
-                            /** @constant */
-                            message: "Unauthorized merchant key";
-                        };
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -36716,6 +37446,7 @@ export interface operations {
                                     discount_value: string | null;
                                     discount_reason: string | null;
                                     discount_by: number | null;
+                                    promo_note: string | null;
                                     service_charge_amount: string;
                                     place_fee_amount: string;
                                     room_fee_amount: string;
@@ -37376,7 +38107,7 @@ export interface operations {
                 "application/json": {
                     tenders: {
                         /** @enum {string} */
-                        tender: "cash" | "card" | "qr" | "prepayment" | "account";
+                        tender: "cash" | "card" | "qr" | "prepayment" | "account" | "voucher";
                         amount: number;
                         tendered_amount?: number | null;
                         card_type?: string | null;
@@ -37385,6 +38116,11 @@ export interface operations {
                         reference?: string | null;
                         /** Format: uuid */
                         account_uuid?: string | null;
+                        /** @description P6-43: the gift certificate spent (`voucher` tender) */
+                        voucher_code?: string | null;
+                        /** @description P6-44: a corporate account's member: the talon code or the phone */
+                        member_code?: string | null;
+                        member_phone?: string | null;
                         /** @description P6-22: a tip on top of the tender, or the cash change left as one */
                         tip_amount?: number | null;
                         tip_from_change?: boolean | null;
@@ -37859,6 +38595,121 @@ export interface operations {
                             request_id: string;
                             printer_id: number | null;
                             target_device: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQrPayment.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            qrs: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                status: string;
+                                payload: string;
+                                display: {
+                                    payload: string;
+                                    label: string;
+                                    provider: string;
+                                };
+                                expires_at: string;
+                                held: boolean;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                cancel_reason: string | null;
+                                payment_uuid: string | null;
+                                refunded_amount: string;
+                                simulated: boolean;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posQrPayment.store": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    provider?: components["schemas"]["QrProvider"] | null;
+                    amount?: number | null;
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            qr: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                status: string;
+                                payload: string;
+                                display: {
+                                    payload: string;
+                                    label: string;
+                                    provider: string;
+                                };
+                                expires_at: string;
+                                held: boolean;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                cancel_reason: string | null;
+                                payment_uuid: string | null;
+                                refunded_amount: string;
+                                simulated: boolean;
+                                created_at: string | null;
+                            };
                         };
                     };
                 };
@@ -40470,6 +41321,8 @@ export interface operations {
                 q?: string;
                 /** @description Only accounts with a debt. */
                 debtors?: boolean;
+                /** @description P6-44: only nasiya (customer) or corporate accounts. */
+                kind?: components["schemas"]["CustomerAccountKind"];
                 /** @description Up to 100 (default 30). */
                 per_page?: number;
             };
@@ -40499,6 +41352,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             }[];
@@ -40537,6 +41401,16 @@ export interface operations {
                     note?: string | null;
                     branch_id?: number | null;
                     approval_token?: string | null;
+                    kind?: components["schemas"]["CustomerAccountKind"];
+                    company_name?: string | null;
+                    inn?: string | null;
+                    contact_name?: string | null;
+                    contact_phone?: string | null;
+                    /** Format: email */
+                    invoice_email?: string | null;
+                    monthly_limit?: number | null;
+                    charge_approval?: boolean;
+                    talon_mode?: components["schemas"]["TalonMode"];
                 };
             };
         };
@@ -40560,6 +41434,17 @@ export interface operations {
                             available_credit: string | null;
                             is_blocked: boolean;
                             note: string | null;
+                            kind: components["schemas"]["CustomerAccountKind"];
+                            kind_label: string;
+                            company_name: string | null;
+                            inn: string | null;
+                            contact_name: string | null;
+                            contact_phone: string | null;
+                            invoice_email: string | null;
+                            monthly_limit: string | null;
+                            charge_approval: boolean;
+                            talon_mode: components["schemas"]["TalonMode"];
+                            members_count: number;
                             created_at: string | null;
                             updated_at: string | null;
                         };
@@ -40601,6 +41486,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             }[];
@@ -40609,6 +41505,73 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "corporateAccount.lookup": {
+        parameters: {
+            query?: {
+                /** @description The talon code (QR or badge). */
+                code?: string;
+                /** @description The member's phone, when there is no talon. */
+                phone?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                company_name: string | null;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                charge_approval: boolean;
+                                is_blocked: boolean;
+                                credit_limit: string | null;
+                                balance: string;
+                            };
+                            member: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                code: string;
+                                daily_limit: string | null;
+                                meals_per_day: number | null;
+                                is_active: boolean;
+                            };
+                            usage: {
+                                business_date: string;
+                                member: {
+                                    amount: string;
+                                    meals: number;
+                                    daily_limit: string | null;
+                                    daily_available: string | null;
+                                    meals_per_day: number | null;
+                                    meals_left: number | null;
+                                } | null;
+                                month: {
+                                    amount: string;
+                                    monthly_limit: string | null;
+                                    available: string | null;
+                                };
+                                credit_available: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "customerAccount.show": {
@@ -40642,6 +41605,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             };
@@ -40699,6 +41673,16 @@ export interface operations {
                     note?: string | null;
                     branch_id?: number | null;
                     approval_token?: string | null;
+                    kind?: components["schemas"]["CustomerAccountKind"];
+                    company_name?: string | null;
+                    inn?: string | null;
+                    contact_name?: string | null;
+                    contact_phone?: string | null;
+                    /** Format: email */
+                    invoice_email?: string | null;
+                    monthly_limit?: number | null;
+                    charge_approval?: boolean;
+                    talon_mode?: components["schemas"]["TalonMode"];
                 };
             };
         };
@@ -40722,6 +41706,17 @@ export interface operations {
                             available_credit: string | null;
                             is_blocked: boolean;
                             note: string | null;
+                            kind: components["schemas"]["CustomerAccountKind"];
+                            kind_label: string;
+                            company_name: string | null;
+                            inn: string | null;
+                            contact_name: string | null;
+                            contact_phone: string | null;
+                            invoice_email: string | null;
+                            monthly_limit: string | null;
+                            charge_approval: boolean;
+                            talon_mode: components["schemas"]["TalonMode"];
+                            members_count: number;
                             created_at: string | null;
                             updated_at: string | null;
                         };
@@ -40773,6 +41768,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             };
@@ -40800,6 +41806,326 @@ export interface operations {
                                 note: string | null;
                                 created_at: string | null;
                             };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "corporateAccount.statement": {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM; default: the current month. */
+                month?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            account: {
+                                uuid: string;
+                                name: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                talon_mode: components["schemas"]["TalonMode"];
+                            };
+                            month: string;
+                            from: string;
+                            to: string;
+                            days: string[];
+                            rows: {
+                                member: {
+                                    uuid: string;
+                                    name: string;
+                                    code: string;
+                                    is_active: boolean;
+                                } | null;
+                                cells: {
+                                    date: string;
+                                    amount: string;
+                                    meals: number;
+                                }[];
+                                amount: string;
+                                meals: number;
+                            }[];
+                            day_totals: {
+                                date: string;
+                                amount: string;
+                                meals: number;
+                            }[];
+                            total: string;
+                            meals: number;
+                            repaid_total: string;
+                            monthly_limit: string | null;
+                            balance: string;
+                            branch_id: number | null;
+                            masked: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "corporateAccount.export": {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM; default: the current month. */
+                month?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An .xlsx file: sheets "Hisobot" and "Hisob-faktura" */
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "application/json": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    "corporateAccount.members": {
+        parameters: {
+            query?: {
+                /** @description Name, talon code or phone digits. */
+                q?: string;
+                /** @description Only active (true) or deactivated (false) members. */
+                active?: boolean;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            members: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                code: string;
+                                daily_limit: string | null;
+                                meals_per_day: number | null;
+                                is_active: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                            active_count: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "corporateAccount.storeMember": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    phone?: string | null;
+                    code?: string | null;
+                    daily_limit?: number | null;
+                    meals_per_day?: number | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            phone: string | null;
+                            code: string;
+                            daily_limit: string | null;
+                            meals_per_day: number | null;
+                            is_active: boolean;
+                            note: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "corporateAccount.bulk": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    lines: string;
+                    daily_limit?: number | null;
+                    meals_per_day?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            created: number;
+                            members: {
+                                uuid: string;
+                                name: string;
+                                phone: string | null;
+                                code: string;
+                                daily_limit: string | null;
+                                meals_per_day: number | null;
+                                is_active: boolean;
+                                note: string | null;
+                                created_at: string | null;
+                                updated_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "corporateAccount.updateMember": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                member: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    phone?: string | null;
+                    code?: string | null;
+                    daily_limit?: number | null;
+                    meals_per_day?: number | null;
+                    is_active?: boolean;
+                    note?: string | null;
+                    regenerate_code?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            name: string;
+                            phone: string | null;
+                            code: string;
+                            daily_limit: string | null;
+                            meals_per_day: number | null;
+                            is_active: boolean;
+                            note: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
                         };
                     };
                 };
@@ -40853,6 +42179,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             };
@@ -40974,6 +42311,17 @@ export interface operations {
                                 available_credit: string | null;
                                 is_blocked: boolean;
                                 note: string | null;
+                                kind: components["schemas"]["CustomerAccountKind"];
+                                kind_label: string;
+                                company_name: string | null;
+                                inn: string | null;
+                                contact_name: string | null;
+                                contact_phone: string | null;
+                                invoice_email: string | null;
+                                monthly_limit: string | null;
+                                charge_approval: boolean;
+                                talon_mode: components["schemas"]["TalonMode"];
+                                members_count: number;
                                 created_at: string | null;
                                 updated_at: string | null;
                             };
@@ -41751,6 +43099,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -41958,6 +43307,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -42969,6 +44319,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -43187,6 +44538,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -43406,6 +44758,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -43901,6 +45254,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44122,6 +45476,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44340,6 +45695,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44608,6 +45964,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -44834,6 +46191,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45062,6 +46420,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45289,6 +46648,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45517,6 +46877,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45735,6 +47096,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -45954,6 +47316,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46172,6 +47535,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46391,6 +47755,439 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posVoucher.applyPromo": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            promo_note: string | null;
+                            service_charge_amount: string;
+                            place_fee_amount: string;
+                            room_fee_amount: string;
+                            min_spend_topup_amount: string;
+                            packaging_amount: string;
+                            pickup: {
+                                pickup_at: string;
+                                kitchen_fire_at: string | null;
+                                kitchen_fired_at: string | null;
+                                waiting: boolean;
+                                local_time: string;
+                            } | null;
+                            total_price: string;
+                            charges: {
+                                items_subtotal: string;
+                                discount: string;
+                                service_charge_percent: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                room_fee_amount: string;
+                                room_tariff_id: number | null;
+                                business_date: string | null;
+                                day_type: string | null;
+                                min_spend: string;
+                                min_spend_topup_amount: string;
+                                waived: string[];
+                                total: string;
+                                service_charge_rule: string;
+                                place_fee_kind: string;
+                                service_charge_notice: string | null;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    basis: string;
+                                    quantity: number;
+                                    unit: string;
+                                    unit_price: string;
+                                    amount: string;
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                    removed: boolean;
+                                    removed_reason: string | null;
+                                }[];
+                                waivers: {
+                                    charge: string;
+                                    reason: string;
+                                    waived_by: number | null;
+                                    approved_by: number | null;
+                                    waived_at: string | null;
+                                }[];
+                            };
+                            offline: {
+                                local_number: string | null;
+                                created_at: string | null;
+                                synced_at: string | null;
+                                flags: {
+                                    flag: string;
+                                    op_id: string | null;
+                                    amount: string | null;
+                                    name: string | null;
+                                }[];
+                            } | null;
+                            queue: {
+                                number: number;
+                                business_date: string | null;
+                                status: components["schemas"]["PickupStatus"] | null;
+                                ready_at: string | null;
+                                called_at: string | null;
+                                call_count: number;
+                                handed_at: string | null;
+                            } | null;
+                            rounds: number;
+                            courses: {
+                                course_no: number;
+                                status: string;
+                                items: number;
+                                sent: number;
+                                ready: number;
+                                served: number;
+                            }[];
+                            weight_pending: number;
+                            items: {
+                                id: number;
+                                round_no: number | null;
+                                product_variant_id: number | null;
+                                product_name: string;
+                                variant_name: string | null;
+                                quantity: number;
+                                unit: string;
+                                quantity_label: string;
+                                unit_price: string;
+                                modifiers: {
+                                    id: number;
+                                    name: string;
+                                    group_name: string | null;
+                                    quantity: number;
+                                    price_delta: string;
+                                }[];
+                                modifiers_total: string;
+                                total_price: string;
+                                note: string | null;
+                                seat_no: number | null;
+                                fire_mode: string | null;
+                                due_at: string | null;
+                                kitchen_status: string;
+                                station_id: number | null;
+                                sent_at: string | null;
+                                ready_at: string | null;
+                                added_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                added_at: string | null;
+                                voided_at: string | null;
+                                voided_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                void_reason: string | null;
+                                course_no: number | null;
+                                weight_status: string | null;
+                                weight_basis: string | null;
+                                weighed_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                weighed_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posVoucher.removePromo": {
+        parameters: {
+            query: {
+                /** @description The order's version (409 version_conflict when stale). */
+                version: number;
+            };
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            short_code: string | null;
+                            status: string;
+                            channel: string;
+                            type: string;
+                            store_id: number;
+                            branch_id: number | null;
+                            version: number;
+                            hall: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            table: {
+                                id: number;
+                                name: string;
+                                kind: string;
+                            } | null;
+                            hall_ref: string | null;
+                            table_ref: string | null;
+                            table_label: string | null;
+                            guests_count: number | null;
+                            waiter: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            opened_by: number;
+                            device_id: number | null;
+                            booking_id: number | null;
+                            booking_uuid: string | null;
+                            deposit_available: string;
+                            bill_locked: boolean;
+                            bill_requested_at: string | null;
+                            notes: string | null;
+                            opened_at: string | null;
+                            updated_at: string | null;
+                            subtotal: string;
+                            discount: string;
+                            /** @enum {string|null} */
+                            discount_kind: "percent" | "amount" | null;
+                            discount_value: string | null;
+                            discount_reason: string | null;
+                            discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -46842,6 +48639,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47087,6 +48885,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47305,6 +49104,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47523,6 +49323,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47742,6 +49543,7 @@ export interface operations {
                             discount_value: string | null;
                             discount_reason: string | null;
                             discount_by: number | null;
+                            promo_note: string | null;
                             service_charge_amount: string;
                             place_fee_amount: string;
                             room_fee_amount: string;
@@ -47910,6 +49712,169 @@ export interface operations {
                                 time: string;
                                 business_date: string;
                             }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posQrPayment.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            qr: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                status: string;
+                                payload: string;
+                                display: {
+                                    payload: string;
+                                    label: string;
+                                    provider: string;
+                                };
+                                expires_at: string;
+                                held: boolean;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                cancel_reason: string | null;
+                                payment_uuid: string | null;
+                                refunded_amount: string;
+                                simulated: boolean;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posQrPayment.destroy": {
+        parameters: {
+            query?: {
+                /** @description Why it was cancelled (audited; up to 200 characters). */
+                reason?: string;
+            };
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            qr: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                status: string;
+                                payload: string;
+                                display: {
+                                    payload: string;
+                                    label: string;
+                                    provider: string;
+                                };
+                                expires_at: string;
+                                held: boolean;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                cancel_reason: string | null;
+                                payment_uuid: string | null;
+                                refunded_amount: string;
+                                simulated: boolean;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posQrPayment.simulatePaid": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            qr: {
+                                uuid: string;
+                                bill_uuid: string;
+                                order_uuid: string | null;
+                                provider: string;
+                                provider_label: string;
+                                amount: string;
+                                status: string;
+                                payload: string;
+                                display: {
+                                    payload: string;
+                                    label: string;
+                                    provider: string;
+                                };
+                                expires_at: string;
+                                held: boolean;
+                                paid_at: string | null;
+                                cancelled_at: string | null;
+                                cancel_reason: string | null;
+                                payment_uuid: string | null;
+                                refunded_amount: string;
+                                simulated: boolean;
+                                created_at: string | null;
+                            };
                         };
                     };
                 };
@@ -48346,6 +50311,11 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 }[];
+                                qr_providers: {
+                                    provider: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
                                 by_channel: {
                                     channel: string;
                                     orders: number;
@@ -48435,6 +50405,19 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                vouchers: {
+                                    sold: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    redeemed: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -48448,6 +50431,7 @@ export interface operations {
                                     repayments: string;
                                     tips: string;
                                     tip_payouts: string;
+                                    vouchers: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -48532,6 +50516,11 @@ export interface operations {
                                     }[];
                                     cards: {
                                         card_type: string;
+                                        count: number;
+                                        amount: string;
+                                    }[];
+                                    qr_providers: {
+                                        provider: string;
                                         count: number;
                                         amount: string;
                                     }[];
@@ -48624,6 +50613,19 @@ export interface operations {
                                             amount: string;
                                         };
                                     };
+                                    vouchers: {
+                                        sold: {
+                                            count: number;
+                                            amount: string;
+                                            cash: string;
+                                            card: string;
+                                            qr: string;
+                                        };
+                                        redeemed: {
+                                            count: number;
+                                            amount: string;
+                                        };
+                                    };
                                     cash: {
                                         opening: string;
                                         sales: string;
@@ -48637,6 +50639,7 @@ export interface operations {
                                         repayments: string;
                                         tips: string;
                                         tip_payouts: string;
+                                        vouchers: string;
                                         expected: string;
                                     };
                                     movements: {
@@ -48766,6 +50769,11 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 }[];
+                                qr_providers: {
+                                    provider: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
                                 by_channel: {
                                     channel: string;
                                     orders: number;
@@ -48855,6 +50863,19 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                vouchers: {
+                                    sold: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    redeemed: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -48868,6 +50889,7 @@ export interface operations {
                                     repayments: string;
                                     tips: string;
                                     tip_payouts: string;
+                                    vouchers: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -49279,6 +51301,11 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 }[];
+                                qr_providers: {
+                                    provider: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
                                 by_channel: {
                                     channel: string;
                                     orders: number;
@@ -49368,6 +51395,19 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                vouchers: {
+                                    sold: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    redeemed: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -49381,6 +51421,7 @@ export interface operations {
                                     repayments: string;
                                     tips: string;
                                     tip_payouts: string;
+                                    vouchers: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -49565,6 +51606,11 @@ export interface operations {
                                     count: number;
                                     amount: string;
                                 }[];
+                                qr_providers: {
+                                    provider: string;
+                                    count: number;
+                                    amount: string;
+                                }[];
                                 by_channel: {
                                     channel: string;
                                     orders: number;
@@ -49654,6 +51700,19 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                vouchers: {
+                                    sold: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    redeemed: {
+                                        count: number;
+                                        amount: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -49667,6 +51726,7 @@ export interface operations {
                                     repayments: string;
                                     tips: string;
                                     tip_payouts: string;
+                                    vouchers: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -50287,6 +52347,198 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posVoucher.sell": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    face_value: number;
+                    /** @enum {string} */
+                    tender: "cash" | "card" | "qr";
+                    card_type?: string | null;
+                    transaction_id?: string | null;
+                    reference?: string | null;
+                    buyer_name?: string | null;
+                    buyer_phone?: string | null;
+                    /** Format: date */
+                    valid_until?: string | null;
+                    note?: string | null;
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                    branch_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            code: string;
+                            kind: string;
+                            face_value: string;
+                            balance: string;
+                            currency: string;
+                            valid_from: string;
+                            valid_until: string | null;
+                            status: string;
+                            status_label: string;
+                            branch: {
+                                id: number;
+                                name: string | null;
+                            } | null;
+                            sale: {
+                                tender: string;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                sold_at: string | null;
+                                sold_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                            };
+                            buyer: {
+                                name: string | null;
+                                phone: string | null;
+                            };
+                            note: string | null;
+                            fiscal: {
+                                receipt_uuid: string | null;
+                                status: string | null;
+                            };
+                            blocked: {
+                                at: string | null;
+                                reason: string | null;
+                            } | null;
+                            print: {
+                                store: string | null;
+                                code: string;
+                                qr: string;
+                                value: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                            } | null;
+                            created_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "posVoucher.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            voucher: {
+                                uuid: string;
+                                code: string;
+                                kind: string;
+                                face_value: string;
+                                balance: string;
+                                currency: string;
+                                valid_from: string;
+                                valid_until: string | null;
+                                status: string;
+                                status_label: string;
+                                branch: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                sale: {
+                                    tender: string;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    shift_id: number | null;
+                                    sold_at: string | null;
+                                    sold_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                };
+                                buyer: {
+                                    name: string | null;
+                                    phone: string | null;
+                                };
+                                note: string | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                blocked: {
+                                    at: string | null;
+                                    reason: string | null;
+                                } | null;
+                                print: {
+                                    store: string | null;
+                                    code: string;
+                                    qr: string;
+                                    value: string;
+                                    valid_from: string;
+                                    valid_until: string | null;
+                                } | null;
+                                created_at: string | null;
+                            };
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                amount: string;
+                                balance_after: string;
+                                business_date: string | null;
+                                bill_uuid: string | null;
+                                refund_uuid: string | null;
+                                tender: string | null;
+                                branch_id: number | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                note: string | null;
+                                created_at: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
         };
     };
     "posWaitlist.index": {

@@ -4,61 +4,40 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'closed_by2.dart';
-import 'lines6.dart';
+import 'totals.dart';
+import 'by_day.dart';
+import 'by_staff2.dart';
+import 'staff.dart';
 
 part 'data136.g.dart';
 
 @JsonSerializable()
 class Data136 {
   const Data136({
-    required this.uuid,
     required this.branchId,
-    required this.businessDate,
-    required this.shiftUuid,
-    required this.rule,
-    required this.roles,
-    required this.roleWeights,
-    required this.poolAmount,
-    required this.tipsCount,
-    required this.distributed,
-    required this.status,
-    required this.computedAt,
-    required this.closedAt,
-    required this.closedBy,
-    required this.manualParticipants,
-    required this.lines,
+    required this.from,
+    required this.to,
+    required this.totals,
+    required this.byDay,
+    required this.byStaff,
+    required this.undistributed,
+    required this.staff,
   });
 
   factory Data136.fromJson(Map<String, Object?> json) =>
       _$Data136FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  final String rule;
-  final List<String> roles;
-  @JsonKey(name: 'role_weights')
-  final Map<String, String> roleWeights;
-  @JsonKey(name: 'pool_amount')
-  final String poolAmount;
-  @JsonKey(name: 'tips_count')
-  final int tipsCount;
-  final String distributed;
-  final String status;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy2? closedBy;
-  @JsonKey(name: 'manual_participants')
-  final bool manualParticipants;
-  final List<Lines6> lines;
+  final String from;
+  final String to;
+  final Totals totals;
+  @JsonKey(name: 'by_day')
+  final List<ByDay> byDay;
+  @JsonKey(name: 'by_staff')
+  final List<ByStaff2> byStaff;
+  final String undistributed;
+  final List<Staff> staff;
 
   Map<String, Object?> toJson() => _$Data136ToJson(this);
 }

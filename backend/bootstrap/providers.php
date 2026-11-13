@@ -30,6 +30,10 @@ return [
     App\Domain\Pos\Tips\PosTipsServiceProvider::class,
     // P6-34: packaging, 24/7 and the pickup time: the bootstrap's takeaway section, the scheduled pickups' minute job
     App\Domain\Pos\Takeaway\PosTakeawayServiceProvider::class,
+    // P6-43: gift certificates: the VoucherLedger billing spends them through, their advance receipts' updates
+    App\Domain\Pos\Vouchers\PosVouchersServiceProvider::class,
+    // P6-41/P6-42: Click, Payme and UzQR QR at the till: the bootstrap's qr_payments section, bill-change cancel, expiry job
+    App\Domain\Pos\QrPayments\PosQrPaymentsServiceProvider::class,
     // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
     App\Providers\AdminMonitoringServiceProvider::class,
     // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh

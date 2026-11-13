@@ -19,7 +19,12 @@ class FakeAccountLedger implements CustomerAccountLedger
     /** @var list<array{account: string, amount: string, bill_uuid: string, reference: string, approved_by: int}> */
     public array $reversals = [];
 
-    public function charge(string $accountUuid, Money $amount, string $billUuid, int $approvedByUserId): void
+    public function approvalRequired(string $accountUuid, int $storeId): bool
+    {
+        return true;
+    }
+
+    public function charge(string $accountUuid, Money $amount, string $billUuid, int $approvedByUserId, ?string $memberCode = null, ?string $memberPhone = null): void
     {
         if ($accountUuid === self::BLOCKED) {
             throw PosActionException::invalid('credit_limit_exceeded', 'Nasiya limiti yetmaydi.');

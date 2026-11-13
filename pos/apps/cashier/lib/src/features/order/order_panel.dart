@@ -564,7 +564,8 @@ class _Totals extends StatelessWidget {
           label: discountLabel(o),
           amount: o.discount,
           negative: true,
-          detail: o.discountReason,
+          // P6-43: a promo code says itself in the label
+          detail: promoCodeOf(o) == null ? o.discountReason : null,
           actionLabel: open && onRemoveDiscount != null
               ? 'Olib tashlash'
               : null,
@@ -625,6 +626,16 @@ class _Totals extends StatelessWidget {
             ),
           ),
         PosTotalsPanel(lines: lines, total: o.totalPrice),
+        // Review P6 wave 4 (C1): the server dropped the promo code (the items fell under its minimum)
+        if (o.promoNote != null && o.promoNote!.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              o.promoNote!,
+              key: const ValueKey<String>('order-promo-note'),
+              style: RzType.footnote.copyWith(color: c.warningSoftFg),
+            ),
+          ),
         if (!draft.isZero)
           Text(
             '+ yangi bosqich ≈ ${draft.format()}',

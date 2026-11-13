@@ -61,6 +61,9 @@ export 'src/orders/order_repository.dart';
 export 'src/pickup/queue_number_models.dart';
 export 'src/pickup/queue_number_repository.dart';
 export 'src/pos_data.dart';
+// P6-41/P6-42: Click, Payme and UzQR dynamic QR at the till
+export 'src/qr/qr_payment_models.dart';
+export 'src/qr/qr_payment_repository.dart';
 export 'src/queue/online_order_models.dart';
 export 'src/queue/online_order_repository.dart';
 export 'src/realtime/pos_events.dart';
@@ -76,3 +79,6 @@ export 'src/takeaway/takeaway_repository.dart';
 export 'src/terminal/terminal_flow_models.dart';
 export 'src/tips/tip_models.dart';
 export 'src/tips/tip_repository.dart';
+// P6-43: gift certificates and promo codes at the till
+export 'src/vouchers/voucher_models.dart';
+export 'src/vouchers/voucher_repository.dart';

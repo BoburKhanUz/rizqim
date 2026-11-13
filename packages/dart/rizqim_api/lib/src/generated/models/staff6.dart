@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch10.dart';
+import 'branch14.dart';
 import 'login_phone_proof.dart';
 
 part 'staff6.g.dart';
@@ -36,7 +36,7 @@ class Staff6 {
   final String role;
   @JsonKey(name: 'role_label')
   final String roleLabel;
-  final Branch10? branch;
+  final Branch14? branch;
   @JsonKey(name: 'courier_type')
   final String? courierType;
   final String? phone;

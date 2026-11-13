@@ -4,48 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'pickup_status.dart';
+import 'lan_role.dart';
+import 'hub5.dart';
+import 'devices4.dart';
 
 part 'data243.g.dart';
 
 @JsonSerializable()
 class Data243 {
   const Data243({
-    required this.orderUuid,
-    required this.number,
-    required this.businessDate,
-    required this.status,
-    required this.channel,
-    required this.orderStatus,
-    required this.readyAt,
-    required this.calledAt,
-    required this.callCount,
-    required this.handedAt,
-    required this.openedAt,
+    required this.v,
+    required this.branchId,
+    required this.keyId,
+    required this.role,
+    required this.device,
+    required this.deviceKey,
+    required this.beaconKey,
+    required this.hub,
+    required this.hubSecret,
+    required this.devices,
+    required this.grant,
+    required this.clockWindowSeconds,
   });
 
   factory Data243.fromJson(Map<String, Object?> json) =>
       _$Data243FromJson(json);
 
-  @JsonKey(name: 'order_uuid')
-  final String orderUuid;
-  final int number;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final PickupStatus? status;
-  final String channel;
-  @JsonKey(name: 'order_status')
-  final String orderStatus;
-  @JsonKey(name: 'ready_at')
-  final String? readyAt;
-  @JsonKey(name: 'called_at')
-  final String? calledAt;
-  @JsonKey(name: 'call_count')
-  final int callCount;
-  @JsonKey(name: 'handed_at')
-  final String? handedAt;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
+  final int v;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'key_id')
+  final int keyId;
+  final LanRole role;
+  final String device;
+  @JsonKey(name: 'device_key')
+  final String deviceKey;
+  @JsonKey(name: 'beacon_key')
+  final String beaconKey;
+  final Hub5 hub;
+  @JsonKey(name: 'hub_secret')
+  final String? hubSecret;
+  final List<Devices4>? devices;
+  final String? grant;
+  @JsonKey(name: 'clock_window_seconds')
+  final int clockWindowSeconds;
 
   Map<String, Object?> toJson() => _$Data243ToJson(this);
 }

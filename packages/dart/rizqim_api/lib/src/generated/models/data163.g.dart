@@ -7,11 +7,27 @@ part of 'data163.dart';
 // **************************************************************************
 
 Data163 _$Data163FromJson(Map<String, dynamic> json) => Data163(
-  staff: Staff6.fromJson(json['staff'] as Map<String, dynamic>),
-  inviteLink: json['invite_link'] as String,
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data163ToJson(Data163 instance) => <String, dynamic>{
-  'staff': instance.staff,
-  'invite_link': instance.inviteLink,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
+  'hall_id': instance.hallId,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

@@ -40,6 +40,12 @@ class ClickWebhookController extends Controller
 
         Log::info("Click Webhook Received", $request->all());
 
+        // P6-41: a QR shown at a POS till (`pos_qr_<uuid>`) confirms a bill, never an order: the store's own key, no
+        // Click fiscal submission (Rizqim issues the receipt)
+        if (\App\Models\PosQrPayment::isAccount($merchantTransId)) {
+            return app(\App\Domain\Pos\QrPayments\Webhooks\ClickPosQrWebhook::class)->handle($request);
+        }
+
         // 1. Find Order or Topup Request
         $isTopup = str_starts_with($merchantTransId, 'topup_');
         $topupRequest = null;

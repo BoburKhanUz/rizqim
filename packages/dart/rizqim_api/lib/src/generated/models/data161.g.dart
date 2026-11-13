@@ -6,10 +6,18 @@ part of 'data161.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data161 _$Data161FromJson(Map<String, dynamic> json) =>
-    Data161(path: json['path'] as String, url: json['url'] as String);
+Data161 _$Data161FromJson(Map<String, dynamic> json) => Data161(
+  branchId: (json['branch_id'] as num).toInt(),
+  weekendDays: (json['weekend_days'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  holidays: (json['holidays'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+);
 
 Map<String, dynamic> _$Data161ToJson(Data161 instance) => <String, dynamic>{
-  'path': instance.path,
-  'url': instance.url,
+  'branch_id': instance.branchId,
+  'weekend_days': instance.weekendDays,
+  'holidays': instance.holidays,
 };

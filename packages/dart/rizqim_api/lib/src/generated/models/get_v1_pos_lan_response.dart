@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data228.dart';
+import 'data243.dart';
 
 part 'get_v1_pos_lan_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosLanResponse {
 
   final bool success;
   final String message;
-  final Data228? data;
+  final Data243? data;
 
   Map<String, Object?> toJson() => _$GetV1PosLanResponseToJson(this);
 }

@@ -23,20 +23,24 @@ final class ReceiptHeader {
   final String? phone;
 }
 
-/// To'lov turi (backend `PosTender`): naqd, karta, QR, avans hisobidan, nasiyaga.
+/// To'lov turi (backend `PosTender`): naqd, karta, QR, avans hisobidan, nasiyaga, sovg'a sertifikati (P6-43).
 enum PosTender {
   cash('cash', 'Naqd'),
   card('card', 'Karta'),
   qr('qr', "QR orqali"),
   prepayment('prepayment', 'Avans hisobidan'),
-  account('account', 'Nasiyaga');
+  account('account', 'Nasiyaga'),
+
+  /// P6-43: sovg'a sertifikati qoldig'idan (puli sotilganda bo'nak cheki bilan olingan — sotuv chekida "oldindan
+  /// to'langan").
+  voucher('voucher', 'Sertifikat');
 
   const PosTender(this.wire, this.label);
 
   final String wire;
   final String label;
 
-  /// Pul hozir kassaga tushdimi (avans va nasiya — yo'q).
+  /// Pul hozir kassaga tushdimi (avans, nasiya va sertifikat — yo'q).
   bool get isMoneyReceived => this == cash || this == card || this == qr;
 
   static PosTender? fromWire(String? value) {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_hardware/pos_hardware.dart' show BarcodeScan;
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -15,8 +16,12 @@ import '../../counter/counter_format.dart';
 import '../accounts/account_form.dart';
 import 'billing_page.dart';
 import 'cashier_ui.dart';
+import 'corporate_tender.dart';
+import 'payment_messages.dart';
+import 'qr_payment_panel.dart';
 import 'receipts.dart';
 import 'tender_form.dart';
+import 'voucher_tender.dart';
 
 /// To'lov natijasi ([PaymentPage] dan qaytadi).
 class PaymentOutcome {
@@ -38,6 +43,11 @@ class _Part {
 /// raqami majburiy), QR, bron avansidan, nasiyaga (hisob tanlash yoki ochish, limit, menejer tasdig'i); bir nechta tur
 /// birga (aralash). To'langach sotuv cheki chop etiladi, naqdda kassa qutisi ochiladi; chek kutilsa — "fiskal
 /// kutmoqda" va qayta urinish.
+///
+/// To'lqin 4 (B): QR — `qr_payments` yoqilgan va internet bor bo'lsa dinamik QR ([QrPaymentPanel]: provayder
+/// tasdiqlaydi, kassir bosmaydi), aks holda statik QR qo'lda; "Sertifikat" (P6-43, kod → qoldiq → summa); "Nasiya"
+/// ichida "Korxona" (P6-44, talon kodi yoki telefon → limitlar → xodim kodi bilan yozish). Skaner kodi ochiq maydonga
+/// tushadi (sertifikat ko'rinishidagi kod — "Sertifikat", qolgani korxona taloni).
 class PaymentPage extends StatefulWidget {
   const PaymentPage({
     super.key,
@@ -76,6 +86,9 @@ class _PaymentPageState extends State<PaymentPage> {
 
   /// To'landi, chek kutilmoqda.
   PosBillResult? _pending;
+
+  /// The bill is settled and its receipt/close flow ran ([_afterPayment] once per bill).
+  bool _finished = false;
   PosException? _blocking;
 
   // P6-22: choy puli (shu formadagi to'lov ustiga) va kimga (shaxsiy rejim)
@@ -88,6 +101,15 @@ class _PaymentPageState extends State<PaymentPage> {
 
   // Avans
   late final TextEditingController _prepay = TextEditingController();
+
+  // P6-43 sertifikat, P6-44 korxona, P6-41 QR
+  final VoucherTenderController _voucher = VoucherTenderController();
+  final CorporateTenderController _corporate = CorporateTenderController();
+  late bool _corporateMode = _hasCorporate && !_hasCustomerAccounts;
+  bool _manualQr = false;
+  bool _qrActive = false;
+  final GlobalKey _qrPanel = GlobalKey();
+  StreamSubscription<BarcodeScan>? _scans;
 
   // Nasiya
   final TextEditingController _accountQuery = TextEditingController();
@@ -119,7 +141,23 @@ class _PaymentPageState extends State<PaymentPage> {
       _tips.enabled &&
       (_tab == PosTender.cash ||
           _tab == PosTender.card ||
-          _tab == PosTender.qr);
+          _tab == PosTender.qr && !_dynamicQr);
+
+  /// P6-41: dinamik QR (modul, bootstrap `qr_payments.enabled`, internet bor) — kassir statikni tanlamagan bo'lsa.
+  bool get _dynamicQr =>
+      !_manualQr &&
+      !limitedMode(context) &&
+      _scope.session.hasModule(PosModule.qrPayments) &&
+      (_scope.session.bootstrap?.qrPayments.enabled ?? false);
+
+  bool get _hasCustomerAccounts =>
+      _scope.session.hasModule(PosModule.customerAccounts);
+
+  bool get _hasCorporate =>
+      _scope.session.hasModule(PosModule.corporateAccounts);
+
+  /// P6-43: sertifikat bilan to'lash (modul yoqilgan filial).
+  bool get _hasVouchers => _scope.session.hasModule(PosModule.vouchers);
 
   PosMoney get _remaining {
     final PosMoney r = _bill.dueAmount - _added;
@@ -130,6 +168,10 @@ class _PaymentPageState extends State<PaymentPage> {
 
   bool get _prepaymentUsed =>
       _parts.any((_Part p) => p.input.tender == PosTender.prepayment);
+
+  /// Review P6 wave 4 (C3): the dynamic QR this bill is waiting for (as the till last saw it).
+  PosQrPayment? get _waitingQr =>
+      _scope.services.qrGuard?.pendingFor(_bill.uuid);
 
   bool get _accountUsed =>
       _parts.any((_Part p) => p.input.tender == PosTender.account);
@@ -146,7 +188,46 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The scanner: a certificate or a talon code goes into the open field (keyboard scanners type into a focused
+    // field themselves; this is for the scan heard elsewhere and the broadcast scanners)
+    _scans ??= _scope.services.hardware.scans.stream.listen(_onScan);
+  }
+
+  void _onScan(BarcodeScan scan) {
+    if (!mounted || _busy || limitedMode(context)) return;
+    final String code = scan.code.trim();
+    if (code.isEmpty) return;
+    final bool voucherLike = looksLikeVoucherCode(code);
+    if (_tab == PosTender.voucher || voucherLike && _hasVouchers) {
+      // Review P6 wave 4 (C11): a certificate-shaped code that is no certificate (404) is tried as a talon
+      final bool fallback = _tab != PosTender.voucher && _hasCorporate;
+      if (_tab != PosTender.voucher) _selectTab(PosTender.voucher);
+      unawaited(_scanVoucher(code, fallback: fallback));
+    } else if (_hasCorporate) {
+      _scanTalon(code);
+    }
+  }
+
+  Future<void> _scanVoucher(String code, {required bool fallback}) async {
+    await _voucher.lookup(_scope.data, _remaining, scanned: code);
+    if (!mounted || !fallback || !_voucher.notFound) return;
+    _voucher.clear();
+    _scanTalon(code);
+  }
+
+  void _scanTalon(String code) {
+    if (_tab != PosTender.account) _selectTab(PosTender.account);
+    setState(() => _corporateMode = true);
+    scanIntoCorporate(_corporate, _scope.data, _remaining, code);
+  }
+
+  @override
   void dispose() {
+    unawaited(_scans?.cancel());
+    _voucher.dispose();
+    _corporate.dispose();
     _tip.dispose();
     _prepay.dispose();
     _accountQuery.dispose();
@@ -171,7 +252,14 @@ class _PaymentPageState extends State<PaymentPage> {
           _prepay.text = moneyText(_min(_depositAvailable, _remaining));
         case PosTender.account:
           _accountAmount.text = moneyText(_accountDefault());
-          if (_accounts == null) unawaited(_searchAccounts());
+          if (_accounts == null && _hasCustomerAccounts) {
+            unawaited(_searchAccounts());
+          }
+        case PosTender.voucher:
+          if (_voucher.voucher != null) {
+            final PosMoney b = _voucher.voucher!.balance;
+            _voucher.amount.text = moneyText(_min(b, _remaining));
+          }
       }
     });
   }
@@ -185,6 +273,9 @@ class _PaymentPageState extends State<PaymentPage> {
   _Part? _currentPart() {
     final PosMoney remaining = _remaining;
     switch (_tab) {
+      case PosTender.qr when _dynamicQr:
+        _formError = "QR to'lovni provayder tasdiqlaydi: QR yarating va mijoz to'lashini kuting (yoki statik QR'ni tanlang).";
+        return null;
       case PosTender.cash || PosTender.card || PosTender.qr:
         final String? error = _draft.validate(max: remaining);
         if (error != null) {
@@ -219,6 +310,14 @@ class _PaymentPageState extends State<PaymentPage> {
           return null;
         }
         return _Part(PosTenderInput.prepayment(amount), 'Avans hisobidan');
+      case PosTender.account when _corporateMode:
+        final ({PosTenderInput? input, String? label, String? error}) c =
+            corporatePart(_corporate, remaining);
+        if (c.input == null) {
+          _formError = c.error;
+          return null;
+        }
+        return _Part(c.input!, c.label!);
       case PosTender.account:
         final PosCustomerAccount? a = _account;
         if (a == null) {
@@ -247,14 +346,30 @@ class _PaymentPageState extends State<PaymentPage> {
           PosTenderInput.account(amount, accountUuid: a.uuid),
           'Nasiyaga · ${a.name}',
         );
+      case PosTender.voucher:
+        final ({PosTenderInput? input, String? label, String? error}) v =
+            voucherPart(_voucher, remaining);
+        if (v.input == null) {
+          _formError = v.error;
+          return null;
+        }
+        return _Part(v.input!, v.label!);
     }
   }
 
   bool get _formHasAmount => switch (_tab) {
     PosTender.prepayment => parseMoney(_prepay.text)?.isPositive ?? false,
+    PosTender.account when _corporateMode =>
+      _corporate.found != null &&
+          (parseMoney(_corporate.amount.text)?.isPositive ?? false),
     PosTender.account =>
       _account != null &&
           (parseMoney(_accountAmount.text)?.isPositive ?? false),
+    PosTender.voucher =>
+      (_voucher.voucher?.status.canPay ?? false) &&
+          (parseMoney(_voucher.amount.text)?.isPositive ?? false),
+    // P6-41: the dynamic QR is paid by the provider, never by "To'lash"
+    PosTender.qr when _dynamicQr => false,
     _ => _draft.amount?.isPositive ?? false,
   };
 
@@ -262,7 +377,11 @@ class _PaymentPageState extends State<PaymentPage> {
   PosMoney get _formAmount {
     final PosMoney? m = switch (_tab) {
       PosTender.prepayment => parseMoney(_prepay.text),
+      PosTender.account when _corporateMode => parseMoney(
+        _corporate.amount.text,
+      ),
       PosTender.account => parseMoney(_accountAmount.text),
+      PosTender.voucher => parseMoney(_voucher.amount.text),
       _ => _draft.amount,
     };
     if (m == null) return PosMoney.zero;
@@ -275,7 +394,9 @@ class _PaymentPageState extends State<PaymentPage> {
       final _Part? part = _currentPart();
       if (part == null) return;
       if (part.input.tender == PosTender.prepayment && _prepaymentUsed ||
-          part.input.tender == PosTender.account && _accountUsed) {
+          part.input.tender == PosTender.account && _accountUsed ||
+          part.input.tender == PosTender.voucher &&
+              _parts.any((_Part p) => p.label == part.label)) {
         _formError = "Bu turdagi to'lov schyotga bir marta qo'shiladi.";
         return;
       }
@@ -286,15 +407,17 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   void _resetForms() {
+    final bool other =
+        _tab == PosTender.prepayment ||
+        _tab == PosTender.account ||
+        _tab == PosTender.voucher;
     _draft = TenderDraft(
-      tender: _tab == PosTender.prepayment || _tab == PosTender.account
-          ? PosTender.cash
-          : _tab,
+      tender: other ? PosTender.cash : _tab,
       amount: _remaining,
     );
-    if (_tab == PosTender.prepayment || _tab == PosTender.account) {
-      _tab = PosTender.cash;
-    }
+    if (_tab == PosTender.voucher) _voucher.clear();
+    if (_tab == PosTender.account && _corporateMode) _corporate.clear();
+    if (other) _tab = PosTender.cash;
   }
 
   /// To'lanadigan qismlar: qo'shilganlar, ular bo'lmasa — joriy forma.
@@ -353,6 +476,22 @@ class _PaymentPageState extends State<PaymentPage> {
         tipToken = _tipApproval;
       }
     }
+    // Review P6 wave 4 (C3): offline, a QR on this bill may still be paid from the customer's phone
+    final PosQrPayment? waitingQr = limitedMode(context) ? _waitingQr : null;
+    final PosBill billBefore = _bill;
+    if (waitingQr != null) {
+      final bool sure = await confirmAction(
+        context,
+        title: 'QR hali kutilmoqda',
+        message:
+            "Bu schyotga ${waitingQr.providerLabel ?? waitingQr.provider?.label ?? 'QR'} QR (${waitingQr.amount.format()}) "
+            "yaratilgan va u hali to'lanishi mumkin. Mijoz QR orqali to'lamaganiga ishonch hosil qiling. Internet "
+            "tiklangach kassa QR'ni tekshiradi: to'lanmagan bo'lsa bekor qiladi, to'langan bo'lsa bu pul yuborilmaydi "
+            "va uni mijozga qaytarasiz.",
+        confirmLabel: "To'lamagan — olaman",
+      );
+      if (!sure || !mounted) return;
+    }
     final PosMoney tipped = PosMoney.sum(<PosMoney>[
       for (final PosTenderInput t in tenders) t.tip ?? PosMoney.zero,
     ]);
@@ -378,6 +517,16 @@ class _PaymentPageState extends State<PaymentPage> {
       );
       _tipApproval = null;
       _tipApprovalFor = null;
+      if (waitingQr != null) {
+        // Recorded with who confirmed it: checked against the server before the payment is sent
+        await _scope.services.qrGuard?.record(
+          billBefore: billBefore,
+          qr: waitingQr,
+          tenders: tenders,
+          staffId: _scope.session.staffId,
+          staffName: _scope.session.staffName,
+        );
+      }
       if (!mounted) return;
       _bill = r.bill;
       _parts.clear();
@@ -405,7 +554,7 @@ class _PaymentPageState extends State<PaymentPage> {
         if (e.reason == PosReasons.shiftClosed) unawaited(reloadShift(_scope));
         if (mounted) setState(() => _blocking = e);
       } else if (mounted) {
-        showPosError(context, e);
+        _refused(e, tenders);
       }
     } on Object catch (e) {
       // An expired or used approval is asked for again on the next try
@@ -413,18 +562,56 @@ class _PaymentPageState extends State<PaymentPage> {
         _tipApproval = null;
         _tipApprovalFor = null;
       }
-      if (mounted) showPosError(context, e);
+      if (mounted) _refused(e, tenders);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// To'lov rad etildi: korxona limiti, sertifikat qoldig'i va boshqalar oddiy matn bilan (naqd/karta taklifi); ochiq
+  /// formadagi xodim yoki sertifikat qayta o'qiladi (qoldiq o'zgargan bo'lishi mumkin).
+  void _refused(Object e, List<PosTenderInput> tenders) {
+    final String? text = paymentRefusalText(e);
+    if (text == null) {
+      showPosError(context, e);
+      return;
+    }
+    setState(() => _formError = text);
+    showPosMessage(context, text);
+    if (tenders.any((PosTenderInput t) => t.tender == PosTender.voucher) &&
+        _voucher.voucher != null) {
+      unawaited(_voucher.lookup(_scope.data, _remaining));
+    }
+    if (tenders.any((PosTenderInput t) => t.tender == PosTender.account) &&
+        _corporate.found != null) {
+      unawaited(_corporate.lookup(_scope.data, _remaining));
+      // keep the plain message (the lookup may say it in its own words)
+    }
+  }
+
+  /// P6-41: provayder QR'ni tasdiqladi — schyot qayta o'qilgan; sotuv cheki va yopish odatdagidek (kassir bosmaydi).
+  Future<void> _onQrPaid(PosBillResult r) async {
+    if (!mounted) return;
+    setState(() {
+      _bill = r.bill;
+      _qrActive = false;
+    });
+    // A part paid by QR: _afterPayment tells what is left
+    if (!r.bill.dueAmount.isPositive) {
+      showPosMessage(context, "QR orqali to'landi.");
+    }
+    await _afterPayment(r, openDrawer: false);
   }
 
   Future<void> _afterPayment(
     PosBillResult r, {
     required bool openDrawer,
   }) async {
+    // Review P6 wave 4 (C11): once per bill — a QR confirmation and "To'lash" may both answer with the paid bill
+    if (_finished) return;
     final ReceiptPrinter printer = ReceiptPrinter.of(context);
     if (r.bill.fiscal.status == 'issued') {
+      _finished = true;
       await printSale(context, r.bill, widget.order, openDrawer: openDrawer);
       if (!mounted) return;
       Navigator.pop(
@@ -434,6 +621,7 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
     if (r.bill.fiscal.status == 'offline') {
+      _finished = true;
       // P3-31: the money is taken offline; the sale receipt is registered and printed once the till is back online
       if (openDrawer) printer.openDrawer();
       showPosMessage(
@@ -460,6 +648,7 @@ class _PaymentPageState extends State<PaymentPage> {
       return;
     }
     // Pul olindi, chek kutilmoqda
+    _finished = true;
     if (openDrawer) printer.openDrawer();
     setState(() => _pending = r);
   }
@@ -527,7 +716,11 @@ class _PaymentPageState extends State<PaymentPage> {
           widget.billsCount > 1 ? "To'lov · ${_bill.number}-schyot" : "To'lov",
         ),
       ),
-      body: _pending != null ? _fiscalWaiting(c) : _form(c),
+      // Review P6 wave 4 (C3): the page follows the till going offline and back (the QR panel's state)
+      body: OfflineStatusBuilder(
+        builder: (BuildContext context, _) =>
+            _pending != null ? _fiscalWaiting(c) : _form(c),
+      ),
     );
   }
 
@@ -737,7 +930,11 @@ class _PaymentPageState extends State<PaymentPage> {
     final bool limited = limitedMode(context);
     if (limited && _tab != PosTender.cash && _tab != PosTender.card) {
       _tab = PosTender.cash;
+      // The form follows (a QR tab open when the network went must not send a QR tender offline)
+      _draft = TenderDraft(amount: _remaining);
+      _formError = null;
     }
+    final bool qrOffline = limited && _waitingQr != null;
     return PosCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -749,11 +946,11 @@ class _PaymentPageState extends State<PaymentPage> {
               if (!limited) PosTender.qr: 'QR',
               if (!limited && _depositAvailable.isPositive)
                 PosTender.prepayment: 'Avans',
-              // P6-11: nasiya only where the format has customer accounts
-              if (!limited &&
-                  PosScope.of(context).session
-                      .hasModule(PosModule.customerAccounts))
-                PosTender.account: 'Nasiya',
+              // P6-11: nasiya only where the format has customer accounts; P6-44: or corporate accounts
+              if (!limited && (_hasCustomerAccounts || _hasCorporate))
+                PosTender.account: _hasCustomerAccounts ? 'Nasiya' : 'Korxona',
+              // P6-43: a gift certificate's balance (online only: the balance is on the server)
+              if (!limited && _hasVouchers) PosTender.voucher: 'Sertifikat',
             },
             selected: _tab,
             onSelected: _selectTab,
@@ -762,11 +959,40 @@ class _PaymentPageState extends State<PaymentPage> {
             const SizedBox(height: 12),
             const NoticeBanner(
               icon: Icons.cloud_off_rounded,
-              message: "Internetsiz rejim: faqat naqd va karta. QR, avans va nasiya internet tiklangach. Fiskal chek internet tiklangach chiqadi.",
+              message: "Internetsiz rejim: faqat naqd va karta. QR (Click, Payme — statik QR ham), avans, nasiya, korxona va sertifikat internet tiklangach. Fiskal chek internet tiklangach chiqadi.",
             ),
           ],
           const SizedBox(height: 16),
+          // P6-41: a QR waiting for the customer stays alive (polling, events) while another tab is open; review P6
+          // wave 4 (C3): offline it stays in sight — the provider may still confirm it
+          if (_dynamicQr && (_tab == PosTender.qr || _qrActive) || qrOffline)
+            Offstage(
+              offstage: !qrOffline && _tab != PosTender.qr,
+              child: QrPaymentPanel(
+                key: _qrPanel,
+                bill: _bill,
+                amount: _remaining,
+                order: widget.order,
+                billsCount: widget.billsCount,
+                offline: limited,
+                onPaid: (PosBillResult r) => unawaited(_onQrPaid(r)),
+                onManual: () => setState(() {
+                  _manualQr = true;
+                  _formError = null;
+                  _draft = TenderDraft(
+                    tender: PosTender.qr,
+                    amount: _remaining,
+                  );
+                }),
+                onActive: (bool active) {
+                  if (mounted && active != _qrActive) {
+                    setState(() => _qrActive = active);
+                  }
+                },
+              ),
+            ),
           switch (_tab) {
+            PosTender.qr when _dynamicQr => const SizedBox.shrink(),
             PosTender.cash || PosTender.card || PosTender.qr => TenderForm(
               key: ValueKey<Object>('form-$_tab-${_parts.length}'),
               draft: _draft,
@@ -777,10 +1003,27 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
             PosTender.prepayment => _prepaymentForm(c),
             PosTender.account => _accountForm(c),
+            PosTender.voucher => VoucherTenderForm(
+              controller: _voucher,
+              formError: _formError,
+              onLookup: () {
+                setState(() => _formError = null);
+                unawaited(_voucher.lookup(_scope.data, _remaining));
+              },
+            ),
           },
+          if (_tab == PosTender.qr &&
+              _dynamicQr &&
+              _formError != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              _formError!,
+              style: RzType.body.copyWith(color: c.dangerSoftFg),
+            ),
+          ],
           if (_tabTakesTip) _tipSection(c),
           const SizedBox(height: 16),
-          if (mixedReady)
+          if (mixedReady && !(_tab == PosTender.qr && _dynamicQr))
             RzButton(
               key: const ValueKey<String>('payment-add'),
               label: "Qo'shish (aralash to'lov)",
@@ -942,6 +1185,40 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _accountForm(RzColors c) {
+    final Widget form = _corporateMode
+        ? CorporateTenderForm(
+            controller: _corporate,
+            formError: _formError,
+            onLookup: () {
+              setState(() => _formError = null);
+              unawaited(_corporate.lookup(_scope.data, _remaining));
+            },
+          )
+        : _customerAccountForm(c);
+    if (!(_hasCorporate && _hasCustomerAccounts)) return form;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        ChoiceRow<bool>(
+          key: const ValueKey<String>('account-mode'),
+          options: const <bool, String>{
+            false: 'Mijoz nasiyasi',
+            true: 'Korxona',
+          },
+          selected: _corporateMode,
+          onSelected: (bool v) => setState(() {
+            _corporateMode = v;
+            _formError = null;
+            if (!v && _accounts == null) unawaited(_searchAccounts());
+          }),
+        ),
+        const SizedBox(height: 12),
+        form,
+      ],
+    );
+  }
+
+  Widget _customerAccountForm(RzColors c) {
     final PosSession session = _scope.session;
     final PosCustomerAccount? selected = _account;
     // Without the permission the account is opened with a manager's PIN

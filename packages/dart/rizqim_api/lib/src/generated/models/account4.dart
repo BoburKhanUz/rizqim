@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'talon_mode.dart';
+
 part 'account4.g.dart';
 
 @JsonSerializable()
@@ -11,16 +13,12 @@ class Account4 {
   const Account4({
     required this.uuid,
     required this.name,
-    required this.phone,
-    required this.groupName,
-    required this.branchId,
-    required this.creditLimit,
-    required this.balance,
-    required this.availableCredit,
-    required this.isBlocked,
-    required this.note,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.companyName,
+    required this.inn,
+    required this.contactName,
+    required this.contactPhone,
+    required this.invoiceEmail,
+    required this.talonMode,
   });
 
   factory Account4.fromJson(Map<String, Object?> json) =>
@@ -28,23 +26,17 @@ class Account4 {
 
   final String uuid;
   final String name;
-  final String? phone;
-  @JsonKey(name: 'group_name')
-  final String? groupName;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'credit_limit')
-  final String? creditLimit;
-  final String balance;
-  @JsonKey(name: 'available_credit')
-  final String? availableCredit;
-  @JsonKey(name: 'is_blocked')
-  final bool isBlocked;
-  final String? note;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  @JsonKey(name: 'company_name')
+  final String? companyName;
+  final String? inn;
+  @JsonKey(name: 'contact_name')
+  final String? contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
+  @JsonKey(name: 'invoice_email')
+  final String? invoiceEmail;
+  @JsonKey(name: 'talon_mode')
+  final TalonMode talonMode;
 
   Map<String, Object?> toJson() => _$Account4ToJson(this);
 }

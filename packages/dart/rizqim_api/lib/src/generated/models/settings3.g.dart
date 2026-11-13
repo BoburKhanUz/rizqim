@@ -7,31 +7,23 @@ part of 'settings3.dart';
 // **************************************************************************
 
 Settings3 _$Settings3FromJson(Map<String, dynamic> json) => Settings3(
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  serviceChargeRules: ServiceChargeRules.fromJson(
-    json['service_charge_rules'] as Map<String, dynamic>,
-  ),
-  serviceChargeNotice: json['service_charge_notice'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  enabled: json['enabled'] as bool,
+  mode: json['mode'] as String,
+  poolRule: json['pool_rule'] as String,
+  poolPeriod: json['pool_period'] as String,
+  roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
+  roleWeights: Map<String, String>.from(json['role_weights'] as Map),
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Settings3ToJson(Settings3 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
-  'service_charge_rules': instance.serviceChargeRules,
-  'service_charge_notice': instance.serviceChargeNotice,
+  'enabled': instance.enabled,
+  'mode': instance.mode,
+  'pool_rule': instance.poolRule,
+  'pool_period': instance.poolPeriod,
+  'roles': instance.roles,
+  'role_weights': instance.roleWeights,
+  'updated_at': instance.updatedAt,
 };

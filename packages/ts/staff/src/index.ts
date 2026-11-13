@@ -148,6 +148,12 @@ export * from './api/takeaway';
 export * from './hooks/takeaway';
 export * from './api/accounts';
 export * from './hooks/accounts';
+// P6-44: corporate accounts (members with talons, the monthly statement)
+export * from './api/corporate';
+export * from './hooks/corporate';
+// P6-41/P6-42: Click, Payme and UzQR QR payments at the till (the branch's settings, the merchant status)
+export * from './api/qrPayments';
+export * from './hooks/qrPayments';
 export * from './api/shifts';
 export * from './hooks/shifts';
 // P6-16: fiscal terminal flows (card mode, installation checklist, smart kassa tills, bank terminal vs Z)

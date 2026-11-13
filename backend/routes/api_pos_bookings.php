@@ -8,6 +8,7 @@
 */
 
 use App\Http\Controllers\Api\V1\Pos\BookingController;
+use App\Http\Controllers\Api\V1\Pos\CorporateAccountController;
 use App\Http\Controllers\Api\V1\Pos\CustomerAccountController;
 use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
@@ -58,5 +59,20 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
 
     Route::middleware('permission:customer_accounts.manage')->group(function () {
         Route::post('/customer-accounts/{uuid}/adjustments', [CustomerAccountController::class, 'adjust'])->whereUuid('uuid')->middleware(EnsureIdempotency::class);
+    });
+
+    // P6-44: corporate accounts. The till finds a member by the talon (the lookup and the charge, the bill's `account`
+    // tender, are never gated by the module: review S4); members are set up with customer_accounts.manage and the
+    // corporate_accounts module; the monthly statement and its Excel file are reports
+    Route::get('/customer-accounts/members/lookup', [CorporateAccountController::class, 'lookup'])->middleware('permission:customer_accounts.manage,pos.take_payment');
+    Route::middleware('permission:customer_accounts.manage')->group(function () {
+        Route::get('/customer-accounts/{uuid}/members', [CorporateAccountController::class, 'members'])->whereUuid('uuid');
+        Route::post('/customer-accounts/{uuid}/members', [CorporateAccountController::class, 'storeMember'])->whereUuid('uuid')->middleware(['pos.module:corporate_accounts', EnsureIdempotency::class]);
+        Route::post('/customer-accounts/{uuid}/members/bulk', [CorporateAccountController::class, 'bulk'])->whereUuid('uuid')->middleware(['pos.module:corporate_accounts', EnsureIdempotency::class]);
+        Route::patch('/customer-accounts/{uuid}/members/{member}', [CorporateAccountController::class, 'updateMember'])->whereUuid(['uuid', 'member'])->middleware(['pos.module:corporate_accounts', EnsureIdempotency::class]);
+    });
+    Route::middleware('permission:reports.view')->group(function () {
+        Route::get('/customer-accounts/{uuid}/corporate-statement', [CorporateAccountController::class, 'statement'])->whereUuid('uuid');
+        Route::get('/customer-accounts/{uuid}/corporate-statement/export', [CorporateAccountController::class, 'export'])->whereUuid('uuid');
     });
 });

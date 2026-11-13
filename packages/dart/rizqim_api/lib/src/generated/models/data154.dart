@@ -8,20 +8,15 @@ part 'data154.g.dart';
 
 @JsonSerializable()
 class Data154 {
-  const Data154({
-    required this.branchId,
-    required this.weekendDays,
-    required this.holidays,
-  });
+  const Data154({required this.productId, required this.modifierGroups});
 
   factory Data154.fromJson(Map<String, Object?> json) =>
       _$Data154FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'weekend_days')
-  final List<int> weekendDays;
-  final List<String> holidays;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'modifier_groups')
+  final String modifierGroups;
 
   Map<String, Object?> toJson() => _$Data154ToJson(this);
 }

@@ -518,11 +518,20 @@ sealed class PosTenderInput {
   /// Bron avansidan.
   const factory PosTenderInput.prepayment(PosMoney amount) = _Prepayment;
 
-  /// Nasiyaga ([accountUuid] — mijoz hisobi; menejer tasdig'i kerak bo'lishi mumkin).
+  /// Nasiyaga ([accountUuid] — mijoz hisobi; menejer tasdig'i kerak bo'lishi mumkin). P6-44: korxona hisobida
+  /// xodim [memberCode] (talon) yoki [memberPhone] bilan; limitlar serverda tekshiriladi, faqat internet bilan.
   const factory PosTenderInput.account(
     PosMoney amount, {
     required String accountUuid,
+    String? memberCode,
+    String? memberPhone,
   }) = _Account;
+
+  /// P6-43: sovg'a sertifikatidan ([code] — chop etilgandek yoki skanerdan; ko'pi bilan qoldiq). Faqat internet bilan.
+  const factory PosTenderInput.voucher(
+    PosMoney amount, {
+    required String code,
+  }) = _Voucher;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'tender': tender.wire,
@@ -603,13 +612,31 @@ class _Prepayment extends PosTenderInput {
 }
 
 class _Account extends PosTenderInput {
-  const _Account(PosMoney amount, {required this.accountUuid})
-    : super(PosTender.account, amount);
+  const _Account(
+    PosMoney amount, {
+    required this.accountUuid,
+    this.memberCode,
+    this.memberPhone,
+  }) : super(PosTender.account, amount);
 
   final String accountUuid;
+  final String? memberCode;
+  final String? memberPhone;
 
   @override
   Map<String, Object?> _extra() => <String, Object?>{
     'account_uuid': accountUuid,
+    'member_code': ?memberCode,
+    'member_phone': ?memberPhone,
   };
+}
+
+class _Voucher extends PosTenderInput {
+  const _Voucher(PosMoney amount, {required this.code})
+    : super(PosTender.voucher, amount);
+
+  final String code;
+
+  @override
+  Map<String, Object?> _extra() => <String, Object?>{'voucher_code': code};
 }

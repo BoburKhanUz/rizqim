@@ -10,37 +10,20 @@ part 'modifiers42.g.dart';
 class Modifiers42 {
   const Modifiers42({
     required this.name,
-    this.id,
-    this.nameI18n,
+    required this.quantity,
+    this.groupName,
     this.priceDelta,
-    this.maxQuantity,
-    this.isDefault,
-    this.productVariantId,
-    this.sortOrder,
-    this.isActive,
   });
 
   factory Modifiers42.fromJson(Map<String, Object?> json) =>
       _$Modifiers42FromJson(json);
 
-  final int? id;
   final String name;
-  @JsonKey(name: 'name_i18n')
-  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  final int quantity;
   @JsonKey(name: 'price_delta')
-  final num? priceDelta;
-  @JsonKey(name: 'max_quantity')
-  final int? maxQuantity;
-
-  /// P6-32: the option the till preselects; left out: unchanged (a new option: false).
-  @JsonKey(name: 'is_default')
-  final bool? isDefault;
-  @JsonKey(name: 'product_variant_id')
-  final int? productVariantId;
-  @JsonKey(name: 'sort_order')
-  final int? sortOrder;
-  @JsonKey(name: 'is_active')
-  final bool? isActive;
+  final String? priceDelta;
 
   Map<String, Object?> toJson() => _$Modifiers42ToJson(this);
 }

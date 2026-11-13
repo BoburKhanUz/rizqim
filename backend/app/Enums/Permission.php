@@ -59,6 +59,9 @@ enum Permission: string
     case STAFF_PAY_MANAGE = 'staff_pay.manage';
     // P6-22: tips (choy puli): correct a recorded tip with a reason, compute and close the tip pool's split
     case TIPS_MANAGE = 'tips.manage';
+    // P6-43: gift certificates and vouchers: block, correct and see the liability report (selling and redeeming at the
+    // till is pos.take_payment)
+    case VOUCHERS_MANAGE = 'vouchers.manage';
 
     public function label(): string
     {
@@ -103,6 +106,7 @@ enum Permission: string
             self::STAFF_PAY_VIEW => "Ish haqi hisob-kitobini ko'rish", // P6-23
             self::STAFF_PAY_MANAGE => "Ish haqi qoidalari va hisob-kitob", // P6-23
             self::TIPS_MANAGE => "Choy pulini tuzatish va umumiy qozonni bo'lish", // P6-22
+            self::VOUCHERS_MANAGE => "Sovg'a sertifikatlari va vaucherlar", // P6-43
         };
     }
 

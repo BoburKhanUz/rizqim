@@ -7,31 +7,27 @@ part of 'data235.dart';
 // **************************************************************************
 
 Data235 _$Data235FromJson(Map<String, dynamic> json) => Data235(
-  orderUuid: json['order_uuid'] as String,
-  number: (json['number'] as num).toInt(),
-  businessDate: json['business_date'] as String?,
-  status: json['status'] == null
-      ? null
-      : PickupStatus.fromJson(json['status'] as String),
-  channel: json['channel'] as String,
-  orderStatus: json['order_status'] as String,
-  readyAt: json['ready_at'] as String?,
-  calledAt: json['called_at'] as String?,
-  callCount: (json['call_count'] as num).toInt(),
-  handedAt: json['handed_at'] as String?,
-  openedAt: json['opened_at'] as String?,
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  code: json['code'] as String,
+  dailyLimit: json['daily_limit'] as String?,
+  mealsPerDay: (json['meals_per_day'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
+  note: json['note'] as String?,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data235ToJson(Data235 instance) => <String, dynamic>{
-  'order_uuid': instance.orderUuid,
-  'number': instance.number,
-  'business_date': instance.businessDate,
-  'status': instance.status,
-  'channel': instance.channel,
-  'order_status': instance.orderStatus,
-  'ready_at': instance.readyAt,
-  'called_at': instance.calledAt,
-  'call_count': instance.callCount,
-  'handed_at': instance.handedAt,
-  'opened_at': instance.openedAt,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'phone': instance.phone,
+  'code': instance.code,
+  'daily_limit': instance.dailyLimit,
+  'meals_per_day': instance.mealsPerDay,
+  'is_active': instance.isActive,
+  'note': instance.note,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

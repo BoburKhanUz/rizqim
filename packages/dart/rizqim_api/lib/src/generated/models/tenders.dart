@@ -19,6 +19,9 @@ class Tenders {
     this.cardLast4,
     this.reference,
     this.accountUuid,
+    this.voucherCode,
+    this.memberCode,
+    this.memberPhone,
     this.tipAmount,
     this.tipFromChange,
   });
@@ -39,6 +42,16 @@ class Tenders {
   final String? reference;
   @JsonKey(name: 'account_uuid')
   final String? accountUuid;
+
+  /// P6-43: the gift certificate spent (`voucher` tender)
+  @JsonKey(name: 'voucher_code')
+  final String? voucherCode;
+
+  /// P6-44: a corporate account's member: the talon code or the phone
+  @JsonKey(name: 'member_code')
+  final String? memberCode;
+  @JsonKey(name: 'member_phone')
+  final String? memberPhone;
 
   /// P6-22: a tip on top of the tender, or the cash change left as one
   @JsonKey(name: 'tip_amount')

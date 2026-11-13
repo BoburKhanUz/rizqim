@@ -7,15 +7,13 @@ part of 'data214.dart';
 // **************************************************************************
 
 Data214 _$Data214FromJson(Map<String, dynamic> json) => Data214(
-  session: json['session'] == null
-      ? null
-      : Session4.fromJson(json['session'] as Map<String, dynamic>),
-  todayMinutes: (json['today_minutes'] as num).toInt(),
-  businessDate: json['business_date'] as String,
+  booking: Booking4.fromJson(json['booking'] as Map<String, dynamic>),
+  payment: Payment3.fromJson(json['payment'] as Map<String, dynamic>),
+  fiscal: Fiscal15.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data214ToJson(Data214 instance) => <String, dynamic>{
-  'session': instance.session,
-  'today_minutes': instance.todayMinutes,
-  'business_date': instance.businessDate,
+  'booking': instance.booking,
+  'payment': instance.payment,
+  'fiscal': instance.fiscal,
 };

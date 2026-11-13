@@ -4,29 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'lines21.dart';
-import 'room_fee4.dart';
-import 'channels3.dart';
+import 'qr.dart';
 
 part 'data201.g.dart';
 
 @JsonSerializable()
 class Data201 {
-  const Data201({
-    required this.text,
-    required this.lines,
-    required this.roomFee,
-    required this.channels,
-  });
+  const Data201({required this.qr});
 
   factory Data201.fromJson(Map<String, Object?> json) =>
       _$Data201FromJson(json);
 
-  final String text;
-  final List<Lines21> lines;
-  @JsonKey(name: 'room_fee')
-  final RoomFee4? roomFee;
-  final Channels3 channels;
+  final Qr qr;
 
   Map<String, Object?> toJson() => _$Data201ToJson(this);
 }

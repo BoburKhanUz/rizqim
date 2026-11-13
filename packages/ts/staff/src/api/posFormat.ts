@@ -63,6 +63,10 @@ export const POS_MODULES = [
   'packaging',
   'scheduled_pickup',
   'round_the_clock',
+  // Wave 4 "To'lov va chek"
+  'qr_payments',
+  'vouchers',
+  'corporate_accounts',
 ] as const;
 export type PosModuleKey = (typeof POS_MODULES)[number];
 

@@ -4,31 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modes2.dart';
-import 'pool_rules2.dart';
-import 'pool_periods2.dart';
-import 'roles3.dart';
+import 'providers2.dart';
 
 part 'options5.g.dart';
 
 @JsonSerializable()
 class Options5 {
   const Options5({
-    required this.modes,
-    required this.poolRules,
-    required this.poolPeriods,
-    required this.roles,
+    required this.providers,
+    required this.expiryMin,
+    required this.expiryMax,
   });
 
   factory Options5.fromJson(Map<String, Object?> json) =>
       _$Options5FromJson(json);
 
-  final List<Modes2> modes;
-  @JsonKey(name: 'pool_rules')
-  final List<PoolRules2> poolRules;
-  @JsonKey(name: 'pool_periods')
-  final List<PoolPeriods2> poolPeriods;
-  final List<Roles3> roles;
+  final List<Providers2> providers;
+  @JsonKey(name: 'expiry_min')
+  final int expiryMin;
+  @JsonKey(name: 'expiry_max')
+  final int expiryMax;
 
   Map<String, Object?> toJson() => _$Options5ToJson(this);
 }

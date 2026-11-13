@@ -17,17 +17,17 @@ Data255 _$Data255FromJson(Map<String, dynamic> json) => Data255(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall22.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall9.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table22.fromJson(json['table'] as Map<String, dynamic>),
+      : Table9.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   tableLabel: json['table_label'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
-      : Waiter25.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter12.fromJson(json['waiter'] as Map<String, dynamic>),
   uuid: json['uuid'] as String,
   deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
@@ -45,9 +45,10 @@ Data255 _$Data255FromJson(Map<String, dynamic> json) => Data255(
       : DiscountKind.fromJson(json['discount_kind'] as String?),
   discountValue: json['discount_value'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items47.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items34.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountBy: (json['discount_by'] as num?)?.toInt(),
+  promoNote: json['promo_note'] as String?,
   serviceChargeAmount: json['service_charge_amount'] as String,
   placeFeeAmount: json['place_fee_amount'] as String,
   roomFeeAmount: json['room_fee_amount'] as String,
@@ -55,18 +56,18 @@ Data255 _$Data255FromJson(Map<String, dynamic> json) => Data255(
   packagingAmount: json['packaging_amount'] as String,
   pickup: json['pickup'] == null
       ? null
-      : Pickup23.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup10.fromJson(json['pickup'] as Map<String, dynamic>),
   totalPrice: json['total_price'] as String,
-  charges: Charges24.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges12.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null
       ? null
-      : Offline20.fromJson(json['offline'] as Map<String, dynamic>),
+      : Offline8.fromJson(json['offline'] as Map<String, dynamic>),
   queue: json['queue'] == null
       ? null
-      : Queue23.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue10.fromJson(json['queue'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   courses: (json['courses'] as List<dynamic>)
-      .map((e) => Courses19.fromJson(e as Map<String, dynamic>))
+      .map((e) => Courses7.fromJson(e as Map<String, dynamic>))
       .toList(),
   weightPending: (json['weight_pending'] as num).toInt(),
   discountReason: json['discount_reason'] as String?,
@@ -104,6 +105,7 @@ Map<String, dynamic> _$Data255ToJson(Data255 instance) => <String, dynamic>{
   'discount_value': instance.discountValue,
   'discount_reason': instance.discountReason,
   'discount_by': instance.discountBy,
+  'promo_note': instance.promoNote,
   'service_charge_amount': instance.serviceChargeAmount,
   'place_fee_amount': instance.placeFeeAmount,
   'room_fee_amount': instance.roomFeeAmount,

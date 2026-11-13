@@ -4,71 +4,59 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings2.dart';
-import 'lines8.dart';
-import 'open_shifts.dart';
+import 'branch13.dart';
+import 'login_phone_proof.dart';
 
 part 'data169.g.dart';
 
 @JsonSerializable()
 class Data169 {
   const Data169({
-    required this.uuid,
-    required this.branchId,
-    required this.period,
-    required this.periodLabel,
-    required this.periodFrom,
-    required this.periodTo,
-    required this.status,
-    required this.statusLabel,
-    required this.grossTotal,
-    required this.payableTotal,
-    required this.paidTotal,
-    required this.linesCount,
-    required this.warnings,
-    required this.computedAt,
-    required this.closedAt,
-    required this.version,
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.roleLabel,
+    required this.branch,
+    required this.courierType,
+    required this.phone,
+    required this.loginPhoneEnabled,
+    required this.loginPhoneProof,
+    required this.hasPin,
+    required this.staffCode,
+    required this.telegramLinked,
+    required this.invitePending,
+    required this.canEdit,
     required this.createdAt,
-    required this.lines,
-    required this.openShifts,
   });
 
   factory Data169.fromJson(Map<String, Object?> json) =>
       _$Data169FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  @JsonKey(name: 'period_from')
-  final String periodFrom;
-  @JsonKey(name: 'period_to')
-  final String periodTo;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'gross_total')
-  final String grossTotal;
-  @JsonKey(name: 'payable_total')
-  final String payableTotal;
-  @JsonKey(name: 'paid_total')
-  final String paidTotal;
-  @JsonKey(name: 'lines_count')
-  final int linesCount;
-  final List<Warnings2> warnings;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
+  final int id;
+  final String name;
+  final String role;
+  @JsonKey(name: 'role_label')
+  final String roleLabel;
+  final Branch13? branch;
+  @JsonKey(name: 'courier_type')
+  final String? courierType;
+  final String? phone;
+  @JsonKey(name: 'login_phone_enabled')
+  final bool loginPhoneEnabled;
+  @JsonKey(name: 'login_phone_proof')
+  final LoginPhoneProof? loginPhoneProof;
+  @JsonKey(name: 'has_pin')
+  final bool hasPin;
+  @JsonKey(name: 'staff_code')
+  final String? staffCode;
+  @JsonKey(name: 'telegram_linked')
+  final bool telegramLinked;
+  @JsonKey(name: 'invite_pending')
+  final bool invitePending;
+  @JsonKey(name: 'can_edit')
+  final bool canEdit;
   @JsonKey(name: 'created_at')
   final String? createdAt;
-  final List<Lines8> lines;
-  @JsonKey(name: 'open_shifts')
-  final List<OpenShifts> openShifts;
 
   Map<String, Object?> toJson() => _$Data169ToJson(this);
 }

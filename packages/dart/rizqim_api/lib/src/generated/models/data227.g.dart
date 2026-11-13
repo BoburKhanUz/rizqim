@@ -7,21 +7,13 @@ part of 'data227.dart';
 // **************************************************************************
 
 Data227 _$Data227FromJson(Map<String, dynamic> json) => Data227(
-  branchId: (json['branch_id'] as num).toInt(),
-  generatedAt: json['generated_at'] as String,
-  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
-  halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  untabledOrders: (json['untabled_orders'] as List<dynamic>)
-      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  account: Account.fromJson(json['account'] as String),
+  member: Member.fromJson(json['member'] as Map<String, dynamic>),
+  usage: Usage.fromJson(json['usage'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data227ToJson(Data227 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'generated_at': instance.generatedAt,
-  'overdue_after_hours': instance.overdueAfterHours,
-  'halls': instance.halls,
-  'untabled_orders': instance.untabledOrders,
+  'account': instance.account,
+  'member': instance.member,
+  'usage': instance.usage,
 };

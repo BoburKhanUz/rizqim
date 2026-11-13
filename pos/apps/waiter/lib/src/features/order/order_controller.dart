@@ -343,6 +343,51 @@ class OrderController extends ChangeNotifier {
     success: "Buyurtma ko'chirildi.",
   );
 
+  // --- P6-43: promo-kod ------------------------------------------------------------------------------------------
+
+  /// Buyurtmaga promo-kod qo'llangan (server `discount_reason: promo:<KOD>`).
+  String? get promoCode {
+    final String? reason = order?.discountReason;
+    if (reason == null || !reason.startsWith('promo:')) return null;
+    return reason.substring(6);
+  }
+
+  /// Promo-kodni qo'llash. Internetsiz — oddiy xabar (kod faqat server bilan ishlaydi).
+  Future<bool> applyPromo(Approving approving, String code) {
+    if (!online) {
+      onNotice?.call(PosVoucherRepository.offlineMessage, error: true);
+      return Future<bool>.value(false);
+    }
+    return _change(
+      approving,
+      'promo:$code',
+      (String? token, int version, String? key) => data.vouchers.applyPromo(
+        uuid,
+        version: version,
+        code: code.toUpperCase(),
+        idempotencyKey: key,
+      ),
+      success: "Promo-kod qo'llandi.",
+    );
+  }
+
+  Future<bool> removePromo(Approving approving) {
+    if (!online) {
+      onNotice?.call(PosVoucherRepository.offlineMessage, error: true);
+      return Future<bool>.value(false);
+    }
+    return _change(
+      approving,
+      'promo-off',
+      (String? token, int version, String? key) => data.vouchers.removePromo(
+        uuid,
+        version: version,
+        idempotencyKey: key,
+      ),
+      success: 'Promo-kod olib tashlandi.',
+    );
+  }
+
   // --- P6 2-to'lqin: kurslar, og'irlik, mehmon, ofitsiantni almashtirish -------------------------------------------
 
   /// Buyurtma kurslari (serverning `courses[]`; eski javobda — qatorlardan).

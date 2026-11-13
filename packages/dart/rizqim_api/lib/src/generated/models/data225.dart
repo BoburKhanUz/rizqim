@@ -4,38 +4,81 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch15.dart';
-import 'store3.dart';
-import 'device11.dart';
-import 'modules2.dart';
-import 'cart.dart';
+import 'customer_account_kind.dart';
+import 'talon_mode.dart';
 
 part 'data225.g.dart';
 
 @JsonSerializable()
 class Data225 {
   const Data225({
-    required this.branch,
-    required this.store,
-    required this.device,
-    required this.tillUuid,
-    required this.modules,
-    required this.serverTime,
-    required this.cart,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
+    required this.branchId,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.kind,
+    required this.kindLabel,
+    required this.companyName,
+    required this.inn,
+    required this.contactName,
+    required this.contactPhone,
+    required this.invoiceEmail,
+    required this.monthlyLimit,
+    required this.chargeApproval,
+    required this.talonMode,
+    required this.membersCount,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data225.fromJson(Map<String, Object?> json) =>
       _$Data225FromJson(json);
 
-  final Branch15 branch;
-  final Store3? store;
-  final Device11 device;
-  @JsonKey(name: 'till_uuid')
-  final String? tillUuid;
-  final Modules2 modules;
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Cart? cart;
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  final CustomerAccountKind kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'company_name')
+  final String? companyName;
+  final String? inn;
+  @JsonKey(name: 'contact_name')
+  final String? contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
+  @JsonKey(name: 'invoice_email')
+  final String? invoiceEmail;
+  @JsonKey(name: 'monthly_limit')
+  final String? monthlyLimit;
+  @JsonKey(name: 'charge_approval')
+  final bool chargeApproval;
+  @JsonKey(name: 'talon_mode')
+  final TalonMode talonMode;
+  @JsonKey(name: 'members_count')
+  final int membersCount;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data225ToJson(this);
 }

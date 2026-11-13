@@ -11,7 +11,7 @@ _$PutV1PosOrdersUuidPickupTimeResponseFromJson(Map<String, dynamic> json) =>
     PutV1PosOrdersUuidPickupTimeResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data252.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data267.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PutV1PosOrdersUuidPickupTimeResponseToJson(

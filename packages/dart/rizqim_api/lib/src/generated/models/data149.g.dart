@@ -7,39 +7,33 @@ part of 'data149.dart';
 // **************************************************************************
 
 Data149 _$Data149FromJson(Map<String, dynamic> json) => Data149(
+  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  timezone: json['timezone'] as String,
-  dayStartsAt: json['day_starts_at'] as String,
+  name: json['name'] as String,
+  purpose: json['purpose'] as String,
+  connection: json['connection'] as String,
+  address: json['address'] as String?,
+  port: (json['port'] as num?)?.toInt(),
+  paperWidth: (json['paper_width'] as num).toInt(),
   stationId: (json['station_id'] as num?)?.toInt(),
-  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
-  orders: Orders.fromJson(json['orders'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations8.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products7.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  hours: (json['hours'] as List<dynamic>)
-      .map((e) => Hours.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  expo: json['expo'] == null
-      ? null
-      : Expo.fromJson(json['expo'] as Map<String, dynamic>),
+  deviceId: json['device_id'] as String?,
+  isActive: json['is_active'] as bool,
+  encoding: json['encoding'] as String?,
+  printAsImage: json['print_as_image'] as bool,
 );
 
 Map<String, dynamic> _$Data149ToJson(Data149 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'timezone': instance.timezone,
-  'day_starts_at': instance.dayStartsAt,
+  'name': instance.name,
+  'purpose': instance.purpose,
+  'connection': instance.connection,
+  'address': instance.address,
+  'port': instance.port,
+  'paper_width': instance.paperWidth,
   'station_id': instance.stationId,
-  'summary': instance.summary,
-  'orders': instance.orders,
-  'stations': instance.stations,
-  'products': instance.products,
-  'hours': instance.hours,
-  'expo': instance.expo,
+  'device_id': instance.deviceId,
+  'is_active': instance.isActive,
+  'encoding': instance.encoding,
+  'print_as_image': instance.printAsImage,
 };

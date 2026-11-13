@@ -11,11 +11,9 @@ class Settings2 {
   const Settings2({
     required this.branchId,
     required this.enabled,
-    required this.mode,
-    required this.poolRule,
-    required this.poolPeriod,
-    required this.roles,
-    required this.roleWeights,
+    required this.providers,
+    required this.defaultProvider,
+    required this.expiryMinutes,
     required this.updatedAt,
   });
 
@@ -25,14 +23,11 @@ class Settings2 {
   @JsonKey(name: 'branch_id')
   final int branchId;
   final bool enabled;
-  final String mode;
-  @JsonKey(name: 'pool_rule')
-  final String poolRule;
-  @JsonKey(name: 'pool_period')
-  final String poolPeriod;
-  final List<String> roles;
-  @JsonKey(name: 'role_weights')
-  final Map<String, String> roleWeights;
+  final List<String> providers;
+  @JsonKey(name: 'default_provider')
+  final String? defaultProvider;
+  @JsonKey(name: 'expiry_minutes')
+  final int expiryMinutes;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
 

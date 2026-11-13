@@ -7,29 +7,31 @@ part of 'data165.dart';
 // **************************************************************************
 
 Data165 _$Data165FromJson(Map<String, dynamic> json) => Data165(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  userId: (json['user_id'] as num?)?.toInt(),
-  userName: json['user_name'] as String?,
-  role: json['role'] as String?,
-  roleLabel: json['role_label'] as String?,
-  effectiveFrom: json['effective_from'] as String,
-  components: (json['components'] as List<dynamic>)
-      .map((e) => Components2.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  serviceChargePercent: json['service_charge_percent'] as String,
+  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
+      ?.map((e) => e as String)
       .toList(),
-  note: json['note'] as String?,
-  updatedAt: json['updated_at'] as String?,
+  placeFeeAmount: json['place_fee_amount'] as String,
+  placeFeeMode: json['place_fee_mode'] as String,
+  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  serviceChargeRules: ServiceChargeRules2.fromJson(
+    json['service_charge_rules'] as Map<String, dynamic>,
+  ),
+  serviceChargeNotice: json['service_charge_notice'] as String?,
 );
 
 Map<String, dynamic> _$Data165ToJson(Data165 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
   'branch_id': instance.branchId,
-  'user_id': instance.userId,
-  'user_name': instance.userName,
-  'role': instance.role,
-  'role_label': instance.roleLabel,
-  'effective_from': instance.effectiveFrom,
-  'components': instance.components,
-  'note': instance.note,
-  'updated_at': instance.updatedAt,
+  'hall_id': instance.hallId,
+  'service_charge_percent': instance.serviceChargePercent,
+  'service_charge_channels': instance.serviceChargeChannels,
+  'place_fee_amount': instance.placeFeeAmount,
+  'place_fee_mode': instance.placeFeeMode,
+  'place_fee_channels': instance.placeFeeChannels,
+  'service_charge_rules': instance.serviceChargeRules,
+  'service_charge_notice': instance.serviceChargeNotice,
 };
