@@ -11,7 +11,7 @@ PutV1PosTablesIdStateResponse _$PutV1PosTablesIdStateResponseFromJson(
 ) => PutV1PosTablesIdStateResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data274.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data276.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1PosTablesIdStateResponseToJson(

@@ -358,11 +358,19 @@ Android telefon.
 (standart yoqiq) va `bill_printer` (filialning faol chek printeri; bo'sh — chop etuvchi kassaning chek printeri). Ofitsiant
 "Schyot so'rash"ni bosganda server schyotni o'zi tuzadi (bitta schyot; kerak bo'lsa eskirganini qayta tuzadi, to'lanayotgan yoki
 bo'lingan buyurtmaga tegmaydi) va `pos-branch.{id}` ga `bill.print_requested` yuboradi: faqat nomlangan kassa (`target_device`:
-printer biriktirilgan qurilma, yoki chop etuvchi kassa; nomlanmasa — hamma kassa) schyotni pre-check ("Bu fiskal chek emas") sifatida
+printer biriktirilgan qurilma, yoki chop etuvchi kassa, u ham bo'lmasa lokal ko'prik markazi (5.5); filialda bunday kassa yo'q
+bo'lsagina — hamma kassa) schyotni pre-check ("Bu fiskal chek emas") sifatida
 chop etadi, bir `request_id` bir marta. Bu schyotni mehmonga **topshirish emas**: nusxa hisobi ham, buyurtma qulfi ham, `version` ham
 o'zgarmaydi; chop etilmasa kassada oddiy "Chop etilmadi" banneri. Qayta chiqarish — `POST /pos/bills/{uuid}/print-request`
-(`pos.reprint_bill` yoki menejer tasdig'i, `pos.bill_reprinted` jurnali so'ragan xodim bilan). Hodisa tashishdan mustaqil
+(`pos.reprint_bill` yoki menejer tasdig'i, `pos.bill_reprinted` jurnali so'ragan xodim bilan); buyurtma schyotdan keyin o'zgargan
+bo'lsa eski summa chiqmaydi — joriy schyot tuziladi va chiqadi (kassa bo'lgan schyot — 409 `bill_stale`), va ofitsiant "Schyot
+so'rash"ni qayta yuborsa yangi pre-check chiqadi. Hodisa tashishdan mustaqil
 (`BillPrintRequest`, `pos_data`): keyingi bosqichda markaz kassa shu so'rovni lokal ko'prik (5.5) orqali ham uzatadi. Hech qachon fiskal emas.
+Review C2: so'rovlarni server saqlaydi; kassa ularni ekrani qulflangan paytda ham chiqaradi (printer sozlamalari qulfda
+o'chmaydi), hodisani o'tkazib yuborsa — ishga tushganda, qayta ulanganda, qulfdan ochilganda va har daqiqada
+`GET /pos/bill-print-requests` dan oladi va chiqarishdan oldin serverda "oladi" (`.../printed`): filialda bir so'rov —
+bitta qog'oz. LAN orqali (5.5): markaz chiqarish va `printed_on_lan` ni bir qadamda hal qiladi, uzilish boshida javobsiz
+qolgan so'rovni ham o'zi chiqaradi (review C6).
 
 ### 2.13. Hisobotlar (v1)
 
@@ -958,9 +966,12 @@ Shartnomaning to'liq matni (kadr, kalitlar, xabarlar) — [`pos/packages/pos_lan
   "Lokal tarmoq" / "Internet yo'q"; server qaytib, markaz navbati yetgach o'zi odatdagi rejimga o'tadi. **Schyotni
   qayta chiqarish internetsiz yo'q** (menejer PIN'i va nusxa jurnali serverda): ofitsiant ilovasi buni oddiy aytadi.
   Tafsilot — `pos_lan` README 9.
-- **Markaz kassa (P6 B):** markaz — ega tanlagan kassa, aks holda chop etuvchi kassa, u ham bo'lmasa kassa ilovasi
-  (ilovalar ulanishda `app` ni aytadi: `cashier`, `waiter`, `kds`, `customer_display`); ofitsiant telefoni hech qachon
-  markaz bo'lmaydi. Ega boshqaruv panelida (Kassa sozlamalari → Lokal tarmoq) markazni, portni tanlaydi va kalitni
+- **Markaz kassa (P6 B):** markaz — ega tanlagan kassa, aks holda chop etuvchi kassa, u ham bo'lmasa hozirgi markaz
+  (yangi kassa ulansa markaz jim ko'chmaydi), u ham bo'lmasa kassa ilovasi (ilovalar ulanishda `app` ni, har so'rovda
+  `X-Rizqim-App` ni aytadi: `cashier`, `waiter`, `kds`, `customer_display`); ofitsiant telefoni hech qachon markaz
+  bo'lmaydi. Ilovasi noma'lum eski terminal faqat smena ochilgan bo'lsa (yoki ega tanlasa) markaz bo'ladi; o'zini kassa
+  emas deb aytgan ilovaga markaz siri berilmaydi. Sir ko'chishi auditda, uzilish/kalit/markaz o'zgarishi
+  `pos.lan_changed` bilan darhol filial terminallariga aytiladi. Ega boshqaruv panelida (Kassa sozlamalari → Lokal tarmoq) markazni, portni tanlaydi va kalitni
   almashtiradi (tasdiq bilan). Kassa o'z chekini (`cart.display`) va navbat amallarini (`queue.*`) LAN qurilmalariga
   ham yuboradi; internetsiz paytda LAN orqali so'ralgan schyotni (avtomatik chop etish yoqilgan bo'lsa) o'z printerida
   bir marta chiqaradi va amalni `printed_on_lan` bilan belgilaydi — server keyin qayta chiqarmaydi. Kassa
@@ -968,9 +979,17 @@ Shartnomaning to'liq matni (kadr, kalitlar, xabarlar) — [`pos/packages/pos_lan
 - **Xavfsizlik:** server har filialga sir saqlaydi (ega yangilaydi, audit). Har qurilma o'z kalitini (siridan hosil
   qilingan) faqat o'z bootstrap'ida oladi — oddiy xodim yoki ega web sessiyasida emas; sirning o'zi faqat markazda. Har
   xabar shifrlanadi va HMAC-SHA256 bilan imzolanadi; vaqt oynasi (±2 daqiqa) va `(qurilma, seq)` bo'yicha qayta
-  yuborishdan himoya. Xodim kimligi oflaynda — server imzolagan grant (qurilmadagi PIN sessiyasi, huquqlari, 36 soat).
+  yuborishdan himoya. Xodim kimligi oflaynda — server imzolagan grant (qurilmadagi PIN sessiyasi, huquqlari, PIN kirishdan
+  36 soat; server relay'ni ham amal vaqtiga nisbatan shu 36 soat bilan tekshiradi). Markaz kalitsiz kishidan himoyalangan
+  (review P6): kadr uzunligi WebSocket buferidan oldin tekshiriladi (`hello` gacha 64 KB, keyin 4 MB), siqish
+  kelishilmaydi, `hello` aytmagan ulanishlar alohida kichik hovuzda (manzil bo'yicha cheklangan, 3 soniya) va haqiqiy
+  qurilmani to'smaydi; `hello` markazning shu ulanishga bergan `challenge` ini olib keladi (ushlangan `hello` qayta
+  ishlamaydi); beacon faqat markazning o'z manzilini imzolaydi, qurilma eshitgan har beacon manzilini sinaydi;
+  grantsiz qurilma buyurtmalarni ko'rmaydi (mijoz ekrani — savat va navbat raqamlari).
 - **Sinxronlash:** LAN amallari markaz navbatiga (`pos_sync`) kelib chiqqan qurilma va xodim bilan yoziladi va internet
-  qaytgach tartib bilan `POST /pos/sync` ga ketadi (`op_id` idempotent). Server faqat shu filial markazining relay'ini
+  qaytgach tartib bilan `POST /pos/sync` ga ketadi (`op_id` idempotent; `op_id` — qurilma so'rovining
+  `Idempotency-Key` i ham: javobi yo'qolgan onlayn so'rov LAN orqali takrorlansa server uni ikki marta bajarmaydi,
+  onlayn ochilgan buyurtma ikkinchi marta ochilmaydi). Server faqat shu filial markazining relay'ini
   qabul qiladi, xodimni kelib chiqqan qurilmadagi PIN kirishi va huquqi bo'yicha tekshiradi; qolgani — "Sinxronlash
   xatolari".
 

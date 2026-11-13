@@ -15,7 +15,9 @@ import 'fake_pos_state.dart';
 /// ```
 class FakeCashierBackend {
   FakeCashierBackend(this.state) {
-    state.extraRoutes = handle;
+    state
+      ..extraRoutes = handle
+      ..printInbox = _printInbox;
   }
 
   final FakePosState state;
@@ -835,21 +837,107 @@ class FakeCashierBackend {
       'order': order['uuid'],
       'requested_by': r.member['id'],
     });
-    state.emit('bill.print_requested', <String, Object?>{
+    announcePrint(
+      order['uuid']! as String,
+      bill['uuid']! as String,
+      requestId: requestId,
+      reprint: true,
+      printerId: printRequestPrinterId,
+      targetDevice: printRequestTargetDevice,
+      requestedBy: r.member['id'] as int?,
+    );
+    return _ok(ack, message: 'Schyot qayta chiqarishga yuborildi.');
+  }
+
+  /// Review P6 uskunalar/LAN (C2): server saqlagan schyot chop etish so'rovlari (e'lon qilingan tartibda):
+  /// `request_id`, `order`, `bill`, `reprint`, `printer_id`, `target_device`, `requested_by`, `printed`.
+  final List<Map<String, Object?>> printInboxRows = <Map<String, Object?>>[];
+
+  /// Ofitsiantning "Schyot so'rash"i (auto print): so'rov saqlanadi va [broadcast] bo'lsa `bill.print_requested`
+  /// yuboriladi (`false`: hodisa yo'qoldi — kassa uni faqat `GET /pos/bill-print-requests` dan oladi).
+  String announcePrint(
+    String orderUuid,
+    String billUuid, {
+    String? requestId,
+    bool reprint = false,
+    int? printerId,
+    String? targetDevice = FakePosState.deviceUuid,
+    int? requestedBy = 4,
+    bool broadcast = true,
+  }) {
+    final String id = requestId ?? 'print-${printInboxRows.length + 1}';
+    final Map<String, Object?>? order = state.orders[orderUuid];
+    final Map<String, Object?> event = <String, Object?>{
       'order': <String, Object?>{
-        'uuid': order['uuid'],
-        'status': order['status'],
+        'uuid': orderUuid,
+        'status': order?['status'] ?? 'preparing',
         'store_id': FakePosState.storeId,
         'branch_id': FakePosState.branchId,
         'courier_id': null,
-        'updated_at': order['updated_at'],
+        'updated_at': order?['updated_at'],
       },
-      'bill': <String, Object?>{'uuid': bill['uuid']},
-      'reprint': true,
-      'requested_by': r.member['id'],
-      ...ack,
-    });
-    return _ok(ack, message: 'Schyot qayta chiqarishga yuborildi.');
+      'bill': <String, Object?>{'uuid': billUuid},
+      'request_id': id,
+      'reprint': reprint,
+      'printer_id': printerId,
+      'target_device': targetDevice,
+      'requested_by': requestedBy,
+    };
+    printInboxRows.add(<String, Object?>{...event, 'printed': null});
+    if (broadcast) state.emit('bill.print_requested', event);
+    return id;
+  }
+
+  FakeResponse? _printInbox(String method, String path) {
+    if (method == 'GET' && path == '/v1/pos/bill-print-requests') {
+      return _ok(<String, Object?>{
+        'requests': <Object?>[
+          for (final Map<String, Object?> row in printInboxRows)
+            if (row['printed'] == null &&
+                (row['target_device'] == null ||
+                    row['target_device'] == FakePosState.deviceUuid))
+              ?_pending(row),
+        ],
+      });
+    }
+    final RegExpMatch? x = _match(
+      r'^/v1/pos/bill-print-requests/([^/]+)/printed$',
+      path,
+    );
+    if (method == 'POST' && x != null) {
+      for (final Map<String, Object?> row in printInboxRows) {
+        if (row['request_id'] != x.group(1)) continue;
+        final Object? taken = row['printed'];
+        row['printed'] ??= FakePosState.deviceUuid;
+        return _ok(<String, Object?>{
+          'request_id': x.group(1),
+          'claimed': taken == null || taken == FakePosState.deviceUuid,
+        });
+      }
+      return _fail(404, 'request_not_found', "Chop etish so'rovi topilmadi.");
+    }
+    return null;
+  }
+
+  Map<String, Object?>? _pending(Map<String, Object?> row) {
+    final String uuid =
+        (row['order']! as Map<String, Object?>)['uuid']! as String;
+    final Map<String, Object?>? order = state.orders[uuid];
+    if (order == null) return null;
+    final String bill =
+        (row['bill']! as Map<String, Object?>)['uuid']! as String;
+    final Map<String, Object?> billing = _billing(order, all: false);
+    final List<Object?> bills = billing['bills']! as List<Object?>;
+    final bool open = bills.any(
+      (Object? b) =>
+          b is Map &&
+          b['uuid'] == bill &&
+          b['status'] != 'void' &&
+          b['status'] != 'paid',
+    );
+    if (!open) return null;
+    return <String, Object?>{...row, 'order': order, 'billing': billing}
+      ..remove('printed');
   }
 
   /// `print-request` javobi va hodisasidagi printer va kassa (sinov ularni o'zgartiradi).

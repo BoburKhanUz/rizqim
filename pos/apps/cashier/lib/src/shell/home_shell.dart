@@ -97,10 +97,7 @@ class _HomeShellState extends State<HomeShell> {
               unawaited(_reloadShift());
             }
             if (e is PosFiscalReceiptUpdated) unawaited(_printSynced());
-            // P6: the waiter asked for the bill: the named till prints the pre-check by itself
-            if (e is PosBillPrintRequested) {
-              unawaited(widget.services.billPrints.handle(e.request));
-            }
+            // P6: the waiter's bill requests print in TerminalHome (review C2: the locked till prints them too)
           }),
         )
         ..add(rt.resubscribed.listen((_) => unawaited(_reloadShift())));

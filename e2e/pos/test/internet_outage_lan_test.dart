@@ -13,8 +13,9 @@
 /// add up, the drawer is right. At the end: the latencies (waiter send → KDS ticket, bump → waiter, bill request →
 /// printed pre-check), all over the LAN.
 ///
-/// The cashier app's own glue (publishing `cart.display` and `queue.ready`, turning a relayed bill request into a
-/// pre-check on its printer) is a Flutter app this pure-Dart test cannot load: the test plays it with the same pieces
+/// The cashier app's own glue (publishing `cart.display` and `queue.ready`) is a Flutter app this pure-Dart test cannot
+/// load: the test plays it with the same pieces. The bill print over the LAN runs the app's own logic (pos_lan
+/// LanBillPrints: when the hub prints, the preview bill, the on-disk record; review P6 C9); only the paper is the test's
 /// (pos_data BillPrintRequest and its dedupe, pos_core's pre-check layout, pos_hardware's ESC/POS emulator).
 @Timeout(Duration(minutes: 6))
 library;
@@ -231,45 +232,27 @@ void main() {
 
   // --- the cashier app's glue on the hub (see the library comment) -------------------------------------------------
 
-  /// The till's glue decides per relayed "Schyot so'rash" whether it prints the pre-check itself (the cashier app's
-  /// LanBillPrints.decide): offline, with auto_print_bill on, a receipt printer at hand. The request then goes into the
-  /// journal with `printed_on_lan: true`, so the server does not print it again when the journal reaches it.
-  bool printsBill(LanRemoteOp op) =>
-      !till.pos.offline!.connectivity.state.online &&
-      till.bootstrap.branch.settings.autoPrintBill;
+  /// The hub's automatic bill print is pos_lan's LanBillPrints, the same object the cashier app runs (review P6 C9):
+  /// it decides (offline, auto_print_bill on, a receipt printer at hand), prints the order's whole unbilled amount as
+  /// one preview bill in the same step, and the request goes into the journal with `printed_on_lan: true` only when it
+  /// went to the printer. Only the paper is the test's: the till's emulated receipt printer ([printPreCheck]).
+  late LanBillPrints lanBills;
 
-  /// A relayed request the till prints (`printed_on_lan`): the order's whole unbilled amount as one bill, a preview
-  /// that is never queued (the cashier makes the real bill when the guest pays, as LanBillPrints.preview), printed
-  /// on the till's receipt printer once per request (pos_data BillPrintRequests, the request id is the op id).
-  Future<void> printRelayedBill(SyncOperation op) async {
-    final String ref = op.orderRef!;
-    final OfflineOrderState? state = till.pos.offline!.book.state(ref);
-    // Closed or billed already: the cashier prints it by hand (as LanBillPrints)
-    if (state == null || !state.isOpen || !state.leftToBill.isPositive) return;
-    final String billUuid = 'lan-${op.opId}';
-    state.createBill(
-      SyncOperation(
-        opId: billUuid,
-        seq: 0,
-        type: SyncOpType.billCreate,
-        occurredAt: DateTime.now(),
-        staffId: 0,
-        payload: <String, Object?>{'order': ref, 'bill': billUuid},
-      ),
+  /// The paper of one pre-check (the cashier app's BillPrintService with its pre-check layout): once per request (pos_data
+  /// BillPrintRequests, the request id is the op id), on the till's receipt printer.
+  Future<bool> printPreCheck(
+    BillPrintRequest request,
+    PosBilling billing,
+    PosOrder order,
+  ) async {
+    final String ref = request.orderUuid;
+    if (!request.isFor(tillUuid) || !seenRequests.accept(request)) {
+      return false;
+    }
+    final PosBill open = billing.bills.singleWhere(
+      (PosBill b) => b.uuid == request.billUuid,
     );
-    final PosBill open = PosBilling.fromJson(PosJson(state.billingJson())).bills
-        .singleWhere((PosBill b) => b.uuid == billUuid);
-    final BillPrintRequest request = BillPrintRequest(
-      billUuid: open.uuid,
-      orderUuid: ref,
-      requestId: op.opId,
-      printerId: receiptPrinter().id,
-      targetDevice: tillUuid,
-      requestedBy: op.staffId,
-    );
-    if (!request.isFor(tillUuid) || !seenRequests.accept(request)) return;
     previews[ref] = open;
-    final PosOrder order = PosOrder.fromJson(PosJson(state.order));
     final PreCheck check = PreCheck(
       header: const ReceiptHeader(storeName: 'Rizqim Lokal Restoran'),
       printedAt: DateTime.now(),
@@ -302,15 +285,15 @@ void main() {
       info.address!,
       info.port!,
     );
-    prints.add((order: ref, requestId: op.opId, text: text));
+    prints.add((order: ref, requestId: request.requestId, text: text));
     final DateTime? asked = billAskedAt[ref];
     if (asked != null) printLatency.add(DateTime.now().difference(asked));
+    return true;
   }
 
-  /// What the till's glue does with its journal: bill requests that came over the LAN are printed, one at a time.
+  /// The till's journal: which operations came over the LAN (the bills print in [lanBills] as they are asked for).
   void watchTillJournal() {
     var last = till.pos.offline!.store.lastSeq;
-    Future<void> turn = Future<void>.value();
     subs.add(
       till.pos.offline!.store.changes.listen((_) {
         final List<SyncOperation> fresh = till.pos.offline!.store
@@ -318,15 +301,6 @@ void main() {
         if (fresh.isNotEmpty) last = fresh.last.seq;
         for (final SyncOperation op in fresh) {
           if (op.origin != null) lanOps.add(op.opId);
-          if (op.type == SyncOpType.billRequest &&
-              op.payload['printed_on_lan'] == true) {
-            turn = turn.then((_) => printRelayedBill(op)).catchError((
-              Object e,
-              StackTrace st,
-            ) {
-              stderr.writeln('bill print failed: $e\n$st');
-            });
-          }
         }
       }),
     );
@@ -545,6 +519,7 @@ void main() {
     }
     await quietly(() => hub.dispose());
     await quietly(() => applier.dispose());
+    await quietly(() async => lanBills.dispose());
     for (final Terminal Function() t in <Terminal Function()>[
       () => till,
       () => waiter1.terminal,
@@ -598,9 +573,16 @@ void main() {
         reason: 'the display has no staff session',
       );
 
+      lanBills = LanBillPrints(
+        offline: till.pos.offline!,
+        print: printPreCheck,
+        canPrint: (int? id) => receiptPrinter().address != null,
+        autoPrint: () => till.bootstrap.branch.settings.autoPrintBill,
+        printerId: () => receiptPrinter().id,
+      );
       applier = PosOfflineLanApplier(
         offline: till.pos.offline!,
-        printsBill: printsBill,
+        printsBill: lanBills.decide,
       );
       hub = LanHub(
         credentials: hubLan,
@@ -921,19 +903,15 @@ void main() {
       await cookAll(takeaway);
       await Future.wait(readyWaits);
       expect(readyLatency.length, greaterThanOrEqualTo(tables.length));
-      // The display sees the takeaway "tayyor" (the till's queue.ready) and the kitchen's ready lines
+      // The display sees the takeaway "tayyor" (the till's queue.ready); review P6 S7: without a staff grant it gets
+      // the cart and the queue only, not the kitchen's lines
       final HeardLan ready = await screen.inbox.wait(
         LanMsg.queueReady,
         where: (LanEvent e) => e.payload['order'] == takeaway,
       );
       expect(ready.payload['short_code'], ta.shortCode);
-      expect(
-        screen.inbox.of(
-          LanMsg.kitchenItemStatus,
-          (LanEvent e) => e.payload['status'] == 'ready',
-        ),
-        isNotEmpty,
-      );
+      expect(screen.inbox.of(LanMsg.kitchenItemStatus), isEmpty);
+      expect(screen.inbox.of(LanMsg.kitchenTicket), isEmpty);
       // Bumped already: nothing more is queued
       final Map<String, Object?> bumped = asList(
         asMap(till.pos.offline!.book.order(tables['Stol 2']!.uuid))['items'],

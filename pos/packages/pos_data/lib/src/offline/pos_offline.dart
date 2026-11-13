@@ -675,13 +675,17 @@ class PosOffline {
   }
 
   /// P6: yig'ish ekrani buyurtmani yig'di.
-  Future<PosOrder> kitchenAssembled(String uuid) async {
+  Future<PosOrder> kitchenAssembled(
+    String uuid, {
+    String? idempotencyKey,
+  }) async {
     _guard('kitchen.manage');
     if (!order(uuid).isOpen) {
       throw const PosOfflineUnavailable('Buyurtma yopilgan.');
     }
     await _enqueue(SyncOpType.kitchenAssembled, <String, Object?>{
       'order': uuid,
+      'idempotency_key': ?idempotencyKey,
     });
     return order(uuid);
   }
@@ -689,7 +693,11 @@ class PosOffline {
   /// P6: ofitsiant schyot so'radi (bir marta; schyotni kassa tuzadi). [printedOnLan] (P6 B bosqichi): markaz so'rovni
   /// LAN orqali internetsiz oldi va pre-check'ni o'zi chiqaradi — amalda `printed_on_lan: true`, server navbat yetganda
   /// uni qayta chiqarmaydi.
-  Future<PosOrder> requestBill(String uuid, {bool printedOnLan = false}) async {
+  Future<PosOrder> requestBill(
+    String uuid, {
+    bool printedOnLan = false,
+    String? idempotencyKey,
+  }) async {
     _guard('orders.manage');
     final PosOrder current = order(uuid);
     if (!current.isOpen) {
@@ -699,6 +707,7 @@ class PosOffline {
     await _enqueue(SyncOpType.billRequest, <String, Object?>{
       'order': uuid,
       if (printedOnLan) 'printed_on_lan': true,
+      'idempotency_key': ?idempotencyKey,
       'view': <String, Object?>{'staff_name': _staffName()},
     });
     return order(uuid);

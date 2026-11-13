@@ -4,35 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'by9.dart';
-
 part 'corrections16.g.dart';
 
 @JsonSerializable()
 class Corrections16 {
-  const Corrections16({
-    required this.amount,
-    required this.mode,
-    required this.staffId,
-    required this.reason,
-    required this.by,
-    required this.approvedBy,
-    required this.createdAt,
-  });
+  const Corrections16({required this.count, required this.amount});
 
   factory Corrections16.fromJson(Map<String, Object?> json) =>
       _$Corrections16FromJson(json);
 
+  final int count;
   final String amount;
-  final String mode;
-  @JsonKey(name: 'staff_id')
-  final int? staffId;
-  final String? reason;
-  final By9? by;
-  @JsonKey(name: 'approved_by')
-  final int? approvedBy;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Corrections16ToJson(this);
 }

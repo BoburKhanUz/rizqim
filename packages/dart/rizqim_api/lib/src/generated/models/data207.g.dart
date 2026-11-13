@@ -34,7 +34,7 @@ Data207 _$Data207FromJson(Map<String, dynamic> json) => Data207(
   cancelReason: json['cancel_reason'] as String?,
   version: (json['version'] as num).toInt(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments25.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments26.fromJson(e as Map<String, dynamic>))
       .toList(),
   confirmedAt: json['confirmed_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,

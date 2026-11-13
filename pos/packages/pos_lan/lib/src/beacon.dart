@@ -138,7 +138,8 @@ class LanBeacon {
 
 /// Finding the hub: the UDP beacon, or the address typed in or scanned (README §4).
 abstract final class LanDiscovery {
-  /// Listens on [port] for a beacon of this branch's hub, at most [timeout].
+  /// Listens on [port] for a beacon of this branch's hub, at most [timeout]: the first one ([collect] keeps them all,
+  /// what a device's [LanLink] uses).
   static Future<LanBeacon?> listen(
     LanCredentials credentials, {
     int? port,
@@ -182,6 +183,57 @@ abstract final class LanDiscovery {
       return await found.future;
     } finally {
       timer.cancel();
+      await sub.cancel();
+      socket.close();
+    }
+  }
+
+  /// Review P6 S3: every valid beacon of this branch's hub heard on [port] within [timeout] (the whole window: the
+  /// hub sends one every 2 s), each address once, in the order heard, at most [max]. A device tries each in turn, so a
+  /// beacon replayed from elsewhere (or the hub's old address) does not keep it from the hub.
+  static Future<List<LanBeacon>> collect(
+    LanCredentials credentials, {
+    int? port,
+    Duration timeout = const Duration(seconds: 3),
+    DateTime Function()? clock,
+    int max = 8,
+  }) async {
+    RawDatagramSocket? socket;
+    try {
+      socket = await RawDatagramSocket.bind(
+        InternetAddress.anyIPv4,
+        port ?? credentials.port,
+        reuseAddress: true,
+      );
+    } on SocketException {
+      return const <LanBeacon>[];
+    }
+    final List<LanBeacon> found = <LanBeacon>[];
+    final StreamSubscription<RawSocketEvent> sub = socket.listen((
+      RawSocketEvent e,
+    ) {
+      if (e != RawSocketEvent.read) return;
+      final Datagram? d = socket!.receive();
+      if (d == null || found.length >= max) return;
+      String text;
+      try {
+        text = utf8.decode(d.data);
+      } on FormatException {
+        return;
+      }
+      final LanBeacon? b = LanBeacon.verify(
+        text,
+        credentials,
+        now: (clock ?? DateTime.now)(),
+      );
+      if (b != null && !found.any((LanBeacon f) => f.endpoint == b.endpoint)) {
+        found.add(b);
+      }
+    });
+    try {
+      await Future<void>.delayed(timeout);
+      return List<LanBeacon>.unmodifiable(found);
+    } finally {
       await sub.cancel();
       socket.close();
     }

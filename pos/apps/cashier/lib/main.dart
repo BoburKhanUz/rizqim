@@ -18,6 +18,7 @@ Future<void> main() async {
   final RizqimClient client = RizqimClient(
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
+    app: 'cashier',
   );
   final ShellSettingsController settings = ShellSettingsController(
     PrefsShellSettingsStore(),

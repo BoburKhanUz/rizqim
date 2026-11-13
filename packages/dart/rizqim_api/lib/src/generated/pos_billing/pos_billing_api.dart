@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/get_v1_pos_bill_print_requests_response.dart';
 import '../models/get_v1_pos_fiscal_receipts_uuid_response.dart';
 import '../models/get_v1_pos_orders_uuid_bills_response.dart';
 import '../models/get_v1_pos_shifts_current_response.dart';
@@ -12,6 +13,7 @@ import '../models/get_v1_pos_shifts_response.dart';
 import '../models/get_v1_pos_shifts_uuid_response.dart';
 import '../models/get_v1_pos_shifts_uuid_x_report_response.dart';
 import '../models/post_v1_pos_approvals_response.dart';
+import '../models/post_v1_pos_bill_print_requests_request_id_printed_response.dart';
 import '../models/post_v1_pos_bills_uuid_fiscal_retry_response.dart';
 import '../models/post_v1_pos_bills_uuid_payments_response.dart';
 import '../models/post_v1_pos_bills_uuid_print_request_response.dart';
@@ -54,6 +56,33 @@ abstract class PosBillingApi {
   @POST('/v1/pos/approvals')
   Future<PostV1PosApprovalsResponse> posApprovalStore({
     @Body() required V1PosApprovalsRequestBody body,
+    @Header('Idempotency-Key') String? idempotencyKey,
+  });
+
+  /// Outstanding bill print requests.
+  ///
+  /// The `bill.print_requested` requests of the last hour this till has not printed yet (named to it, or to no till),.
+  /// oldest first, at most 20: each with the event's fields, the order (as GET /pos/orders/{uuid}) and its bills (as GET.
+  /// /pos/orders/{uuid}/bills), so a till without a staff session (PIN screen) prints the pre-check too. Only open.
+  /// orders and bills that are neither void nor paid. The till reads it on start, after reconnecting, on unlock and when.
+  /// a broadcast arrives while nobody is signed in, then claims each request before printing it.
+  /// (POST /pos/bill-print-requests/{request_id}/printed). A POS terminal's own token; a terminal without a branch gets.
+  /// an empty list.
+  @GET('/v1/pos/bill-print-requests')
+  Future<GetV1PosBillPrintRequestsResponse> posBillPrintRequestIndex();
+
+  /// Claim a bill print request.
+  ///
+  /// The till takes the request before it prints the pre-check: `claimed: true` — this till prints it (the first to.
+  /// claim, or it claimed it before), `false` — another till of the branch took it (nothing to print). Once claimed it.
+  /// leaves every till's outstanding list. An unknown request of the branch: 404 `request_not_found` (the till prints.
+  /// it anyway). A POS terminal's own token.
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
+  @POST('/v1/pos/bill-print-requests/{requestId}/printed')
+  Future<PostV1PosBillPrintRequestsRequestIdPrintedResponse>
+  posBillPrintRequestPrinted({
+    @Path('requestId') required String requestId,
     @Header('Idempotency-Key') String? idempotencyKey,
   });
 

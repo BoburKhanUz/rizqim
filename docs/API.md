@@ -254,7 +254,16 @@ Hodisa tanalari:
 // bill.print_requested (P6, faqat pos-branch): schyotni pre-check sifatida chiqarish so'rovi (fiskal emas). Ofitsiant
 // "Schyot so'rash"ni bosdi va filialda auto_print_bill yoqiq (reprint: false), yoki "Schyotni qayta chiqarish"
 // (POST /pos/bills/{uuid}/print-request, reprint: true). printer_id null — kassaning o'z chek printeri; target_device
-// (qurilma uuid) null — nomlanmagan: filialning hamma kassasi chiqaradi. Kassa request_id bo'yicha bir marta chiqaradi.
+// (qurilma uuid): printer biriktirilgan kassa, chop etuvchi kassa, u ham bo'lmasa filialning lokal ko'prik markazi (review
+// C3: ikki kassa bitta pre-check'ni ikki marta chiqarmaydi); null — filialda shunday kassa yo'q: hamma kassa chiqaradi.
+// Kassa request_id bo'yicha bir marta chiqaradi. Review C2: server so'rovni saqlaydi — hodisani o'tkazib yuborgan kassa
+// (internetsiz bir lahza, qayta ishga tushdi, ekrani qulflangan) uni GET /pos/bill-print-requests dan oladi va chiqarishdan
+// oldin POST /pos/bill-print-requests/{request_id}/printed bilan "oladi" (filialda bir so'rov — bitta qog'oz).
+
+// pos.lan_changed (P6 review S5, faqat pos-branch): lokal ko'prik o'zgardi — reason: device_revoked (terminal uzildi,
+// device — uning uuid'si), key_rotated, hub_changed (device — yangi markaz), port_changed. Faqat id'lar, kalit yo'q:
+// terminallar GET /pos/lan ni qayta o'qiydi (markaz — qurilmalar ro'yxati va kalitlarni)
+{"branch_id": 5, "reason": "device_revoked", "device": "...", "changed_at": "..."}
 {"order": {"uuid": "...", "status": "preparing", "store_id": 3, "branch_id": 5, "courier_id": null, "updated_at": "..."},
  "bill": {"uuid": "..."}, "request_id": "...", "reprint": false, "printer_id": 7, "target_device": "...", "requested_by": 41}
 
@@ -1197,7 +1206,9 @@ kim so'radi), `pos.approval_used`.
 | `GET /pos/orders/{uuid}/bills` | `orders.view` | buyurtmaning hisob holati va schyotlari (`all=1` — bekor qilinganlari bilan), qaytarishlar |
 | `POST /pos/orders/{uuid}/bills {version, mode, parts?, bills?, approval_token?}` | bitta schyot — `orders.manage` yoki `pos.take_payment`; bo'lish — `pos.take_payment`; ofitsiant — faqat o'z buyurtmasi (boshqasiniki — menejer tasdig'i, `orders.manage`) | schyot tuzish yoki bo'lish |
 | `POST /pos/bills/{uuid}/print {version?, approval_token?}` | `orders.manage` yoki `pos.take_payment`; nusxa — `pos.reprint_bill` (yoki tasdiq) | schyotni chiqarish |
-| `POST /pos/bills/{uuid}/print-request {approval_token?}` | `orders.manage` yoki `pos.take_payment`; `pos.reprint_bill` yoki menejer tasdig'i (403 `approval_required`); ofitsiant qoidasi | P6: ofitsiant ilovasining "Schyotni qayta chiqarish"i. Kassaga `bill.print_requested` (`reprint: true`) boradi; schyotning nusxa hisobi o'zgarmaydi, `pos.bill_reprinted` jurnali so'ragan xodim bilan. Javob `{request_id, printer_id, target_device}`. Bekor qilingan schyot — 409 `bill_void` |
+| `POST /pos/bills/{uuid}/print-request {approval_token?}` | `orders.manage` yoki `pos.take_payment`; `pos.reprint_bill` yoki menejer tasdig'i (403 `approval_required`); ofitsiant qoidasi | P6: ofitsiant ilovasining "Schyotni qayta chiqarish"i. Kassaga `bill.print_requested` (`reprint: true`) boradi; schyotning nusxa hisobi o'zgarmaydi, `pos.bill_reprinted` jurnali so'ragan xodim bilan. Javob `{request_id, printer_id, target_device}`. Bekor qilingan schyot — 409 `bill_void`. Review C4: buyurtma schyotdan keyin o'zgargan (yangi bosqich; schyotga to'lov yo'q) — eski summa chiqmaydi: buyurtma qayta schyotlanadi va joriy schyot pre-check sifatida chiqadi (`reprint: false`); kassa schyotni bo'lgan bo'lsa — 409 `bill_stale` (yangi schyotlarni kassir tuzadi) |
+| `GET /pos/bill-print-requests` | kassaning **o'z tokeni** (`auth:device`, POS terminal; boshqa terminal — 403 `till_required`) | Review P6 C2: shu kassa hali chiqarmagan `bill.print_requested` so'rovlari (shu kassaga yoki hech kimga nomlangan, oxirgi 60 daqiqa, ochiq buyurtma, bekor qilinmagan va to'lanmagan schyot; eng eskisidan, ko'pi bilan 20): `{requests: [{request_id, reprint, printer_id, target_device, requested_by, requested_at, bill: {uuid}, order (GET /pos/orders/{uuid} shakli), billing (GET /pos/orders/{uuid}/bills shakli)}]}` — ekrani qulflangan (xodim sessiyasi yo'q) kassa ham chiqaradi. Kassa ishga tushganda, real-time qayta ulanganda, qulfdan ochilganda, har daqiqada va qulflangan paytda hodisa kelganda o'qiydi. Filialsiz terminal — bo'sh ro'yxat |
+| `POST /pos/bill-print-requests/{request_id}/printed` | kassaning o'z tokeni | Review P6 C2: kassa so'rovni chiqarishdan **oldin** oladi: `{request_id, claimed}` — `true`: shu kassa chiqaradi (birinchi bo'lib oldi yoki oldin o'zi olgan), `false`: boshqa kassa oldi (chiqarmaydi). Olingan so'rov hech kimning ro'yxatida qolmaydi. Filialda yo'q so'rov — 404 `request_not_found` (kassa baribir chiqaradi). Aloqa bo'lmasa kassa baribir chiqaradi — schyot jim yo'qolmaydi |
 
 - `mode`: `single` — bitta schyot; `equal` + `parts` (2–30) — teng summali schyotlar, **qoldiq tiyin birinchi
   schyotga**; `items` + `bills: [{items: [{order_item_id, quantity}], guests?}]` — taom bo'yicha, kasr miqdor ham
@@ -1867,14 +1878,21 @@ Internet uzilsa asosiy kassa (markaz) Wi-Fi orqali ofitsiant, KDS va mijoz ekran
 | POST | `/owner/pos/lan/rotate` | ega | yangi filial siri (`key_id` + 1); audit `pos.lan_key_rotated` (kalitning o'zi hech qayerda yo'q) |
 
 **Markaz:** egasi tanlagan faol kassa; tanlanmagan bo'lsa — filialning "chop etuvchi" kassasi
-(`pos_settings.printing_device_id`), u ham bo'lmasa filialning birinchi ulangan kassa ilovasi (`devices.app = cashier`),
-u ham bo'lmasa ilovasi noma'lum (B bosqichidan oldin ulangan) birinchi faol POS terminali. Ofitsiant telefoni
-(`app = waiter`) hech qachon markaz bo'lmaydi va `candidates` da yo'q. Bitta filialda bitta.
+(`pos_settings.printing_device_id`), u ham bo'lmasa markaz siri oxirgi berilgan kassa (hali faol bo'lsa: yangi kassa
+ulansa markaz jim ko'chmaydi — review C5), u ham bo'lmasa filialning birinchi ulangan kassa ilovasi
+(`devices.app = cashier`), u ham bo'lmasa ilovasi noma'lum (B bosqichidan oldin ulangan), **smena ochilgan** birinchi
+faol POS terminali (review S4: ofitsiant telefoni smena ochmaydi; smenasiz noma'lum terminalni faqat ega tanlay oladi).
+Ofitsiant telefoni (`app = waiter`) hech qachon markaz bo'lmaydi va `candidates` da yo'q. Bitta filialda bitta. Sir
+boshqa qurilmaga o'tsa — audit `pos.lan_hub_changed` (`before.device` / `after.device`, kalitsiz). Terminal uzilsa, kalit
+almashsa yoki markaz/port o'zgarsa — `pos-branch.{id}` ga `pos.lan_changed`.
 
 **Ilova turi (P6 B).** Ilovalar ulanishda `POST /devices/pair` ga `app` yuboradi (`cashier`, `waiter`, `kds`,
 `customer_display`; boshqa qiymat — 422). Kod turiga mos kelsa (`cashier`/`waiter` — `pos`, `kds` — `kds`,
 `customer_display` — `display`) `devices.app` ga yoziladi, mos kelmasa tashlab yuboriladi (ulash buzilmaydi); eski
-qurilmalarda `null`.
+qurilmalarda `null`. Review S4: ilovalar har so'rovda `X-Rizqim-App` sarlavhasini ham yuboradi (`RizqimClient(app:)`);
+`GET /pos/bootstrap` va `GET /pos/lan` uni ilovasi yozilmagan terminalga yozadi (kod turiga mos bo'lsa; yozilgani
+o'zgarmaydi). O'zini `waiter`, `kds` yoki `customer_display` deb aytgan so'rov hech qachon `role: hub` va `hub_secret`
+olmaydi (ega tanlagan bo'lsa ham).
 
 **Bootstrap `lan`** (oddiy xodim yoki ega web kirishida, boshqa filial yoki do'kon bo'yicha ulangan terminalda — `null`):
 `v` (1), `branch_id`, `key_id`, `role` (`hub` | `client`), `device` (shu terminal), `device_key` (base64,
@@ -1882,26 +1900,41 @@ qurilmalarda `null`.
 `name`, `port`), `hub_secret` (filial siri `S` — faqat `role: hub`), `devices` (markaz qabul qiladigan terminallar:
 filialning faol POS, KDS va mijoz ekranlari — faqat markazga), `grant` (PIN sessiyasining imzoli oflayn granti:
 `base64url(json).base64url(HMAC(K_G, ...))`, `K_G = HMAC(S, "rizqim-lan/v1/grant")`; payload `v`, `kid`, `branch_id`,
-`device`, `staff_id`, `name`, `role`, `permissions[]`, `session`, `iat`, `exp` = `iat` + 36 soat), `clock_window_seconds`
+`device`, `staff_id`, `name`, `role`, `permissions[]`, `session`, `iat`, `exp` = PIN kirish vaqti + 36 soat — review C8),
+`clock_window_seconds`
 (120). Sir serverda shifrlangan (`branch_lan_settings.secret`). Kassa kalitlarni xavfsiz xotirada saqlaydi, oflayn
 nusxaga yozmaydi.
 
 **Relay (`POST /pos/sync`).** Markaz LAN orqali olgan amalni `operations[].origin_device` (o'sha terminal uuid'si),
 mijoz bergan `op_id` va o'z `seq` i bilan yuboradi. Server uni kelib chiqqan terminalniki sifatida qo'llaydi (xodim —
-o'sha terminalda 36 soat ichida PIN bilan kirgan va huquqi bor; buyurtmaning `device_id` si — o'sha terminal;
+o'sha terminalda amal vaqtidan (`occurred_at`, 48 soat oynasida) oldingi 36 soat ichida PIN bilan kirgan va huquqi bor
+— review C8: uzoq uzilishdan keyin ham; buyurtmaning `device_id` si — o'sha terminal;
 `pos_sync_operations.origin_device_id`). Qabul qilinmaydi (`rejected`, "Sinxronlash xatolari"da `origin_device` bilan):
 yuboruvchi filial markazi emas — `relay_not_hub` (markaz almashgan bo'lsa, eski markazning almashishdan oldingi
-amallari 48 soat qabul qilinadi); `origin_device` noma'lum yoki boshqa do'konniki — `origin_unknown`; boshqa filialniki —
+amallari 48 soat qabul qilinadi — u hali markaz bo'la oladigan kassa bo'lsa); `origin_device` noma'lum yoki boshqa do'konniki — `origin_unknown`; boshqa filialniki —
 `origin_wrong_branch`; uzilgan — `origin_revoked`; `bill.create`, `bill.pay`, `order.close` — `relay_not_allowed`.
+Review P6 C1: relay amalida `payload.idempotency_key` bo'lmasa uning `op_id` si kalit hisoblanadi (ofitsiant ilovasi
+javobi yo'qolgan onlayn so'rovni markazga xuddi shu `Idempotency-Key` bilan `op_id` qilib yuboradi): server shu xodim
+shu kalit bilan onlayn bajargan amalni qayta qo'llamaydi (`applied`, `refs.replayed: true`); `order.open` da onlayn
+ochilgan o'sha buyurtma qaytadi (`refs.order_uuid`) va relay'dagi `order` id'si unga `external_id` bo'lib yoziladi
+(bo'sh bo'lsa) — keyingi relay amallari uni shu id bilan topadi. Kassaning o'z oflayn `order.open` i ham
+`idempotency_key` bilan shunday ishlaydi.
 Yangi amal turlari (kassaning o'zi ham yuborishi mumkin): `kitchen.bump` / `kitchen.recall` (`order`, `line`;
 `kitchen.manage`; KDS onlayndagi qoidalar), `kitchen.assembled` (`order`; yig'ish shart bo'lmasa — `applied`,
 `refs.changed: false`), `bill.request` (`order`, `printed_on_lan?`; `orders.manage`, ofitsiant qoidasi).
 `printed_on_lan: true` (P6 B) — markaz so'rovni internetsiz LAN orqali olib, pre-check'ni o'z printerida chiqargan:
 server navbat yetganda filialning avtomatik schyot chop etishini (`bill.print_requested`) **qayta qilmaydi**.
+Review P6 C6: markaz pre-check'ni navbatga yozishdan **oldin** chiqaradi va `printed_on_lan` haqiqiy natijani aytadi;
+uzilish boshida (kassa hali "internet bor" deb biladi, so'rov navbatda 8 soniyadan ko'p javobsiz turdi) markaz uni o'zi
+chiqaradi — server keyin bu so'rovni e'lon qilsa, `request_id` amalning kaliti (`idempotency_key`, relay'da `op_id`)
+bo'ladi va markaz uni qayta chiqarmaydi (kassada LAN orqali chiqarilganlar ro'yxati diskda).
 
 Migratsiyalar (qo'shimcha, qaytariladigan): `2026_11_16_200100_create_branch_lan_settings_table`,
-`2026_11_16_200200_add_origin_device_to_pos_sync_operations_table`, `2026_11_17_100100_add_app_to_devices_table` (P6 B).
+`2026_11_16_200200_add_origin_device_to_pos_sync_operations_table`, `2026_11_17_100100_add_app_to_devices_table` (P6 B),
+`2026_11_18_150100_create_pos_bill_print_requests_table` (review C2: saqlangan schyot chop etish so'rovlari, 2 kun).
 Testlar: `tests/Feature/PosLan/PosLanKeysTest.php`, `PosLanRelayTest.php`, `PosLanHubAppTest.php` (P6 B),
+`PosLanHubTrustTest.php` (review: S4, C5, S5, S8, C8), `PosBillPrintInboxTest.php` (C2, C6),
+`tests/Feature/PosBilling/PosBillPrintRoutingTest.php` (C3, C4),
 `tests/Unit/PosLan/LanKeysTest.php` (Dart bilan bir xil kalit vektorlari).
 
 ## Kassadagi chegirma va kassir huquqlari (P3-37)

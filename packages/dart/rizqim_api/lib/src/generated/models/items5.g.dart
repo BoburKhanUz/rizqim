@@ -15,7 +15,7 @@ Items5 _$Items5FromJson(Map<String, dynamic> json) => Items5(
   amount: json['amount'] as String,
   discountAmount: json['discount_amount'] as String,
   comboParts: (json['combo_parts'] as List<dynamic>?)
-      ?.map((e) => ComboParts3.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => ComboParts2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -7,21 +7,25 @@ part of 'data225.dart';
 // **************************************************************************
 
 Data225 _$Data225FromJson(Map<String, dynamic> json) => Data225(
-  branchId: (json['branch_id'] as num).toInt(),
-  generatedAt: json['generated_at'] as String,
-  overdueAfterHours: (json['overdue_after_hours'] as num).toInt(),
-  halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  untabledOrders: (json['untabled_orders'] as List<dynamic>)
-      .map((e) => UntabledOrders.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
+  store: json['store'] == null
+      ? null
+      : Store3.fromJson(json['store'] as Map<String, dynamic>),
+  device: Device11.fromJson(json['device'] as Map<String, dynamic>),
+  tillUuid: json['till_uuid'] as String?,
+  modules: Modules2.fromJson(json['modules'] as Map<String, dynamic>),
+  serverTime: json['server_time'] as String,
+  cart: json['cart'] == null
+      ? null
+      : Cart.fromJson(json['cart'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data225ToJson(Data225 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'generated_at': instance.generatedAt,
-  'overdue_after_hours': instance.overdueAfterHours,
-  'halls': instance.halls,
-  'untabled_orders': instance.untabledOrders,
+  'branch': instance.branch,
+  'store': instance.store,
+  'device': instance.device,
+  'till_uuid': instance.tillUuid,
+  'modules': instance.modules,
+  'server_time': instance.serverTime,
+  'cart': instance.cart,
 };

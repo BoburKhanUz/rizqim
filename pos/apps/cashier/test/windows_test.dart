@@ -172,7 +172,8 @@ void main() {
       },
     );
 
-    test('«Ruxsat berish» runs one elevated step that clears block rules and allows TCP, UDP and the program', () async {
+    test('«Ruxsat berish» runs one elevated step that replaces only its own rules and allows TCP, UDP and the program '
+        'on private and domain networks (review S9)', () async {
       final List<List<String>> calls = <List<String>>[];
       var added = false;
       final WindowsFirewall fw = WindowsFirewall(
@@ -205,12 +206,22 @@ void main() {
         startsWith("Start-Process -FilePath cmd.exe -ArgumentList '/c "),
       );
       expect(script, endsWith("' -Verb RunAs -Wait -WindowStyle Hidden"));
-      // the quote in the path is doubled for PowerShell; the block rule of the program goes first
+      // Only the app's own rule is replaced: an IT administrator's rule for the program (a block) stays
+      expect(script, isNot(contains('name=all')));
+      expect(
+        RegExp(r'delete rule name="([^"]*)"')
+            .allMatches(script)
+            .map((Match m) => m.group(1))
+            .toSet(),
+        <String>{'Rizqim POS lokal tarmoq'},
+      );
+      // Never on a public network (a café's guest Wi-Fi): private and domain only
+      expect(script, isNot(contains('profile=any')));
+      // the quote in the path is doubled for PowerShell
       expect(
         script,
         contains(
-          'netsh advfirewall firewall delete rule name=all dir=in '
-          '''program="C:\\Program Files\\Rizqim''s\\rizqim_cashier.exe" >nul 2>&1 & ''',
+          '''program="C:\\Program Files\\Rizqim''s\\rizqim_cashier.exe" enable=yes profile=private,domain''',
         ),
       );
       for (final String protocol in <String>['TCP', 'UDP']) {
@@ -218,7 +229,7 @@ void main() {
           script,
           contains(
             'add rule name="Rizqim POS lokal tarmoq" dir=in action=allow '
-            'protocol=$protocol localport=18481 profile=any',
+            'protocol=$protocol localport=18481 profile=private,domain',
           ),
         );
       }
@@ -226,9 +237,9 @@ void main() {
       // what an administrator types by hand: the two port rules
       expect(WindowsFirewall.manualCommands(18480), <String>[
         'netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP '
-            'localport=18480 profile=any',
+            'localport=18480 profile=private,domain',
         'netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP '
-            'localport=18480 profile=any',
+            'localport=18480 profile=private,domain',
       ]);
     });
 

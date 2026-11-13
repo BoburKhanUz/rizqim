@@ -11,6 +11,7 @@ Future<void> main() async {
   final RizqimClient client = RizqimClient(
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
+    app: 'waiter',
   );
   // Terminal tokeni qurilmadan qaytariladi: qayta ishga tushganda qayta ulash shart emas
   await client.auth.restore();

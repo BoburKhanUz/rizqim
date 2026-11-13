@@ -6,8 +6,8 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'items61.dart';
 import 'pickup_status.dart';
-import 'assembly4.dart';
-import 'pickup30.dart';
+import 'assembly2.dart';
+import 'pickup29.dart';
 
 part 'data289.g.dart';
 
@@ -81,8 +81,8 @@ class Data289 {
   final int? queueNumber;
   @JsonKey(name: 'pickup_status')
   final PickupStatus? pickupStatus;
-  final Assembly4? assembly;
-  final Pickup30? pickup;
+  final Assembly2? assembly;
+  final Pickup29? pickup;
 
   Map<String, Object?> toJson() => _$Data289ToJson(this);
 }

@@ -12,7 +12,7 @@ _$PostV1PosBookingsUuidConfirmationSendResponseFromJson(
 ) => PostV1PosBookingsUuidConfirmationSendResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data200.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data202.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBookingsUuidConfirmationSendResponseToJson(

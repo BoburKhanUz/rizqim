@@ -421,12 +421,15 @@ void main() {
       hub.publish(LanMsg.queueReady, <String, Object?>{
         'number': 17,
       }, to: TestBranch.display);
-      for (final Inbox i in <Inbox>[inA, inKds, inDisplay]) {
+      for (final Inbox i in <Inbox>[inA, inKds]) {
         await i.wait(LanMsg.kitchenTicket);
         await i.wait(LanMsg.cartDisplay);
       }
+      await inDisplay.wait(LanMsg.cartDisplay);
       expect((await inDisplay.wait(LanMsg.queueReady)).payload['number'], 17);
       expect(inA.of(LanMsg.queueReady), isEmpty);
+      // Review P6 S7: the display has no staff grant: the cart and the queue, not the kitchen
+      expect(inDisplay.of(LanMsg.kitchenTicket), isEmpty);
 
       // The till's queue reached the server: the devices may go back to the cloud
       applier

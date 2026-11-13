@@ -23,7 +23,10 @@ class PosOfflineLanApplier implements LanOpApplier {
   /// P6 B bosqichi: markaz shu `bill.request` ning pre-check'ini o'zi chiqaradimi (kassa internetsiz va filialda
   /// "schyotni avtomatik chop etish" yoqilgan). `true` bo'lsa amal navbatga `printed_on_lan: true` bilan yoziladi
   /// (server navbat yetganda qayta chiqarmaydi); chiqarishni kassa navbatdagi shu amalni ko'rib bajaradi.
-  final bool Function(LanRemoteOp op)? printsBill;
+  ///
+  /// Review P6 C6: it may print before answering ([LanBillPrints.decide]): `true` only when the pre-check really went to
+  /// the printer, so the flag never says printed for a paper that did not come out.
+  final FutureOr<bool> Function(LanRemoteOp op)? printsBill;
 
   late int _lastSeq;
   bool? _lastCloud;
@@ -156,6 +159,9 @@ class PosOfflineLanApplier implements LanOpApplier {
   Future<void> _run(LanRemoteOp op, LanGrantView staff) async {
     final Map<String, Object?> p = op.payload;
     final String ref = op.order!;
+    // Review P6 C1: the device's op_id is its request's Idempotency-Key (the waiter app retries an online request whose
+    // answer was lost over the LAN with the same key): the server replays what it did online instead of doing it twice
+    final String key = op.opId;
     switch (op.type) {
       case LanOpType.orderOpen:
         final PosChannel? channel = PosChannel.fromWire(
@@ -174,6 +180,7 @@ class PosOfflineLanApplier implements LanOpApplier {
           // A waiter's order is theirs (the server does the same)
           waiterId: staff.isWaiter ? staff.staffId : null,
           waiterName: staff.isWaiter ? staff.name : null,
+          idempotencyKey: key,
         );
       case LanOpType.orderRound:
         await offline.addRound(
@@ -181,6 +188,7 @@ class PosOfflineLanApplier implements LanOpApplier {
           items: LanLines.parse(p['items']),
           fireMode: PosFireMode.fromWire(p['fire_mode'] as String?),
           send: p['send'] == true,
+          idempotencyKey: key,
         );
       case LanOpType.orderSend:
         final Object? lines = p['lines'];
@@ -189,31 +197,39 @@ class PosOfflineLanApplier implements LanOpApplier {
           itemIds: lines is List
               ? <int>[for (final Object? l in lines) _id(l)]
               : null,
+          idempotencyKey: key,
         );
       case LanOpType.orderCourseSend:
-        await offline.sendCourse(ref, _id(p['course_no']));
+        await offline.sendCourse(ref, _id(p['course_no']), idempotencyKey: key);
       case LanOpType.orderWeight:
         final PosQuantity? q = PosQuantity.tryParse(p['quantity']);
         if (q == null || !q.isPositive) throw const FormatException('quantity');
-        await offline.setWeight(ref, _id(p['line']), quantity: q);
+        await offline.setWeight(
+          ref,
+          _id(p['line']),
+          quantity: q,
+          idempotencyKey: key,
+        );
       case LanOpType.itemsVoid:
         await offline.voidItem(
           ref,
           _id(p['line']),
           reason: p['reason'] as String?,
+          idempotencyKey: key,
         );
       case LanOpType.orderServed:
-        await offline.markServed(ref, _id(p['line']));
+        await offline.markServed(ref, _id(p['line']), idempotencyKey: key);
       case LanOpType.kitchenBump:
         await offline.kitchenBump(ref, _id(p['line']));
       case LanOpType.kitchenRecall:
         await offline.kitchenRecall(ref, _id(p['line']));
       case LanOpType.kitchenAssembled:
-        await offline.kitchenAssembled(ref);
+        await offline.kitchenAssembled(ref, idempotencyKey: key);
       case LanOpType.billRequest:
         await offline.requestBill(
           ref,
-          printedOnLan: printsBill?.call(op) ?? false,
+          printedOnLan: await printsBill?.call(op) ?? false,
+          idempotencyKey: key,
         );
       default:
         throw const PosOfflineUnavailable(

@@ -483,7 +483,8 @@ class _PrinterLane {
       queue._emitJob(job);
       queue._emitState(this);
       final Duration? again = queue.autoResumeAfter;
-      if (again != null) {
+      // C7: part of it is on paper already: only the cashier sends it again (the warning's retry)
+      if (again != null && job.lastErrorKind != PrinterErrorKind.interrupted) {
         unawaited(
           queue._sleep(again).then((_) {
             if (!disposed && paused) queue.resume(config.id);
@@ -500,6 +501,7 @@ class _PrinterLane {
     PrinterErrorKind.paperOut => PrinterStatus.paperOut,
     PrinterErrorKind.coverOpen => PrinterStatus.coverOpen,
     PrinterErrorKind.unsupported ||
+    PrinterErrorKind.interrupted ||
     PrinterErrorKind.failed => PrinterStatus.error,
   };
 }

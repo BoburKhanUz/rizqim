@@ -4,15 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall13.dart';
-import 'table13.dart';
-import 'waiter16.dart';
+import 'hall12.dart';
+import 'table12.dart';
+import 'waiter15.dart';
 import 'discount_kind.dart';
-import 'pickup14.dart';
-import 'charges16.dart';
-import 'offline12.dart';
-import 'queue14.dart';
-import 'courses11.dart';
+import 'pickup13.dart';
+import 'charges15.dart';
+import 'offline11.dart';
+import 'queue13.dart';
+import 'courses10.dart';
 import 'items37.dart';
 
 part 'data244.g.dart';
@@ -81,8 +81,8 @@ class Data244 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall13? hall;
-  final Table13? table;
+  final Hall12? hall;
+  final Table12? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -91,7 +91,7 @@ class Data244 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter16? waiter;
+  final Waiter15? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -131,14 +131,14 @@ class Data244 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup14? pickup;
+  final Pickup13? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges16 charges;
-  final Offline12? offline;
-  final Queue14? queue;
+  final Charges15 charges;
+  final Offline11? offline;
+  final Queue13? queue;
   final int rounds;
-  final List<Courses11> courses;
+  final List<Courses10> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
   final List<Items37> items;

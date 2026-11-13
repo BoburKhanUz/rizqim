@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'ticket6.dart';
+import 'ticket4.dart';
 
 part 'order6.g.dart';
 
@@ -39,7 +39,7 @@ class Order6 {
   final int version;
   @JsonKey(name: 'queue_number')
   final int? queueNumber;
-  final Ticket6? ticket;
+  final Ticket4? ticket;
   @JsonKey(name: 'business_date')
   final String? businessDate;
   @JsonKey(name: 'bill_locked_at')

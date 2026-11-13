@@ -253,6 +253,59 @@ void main() {
     expect(l.setManual('not an address:::'), isNotNull);
   });
 
+  test('review P6 S3: every valid beacon heard in the window is tried (an old address of the hub, or one an attacker '
+      'replays, does not leave the phone alone)', () async {
+    final List<LanEndpoint> heard = <LanEndpoint>[];
+    LanBeacon at(String host, int p, LanCredentials c) => LanBeacon.verify(
+      LanBeacon(
+        branchId: branch.branchId,
+        keyId: branch.keyId,
+        hubDevice: TestBranch.hub,
+        host: host,
+        port: p,
+        ts: DateTime.now().millisecondsSinceEpoch,
+      ).sign(c.beaconKey),
+      c,
+      now: DateTime.now(),
+    )!;
+    // A port nothing listens on (the hub's address before a DHCP change, or a forged one)
+    final ServerSocket dead = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final int deadPort = dead.port;
+    await dead.close();
+    final LanLink l = LanLink(
+      app: LanApp.waiter,
+      probeCloud: () async => false,
+      collect: (LanCredentials c, {Duration timeout = Duration.zero}) async {
+        final List<LanBeacon> all = <LanBeacon>[
+          at('127.0.0.1', deadPort, c),
+          at('127.0.0.1', port, c),
+        ];
+        heard.addAll(all.map((LanBeacon b) => b.endpoint));
+        return all;
+      },
+      retry: const <Duration>[Duration(milliseconds: 50)],
+      probeEvery: const Duration(milliseconds: 50),
+      tickEvery: const Duration(milliseconds: 20),
+      tryLoopback: false,
+    );
+    links.add(l);
+    await l.setCredentials(
+      branch.client(
+        TestBranch.phone1,
+        port: port,
+        grant: branch.grant(TestBranch.phone1, 5, permissions: waiterPerms),
+      ),
+    );
+    l.start();
+    l.reportCloud(false);
+    await until(() => l.mode == LanMode.lan);
+    expect(heard.first, LanEndpoint('127.0.0.1', deadPort));
+    expect(l.endpoint, LanEndpoint('127.0.0.1', port));
+  });
+
   test('the waiter\'s repositories through the hub: open, round, send, get, floor, the bill asked; the money and '
       'the bill copy stay at the till', () async {
     final LanLink l = link(cloud: () => false);

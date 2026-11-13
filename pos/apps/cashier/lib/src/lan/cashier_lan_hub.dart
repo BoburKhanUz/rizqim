@@ -22,7 +22,12 @@ class CashierLanHub extends ChangeNotifier {
     this.store,
     this.hubFactory,
     this.printsBill,
+    this.fetchLan,
   });
+
+  /// Review P6 S5: `GET /pos/lan` (terminal tokeni bilan) — markaz qurilmalar ro'yxati va kalitlarni bootstrap'ni
+  /// kutmasdan yangilaydi (uzilgan qurilma darhol chiqariladi). `null` — faqat bootstrap'dan.
+  final Future<Map<String, Object?>?> Function()? fetchLan;
 
   final PosSession session;
   final AuthSession auth;
@@ -36,7 +41,7 @@ class CashierLanHub extends ChangeNotifier {
   hubFactory;
 
   /// P6 B: markaz LAN orqali olgan `bill.request` ning pre-check'ini o'zi chiqaradimi ([PosOfflineLanApplier.printsBill]).
-  final bool Function(LanRemoteOp op)? printsBill;
+  final FutureOr<bool> Function(LanRemoteOp op)? printsBill;
 
   static const String storageKey = 'pos_lan.credentials';
 
@@ -111,6 +116,29 @@ class CashierLanHub extends ChangeNotifier {
       await _fromBootstrap();
     });
     await _work;
+  }
+
+  /// Review P6 S5: kalitlar va qurilmalar ro'yxatini `GET /pos/lan` dan qayta o'qiydi (`pos.lan_changed`, real-time
+  /// qayta ulanganda va internet bor paytda har 5 daqiqada — ulangan terminal ekrani, [TerminalHome]): bekor qilingan qurilma darhol uziladi, almashgan kalit qo'llanadi, markaz
+  /// boshqa kassaga o'tsa bu kassa to'xtaydi. Server javob bermasa — eski holat qoladi; hech qachon xato bermaydi.
+  Future<void> refresh() {
+    final Future<Map<String, Object?>?> Function()? fetch = fetchLan;
+    if (fetch == null || auth.terminal == null) return Future<void>.value();
+    _schedule(() async {
+      final Map<String, Object?>? section;
+      try {
+        section = await fetch();
+      } on Object {
+        return;
+      }
+      // No section (a store-wide terminal, an older server): the bootstrap decides, as before
+      if (section == null) return;
+      final LanCredentials? creds = LanCredentials.fromJson(section);
+      if (creds == null) return;
+      await _save(creds);
+      await _apply(creds);
+    });
+    return _work;
   }
 
   void _schedule(Future<void> Function() step) {

@@ -13,7 +13,7 @@ V1PosOrdersUuidBillsRequestBody _$V1PosOrdersUuidBillsRequestBodyFromJson(
   mode: Mode2.fromJson(json['mode'] as String),
   parts: (json['parts'] as num?)?.toInt(),
   bills: (json['bills'] as List<dynamic>?)
-      ?.map((e) => Bills3.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Bills4.fromJson(e as Map<String, dynamic>))
       .toList(),
   approvalToken: json['approval_token'] as String?,
 );

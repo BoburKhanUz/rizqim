@@ -10,13 +10,13 @@ Tips10 _$Tips10FromJson(Map<String, dynamic> json) => Tips10(
   count: (json['count'] as num).toInt(),
   amount: json['amount'] as String,
   byMethod: (json['by_method'] as List<dynamic>)
-      .map((e) => ByMethod5.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByMethod3.fromJson(e as Map<String, dynamic>))
       .toList(),
   personal: json['personal'] as String,
   pool: json['pool'] as String,
   unassigned: json['unassigned'] as String,
   byStaff: (json['by_staff'] as List<dynamic>)
-      .map((e) => ByStaff4.fromJson(e as Map<String, dynamic>))
+      .map((e) => ByStaff3.fromJson(e as Map<String, dynamic>))
       .toList(),
   corrections: Corrections11.fromJson(
     json['corrections'] as Map<String, dynamic>,

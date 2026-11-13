@@ -89,8 +89,11 @@ class PosLanHubAppTest extends TestCase
         $this->assertNull($lan->hubOf($branch));
         $this->assertSame([], $lan->candidates($branch)->pluck('uuid')->all());
 
-        // A till paired before the app was recorded: the hub while it is the only one
+        // A terminal paired before the app was recorded: the hub only once it has had a shift (review S4: it may be a
+        // waiter's phone), while it is the only one
         $legacy = $this->pairApp($branch, null);
+        $this->assertNull($lan->hubOf($branch));
+        app(\App\Domain\Pos\Shifts\ShiftService::class)->open($this->makeStaff(UserRole::CASHIER, $branch), $legacy['device'], \App\Support\Money::of('0'));
         $this->assertSame((string) $legacy['device']->uuid, (string) $lan->hubOf($branch)?->uuid);
 
         // A cashier till: the default hub (its app is known), the phone still never a candidate

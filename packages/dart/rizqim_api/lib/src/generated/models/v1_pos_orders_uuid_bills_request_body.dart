@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'mode2.dart';
-import 'bills3.dart';
+import 'bills4.dart';
 
 part 'v1_pos_orders_uuid_bills_request_body.g.dart';
 
@@ -25,7 +25,7 @@ class V1PosOrdersUuidBillsRequestBody {
   final int version;
   final Mode2 mode;
   final int? parts;
-  final List<Bills3>? bills;
+  final List<Bills4>? bills;
   @JsonKey(name: 'approval_token')
   final String? approvalToken;
 

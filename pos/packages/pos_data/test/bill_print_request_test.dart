@@ -46,6 +46,18 @@ void main() {
       );
     });
 
+    test('review S5: pos.lan_changed is read with its reason and device', () {
+      final PosEvent e = PosEvent.fromWire('pos.lan_changed', <String, Object?>{
+        'branch_id': 5,
+        'reason': 'device_revoked',
+        'device': 'phone-1',
+        'changed_at': '2026-11-18T10:00:00Z',
+      });
+      expect(e, isA<PosLanChanged>());
+      expect((e as PosLanChanged).reason, 'device_revoked');
+      expect(e.device, 'phone-1');
+    });
+
     test('a till named in the request prints it, no name: every till', () {
       final BillPrintRequest named = BillPrintRequest.fromJson(wire);
       expect(named.isFor('till-1'), isTrue);

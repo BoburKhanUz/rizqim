@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'polygon5.dart';
+
 part 'data296.g.dart';
 
 @JsonSerializable()
@@ -11,9 +13,12 @@ class Data296 {
   const Data296({
     required this.id,
     required this.name,
-    required this.role,
-    required this.staffCode,
-    required this.photoUrl,
+    required this.polygon,
+    required this.deliveryPrice,
+    required this.minOrderAmount,
+    required this.freeDeliveryFrom,
+    required this.etaMinutes,
+    required this.priority,
   });
 
   factory Data296.fromJson(Map<String, Object?> json) =>
@@ -21,11 +26,16 @@ class Data296 {
 
   final int id;
   final String name;
-  final String role;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'photo_url')
-  final String? photoUrl;
+  final Polygon5 polygon;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'min_order_amount')
+  final String minOrderAmount;
+  @JsonKey(name: 'free_delivery_from')
+  final String? freeDeliveryFrom;
+  @JsonKey(name: 'eta_minutes')
+  final int? etaMinutes;
+  final int priority;
 
   Map<String, Object?> toJson() => _$Data296ToJson(this);
 }

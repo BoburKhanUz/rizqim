@@ -7,23 +7,11 @@ part of 'data260.dart';
 // **************************************************************************
 
 Data260 _$Data260FromJson(Map<String, dynamic> json) => Data260(
-  numbers: json['numbers'] as bool,
-  calling: json['calling'] as bool,
-  businessDate: json['business_date'] as String,
-  blockSize: (json['block_size'] as num).toInt(),
-  lowWater: (json['low_water'] as num).toInt(),
-  blocks: (json['blocks'] as List<dynamic>)
-      .map((e) => Blocks2.fromJson(e as Map<String, dynamic>))
+  slots: (json['slots'] as List<dynamic>)
+      .map((e) => Slots4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  nextNumber: (json['next_number'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data260ToJson(Data260 instance) => <String, dynamic>{
-  'numbers': instance.numbers,
-  'calling': instance.calling,
-  'business_date': instance.businessDate,
-  'block_size': instance.blockSize,
-  'low_water': instance.lowWater,
-  'blocks': instance.blocks,
-  'next_number': instance.nextNumber,
+  'slots': instance.slots,
 };

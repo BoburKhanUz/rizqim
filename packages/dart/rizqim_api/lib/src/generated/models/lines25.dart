@@ -10,24 +10,42 @@ part 'lines25.g.dart';
 class Lines25 {
   const Lines25({
     required this.name,
-    required this.qty,
+    required this.mxikCode,
+    required this.packageCode,
     required this.unit,
-    required this.price,
-    required this.total,
-    required this.modifiers,
-    required this.note,
+    required this.quantity,
+    required this.unitPrice,
+    required this.amount,
+    required this.vatRate,
+    required this.vatAmount,
+    required this.noVat,
+    required this.commissionerTin,
+    required this.markingCode,
   });
 
   factory Lines25.fromJson(Map<String, Object?> json) =>
       _$Lines25FromJson(json);
 
   final String name;
-  final String qty;
-  final String? unit;
-  final String price;
-  final String total;
-  final List<String> modifiers;
-  final String? note;
+  @JsonKey(name: 'mxik_code')
+  final String mxikCode;
+  @JsonKey(name: 'package_code')
+  final String? packageCode;
+  final String unit;
+  final String quantity;
+  @JsonKey(name: 'unit_price')
+  final String unitPrice;
+  final String amount;
+  @JsonKey(name: 'vat_rate')
+  final String vatRate;
+  @JsonKey(name: 'vat_amount')
+  final String vatAmount;
+  @JsonKey(name: 'no_vat')
+  final bool noVat;
+  @JsonKey(name: 'commissioner_tin')
+  final String? commissionerTin;
+  @JsonKey(name: 'marking_code')
+  final String? markingCode;
 
   Map<String, Object?> toJson() => _$Lines25ToJson(this);
 }

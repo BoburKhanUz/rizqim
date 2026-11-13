@@ -93,7 +93,17 @@ class TestBranch {
 /// A raw WebSocket to the hub that seals frames by hand (to send what a real client never would).
 class RawPeer {
   RawPeer._(this.ws, this.device, this.key, this.keyId) {
-    ws.listen((Object? d) => _incoming.add(d), onDone: () => _incoming.close());
+    ws.listen((Object? d) {
+      // The hub's challenge (README §5) comes first, unsigned: kept for the hello, not a frame
+      if (!_challenged.isCompleted && d is String) {
+        final Object? j = jsonDecode(d);
+        if (j is Map && j['type'] == 'challenge') {
+          _challenged.complete(j['nonce'] as String?);
+          return;
+        }
+      }
+      _incoming.add(d);
+    }, onDone: () => _incoming.close());
   }
 
   static Future<RawPeer> connect(
@@ -105,13 +115,22 @@ class RawPeer {
     final WebSocket ws = await WebSocket.connect(
       'ws://127.0.0.1:$port/lan/v1/ws',
     );
-    return RawPeer._(ws, device, LanChannelKey(deviceKey), keyId);
+    final RawPeer p = RawPeer._(ws, device, LanChannelKey(deviceKey), keyId);
+    p.challenge = await p._challenged.future.timeout(
+      const Duration(seconds: 2),
+      onTimeout: () => null,
+    );
+    return p;
   }
 
   final WebSocket ws;
   final String device;
   final LanChannelKey key;
   final int keyId;
+  final Completer<String?> _challenged = Completer<String?>();
+
+  /// The hub's challenge on this connection (a `hello` sealed by [seal] carries it unless it names its own).
+  String? challenge;
   final StreamController<Object?> _incoming = StreamController<Object?>();
   late final StreamIterator<Object?> _it = StreamIterator<Object?>(
     _incoming.stream,
@@ -126,7 +145,9 @@ class RawPeer {
           seq: seq ?? _seq++,
           ts: ts ?? DateTime.now().millisecondsSinceEpoch,
           keyId: keyId,
-          payload: payload,
+          payload: type == LanMsg.hello && !payload.containsKey('challenge')
+              ? <String, Object?>{...payload, 'challenge': challenge}
+              : payload,
         ),
         key,
       );

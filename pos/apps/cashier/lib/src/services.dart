@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:pos_core/pos_core.dart' show ReceiptHeader;
 import 'package:pos_data/pos_data.dart';
-import 'package:pos_lan/pos_lan.dart' show LanRemoteOp;
+import 'package:pos_lan/pos_lan.dart' show LanBillPrints, LanRemoteOp;
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'app_config.dart';
@@ -36,6 +36,7 @@ class CashierServices {
     SyncStore? offlineStore,
     CashierHardware? hardware,
     this.lanStore,
+    this.billPrintPoll = const Duration(minutes: 1),
   }) : data = data ?? PosData(client, clock: clock, offlineStore: offlineStore),
        printing = printing ?? CashierPrinting(),
        hardware = hardware ?? CashierHardware() {
@@ -43,8 +44,11 @@ class CashierServices {
     unawaited(lan.start());
     // P6 stage B: the till's own cart and queue go to the LAN devices; a bill asked over the LAN offline prints here
     lanPublisher.start();
-    lanBills?.start();
   }
+
+  /// Review P6 uskunalar/LAN (C2): o'tkazib yuborilgan schyot so'rovlari shu oraliqda ham o'qiladi
+  /// ([BillPrintService.catchUp]; real-time sozlanmagan kassa ham chiqaradi). `null` — faqat hodisalarda.
+  final Duration? billPrintPoll;
 
   /// P6 lokal ko'prik kalitlari saqlanadigan xavfsiz xotira (`null`: saqlanmaydi, testlar).
   final SecureKeyValueStore? lanStore;
@@ -55,7 +59,9 @@ class CashierServices {
     auth: client.auth,
     offline: data.offline,
     store: lanStore,
-    printsBill: (LanRemoteOp op) => lanBills?.decide(op) ?? false,
+    printsBill: (LanRemoteOp op) async => await lanBills?.decide(op) ?? false,
+    // Review P6 S5: a revoked phone or a rotated key reaches the hub without waiting for the next bootstrap
+    fetchLan: data.display.lan,
   );
 
   /// P6 B: kassaning `cart.display` va `queue.*` hodisalari LAN qurilmalariga ([CashierLanHub.publish]).
@@ -68,7 +74,7 @@ class CashierServices {
   /// P6 B: internetsiz paytda ofitsiant LAN orqali so'ragan schyotni shu kassa chiqaradi (`null`: oflayn rejim yo'q).
   late final LanBillPrints? lanBills = data.offline == null
       ? null
-      : LanBillPrints(
+      : tillLanBillPrints(
           offline: data.offline!,
           prints: billPrints,
           now: now,
@@ -88,14 +94,21 @@ class CashierServices {
   final RizqimClient client;
 
   /// P6 (A bosqichi): ofitsiant so'ragan schyotni (`bill.print_requested`) chek printerida chiqaradi. So'rov
-  /// serverdan ish ekrani ([HomeShell]) orqali keladi; keyingi bosqichda LAN ko'prigi ham shu yerga uzatadi.
+  /// serverdan ulangan terminal ([TerminalHome]: ekran qulflangan paytda ham) va LAN ko'prigidan keladi; o'tkazib
+  /// yuborilgani `GET /pos/bill-print-requests` dan ([BillPrintService.catchUp]).
   late final BillPrintService billPrints = BillPrintService(
     data: data,
     printing: printing,
-    deviceUuid: () => session.bootstrap?.device?.uuid,
+    // Review P6 hardware/LAN (C2): the paired terminal's own id, so a locked till (no bootstrap) still knows it is named
+    deviceUuid: () =>
+        session.bootstrap?.device?.uuid ?? auth.terminal?.device.uuid,
     now: now,
+    signedIn: () => session.phase == PosSessionPhase.ready,
+    // C6: a relayed request the hub printed at the start of an outage, announced by the server later
+    printedOnLan: (String requestId) => lanBills?.printed(requestId) ?? false,
     header: () {
-      final PosBootstrap? b = session.bootstrap;
+      final PosBootstrap? b =
+          session.bootstrap ?? data.offline?.storedBootstrap();
       return ReceiptHeader(
         storeName: b?.store.name ?? session.storeName ?? 'Kassa',
         address: b?.branch.address,

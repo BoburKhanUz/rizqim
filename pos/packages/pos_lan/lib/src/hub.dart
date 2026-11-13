@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -8,6 +9,7 @@ import 'crypto.dart';
 import 'frame.dart';
 import 'grant.dart';
 import 'messages.dart';
+import 'wire.dart';
 
 /// A device connected to the hub (after its `hello`).
 class LanPeerInfo {
@@ -41,7 +43,13 @@ class LanPeerInfo {
 /// The main till's side of the bridge (README): an HTTP + WebSocket server on the LAN (`/lan/v1/ws`, the beacon at
 /// `/lan/v1/beacon`) and the UDP beacon. Every frame is checked (device of the branch, signature, key version, time
 /// window, `(device, seq)` once); operations go through [applier] one at a time in arrival order; what changes goes to
-/// every connected device.
+/// the connected devices that may see it (a staff grant; a display without one: the cart and the queue).
+///
+/// Review P6 hardware/LAN (S1, S2, S6): the listener is a plain TCP server ([LanConnection]): the HTTP head within
+/// [handshakeTimeout] and 8 KB, no permessage-deflate, every WebSocket frame's length checked before its payload is
+/// buffered (64 KB before `hello`, 4 MB after); sockets that have not said `hello` are a small pool of their own
+/// ([pendingPerAddress] per address, [maxPending] in all, the oldest giving way, [helloTimeout]) and only devices that
+/// said `hello` count toward [maxPeers]; the `hello` carries the hub's challenge for this connection (no replay).
 class LanHub {
   LanHub({
     required LanCredentials credentials,
@@ -55,8 +63,11 @@ class LanHub {
     this._beaconPort,
     this.advertisedHost,
     this.helloWindow = const Duration(minutes: 10),
-    this.helloTimeout = const Duration(seconds: 10),
+    this.helloTimeout = const Duration(seconds: 3),
+    this.handshakeTimeout = const Duration(seconds: 3),
     this.maxPeers = 64,
+    this.pendingPerAddress = 8,
+    this.maxPending = 64,
   }) : _credentials = credentials,
        _clock = clock ?? DateTime.now,
        _address = address ?? InternetAddress.anyIPv4,
@@ -82,16 +93,31 @@ class LanHub {
   /// The address put in the beacon (`null`: the first IPv4 address of this machine).
   final String? advertisedHost;
   final Duration helloWindow;
+
+  /// From the WebSocket upgrade to the device's `hello`.
   final Duration helloTimeout;
+
+  /// From the TCP connection to the end of the HTTP request's head.
+  final Duration handshakeTimeout;
+
+  /// Devices that said `hello` (connections before it do not count).
   final int maxPeers;
+
+  /// Connections that have not said `hello` yet, from one address and in all (a new one makes the oldest give way:
+  /// a device is never refused because of them).
+  final int pendingPerAddress;
+  final int maxPending;
 
   LanCredentials _credentials;
   late final LanSequence _seq;
   late LanReplayGuard _replay;
-  HttpServer? _server;
+  ServerSocket? _server;
   LanBeaconSender? _beacon;
   String? _host;
+  Set<String> _ownHosts = <String>{};
   final Set<_Peer> _peers = <_Peer>{};
+  final List<LanConnection> _pending = <LanConnection>[];
+  final Map<LanConnection, Timer> _deadlines = <LanConnection, Timer>{};
   final List<StreamSubscription<Object?>> _subs =
       <StreamSubscription<Object?>>[];
   final StreamController<void> _changes = StreamController<void>.broadcast();
@@ -118,6 +144,9 @@ class LanHub {
 
   Stream<void> get changes => _changes.stream;
 
+  /// Connections that have not said `hello` (yet).
+  int get pendingConnections => _pending.length;
+
   /// The beacon as it is sent now.
   LanBeacon beacon() => LanBeacon(
     branchId: _credentials.branchId,
@@ -130,14 +159,15 @@ class LanHub {
 
   Future<void> start() async {
     if (_server != null) return;
-    final HttpServer server = await HttpServer.bind(
+    final ServerSocket server = await ServerSocket.bind(
       _address,
       _port,
       shared: true,
     );
     _server = server;
     _host = advertisedHost ?? await _localAddress();
-    server.listen(_onRequest, onError: (Object _) {});
+    _ownHosts = <String>{host.toLowerCase(), ...await _localAddresses()};
+    server.listen(_onSocket, onError: (Object _) {});
     _subs
       ..add(applier.events.listen(_broadcastEvent))
       ..add(applier.statusChanges.listen((_) => _broadcastState()));
@@ -165,7 +195,10 @@ class LanHub {
       await p.close(LanClose.goingAway, 'hub_stopped');
     }
     _peers.clear();
-    await _server?.close(force: true);
+    for (final LanConnection c in _pending.toList()) {
+      c.cut(null);
+    }
+    await _server?.close();
     _server = null;
     _emit();
   }
@@ -186,64 +219,155 @@ class LanHub {
     }
   }
 
-  /// Sends [type] to every connected device (or only [to]): `cart.display`, `queue.*` and others the till publishes.
+  /// Sends [type] to every connected device (or only [to]) that may see it ([_visible]): `cart.display`, `queue.*` and
+  /// others the till publishes.
   void publish(String type, Map<String, Object?> payload, {String? to}) {
     for (final _Peer p in _peers) {
       if (p.info == null) continue;
       if (to != null && p.device != to.toLowerCase()) continue;
-      _send(p, type, payload);
+      final Map<String, Object?>? shown = _visible(p, type, payload);
+      if (shown != null) _send(p, type, shown);
     }
   }
 
-  // --- HTTP ---------------------------------------------------------------------------------------------------------
+  /// Review P6 S7: what [p] is sent of an event. A device with a staff grant: everything. Without one (a display; a
+  /// KDS or a phone before sign-in): `lan.state`, and a display the cart, the queue and an order's queue number as the
+  /// screen shows it (`order.changed` without its lines, names or totals) — online the branch channel carries ids only.
+  Map<String, Object?>? _visible(
+    _Peer p,
+    String type,
+    Map<String, Object?> payload,
+  ) {
+    if (type == LanMsg.lanState || _granted(p)) return payload;
+    if (p.app != LanApp.display) return null;
+    if (type == LanMsg.cartDisplay || type.startsWith('queue.')) return payload;
+    if (type != LanMsg.orderChanged) return null;
+    final Object? order = payload['order'];
+    final Object? queue = order is Map ? order['queue'] : null;
+    if (order is! Map || queue is! Map) return null;
+    return <String, Object?>{
+      if (payload.containsKey('ref')) 'ref': payload['ref'],
+      'order': <String, Object?>{
+        'uuid': order['uuid'],
+        'status': order['status'],
+        'channel': order['channel'],
+        'queue': <String, Object?>{
+          'number': queue['number'],
+          'status': queue['status'],
+        },
+      },
+    };
+  }
 
-  Future<void> _onRequest(HttpRequest request) async {
+  /// A staff member is signed in on [p] (its grant checked and not expired).
+  bool _granted(_Peer p) {
+    final LanGrant? g = p.grant;
+    return g != null && _clock().isBefore(g.expiresAt);
+  }
+
+  // --- the listener ------------------------------------------------------------------------------------------------
+
+  void _onSocket(Socket socket) {
+    final LanConnection c = LanConnection(
+      socket,
+      onHead: _onHead,
+      onClosed: _onClosed,
+    );
+    if (c.closed) return;
+    _admit(c);
+  }
+
+  /// A new connection joins the pool of those without `hello`; when its address (or the pool) is full, the oldest of
+  /// that address (or of the busiest address) gives way.
+  void _admit(LanConnection c) {
+    final String ip = c.ip;
+    final List<LanConnection> same = <LanConnection>[
+      for (final LanConnection p in _pending)
+        if (p.ip == ip) p,
+    ];
+    if (same.length >= pendingPerAddress) same.first.cut('evicted');
+    if (_pending.length >= maxPending) {
+      final Map<String, int> count = <String, int>{};
+      for (final LanConnection p in _pending) {
+        count[p.ip] = (count[p.ip] ?? 0) + 1;
+      }
+      final String busiest = count.entries
+          .reduce(
+            (MapEntry<String, int> a, MapEntry<String, int> b) =>
+                b.value > a.value ? b : a,
+          )
+          .key;
+      _pending.firstWhere((LanConnection p) => p.ip == busiest).cut('evicted');
+    }
+    _pending.add(c);
+    _deadlines[c] = Timer(handshakeTimeout, () => c.cut('head_timeout'));
+  }
+
+  void _onClosed(LanConnection c) {
+    _pending.remove(c);
+    _deadlines.remove(c)?.cancel();
+  }
+
+  void _onHead(LanConnection c, LanHttpHead? head) {
     try {
-      final String path = request.uri.path;
-      if (path == '/lan/v1/ws' &&
-          WebSocketTransformer.isUpgradeRequest(request)) {
-        if (_peers.length >= maxPeers) {
-          request.response.statusCode = HttpStatus.serviceUnavailable;
-          await request.response.close();
-          return;
-        }
-        final WebSocket ws = await WebSocketTransformer.upgrade(request);
-        ws.pingInterval = const Duration(seconds: 10);
-        _accept(ws);
+      if (head == null) {
+        unawaited(c.respond(HttpStatus.badRequest, 'Bad Request'));
         return;
       }
-      if (path == '/lan/v1/beacon' && request.method == 'GET') {
-        final String host = request.headers.host ?? this.host;
+      if (head.path == '/lan/v1/ws') {
+        final String? accept = head.webSocketAccept;
+        if (accept == null) {
+          unawaited(c.respond(HttpStatus.badRequest, 'Bad Request'));
+          return;
+        }
+        _deadlines.remove(c)?.cancel();
+        c.upgrade(accept);
+        final WebSocket ws = WebSocket.fromUpgradedSocket(
+          c,
+          serverSide: true,
+          compression: CompressionOptions.compressionOff,
+          maxPayloadLength: LanWireLimits.afterHello,
+        );
+        ws.pingInterval = const Duration(seconds: 10);
+        _accept(ws, c);
+        return;
+      }
+      if (head.path == '/lan/v1/beacon' && head.method == 'GET') {
+        // Review P6 S3: only an address of this machine is signed (the one the caller reached it on when it is one,
+        // else the advertised one): the beacon is no signing oracle for someone else's address
+        final String? asked = head.host;
         final LanBeacon b = beacon();
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(
-            LanBeacon(
+        unawaited(
+          c.respond(
+            HttpStatus.ok,
+            'OK',
+            contentType: 'application/json',
+            body: LanBeacon(
               branchId: b.branchId,
               keyId: b.keyId,
               hubDevice: b.hubDevice,
-              host: host,
+              host: asked != null && _ownHosts.contains(asked) ? asked : host,
               port: b.port,
               ts: b.ts,
             ).sign(_credentials.beaconKey),
-          );
-        await request.response.close();
+          ),
+        );
         return;
       }
-      request.response.statusCode = HttpStatus.notFound;
-      await request.response.close();
+      unawaited(c.respond(HttpStatus.notFound, 'Not Found'));
     } on Object {
       // A broken request: nothing to answer
+      c.cut('bad_request');
     }
   }
 
-  void _accept(WebSocket ws) {
-    final _Peer peer = _Peer(ws, _clock());
+  void _accept(WebSocket ws, LanConnection conn) {
+    final _Peer peer = _Peer(ws, conn, _clock());
     _peers.add(peer);
     peer.helloTimer = Timer(helloTimeout, () {
       if (peer.info == null) {
         unawaited(peer.close(LanClose.badFrame, 'hello_timeout'));
+        conn.cut('hello_timeout');
       }
     });
     ws.listen(
@@ -252,6 +376,20 @@ class LanHub {
       onError: (Object _) => _gone(peer),
       cancelOnError: true,
     );
+    // Review P6 S6: the hello must carry this connection's challenge, so one captured on the Wi-Fi opens nothing
+    // (not after a restart of the hub either, when the (device, seq) store is empty)
+    peer.challenge = base64.encode(lanRandomBytes(16, _random));
+    try {
+      ws.add(
+        jsonEncode(<String, Object?>{
+          'v': 1,
+          'type': LanMsg.challenge,
+          'nonce': peer.challenge,
+        }),
+      );
+    } on Object {
+      // Already gone
+    }
   }
 
   void _gone(_Peer peer) {
@@ -288,6 +426,10 @@ class LanHub {
     switch (frame.type) {
       case LanMsg.op:
         _ops = _ops.then((_) => _op(peer, frame)).catchError((Object _) {});
+      case LanMsg.stateGet when !_granted(peer):
+        _send(peer, LanMsg.error, _grantRequired(null));
+      case LanMsg.orderGet when !_granted(peer):
+        _send(peer, LanMsg.error, _grantRequired(frame.payload['order']));
       case LanMsg.stateGet:
         _send(peer, LanMsg.state, _statePayload());
       case LanMsg.orderGet:
@@ -355,7 +497,23 @@ class LanHub {
   }
 
   void _hello(_Peer peer, LanFrame frame) {
+    final Object? challenge = frame.payload['challenge'];
+    if (challenge is! String || challenge != peer.challenge) {
+      unawaited(peer.close(LanClose.unauthorized, 'challenge'));
+      return;
+    }
+    final int others = <_Peer>[
+      for (final _Peer p in _peers)
+        if (p.info != null && p.device != peer.device) p,
+    ].length;
+    if (others >= maxPeers) {
+      unawaited(peer.close(LanClose.busy, 'too_many_devices'));
+      return;
+    }
     peer.helloTimer?.cancel();
+    // A device of the branch: out of the pool of unknown connections, its messages may be larger now
+    _onClosed(peer.conn);
+    peer.conn.limit = LanWireLimits.afterHello;
     // One connection per device: an older one (a phone that roamed between access points) gives way
     for (final _Peer other in _peers.toList()) {
       if (!identical(other, peer) && other.device == peer.device) {
@@ -409,6 +567,14 @@ class LanHub {
       );
     }
   }
+
+  /// Review P6 S7: the floor and the orders are for a signed-in staff member's device.
+  static Map<String, Object?> _grantRequired(Object? order) =>
+      <String, Object?>{
+        'reason': 'grant_required',
+        'message': "Qurilmada xodim kirmagan: buyurtmalar ko'rinmaydi.",
+        'order': ?order,
+      };
 
   Map<String, Object?> _welcome(_Peer peer, Object? nonce) => <String, Object?>{
     'nonce': nonce,
@@ -537,6 +703,23 @@ class LanHub {
     if (!_changes.isClosed) _changes.add(null);
   }
 
+  /// Every address of this machine (loopback too), lower case: the hosts a beacon may name.
+  static Future<Set<String>> _localAddresses() async {
+    final Set<String> out = <String>{'127.0.0.1', '::1'};
+    try {
+      for (final NetworkInterface i in await NetworkInterface.list(
+        includeLoopback: true,
+      )) {
+        for (final InternetAddress a in i.addresses) {
+          out.add(a.address.toLowerCase());
+        }
+      }
+    } on Object {
+      // No interfaces listed: the advertised address only
+    }
+    return out;
+  }
+
   static Future<String?> _localAddress() async {
     try {
       for (final NetworkInterface i in await NetworkInterface.list(
@@ -559,10 +742,12 @@ class LanHub {
 }
 
 class _Peer {
-  _Peer(this.ws, this.connectedAt);
+  _Peer(this.ws, this.conn, this.connectedAt);
 
   final WebSocket ws;
+  final LanConnection conn;
   final DateTime connectedAt;
+  String? challenge;
   String? device;
   LanChannelKey? key;
   LanDeviceInfo? member;
@@ -579,5 +764,7 @@ class _Peer {
     } on Object {
       // Already gone
     }
+    // The closing handshake is the device's courtesy: the socket goes either way
+    conn.cut(null);
   }
 }

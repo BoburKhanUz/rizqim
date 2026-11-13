@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'packaging.dart';
-import 'pickup.dart';
+import 'pickup2.dart';
 import 'business_day2.dart';
 
 part 'takeaway.g.dart';
@@ -22,7 +22,7 @@ class Takeaway {
       _$TakeawayFromJson(json);
 
   final List<Packaging> packaging;
-  final Pickup? pickup;
+  final Pickup2? pickup;
   @JsonKey(name: 'business_day')
   final BusinessDay2 businessDay;
 

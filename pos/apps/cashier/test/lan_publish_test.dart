@@ -161,14 +161,16 @@ void main() {
       deviceUuid: () => pos.session.bootstrap?.device?.uuid,
       now: () => now,
       header: () => const ReceiptHeader(storeName: 'Choyxona'),
+      printedOnLan: (String id) => lanBills.printed(id),
     );
-    lanBills = LanBillPrints(
+    lanBills = tillLanBillPrints(
       offline: pos.offline!,
       prints: prints,
       now: () => now,
       autoPrint: () =>
           pos.session.bootstrap?.branch.settings.autoPrintBill ?? true,
       printerId: () => pos.session.bootstrap?.branch.settings.billPrinter,
+      takeOverAfter: const Duration(milliseconds: 300),
     );
     hub = CashierLanHub(
       session: pos.session,
@@ -200,7 +202,6 @@ void main() {
     await pos.floor.load();
     await pos.orders.openOrders();
     await until(() => hub.running);
-    lanBills.start();
     publisher.start();
   });
 
@@ -210,7 +211,7 @@ void main() {
     }
     clients.clear();
     publisher.dispose();
-    await lanBills.dispose();
+    lanBills.dispose();
     hub.dispose();
     await Future<void>.delayed(const Duration(milliseconds: 50));
     await pos.dispose();
@@ -309,6 +310,101 @@ void main() {
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await lanBills.idle();
+    expect(receipts(), hasLength(1));
+  });
+
+  test('review C6: the hub prints before it queues; a waiter retry after the till restarted prints nothing more', () async {
+    await goOffline();
+    final LanClient botir = await connect(
+      phone,
+      LanApp.waiter,
+      as: grant(phone, 4, 'Botir Aliyev'),
+    );
+    final String order = await waiterOrder(botir);
+    final String opId = newUuid();
+    final LanRemoteOp op = LanRemoteOp(
+      opId: opId,
+      type: LanOpType.billRequest,
+      device: phone,
+      staffId: 4,
+      payload: <String, Object?>{'order': order},
+    );
+
+    // Printed in the same step it is decided; then the till dies before the request reached its queue
+    expect(await lanBills.decide(op), isTrue);
+    expect(receipts(), hasLength(1));
+    expect(pos.offline!.store.find(opId), isNull);
+
+    // The app comes back (a new dedupe in memory): the waiter's phone sends the same request again
+    final BillPrintService restarted = BillPrintService(
+      data: pos,
+      printing: printing,
+      deviceUuid: () => pos.session.bootstrap?.device?.uuid,
+      now: () => now,
+      header: () => const ReceiptHeader(storeName: 'Choyxona'),
+    );
+    final LanBillPrints again = tillLanBillPrints(
+      offline: pos.offline!,
+      prints: restarted,
+      now: () => now,
+      autoPrint: () => true,
+    );
+    addTearDown(again.dispose);
+    expect(again.printed(opId), isTrue);
+    expect(await again.decide(op), isTrue, reason: 'on paper already');
+    final LanOpResult retried = await botir.send(
+      LanOpType.billRequest,
+      <String, Object?>{'order': order},
+      opId: opId,
+    );
+    expect(retried.accepted, isTrue, reason: retried.message);
+    await lanBills.idle();
+    expect(receipts(), hasLength(1));
+    expect(pos.offline!.store.find(opId)!.payload['printed_on_lan'], isTrue);
+  });
+
+  test('review C6: the outage just started (the till still thinks it is online): the hub prints a request the '
+      'server does not answer, and the server\'s print of it later comes out nowhere', () async {
+    final LanClient botir = await connect(
+      phone,
+      LanApp.waiter,
+      as: grant(phone, 4, 'Botir Aliyev'),
+    );
+    final String order = await waiterOrder(botir);
+    // The server stops answering: the till has not noticed yet (an error answer keeps it "online")
+    adapter.state.failPaths['/v1/pos/sync'] = 503;
+    final String opId = newUuid();
+    final LanOpResult asked = await botir.send(
+      LanOpType.billRequest,
+      <String, Object?>{'order': order},
+      opId: opId,
+    );
+    expect(asked.accepted, isTrue, reason: asked.message);
+    expect(pos.offline!.connectivity.state.online, isTrue);
+    expect(
+      receipts(),
+      isEmpty,
+      reason: 'the server is the one to print it now',
+    );
+    await until(
+      () => receipts().isNotEmpty,
+      reason: 'unanswered: the hub prints',
+    );
+    await lanBills.idle();
+    expect(receipts(), hasLength(1));
+    expect(lanBills.printed(opId), isTrue);
+
+    // The internet is back: the server applies the request and announces its print with the request's key
+    adapter.state.failPaths.clear();
+    final BillPrintOutcome outcome = await prints.handle(
+      BillPrintRequest(
+        billUuid: 'server-bill',
+        orderUuid: order,
+        requestId: opId,
+        targetDevice: pos.session.bootstrap?.device?.uuid,
+      ),
+    );
+    expect(outcome, BillPrintOutcome.duplicate);
     expect(receipts(), hasLength(1));
   });
 

@@ -68,6 +68,7 @@ void main() {
       offline: data.offline,
       store: secure,
       hubFactory: loopback,
+      fetchLan: data.display.lan,
     );
     hubs.add(h);
     return h;
@@ -144,6 +145,45 @@ void main() {
     expect(hub.peers.single.app, LanApp.waiter);
     await waiter.dispose();
     await until(() => hub.peers.isEmpty);
+  });
+
+  test('review S5: the owner revokes a phone: on refresh (pos.lan_changed, reconnect, every 5 min) the hub drops it at '
+      'once, without waiting for the next bootstrap', () async {
+    final CashierLanHub hub = hubOf(pos);
+    await hub.start();
+    await pos.session.loadBootstrap();
+    await until(() => hub.running);
+    final LanClient waiter = LanClient(
+      credentials: LanCredentials.fromJson(<String, Object?>{
+        ...hubSection(),
+        'role': 'client',
+        'device': phone,
+        'device_key': base64.encode(LanKeys.device(secret, phone)),
+        'hub_secret': null,
+        'devices': null,
+      })!,
+      app: LanApp.waiter,
+    );
+    addTearDown(waiter.dispose);
+    await waiter.connect(LanEndpoint('127.0.0.1', hub.port!));
+    await until(() => hub.peers.length == 1);
+
+    // The server no longer lists the phone (revoked); the till hears it through GET /pos/lan
+    adapter.state.terminalLan = <String, Object?>{
+      ...hubSection(),
+      'devices': <Object?>[],
+    };
+    await hub.refresh();
+    await until(() => hub.peers.isEmpty);
+    expect(hub.running, isTrue);
+    expect(waiter.connected, isFalse);
+    // Kept for an offline restart too
+    expect(await secure.read(CashierLanHub.storageKey), isNot(contains(phone)));
+
+    // The server does not answer: the hub carries on as it is
+    adapter.state.failPaths['/v1/pos/lan'] = 503;
+    await hub.refresh();
+    expect(hub.running, isTrue);
   });
 
   test('reopened without the internet the till runs the bridge from its stored keys; no longer the hub, it stops and forgets them', () async {

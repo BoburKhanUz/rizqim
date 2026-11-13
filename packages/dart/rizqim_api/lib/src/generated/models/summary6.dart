@@ -13,10 +13,10 @@ import 'by_waiter4.dart';
 import 'discounts4.dart';
 import 'voids4.dart';
 import 'batch_writeoffs4.dart';
-import 'refunds7.dart';
+import 'refunds8.dart';
 import 'deposits4.dart';
 import 'credit7.dart';
-import 'tips12.dart';
+import 'tips13.dart';
 import 'cash5.dart';
 import 'movements4.dart';
 import 'pending_receipts2.dart';
@@ -67,10 +67,10 @@ class Summary6 {
   final Voids4 voids;
   @JsonKey(name: 'batch_writeoffs')
   final BatchWriteoffs4 batchWriteoffs;
-  final Refunds7 refunds;
+  final Refunds8 refunds;
   final Deposits4 deposits;
   final Credit7 credit;
-  final Tips12 tips;
+  final Tips13 tips;
   final Cash5 cash;
   final List<Movements4> movements;
   @JsonKey(name: 'open_orders')

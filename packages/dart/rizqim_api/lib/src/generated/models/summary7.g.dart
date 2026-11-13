@@ -18,7 +18,7 @@ Summary7 _$Summary7FromJson(Map<String, dynamic> json) => Summary7(
   byStaff: (json['by_staff'] as List<dynamic>)
       .map((e) => ByStaff8.fromJson(e as Map<String, dynamic>))
       .toList(),
-  corrections: Corrections15.fromJson(
+  corrections: Corrections16.fromJson(
     json['corrections'] as Map<String, dynamic>,
   ),
 );

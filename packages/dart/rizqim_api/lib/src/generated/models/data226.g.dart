@@ -7,33 +7,47 @@ part of 'data226.dart';
 // **************************************************************************
 
 Data226 _$Data226FromJson(Map<String, dynamic> json) => Data226(
-  v: (json['v'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  keyId: (json['key_id'] as num).toInt(),
-  role: LanRole.fromJson(json['role'] as String),
-  device: json['device'] as String,
-  deviceKey: json['device_key'] as String,
-  beaconKey: json['beacon_key'] as String,
-  hub: Hub5.fromJson(json['hub'] as Map<String, dynamic>),
-  hubSecret: json['hub_secret'] as String?,
-  devices: (json['devices'] as List<dynamic>?)
-      ?.map((e) => Devices4.fromJson(e as Map<String, dynamic>))
+  uuid: json['uuid'] as String,
+  type: Type6.fromJson(json['type'] as String),
+  status: Status5.fromJson(json['status'] as String),
+  paymentForm: PaymentForm.fromJson(json['payment_form'] as String),
+  nonFiscal: json['non_fiscal'] as bool,
+  total: json['total'] as String,
+  vatTotal: json['vat_total'] as String,
+  fiscalSign: json['fiscal_sign'] as String?,
+  receiptNumber: json['receipt_number'] as String?,
+  qrUrl: json['qr_url'] as String?,
+  terminalId: json['terminal_id'] as String?,
+  error: json['error'] as String?,
+  issuedAt: json['issued_at'] as String?,
+  createdAt: json['created_at'] as String?,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  originalReceiptUuid: json['original_receipt_uuid'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines28.fromJson(e as Map<String, dynamic>))
       .toList(),
-  grant: json['grant'] as String?,
-  clockWindowSeconds: (json['clock_window_seconds'] as num).toInt(),
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments30.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data226ToJson(Data226 instance) => <String, dynamic>{
-  'v': instance.v,
+  'uuid': instance.uuid,
+  'type': instance.type,
+  'status': instance.status,
+  'payment_form': instance.paymentForm,
+  'non_fiscal': instance.nonFiscal,
+  'total': instance.total,
+  'vat_total': instance.vatTotal,
+  'fiscal_sign': instance.fiscalSign,
+  'receipt_number': instance.receiptNumber,
+  'qr_url': instance.qrUrl,
+  'terminal_id': instance.terminalId,
+  'error': instance.error,
+  'issued_at': instance.issuedAt,
+  'created_at': instance.createdAt,
   'branch_id': instance.branchId,
-  'key_id': instance.keyId,
-  'role': instance.role,
-  'device': instance.device,
-  'device_key': instance.deviceKey,
-  'beacon_key': instance.beaconKey,
-  'hub': instance.hub,
-  'hub_secret': instance.hubSecret,
-  'devices': instance.devices,
-  'grant': instance.grant,
-  'clock_window_seconds': instance.clockWindowSeconds,
+  'original_receipt_uuid': instance.originalReceiptUuid,
+  'lines': instance.lines,
+  'payments': instance.payments,
 };

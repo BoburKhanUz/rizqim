@@ -1,4 +1,6 @@
 import '../json.dart';
+import '../orders/order_models.dart';
+import 'billing_models.dart';
 
 /// Schyotni pre-check sifatida chiqarish so'rovi (P6, A bosqichi): ofitsiant "Schyot so'rash"ni bosganda (server
 /// schyotni o'zi tuzadi, `reprint: false`) yoki "Schyotni qayta chiqarish"ni bosganda (`reprint: true`). Hech qachon
@@ -75,6 +77,30 @@ class BillPrintRequest {
 
   @override
   String toString() => 'BillPrintRequest($billUuid, $requestId)';
+}
+
+/// Review P6 uskunalar/LAN (C2): server saqlagan, shu kassa hali chiqarmagan so'rov (`GET /pos/bill-print-requests`,
+/// terminalning o'z tokeni bilan): hodisa maydonlari va chiqarish uchun schyotlar hamda buyurtma — ekran qulflangan
+/// (xodim sessiyasi yo'q) kassa ham chiqaradi.
+class PendingBillPrint {
+  const PendingBillPrint({
+    required this.request,
+    required this.billing,
+    required this.order,
+  });
+
+  factory PendingBillPrint.fromJson(Map<String, Object?> data) {
+    final PosJson j = PosJson(data);
+    return PendingBillPrint(
+      request: BillPrintRequest.fromJson(data),
+      billing: PosBilling.fromJson(j.obj('billing')),
+      order: PosOrder.fromJson(j.obj('order')),
+    );
+  }
+
+  final BillPrintRequest request;
+  final PosBilling billing;
+  final PosOrder order;
 }
 
 /// `POST /pos/bills/{uuid}/print-request` javobi: so'rov qabul qilindi, kim chiqarishi aytiladi.

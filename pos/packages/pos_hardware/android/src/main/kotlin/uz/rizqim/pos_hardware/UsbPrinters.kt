@@ -176,7 +176,12 @@ internal class UsbPrinters(private val context: Context) : MethodChannel.MethodC
                 while (offset < bytes.size) {
                     val length = minOf(CHUNK, bytes.size - offset)
                     val n = connection.bulkTransfer(out, bytes, offset, length, WRITE_TIMEOUT_MS)
-                    if (n < 0) throw PrinterIoException("write_failed", "bulkTransfer returned $n")
+                    // Review P6 C7: after part of the job went out a retry would print a second, partial copy:
+                    // `write_partial` is not retried by the queue (the cashier retries by hand); nothing sent yet:
+                    // `write_failed`, retried. 0 bytes is a stalled printer, not progress.
+                    if (n <= 0) {
+                        throw PrinterIoException(if (offset > 0) "write_partial" else "write_failed", "bulkTransfer returned $n")
+                    }
                     offset += n
                 }
                 if (expect <= 0) return null

@@ -158,28 +158,39 @@ internal class BluetoothPrinters(
 
     private fun writeWithReconnect(address: String, bytes: ByteArray) {
         val socket = socketFor(address)
+        val sent = Written()
         try {
-            write(socket, bytes)
+            write(socket, bytes, sent)
         } catch (first: IOException) {
-            // The printer was switched off and on, or went out of range: one fresh connection
             closeSocket(address)
+            // Review P6 C7: part of the job reached the printer: sending it all again prints a second, partial copy.
+            // `write_partial` is not retried by the queue; the cashier sees the warning and retries by hand.
+            if (sent.bytes > 0) throw PrinterIoException("write_partial", first.message)
+            // Nothing went out (the printer was switched off and on, or went out of range): one fresh connection
             val again = socketFor(address)
+            val resent = Written()
             try {
-                write(again, bytes)
+                write(again, bytes, resent)
             } catch (e: IOException) {
                 closeSocket(address)
-                throw PrinterIoException("write_failed", e.message)
+                throw PrinterIoException(if (resent.bytes > 0) "write_partial" else "write_failed", e.message)
             }
         }
     }
 
-    private fun write(socket: BluetoothSocket, bytes: ByteArray) {
+    /** How many bytes of a job went out in whole chunks before a failure. */
+    private class Written {
+        var bytes = 0
+    }
+
+    private fun write(socket: BluetoothSocket, bytes: ByteArray, sent: Written = Written()) {
         val out = socket.outputStream
         var offset = 0
         while (offset < bytes.size) {
             val n = minOf(CHUNK, bytes.size - offset)
             out.write(bytes, offset, n)
             offset += n
+            sent.bytes = offset
         }
         out.flush()
     }

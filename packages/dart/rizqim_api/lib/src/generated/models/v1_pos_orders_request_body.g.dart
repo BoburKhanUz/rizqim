@@ -19,7 +19,7 @@ V1PosOrdersRequestBody _$V1PosOrdersRequestBodyFromJson(
   send: json['send'] as bool?,
   queueNumber: (json['queue_number'] as num?)?.toInt(),
   items: (json['items'] as List<dynamic>?)
-      ?.map((e) => Items22.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Items24.fromJson(e as Map<String, dynamic>))
       .toList(),
   tableLabel: json['table_label'] as String?,
   pickupAt: json['pickup_at'] == null

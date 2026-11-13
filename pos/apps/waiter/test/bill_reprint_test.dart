@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
+import 'package:rizqim_waiter/src/common/errors.dart';
 import 'package:rizqim_waiter/src/features/order/order_page.dart';
 import 'package:rizqim_waiter/src/shell/approval_dialog.dart';
 
@@ -144,4 +145,21 @@ void main() {
     expect(find.byType(ManagerApprovalDialog), findsNothing);
     expect(backend.printRequests, isEmpty);
   });
+
+  test(
+    'a reprint of an outgrown split bill says the cashier makes it again',
+    () {
+      // P6 review C4: 409 bill_stale (the server never prints the old total)
+      expect(
+        describeError(
+          const PosConflict(
+            message: 'x',
+            statusCode: 409,
+            reason: 'bill_stale',
+          ),
+        ),
+        contains('yangi schyotni kassir tuzadi'),
+      );
+    },
+  );
 }

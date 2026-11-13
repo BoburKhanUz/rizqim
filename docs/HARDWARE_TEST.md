@@ -184,17 +184,20 @@ yuboriladi. Windows Defender Firewall buni standart holatda to'sadi. <!-- TEKSHI
   (Allow access) — administrator paroli bilan. **Bekor qilish** bosilsa Windows ilovani to'sib qo'yadi — keyingi qadam buni tuzatadi.
 - [ ] Kassada **Lokal tarmoq: 0 qurilma** belgisini bosing: qurilma yo'q bo'lsa yordam matni chiqadi; qoida yo'q bo'lsa
   "Windows xavfsizlik devori 18480-portni to'sib qo'yishi mumkin" va **Ruxsat berish** tugmasi. Bosing → Windows UAC so'raydi → **Ha**
-  → "Ruxsat berildi". (Tugma ilovaning to'suvchi qoidalarini o'chiradi va `Rizqim POS lokal tarmoq` nomli TCP, UDP va dastur
-  qoidalarini qo'shadi.)
+  → "Ruxsat berildi". (Tugma faqat o'z `Rizqim POS lokal tarmoq` nomli qoidalarini almashtiradi: TCP, UDP va dastur qoidasi,
+  faqat **Xususiy (Private) va Domen** tarmoqlarda; boshqa qoidalarga — IT administratorining bloklash qoidasiga ham — tegmaydi.)
+- [ ] Windows bu Wi-Fi'ni **Ommaviy (Public)** tarmoq deb bilsa qoida ishlamaydi va qurilmalar ulanmaydi: **Sozlamalar → Tarmoq →
+  Wi-Fi → (tarmoq) → Tarmoq profili: Xususiy**. Ommaviy tarmoqda (mehmonlar Wi-Fi'si) markaz ochilmasligi — ataylab.
 - [ ] Yoki qo'lda bir marta (administrator PowerShell yoki "Command Prompt (Admin)"):
 
   ```
-  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=any
-  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=any
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=private,domain
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=private,domain
   ```
 
   Port panelda boshqacha bo'lsa — o'sha raqam. **Windows Defender Firewall → Kengaytirilgan sozlamalar → Kirish qoidalari** da
-  `rizqim_cashier` uchun **Bloklash** qoidasi bo'lsa — o'chiring (bloklash qoidasi ruxsatdan ustun).
+  `rizqim_cashier` uchun **Bloklash** qoidasi bo'lsa (Windows so'rovida "Bekor qilish" bosilgan) — uni qo'lda o'chiring: bloklash
+  qoidasi ruxsatdan ustun, ilova esa boshqa qoidalarga tegmaydi.
 - [ ] Ofitsiant telefonidan markazga ulaning (7-bo'lim): kassada qurilmalar soni oshdi. Telefonda brauzer bilan
   `http://<kassa IP>:18480/lan/v1/beacon` ochiladi (beacon JSON).
 - [ ] Oshxona ekrani yoki mijoz ekrani **boshqa Windows kompyuterda** bo'lsa, o'sha kompyuterda ham UDP qoidasini qo'shing (beacon'ni
@@ -301,6 +304,13 @@ qadam qiyin bo'ldi.
 - [ ] Sozlamani o'chiring (**Schyotni avtomatik chiqarish** o'chiq): "Schyot so'rash" faqat belgilaydi, schyot chiqmaydi; kassir qo'lda chiqaradi.
 - [ ] **Schyot printeri** boshqa printerga (masalan, Bluetooth) o'zgartirilsa — shu printerdan chiqadi.
 - [ ] Jurnalda `pos.bill_reprinted` yozuvi: kim so'ragan, kim tasdiqlagan.
+- [ ] (Review C2) Kassa **ekrani qulflangan** (PIN ekrani, 5 daqiqa tegilmagan): ofitsiant **Schyot so'rash** → schyot baribir
+  chiqdi. Kassa Wi-Fi'sini 1 daqiqa uzing, shu paytda ofitsiant (mobil internetda) schyot so'rasin; Wi-Fi qaytgach 1 daqiqa
+  ichida schyot **bir marta** chiqdi. Ikki kassa bo'lsa — faqat bittasida.
+- [ ] (Review C6) Internet endi uzildi (router WAN kabelini tortib, kassa hali "internet bor" deb turibdi): ofitsiant lokal
+  rejimda **Schyot so'rash** → ~10 soniyada markaz kassada chiqdi; internet qaytgach schyot **qayta chiqmadi**.
+- [ ] (Review C7) Bluetooth/USB printerda uzun chek chop etilayotganda printerni o'chiring: chala chek **o'zi qayta chiqmaydi**,
+  kassada "Hujjat qisman chiqdi" ogohlantirishi; printerni yoqib **Qayta urinish** — to'liq chek bir marta chiqdi.
 
 ## 10. Elektr o'chishi mashqi
 

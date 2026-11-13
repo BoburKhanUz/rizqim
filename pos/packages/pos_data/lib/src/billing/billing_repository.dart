@@ -1,4 +1,5 @@
 import 'package:pos_core/pos_core.dart';
+import 'package:rizqim_api/rizqim_api.dart' show AuthScope;
 
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
@@ -95,6 +96,38 @@ class BillingRepository {
       idempotencyKey: idempotencyKey,
       body: <String, Object?>{'approval_token': ?approvalToken},
     );
+  }
+
+  /// Review P6 uskunalar/LAN (C2): `GET /pos/bill-print-requests` — shu kassa hali chiqarmagan schyot so'rovlari
+  /// (oxirgi soat, ochiq buyurtmalar), schyot va buyurtmasi bilan. Terminalning o'z tokeni bilan: ekran qulflangan
+  /// kassa ham o'qiydi. Internetsiz rejimda va `lan` da so'ralmaydi (bo'sh ro'yxat).
+  Future<List<PendingBillPrint>> pendingPrintRequests() async {
+    if (_limited || (lan?.active ?? false)) return const <PendingBillPrint>[];
+    return _http.get('/v1/pos/bill-print-requests', (Object? data) {
+      final Object? list = dataObject(data)['requests'];
+      return <PendingBillPrint>[
+        for (final Object? e in (list as List<Object?>?) ?? const <Object?>[])
+          if (e is Map) PendingBillPrint.fromJson(e.cast<String, Object?>()),
+      ];
+    }, scope: AuthScope.terminal);
+  }
+
+  /// Review P6 uskunalar/LAN (C2): `POST /pos/bill-print-requests/{request_id}/printed` — kassa so'rovni chiqarishdan
+  /// oldin oladi: `true` — shu kassa chiqaradi, `false` — boshqa kassa oldi (chiqarilmaydi), `null` — server bu
+  /// so'rovni bilmaydi (kassa baribir chiqaradi). Aloqa xatosi — [PosException].
+  Future<bool?> claimPrintRequest(String requestId) async {
+    try {
+      final PosResponse r = await _http.raw(
+        'POST',
+        '/v1/pos/bill-print-requests/$requestId/printed',
+        scope: AuthScope.terminal,
+        idempotent: false,
+      );
+      final Object? data = r.data;
+      return data is Map ? data['claimed'] != false : true;
+    } on PosNotFound {
+      return null;
+    }
   }
 
   /// `POST /pos/orders/{uuid}/bills`: schyot tuzish yoki bo'lish (buyurtmaning hali schyotga tushmagan qismidan).

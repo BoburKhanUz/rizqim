@@ -12,7 +12,7 @@ GetV1PosLanResponse _$GetV1PosLanResponseFromJson(Map<String, dynamic> json) =>
       message: json['message'] as String,
       data: json['data'] == null
           ? null
-          : Data226.fromJson(json['data'] as Map<String, dynamic>),
+          : Data228.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1PosLanResponseToJson(

@@ -9,23 +9,21 @@ part 'modifiers13.g.dart';
 @JsonSerializable()
 class Modifiers13 {
   const Modifiers13({
-    required this.id,
     required this.name,
-    required this.groupName,
     required this.quantity,
-    required this.priceDelta,
+    this.groupName,
+    this.priceDelta,
   });
 
   factory Modifiers13.fromJson(Map<String, Object?> json) =>
       _$Modifiers13FromJson(json);
 
-  final int id;
   final String name;
   @JsonKey(name: 'group_name')
   final String? groupName;
   final int quantity;
   @JsonKey(name: 'price_delta')
-  final String priceDelta;
+  final String? priceDelta;
 
   Map<String, Object?> toJson() => _$Modifiers13ToJson(this);
 }

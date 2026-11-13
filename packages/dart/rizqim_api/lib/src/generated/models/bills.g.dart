@@ -20,7 +20,7 @@ Bills _$BillsFromJson(Map<String, dynamic> json) => Bills(
   placeFeeAmount: json['place_fee_amount'] as String,
   packagingAmount: json['packaging_amount'] as String,
   packagingLines: (json['packaging_lines'] as List<dynamic>)
-      .map((e) => PackagingLines6.fromJson(e as Map<String, dynamic>))
+      .map((e) => PackagingLines2.fromJson(e as Map<String, dynamic>))
       .toList(),
   total: json['total'] as String,
   paidAmount: json['paid_amount'] as String,
@@ -31,21 +31,21 @@ Bills _$BillsFromJson(Map<String, dynamic> json) => Bills(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal11.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal4.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items25.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items5.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments29.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
       .toList(),
   tipsAmount: json['tips_amount'] as String,
   tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips6.fromJson(e as Map<String, dynamic>))
+      .map((e) => Tips2.fromJson(e as Map<String, dynamic>))
       .toList(),
   serviceChargeNotice: json['service_charge_notice'] as String?,
   ticket: json['ticket'] == null
       ? null
-      : Ticket8.fromJson(json['ticket'] as Map<String, dynamic>),
+      : Ticket2.fromJson(json['ticket'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 

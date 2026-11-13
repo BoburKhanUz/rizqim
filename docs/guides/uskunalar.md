@@ -271,12 +271,16 @@ xavfsizlik devori (firewall) boshqa qurilmalarga **18480** portni ochishi kerak 
 
 - Kassa birinchi marta markaz bo'lganda Windows "ruxsat berasizmi?" deb so'rasa — **Ruxsat berish** (administrator paroli bilan).
 - Yoki kassada yuqoridagi **Lokal tarmoq: 0 qurilma** belgisini bosing → **Ruxsat berish** → Windows so'raganda **Ha**. Kassa kerakli
-  qoidalarni (`Rizqim POS lokal tarmoq`) o'zi qo'shadi va oldin bosilgan "Bekor qilish" ning to'sig'ini olib tashlaydi.
+  qoidalarni (`Rizqim POS lokal tarmoq`) o'zi qo'shadi — faqat **Xususiy (Private)** va domen tarmoqlarda, boshqa qoidalarga tegmaydi.
+  Oldin Windows so'rovida "Bekor qilish" bosilgan bo'lsa, **Windows Defender Firewall → Kengaytirilgan sozlamalar → Kirish
+  qoidalari** da `rizqim_cashier` ning **Bloklash** qoidasini qo'lda o'chiring.
+- Windows filial Wi-Fi'sini **Ommaviy (Public)** deb bilsa, qoida ishlamaydi: **Sozlamalar → Tarmoq → Wi-Fi → Tarmoq profili:
+  Xususiy**. Mehmonlar Wi-Fi'sida (ommaviy tarmoq) markaz ataylab yopiq.
 - Yoki kompyuter ustasi administrator buyruq oynasida bajaradi:
 
   ```
-  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=any
-  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=any
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=TCP localport=18480 profile=private,domain
+  netsh advfirewall firewall add rule name="Rizqim POS lokal tarmoq" dir=in action=allow protocol=UDP localport=18480 profile=private,domain
   ```
 
 Oshxona ekrani yoki mijoz ekrani **boshqa** Windows kompyuterda bo'lsa, o'sha kompyuterda ham shu buyruqlar bajariladi (u markaz

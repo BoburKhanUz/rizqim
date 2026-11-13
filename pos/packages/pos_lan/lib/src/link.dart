@@ -18,9 +18,16 @@ typedef LanBeaconListener = Future<LanBeacon?> Function(
   Duration timeout,
 });
 
+/// Every beacon heard in [timeout] (review P6 S3: each is tried in turn; [LanDiscovery.collect]).
+typedef LanBeaconCollector = Future<List<LanBeacon>> Function(
+  LanCredentials credentials, {
+  Duration timeout,
+});
+
 /// The shared client side of the bridge for the waiter, KDS and customer display apps (README §1, §4): finds the hub
-/// (the manual address first, then the last one that worked, the UDP beacon, and this machine's own address — a display
-/// on the till's PC), connects with the device's credentials, keeps the mode by [LanModeRule] and reconnects.
+/// (the manual address first, then the last one that worked, every address the UDP beacons named in the listening
+/// window, and this machine's own address — a display on the till's PC), connects with the device's credentials,
+/// keeps the mode by [LanModeRule] and reconnects.
 ///
 /// * The app tells it when its own requests reach the server or not ([reportCloud]); while the server is away it also
 ///   asks [probeCloud] every [probeEvery] (requests go to the hub then, so nothing else would notice the server back).
@@ -35,6 +42,7 @@ class LanLink {
     this.multicast,
     LanClient Function(LanCredentials credentials, LanApp app)? clientFactory,
     LanBeaconListener? listen,
+    LanBeaconCollector? collect,
     this.listenFor = const Duration(seconds: 3),
     this.retry = const <Duration>[
       Duration(seconds: 2),
@@ -49,12 +57,20 @@ class LanLink {
   }) : _clientFactory =
            clientFactory ??
            ((LanCredentials c, LanApp a) => LanClient(credentials: c, app: a)),
-       _listen =
-           listen ??
-           ((
-             LanCredentials c, {
-             Duration timeout = const Duration(seconds: 3),
-           }) => LanDiscovery.listen(c, timeout: timeout)),
+       _collect =
+           collect ??
+           (listen == null
+               ? ((
+                   LanCredentials c, {
+                   Duration timeout = const Duration(seconds: 3),
+                 }) => LanDiscovery.collect(c, timeout: timeout))
+               : ((
+                   LanCredentials c, {
+                   Duration timeout = const Duration(seconds: 3),
+                 }) async {
+                   final LanBeacon? b = await listen(c, timeout: timeout);
+                   return b == null ? const <LanBeacon>[] : <LanBeacon>[b];
+                 })),
        _clock = clock ?? DateTime.now;
 
   final LanApp app;
@@ -70,7 +86,7 @@ class LanLink {
   final Future<bool> Function() _probeCloud;
   final LanClient Function(LanCredentials credentials, LanApp app)
   _clientFactory;
-  final LanBeaconListener _listen;
+  final LanBeaconCollector _collect;
   final DateTime Function() _clock;
 
   LanCredentials? _credentials;
@@ -380,20 +396,19 @@ class LanLink {
           if (await _tryEndpoint(creds, e)) return;
         }
       }
-      final LanBeacon? beacon = await _discover(creds);
-      if (beacon != null &&
-          !tried.contains(beacon.endpoint) &&
-          await _tryEndpoint(creds, beacon.endpoint)) {
-        return;
+      final List<LanBeacon> beacons = await _discover(creds);
+      for (final LanBeacon b in beacons) {
+        if (tried.contains(b.endpoint)) continue;
+        tried.add(b.endpoint);
+        if (await _tryEndpoint(creds, b.endpoint)) return;
       }
-      if (beacon != null) tried.add(beacon.endpoint);
       final LanEndpoint loop = LanEndpoint('127.0.0.1', creds.port);
       if (tryLoopback &&
           !tried.contains(loop) &&
           await _tryEndpoint(creds, loop, quiet: true)) {
         return;
       }
-      _error ??= beacon == null
+      _error ??= beacons.isEmpty
           ? "Markaz kassa topilmadi: kassa ilovasi ochiq va shu Wi-Fi'da ekanini tekshiring (yoki manzilni qo'lda kiriting)."
           : "Markaz kassaga ulanib bo'lmadi.";
       _failed();
@@ -403,7 +418,7 @@ class LanLink {
     }
   }
 
-  Future<LanBeacon?> _discover(LanCredentials creds) async {
+  Future<List<LanBeacon>> _discover(LanCredentials creds) async {
     final LanMulticastLock? lock = multicast;
     try {
       await lock?.acquire();
@@ -411,9 +426,9 @@ class LanLink {
       // No lock (not Android, no permission): listen anyway
     }
     try {
-      return await _listen(creds, timeout: listenFor);
+      return await _collect(creds, timeout: listenFor);
     } on Object {
-      return null;
+      return const <LanBeacon>[];
     } finally {
       try {
         await lock?.release();

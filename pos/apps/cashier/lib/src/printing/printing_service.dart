@@ -72,7 +72,7 @@ class CashierPrinting extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Xodim chiqqanda yoki terminal uzilganda.
+  /// Terminal uzilganda (review P6 C2: xodim chiqqanda emas — qulflangan kassa ham schyot chiqaradi).
   void clear() => configure(const <PosPrinterInfo>[]);
 
   /// Chek va schyot printeri (birinchi `receipt`).

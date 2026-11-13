@@ -242,7 +242,10 @@ void main() {
           as Map<String, Object?>)['kitchen_status'],
       'ready',
     );
-    final LanEvent ready = await atDisplay.wait(LanMsg.kitchenItemStatus);
+    final LanEvent ready = await atKds.wait(LanMsg.kitchenItemStatus);
+    // Review P6 S7: the display (no staff grant) sees the queue, not the kitchen
+    expect(atDisplay.of(LanMsg.kitchenItemStatus), isEmpty);
+    expect(atDisplay.of(LanMsg.kitchenTicket), isEmpty);
     expect(ready.payload, <String, Object?>{
       'order': order,
       'line': lines.single['id'],
@@ -462,5 +465,63 @@ void main() {
       '9a000000-0000-4000-8000-000000000012',
     );
     expect(left.payload.containsKey('printed_on_lan'), isFalse);
+  });
+
+  test('review P6 C1: every operation a device sends carries its op_id as the Idempotency-Key, so a request the '
+      'server already did online (the waiter app retries it over the LAN with the same key) is replayed, not applied '
+      'twice', () async {
+    final LanClient botir = await connect(
+      TestBranch.phone1,
+      grant: branch.grant(
+        TestBranch.phone1,
+        4,
+        name: 'Botir Aliyev',
+        permissions: waiterPerms,
+      ),
+    );
+    const String order = '9a000000-0000-4000-8000-0000000000aa';
+    Future<SyncOperation> sent(
+      String type,
+      Map<String, Object?> payload,
+      String key,
+    ) async {
+      final LanOpResult r = await botir.send(type, payload, opId: key);
+      expect(r.accepted, isTrue, reason: '$type ${r.reason} ${r.message}');
+      final SyncOperation queued = pos.offline!.store.find(key)!;
+      // What PosSyncApplier::replayed() looks for
+      expect(queued.payload['idempotency_key'], key, reason: type);
+      return queued;
+    }
+
+    final SyncOperation opened = await sent(
+      LanOpType.orderOpen,
+      <String, Object?>{
+        'order': order,
+        'channel': 'pos_hall',
+        'table_id': 2,
+        'guests_count': 3,
+        'items': <Object?>[line(1, '2')],
+      },
+      '7e000000-0000-4000-8000-000000000001',
+    );
+    expect(opened.type, SyncOpType.orderOpen);
+    await sent(LanOpType.orderRound, <String, Object?>{
+      'order': order,
+      'items': <Object?>[line(2, '1')],
+    }, '7e000000-0000-4000-8000-000000000002');
+    await sent(LanOpType.orderSend, <String, Object?>{
+      'order': order,
+    }, '7e000000-0000-4000-8000-000000000003');
+    final Map<String, Object?> seen = pos.offline!.book.order(order)!;
+    final Object? first =
+        ((seen['items']! as List<Object?>).first!
+            as Map<String, Object?>)['id'];
+    await sent(LanOpType.orderServed, <String, Object?>{
+      'order': order,
+      'line': first,
+    }, '7e000000-0000-4000-8000-000000000004');
+    await sent(LanOpType.billRequest, <String, Object?>{
+      'order': order,
+    }, '7e000000-0000-4000-8000-000000000005');
   });
 }

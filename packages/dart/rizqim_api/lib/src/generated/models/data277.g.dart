@@ -7,17 +7,19 @@ part of 'data277.dart';
 // **************************************************************************
 
 Data277 _$Data277FromJson(Map<String, dynamic> json) => Data277(
-  branchId: (json['branch_id'] as num).toInt(),
-  date: json['date'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries5.fromJson(e as Map<String, dynamic>))
+  shiftUuid: json['shift_uuid'] as String?,
+  businessDate: json['business_date'] as String,
+  ownOnly: json['own_only'] as bool,
+  summary: Summary7.fromJson(json['summary'] as Map<String, dynamic>),
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips15.fromJson(e as Map<String, dynamic>))
       .toList(),
-  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data277ToJson(Data277 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'date': instance.date,
-  'entries': instance.entries,
+  'shift_uuid': instance.shiftUuid,
+  'business_date': instance.businessDate,
+  'own_only': instance.ownOnly,
   'summary': instance.summary,
+  'tips': instance.tips,
 };

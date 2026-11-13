@@ -4,38 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch15.dart';
-import 'store3.dart';
-import 'device11.dart';
-import 'modules2.dart';
-import 'cart.dart';
-
 part 'data223.g.dart';
 
 @JsonSerializable()
 class Data223 {
-  const Data223({
-    required this.branch,
-    required this.store,
-    required this.device,
-    required this.tillUuid,
-    required this.modules,
-    required this.serverTime,
-    required this.cart,
-  });
+  const Data223({required this.stored});
 
   factory Data223.fromJson(Map<String, Object?> json) =>
       _$Data223FromJson(json);
 
-  final Branch15 branch;
-  final Store3? store;
-  final Device11 device;
-  @JsonKey(name: 'till_uuid')
-  final String? tillUuid;
-  final Modules2 modules;
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Cart? cart;
+  final bool stored;
 
   Map<String, Object?> toJson() => _$Data223ToJson(this);
 }

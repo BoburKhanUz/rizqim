@@ -76,7 +76,7 @@ void main() {
       expect(p.receipts.last, contains('NUSXA'));
 
       // A pre-check never hands the bill over: no print call, the bill is not counted as printed
-      expect(p.h.adapter.to('POST', '/print'), isEmpty);
+      expect(p.h.adapter.to('POST', RegExp(r'/bills/[^/]+/print$')), isEmpty);
       expect(p.backend.bills[order]!.single['printed_count'], 0);
     },
   );

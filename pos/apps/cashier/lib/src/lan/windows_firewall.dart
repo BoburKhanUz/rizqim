@@ -19,12 +19,14 @@ typedef FirewallProcessRunner = Future<ProcessResult> Function(
 
 /// P6 Windows: the inbound firewall rule the till's LAN hub needs (TCP for the hub, UDP for the beacon heard by
 /// devices on other Windows PCs). Windows Defender Firewall drops inbound connections to a program that has no
-/// rule, and if someone pressed "Cancel" on Windows' own "allow access" prompt it adds a *block* rule for the
-/// program, which wins over any allow rule. [allow] fixes both in one elevated step (one UAC prompt):
+/// rule. [allow] adds them in one elevated step (one UAC prompt):
 ///
-/// 1. removes this app's inbound rules (the block rule from that prompt among them) and the old rules of this name;
+/// 1. removes only the rules of this app's own name ([ruleName]: an older port) — never another inbound rule of the
+///    program (review P6 S9: an IT administrator's block rule stays; a block rule left by "Cancel" on Windows' own
+///    "allow access" prompt is removed by hand, docs/HARDWARE_TEST.md 5a);
 /// 2. adds an allow rule for TCP and UDP on the hub port and one for the program itself (so Windows does not ask
-///    again).
+///    again), on **private and domain** networks only: never on a network Windows calls public (a café's guest Wi-Fi),
+///    where anyone could reach the hub.
 ///
 /// The same commands, for an administrator to run by hand, are in [manualCommands] (docs/HARDWARE_TEST.md 5a,
 /// docs/guides/uskunalar.md).
@@ -41,7 +43,7 @@ class WindowsFirewall {
   /// Windows only; elsewhere every call is a no-op.
   final bool supported;
 
-  /// The program allowed and cleared of block rules (`null`: this process, [Platform.resolvedExecutable]).
+  /// The program allowed (`null`: this process, [Platform.resolvedExecutable]).
   final String? program;
 
   String get _program => program ?? Platform.resolvedExecutable;
@@ -84,16 +86,17 @@ class WindowsFirewall {
 
   /// The netsh commands, joined for `cmd /c`.
   static List<String> netshCommands(int port, String? program) => <String>[
-    if (program != null)
-      'netsh advfirewall firewall delete rule name=all dir=in program="$program"',
     'netsh advfirewall firewall delete rule name="$ruleName"',
     for (final String protocol in <String>['TCP', 'UDP'])
       'netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow protocol=$protocol '
-          'localport=$port profile=any',
+          'localport=$port profile=$profiles',
     if (program != null)
       'netsh advfirewall firewall add rule name="$ruleName" dir=in action=allow program="$program" '
-          'enable=yes profile=any',
+          'enable=yes profile=$profiles',
   ];
+
+  /// Review P6 S9: the network profiles the rules allow (not `public`).
+  static const String profiles = 'private,domain';
 
   /// What an administrator types by hand (an elevated PowerShell or Command Prompt).
   static List<String> manualCommands(int port) => <String>[
@@ -202,7 +205,8 @@ class _LanReachHintState extends State<LanReachHint> {
             key: const ValueKey<String>('lan-firewall-missing'),
             message:
                 "Windows xavfsizlik devori (firewall) $port-portni to'sib qo'yishi mumkin: boshqa qurilmalar bu "
-                "kassaga ulana olmaydi. «Ruxsat berish» ni bosing va Windows so'raganda «Ha» ni tanlang.",
+                "kassaga ulana olmaydi. «Ruxsat berish» ni bosing va Windows so'raganda «Ha» ni tanlang. Ruxsat faqat "
+                "xususiy (Private) tarmoqda: Windows bu Wi-Fi'ni ommaviy (Public) desa, uni xususiy qiling.",
             tone: StatusTone.warning,
           ),
           const SizedBox(height: 8),

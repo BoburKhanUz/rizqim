@@ -27,7 +27,7 @@ Receipt7 _$Receipt7FromJson(Map<String, dynamic> json) => Receipt7(
       .map((e) => Lines23.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments26.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments22.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

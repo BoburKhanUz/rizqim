@@ -4,38 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'polygon5.dart';
-
 part 'data294.g.dart';
 
 @JsonSerializable()
 class Data294 {
-  const Data294({
-    required this.id,
-    required this.name,
-    required this.polygon,
-    required this.deliveryPrice,
-    required this.minOrderAmount,
-    required this.freeDeliveryFrom,
-    required this.etaMinutes,
-    required this.priority,
-  });
+  const Data294({required this.rating, required this.reviewCount});
 
   factory Data294.fromJson(Map<String, Object?> json) =>
       _$Data294FromJson(json);
 
-  final int id;
-  final String name;
-  final Polygon5 polygon;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'min_order_amount')
-  final String minOrderAmount;
-  @JsonKey(name: 'free_delivery_from')
-  final String? freeDeliveryFrom;
-  @JsonKey(name: 'eta_minutes')
-  final int? etaMinutes;
-  final int priority;
+  final String rating;
+  @JsonKey(name: 'review_count')
+  final int reviewCount;
 
   Map<String, Object?> toJson() => _$Data294ToJson(this);
 }

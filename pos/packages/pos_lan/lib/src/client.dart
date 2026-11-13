@@ -78,6 +78,7 @@ class LanClient {
   LanWelcome? _welcome;
   Duration _offset = Duration.zero;
   Completer<LanWelcome>? _welcoming;
+  Completer<String>? _challenged;
   String? _nonce;
   final Map<String, Completer<LanOpResult>> _pendingOps =
       <String, Completer<LanOpResult>>{};
@@ -123,7 +124,12 @@ class LanClient {
     }
     WebSocket ws;
     try {
-      ws = await WebSocket.connect(endpoint.ws.toString()).timeout(timeout);
+      // No permessage-deflate (the hub agrees to none) and no message larger than a frame may be (review P6 S1)
+      ws = await WebSocket.connect(
+        endpoint.ws.toString(),
+        compression: CompressionOptions.compressionOff,
+        maxPayloadLength: LanFrameCodec.maxBytes,
+      ).timeout(timeout);
     } on Object {
       throw const LanUnreachable(
         'unreachable',
@@ -135,6 +141,8 @@ class LanClient {
     _endpoint = endpoint;
     final Completer<LanWelcome> welcoming = Completer<LanWelcome>();
     _welcoming = welcoming;
+    final Completer<String> challenged = Completer<String>();
+    _challenged = challenged;
     ws.listen(
       _onFrame,
       onDone: () => _gone(ws),
@@ -143,13 +151,19 @@ class LanClient {
     );
     _nonce = base64.encode(lanRandomBytes(16, _random));
     _offset = Duration.zero;
-    _send(LanMsg.hello, <String, Object?>{
-      'nonce': _nonce,
-      'app': app.wire,
-      'version': version,
-      'grant': credentials.grant,
-    });
     try {
+      // The hub's challenge for this connection first (review P6 S6: a captured hello opens nothing)
+      final String challenge = await Future.any(<Future<String>>[
+        challenged.future,
+        welcoming.future.then((LanWelcome _) => ''),
+      ]).timeout(timeout);
+      _send(LanMsg.hello, <String, Object?>{
+        'nonce': _nonce,
+        'challenge': challenge,
+        'app': app.wire,
+        'version': version,
+        'grant': credentials.grant,
+      });
       return await welcoming.future.timeout(timeout);
     } on TimeoutException {
       await close();
@@ -251,6 +265,24 @@ class LanClient {
   }
 
   void _onFrame(Object? data) {
+    // Disposed: a frame still on its way is dropped
+    if (_events.isClosed) return;
+    final Completer<String>? challenged = _challenged;
+    if (challenged != null && !challenged.isCompleted && data is String) {
+      _challenged = null;
+      Object? j;
+      try {
+        j = jsonDecode(data);
+      } on FormatException {
+        j = null;
+      }
+      if (j is Map && j['type'] == LanMsg.challenge && j['nonce'] is String) {
+        challenged.complete(j['nonce']! as String);
+        return;
+      }
+      droppedFrames++;
+      return;
+    }
     final LanFrame frame;
     try {
       final Map<String, Object?> envelope = LanFrameCodec.envelope(data);

@@ -45,7 +45,7 @@ Data242 _$Data242FromJson(Map<String, dynamic> json) => Data242(
       : DiscountKind.fromJson(json['discount_kind'] as String?),
   discountValue: json['discount_value'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items35.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items36.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountBy: (json['discount_by'] as num?)?.toInt(),
   serviceChargeAmount: json['service_charge_amount'] as String,

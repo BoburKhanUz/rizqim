@@ -7749,6 +7749,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pos/bill-print-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outstanding bill print requests
+         * @description The `bill.print_requested` requests of the last hour this till has not printed yet (named to it, or to no till),
+         *     oldest first, at most 20: each with the event's fields, the order (as GET /pos/orders/{uuid}) and its bills (as GET
+         *     /pos/orders/{uuid}/bills), so a till without a staff session (PIN screen) prints the pre-check too. Only open
+         *     orders and bills that are neither void nor paid. The till reads it on start, after reconnecting, on unlock and when
+         *     a broadcast arrives while nobody is signed in, then claims each request before printing it
+         *     (POST /pos/bill-print-requests/{request_id}/printed). A POS terminal's own token; a terminal without a branch gets
+         *     an empty list.
+         */
+        get: operations["posBillPrintRequest.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/bill-print-requests/{requestId}/printed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim a bill print request
+         * @description The till takes the request before it prints the pre-check: `claimed: true` — this till prints it (the first to
+         *     claim, or it claimed it before), `false` — another till of the branch took it (nothing to print). Once claimed it
+         *     leaves every till's outstanding list. An unknown request of the branch: 404 `request_not_found` (the till prints
+         *     it anyway). A POS terminal's own token.
+         */
+        post: operations["posBillPrintRequest.printed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/pos/bills/{uuid}/fiscal-retry": {
         parameters: {
             query?: never;
@@ -10859,7 +10908,7 @@ export interface components {
         };
         /**
          * DeviceApp
-         * @description P6 stage B: which POS app a terminal runs, as the app says when it pairs (POST /devices/pair `app`). A waiter's phone and a cashier till are both `pos` terminals; the branch's default LAN hub is a cashier till, never a waiter's phone (App\Domain\Pos\Lan\BranchLan). Devices paired before this was recorded have none (null).
+         * @description P6 stage B: which POS app a terminal runs, as the app says when it pairs (POST /devices/pair `app`). A waiter's phone and a cashier till are both `pos` terminals; the branch's default LAN hub is a cashier till, never a waiter's phone (App\Domain\Pos\Lan\BranchLan). Devices paired before this was recorded have none (null). P6 review (S4): the apps also say it on every request (HEADER); GET /pos/bootstrap and GET /pos/lan record it on a terminal that has none, and a terminal saying it runs another app than the cashier's never gets the hub's role.
          * @enum {string}
          */
         DeviceApp: "cashier" | "waiter" | "kds" | "customer_display";
@@ -36594,6 +36643,504 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "posBillPrintRequest.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            requests: {
+                                request_id: string;
+                                reprint: boolean;
+                                printer_id: number | null;
+                                target_device: string | null;
+                                requested_by: number | null;
+                                requested_at: string | null;
+                                bill: {
+                                    uuid: string;
+                                };
+                                order: {
+                                    uuid: string;
+                                    short_code: string | null;
+                                    status: string;
+                                    channel: string;
+                                    type: string;
+                                    store_id: number;
+                                    branch_id: number | null;
+                                    version: number;
+                                    hall: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    table: {
+                                        id: number;
+                                        name: string;
+                                        kind: string;
+                                    } | null;
+                                    hall_ref: string | null;
+                                    table_ref: string | null;
+                                    table_label: string | null;
+                                    guests_count: number | null;
+                                    waiter: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    opened_by: number;
+                                    device_id: number | null;
+                                    booking_id: number | null;
+                                    booking_uuid: string | null;
+                                    deposit_available: string;
+                                    bill_locked: boolean;
+                                    bill_requested_at: string | null;
+                                    notes: string | null;
+                                    opened_at: string | null;
+                                    updated_at: string | null;
+                                    subtotal: string;
+                                    discount: string;
+                                    /** @enum {string|null} */
+                                    discount_kind: "percent" | "amount" | null;
+                                    discount_value: string | null;
+                                    discount_reason: string | null;
+                                    discount_by: number | null;
+                                    service_charge_amount: string;
+                                    place_fee_amount: string;
+                                    room_fee_amount: string;
+                                    min_spend_topup_amount: string;
+                                    packaging_amount: string;
+                                    pickup: {
+                                        pickup_at: string;
+                                        kitchen_fire_at: string | null;
+                                        kitchen_fired_at: string | null;
+                                        waiting: boolean;
+                                        local_time: string;
+                                    } | null;
+                                    total_price: string;
+                                    charges: {
+                                        items_subtotal: string;
+                                        discount: string;
+                                        service_charge_percent: string;
+                                        service_charge_amount: string;
+                                        place_fee_amount: string;
+                                        room_fee_amount: string;
+                                        room_tariff_id: number | null;
+                                        business_date: string | null;
+                                        day_type: string | null;
+                                        min_spend: string;
+                                        min_spend_topup_amount: string;
+                                        waived: string[];
+                                        total: string;
+                                        service_charge_rule: string;
+                                        place_fee_kind: string;
+                                        service_charge_notice: string | null;
+                                        packaging_amount: string;
+                                        packaging_lines: {
+                                            rule_id: number;
+                                            name: string;
+                                            basis: string;
+                                            quantity: number;
+                                            unit: string;
+                                            unit_price: string;
+                                            amount: string;
+                                            mxik: string | null;
+                                            package_code: string | null;
+                                            removed: boolean;
+                                            removed_reason: string | null;
+                                        }[];
+                                        waivers: {
+                                            charge: string;
+                                            reason: string;
+                                            waived_by: number | null;
+                                            approved_by: number | null;
+                                            waived_at: string | null;
+                                        }[];
+                                    };
+                                    offline: {
+                                        local_number: string | null;
+                                        created_at: string | null;
+                                        synced_at: string | null;
+                                        flags: {
+                                            flag: string;
+                                            op_id: string | null;
+                                            amount: string | null;
+                                            name: string | null;
+                                        }[];
+                                    } | null;
+                                    queue: {
+                                        number: number;
+                                        business_date: string | null;
+                                        status: components["schemas"]["PickupStatus"] | null;
+                                        ready_at: string | null;
+                                        called_at: string | null;
+                                        call_count: number;
+                                        handed_at: string | null;
+                                    } | null;
+                                    rounds: number;
+                                    courses: {
+                                        course_no: number;
+                                        status: string;
+                                        items: number;
+                                        sent: number;
+                                        ready: number;
+                                        served: number;
+                                    }[];
+                                    weight_pending: number;
+                                    items: {
+                                        id: number;
+                                        round_no: number | null;
+                                        product_variant_id: number | null;
+                                        product_name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        unit: string;
+                                        quantity_label: string;
+                                        unit_price: string;
+                                        modifiers: {
+                                            id: number;
+                                            name: string;
+                                            group_name: string | null;
+                                            quantity: number;
+                                            price_delta: string;
+                                        }[];
+                                        modifiers_total: string;
+                                        total_price: string;
+                                        note: string | null;
+                                        seat_no: number | null;
+                                        fire_mode: string | null;
+                                        due_at: string | null;
+                                        kitchen_status: string;
+                                        station_id: number | null;
+                                        sent_at: string | null;
+                                        ready_at: string | null;
+                                        added_by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        added_at: string | null;
+                                        voided_at: string | null;
+                                        voided_by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        void_reason: string | null;
+                                        course_no: number | null;
+                                        weight_status: string | null;
+                                        weight_basis: string | null;
+                                        weighed_by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        weighed_at: string | null;
+                                    }[];
+                                };
+                                billing: {
+                                    order: {
+                                        uuid: string;
+                                        status: string;
+                                        payment_status: string;
+                                        version: number;
+                                        queue_number: number | null;
+                                        ticket: {
+                                            number: number;
+                                            business_date: string | null;
+                                            order_label: string;
+                                            message: string;
+                                        } | null;
+                                        business_date: string | null;
+                                        bill_locked_at: string | null;
+                                        closed_at: string | null;
+                                        total_price: string;
+                                        billed_amount: string;
+                                        paid_amount: string;
+                                        unbilled_amount: string | null;
+                                        fiscal_pending: boolean;
+                                        bills_out_of_date: boolean;
+                                        booking_uuid: string | null;
+                                        deposit_available: string;
+                                    };
+                                    bills: {
+                                        uuid: string;
+                                        order_uuid: string;
+                                        number: number;
+                                        status: string;
+                                        split_mode: string;
+                                        subtotal: string;
+                                        discount: string;
+                                        room_fee_amount: string;
+                                        min_spend_topup_amount: string;
+                                        service_charge_amount: string;
+                                        place_fee_amount: string;
+                                        packaging_amount: string;
+                                        packaging_lines: {
+                                            rule_id: number;
+                                            name: string;
+                                            quantity: number;
+                                            unit: string;
+                                            amount: string;
+                                        }[];
+                                        total: string;
+                                        paid_amount: string;
+                                        due_amount: string;
+                                        guests_share: number | null;
+                                        seat_no: number | null;
+                                        per_guest_amount: string | null;
+                                        printed_count: number;
+                                        printed_at: string | null;
+                                        paid_at: string | null;
+                                        fiscal: {
+                                            status: string | null;
+                                            receipt_uuid: string | null;
+                                            error: string | null;
+                                            receipt: {
+                                                uuid: string;
+                                                /** @enum {string} */
+                                                type: "sale" | "refund" | "advance" | "credit";
+                                                /** @enum {string} */
+                                                status: "pending" | "issued" | "failed";
+                                                /** @enum {string} */
+                                                payment_form: "cash" | "card" | "qr" | "mixed";
+                                                non_fiscal: boolean;
+                                                total: string;
+                                                vat_total: string;
+                                                fiscal_sign: string | null;
+                                                receipt_number: string | null;
+                                                qr_url: string | null;
+                                                terminal_id: string | null;
+                                                error: string | null;
+                                                issued_at: string | null;
+                                                created_at: string | null;
+                                                branch_id: number | null;
+                                                original_receipt_uuid: string | null;
+                                                lines: {
+                                                    name: string;
+                                                    mxik_code: string;
+                                                    package_code: string | null;
+                                                    unit: string;
+                                                    quantity: string;
+                                                    unit_price: string;
+                                                    amount: string;
+                                                    vat_rate: string;
+                                                    vat_amount: string;
+                                                    no_vat: boolean;
+                                                    commissioner_tin: string | null;
+                                                    marking_code: string | null;
+                                                }[];
+                                                payments: {
+                                                    /** @enum {string} */
+                                                    form: "cash" | "card" | "qr";
+                                                    amount: string;
+                                                    prepayment: boolean;
+                                                    credit: boolean;
+                                                    card_type: string | null;
+                                                    transaction_id: string | null;
+                                                    card_last4: string | null;
+                                                }[];
+                                            } | null;
+                                        };
+                                        items: {
+                                            order_item_id: number;
+                                            product_name: string;
+                                            variant_name: string | null;
+                                            unit: string;
+                                            quantity: number;
+                                            amount: string;
+                                            discount_amount: string;
+                                            combo_parts: {
+                                                slot_name: string;
+                                                name: string;
+                                                variant_name: string | null;
+                                                quantity: number;
+                                                label: string;
+                                            }[] | null;
+                                        }[];
+                                        payments: {
+                                            uuid: string;
+                                            tender: string;
+                                            amount: string;
+                                            tendered_amount: string | null;
+                                            change_amount: string | null;
+                                            card_type: string | null;
+                                            transaction_id: string | null;
+                                            card_last4: string | null;
+                                            reference: string | null;
+                                            status: string;
+                                            paid_at: string | null;
+                                            tip_amount: string;
+                                        }[];
+                                        tips_amount: string;
+                                        tips: {
+                                            uuid: string;
+                                            method: string;
+                                            source: string | null;
+                                            amount: string;
+                                            original_amount: string;
+                                            mode: string;
+                                            staff: {
+                                                id: number;
+                                                name: string | null;
+                                            } | null;
+                                            holders: {
+                                                mode: string;
+                                                staff: {
+                                                    id: number;
+                                                    name: string | null;
+                                                } | null;
+                                                amount: string;
+                                            }[];
+                                            business_date: string;
+                                            order_uuid: string | null;
+                                            bill_uuid: string | null;
+                                            payment_uuid: string | null;
+                                            shift_uuid: string | null;
+                                            recorded_by: {
+                                                id: number;
+                                                name: string | null;
+                                            } | null;
+                                            closed: boolean;
+                                            corrections: {
+                                                amount: string;
+                                                mode: string;
+                                                staff_id: number | null;
+                                                reason: string | null;
+                                                by: {
+                                                    id: number;
+                                                    name: string | null;
+                                                } | null;
+                                                approved_by: number | null;
+                                                created_at: string | null;
+                                            }[];
+                                            created_at: string | null;
+                                        }[];
+                                        service_charge_notice: string | null;
+                                        ticket: {
+                                            number: number;
+                                            business_date: string | null;
+                                            order_label: string;
+                                            message: string;
+                                        } | null;
+                                        created_at: string | null;
+                                    }[];
+                                    refunds: {
+                                        uuid: string;
+                                        order_uuid: string | null;
+                                        bill_uuid: string | null;
+                                        payment_uuid: string | null;
+                                        amount: string;
+                                        method: string;
+                                        reason: string;
+                                        approved_by: number | null;
+                                        fiscal: {
+                                            status: string | null;
+                                            receipt_uuid: string | null;
+                                            error: string | null;
+                                            receipt: {
+                                                uuid: string;
+                                                /** @enum {string} */
+                                                type: "sale" | "refund" | "advance" | "credit";
+                                                /** @enum {string} */
+                                                status: "pending" | "issued" | "failed";
+                                                /** @enum {string} */
+                                                payment_form: "cash" | "card" | "qr" | "mixed";
+                                                non_fiscal: boolean;
+                                                total: string;
+                                                vat_total: string;
+                                                fiscal_sign: string | null;
+                                                receipt_number: string | null;
+                                                qr_url: string | null;
+                                                terminal_id: string | null;
+                                                error: string | null;
+                                                issued_at: string | null;
+                                                created_at: string | null;
+                                                branch_id: number | null;
+                                                original_receipt_uuid: string | null;
+                                                lines: {
+                                                    name: string;
+                                                    mxik_code: string;
+                                                    package_code: string | null;
+                                                    unit: string;
+                                                    quantity: string;
+                                                    unit_price: string;
+                                                    amount: string;
+                                                    vat_rate: string;
+                                                    vat_amount: string;
+                                                    no_vat: boolean;
+                                                    commissioner_tin: string | null;
+                                                    marking_code: string | null;
+                                                }[];
+                                                payments: {
+                                                    /** @enum {string} */
+                                                    form: "cash" | "card" | "qr";
+                                                    amount: string;
+                                                    prepayment: boolean;
+                                                    credit: boolean;
+                                                    card_type: string | null;
+                                                    transaction_id: string | null;
+                                                    card_last4: string | null;
+                                                }[];
+                                            } | null;
+                                        };
+                                        created_at: string | null;
+                                    }[];
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "posBillPrintRequest.printed": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            request_id: string;
+                            claimed: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     "posBill.fiscalRetry": {

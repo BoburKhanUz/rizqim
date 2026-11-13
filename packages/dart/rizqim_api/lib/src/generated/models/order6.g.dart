@@ -14,7 +14,7 @@ Order6 _$Order6FromJson(Map<String, dynamic> json) => Order6(
   queueNumber: (json['queue_number'] as num?)?.toInt(),
   ticket: json['ticket'] == null
       ? null
-      : Ticket6.fromJson(json['ticket'] as Map<String, dynamic>),
+      : Ticket4.fromJson(json['ticket'] as Map<String, dynamic>),
   businessDate: json['business_date'] as String?,
   billLockedAt: json['bill_locked_at'] as String?,
   closedAt: json['closed_at'] as String?,

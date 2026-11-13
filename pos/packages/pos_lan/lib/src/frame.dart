@@ -15,6 +15,9 @@ abstract final class LanClose {
   /// Another branch's beacon or grant.
   static const int forbidden = 4403;
 
+  /// The hub serves as many devices as it can already (`too_many_devices`).
+  static const int busy = 4429;
+
   /// The hub stopped (the app closed, the terminal was unpaired).
   static const int goingAway = 1001;
 }

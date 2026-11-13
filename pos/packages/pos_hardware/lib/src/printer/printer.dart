@@ -316,6 +316,10 @@ enum PrinterErrorKind {
   /// Bu qurilmada ishlamaydi (masalan, Linux'da Windows printeri, Sunmi bo'lmagan qurilma).
   unsupported(retryable: false),
 
+  /// Hujjatning bir qismi printerga yetib, aloqa uzildi (review P6 C7) — o'zi qayta yuborilmaydi (ikkinchi chala chek
+  /// chiqardi): kassir ogohlantirishni ko'rib qo'lda qayta urinadi.
+  interrupted(retryable: false),
+
   /// Boshqa xato (drayver, spooler, printer xatosi) — qayta uriniladi.
   failed(retryable: true);
 

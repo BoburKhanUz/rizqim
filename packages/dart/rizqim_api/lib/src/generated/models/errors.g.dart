@@ -16,7 +16,7 @@ Errors _$ErrorsFromJson(Map<String, dynamic> json) => Errors(
   message: json['message'] as String?,
   staff: json['staff'] == null
       ? null
-      : Staff21.fromJson(json['staff'] as Map<String, dynamic>),
+      : Staff23.fromJson(json['staff'] as Map<String, dynamic>),
   device: json['device'] == null
       ? null
       : Device21.fromJson(json['device'] as Map<String, dynamic>),
@@ -29,7 +29,7 @@ Errors _$ErrorsFromJson(Map<String, dynamic> json) => Errors(
   clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
   order: json['order'] == null
       ? null
-      : Order11.fromJson(json['order'] as Map<String, dynamic>),
+      : Order13.fromJson(json['order'] as Map<String, dynamic>),
   payload: json['payload'] as Map<String, dynamic>,
   refs: json['refs'] as Map<String, dynamic>,
   resolvedAt: json['resolved_at'] as String?,

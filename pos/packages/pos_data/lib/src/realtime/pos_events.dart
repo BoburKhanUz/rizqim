@@ -56,6 +56,7 @@ sealed class PosEvent {
           j,
         ),
         'display.cart' => PosDisplayCartChanged._(name, data, j),
+        'pos.lan_changed' => PosLanChanged._(name, data, j),
         'queue.preparing' ||
         'queue.ready' ||
         'queue.handed' ||
@@ -130,6 +131,21 @@ class PosBillPrintRequested extends PosEvent {
 
   @override
   String? get orderUuid => request.orderUuid;
+}
+
+/// `pos.lan_changed` (P6 review S5): filialning lokal ko'prigi o'zgardi — qurilma uzildi (`device_revoked`), kalit
+/// almashdi (`key_rotated`), markaz ko'chdi (`hub_changed`) yoki port o'zgardi (`port_changed`). Faqat id'lar: markaz
+/// kassa `GET /pos/lan` ni darhol qayta o'qiydi.
+class PosLanChanged extends PosEvent {
+  PosLanChanged._(super.name, super.data, PosJson j)
+    : reason = j.strOrNull('reason'),
+      device = j.strOrNull('device');
+
+  /// `device_revoked`, `key_rotated`, `hub_changed`, `port_changed`.
+  final String? reason;
+
+  /// Uzilgan qurilma yoki yangi markaz uuid'si.
+  final String? device;
 }
 
 /// `order.course_ready` (P6-21): buyurtma kursining oshxonaga yuborilgan hamma taomi tayyor ("2-kurs tayyor"). Ofitsiant

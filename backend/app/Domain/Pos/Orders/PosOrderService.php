@@ -894,11 +894,12 @@ class PosOrderService implements PosOrderOpener
     /**
      * P3-26: the waiter asks the till for the bill ("Schyot so'raldi"): stamps bill_requested_at / _by, bumps the
      * version and announces order.bill_requested on the branch's channels. Idempotent: asked once already (and no bill
-     * printed since), it answers the order unchanged, nothing is announced again. $version is checked when given
+     * printed since), it answers the order unchanged, nothing is announced again — unless the order outgrew its bill
+     * since (review P6 C4: BillPrintRequests::outgrown): then it is a new request, stamped and printed again. $version is checked when given
      * (409 when stale). orders.manage; the waiter rule (another waiter's order: a manager's approval token).
      * $autoPrint false (P6 stage B): the LAN hub printed the pre-check already, the branch's automatic print is skipped.
      */
-    public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null, bool $autoPrint = true): Order
+    public function requestBill(Order $order, ?int $version, User $actor, ?string $approvalToken = null, bool $autoPrint = true, ?string $printRequestId = null): Order
     {
         $asked = false;
         $result = DB::transaction(function () use ($order, $version, $actor, $approvalToken, &$asked) {
@@ -907,7 +908,8 @@ class PosOrderService implements PosOrderOpener
             if ($version !== null && (int) $locked->version !== $version) {
                 throw PosOrderException::versionConflict((int) $locked->version);
             }
-            if ($locked->bill_requested_at !== null) {
+            // Review P6 C4: asked again after the order outgrew its bill (another round): a new request, printed again
+            if ($locked->bill_requested_at !== null && !\App\Domain\Pos\Billing\BillPrintRequests::outgrown($locked)) {
                 return $locked;
             }
             $asked = true;
@@ -932,7 +934,7 @@ class PosOrderService implements PosOrderOpener
         // The branch prints the pre-check by itself (never fails the request, App\Domain\Pos\Billing\BillPrintRequests);
         // not when the LAN hub printed it already ($autoPrint false: a relayed request it took offline)
         if ($asked && $autoPrint) {
-            app(\App\Domain\Pos\Billing\BillPrintRequests::class)->afterBillRequested($result, $actor, $this->permissions->terminalOf($actor));
+            app(\App\Domain\Pos\Billing\BillPrintRequests::class)->afterBillRequested($result, $actor, $this->permissions->terminalOf($actor), $printRequestId);
         }
 
         return $result;

@@ -4,74 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff22.dart';
-import 'device22.dart';
-import 'origin_device2.dart';
-import 'order12.dart';
-import 'resolved_by2.dart';
+import 'results.dart';
+import 'device20.dart';
 
 part 'data272.g.dart';
 
 @JsonSerializable()
 class Data272 {
   const Data272({
-    required this.opId,
-    required this.seq,
-    required this.type,
-    required this.typeLabel,
-    required this.status,
-    required this.reason,
-    required this.message,
-    required this.staff,
-    required this.device,
-    required this.originDevice,
-    required this.occurredAt,
-    required this.receivedAt,
-    required this.appliedAt,
+    required this.serverTime,
     required this.clockSkewSeconds,
-    required this.order,
-    required this.payload,
-    required this.refs,
-    required this.resolvedAt,
-    required this.resolvedBy,
-    required this.resolution,
-    required this.resolutionNote,
+    required this.clockWarning,
+    required this.stoppedAt,
+    required this.results,
+    required this.device,
   });
 
   factory Data272.fromJson(Map<String, Object?> json) =>
       _$Data272FromJson(json);
 
-  @JsonKey(name: 'op_id')
-  final String opId;
-  final int seq;
-  final String type;
-  @JsonKey(name: 'type_label')
-  final String typeLabel;
-  final String status;
-  final String? reason;
-  final String? message;
-  final Staff22? staff;
-  final Device22? device;
-  @JsonKey(name: 'origin_device')
-  final OriginDevice2? originDevice;
-  @JsonKey(name: 'occurred_at')
-  final String? occurredAt;
-  @JsonKey(name: 'received_at')
-  final String? receivedAt;
-  @JsonKey(name: 'applied_at')
-  final String? appliedAt;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
   @JsonKey(name: 'clock_skew_seconds')
   final int? clockSkewSeconds;
-  final Order12? order;
-  final Map<String, dynamic> payload;
-  final Map<String, dynamic> refs;
-  @JsonKey(name: 'resolved_at')
-  final String? resolvedAt;
-  @JsonKey(name: 'resolved_by')
-  final ResolvedBy2? resolvedBy;
-  final String? resolution;
-  @JsonKey(name: 'resolution_note')
-  final String? resolutionNote;
+  @JsonKey(name: 'clock_warning')
+  final bool clockWarning;
+  @JsonKey(name: 'stopped_at')
+  final int? stoppedAt;
+  final List<Results> results;
+  final Device20 device;
 
   Map<String, Object?> toJson() => _$Data272ToJson(this);
 }

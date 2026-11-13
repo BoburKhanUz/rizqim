@@ -12,7 +12,7 @@ Takeaway _$TakeawayFromJson(Map<String, dynamic> json) => Takeaway(
       .toList(),
   pickup: json['pickup'] == null
       ? null
-      : Pickup.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup2.fromJson(json['pickup'] as Map<String, dynamic>),
   businessDay: BusinessDay2.fromJson(
     json['business_day'] as Map<String, dynamic>,
   ),

@@ -258,6 +258,11 @@ void main() {
       expect(connect.kind, PrinterErrorKind.offline);
       expect(connect.message, contains('Bluetooth printerga ulanib'));
       expect((await errorFor('write_failed')).kind, PrinterErrorKind.failed);
+      // Review P6 C7: part of the document reached the printer: never sent again by itself
+      final PrinterException partial = await errorFor('write_partial');
+      expect(partial.kind, PrinterErrorKind.interrupted);
+      expect(partial.retryable, isFalse);
+      expect(partial.message, contains('qisman'));
       expect((await errorFor('timeout')).kind, PrinterErrorKind.timeout);
       expect(
         (await errorFor('unsupported')).kind,

@@ -71,8 +71,10 @@ grant bilan markazga aytiladi. Payload (JSON, base64url):
 ```
 
 Imzo: `base64url(HMAC(K_G, base64url_payload))`. Markaz tekshiradi: imzo, `kid`, `branch_id`, `device == kadr.device`,
-`exp` (berilgandan 36 soat — serverning `SESSION_WINDOW_HOURS` bilan bir xil). Grantsiz (mijoz ekrani) ulanish faqat
-hodisalarni oladi, amal yubora olmaydi (`grant_required`).
+`exp` (xodimning shu qurilmada PIN bilan kirgan vaqtidan 36 soat, grant qachon berilganidan qat'i nazar — serverning
+`SESSION_WINDOW_HOURS` bilan bir xil; server relay amalini ham **amalning o'z vaqtiga** nisbatan shu oyna bilan
+tekshiradi, sinxronlash vaqtiga emas: uzoq uzilishdan keyin ham markaz qabul qilgan amal serverda rad etilmaydi).
+Grantsiz ulanish amal yubora olmaydi (`grant_required`) va buyurtmalarni ko'rmaydi (6-bo'lim, "Kim nimani oladi").
 
 ## 4. Topish: beacon va IP/QR
 
@@ -83,10 +85,25 @@ hodisalarni oladi, amal yubora olmaydi (`grant_required`).
 - Zaxira: sozlamalarda IP yoki QR (`rizqim-lan://192.168.1.20:18480?b=12&h=<uuid>`): qurilma
   `GET http://host:port/lan/v1/beacon` ni o'qiydi va xuddi shunday tekshiradi. Beacon faqat manzil aytadi — haqiqiy
   tekshiruv WebSocket qo'l berishida (soxta markaz `K_D` ni bilmaydi).
+- HTTP beacon faqat markaz kompyuterining **o'z** manzilini imzolaydi (so'rovning `Host` i shu kompyuterning
+  manzillaridan biri bo'lsa — o'sha, aks holda e'lon qilingan manzil): kalitsiz kishi o'z manzili uchun imzolangan
+  beacon ololmaydi (review P6 S3).
+- Qurilma ([`LanLink`]) tinglash oynasida (3 s) eshitgan **har bir** to'g'ri beacon manzilini (eshitilgan tartibda,
+  har manzil bir marta, ko'pi bilan 8 ta — `LanDiscovery.collect`) navbat bilan sinaydi: eski yoki boshqa joydan
+  qayta yuborilgan beacon qurilmani markazdan to'smaydi. `LanDiscovery.listen` — birinchisi (sinov va e2e uchun).
 
 ## 5. Kadr (har bir xabar)
 
-WebSocket: `ws://host:port/lan/v1/ws`, har xabar — bitta matn kadri:
+WebSocket: `ws://host:port/lan/v1/ws`, har xabar — bitta matn kadri. permessage-deflate kelishilmaydi (markaz hech
+qanday kengaytmaga rozi bo'lmaydi; siqilgan kadr — ulanish uziladi).
+
+**Tinglovchi chegaralari (review P6 S1, S2).** Markaz oddiy TCP server (`LanConnection`): HTTP so'rov boshi 3 soniya
+ichida va 8 KB dan oshmasin; har WebSocket kadrining sarlavhasi to'lov baytlari bufferga tushishidan **oldin**
+o'qiladi — bitta xabar (bo'laklar yig'indisi ham) `hello` gacha 64 KB, keyin 4 MB dan oshsa, siqilgan kadr (RSV
+bitlari) yoki 125 baytdan katta boshqaruv kadri bo'lsa ulanish darhol uziladi. `hello` aytmagan ulanishlar alohida
+kichik hovuzda: bir manzildan 8 ta, jami 64 ta (yangisi kelganda shu manzilning — yoki eng ko'p ulangan manzilning —
+eng eskisi yopiladi: haqiqiy qurilma ular sababli rad etilmaydi), upgrade'dan keyin 3 soniyada `hello` kelmasa —
+yopiladi. `maxPeers` (64) faqat `hello` aytgan qurilmalarni sanaydi (to'lsa — `4429 too_many_devices`).
 
 ```json
 {"v":1,"kid":3,"type":"op","device":"<yuboruvchi uuid>","seq":1793700000123456,"ts":1793700000123,
@@ -104,13 +121,16 @@ WebSocket: `ws://host:port/lan/v1/ws`, har xabar — bitta matn kadri:
   ±`clock_window_seconds` (120) dan oshmasin; `(device, seq)` shu oyna ichida ikkinchi marta kelmasin (qabul qiluvchi
   ko'rganlarini 2 × oyna saqlaydi). `seq` — yuboruvchi ishga tushgan paytdagi mikrosoniyadan boshlab har kadrga +1
   (ilova qayta ochilganda ham takrorlanmaydi); himoyaning o'zi `ts` oynasi va ko'rilgan `(device, seq)` ro'yxatida.
-- **Qo'l berish:** mijoz `hello` `{nonce, app: "waiter|kds|display|cashier", version, grant?}` (mijoz soati bilan,
-  oyna 10 daqiqa) → markaz `welcome` `{nonce (qaytarilgan), hub_time, hub: {device, name}, staff, grant_error,
+- **Qo'l berish:** ulanish ochilishi bilan markaz imzosiz `{"v":1,"type":"challenge","nonce":"<base64 16 bayt>"}`
+  yuboradi; mijoz `hello` `{nonce, challenge (markaznikini qaytaradi), app: "waiter|kds|display|cashier", version,
+  grant?}` (mijoz soati bilan, oyna 10 daqiqa). `challenge` shu ulanishniki bo'lmasa — `4401 challenge`: Wi-Fi'da
+  ushlangan `hello` boshqa ulanishda (markaz qayta ishga tushgandan keyin ham) hech narsa ochmaydi (review P6 S6) →
+  markaz `welcome` `{nonce (qaytarilgan), hub_time, hub: {device, name}, staff, grant_error,
   state}`. Mijoz `nonce` ni tekshiradi va markaz soatiga farqni (`hub_time − hozir`) oladi; keyingi kadrlarida `ts` —
   markaz vaqti.
 - **Xatolar:** tanilmagan qurilma, imzo yoki kalit versiyasi — WebSocket `4401` bilan yopiladi (`unknown_device`,
   `bad_sig`, `key_mismatch`, bir ulanishda boshqa qurilma nomidan — `device_changed`), qo'l berishsiz kadr — `4400
-  hello_required`, 10 soniyada `hello` kelmasa — `4400 hello_timeout`. Boshqa filialning qurilmasi markaz ro'yxatida
+  hello_required`, 3 soniyada `hello` kelmasa — `4400 hello_timeout`. Boshqa filialning qurilmasi markaz ro'yxatida
   yo'q (`unknown_device`), uning beacon'i va granti qabul qilinmaydi (`wrong_branch`). Ulanishdan
   keyingi qayta yuborilgan yoki eskirgan kadr tashlab yuboriladi (`error` `{reason: replay|stale}`).
 
@@ -120,15 +140,16 @@ WebSocket: `ws://host:port/lan/v1/ws`, har xabar — bitta matn kadri:
 
 | `type` | `payload` | Javob |
 |---|---|---|
-| `hello` | `{nonce, app, version, grant?}` | `welcome` |
+| `hello` | `{nonce, challenge, app, version, grant?}` | `welcome` |
 | `grant` | `{grant, nonce}` — qurilmada xodim almashdi (onlayn) | `welcome` (yangi `staff`) |
 | `op` | `pos_sync` amali konverti: `{op_id, type, occurred_at, staff_id, payload}` (pastda) | `op.result` |
-| `state.get` | `{}` | `state` |
-| `order.get` | `{order}` | `order.changed` (yo'q bo'lsa `op.result`siz `error` `not_found`) |
+| `state.get` | `{}` | `state` (grantsiz qurilmaga `error` `grant_required`) |
+| `order.get` | `{order}` | `order.changed` (yo'q bo'lsa `op.result`siz `error` `not_found`; grantsiz — `grant_required`) |
 | `ping` | `{}` | `pong` `{hub_time}` |
 
 `op` — `op_id` (UUID, mijoz beradi; markaz uni o'z navbatida **shu id bilan** saqlaydi, qayta yuborilsa bir marta
-qo'llanadi), `occurred_at` (markaz vaqti, ISO 8601), `staff_id` (grantdagi bilan bir xil bo'lishi shart). Amallar va
+qo'llanadi; markaz uni amalning `idempotency_key` i sifatida ham yozadi — ofitsiant ilovasi javobi yo'qolgan onlayn
+so'rovni xuddi shu `Idempotency-Key` bilan markazga yuborsa, server onlayn bajarganini qayta qo'llamaydi, review P6 C1), `occurred_at` (markaz vaqti, ISO 8601), `staff_id` (grantdagi bilan bir xil bo'lishi shart). Amallar va
 `payload` (onlayn API dagidek: `items[]` — `POST /pos/orders` qatori, `line` — markaz ko'rsatgan qator `id`si):
 
 | `op.type` | `payload` | Huquq | Modul |
@@ -171,6 +192,11 @@ navbatiga diskka yozildi (serverga keyin boradi); `order` — buyurtmaning marka
 
 Hodisalar "yetkazib bo'lsa" yuboriladi: qayta ulangan mijoz `state.get` bilan to'liq holatni oladi.
 
+**Kim nimani oladi (review P6 S7).** Grant bilan (xodim kirgan, muddati o'tmagan) qurilma — hammasini. Grantsiz:
+`lan.state`; mijoz ekrani (`app: display`) qo'shimcha `cart.display`, `queue.*` va `order.changed` ning faqat navbat
+qismini (`{ref, order: {uuid, status, channel, queue: {number, status}}}` — qatorlar, ismlar, summalarsiz). Grantsiz
+KDS yoki telefon buyurtmalarni ko'rmaydi; `state.get`/`order.get` — `grant_required`.
+
 ## 7. Server bilan sinxronlash (relay)
 
 Markaz navbatidagi LAN amali `SyncOperation.origin` (kelib chiqqan qurilma uuid'si) bilan saqlanadi va `POST /pos/sync`
@@ -179,7 +205,9 @@ yuboruvchi shu filialning markazi bo'lishi (yoki markaz almashgan bo'lsa, almash
 `origin_device` shu filialning faol terminali bo'lishi, amal turi LAN'ga ruxsat etilgan bo'lishi kerak; xodim **kelib
 chiqqan qurilmada** 36 soat ichida PIN bilan kirgan va huquqi bor. Aks holda amal `rejected` (`relay_not_hub`,
 `origin_unknown`, `origin_wrong_branch`, `origin_revoked`, `relay_not_allowed`) — "Sinxronlash xatolari"da. Buyurtma
-`device_id` si — kelib chiqqan qurilma.
+`device_id` si — kelib chiqqan qurilma. Relay amalida `idempotency_key` bo'lmasa server uning `op_id` sini kalit deb
+oladi: shu xodim shu kalit bilan onlayn bajargan so'rov qayta qo'llanmaydi (`replayed`); `order.open` — onlayn ochilgan
+o'sha buyurtma qaytadi va qurilmaning id'si (`order`) unga `external_id` bo'lib yoziladi (keyingi amallari topadi).
 
 ## 8. Dart API
 
@@ -210,7 +238,7 @@ client.events.listen(...);              // order.changed, kitchen.ticket, lan.st
   yo'q); server javob bermasa — ulanadi (`lan`, topilmasa `alone` va 2/5/10/30 soniyada qayta urinadi); `cloud` ga
   faqat `LanModeRule` bo'yicha (`cloud: true, pending: 0`) qaytadi va ulanishni yopadi.
 - **Topish tartibi:** qo'lda kiritilgan manzil (IP yoki `rizqim-lan://` havola; qurilmada saqlanadi) → oxirgi
-  ishlagan manzil → UDP beacon (3 soniya; Android'da shu vaqt `WifiManager.MulticastLock` ushlanadi —
+  ishlagan manzil → UDP beaconlar (3 soniya to'liq tinglanadi, eshitilgan har manzil sinaladi; Android'da shu vaqt `WifiManager.MulticastLock` ushlanadi —
   `pos_hardware` `WifiMulticastLock`, ruxsat `CHANGE_WIFI_MULTICAST_STATE`) → `127.0.0.1` (Windows'da kassa bilan bir
   kompyuterdagi mijoz ekrani).
 - **Belgi:** ofitsiant — yuqori paneldagi aloqa belgisi "Lokal tarmoq" / "Aloqa yo'q" (bosilsa: markaz, xato, qo'lda
@@ -249,11 +277,16 @@ tushiradi; `LanPublisher` kassaning o'z hodisalarini tarqatadi — `cart.display
 kutmasdan; yangi ulangan mijoz ekraniga oxirgi chek darhol), `queue.ready` / `queue.called` / `queue.handed` (kassadagi
 "Tayyor", "Qayta chaqirish", "Berildi"), va internetsiz paytda navbat raqami bor buyurtmaning hamma taomi tayyor
 bo'lsa `queue.ready` (onlayn buni server e'lon qiladi); kassaning internetsiz amallari (`kitchen.*`, `order.changed`)
-navbat orqali `PosOfflineLanApplier` dan o'tadi. `LanBillPrints`: kassa internetsiz, filialda "schyotni avtomatik
-chop etish" yoqilgan va kassada printer bor bo'lsa, LAN orqali kelgan `bill.request` navbatga `printed_on_lan: true`
-bilan yoziladi va pre-check kassaning o'z printerida bir marta chiqadi (so'rov id'si — `op_id`; navbatga schyot
-yozilmaydi); server navbat yetganda uni qayta chiqarmaydi. Internet bor paytda markaz chiqarmaydi — server
-odatdagidek `bill.print_requested` yuboradi (bir so'rov — bitta qog'oz). Sozlamalardagi "Lokal tarmoq" bo'limi:
+navbat orqali `PosOfflineLanApplier` dan o'tadi. `LanBillPrints` (shu paketda, `lib/src/bill_prints.dart`; kassa
+ilovasi va e2e mashq bir xil ishlatadi — review C9): kassa internetsiz, filialda "schyotni avtomatik chop etish"
+yoqilgan va kassada printer bor bo'lsa, LAN orqali kelgan `bill.request` ning pre-check'i **navbatga yozishdan oldin**
+chiqariladi va amal `printed_on_lan` = haqiqatan printerga ketdimi bilan yoziladi (review C6; so'rov id'si — `op_id`;
+navbatga schyot yozilmaydi); chiqarilgan id'lar kassaning navbat diskida (`lan.bill_prints`) — kassa qayta ishga
+tushib, ofitsiant so'rovni qayta yuborsa ikkinchi qog'oz chiqmaydi. Server navbat yetganda `printed_on_lan` ni qayta
+chiqarmaydi. Internet bor paytda markaz chiqarmaydi — server odatdagidek `bill.print_requested` yuboradi; lekin so'rov
+navbatda 8 soniyadan ko'p javobsiz tursa (uzilish endi boshlangan), markaz uni o'zi chiqaradi va server keyin uni
+amal kaliti bilan e'lon qilganda kassa qayta chiqarmaydi (bir so'rov — bitta qog'oz). `PosOfflineLanApplier.printsBill`
+`Future<bool>` qaytarishi mumkin. Sozlamalardagi "Lokal tarmoq" bo'limi:
 holat, IP, port, ulangan qurilmalar, qo'lda ulanish uchun QR (`rizqim-lan://...`), hech kim ulanmagan bo'lsa —
 Wi-Fi va Windows ruxsat qoidasi bo'yicha maslahat. Markazni ega tanlaydi (boshqaruv paneli: Kassa sozlamalari →
 Lokal tarmoq); tanlanmagan bo'lsa server kassa ilovasini (`devices.app = cashier`) oladi, ofitsiant telefonini hech
@@ -272,7 +305,9 @@ hodisalar tarqalishi, beacon (HTTP va UDP); `bridge_test.dart` — soxta backend
 2 ofitsiant + KDS + mijoz ekrani, ofitsiant qoidasi, huquq va modul, `op_id` bir marta, internet qaytgach navbat
 tartib bilan va `origin_device` bilan serverga; `link_test.dart` — `LanLink` va `LanPosRoute` haqiqiy markaz bilan
 (ikki tomonga rejim almashishi, "navbat yetdi" qoidasi, markaz yo'qolishi, noto'g'ri kalit, beacon va multicast qulfi,
-ofitsiant repozitoriylari markaz orqali); `platform_bind_test.dart` — barcha interfeyslar, `127.0.0.1`, beacon porti.
+ofitsiant repozitoriylari markaz orqali); `platform_bind_test.dart` — barcha interfeyslar, `127.0.0.1`, beacon porti;
+`hub_security_test.dart` (review P6) — kalitsiz katta/bo'lakli/siqilgan kadr, sekin HTTP, 64 ta bo'sh ulanish,
+beacon `Host`, ushlangan `hello`, grantsiz qurilma ko'radigani.
 
 Kassada: `pos/apps/cashier/lib/src/lan/` (`CashierLanHub` — bootstrap'dan ishga tushadi, kalitlar xavfsiz xotirada,
 markaz emas bo'lsa to'xtaydi; yuqori paneldagi "Lokal tarmoq: N qurilma" belgisi va IP/QR manzili).

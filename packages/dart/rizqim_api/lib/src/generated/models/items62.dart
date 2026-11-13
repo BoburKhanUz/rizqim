@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers40.dart';
+import 'modifiers39.dart';
 
 part 'items62.g.dart';
 
@@ -53,7 +53,7 @@ class Items62 {
   final String unit;
   @JsonKey(name: 'quantity_label')
   final String quantityLabel;
-  final List<Modifiers40> modifiers;
+  final List<Modifiers39> modifiers;
   @JsonKey(name: 'kitchen_status')
   final String kitchenStatus;
   @JsonKey(name: 'ready_at')

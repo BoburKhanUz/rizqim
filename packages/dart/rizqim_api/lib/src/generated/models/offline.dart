@@ -4,45 +4,29 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fees.dart';
-import 'places.dart';
-import 'guest_items.dart';
-import 'limits4.dart';
+import 'flags.dart';
 
 part 'offline.g.dart';
 
 @JsonSerializable()
 class Offline {
   const Offline({
-    required this.devicePrefix,
-    required this.nextLocalNumber,
-    required this.businessDate,
-    required this.dayType,
-    required this.serviceChargeLocked,
-    required this.fees,
-    required this.places,
-    required this.guestItems,
-    required this.limits,
+    required this.localNumber,
+    required this.createdAt,
+    required this.syncedAt,
+    required this.flags,
   });
 
   factory Offline.fromJson(Map<String, Object?> json) =>
       _$OfflineFromJson(json);
 
-  @JsonKey(name: 'device_prefix')
-  final String? devicePrefix;
-  @JsonKey(name: 'next_local_number')
-  final int nextLocalNumber;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  @JsonKey(name: 'service_charge_locked')
-  final bool serviceChargeLocked;
-  final List<Fees> fees;
-  final List<Places> places;
-  @JsonKey(name: 'guest_items')
-  final List<GuestItems> guestItems;
-  final Limits4 limits;
+  @JsonKey(name: 'local_number')
+  final String? localNumber;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'synced_at')
+  final String? syncedAt;
+  final List<Flags> flags;
 
   Map<String, Object?> toJson() => _$OfflineToJson(this);
 }

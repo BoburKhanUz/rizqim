@@ -11,6 +11,7 @@
 library;
 
 export 'src/beacon.dart';
+export 'src/bill_prints.dart';
 export 'src/client.dart';
 export 'src/credentials.dart';
 export 'src/crypto.dart' show LanKeys, LanChannelKey, lanCanonicalJson;

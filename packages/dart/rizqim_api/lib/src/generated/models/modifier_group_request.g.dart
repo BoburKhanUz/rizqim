@@ -22,7 +22,7 @@ ModifierGroupRequest _$ModifierGroupRequestFromJson(
   sortOrder: (json['sort_order'] as num?)?.toInt(),
   isActive: json['is_active'] as bool?,
   modifiers: (json['modifiers'] as List<dynamic>?)
-      ?.map((e) => Modifiers41.fromJson(e as Map<String, dynamic>))
+      ?.map((e) => Modifiers42.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -4,40 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'customer4.dart';
+import 'delivery7.dart';
+import 'courier4.dart';
 import 'items59.dart';
-import 'pickup_status.dart';
-import 'assembly2.dart';
-import 'pickup28.dart';
 
 part 'data287.g.dart';
 
 @JsonSerializable()
 class Data287 {
   const Data287({
-    required this.uuid,
+    required this.subtotal,
     required this.shortCode,
     required this.status,
+    required this.statusLabel,
     required this.type,
     required this.channel,
+    required this.storeId,
     required this.branchId,
+    required this.branchName,
+    required this.paymentMethod,
+    required this.paymentStatus,
+    required this.uuid,
+    required this.discount,
+    required this.deliveryPrice,
+    required this.serviceChargeAmount,
+    required this.placeFeeAmount,
+    required this.totalPrice,
+    required this.notes,
+    required this.guestsCount,
     required this.hallRef,
     required this.tableRef,
-    required this.tableLabel,
-    required this.guestsCount,
-    required this.notes,
+    required this.cancelReason,
+    required this.cancelNote,
+    required this.waitingSeconds,
+    required this.delivery,
+    required this.courier,
     required this.itemsTotal,
     required this.itemsReady,
     required this.items,
     required this.createdAt,
+    required this.updatedAt,
     required this.acceptedAt,
     required this.preparingAt,
     required this.readyAt,
-    required this.canceledAt,
-    required this.waitingSeconds,
-    required this.queueNumber,
-    required this.pickupStatus,
-    required this.assembly,
-    required this.pickup,
+    required this.closedAt,
+    required this.customer,
   });
 
   factory Data287.fromJson(Map<String, Object?> json) =>
@@ -47,19 +59,44 @@ class Data287 {
   @JsonKey(name: 'short_code')
   final String? shortCode;
   final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
   final String type;
   final String channel;
+  @JsonKey(name: 'store_id')
+  final int storeId;
   @JsonKey(name: 'branch_id')
   final int? branchId;
+  @JsonKey(name: 'branch_name')
+  final String? branchName;
+  @JsonKey(name: 'payment_method')
+  final String paymentMethod;
+  @JsonKey(name: 'payment_status')
+  final String paymentStatus;
+  final String subtotal;
+  final String discount;
+  @JsonKey(name: 'delivery_price')
+  final String deliveryPrice;
+  @JsonKey(name: 'service_charge_amount')
+  final String serviceChargeAmount;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  final String? notes;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
   final String? tableRef;
-  @JsonKey(name: 'table_label')
-  final String? tableLabel;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final String? notes;
+  @JsonKey(name: 'cancel_reason')
+  final String? cancelReason;
+  @JsonKey(name: 'cancel_note')
+  final String? cancelNote;
+  final Customer4? customer;
+  final Delivery7? delivery;
+  final Courier4? courier;
   @JsonKey(name: 'items_total')
   final int itemsTotal;
   @JsonKey(name: 'items_ready')
@@ -67,22 +104,18 @@ class Data287 {
   final List<Items59> items;
   @JsonKey(name: 'created_at')
   final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
   @JsonKey(name: 'accepted_at')
   final String? acceptedAt;
   @JsonKey(name: 'preparing_at')
   final String? preparingAt;
   @JsonKey(name: 'ready_at')
   final String? readyAt;
-  @JsonKey(name: 'canceled_at')
-  final String? canceledAt;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
   @JsonKey(name: 'waiting_seconds')
   final int waitingSeconds;
-  @JsonKey(name: 'queue_number')
-  final int? queueNumber;
-  @JsonKey(name: 'pickup_status')
-  final PickupStatus? pickupStatus;
-  final Assembly2? assembly;
-  final Pickup28? pickup;
 
   Map<String, Object?> toJson() => _$Data287ToJson(this);
 }

@@ -16,7 +16,8 @@ import 'printer.dart';
 /// | `bluetooth_off` | Bluetooth o'chiq | `offline` |
 /// | `not_found` | printer juftlanmagan (Bluetooth) yoki ulanmagan (USB) | Bluetooth `unsupported`, USB `offline` |
 /// | `connect_failed` | ulanib bo'lmadi (printer o'chiq, uzoqda, boshqa telefon ulangan) | `offline` |
-/// | `write_failed` | yozish uzildi | `failed` |
+/// | `write_failed` | yozish uzildi, printerga hech narsa yetmadi | `failed` (navbat qayta urinadi) |
+/// | `write_partial` | hujjatning bir qismi yetib, aloqa uzildi (review P6 C7) | `interrupted` (qayta yuborilmaydi) |
 /// | `timeout` | printer javob bermadi | `timeout` |
 /// | `failed` | boshqa | `failed` |
 ///
@@ -170,6 +171,11 @@ abstract class NativePrinterTransport implements PrinterTransport {
       'write_failed' => PrinterException(
         PrinterErrorKind.failed,
         '$label bilan aloqa uzildi${detail.isEmpty ? '' : ': $detail'}',
+      ),
+      'write_partial' => PrinterException(
+        PrinterErrorKind.interrupted,
+        "Hujjat qisman chiqdi: $label bilan aloqa uzildi. Chiqqanini tekshirib, kerak bo'lsa qayta chop eting."
+        '${detail.isEmpty ? '' : ' ($detail)'}',
       ),
       'timeout' => const PrinterException(
         PrinterErrorKind.timeout,

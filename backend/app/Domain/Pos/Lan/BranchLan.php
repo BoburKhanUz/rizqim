@@ -7,9 +7,11 @@ use App\Domain\Pos\Setup\PosSettings;
 use App\Domain\Pos\Sync\PosSyncApplier;
 use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
+use App\Events\Broadcast\PosLanChangedBroadcast;
 use App\Models\Branch;
 use App\Models\BranchLanSettings;
 use App\Models\Device;
+use App\Models\PosShift;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\PermissionService;
@@ -29,10 +31,19 @@ use Illuminate\Validation\ValidationException;
  *   also gets its signed offline grant (who is signed in, their permissions, 36 hours). A normal staff or owner sign-in
  *   (no terminal) gets nothing.
  * - The hub: the owner's choice while it is an active till of the branch, else the branch's printing till, else the
- *   branch's first paired cashier till (DeviceApp, sent at pairing), else its first paired active till whose app is not
- *   known (paired before the app was recorded). A waiter's phone is never a candidate.
- * - Relays: from the current hub, the device the hub's secret was last given to, or (for an operation that happened
- *   before the secret moved, within 48 hours) the one before it.
+ *   till the hub's secret was last given to while it is still active (pairing another till never moves the hub: review
+ *   C5), else the branch's first paired cashier till (DeviceApp, sent at pairing), else its first paired active till
+ *   whose app is not known (paired before the app was recorded) that has had a shift on it. A waiter's phone is never a
+ *   candidate; a terminal of unknown app that never had a shift (a waiter's phone paired before the app was recorded)
+ *   is never the default (review S4: only the owner may pick it).
+ * - The apps say which app they are (DeviceApp::HEADER): recorded on a terminal that has none; a terminal saying it is
+ *   the waiter, kitchen or display app never gets the hub's role or secret, whoever chose it.
+ * - Relays: from the current hub, or from the device the hub's secret was last given to, or (for an operation that
+ *   happened before the secret moved, within 48 hours) the one before it, while it may still be the hub.
+ * - The secret moving is audited (`pos.lan_hub_changed`), and a revoke, a rotation or a hub move is announced to the
+ *   branch's terminals (`pos.lan_changed`, PosLanChangedBroadcast): the hub refetches GET /pos/lan at once.
+ * - A staff grant ends GRANT_HOURS after the PIN sign-in (the server takes the session's relayed operations for as
+ *   long, measured at each operation's time: PosSyncApplier::staff).
  */
 final class BranchLan
 {
@@ -103,8 +114,8 @@ final class BranchLan
     }
 
     /**
-     * The branch's hub now: the owner's choice, the printing till, the first cashier till, the first till whose app is
-     * not known; null without an active till.
+     * The branch's hub now: the owner's choice, the printing till, the till that holds the hub's secret, the first
+     * cashier till, the first till whose app is not known that has had a shift; null without such a till.
      */
     public function hubOf(Branch $branch, ?BranchLanSettings $settings = null): ?Device
     {
@@ -114,12 +125,30 @@ final class BranchLan
             return $chosen;
         }
 
-        $printing = PosBootstrap::activePrintingDevice($branch, PosSettings::resolve($branch->pos_settings)['printing_device_id'] ?? null);
-        if ($printing !== null && ($till = $candidates->firstWhere('uuid', $printing)) !== null) {
+        $printing = $this->printingTill($branch);
+        $eligible = $this->eligible($candidates, $printing);
+        if ($printing !== null && ($till = $eligible->firstWhere('uuid', $printing)) !== null) {
             return $till;
         }
+        if ($settings->issued_hub_device_id !== null && ($issued = $eligible->firstWhere('id', $settings->issued_hub_device_id)) !== null) {
+            return $issued;
+        }
 
-        return $candidates->first(fn (Device $device) => $device->app === DeviceApp::CASHIER) ?? $candidates->first();
+        return $eligible->first(fn (Device $device) => $device->app === DeviceApp::CASHIER) ?? $eligible->first();
+    }
+
+    /**
+     * Whether $device may be the branch's hub: the owner's choice, or a till the default may fall on (eligible()).
+     */
+    public function mayHost(Branch $branch, BranchLanSettings $settings, Device $device): bool
+    {
+        $candidates = $this->candidates($branch);
+        if ($candidates->firstWhere('id', $device->id) === null) {
+            return false;
+        }
+
+        return (int) $settings->hub_device_id === (int) $device->id
+            || $this->eligible($candidates, $this->printingTill($branch))->firstWhere('id', $device->id) !== null;
     }
 
     /**
@@ -134,7 +163,7 @@ final class BranchLan
             return null;
         }
 
-        return $this->build($branch, $device, $user);
+        return $this->build($branch, $device, $user, $this->claimedApp($device));
     }
 
     /**
@@ -149,7 +178,7 @@ final class BranchLan
             return null;
         }
 
-        return $this->build($branch, $device, null);
+        return $this->build($branch, $device, null, $this->claimedApp($device));
     }
 
     /**
@@ -163,7 +192,15 @@ final class BranchLan
         }
 
         $settings = $this->settings($branch);
-        if ($this->hubOf($branch, $settings)?->id === $sender->id || $settings->issued_hub_device_id === (int) $sender->id) {
+        if ($this->hubOf($branch, $settings)?->id === $sender->id) {
+            return true;
+        }
+        // Review S4: the device the secret went to, or the one before it, while it may still be the hub (a terminal
+        // that got it before the rules were tightened — a waiter's phone of unknown app — no longer relays)
+        if (!$this->mayHost($branch, $settings, $sender)) {
+            return false;
+        }
+        if ($settings->issued_hub_device_id === (int) $sender->id) {
             return true;
         }
 
@@ -234,6 +271,12 @@ final class BranchLan
         $this->audit->record('settings.pos_lan_changed', $branch, self::auditable($before), self::auditable($after), [], [
             'store_id' => (int) $branch->store_id, 'branch_id' => (int) $branch->id, 'actor' => $actor,
         ]);
+        if (($before['hub']['device'] ?? null) !== ($after['hub']['device'] ?? null)) {
+            event(new PosLanChangedBroadcast((int) $branch->id, LanChange::HUB_CHANGED, $after['hub']['device'] ?? null));
+        }
+        if ($before['port'] !== $after['port']) {
+            event(new PosLanChangedBroadcast((int) $branch->id, LanChange::PORT_CHANGED));
+        }
 
         return $after;
     }
@@ -263,6 +306,7 @@ final class BranchLan
         $this->audit->record('pos.lan_key_rotated', $branch, ['key_id' => $from], ['key_id' => $to], [], [
             'store_id' => (int) $branch->store_id, 'branch_id' => (int) $branch->id, 'actor' => $actor,
         ]);
+        event(new PosLanChangedBroadcast((int) $branch->id, LanChange::KEY_ROTATED));
 
         return $this->view($branch);
     }
@@ -279,16 +323,57 @@ final class BranchLan
     }
 
     /**
+     * The app the request says it is (DeviceApp::HEADER), recorded on a terminal that has none when it runs on the
+     * terminal's type (as at pairing; what was recorded stays). Null: an older app that does not say.
+     */
+    private function claimedApp(Device $device): ?DeviceApp
+    {
+        $claimed = DeviceApp::tryFrom((string) request()->header(DeviceApp::HEADER, ''));
+        if ($claimed !== null && $device->app === null && $claimed->deviceType() === $device->type) {
+            $device->forceFill(['app' => $claimed->value])->saveQuietly();
+        }
+
+        return $claimed;
+    }
+
+    /**
+     * The branch's printing till (its uuid) while it is active.
+     */
+    private function printingTill(Branch $branch): ?string
+    {
+        return PosBootstrap::activePrintingDevice($branch, PosSettings::resolve($branch->pos_settings)['printing_device_id'] ?? null);
+    }
+
+    /**
+     * The candidates the default hub may fall on (review S4, C5): a cashier till, the printing till, or a till whose app
+     * is not known (paired before it was recorded) that has had a shift on it — a waiter's phone never opens a shift, so
+     * one paired before the app was recorded is never the default hub.
+     *
+     * @param  Collection<int, Device>  $candidates
+     * @return Collection<int, Device>
+     */
+    private function eligible(Collection $candidates, ?string $printing): Collection
+    {
+        $unknown = $candidates->filter(fn (Device $device) => $device->app === null && (string) $device->uuid !== $printing)->pluck('id')->all();
+        $shifted = $unknown === [] ? [] : PosShift::query()->whereIn('device_id', $unknown)->distinct()->pluck('device_id')->map(fn ($id) => (int) $id)->all();
+
+        return $candidates->filter(fn (Device $device) => $device->app === DeviceApp::CASHIER
+            || ($printing !== null && (string) $device->uuid === $printing)
+            || in_array((int) $device->id, $shifted, true))->values();
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function build(Branch $branch, Device $device, ?User $user): array
+    private function build(Branch $branch, Device $device, ?User $user, ?DeviceApp $claimed): array
     {
         $settings = $this->settings($branch);
         $secret = (string) base64_decode((string) $settings->secret, true);
         $hub = $this->hubOf($branch, $settings);
-        $isHub = $hub !== null && (int) $hub->id === (int) $device->id;
+        // Review S4: a terminal saying it runs the waiter, kitchen or display app never takes the hub's role
+        $isHub = $hub !== null && (int) $hub->id === (int) $device->id && ($claimed === null || $claimed === DeviceApp::CASHIER);
         if ($isHub) {
-            $this->issuedTo($settings, $device);
+            $this->issuedTo($branch, $settings, $device);
         }
 
         return [
@@ -313,19 +398,29 @@ final class BranchLan
 
     /**
      * The hub's secret went to $device: the device that had it before is remembered (its relays of what happened before
-     * the move are still taken, PREVIOUS_HUB_HOURS).
+     * the move are still taken, PREVIOUS_HUB_HOURS). Review S8: audited `pos.lan_hub_changed` (the devices, never the
+     * key) and announced to the branch (S5).
      */
-    private function issuedTo(BranchLanSettings $settings, Device $device): void
+    private function issuedTo(Branch $branch, BranchLanSettings $settings, Device $device): void
     {
         if ($settings->issued_hub_device_id === (int) $device->id) {
             return;
         }
-        if ($settings->issued_hub_device_id !== null) {
-            $settings->previous_hub_device_id = $settings->issued_hub_device_id;
+        $from = $settings->issued_hub_device_id;
+        if ($from !== null) {
+            $settings->previous_hub_device_id = $from;
             $settings->hub_changed_at = now();
         }
         $settings->issued_hub_device_id = (int) $device->id;
         $settings->saveQuietly();
+
+        $this->audit->record('pos.lan_hub_changed', $branch,
+            ['device' => $from !== null ? Device::whereKey($from)->value('uuid') : null],
+            ['device' => (string) $device->uuid],
+            ['key_id' => (int) $settings->key_id],
+            ['store_id' => (int) $branch->store_id, 'branch_id' => (int) $branch->id, 'actor' => null, 'device' => $device],
+        );
+        event(new PosLanChangedBroadcast((int) $branch->id, LanChange::HUB_CHANGED, (string) $device->uuid));
     }
 
     /**
@@ -353,8 +448,12 @@ final class BranchLan
     private function grant(string $secret, BranchLanSettings $settings, Branch $branch, Device $device, User $user): string
     {
         // A PIN session on the terminal (the only caller with a device): its staff session token
-        $session = (int) $user->currentAccessToken()->getKey();
+        $token = $user->currentAccessToken();
+        $session = (int) $token->getKey();
         $issued = now();
+        // Review C8: the grant ends GRANT_HOURS after the PIN sign-in, as the server's window for the session's relayed
+        // operations does (PosSyncApplier::staff, measured at each operation's time)
+        $signedIn = $token->created_at ?? $issued;
 
         return LanKeys::signGrant($secret, [
             'v' => self::VERSION,
@@ -367,7 +466,7 @@ final class BranchLan
             'permissions' => array_map(fn ($permission) => $permission->value, $this->permissions->permissionsFor($user)),
             'session' => $session,
             'iat' => $issued->getTimestamp(),
-            'exp' => $issued->copy()->addHours(self::GRANT_HOURS)->getTimestamp(),
+            'exp' => $signedIn->copy()->addHours(self::GRANT_HOURS)->getTimestamp(),
         ]);
     }
 

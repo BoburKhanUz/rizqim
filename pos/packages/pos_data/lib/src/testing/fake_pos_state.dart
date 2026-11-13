@@ -288,6 +288,10 @@ class FakePosState {
   /// P6: `GET /pos/lan` (terminal token) — the terminal's LAN section; `null` — none.
   Map<String, Object?>? terminalLan;
 
+  /// Review P6 uskunalar/LAN (C2): terminalning o'z tokeni bilan `GET /pos/bill-print-requests` va
+  /// `POST /pos/bill-print-requests/{id}/printed` ([FakeCashierBackend] ulaydi); `null` — bo'sh ro'yxat.
+  FakeResponse? Function(String method, String path)? printInbox;
+
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
 
@@ -729,6 +733,11 @@ class FakePosState {
       if (sync != null) return sync;
     }
     // P6 local bridge: the terminal's LAN keys with its own token (the customer display)
+    if (p.startsWith('/v1/pos/bill-print-requests') && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      return printInbox?.call(method, p) ??
+          _ok(<String, Object?>{'requests': <Object?>[]});
+    }
     if (method == 'GET' && p == '/v1/pos/lan' && token == terminalToken) {
       if (!paired) return _unauthorized();
       return _ok(terminalLan);

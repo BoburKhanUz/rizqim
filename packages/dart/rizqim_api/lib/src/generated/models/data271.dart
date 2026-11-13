@@ -4,20 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'errors.dart';
-import 'meta2.dart';
+import 'shift5.dart';
+import 'report3.dart';
 
 part 'data271.g.dart';
 
 @JsonSerializable()
 class Data271 {
-  const Data271({required this.errors, required this.meta});
+  const Data271({required this.shift, required this.report});
 
   factory Data271.fromJson(Map<String, Object?> json) =>
       _$Data271FromJson(json);
 
-  final List<Errors> errors;
-  final Meta2 meta;
+  final Shift5 shift;
+  final Report3 report;
 
   Map<String, Object?> toJson() => _$Data271ToJson(this);
 }

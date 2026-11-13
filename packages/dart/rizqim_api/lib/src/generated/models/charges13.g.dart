@@ -25,7 +25,7 @@ Charges13 _$Charges13FromJson(Map<String, dynamic> json) => Charges13(
   serviceChargeNotice: json['service_charge_notice'] as String?,
   packagingAmount: json['packaging_amount'] as String,
   packagingLines: (json['packaging_lines'] as List<dynamic>)
-      .map((e) => PackagingLines14.fromJson(e as Map<String, dynamic>))
+      .map((e) => PackagingLines15.fromJson(e as Map<String, dynamic>))
       .toList(),
   waivers: (json['waivers'] as List<dynamic>)
       .map((e) => Waivers8.fromJson(e as Map<String, dynamic>))

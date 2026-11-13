@@ -13,7 +13,7 @@ import 'charges14.dart';
 import 'offline10.dart';
 import 'queue12.dart';
 import 'courses9.dart';
-import 'items35.dart';
+import 'items36.dart';
 
 part 'data242.g.dart';
 
@@ -141,7 +141,7 @@ class Data242 {
   final List<Courses9> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
-  final List<Items35> items;
+  final List<Items36> items;
 
   Map<String, Object?> toJson() => _$Data242ToJson(this);
 }

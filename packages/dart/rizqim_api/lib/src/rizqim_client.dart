@@ -20,6 +20,10 @@ import 'realtime/channel_auth.dart';
 /// ```
 ///
 /// [baseUrl] `/api` bilan tugaydi (yo'llar `/v1/...` dan boshlanadi).
+///
+/// [app] — POS ilovasi (`cashier`, `waiter`, `kds`, `customer_display`): har so'rovda [appHeader] sarlavhasida
+/// yuboriladi (P6 review S4: server uni ilovasi yozilmagan eski terminalga yozib qo'yadi, kassadan boshqa ilovaga
+/// lokal ko'prik markazi roli va kaliti berilmaydi).
 class RizqimClient {
   factory RizqimClient({
     required String baseUrl,
@@ -27,6 +31,7 @@ class RizqimClient {
     Dio? dio,
     DateTime Function()? clock,
     Duration refreshSkew = const Duration(seconds: 30),
+    String? app,
   }) {
     final Dio http = dio ?? Dio();
     http.options
@@ -34,6 +39,7 @@ class RizqimClient {
       ..connectTimeout = const Duration(seconds: 10)
       ..receiveTimeout = const Duration(seconds: 30)
       ..headers['Accept'] = 'application/json';
+    if (app != null) http.options.headers[appHeader] = app;
     final AuthSession auth = AuthSession(
       remote: AuthRemote(http),
       store: store,
@@ -51,6 +57,9 @@ class RizqimClient {
       channelAuth = ChannelAuth(dio) {
     kitchen = KitchenService(api, dio, clock: clock);
   }
+
+  /// Ilova o'zini aytadigan sarlavha (backend `DeviceApp::HEADER`).
+  static const String appHeader = 'X-Rizqim-App';
 
   final Dio dio;
   final AuthSession auth;

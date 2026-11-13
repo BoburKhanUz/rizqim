@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'waiter3.dart';
+import 'waiter4.dart';
 
 part 'untabled_orders.g.dart';
 
@@ -52,7 +52,7 @@ class UntabledOrders {
   final String? billRequestedAt;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter3? waiter;
+  final Waiter4? waiter;
   @JsonKey(name: 'total_price')
   final String totalPrice;
   @JsonKey(name: 'items_count')

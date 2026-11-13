@@ -51,6 +51,8 @@ class BillPrintService {
     required this.header,
     this.adjust,
     this.onProblem,
+    this.signedIn,
+    this.printedOnLan,
   });
 
   final PosData data;
@@ -67,17 +69,84 @@ class BillPrintService {
   /// Foydalanuvchiga ko'rsatiladigan xabar (o'zbekcha); ish ekrani ([HomeShell]) o'rnatadi.
   void Function(String message)? onProblem;
 
-  final BillPrintRequests _seen = BillPrintRequests();
+  /// Review P6 uskunalar/LAN (C2): kassada xodim kirganmi (bootstrap yuklangan). Yo'q bo'lsa (PIN ekrani) schyotni
+  /// xodim sessiyasi bilan o'qib bo'lmaydi: so'rov serverdagi ro'yxatdan ([catchUp]) chiqariladi. `null` — doim kirgan.
+  final bool Function()? signedIn;
 
-  /// [localBilling] va [localOrder] berilsa (P6 B bosqichi: markaz LAN orqali olgan so'rov, internetsiz) schyot serverdan
-  /// o'qilmaydi — kassaning o'z ko'rinishi chiqadi.
+  /// Review P6 uskunalar/LAN (C6): shu so'rov (`request_id` — LAN amalining `op_id` si) markaz kassada LAN orqali
+  /// allaqachon chiqarilganmi ([LanBillPrints.printed]): server keyin uni e'lon qilsa, qayta chiqmaydi.
+  final bool Function(String requestId)? printedOnLan;
+
+  final BillPrintRequests _seen = BillPrintRequests();
+  Future<void>? _catchingUp;
+  bool _catchUpAgain = false;
+
+  /// Review P6 uskunalar/LAN (C2): server saqlagan, shu kassa hali chiqarmagan so'rovlar
+  /// (`GET /pos/bill-print-requests`, terminal tokeni bilan) — ishga tushganda, qayta ulanganda, qulfdan ochilganda
+  /// va qulflangan kassaga hodisa kelganda. Har biri [handle] dan o'tadi (bir marta, olib — `claim`). Hech qachon xato
+  /// bermaydi; bir vaqtda bittasi ishlaydi (yana so'ralsa, tugagach yana bir marta o'qiladi).
+  Future<void> catchUp() {
+    final Future<void>? running = _catchingUp;
+    if (running != null) {
+      _catchUpAgain = true;
+      return running;
+    }
+    final Future<void> run = _catchUp().whenComplete(() => _catchingUp = null);
+    _catchingUp = run;
+    return run;
+  }
+
+  Future<void> _catchUp() async {
+    do {
+      _catchUpAgain = false;
+      final List<PendingBillPrint> pending;
+      try {
+        pending = await data.billing.pendingPrintRequests();
+      } on Object {
+        // Offline or an older server: the next reconnect, unlock or poll reads it again
+        return;
+      }
+      for (final PendingBillPrint p in pending) {
+        try {
+          await handle(
+            p.request,
+            localBilling: p.billing,
+            localOrder: p.order,
+            claim: true,
+          );
+        } on Object {
+          // One request never stops the others
+        }
+      }
+    } while (_catchUpAgain);
+  }
+
+  /// [localBilling] va [localOrder] berilsa (P6 B bosqichi: markaz LAN orqali olgan so'rov, internetsiz; C2: serverdagi
+  /// ro'yxatdan) schyot serverdan o'qilmaydi — berilgani chiqadi.
+  ///
+  /// [claim] (serverdan kelgan so'rov; standart — [localBilling] berilmagan bo'lsa): chiqarishdan oldin so'rov serverda
+  /// olinadi (`POST /pos/bill-print-requests/{id}/printed`): boshqa kassa olgan bo'lsa chiqmaydi; server javob
+  /// bermasa — baribir chiqadi (schyot jim yo'qolmaydi). Xodim kirmagan kassa (PIN ekrani) hodisani [catchUp] bilan
+  /// ishlaydi.
   Future<BillPrintOutcome> handle(
     BillPrintRequest request, {
     PosBilling? localBilling,
     PosOrder? localOrder,
+    bool? claim,
   }) async {
+    final bool server = claim ?? localBilling == null;
     if (!request.isFor(deviceUuid())) return BillPrintOutcome.notForThisTill;
+    // The screen is locked: no staff session reads the bill; the server's list carries it (device token)
+    if (localBilling == null && !(signedIn?.call() ?? true)) {
+      await catchUp();
+      return BillPrintOutcome.queued;
+    }
     if (!_seen.accept(request)) return BillPrintOutcome.duplicate;
+    // C6: the hub printed this relayed request over the LAN already (the server announces it with the op's id)
+    if (server && (printedOnLan?.call(request.requestId) ?? false)) {
+      await _claim(request);
+      return BillPrintOutcome.duplicate;
+    }
 
     final PrinterConfig? printer = _printerFor(request);
     if (printer == null) {
@@ -109,6 +178,9 @@ class BillPrintService {
     }
     if (bill == null || bill.status == 'void') return BillPrintOutcome.stale;
 
+    // One paper per request across the branch's tills (and a catch-up racing the broadcast)
+    if (server && !await _claim(request)) return BillPrintOutcome.duplicate;
+
     final PreCheck check = preCheckOf(
       bill: bill,
       order: order,
@@ -137,6 +209,15 @@ class BillPrintService {
       return BillPrintOutcome.noPrinter;
     }
     return BillPrintOutcome.queued;
+  }
+
+  /// `false` — boshqa kassa oldi; server javob bermasa yoki so'rovni bilmasa — `true` (chiqadi).
+  Future<bool> _claim(BillPrintRequest request) async {
+    try {
+      return await data.billing.claimPrintRequest(request.requestId) ?? true;
+    } on Object {
+      return true;
+    }
   }
 
   /// Shu kassada [printerId] (yoki chek printeri) bilan schyot chiqarsa bo'ladimi (P6 B: markaz LAN so'rovini o'zi

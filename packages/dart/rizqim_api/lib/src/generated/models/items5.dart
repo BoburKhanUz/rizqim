@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'combo_parts3.dart';
+import 'combo_parts2.dart';
 
 part 'items5.g.dart';
 
@@ -35,7 +35,7 @@ class Items5 {
   @JsonKey(name: 'discount_amount')
   final String discountAmount;
   @JsonKey(name: 'combo_parts')
-  final List<ComboParts3>? comboParts;
+  final List<ComboParts2>? comboParts;
 
   Map<String, Object?> toJson() => _$Items5ToJson(this);
 }

@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff21.dart';
+import 'staff23.dart';
 import 'device21.dart';
 import 'origin_device.dart';
-import 'order11.dart';
+import 'order13.dart';
 import 'resolved_by.dart';
 
 part 'errors.g.dart';
@@ -49,7 +49,7 @@ class Errors {
   final String status;
   final String? reason;
   final String? message;
-  final Staff21? staff;
+  final Staff23? staff;
   final Device21? device;
   @JsonKey(name: 'origin_device')
   final OriginDevice? originDevice;
@@ -61,7 +61,7 @@ class Errors {
   final String? appliedAt;
   @JsonKey(name: 'clock_skew_seconds')
   final int? clockSkewSeconds;
-  final Order11? order;
+  final Order13? order;
   final Map<String, dynamic> payload;
   final Map<String, dynamic> refs;
   @JsonKey(name: 'resolved_at')

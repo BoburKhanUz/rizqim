@@ -78,7 +78,7 @@ final class PosSyncApplier
     /** A menu snapshot older than this makes an offline-priced order a conflict (POS_SPEC 5.3, 5.4). */
     public const STALE_MENU_HOURS = 24;
 
-    /** How long before the sync a staff member's PIN session on the till may have started. */
+    /** How long before the operation (review P6 C8: not the sync) a staff member's PIN session on the till may have started. */
     public const SESSION_WINDOW_HOURS = 36;
 
     /** Review P3-35: a device time older than this (the offline receipt's fiscal limit, POS_SPEC 4.6) is clamped. */
@@ -136,17 +136,24 @@ final class PosSyncApplier
             // P6: a relayed operation is the origin terminal's (who signed in there, the order's device)
             $acting = $this->origin($device, $origin, $type, $happenedAt);
             $base['origin_device_id'] = (int) $acting->id !== (int) $device->id ? (int) $acting->id : null;
-            $staff = $this->staff($acting, $base['staff_id'], $type);
+            $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
         } catch (PosSyncException $e) {
             // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied,
             // money included
             return $this->rejected($base, $e->reason, $e->getMessage(), $origin !== null ? ['origin_device' => $origin] : null);
         }
 
+        // Review P6 hardware/LAN (C1): a relayed operation's op_id is the origin device's own request id — the waiter app
+        // retries an online request whose answer was lost through the hub with the same Idempotency-Key — so it stands
+        // for the key when the hub did not send one (the stored payload stays as sent)
+        $keyed = $base['origin_device_id'] !== null && !is_string($payload['idempotency_key'] ?? null)
+            ? ['idempotency_key' => $base['op_id']] + $payload
+            : $payload;
+
         $bills = [];
         try {
-            return DB::transaction(function () use ($acting, $type, $staff, $payload, $happenedAt, $clamped, $base, &$bills) {
-                $outcome = $this->run($acting, $type, $staff, $payload, $happenedAt);
+            return DB::transaction(function () use ($acting, $type, $staff, $keyed, $happenedAt, $clamped, $base, &$bills) {
+                $outcome = $this->run($acting, $type, $staff, $keyed, $happenedAt);
                 $bills = $outcome['bills'] ?? [];
                 if ($clamped !== null) {
                     $outcome['flags'] = [...($outcome['flags'] ?? []), $clamped];
@@ -311,6 +318,13 @@ final class PosSyncApplier
     private function run(Device $device, PosSyncOperationType $type, User $staff, array $payload, ?Carbon $occurredAt): array
     {
         $replayed = $this->replayed($type, $staff, $payload);
+        if ($replayed !== null && $type === PosSyncOperationType::ORDER_OPEN && isset($replayed['order_uuid'])) {
+            // Review P6 C1: the order this very request opened online (its answer lost): that order, not a second one
+            $adopted = $this->adoptOpened($device, $payload, $replayed['order_uuid']);
+            if ($adopted !== null) {
+                return $adopted;
+            }
+        }
         if ($replayed !== null && $type !== PosSyncOperationType::ORDER_OPEN) {
             // The till sent this very action online, the server did it, the answer was lost in the outage
             $order = $this->posOrder($device, $payload);
@@ -635,7 +649,11 @@ final class PosSyncApplier
     {
         $order = $this->openOrder($device, $payload);
 
-        return $this->finish($this->orders->requestBill($order, null, $staff, null, ($payload['printed_on_lan'] ?? false) !== true), [], $payload);
+        // Review P6 hardware/LAN (C6): the print request keeps the relayed op's key, so a hub that printed it itself
+        // at the start of an outage (before it knew the server was out of reach) does not print it again now
+        $key = is_string($payload['idempotency_key'] ?? null) ? $payload['idempotency_key'] : null;
+
+        return $this->finish($this->orders->requestBill($order, null, $staff, null, ($payload['printed_on_lan'] ?? false) !== true, $key), [], $payload);
     }
 
     /**
@@ -883,9 +901,36 @@ final class PosSyncApplier
         }
 
         $body = json_decode((string) $row->getAttribute('response_body'), true);
+        if ($type === PosSyncOperationType::ORDER_OPEN) {
+            $order = is_array($body) ? ($body['data']['uuid'] ?? null) : null;
+
+            return is_string($order) ? ['order_uuid' => $order] : [];
+        }
         $bill = is_array($body) ? ($body['data']['bills'][0]['uuid'] ?? $body['data']['bill']['uuid'] ?? null) : null;
 
         return is_string($bill) ? ['bill_uuid' => $bill] : [];
+    }
+
+    /**
+     * Review P6 C1: order.open whose Idempotency-Key the server answered online (POST /pos/orders opened [orderUuid],
+     * the answer was lost, the same request went to the hub or the till's queue): that order, known from now on by the
+     * device's id for it too (its later operations name it so), instead of a second order on the same room.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>|null
+     */
+    private function adoptOpened(Device $device, array $payload, string $orderUuid): ?array
+    {
+        $order = Order::where('store_id', $device->store_id)->where('branch_id', $device->branch_id)->where('uuid', $orderUuid)->first();
+        if ($order === null) {
+            return null;
+        }
+        $clientId = $this->uuidOf($payload['order'] ?? null, 'order');
+        if ($order->external_id === null && !Order::where('store_id', $device->store_id)->where('external_id', $clientId)->exists()) {
+            $order->forceFill(['external_id' => $clientId])->save();
+        }
+
+        return $this->finish($order, [], $payload, ['replayed' => true]);
     }
 
     /**
@@ -1022,7 +1067,7 @@ final class PosSyncApplier
      * signed in on this till with their PIN before the outage (a session started there in the last 36 hours), holding
      * the operation's permission.
      */
-    private function staff(Device $device, ?int $staffId, PosSyncOperationType $type): User
+    private function staff(Device $device, ?int $staffId, PosSyncOperationType $type, ?Carbon $happenedAt = null): User
     {
         $staff = $staffId !== null ? User::where('store_id', $device->store_id)
             ->whereIn('role', array_map(fn (UserRole $role) => $role->value, UserRole::terminalRoles()))
@@ -1036,7 +1081,9 @@ final class PosSyncApplier
             ->where('action', 'staff.session_started')
             ->where('user_id', $staff->id)
             ->where('device_id', $device->id)
-            ->where('created_at', '>=', now()->subHours(self::SESSION_WINDOW_HOURS))
+            // Review P6 C8: measured at the operation's time (a long outage late in a session still syncs; the LAN
+            // grant ends as long after the sign-in), the time kept within the device-time window (deviceTime)
+            ->where('created_at', '>=', ($happenedAt ?? now())->copy()->subHours(self::SESSION_WINDOW_HOURS))
             ->exists();
         if (!$signedIn) {
             throw new PosSyncException('staff_not_signed_in', "{$staff->name} bu kassada uzilishdan oldin PIN bilan kirmagan.");

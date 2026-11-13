@@ -6,7 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'by_method12.dart';
 import 'by_staff8.dart';
-import 'corrections15.dart';
+import 'corrections16.dart';
 
 part 'summary7.g.dart';
 
@@ -35,7 +35,7 @@ class Summary7 {
   final String unassigned;
   @JsonKey(name: 'by_staff')
   final List<ByStaff8> byStaff;
-  final Corrections15 corrections;
+  final Corrections16 corrections;
 
   Map<String, Object?> toJson() => _$Summary7ToJson(this);
 }

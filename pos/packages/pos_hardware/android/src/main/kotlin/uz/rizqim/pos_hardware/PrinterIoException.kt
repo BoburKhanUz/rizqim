@@ -6,8 +6,8 @@ import io.flutter.plugin.common.MethodChannel
 
 /**
  * A failure with one of the channel error codes the Dart side maps (lib/src/printer/native_transport.dart):
- * `unsupported`, `permission_denied`, `bluetooth_off`, `not_found`, `connect_failed`, `write_failed`, `timeout`,
- * `failed`.
+ * `unsupported`, `permission_denied`, `bluetooth_off`, `not_found`, `connect_failed`, `write_failed` (nothing reached
+ * the printer), `write_partial` (part of the job did: never resent automatically, review P6 C7), `timeout`, `failed`.
  */
 internal class PrinterIoException(val code: String, message: String?) : Exception(message)
 

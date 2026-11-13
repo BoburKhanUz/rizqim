@@ -54,3 +54,11 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     Route::put('/shifts/{uuid}/bank-report', [\App\Http\Controllers\Api\V1\PosBilling\PosBankTerminalController::class, 'update'])->whereUuid('uuid')
         ->middleware(['permission:pos.close_shift', 'pos.module:terminal_card_flow', $idempotent('pos.shifts.bank_report')]);
 });
+
+// Review P6 hardware/LAN (C2): the till's catch-up of the waiters' bill print requests with its own token (it prints
+// them while its screen is locked too); App\Domain\Pos\Billing\BillPrintInbox
+Route::middleware(['auth:device', 'throttle:pos-sync'])->prefix('pos/bill-print-requests')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'index']);
+    Route::post('/{requestId}/printed', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'printed'])->whereUuid('requestId')
+        ->middleware(EnsureIdempotency::class . ':pos.bill_print_requests.printed,optional');
+});

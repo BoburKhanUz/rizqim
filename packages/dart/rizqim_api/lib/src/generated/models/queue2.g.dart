@@ -7,23 +7,23 @@ part of 'queue2.dart';
 // **************************************************************************
 
 Queue2 _$Queue2FromJson(Map<String, dynamic> json) => Queue2(
-  number: (json['number'] as num).toInt(),
-  businessDate: json['business_date'] as String?,
-  status: json['status'] == null
-      ? null
-      : PickupStatus.fromJson(json['status'] as String),
-  readyAt: json['ready_at'] as String?,
-  calledAt: json['called_at'] as String?,
-  callCount: (json['call_count'] as num).toInt(),
-  handedAt: json['handed_at'] as String?,
+  numbers: json['numbers'] as bool,
+  calling: json['calling'] as bool,
+  businessDate: json['business_date'] as String,
+  blockSize: (json['block_size'] as num).toInt(),
+  lowWater: (json['low_water'] as num).toInt(),
+  blocks: (json['blocks'] as List<dynamic>)
+      .map((e) => Blocks.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  nextNumber: (json['next_number'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Queue2ToJson(Queue2 instance) => <String, dynamic>{
-  'number': instance.number,
+  'numbers': instance.numbers,
+  'calling': instance.calling,
   'business_date': instance.businessDate,
-  'status': instance.status,
-  'ready_at': instance.readyAt,
-  'called_at': instance.calledAt,
-  'call_count': instance.callCount,
-  'handed_at': instance.handedAt,
+  'block_size': instance.blockSize,
+  'low_water': instance.lowWater,
+  'blocks': instance.blocks,
+  'next_number': instance.nextNumber,
 };

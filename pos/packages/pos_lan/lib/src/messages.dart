@@ -9,6 +9,8 @@ abstract final class LanMsg {
   static const String ping = 'ping';
 
   // hub → devices
+  /// Unsigned, the first message on a connection (`{v, type, nonce}`): the `hello` carries its nonce as `challenge`.
+  static const String challenge = 'challenge';
   static const String welcome = 'welcome';
   static const String opResult = 'op.result';
   static const String state = 'state';
