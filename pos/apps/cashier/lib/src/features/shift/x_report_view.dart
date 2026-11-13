@@ -99,6 +99,26 @@ class ShiftReportBody extends StatelessWidget {
               muted: true,
             ),
         ],
+        // P6-41: the QR tender by provider (no commission)
+        if (v.qrProviderLines.isNotEmpty) ...<Widget>[
+          title("QR to'lovlar"),
+          for (final ReportAmount t in v.qrProviderLines)
+            AmountRow(
+              label: '${t.label} (${t.count})',
+              amount: t.amount,
+              muted: true,
+            ),
+        ],
+        // P6-43: a certificate sold is an advance (not a sale); redeemed is the prepaid part of the receipts
+        if (v.voucherLines.isNotEmpty) ...<Widget>[
+          title('Sertifikatlar'),
+          for (final ReportAmount t in v.voucherLines)
+            AmountRow(
+              label: t.count == null ? t.label : '${t.label} (${t.count})',
+              amount: t.amount,
+              muted: t.label.startsWith('  '),
+            ),
+        ],
         title('Avans va nasiya'),
         AmountRow(label: 'Olingan avanslar', amount: v.depositsTaken),
         AmountRow(label: 'Sotuvda ayirilgan avans', amount: v.depositsApplied),
@@ -148,6 +168,12 @@ class ShiftReportBody extends StatelessWidget {
         if (v.cashRepayments.isPositive)
           AmountRow(label: "Naqd qarz to'lovi", amount: v.cashRepayments),
         if (v.cashIn.isPositive) AmountRow(label: 'Kirim', amount: v.cashIn),
+        if (v.cashVouchers.isPositive)
+          AmountRow(
+            key: const ValueKey<String>('x-cash-vouchers'),
+            label: 'Sertifikat sotuvi (naqd)',
+            amount: v.cashVouchers,
+          ),
         if (v.cashTips.isPositive)
           AmountRow(
             key: const ValueKey<String>('x-cash-tips'),

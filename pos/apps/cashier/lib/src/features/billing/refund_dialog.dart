@@ -9,6 +9,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../../shell/approval_dialog.dart';
 import '../../shell/pos_scope.dart';
 import 'cashier_ui.dart';
+import 'payment_messages.dart';
 import 'receipts.dart';
 
 /// Qaytarib bo'ladigan to'lov turlari (P3-35: avans va nasiya qismlari ham).
@@ -18,6 +19,8 @@ const List<String> refundableTenders = <String>[
   'qr',
   'prepayment',
   'account',
+  // P6-43: back to the certificate
+  'voucher',
 ];
 
 /// To'lovdan hali qaytarilmagan summa ([refunds] — schyotlar ro'yxatidagi qaytarishlar).
@@ -49,6 +52,7 @@ String refundEffect(String tender) => switch (tender) {
         "yoki ushlab qolish mumkin (Bronlar bo'limida).",
   'account' =>
     "Kassadan pul chiqmaydi: summa mijozning nasiya qarzidan ayiriladi.",
+  'voucher' => "Kassadan pul chiqmaydi: summa sertifikatga qaytadi (keyingi xaridda ishlatiladi).",
   _ => '',
 };
 
@@ -168,6 +172,9 @@ class _RefundDialogState extends State<_RefundDialog> {
           '${refund.amount.format()} bron avansiga qaytdi: kassadan pul chiqmadi.',
         'account' =>
           'Mijoz qarzi ${refund.amount.format()} ga kamaydi: kassadan pul chiqmadi.',
+        // P6-43: back to the certificate, never cash
+        'voucher' =>
+          '${refund.amount.format()} sertifikatga qaytdi: kassadan pul chiqmadi.',
         _ => '${refund.amount.format()} qaytarildi.',
       });
       Navigator.pop(context, refund);
@@ -189,7 +196,10 @@ class _RefundDialogState extends State<_RefundDialog> {
         setState(() {
           _busy = false;
           // Kept in the dialog: the cashier reads why (more_than_debt, reverse_exceeds_*...) and picks another amount
+          // P6-41: a QR payment is reversed by the provider (whole only; a refusal keeps it blocked, never cash)
           _error = switch (e) {
+            final PosException x when paymentRefusalText(x) != null =>
+              paymentRefusalText(x),
             final PosValidationException v => v.firstError,
             final PosException x => x.message,
             _ => null,

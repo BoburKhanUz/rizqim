@@ -564,7 +564,8 @@ class _Totals extends StatelessWidget {
           label: discountLabel(o),
           amount: o.discount,
           negative: true,
-          detail: o.discountReason,
+          // P6-43: a promo code says itself in the label
+          detail: promoCodeOf(o) == null ? o.discountReason : null,
           actionLabel: open && onRemoveDiscount != null
               ? 'Olib tashlash'
               : null,

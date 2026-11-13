@@ -449,6 +449,10 @@ class RoundSection extends StatelessWidget {
 
 /// "Chegirma 10%" (foizli) yoki "Chegirma".
 String _discountLabel(PosOrder order) {
+  final String? reason = order.discountReason;
+  if (reason != null && reason.startsWith('promo:')) {
+    return 'Promo-kod ${reason.substring(6)}';
+  }
   final String? p = order.discountPercent;
   if (p == null) return 'Chegirma';
   try {

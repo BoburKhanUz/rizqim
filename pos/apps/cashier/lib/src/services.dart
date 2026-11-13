@@ -37,6 +37,7 @@ class CashierServices {
     CashierHardware? hardware,
     this.lanStore,
     this.billPrintPoll = const Duration(minutes: 1),
+    this.qrPollInterval = const Duration(seconds: 3),
   }) : data = data ?? PosData(client, clock: clock, offlineStore: offlineStore),
        printing = printing ?? CashierPrinting(),
        hardware = hardware ?? CashierHardware() {
@@ -131,6 +132,9 @@ class CashierServices {
   /// Real-time jonli bo'lmaganda ro'yxatlar shu oraliqda yangilanadi ([PosRefreshScheduler]).
   final Duration pollInterval;
   final Duration livePollInterval;
+
+  /// P6-41: kutilayotgan QR holati shu oraliqda so'raladi (real-time bo'lmasa ham to'lov o'zi ko'rinadi).
+  final Duration qrPollInterval;
 
   AuthSession get auth => client.auth;
   PosSession get session => data.session;

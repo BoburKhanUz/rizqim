@@ -149,4 +149,85 @@ void main() {
       },
     );
   });
+
+  test(
+    'stage B: an account\'s members for the talons (active first)',
+    () async {
+      h.adapter.respond = (RequestOptions o) =>
+          const FakeResponse(200, <String, Object?>{
+            'success': true,
+            'message': '',
+            'data': <String, Object?>{
+              'members': <Object?>[
+                <String, Object?>{
+                  'uuid': 'm1',
+                  'name': 'Aziz Rahimov',
+                  'phone': '+998901112233',
+                  'code': '5550001111',
+                  'daily_limit': '60000.00',
+                  'meals_per_day': null,
+                  'is_active': true,
+                  'note': null,
+                },
+                <String, Object?>{
+                  'uuid': 'm2',
+                  'name': 'Bobur',
+                  'phone': null,
+                  'code': 'NAV-0002',
+                  'daily_limit': null,
+                  'meals_per_day': 1,
+                  'is_active': false,
+                  'note': 'ishdan ketgan',
+                },
+              ],
+              'active_count': 1,
+            },
+          });
+      final List<PosAccountMember> list = await h.pos.accounts.members(
+        'c1',
+        active: true,
+      );
+      expect(h.last.uri.path, '/api/v1/pos/customer-accounts/c1/members');
+      expect(h.last.uri.queryParameters, <String, String>{'active': '1'});
+      expect(list.map((PosAccountMember m) => m.code), <String>[
+        '5550001111',
+        'NAV-0002',
+      ]);
+      expect(list.first.dailyLimit, const PosMoney.som(60000));
+      expect(list.last.active, isFalse);
+      expect(list.last.mealsPerDay, 1);
+    },
+  );
+
+  test('stage B fake: lookup, member charge rules and members list', () async {
+    final FakeCashierBackend backend = FakeCashierBackend(h.adapter.state);
+    final String account = backend.seedCorporate(
+      name: 'Paxta Tekstil',
+      monthlyLimit: '100000.00',
+    );
+    backend.seedMember(
+      account,
+      name: 'Aziz',
+      code: 'PT-1',
+      phone: '+998901112233',
+      dailyLimit: '40000.00',
+    );
+    final PosCorporateLookup byPhone = await h.pos.accounts.lookupMember(
+      phone: '90 111 22 33',
+    );
+    expect(byPhone.code, 'PT-1');
+    expect(byPhone.dailyAvailable, const PosMoney.som(40000));
+    expect(byPhone.memberPhone, '+99890 *** ** 33');
+    expect(byPhone.chargeApproval, isFalse);
+    await expectLater(
+      h.pos.accounts.lookupMember(code: 'NOPE'),
+      throwsA(
+        isA<PosException>().having(
+          (PosException e) => e.reason,
+          'reason',
+          'member_not_found',
+        ),
+      ),
+    );
+  });
 }

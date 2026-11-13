@@ -11,6 +11,7 @@ import '../../shell/pos_scope.dart';
 import '../billing/cashier_ui.dart';
 import 'account_form.dart';
 import 'repayment_dialog.dart';
+import 'talon_dialog.dart';
 
 /// Nasiya hisoblari (POS_SPEC 2.9, 2.13; 13-ekran 16): qarzdorlar (eng katta qarz birinchi) va jami qarz, telefon yoki
 /// ism bo'yicha qidiruv, hisob ko'chirmasi, qarz to'lovi (kredit cheki), hisob ochish va tahrirlash (limit, to'xtatish —
@@ -441,6 +442,16 @@ class _AccountsPageState extends State<AccountsPage> {
                       size: RzButtonSize.lg,
                       variant: RzButtonVariant.secondary,
                       onPressed: () => _edit(account: a),
+                    ),
+                  // P6-44: the members' talons (the code as a QR) on the receipt printer
+                  if (a.isCorporate)
+                    RzButton(
+                      key: const ValueKey<String>('talon-print'),
+                      label: 'Talon chop etish',
+                      icon: Icons.badge_outlined,
+                      size: RzButtonSize.lg,
+                      variant: RzButtonVariant.secondary,
+                      onPressed: () => unawaited(showTalonDialog(context, a)),
                     ),
                 ],
               ),

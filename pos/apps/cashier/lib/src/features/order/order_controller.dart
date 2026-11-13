@@ -769,6 +769,31 @@ class OrderController extends ChangeNotifier {
     approve: approve,
   );
 
+  /// P6-43: do'konning promo-kodi buyurtma chegirmasi bo'ladi (`promo:<KOD>`; kassir chegirma limiti ishlamaydi).
+  /// Faqat internet bilan (oflayn — [PosOfflineUnavailable] oddiy matni).
+  Future<bool> applyPromo(String code, {required ApprovalRunner approve}) =>
+      _mutate(
+        (int v, String? _) => data.vouchers.applyPromo(
+          _uuid!,
+          version: v,
+          code: code,
+          idempotencyKey: _actionKey('promo:${code.trim().toUpperCase()}:$v'),
+        ),
+        approve: approve,
+        success: "Promo-kod qo'llandi",
+      );
+
+  /// P6-43: promo-kod va uning chegirmasini olib tashlash.
+  Future<bool> removePromo({required ApprovalRunner approve}) => _mutate(
+    (int v, String? _) => data.vouchers.removePromo(
+      _uuid!,
+      version: v,
+      idempotencyKey: _actionKey('promo-remove:$v'),
+    ),
+    approve: approve,
+    success: 'Promo-kod olib tashlandi',
+  );
+
   Future<bool> cancel(String reason, {required ApprovalRunner approve}) =>
       _mutate(
         (int v, String? t) => data.orders.cancel(

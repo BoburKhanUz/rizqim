@@ -8,6 +8,7 @@
 # What it starts (all on 127.0.0.1, free high ports, so it does not meet a dev server or the e2e-stack servers):
 #   Laravel API   (php artisan serve, APP_ENV=e2e)   $POS_E2E_BACKEND_PORT  default 18200   on a Postgres database it WIPES and seeds
 #   Reverb        (php artisan reverb:start)         $POS_E2E_REVERB_PORT   default 18280
+#   (P6-49) the Click merchant API of a QR refund   $POS_E2E_CLICK_API_PORT default 18290   answered by the stolovaya test's own fake
 #   the minute jobs the tests need     (php artisan pos:fire-scheduled-pickups every $POS_E2E_TICK_SECONDS, default 5)
 # then runs e2e/pos (`dart test`): the choyxona Thursday evening (shift, booking with a deposit, ten rooms served by two
 # waiters and the cashier, split bills, every tender, SALE/ADVANCE/CREDIT/REFUND receipts, X and Z), a Telegram order
@@ -45,7 +46,7 @@ while [ $# -gt 0 ]; do
     --keep) KEEP=1 ;;
     --stop) STOP_ONLY=1 ;;
     --) shift; TEST_ARGS=("$@"); break ;;
-    -h | --help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -115,6 +116,10 @@ free_port() { # preferred
 
 BACKEND_PORT="${POS_E2E_BACKEND_PORT:-$(free_port 18200)}"
 REVERB_PORT="${POS_E2E_REVERB_PORT:-$(free_port $((BACKEND_PORT == 18280 ? 18281 : 18280)))}"
+# P6-49: the Click merchant API the backend calls for a QR refund (a payment reversal) is the stolovaya test's own fake,
+# listening on this port while the test runs (nothing listens here otherwise: a reversal outside that test fails as an
+# unreachable Click would)
+CLICK_API_PORT="${POS_E2E_CLICK_API_PORT:-$(free_port 18290)}"
 for port in "$BACKEND_PORT" "$REVERB_PORT"; do
   if port_in_use "$port"; then
     die "port $port is already in use (another stack still running? scripts/pos-e2e.sh --stop)"
@@ -161,6 +166,9 @@ BACKEND_ENV=(
   REVERB_SERVER_HOST=127.0.0.1 REVERB_SERVER_PORT="$REVERB_PORT" REVERB_ALLOWED_ORIGINS='*'
   TELEGRAM_ALLOW_MOCK_AUTH=false
   E2E_POS_SEED_FILE="$RUN/seed.json"
+  # P6-49: the till's Click/Payme QR through the stores' own merchant settings and the real webhooks (never the sandbox
+  # provider), the sandbox UzQR confirmed by its simulate endpoint, a Click reversal answered by the test's fake
+  QR_PAYMENTS_SANDBOX=false QR_PAYMENTS_SIMULATE=true CLICK_MERCHANT_API_URL="http://127.0.0.1:$CLICK_API_PORT/v2/merchant"
   # The cook's polls, the waiters' and the till's calls arrive together: more than one PHP worker (php artisan serve
   # honours it only with --no-reload, below)
   PHP_CLI_SERVER_WORKERS=6
@@ -241,6 +249,7 @@ status=0
 (cd "$ROOT/e2e/pos" && env \
   POS_E2E_API_URL="http://127.0.0.1:$BACKEND_PORT/api" POS_E2E_REVERB_URL="ws://127.0.0.1:$REVERB_PORT" \
   POS_E2E_REVERB_KEY="$REVERB_KEY" POS_E2E_SEED_FILE="$RUN/seed.json" POS_E2E_LOG_FILE="$RUN/backend.log" \
+  POS_E2E_CLICK_API_PORT="$CLICK_API_PORT" \
   dart test ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}) || status=$?
 
 if [ "$status" -ne 0 ]; then

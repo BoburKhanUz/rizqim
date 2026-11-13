@@ -337,8 +337,18 @@ class _DiscountDialogState extends State<DiscountDialog> {
   }
 }
 
-/// Chegirma qatorining yorlig'i: "Chegirma 10%" yoki "Chegirma".
+/// P6-43: buyurtmadagi promo-kod (`discount_reason: promo:<KOD>`), yo'q — `null`.
+String? promoCodeOf(PosOrder? order) {
+  final String? r = order?.discountReason;
+  if (r == null || !r.startsWith('promo:')) return null;
+  final String code = r.substring(6).trim();
+  return code.isEmpty ? null : code;
+}
+
+/// Chegirma qatorining yorlig'i: "Chegirma 10%", "Chegirma" yoki (P6-43) "Promo-kod BAHOR10".
 String discountLabel(PosOrder? order) {
+  final String? promo = promoCodeOf(order);
+  if (promo != null) return 'Promo-kod $promo';
   final String? p = order?.discountPercent;
   if (p == null) return 'Chegirma';
   try {
@@ -375,3 +385,78 @@ class DiscountRules {
 
 /// Internetsiz rejimda chegirma tugmasining izohi.
 const String discountOfflineReason = 'Chegirma uchun internet kerak.';
+
+/// P6-43: promo-kod oynasi (kod; bo'sh bo'lmasa qaytadi). Kod do'konning o'zi bergan chegirma vaucheri: kassir chegirma
+/// limiti ishlamaydi, bitta buyurtmaga bitta kod.
+Future<String?> showPromoDialog(BuildContext context) => showDialog<String>(
+  context: context,
+  builder: (BuildContext context) => const _PromoDialog(),
+);
+
+class _PromoDialog extends StatefulWidget {
+  const _PromoDialog();
+
+  @override
+  State<_PromoDialog> createState() => _PromoDialogState();
+}
+
+class _PromoDialogState extends State<_PromoDialog> {
+  final TextEditingController _code = TextEditingController();
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String code = _code.text.trim();
+    if (code.isEmpty) return;
+    Navigator.pop(context, code);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Promo-kod'),
+    content: SizedBox(
+      width: 380,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TextField(
+            key: const ValueKey<String>('promo-code'),
+            controller: _code,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: 'Kod',
+              hintText: 'BAHOR10',
+              prefixIcon: Icon(Icons.confirmation_number_outlined),
+            ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Chegirma buyurtmaga qo'shiladi va chekda ko'rinadi. Bitta buyurtmaga bitta kod.",
+            style: RzType.footnote.copyWith(color: context.rz.fgMuted),
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      RzButton(
+        label: 'Bekor qilish',
+        variant: RzButtonVariant.ghost,
+        onPressed: () => Navigator.pop(context),
+      ),
+      RzButton(
+        key: const ValueKey<String>('promo-submit'),
+        label: "Qo'llash",
+        icon: Icons.check_rounded,
+        onPressed: _code.text.trim().isEmpty ? null : _submit,
+      ),
+    ],
+  );
+}

@@ -389,8 +389,8 @@ class _SummaryPanel extends StatelessWidget {
                           QrView(payload: qr.payload, size: side),
                           const SizedBox(height: 8),
                           Text(
-                            qr.label != null
-                                ? "${qr.label} orqali to'lash uchun skanerlang"
+                            _qrName(qr) != null
+                                ? "${_qrName(qr)} orqali to'lash uchun skanerlang"
                                 : "To'lash uchun telefoningiz kamerasi bilan skanerlang",
                             textAlign: TextAlign.center,
                             maxLines: 2,
@@ -417,6 +417,17 @@ class _SummaryPanel extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Provayder nomi: kassa `label` bermasa, `provider` kalitidan.
+  static String? _qrName(PosDisplayQr qr) {
+    if (qr.label != null && qr.label!.isNotEmpty) return qr.label;
+    return switch (qr.provider) {
+      'click' => 'Click',
+      'payme' => 'Payme',
+      'uzqr' => 'UzQR',
+      _ => null,
+    };
   }
 
   static IconData _methodIcon(String? method) => switch (method) {

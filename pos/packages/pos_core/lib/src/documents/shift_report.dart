@@ -71,6 +71,8 @@ final class ShiftReport {
     this.fiscalPending = 0,
     this.openOrders = 0,
     this.tips = const <ReportAmount>[],
+    this.vouchers = const <ReportAmount>[],
+    this.qrProviders = const <ReportAmount>[],
   });
 
   final ShiftReportKind kind;
@@ -138,6 +140,13 @@ final class ShiftReport {
 
   /// P6-22: choy puli qatorlari (jami, usul, shaxsiy/qozon, xodim bo'yicha) — tushum emas, savdodan alohida bo'limda.
   final List<ReportAmount> tips;
+
+  /// P6-43: sovg'a sertifikatlari — sotilgan (bo'nak, sotuvga kirmaydi; to'lov turi bo'yicha) va schyotlarda
+  /// ishlatilgan (sotuv chekining oldindan to'langan qismi).
+  final List<ReportAmount> vouchers;
+
+  /// P6-41: QR to'lovlar provayder bo'yicha (Click, Payme, UzQR, qo'lda tasdiqlangan statik QR).
+  final List<ReportAmount> qrProviders;
 
   PosMoney get netSales => sales - refunds;
 

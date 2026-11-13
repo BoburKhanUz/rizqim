@@ -2,10 +2,17 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Pos\Accounts\CustomerAccountKind;
+use App\Domain\Pos\Accounts\TalonMode;
 use App\Domain\Pos\Menu\Combos;
+use App\Domain\Pos\Menu\DailyMenuService;
+use App\Domain\Pos\Menu\MealSets;
 use App\Domain\Pos\Setup\FormatProfile;
 use App\Domain\Pos\Setup\PosSettings;
 use App\Domain\Pos\StaffPay\StaffPayRules;
+use App\Domain\Pos\Vouchers\VoucherEntryType;
+use App\Domain\Pos\Vouchers\VoucherKind;
+use App\Domain\Pos\Vouchers\VoucherStatus;
 use App\Enums\BranchStatus;
 use App\Enums\DeviceType;
 use App\Enums\UserRole;
@@ -18,23 +25,29 @@ use App\Models\BranchProductRotation;
 use App\Models\BranchTakeawaySettings;
 use App\Models\Category;
 use App\Models\CustomerAccount;
+use App\Models\CustomerAccountMember;
 use App\Models\DiningTable;
 use App\Models\Hall;
 use App\Models\KitchenStation;
 use App\Models\KitchenStationRoute;
 use App\Models\MenuBatch;
 use App\Models\ModifierGroup;
+use App\Models\PosQrSetting;
 use App\Models\PosTipSetting;
 use App\Models\Printer;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\PromoCode;
 use App\Models\RoomTariff;
 use App\Models\ServiceFeeSetting;
 use App\Models\StaffPaySetting;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\Voucher;
+use App\Models\VoucherEntry;
 use App\Services\Auth\DevicePairingService;
 use App\Services\Auth\StaffPinService;
+use App\Support\Money;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\File;
 use RuntimeException;
@@ -81,6 +94,15 @@ use RuntimeException;
  * branch's printing till, a LAN receipt printer, and five paired devices (the till, two waiters' phones, the
  * kitchen display, the customer display following the till). In the seed file under `lan`, with the devices' server ids
  * (the orders' `device_id`).
+ *
+ * P6-49: a sixth store, a stolovaya ("Rizqim Stolovaya", e2e/pos/test/stolovaya_lunch_test.dart): fiscal on the sandbox
+ * driver (MXIK codes for advances and credit), a branch on the `stolovaya` profile with QR payments and gift
+ * certificates switched on, the store's own Click and Payme merchant settings (test values) and the UzQR sandbox
+ * gateway, a menu of first and second courses, salads, bread and drinks with a kompleks (meal set) and today's daily
+ * menu, a corporate account "Paxta Tekstil" (daily limit talons, 12 members, one inactive, a monthly limit, no manager
+ * approval), a subscription account (one meal a day), a nasiya customer, three gift certificates (one blocked), a
+ * promo code, its staff (owner, manager, two cashiers) with PINs and two paired tills. In the seed file under
+ * `stolovaya`.
  *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
@@ -144,6 +166,15 @@ class PosStackSeeder extends Seeder
         'waiter1' => '1374',
         'waiter2' => '2485',
         'cook' => '3596',
+    ];
+
+    /** P6-49: the stolovaya of the "stolovaya tushligi" drill (its own store) */
+    public const STOLOVAYA_TIN = '301234572';
+
+    public const STOLOVAYA_PINS = [
+        'manager' => '4172',
+        'cashier1' => '5283',
+        'cashier2' => '6394',
     ];
 
     private Store $store;
@@ -273,6 +304,7 @@ class PosStackSeeder extends Seeder
             'restoran' => $this->restaurant(),
             'fastfood' => $this->fastFood(),
             'lan' => $this->lanRestaurant(),
+            'stolovaya' => $this->stolovaya(),
         ]);
     }
 
@@ -1145,6 +1177,267 @@ class PosStackSeeder extends Seeder
             'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
             'stations' => array_map(fn (KitchenStation $station) => (int) $station->id, $stations),
             'receipt_printer' => ['id' => (int) $printer->id],
+        ];
+    }
+
+    /**
+     * P6-49: the stolovaya of the "stolovaya tushligi" drill (e2e/pos/test/stolovaya_lunch_test.dart), with its own
+     * staff, menu, kompleks, daily menu, corporate and subscription accounts, nasiya customer, gift certificates, promo
+     * code, the store's own Click and Payme merchant settings (sandbox-style test values; the test signs the providers'
+     * webhooks with them) and the UzQR sandbox gateway, and two tills.
+     *
+     * @return array<string, mixed> the seed file's `stolovaya` section (the same shape as the top level)
+     */
+    private function stolovaya(): array
+    {
+        // Test merchant settings of the drill, readable on purpose (the seed file hands them to the webhook signer)
+        $click = ['enabled' => true, 'service_id' => '49001', 'merchant_id' => '49002', 'merchant_user_id' => '49003', 'secret_key' => 'e2e-stolovaya-click'];
+        $payme = ['enabled' => true, 'merchant_id' => 'e2e-stolovaya-payme-merchant', 'secret_key' => 'e2e-stolovaya-payme'];
+
+        $store = Store::forceCreate([
+            'name' => 'Rizqim Stolovaya',
+            'slug' => 'rizqim-stolovaya',
+            'status' => 'active',
+            'is_open' => true,
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::STOLOVAYA_TIN,
+            'tax_regime' => 'vat',
+            // A POS QR is always the store's own merchant account (StoreMerchant)
+            'payment_account_type' => 'own_account',
+            'payment_settings' => ['cash' => ['enabled' => true], 'click' => $click, 'payme' => $payme, 'delivery_enabled' => false, 'pickup_enabled' => true, 'delivery_fee' => 0],
+            // A gift certificate sold is an advance (the `deposit` charge's MXIK); UzQR through the sandbox gateway
+            'fiscal_settings' => [
+                'enabled' => true,
+                'driver' => 'sandbox',
+                'charges' => [
+                    'deposit' => ['mxik' => '10202002003000001'],
+                    'credit' => ['mxik' => '10202002004000001'],
+                ],
+                'uzqr' => ['driver' => 'sandbox'],
+            ],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => 'Paxta stolovayasi',
+            'latitude' => 41.33,
+            'longitude' => 69.28,
+            'radius_km' => 5,
+            'status' => BranchStatus::ACTIVE->value,
+            'business_day_starts_at' => '05:00:00',
+        ]);
+        // The stolovaya profile (quick counter, daily menu, kompleks, customer and corporate accounts), with the QR
+        // payments and the gift certificates switched on over it
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(null, FormatProfile::STOLOVAYA, ['qr_payments' => true, 'vouchers' => true])])->save();
+
+        $pins = self::STOLOVAYA_PINS;
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $staff = [
+            'owner' => $person(UserRole::OWNER, 'Gulnora Stolovayeva', '+998901000081', null),
+            'manager' => $person(UserRole::MANAGER, 'Farrux Menejer', '+998901000082', $pins['manager']),
+            'cashier1' => $person(UserRole::CASHIER, 'Mohira Kassir', '+998901000083', $pins['cashier1']),
+            'cashier2' => $person(UserRole::CASHIER, 'Sardor Kassir', '+998901000084', $pins['cashier2']),
+        ];
+
+        $categories = [];
+        foreach (['Birinchi taom' => 'st-birinchi', 'Ikkinchi taom' => 'st-ikkinchi', 'Salatlar' => 'st-salat', 'Non' => 'st-non', 'Ichimliklar' => 'st-ichimlik', 'Kompleks' => 'st-kompleks'] as $name => $slug) {
+            $categories[$name] = Category::create(['name' => $name, 'slug' => 'pos-e2e-' . $slug, 'is_active' => true]);
+        }
+        $make = function (string $name, string $category, string $mxik, string $variant, string $price) use ($store, $categories): ProductVariant {
+            $product = Product::create([
+                'store_id' => $store->id,
+                'category_id' => $categories[$category]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-st-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+
+            return ProductVariant::create(['product_id' => $product->id, 'name' => $variant, 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+        };
+        $menu = [
+            'Mastava' => $make('Mastava', 'Birinchi taom', '10202001020000031', 'Kosa', '14000'),
+            "Sho'rva" => $make("Sho'rva", 'Birinchi taom', '10202001020000032', 'Kosa', '15000'),
+            'Palov' => $make('Palov', 'Ikkinchi taom', '10202001020000033', 'Porsiya', '22000'),
+            "Qovurma lag'mon" => $make("Qovurma lag'mon", 'Ikkinchi taom', '10202001020000034', 'Porsiya', '24000'),
+            'Kotlet pyure' => $make('Kotlet pyure', 'Ikkinchi taom', '10202001020000035', 'Porsiya', '20000'),
+            'Achichuk' => $make('Achichuk', 'Salatlar', '10202001020000036', 'Porsiya', '6000'),
+            'Vinegret' => $make('Vinegret', 'Salatlar', '10202001020000037', 'Porsiya', '7000'),
+            'Non' => $make('Non', 'Non', '10202001020000038', 'Dona', '3000'),
+            'Choy' => $make('Choy', 'Ichimliklar', '10202001020000039', 'Piyola', '2000'),
+            'Kompot' => $make('Kompot', 'Ichimliklar', '10202001020000040', 'Stakan', '4000'),
+            'Kompleks tushlik' => $make('Kompleks tushlik', 'Kompleks', '10202001020000041', 'Kompleks', '32000'),
+        ];
+
+        // The kompleks: one line at a fixed price, its parts for the kitchen (mastava, kotlet pyure, achichuk, non, kompot)
+        app(MealSets::class)->save((int) $store->id, $menu['Kompleks tushlik']->product()->firstOrFail(), [
+            ['variant_id' => $menu['Mastava']->id, 'label' => 'Mastava'],
+            ['variant_id' => $menu['Kotlet pyure']->id, 'label' => 'Kotlet pyure'],
+            ['variant_id' => $menu['Achichuk']->id, 'label' => 'Achichuk'],
+            ['variant_id' => $menu['Non']->id, 'label' => 'Non'],
+            ['variant_id' => $menu['Kompot']->id, 'label' => 'Kompot'],
+        ], true, $staff['owner']);
+
+        // Today's daily menu: the first and second courses rotate; sho'rva and qovurma lag'mon are off today
+        $daily = app(DailyMenuService::class);
+        $rotating = array_map(fn (string $name) => (int) $menu[$name]->product_id, ['Mastava', "Sho'rva", 'Palov', "Qovurma lag'mon", 'Kotlet pyure']);
+        $daily->setRotation($branch, $rotating, $staff['owner']);
+        $today = $daily->today($branch);
+        $daily->save($branch, $today, array_map(fn (string $name) => (int) $menu[$name]->product_id, ['Mastava', 'Palov', 'Kotlet pyure']), $staff['owner']);
+
+        // QR at the till: Click, Payme and UzQR, Click first; the test shortens the expiry over the owner API
+        PosQrSetting::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'providers' => ['click', 'payme', 'uzqr'], 'default_provider' => 'click', 'expiry_minutes' => 5]);
+
+        // "Paxta Tekstil": its staff eat on the company's account, 40 000 so'm a day each, no manager approval at the
+        // till; the twelfth member has left (inactive)
+        $corporate = CustomerAccount::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'name' => 'Paxta Tekstil',
+            'kind' => CustomerAccountKind::CORPORATE->value,
+            'company_name' => 'Paxta Tekstil MChJ',
+            'inn' => '305123456',
+            'contact_name' => 'Rustam Kadrlar',
+            'contact_phone' => '+998901200000',
+            'invoice_email' => 'buxgalter@paxta-tekstil.example',
+            'credit_limit' => '20000000',
+            'monthly_limit' => '5000000',
+            'charge_approval' => false,
+            'talon_mode' => TalonMode::DAILY_LIMIT->value,
+        ]);
+        $members = [];
+        foreach (['Aziza Tikuvchi', 'Bekzod Usta', 'Dilnoza Bichuvchi', 'Elyor Mexanik', 'Feruza Dazmolchi', 'Gayrat Omborchi', 'Hilola Texnolog', 'Ikrom Haydovchi', 'Jasur Elektrik', 'Kamola Hisobchi', 'Lola Laborant', 'Murod Ketgan'] as $i => $name) {
+            $members[] = CustomerAccountMember::create([
+                'store_id' => $store->id,
+                'customer_account_id' => $corporate->id,
+                'name' => $name,
+                'phone' => '+9989012001' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+                'code' => 'PT-' . str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT),
+                'daily_limit' => '40000',
+                'is_active' => $i < 11,
+            ]);
+        }
+        // An abonement: one lunch a day per member, any price
+        $subscription = CustomerAccount::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'name' => "Ipak Yo'li Logistika",
+            'kind' => CustomerAccountKind::CORPORATE->value,
+            'company_name' => "Ipak Yo'li Logistika MChJ",
+            'credit_limit' => '10000000',
+            'charge_approval' => false,
+            'talon_mode' => TalonMode::SUBSCRIPTION->value,
+        ]);
+        $subscribers = [];
+        foreach (['Nodir Ekspeditor', 'Oydin Dispetcher'] as $i => $name) {
+            $subscribers[] = CustomerAccountMember::create([
+                'store_id' => $store->id,
+                'customer_account_id' => $subscription->id,
+                'name' => $name,
+                'phone' => '+9989013001' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+                'code' => 'IY-' . str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT),
+                'meals_per_day' => 1,
+            ]);
+        }
+        // A nasiya customer of the old kind (a manager approves the charge)
+        $nasiya = CustomerAccount::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'name' => 'Shavkat aka',
+            'phone' => '+998901300099',
+            'credit_limit' => '500000',
+        ]);
+
+        // Three gift certificates sold a week ago (their advance receipts belong to that day); the third one is blocked
+        $soldOn = now()->subDays(7);
+        $certificates = [];
+        /** @var list<array{0: string, 1: string, 2: bool}> $issued code, face value, blocked */
+        $issued = [['ACDE-FGHJ-KMN3', '100000', false], ['PQRT-UVWX-Y469', '60000', false], ['HJKM-NPQR-TUV4', '50000', true]];
+        foreach ($issued as [$code, $value, $blocked]) {
+            $voucher = Voucher::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'kind' => VoucherKind::GIFT->value,
+                'code' => $code,
+                'face_value' => $value,
+                'balance' => $value,
+                'currency' => 'UZS',
+                'valid_from' => $soldOn->toDateString(),
+                'valid_until' => $soldOn->copy()->addMonthsNoOverflow(6)->toDateString(),
+                'status' => $blocked ? VoucherStatus::BLOCKED->value : VoucherStatus::ACTIVE->value,
+                'sale_tender' => 'cash',
+                'sold_by' => $staff['cashier1']->id,
+                'sold_at' => $soldOn,
+                'blocked_at' => $blocked ? $soldOn->copy()->addDay() : null,
+                'blocked_by' => $blocked ? $staff['owner']->id : null,
+                'block_reason' => $blocked ? "Xaridor yo'qotdi" : null,
+            ]);
+            VoucherEntry::create(['voucher_id' => $voucher->id, 'store_id' => $store->id, 'branch_id' => $branch->id, 'type' => VoucherEntryType::SALE->value, 'business_date' => $soldOn->toDateString(), 'amount' => $value, 'balance_after' => $value, 'tender' => 'cash', 'user_id' => $staff['cashier1']->id]);
+            if ($blocked) {
+                VoucherEntry::create(['voucher_id' => $voucher->id, 'store_id' => $store->id, 'branch_id' => $branch->id, 'type' => VoucherEntryType::BLOCK->value, 'business_date' => $soldOn->copy()->addDay()->toDateString(), 'amount' => '0', 'balance_after' => $value, 'user_id' => $staff['owner']->id, 'note' => "Xaridor yo'qotdi"]);
+            }
+            $certificates[] = ['uuid' => (string) $voucher->uuid, 'code' => $code, 'value' => Money::of($value)->toString(), 'blocked' => $blocked];
+        }
+
+        // A promo code of the store: 10% off, at most 5 000 so'm, from 20 000 so'm of dishes
+        $promo = PromoCode::create(['code' => 'STOLOVAYA10', 'type' => 'percentage', 'value' => 10, 'min_order_amount' => '20000', 'max_discount_amount' => '5000', 'is_active' => true, 'store_id' => $store->id]);
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        foreach (['till1' => [DeviceType::POS, 'Kassa 1'], 'till2' => [DeviceType::POS, 'Kassa 2']] as $key => [$type, $name]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'])['code'];
+            $paired = $pairing->pair($code, ['platform' => 'linux']);
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => [
+                    'uuid' => $paired['device']->uuid,
+                    'type' => $type->value,
+                    'name' => $name,
+                    'platform' => 'linux',
+                    'app_version' => null,
+                    'store_id' => $store->id,
+                    'branch_id' => $branch->id,
+                ],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-stolovaya-owner')->plainTextToken;
+        $member = fn (CustomerAccountMember $m) => ['uuid' => (string) $m->uuid, 'name' => $m->name, 'code' => $m->code, 'phone' => $m->phone, 'active' => (bool) $m->is_active];
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::STOLOVAYA_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
+            'terminals' => $terminals,
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+            'merchant' => ['click' => $click, 'payme' => $payme],
+            'corporate' => ['uuid' => (string) $corporate->uuid, 'name' => $corporate->name, 'daily_limit' => '40000.00', 'monthly_limit' => '5000000.00', 'members' => array_map($member, $members)],
+            'subscription' => ['uuid' => (string) $subscription->uuid, 'name' => $subscription->name, 'members' => array_map($member, $subscribers)],
+            'nasiya' => ['uuid' => (string) $nasiya->uuid, 'name' => $nasiya->name, 'credit_limit' => '500000.00'],
+            'vouchers' => $certificates,
+            'promo' => ['id' => (int) $promo->id, 'code' => $promo->code],
+            'business_date' => $today,
         ];
     }
 

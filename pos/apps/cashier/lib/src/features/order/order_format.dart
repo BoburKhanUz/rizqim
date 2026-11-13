@@ -3,11 +3,16 @@ import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 
+import '../billing/payment_messages.dart';
+
 /// Xatoni foydalanuvchiga ko'rsatiladigan matnga aylantiradi (tarmoq, maydon xatosi, server sababi).
 String posErrorText(Object error) => switch (error) {
   PosNetworkException() =>
     "Aloqa yo'q: server javob bermadi. Qayta urinib ko'ring.",
   PosValidationException() => error.firstError,
+  // P6-43: a promo code refused in plain words (min order, inactive, already applied ...)
+  PosException(reason: final String r) when r.startsWith('promo_') =>
+    paymentRefusalText(error) ?? error.message,
   PosException() => error.message,
   _ => "Kutilmagan xato. Qayta urinib ko'ring.",
 };

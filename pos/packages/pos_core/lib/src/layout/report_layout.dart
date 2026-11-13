@@ -56,6 +56,22 @@ PrintLayout layoutShiftReport(ShiftReport r, PaperWidth paper) {
     }
   }
 
+  if (r.qrProviders.isNotEmpty) {
+    // P6-41: the QR tender split by provider (counts and amounts, no commission)
+    section("QR TO'LOVLAR");
+    for (final ReportAmount t in r.qrProviders) {
+      amount(t.label, t.amount, count: t.count);
+    }
+  }
+
+  if (r.vouchers.isNotEmpty) {
+    // P6-43: a certificate sold is an advance (not a sale); redeemed is the prepaid part of the sale receipts
+    section('SERTIFIKATLAR');
+    for (final ReportAmount t in r.vouchers) {
+      amount(t.label, t.amount, count: t.count);
+    }
+  }
+
   if (!r.advancesReceived.isZero ||
       !r.advancesApplied.isZero ||
       !r.creditSales.isZero ||

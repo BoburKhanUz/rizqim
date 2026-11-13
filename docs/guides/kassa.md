@@ -526,7 +526,8 @@ Smena ochiq bo'lmasa, to'lov oynasida **Smenani ochish** tugmasi chiqadi.
 |---|---|
 | **Naqd** | **Mijoz bergan pul**ni yozing (bo'sh qoldirsangiz — aynan summa) yoki tez summalardan birini bosing. **Qaytim** ko'rinadi. Kassa qutisi ochiladi |
 | **Karta** | Bank terminali **alohida**: summani terminalda o'zingiz terasiz. Keyin kassada **Karta turi** (Uzcard, Humo, Visa, Mastercard, UnionPay, Mir, Boshqa) va terminal chekidagi **Tranzaksiya raqami**ni yozasiz. Ikkalasi **majburiy** |
-| **QR** | Mijoz do'konning QR kodi orqali to'laydi, pul kelganini o'zingiz tekshirasiz. **To'lov raqami** ixtiyoriy. Ilova to'lovni o'zi tasdiqlamaydi |
+| **QR** | Click, Payme yoki UzQR yoqilgan bo'lsa (internet bor): kassa schyot summasiga QR chiqaradi, mijoz to'lagach to'lov **o'zi tasdiqlanadi** ([tolov-va-chek.md](tolov-va-chek.md#3-qr-tolov-kassada)). Tugmalar: **Schyotga chop etish**, **Yangi QR**, **Bekor qilish**, **Statik QR (qo'lda tasdiqlash)** — do'konning QR kodi: mijoz to'laydi, pul kelganini o'zingiz tekshirasiz (**To'lov raqami** ixtiyoriy). Modul yo'q bo'lsa shu statik shakl. Internetsiz **QR** yorlig'i ko'rinmaydi |
+| **Sertifikat** | Sovg'a sertifikati kodi bilan to'lash: skaner yoki yozing, qoldiq ko'rinadi ([tolov-va-chek.md](tolov-va-chek.md#5-sovga-sertifikati)) |
 | **Avans** | Bron avansidan ayiriladi. Avans bo'lsa, birinchi taklif qilinadi. Mavjud avansdan ko'p ayirib bo'lmaydi |
 | **Nasiya** | Qarzga yoziladi. [16-bo'lim](#16-nasiya-va-qarz-tolovi) |
 
@@ -540,6 +541,8 @@ bor menejer o'zi kirgan bo'lsa, so'ramaydi); tasdiq bir marta ishlaydi. Server r
 fiskal chekka kirmaydi va savdo hisobotida yo'q ([restoran.md](restoran.md#5-choy-puli-kassada)). Internetsiz to'lov hech qachon
 rad etilmaydi: internetda menejer tasdig'ini olib bo'lmagani uchun boshqa xodim tanlangan bo'lsa, ilova "Internetsiz menejer tasdig'i
 yo'q: choy puli buyurtma ofitsiantiga yoziladi." deydi va choy puli buyurtmaning ofitsiantiga yoziladi.
+
+Promo-kod, sovg'a sertifikatini sotish, QR to'lovni qaytarish va korxona hisobi (stolovaya): [tolov-va-chek.md](tolov-va-chek.md).
 
 P2P o'tkazma (kartadan kartaga) to'lov turi emas. Mijoz shunday to'lamoqchi bo'lsa, **QR** ni taklif qiling.
 
@@ -765,6 +768,8 @@ Bloklangan hisobga yangi nasiya yozilmaydi.
 
 Nasiyaga yopilganda kassaga pul tushmaydi. Sotuv cheki baribir **to'liq summaga** chiqadi (to'lovgacha kechiktirilmaydi). X
 hisobotda nasiya "Pul emas (bugun kassaga tushmagan)" qatorida alohida ko'rinadi.
+
+**Korxona hisobi (stolovaya).** Korxonaning xodimi talon kodi bilan ovqatlansa, **Nasiya** ichida **Korxona** rejimi: kod yoki telefon, bugun qancha qolgani ko'rinadi, menejer PIN'i odatda kerak emas. Batafsil: [tolov-va-chek.md](tolov-va-chek.md#8-korxona-hisobi-kassada).
 
 ### Qarz to'lovi
 

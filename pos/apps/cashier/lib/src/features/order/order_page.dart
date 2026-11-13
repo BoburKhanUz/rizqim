@@ -446,10 +446,39 @@ class _OrderPageState extends State<OrderPage> {
     await ctl.discount(d.kind, d.value, reason: d.reason, approve: _approve);
   }
 
+  /// P6-43: promo-kod (onlayn; internetsiz — oddiy xabar).
+  Future<void> _promo() async {
+    final OrderController ctl = _ctl!;
+    if (ctl.order == null) return;
+    if (limitedMode(context)) {
+      _showNotice(
+        const OrderNotice(PosVoucherRepository.offlineMessage, error: true),
+      );
+      return;
+    }
+    final String? code = await showPromoDialog(context);
+    if (code == null || !mounted) return;
+    await ctl.applyPromo(code, approve: _approve);
+  }
+
   Future<void> _removeDiscount() async {
     final OrderController ctl = _ctl!;
     final PosOrder? o = ctl.order;
     if (o == null) return;
+    final String? promo = promoCodeOf(o);
+    if (promo != null) {
+      final bool ok = await confirmDialog(
+        context,
+        title: 'Promo-kod olib tashlansinmi?',
+        message:
+            '$promo (${o.discount.format()}) olib tashlanadi, jami qayta hisoblanadi.',
+        confirmLabel: 'Olib tashlash',
+        cancelLabel: 'Qolish',
+      );
+      if (!ok || !mounted) return;
+      await ctl.removePromo(approve: _approve);
+      return;
+    }
     final bool ok = await confirmDialog(
       context,
       title: 'Chegirma olib tashlansinmi?',
@@ -683,6 +712,21 @@ class _OrderPageState extends State<OrderPage> {
               label: const Text('Chegirma'),
             ),
           ),
+        // P6-43: the store's promo code (the vouchers module, online)
+        if (o != null &&
+            _scope.session.hasModule(PosModule.vouchers) &&
+            promoCodeOf(o) == null)
+          Tooltip(
+            message: limited
+                ? PosVoucherRepository.offlineMessage
+                : 'Promo-kod',
+            child: TextButton.icon(
+              key: const ValueKey<String>('order-promo'),
+              onPressed: canEdit ? _promo : null,
+              icon: const Icon(Icons.confirmation_number_outlined),
+              label: const Text('Promo-kod'),
+            ),
+          ),
         if (o != null)
           PopupMenuButton<String>(
             tooltip: "Boshqa amallar",
@@ -776,7 +820,9 @@ class _OrderPageState extends State<OrderPage> {
       onCharge: (PosChargeKind k, bool waived) =>
           unawaited(_onCharge(k, waived)),
       onRemoveDiscount:
-          DiscountRules.of(_scope.session).allowed && !limitedMode(context)
+          (DiscountRules.of(_scope.session).allowed ||
+                  promoCodeOf(ctl.order) != null) &&
+              !limitedMode(context)
           ? () => unawaited(_removeDiscount())
           : null,
       // P6-21: a course order always fires its courses (the module only gates new course numbers)

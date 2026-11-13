@@ -111,6 +111,24 @@ class _OrderPageState extends State<OrderPage> {
     if (guests != null) await _ctl.setGuests(_approving, guests);
   }
 
+  /// P6-43: promo-kod: kiritish oynasi yoki olib tashlash (faqat onlayn; internetsiz oddiy xabar).
+  Future<void> _promo() async {
+    if (_ctl.promoCode != null) {
+      await _ctl.removePromo(_approving);
+      return;
+    }
+    final String? code = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) => const _PromoDialog(),
+    );
+    if (code != null && code.isNotEmpty) {
+      await _ctl.applyPromo(_approving, code);
+    }
+  }
+
+  bool get _promoAvailable =>
+      _ctl.editable && _ctl.session.promoOn && _ctl.order!.items.isNotEmpty;
+
   Future<void> _move() async {
     final PosOrder? o = _ctl.order;
     if (o == null) return;
@@ -261,8 +279,22 @@ class _OrderPageState extends State<OrderPage> {
               if (_ctl.editable || _canTransfer)
                 PopupMenuButton<String>(
                   tooltip: 'Menyu',
-                  enabled: _ctl.editable ? _ctl.canAct : _ctl.online,
+                  enabled: _ctl.editable
+                      ? (_ctl.canAct ||
+                            (!_ctl.online && !_ctl.busy && _promoAvailable))
+                      : _ctl.online,
                   onSelected: (String v) {
+                    if (v == 'promo') {
+                      unawaited(_promo());
+                      return;
+                    }
+                    if (!_ctl.online) {
+                      _notice(
+                        "Internet yo'q. Aloqa qaytgach amalni takrorlang.",
+                        error: true,
+                      );
+                      return;
+                    }
                     if (v == 'guests') unawaited(_changeGuests());
                     if (v == 'move') unawaited(_move());
                     if (v == 'transfer') unawaited(_transfer());
@@ -285,6 +317,19 @@ class _OrderPageState extends State<OrderPage> {
                             child: ListTile(
                               leading: Icon(Icons.swap_horiz_rounded),
                               title: Text("Boshqa joyga ko'chirish"),
+                            ),
+                          ),
+                        if (_promoAvailable)
+                          PopupMenuItem<String>(
+                            value: 'promo',
+                            height: 52,
+                            child: ListTile(
+                              leading: const Icon(Icons.sell_outlined),
+                              title: Text(
+                                _ctl.promoCode == null
+                                    ? 'Promo-kod'
+                                    : 'Promo-kodni olib tashlash',
+                              ),
                             ),
                           ),
                         // P6-24: hand the table to another waiter (orders.transfer or a manager's PIN)
@@ -803,4 +848,45 @@ class _ReadyCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Promo-kod kiritish oynasi: kodni katta harflarga o'giradi.
+class _PromoDialog extends StatefulWidget {
+  const _PromoDialog();
+
+  @override
+  State<_PromoDialog> createState() => _PromoDialogState();
+}
+
+class _PromoDialogState extends State<_PromoDialog> {
+  final TextEditingController _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Promo-kod'),
+    content: TextField(
+      controller: _text,
+      autofocus: true,
+      textCapitalization: TextCapitalization.characters,
+      decoration: const InputDecoration(labelText: 'Kodni kiriting'),
+      onSubmitted: (String v) => Navigator.of(context).pop(v.trim()),
+    ),
+    actions: <Widget>[
+      RzButton(
+        label: 'Bekor qilish',
+        variant: RzButtonVariant.ghost,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      RzButton(
+        label: "Qo'llash",
+        onPressed: () => Navigator.of(context).pop(_text.text.trim()),
+      ),
+    ],
+  );
 }

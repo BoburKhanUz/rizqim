@@ -81,9 +81,9 @@ Kassir **To'lash**ni bosganda ekran to'lov rejimiga o'tadi:
 
 - **To'lash kerak** summasi va to'lov usuli: *Naqd pul*, *Karta*, *QR orqali*.
 - Naqdda: *Berildi* va *Qaytim* summalari.
-- QR bilan to'lashda kassir QR ko'rsatsa, ekranda QR va "Click orqali to'lash uchun skanerlang" yoziladi.
+- QR bilan to'lashda kassir QR ko'rsatsa, ekranda katta QR, **summa** va provayder nomi ("Click orqali to'lash uchun skanerlang": Click, Payme yoki UzQR) turadi. QR bekor qilinsa yoki muddati o'tsa, ekrandan **o'zi yo'qoladi**. Dinamik QR haqida: [tolov-va-chek.md](tolov-va-chek.md#3-qr-tolov-kassada).
 
-To'lov tugagach: **"Rahmat!"**, to'langan summa, qaytim va **"Raqamingiz: 17"** (ekranda raqami chiqqach oladi). "Rahmat" 8 soniya
+To'lov tugagach (QR bilan — mijoz to'lagan zahoti, kassir hech narsa bosmaydi): **"Rahmat!"**, **"To'landi"** va to'langan summa, qaytim va **"Raqamingiz: 17"** (ekranda raqami chiqqach oladi). "Rahmat" 8 soniya
 turadi yoki kassir **"Keyingi mijoz"** ni bosganda o'zi tozalanadi. Kassir unutib qo'ysa ham, "Rahmat" o'zi ketadi; tugatilmagan chek
 30 daqiqadan keyin ekranda qolmaydi.
 

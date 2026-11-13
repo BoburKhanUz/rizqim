@@ -87,6 +87,43 @@ class PosCustomerAccount {
   bool get isCorporate => kind == 'corporate';
 }
 
+/// P6-44: korxona hisobining xodimi (`GET /pos/customer-accounts/{uuid}/members`): talon kodi, kunlik limit, kuniga
+/// ovqat soni.
+class PosAccountMember {
+  const PosAccountMember({
+    required this.uuid,
+    required this.name,
+    required this.code,
+    this.phone,
+    this.dailyLimit,
+    this.mealsPerDay,
+    this.active = true,
+    this.note,
+  });
+
+  factory PosAccountMember.fromJson(PosJson j) => PosAccountMember(
+    uuid: j.str('uuid'),
+    name: j.str('name'),
+    code: j.str('code'),
+    phone: j.strOrNull('phone'),
+    dailyLimit: j.moneyOrNull('daily_limit'),
+    mealsPerDay: j.intOrNull('meals_per_day'),
+    active: j.boolean('is_active', fallback: true),
+    note: j.strOrNull('note'),
+  );
+
+  final String uuid;
+  final String name;
+
+  /// Talon kodi (QR ichida ham shu).
+  final String code;
+  final String? phone;
+  final PosMoney? dailyLimit;
+  final int? mealsPerDay;
+  final bool active;
+  final String? note;
+}
+
 /// P6-44: kassada topilgan korxona xodimi (`GET /pos/customer-accounts/members/lookup`): hisob, xodim (telefon
 /// yashirilgan) va bugun / shu oy qancha qolgani. Internetsiz ishlamaydi (limitlar serverda): kassa naqd yoki karta taklif
 /// qiladi.

@@ -339,4 +339,95 @@ void main() {
       expect(tester.widget<Text>(total).data, '140 000 so\'m');
     },
   );
+
+  const String emv =
+      '00020101021226370011uz.uzqr.p2p0108998877660208UZQR00015204599953038605802UZ5913Rizqim Kassa6008Tashkent6304ABCD';
+  Future<void> payQr(
+    DisplayHarness h,
+    WidgetTester tester,
+    String provider, {
+    String? label,
+    String payload = emv,
+  }) async {
+    h.backend.publish(
+      state: 'payment',
+      lines: <Map<String, Object?>>[
+        FakeDisplayBackend.line('Osh', price: '36000.00'),
+      ],
+      total: '36000.00',
+      payment: <String, Object?>{
+        'method': 'qr',
+        'qr': <String, Object?>{
+          'payload': payload,
+          'label': label,
+          'provider': provider,
+        },
+      },
+    );
+    await h.advance(tester, const Duration(milliseconds: 400));
+  }
+
+  testWidgets(
+    'P6-41: dynamic QR shows amount and provider (name from the provider key when no label), then "To\'landi", and a cancelled/expired QR disappears',
+    (WidgetTester tester) async {
+      final DisplayHarness h = DisplayHarness();
+      h.backend.queueCalling = false;
+      await h.pump(tester);
+
+      await payQr(h, tester, 'payme');
+      expect(find.byType(QrView), findsOneWidget);
+      expect(find.textContaining('Payme orqali'), findsOneWidget);
+      expect(tester.widget<Text>(total).data, startsWith('36'));
+      expect(find.text("To'lash kerak"), findsOneWidget);
+
+      // A long EMV (UzQR) payload still renders as a code, not the fallback text
+      await payQr(h, tester, 'uzqr');
+      expect(find.byType(QrView), findsOneWidget);
+      expect(find.textContaining("QR kodni ko'rsatib bo'lmadi"), findsNothing);
+      expect(find.textContaining('UzQR orqali'), findsOneWidget);
+
+      // Expired / cancelled: the till sends the payment screen without a QR
+      h.backend.publish(
+        state: 'payment',
+        lines: <Map<String, Object?>>[
+          FakeDisplayBackend.line('Osh', price: '36000.00'),
+        ],
+        total: '36000.00',
+        payment: <String, Object?>{'method': 'qr'},
+      );
+      await h.advance(tester, const Duration(milliseconds: 400));
+      expect(find.byType(QrView), findsNothing);
+
+      // Paid by QR: confirmation with the amount, the QR is gone
+      await payQr(h, tester, 'click', label: 'Click');
+      h.backend.publish(
+        state: 'paid',
+        lines: <Map<String, Object?>>[
+          FakeDisplayBackend.line('Osh', price: '36000.00'),
+        ],
+        total: '36000.00',
+        payment: <String, Object?>{'method': 'qr'},
+      );
+      await h.advance(tester, const Duration(milliseconds: 400));
+      expect(find.text('Rahmat!'), findsOneWidget);
+      expect(find.textContaining("To'landi: 36"), findsOneWidget);
+      expect(find.byType(QrView), findsNothing);
+    },
+  );
+
+  testWidgets('golden: the payment screen with a dynamic QR', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final DisplayHarness h = DisplayHarness();
+    h.backend.queueCalling = false;
+    await h.pump(tester);
+    await payQr(h, tester, 'click', label: 'Click');
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/payment_qr_tablet.png'),
+    );
+  });
 }

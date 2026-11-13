@@ -46,6 +46,22 @@ class CustomerAccountRepository {
         query: <String, Object?>{'code': code, 'phone': phone},
       );
 
+  /// P6-44: korxona hisobining xodimlari (faollar birinchi; talon chop etish uchun). `customer_accounts.manage` so'raydi
+  /// (403); nasiya hisobi — 422 `account_not_corporate`.
+  Future<List<PosAccountMember>> members(
+    String uuid, {
+    String? query,
+    bool? active,
+  }) => _http.get(
+    '/v1/pos/customer-accounts/${Uri.encodeComponent(uuid)}/members',
+    (Object? data) =>
+        dataObject(data).objects('members', PosAccountMember.fromJson),
+    query: <String, Object?>{
+      'q': query,
+      if (active != null) 'active': active ? 1 : 0,
+    },
+  );
+
   /// Hisob va oxirgi 20 yozuv.
   Future<PosAccountWithEntries> get(String uuid) =>
       _http.get('/v1/pos/customer-accounts/$uuid', _withEntries);
