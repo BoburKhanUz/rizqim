@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_hardware/pos_hardware.dart';
 
-/// Server sozlamasidagi printer qurilmada ishlatib bo'lmaydi (masalan, Bluetooth hozircha yo'q).
+/// Server sozlamasidagi printer qurilmada ishlatib bo'lmaydi (masalan, Windows kassada Bluetooth printer).
 class UnsupportedPrinter {
   const UnsupportedPrinter(this.info, this.reason);
 
@@ -24,16 +25,21 @@ class UnsupportedPrinter {
 /// * [labelPrinter] — stakan stikeri va paket yorlig'i (P6-32, `label`; TSPL tilida);
 /// * [unsupported] — ishlatib bo'lmaydiganlari va sababi.
 ///
-/// Mos kelish: `lan` → LAN 9100 (`address`, `port`), `builtin` → Sunmi ichki printeri, `usb` → Windows spooler (printer
+/// Mos kelish: `lan` → LAN 9100 (`address`, `port`), `builtin` → Sunmi ichki printeri, `usb` → Windows'da spooler (printer
 /// nomi — serverdagi `name`; Windows'dagi nom boshqacha bo'lsa P3-22 printer sozlamalarida qurilmada almashtiradi),
-/// `bluetooth` — hozircha yo'q. `encoding` → kod sahifasi, `print_as_image` → matn rasm sifatida. P6-32: `purpose: label`
+/// Android'da USB OTG (birinchi ulangan USB printer), `bluetooth` → Android'da Bluetooth SPP (`address` — MAC; P6
+/// uskunalar), boshqa platformada ishlatib bo'lmaydi. `encoding` → kod sahifasi, `print_as_image` → matn rasm sifatida. P6-32: `purpose: label`
 /// printeri TSPL tilida ([PrinterLanguage.tspl]: Xprinter, Gprinter yorliq printerlari); boshqalari ESC/POS — serverda
 /// alohida "til" maydoni yo'q, maqsadning o'zi tilni aytadi.
 class CashierPrinting extends ChangeNotifier {
-  CashierPrinting({PosPrinters? printers})
-    : printers = printers ?? PosPrinters();
+  CashierPrinting({PosPrinters? printers, bool? android})
+    : printers = printers ?? PosPrinters(),
+      android = android ?? (!kIsWeb && Platform.isAndroid);
 
   final PosPrinters printers;
+
+  /// Android qurilmami (Bluetooth va USB OTG printerlar shu yerda ishlaydi).
+  final bool android;
 
   List<PrinterConfig> _configs = const <PrinterConfig>[];
   List<PosPrinterInfo> _infos = const <PosPrinterInfo>[];
@@ -49,7 +55,10 @@ class CashierPrinting extends ChangeNotifier {
     final List<UnsupportedPrinter> unsupported = <UnsupportedPrinter>[];
     for (final PosPrinterInfo info in infos) {
       if (!info.isActive) continue;
-      final (PrinterConfig? config, String? reason) = toPrinterConfig(info);
+      final (PrinterConfig? config, String? reason) = toPrinterConfig(
+        info,
+        android: android,
+      );
       if (config != null) {
         configs.add(config);
         used.add(info);
@@ -63,7 +72,7 @@ class CashierPrinting extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Xodim chiqqanda yoki terminal uzilganda.
+  /// Terminal uzilganda (review P6 C2: xodim chiqqanda emas — qulflangan kassa ham schyot chiqaradi).
   void clear() => configure(const <PosPrinterInfo>[]);
 
   /// Chek va schyot printeri (birinchi `receipt`).
@@ -100,22 +109,30 @@ class CashierPrinting extends ChangeNotifier {
   }
 }
 
-/// [PosPrinterInfo] → [PrinterConfig]; ishlatib bo'lmasa `(null, sabab)`.
-(PrinterConfig?, String?) toPrinterConfig(PosPrinterInfo info) {
+/// [PosPrinterInfo] → [PrinterConfig]; ishlatib bo'lmasa `(null, sabab)`. [android] — Bluetooth va USB OTG.
+(PrinterConfig?, String?) toPrinterConfig(
+  PosPrinterInfo info, {
+  bool android = false,
+}) {
   final PrinterTarget? target = switch (info.connection) {
     'lan' when (info.address ?? '').trim().isNotEmpty => LanPrinterTarget(
       info.address!.trim(),
       port: info.port ?? LanPrinterTarget.defaultPort,
     ),
     'builtin' => const SunmiPrinterTarget(),
+    'usb' when android => UsbPrinterTarget.any,
     'usb' => WindowsPrinterTarget(info.name),
+    'bluetooth' when android && (info.address ?? '').trim().isNotEmpty =>
+      BluetoothPrinterTarget(info.address!),
     _ => null,
   };
   if (target == null) {
     return (
       null,
       switch (info.connection) {
-        'bluetooth' => "Bluetooth printer hozircha qo'llab-quvvatlanmaydi.",
+        'bluetooth' when !android =>
+          'Bluetooth printer faqat Android kassada ishlaydi.',
+        'bluetooth' => 'Bluetooth printer manzili (MAC) kiritilmagan.',
         'lan' => "Printer manzili (IP) kiritilmagan.",
         _ => "Noma'lum ulanish turi: ${info.connection}.",
       },

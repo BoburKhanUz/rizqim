@@ -21,6 +21,9 @@ dependencies:
     path: ../../packages/pos_data
   pos_hardware:
     path: ../../packages/pos_hardware
+  # P6: the local bridge (this till as the branch's LAN hub)
+  pos_lan:
+    path: ../../packages/pos_lan
   pos_sync:
     path: ../../packages/pos_sync
   pos_ui:

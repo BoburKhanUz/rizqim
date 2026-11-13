@@ -26,6 +26,14 @@ class PosDisplayRepository {
     scope: AuthScope.terminal,
   );
 
+  /// P6 lokal ko'prik: `GET /pos/lan` — shu terminalning LAN kalitlari (bootstrap'dagi `lan` qismi, xodim grantisiz;
+  /// `pos_lan` `LanCredentials.fromJson` o'qiydi). `null` — filialsiz terminal yoki LAN yo'q.
+  Future<Map<String, Object?>?> lan() => _http.get(
+    '/v1/pos/lan',
+    (Object? data) => data is Map ? data.cast<String, Object?>() : null,
+    scope: AuthScope.terminal,
+  );
+
   /// `POST /pos/display/cart`: kassa chekni ikkinchi ekranga yuboradi. `true` — saqlandi, `false` — server eskirgan
   /// yuborish deb tashladi. `Idempotency-Key` yo'q: har yuborish oldingisini almashtiradi.
   Future<bool> publish(PosDisplayCart cart) async {

@@ -4,32 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period3.dart';
-import 'products8.dart';
-import 'combo_parts.dart';
+import 'weight_basis.dart';
 
 part 'data148.g.dart';
 
 @JsonSerializable()
 class Data148 {
   const Data148({
-    required this.period,
-    required this.branchId,
-    required this.sort,
-    required this.products,
-    required this.comboParts,
+    required this.productId,
+    required this.quickMultipliers,
+    required this.waitMinutes,
+    required this.weightMode,
   });
 
   factory Data148.fromJson(Map<String, Object?> json) =>
       _$Data148FromJson(json);
 
-  final Period3 period;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final String sort;
-  final List<Products8> products;
-  @JsonKey(name: 'combo_parts')
-  final List<ComboParts> comboParts;
+  @JsonKey(name: 'product_id')
+  final int productId;
+  @JsonKey(name: 'quick_multipliers')
+  final List<int>? quickMultipliers;
+  @JsonKey(name: 'wait_minutes')
+  final int? waitMinutes;
+  @JsonKey(name: 'weight_mode')
+  final WeightBasis? weightMode;
 
   Map<String, Object?> toJson() => _$Data148ToJson(this);
 }

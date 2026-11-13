@@ -154,6 +154,10 @@ export type BranchPosSettings = Omit<GeneratedPosSettings, 'pos_settings'> & {
     cashier_discount_max_percent?: string | null;
     alerts: { cash_out_amount?: string | null };
     booking_confirmation?: BookingConfirmationSettings;
+    // P6 (stage A): the waiter's "Schyot so'rash" makes the bill and the till prints the pre-check by itself (default true);
+    // `bill_printer`: id of a receipt printer of the branch it comes out on (null: the printing till's receipt printer)
+    auto_print_bill?: boolean;
+    bill_printer?: number | null;
   };
 };
 type GeneratedPosSettingsPatch = NonNullable<JsonRequest<'branchPosSettings.update'>>;
@@ -164,6 +168,8 @@ export type BranchPosSettingsPatch = Omit<GeneratedPosSettingsPatch, 'pos_settin
     alerts?: { cash_out_amount?: number | null };
     // Keys left out keep what the server has
     booking_confirmation?: Partial<BookingConfirmationSettings>;
+    auto_print_bill?: boolean;
+    bill_printer?: number | null;
   };
 };
 

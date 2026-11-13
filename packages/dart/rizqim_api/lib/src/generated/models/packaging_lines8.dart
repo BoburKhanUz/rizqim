@@ -11,15 +11,9 @@ class PackagingLines8 {
   const PackagingLines8({
     required this.ruleId,
     required this.name,
-    required this.basis,
     required this.quantity,
     required this.unit,
-    required this.unitPrice,
     required this.amount,
-    required this.mxik,
-    required this.packageCode,
-    required this.removed,
-    required this.removedReason,
   });
 
   factory PackagingLines8.fromJson(Map<String, Object?> json) =>
@@ -28,18 +22,9 @@ class PackagingLines8 {
   @JsonKey(name: 'rule_id')
   final int ruleId;
   final String name;
-  final String basis;
   final int quantity;
   final String unit;
-  @JsonKey(name: 'unit_price')
-  final String unitPrice;
   final String amount;
-  final String? mxik;
-  @JsonKey(name: 'package_code')
-  final String? packageCode;
-  final bool removed;
-  @JsonKey(name: 'removed_reason')
-  final String? removedReason;
 
   Map<String, Object?> toJson() => _$PackagingLines8ToJson(this);
 }

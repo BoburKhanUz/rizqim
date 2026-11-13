@@ -3,6 +3,7 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
+#include "customer_monitor.h"
 #include "resource.h"
 
 namespace {
@@ -150,7 +151,11 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  // P6 Windows: full-screen on the customer's monitor, the cashier app keeps
+  // the keyboard focus (customer_monitor.h).
+  return ShowWindow(window_handle_, CustomerScreenIsFullscreen()
+                                        ? SW_SHOWNOACTIVATE
+                                        : SW_SHOWNORMAL);
 }
 
 // static

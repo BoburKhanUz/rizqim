@@ -7,17 +7,21 @@ part of 'data272.dart';
 // **************************************************************************
 
 Data272 _$Data272FromJson(Map<String, dynamic> json) => Data272(
-  branchId: (json['branch_id'] as num).toInt(),
-  date: json['date'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries5.fromJson(e as Map<String, dynamic>))
+  serverTime: json['server_time'] as String,
+  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
+  clockWarning: json['clock_warning'] as bool,
+  stoppedAt: (json['stopped_at'] as num?)?.toInt(),
+  results: (json['results'] as List<dynamic>)
+      .map((e) => Results.fromJson(e as Map<String, dynamic>))
       .toList(),
-  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
+  device: Device20.fromJson(json['device'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data272ToJson(Data272 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'date': instance.date,
-  'entries': instance.entries,
-  'summary': instance.summary,
+  'server_time': instance.serverTime,
+  'clock_skew_seconds': instance.clockSkewSeconds,
+  'clock_warning': instance.clockWarning,
+  'stopped_at': instance.stoppedAt,
+  'results': instance.results,
+  'device': instance.device,
 };

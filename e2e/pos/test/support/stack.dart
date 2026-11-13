@@ -54,6 +54,16 @@ class StackConfig {
     reverbKey: reverbKey,
     seed: other,
   );
+
+  /// The same stack reached at other addresses (P6 stage B: through the test's own link to the "cloud", which it can
+  /// cut).
+  StackConfig through({required String apiUrl, required String reverbUrl}) =>
+      StackConfig._(
+        apiUrl: apiUrl,
+        reverbUrl: reverbUrl,
+        reverbKey: reverbKey,
+        seed: seed,
+      );
 }
 
 /// A member of the staff the seeder made.

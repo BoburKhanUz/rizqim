@@ -7,19 +7,23 @@ part of 'data195.dart';
 // **************************************************************************
 
 Data195 _$Data195FromJson(Map<String, dynamic> json) => Data195(
-  text: json['text'] as String,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines19.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  rooms: (json['rooms'] as List<dynamic>)
+      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
       .toList(),
-  roomFee: json['room_fee'] == null
-      ? null
-      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
-  channels: Channels3.fromJson(json['channels'] as Map<String, dynamic>),
+  unassigned: (json['unassigned'] as List<dynamic>)
+      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data195ToJson(Data195 instance) => <String, dynamic>{
-  'text': instance.text,
-  'lines': instance.lines,
-  'room_fee': instance.roomFee,
-  'channels': instance.channels,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'rooms': instance.rooms,
+  'unassigned': instance.unassigned,
 };

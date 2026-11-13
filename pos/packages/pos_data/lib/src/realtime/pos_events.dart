@@ -1,5 +1,6 @@
 import 'package:rizqim_api/rizqim_api.dart';
 
+import '../billing/bill_print_request.dart';
 import '../json.dart';
 
 /// `private-pos-branch.{id}` kanalidagi hodisa. Hodisada faqat id va holat bor (shaxsiy ma'lumot, narx yo'q): ilova
@@ -31,6 +32,11 @@ sealed class PosEvent {
           _order(j),
           j,
         ),
+        'bill.print_requested' => PosBillPrintRequested._(
+          name,
+          data,
+          BillPrintRequest.fromJson(data),
+        ),
         'order.course_ready' => PosCourseReady._(name, data, _order(j), j),
         'order.transferred' => PosOrderTransferred._(name, data, _order(j), j),
         'waitlist.changed' => PosWaitlistChanged._(name, data, j),
@@ -50,6 +56,7 @@ sealed class PosEvent {
           j,
         ),
         'display.cart' => PosDisplayCartChanged._(name, data, j),
+        'pos.lan_changed' => PosLanChanged._(name, data, j),
         'queue.preparing' ||
         'queue.ready' ||
         'queue.handed' ||
@@ -113,6 +120,32 @@ class PosOrderBillRequested extends PosEvent {
 
   @override
   String? get orderUuid => order.uuid;
+}
+
+/// `bill.print_requested` (P6, A bosqichi): schyotni pre-check sifatida chiqarish so'rovi. Faqat [request] ko'rsatgan
+/// kassa chiqaradi ([BillPrintRequest.isFor]).
+class PosBillPrintRequested extends PosEvent {
+  PosBillPrintRequested._(super.name, super.data, this.request);
+
+  final BillPrintRequest request;
+
+  @override
+  String? get orderUuid => request.orderUuid;
+}
+
+/// `pos.lan_changed` (P6 review S5): filialning lokal ko'prigi o'zgardi — qurilma uzildi (`device_revoked`), kalit
+/// almashdi (`key_rotated`), markaz ko'chdi (`hub_changed`) yoki port o'zgardi (`port_changed`). Faqat id'lar: markaz
+/// kassa `GET /pos/lan` ni darhol qayta o'qiydi.
+class PosLanChanged extends PosEvent {
+  PosLanChanged._(super.name, super.data, PosJson j)
+    : reason = j.strOrNull('reason'),
+      device = j.strOrNull('device');
+
+  /// `device_revoked`, `key_rotated`, `hub_changed`, `port_changed`.
+  final String? reason;
+
+  /// Uzilgan qurilma yoki yangi markaz uuid'si.
+  final String? device;
 }
 
 /// `order.course_ready` (P6-21): buyurtma kursining oshxonaga yuborilgan hamma taomi tayyor ("2-kurs tayyor"). Ofitsiant

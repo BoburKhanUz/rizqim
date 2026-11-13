@@ -4,16 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall14.dart';
-import 'table14.dart';
-import 'waiter17.dart';
+import 'hall9.dart';
+import 'table9.dart';
+import 'waiter12.dart';
 import 'discount_kind.dart';
-import 'pickup15.dart';
-import 'charges17.dart';
-import 'offline13.dart';
-import 'queue15.dart';
-import 'courses12.dart';
-import 'items38.dart';
+import 'pickup10.dart';
+import 'charges12.dart';
+import 'offline8.dart';
+import 'queue10.dart';
+import 'courses7.dart';
+import 'items34.dart';
 
 part 'data240.g.dart';
 
@@ -81,8 +81,8 @@ class Data240 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall14? hall;
-  final Table14? table;
+  final Hall9? hall;
+  final Table9? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -91,7 +91,7 @@ class Data240 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter17? waiter;
+  final Waiter12? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -131,17 +131,17 @@ class Data240 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup15? pickup;
+  final Pickup10? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges17 charges;
-  final Offline13? offline;
-  final Queue15? queue;
+  final Charges12 charges;
+  final Offline8? offline;
+  final Queue10? queue;
   final int rounds;
-  final List<Courses12> courses;
+  final List<Courses7> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
-  final List<Items38> items;
+  final List<Items34> items;
 
   Map<String, Object?> toJson() => _$Data240ToJson(this);
 }

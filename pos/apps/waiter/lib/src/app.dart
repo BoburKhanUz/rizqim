@@ -5,6 +5,7 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import 'lan/waiter_lan.dart';
 import 'services.dart';
 import 'shell/home_shell.dart';
 import 'shell/idle_scope.dart';
@@ -128,6 +129,7 @@ class TerminalHome extends StatefulWidget {
 
 class _TerminalHomeState extends State<TerminalHome> {
   PosRealtime? _realtime;
+  WaiterLan? _lan;
   late final StreamSubscription<AuthEvent> _authSub;
   late final StreamSubscription<PosSessionPhase> _phaseSub;
   String? _notice;
@@ -141,6 +143,14 @@ class _TerminalHomeState extends State<TerminalHome> {
   void initState() {
     super.initState();
     _realtime = _s.realtimeFactory?.call(_s.client, widget.terminal)?..start();
+    if (_s.lanEnabled) {
+      _lan = WaiterLan(
+        data: _s.data,
+        link: _s.lanLinkFactory?.call(_s.data),
+        store: _s.lanStore,
+      );
+      unawaited(_lan!.start());
+    }
     _authSub = _s.auth.events.listen(_onAuth);
     _phaseSub = _session.changes.listen((_) {
       if (mounted) setState(() {});
@@ -153,6 +163,7 @@ class _TerminalHomeState extends State<TerminalHome> {
     unawaited(_authSub.cancel());
     unawaited(_phaseSub.cancel());
     unawaited(_realtime?.dispose());
+    _lan?.dispose();
     super.dispose();
   }
 
@@ -202,7 +213,7 @@ class _TerminalHomeState extends State<TerminalHome> {
   Widget build(BuildContext context) {
     switch (_session.phase) {
       case PosSessionPhase.ready:
-        return HomeShell(services: _s, realtime: _realtime);
+        return HomeShell(services: _s, realtime: _realtime, lan: _lan);
       case PosSessionPhase.signedIn:
         return _BootstrapView(
           error: _bootstrapError,

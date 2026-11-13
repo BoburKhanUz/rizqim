@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB printers (class 7): Android offers to open the till when one is plugged in; ticking "always" keeps the USB
+     permission across replugs (pos_hardware UsbPrinters asks again otherwise) -->
+<resources>
+    <usb-device class="7" />
+</resources>

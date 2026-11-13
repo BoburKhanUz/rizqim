@@ -57,9 +57,15 @@ class PosPrinters {
     return queue.submit(printer, bytes, title: layout.title);
   }
 
-  /// Sinov sahifasi (printer sozlamasida "Sinov chop etish").
-  Future<PrintJob> testPrint(PrinterConfig printer, {DateTime? now}) =>
-      print(printer, buildTestPage(printer, now: now ?? DateTime.now()));
+  /// Sinov sahifasi (printer sozlamasida "Sinov chop etish"; [storeName] — sahifa boshida do'kon nomi).
+  Future<PrintJob> testPrint(
+    PrinterConfig printer, {
+    DateTime? now,
+    String? storeName,
+  }) => print(
+    printer,
+    buildTestPage(printer, now: now ?? DateTime.now(), storeName: storeName),
+  );
 
   /// Kassa qutisini ochish (kirim/chiqim, naqd to'lov).
   PrintJob openDrawer(PrinterConfig printer) =>
@@ -73,9 +79,16 @@ class PosPrinters {
 
 /// Sinov sahifasi: printer nomi va manzili, qog'oz, jadval, o'zbek (lotin va kirill) harflari, ustunlar o'lchagichi,
 /// shrift kattaliklari va QR. Lotin "oʻ gʻ ʼ" to'g'ri chiqsa — rasm rejimi ishlayapti; "o' g' '" chiqsa — matn rejimi.
-PrintLayout buildTestPage(PrinterConfig printer, {required DateTime now}) {
+/// Kirill qatori "?" yoki boshqa belgilar bilan chiqsa — printerdagi jadval (kod sahifasi) noto'g'ri tanlangan.
+PrintLayout buildTestPage(
+  PrinterConfig printer, {
+  required DateTime now,
+  String? storeName,
+}) {
   final PrintWriter w = PrintWriter(printer.paper);
   final int chars = printer.paper.chars;
+  final String store = (storeName ?? '').trim();
+  if (store.isNotEmpty) w.center(store, bold: true);
   w.center('SINOV CHOP ETISH', bold: true, size: PrintTextSize.large);
   w.divider('=');
   w.text('Printer: ${printer.name}');
@@ -90,6 +103,7 @@ PrintLayout buildTestPage(PrinterConfig printer, {required DateTime now}) {
   w.text('Lotin: Oʻzbekiston, gʻalla, maʼlumot');
   w.text("ASCII: O'zbekiston, g'alla, ma'lumot");
   w.text('Kirill: Ўзбекистон, қишлоқ, ғалла, ҳаёт');
+  w.text('Kod sahifasi: АБВГДЕЁЖЗ абвгдеёжз Ўў Ққ Ғғ Ҳҳ №');
   w.text('Rus: Съешь же ещё этих мягких булок');
   w.divider();
   final StringBuffer ruler = StringBuffer();

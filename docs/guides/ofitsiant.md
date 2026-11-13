@@ -179,8 +179,16 @@ Mehmon hisob so'raganda:
 2. "Schyot kassirga yuboriladi. To'lovni kassir oladi: ofitsiant ilovasida to'lov yo'q." — **So'rash**.
 3. Tugma **Schyot so'ralgan** bo'ladi (bosib bo'lmaydi). Sarlavhada ham shu belgi turadi.
 
-Kassirning ekranida o'sha xonada **Schyot so'raldi** belgisi chiqadi. Kassir schyotni tuzib, chiqarib, sizga yoki mehmonga olib
-keladi va pulni oladi.
+Kassirning ekranida o'sha xonada **Schyot so'raldi** belgisi chiqadi. Filialda schyotni avtomatik chiqarish yoqiq bo'lsa
+(standart), schyot kassa printerida **o'zi chiqadi**: "Schyot so'raldi: kassada chiqadi." deb yoziladi, siz kassadan schyotni olib
+mehmonga berasiz va kassir pulni oladi. Avtomatik chiqarish o'chiq bo'lsa, kassir schyotni tuzib, chiqarib, sizga yoki mehmonga
+olib keladi va pulni oladi. Schyot fiskal chek emas.
+
+**Schyotni qayta chiqarish.** Schyot yo'qolsa yoki mehmon yana so'rasa, buyurtma ekranida **Schyotni qayta chiqarish** → **Chiqarish**
+ni bosing. Sizda bu huquq yo'q, shuning uchun menejer o'z PIN'ini kiritadi; keyin kassada schyot **NUSXA** yozuvi bilan yana chiqadi.
+Tugma schyot so'ralgandan keyin ko'rinadi. Schyot hali tuzilmagan bo'lsa, "Schyot hali tuzilmagan" deyiladi. Batafsil —
+[uskunalar.md](uskunalar.md#8-schyotni-avtomatik-chiqarish).
+<!-- TEKSHIRILMAGAN: haqiqiy printerda avtomatik chiqarish va "Schyotni qayta chiqarish" sinalmagan (HARDWARE_TEST.md 9-bo'lim) -->
 
 Belgilar:
 
@@ -226,6 +234,8 @@ Menejer yoki ega o'z PIN'ini kiritsin"). Tasdiq 1 daqiqa amal qiladi va bir mart
 Ofitsianti yo'q buyurtmani (masalan, kassir ochgan) birinchi o'zgartirganingizda u sizga o'tadi.
 
 ## 10. Aloqa yo'qolganda
+
+> **Lokal tarmoq (hozir qurilmoqda).** Internet uzilsa-yu Wi-Fi ishlasa, asosiy kassa orqali buyurtma olish davom etadi: [uskunalar.md](uskunalar.md#9-lokal-tarmoq-internet-uzilsa-ham-zal-ishlaydi). <!-- TEKSHIRILMAGAN: ofitsiant ilovasi lokal tarmoqqa hali ulanmagan (stage B) -->
 
 Internet yoki server bo'lmasa, tepada qizil **Aloqa yo'q** lentasi chiqadi: "Faqat ko'rish mumkin." Ilova oxirgi ko'rgan holatini
 ko'rsatadi (xonalar, buyurtmalar), lekin **yangi buyurtma ochib, taom qo'shib, yuborib bo'lmaydi**. Yuborishda: "Aloqa yo'q: aloqa

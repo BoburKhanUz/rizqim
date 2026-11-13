@@ -11,7 +11,7 @@ PostV1PosDisplayCartResponse _$PostV1PosDisplayCartResponseFromJson(
 ) => PostV1PosDisplayCartResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data217.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data223.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosDisplayCartResponseToJson(

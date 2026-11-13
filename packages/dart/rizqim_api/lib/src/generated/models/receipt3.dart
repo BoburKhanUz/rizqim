@@ -8,7 +8,7 @@ import 'type6.dart';
 import 'status5.dart';
 import 'payment_form.dart';
 import 'lines18.dart';
-import 'payments8.dart';
+import 'payments7.dart';
 
 part 'receipt3.g.dart';
 
@@ -66,7 +66,7 @@ class Receipt3 {
   @JsonKey(name: 'original_receipt_uuid')
   final String? originalReceiptUuid;
   final List<Lines18> lines;
-  final List<Payments8> payments;
+  final List<Payments7> payments;
 
   Map<String, Object?> toJson() => _$Receipt3ToJson(this);
 }

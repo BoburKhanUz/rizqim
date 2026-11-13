@@ -9,22 +9,24 @@ part 'pickup.g.dart';
 @JsonSerializable()
 class Pickup {
   const Pickup({
-    required this.minLeadMinutes,
-    required this.slotMinutes,
-    required this.maxDaysAhead,
-    required this.prepMinutes,
+    required this.pickupAt,
+    required this.kitchenFireAt,
+    required this.kitchenFiredAt,
+    required this.waiting,
+    required this.localTime,
   });
 
   factory Pickup.fromJson(Map<String, Object?> json) => _$PickupFromJson(json);
 
-  @JsonKey(name: 'min_lead_minutes')
-  final int minLeadMinutes;
-  @JsonKey(name: 'slot_minutes')
-  final int slotMinutes;
-  @JsonKey(name: 'max_days_ahead')
-  final int maxDaysAhead;
-  @JsonKey(name: 'prep_minutes')
-  final int prepMinutes;
+  @JsonKey(name: 'pickup_at')
+  final String pickupAt;
+  @JsonKey(name: 'kitchen_fire_at')
+  final String? kitchenFireAt;
+  @JsonKey(name: 'kitchen_fired_at')
+  final String? kitchenFiredAt;
+  final bool waiting;
+  @JsonKey(name: 'local_time')
+  final String localTime;
 
   Map<String, Object?> toJson() => _$PickupToJson(this);
 }

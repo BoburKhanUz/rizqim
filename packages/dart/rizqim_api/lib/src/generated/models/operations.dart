@@ -17,6 +17,7 @@ class Operations {
     required this.staffId,
     required this.payload,
     this.occurredAt,
+    this.originDevice,
   });
 
   factory Operations.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,8 @@ class Operations {
   @JsonKey(name: 'staff_id')
   final int staffId;
   final List<String> payload;
+  @JsonKey(name: 'origin_device')
+  final String? originDevice;
 
   Map<String, Object?> toJson() => _$OperationsToJson(this);
 }

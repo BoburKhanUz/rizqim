@@ -445,6 +445,7 @@ void main() {
     await tester.pumpAndSettle();
     // tasdiq so'raladi, to'lov haqida gap yo'q
     expect(find.textContaining("ilovasida to'lov yo'q"), findsOneWidget);
+    expect(find.textContaining("kassada o'zi chiqadi"), findsOneWidget);
     await tapButton(tester, "So'rash");
 
     // P3-26: alohida "schyot so'rash" endpointi — schyotni ofitsiant tuzmaydi
@@ -457,7 +458,11 @@ void main() {
     expect(h.adapter.to('POST', '/bills'), isEmpty);
     expect(h.state.orders[uuid]!['bill_requested_at'], isNotNull);
     expect(find.text("Schyot so'ralgan"), findsWidgets);
-    expect(find.textContaining("Schyot so'raldi: kassir"), findsOneWidget);
+    // P6: the branch prints the bill by itself (the default)
+    expect(
+      find.textContaining("Schyot so'raldi: kassada chiqadi"),
+      findsOneWidget,
+    );
     // ikkinchi marta so'rab bo'lmaydi (tugma o'chiq)
     expect(
       tester.widget<RzButton>(buttonLabeled("Schyot so'ralgan")).onPressed,

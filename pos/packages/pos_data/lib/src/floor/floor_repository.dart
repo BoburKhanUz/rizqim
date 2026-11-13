@@ -1,5 +1,6 @@
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
+import '../lan/pos_lan_route.dart';
 import '../offline/pos_offline.dart';
 import 'floor_models.dart';
 
@@ -11,8 +12,15 @@ class FloorRepository {
   final PosHttp _http;
   final PosOffline? offline;
 
+  /// P6 lokal ko'prik (ofitsiant): `lan` rejimida xarita markaz kassadan ([PosLanRoute]).
+  PosLanRoute? lan;
+
   /// [branchId] standart — xodimning (terminalning) filiali.
   Future<PosFloor> load({int? branchId}) async {
+    final PosLanRoute? l = lan;
+    if (l != null && l.active && branchId == null) {
+      return PosFloor.fromJson(dataObject(await l.floor()));
+    }
     final PosOffline? o = offline;
     if (o != null && o.active && branchId == null) return o.floor();
     Object? raw;

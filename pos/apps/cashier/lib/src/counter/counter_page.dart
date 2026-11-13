@@ -117,6 +117,8 @@ class _CounterPageState extends State<CounterPage> {
         branchId: scope.session.branchId,
         pollInterval: scope.services.pollInterval,
         livePollInterval: scope.services.livePollInterval,
+        // P6 B: the display tablets on the LAN hear "ready", "called", "handed" from the till too
+        onQueue: scope.services.lanPublisher.queue,
       )..start();
       _board = board;
       _boardErrors = board.errors.listen(

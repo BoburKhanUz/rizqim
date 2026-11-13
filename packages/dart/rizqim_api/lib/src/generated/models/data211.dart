@@ -4,25 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'accounts2.dart';
+import 'channel6.dart';
+import 'branch14.dart';
+import 'category.dart';
+import 'products.dart';
+import 'availability.dart';
 
 part 'data211.g.dart';
 
 @JsonSerializable()
 class Data211 {
   const Data211({
-    required this.totalDebt,
-    required this.count,
-    required this.accounts,
+    required this.channel,
+    required this.menuVersion,
+    required this.branch,
+    required this.categories,
+    required this.products,
+    required this.availability,
   });
 
   factory Data211.fromJson(Map<String, Object?> json) =>
       _$Data211FromJson(json);
 
-  @JsonKey(name: 'total_debt')
-  final String totalDebt;
-  final int count;
-  final List<Accounts2> accounts;
+  final Channel6 channel;
+  @JsonKey(name: 'menu_version')
+  final String menuVersion;
+  final Branch14 branch;
+  final List<Category> categories;
+  final List<Products> products;
+  final Availability availability;
 
   Map<String, Object?> toJson() => _$Data211ToJson(this);
 }

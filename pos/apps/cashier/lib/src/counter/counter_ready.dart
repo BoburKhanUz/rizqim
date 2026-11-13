@@ -41,6 +41,7 @@ class CounterReadyBoard extends ChangeNotifier {
     this.pollInterval = const Duration(seconds: 15),
     this.livePollInterval = const Duration(seconds: 60),
     this.sound,
+    this.onQueue,
   });
 
   final PosQueueRepository repository;
@@ -52,6 +53,10 @@ class CounterReadyBoard extends ChangeNotifier {
 
   /// Ovoz (test o'rnini bosadi); `null` — tizim signali, kassa sozlamasida ovoz yoqilgan bo'lsa.
   final void Function()? sound;
+
+  /// P6 B: kassadagi amal bajarildi — `queue.ready`, `queue.called` yoki `queue.handed` (lokal tarmoqdagi mijoz
+  /// ekranlariga, [LanPublisher.queue]).
+  final void Function(String type, PosQueueEntry entry)? onQueue;
 
   List<PosQueueEntry> _ready = const <PosQueueEntry>[];
   List<PosQueueEntry> _preparing = const <PosQueueEntry>[];
@@ -150,6 +155,7 @@ class CounterReadyBoard extends ChangeNotifier {
   Future<bool> handed(PosQueueEntry e) => _act(
     e,
     'handed',
+    'queue.handed',
     (String key) => repository.handed(e.orderUuid, idempotencyKey: key),
   );
 
@@ -157,6 +163,7 @@ class CounterReadyBoard extends ChangeNotifier {
   Future<bool> call(PosQueueEntry e) => _act(
     e,
     'call:${e.callCount}',
+    'queue.called',
     (String key) => repository.call(e.orderUuid, idempotencyKey: key),
   );
 
@@ -164,12 +171,14 @@ class CounterReadyBoard extends ChangeNotifier {
   Future<bool> markReady(PosQueueEntry e) => _act(
     e,
     'ready',
+    'queue.ready',
     (String key) => repository.ready(e.orderUuid, idempotencyKey: key),
   );
 
   Future<bool> _act(
     PosQueueEntry e,
     String what,
+    String event,
     Future<PosQueueEntry> Function(String key) call,
   ) async {
     if (!_busy.add(e.orderUuid)) return false;
@@ -181,6 +190,11 @@ class CounterReadyBoard extends ChangeNotifier {
       final PosQueueEntry next = await call(key);
       _keys.remove(keyFor);
       _apply(next);
+      try {
+        onQueue?.call(event, next);
+      } on Object {
+        // The LAN devices are told by the best effort only
+      }
       return true;
     } on PosNetworkException {
       if (!_errors.isClosed) {

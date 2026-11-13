@@ -204,6 +204,17 @@ class OfflineOrderBook {
         s.sendCourse(op);
       case SyncOpType.orderWeight:
         s.weigh(op);
+      // P6 local bridge
+      case SyncOpType.kitchenBump:
+        s.kitchenStatus(op, ready: true);
+      case SyncOpType.kitchenRecall:
+        s.kitchenStatus(op, ready: false);
+      case SyncOpType.kitchenAssembled:
+        s.order['assembled_at'] ??= op.occurredAt.toUtc().toIso8601String();
+      case SyncOpType.billRequest:
+        s.order['bill_requested_at'] ??= op.occurredAt
+            .toUtc()
+            .toIso8601String();
     }
     s.recalculate();
     s.touch(op);
@@ -254,7 +265,8 @@ class OfflineOrderState {
       'hall_ref': (view?['hall'] as Map?)?['name'],
       'table_ref': (view?['table'] as Map?)?['name'],
       'guests_count': p['guests_count'],
-      'waiter': null,
+      // P6 local bridge: a waiter's order opened through the hub is theirs
+      'waiter': view?['waiter'],
       'opened_by': op.staffId,
       'device_id': null,
       'booking_id': null,
@@ -542,6 +554,20 @@ class OfflineOrderState {
     if (item == null) return;
     item['kitchen_status'] = 'served';
     item['ready_at'] ??= op.occurredAt.toUtc().toIso8601String();
+  }
+
+  /// P6: KDS qatorni "tayyor" qildi ([ready]) yoki qaytardi (yana oshxonada).
+  void kitchenStatus(SyncOperation op, {required bool ready}) {
+    final Map<String, Object?>? item = line(op.payload['line']);
+    if (item == null) return;
+    final Object? status = item['kitchen_status'];
+    if (ready && status == 'sent') {
+      item['kitchen_status'] = 'ready';
+      item['ready_at'] = op.occurredAt.toUtc().toIso8601String();
+    } else if (!ready && status == 'ready') {
+      item['kitchen_status'] = 'sent';
+      item['ready_at'] = null;
+    }
   }
 
   /// Qator: qurilma id'si (uuid), server id'si yoki lokal (manfiy) id bo'yicha.

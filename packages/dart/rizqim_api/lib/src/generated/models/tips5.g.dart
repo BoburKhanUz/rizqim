@@ -7,17 +7,49 @@ part of 'tips5.dart';
 // **************************************************************************
 
 Tips5 _$Tips5FromJson(Map<String, dynamic> json) => Tips5(
-  enabled: json['enabled'] as bool,
+  uuid: json['uuid'] as String,
+  method: json['method'] as String,
+  source: json['source'] as String?,
+  amount: json['amount'] as String,
+  originalAmount: json['original_amount'] as String,
   mode: json['mode'] as String,
-  poolRule: json['pool_rule'] as String,
-  poolPeriod: json['pool_period'] as String,
-  roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
+  staff: json['staff'] == null
+      ? null
+      : Staff14.fromJson(json['staff'] as Map<String, dynamic>),
+  holders: (json['holders'] as List<dynamic>)
+      .map((e) => Holders6.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  businessDate: json['business_date'] as String,
+  orderUuid: json['order_uuid'] as String?,
+  billUuid: json['bill_uuid'] as String?,
+  paymentUuid: json['payment_uuid'] as String?,
+  shiftUuid: json['shift_uuid'] as String?,
+  recordedBy: json['recorded_by'] == null
+      ? null
+      : RecordedBy6.fromJson(json['recorded_by'] as Map<String, dynamic>),
+  closed: json['closed'] as bool,
+  corrections: (json['corrections'] as List<dynamic>)
+      .map((e) => Corrections7.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Tips5ToJson(Tips5 instance) => <String, dynamic>{
-  'enabled': instance.enabled,
+  'uuid': instance.uuid,
+  'method': instance.method,
+  'source': instance.source,
+  'amount': instance.amount,
+  'original_amount': instance.originalAmount,
   'mode': instance.mode,
-  'pool_rule': instance.poolRule,
-  'pool_period': instance.poolPeriod,
-  'roles': instance.roles,
+  'staff': instance.staff,
+  'holders': instance.holders,
+  'business_date': instance.businessDate,
+  'order_uuid': instance.orderUuid,
+  'bill_uuid': instance.billUuid,
+  'payment_uuid': instance.paymentUuid,
+  'shift_uuid': instance.shiftUuid,
+  'recorded_by': instance.recordedBy,
+  'closed': instance.closed,
+  'corrections': instance.corrections,
+  'created_at': instance.createdAt,
 };

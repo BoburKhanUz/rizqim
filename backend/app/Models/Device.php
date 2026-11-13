@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DeviceApp;
 use App\Enums\DeviceType;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -16,6 +17,7 @@ use Laravel\Sanctum\HasApiTokens;
  * authenticates as itself with its own Sanctum token (the `device` guard), never as a user.
  *
  * @property DeviceType $type
+ * @property DeviceApp|null $app P6 stage B: the POS app it runs, as sent at pairing (null: paired before)
  * @property \Illuminate\Support\Carbon|null $last_seen_at
  * @property \Illuminate\Support\Carbon|null $revoked_at
  * @property int $sync_last_seq P3-31: the offline queue as the till last reported it
@@ -38,6 +40,7 @@ class Device extends Model implements AuthenticatableContract
         'store_id',
         'branch_id',
         'type',
+        'app',
         'name',
         'platform',
         'app_version',
@@ -60,6 +63,7 @@ class Device extends Model implements AuthenticatableContract
     {
         return [
             'type' => DeviceType::class,
+            'app' => DeviceApp::class,
             'last_seen_at' => 'datetime',
             'revoked_at' => 'datetime',
             // P3-31: the offline queue as the till last reported it (App\Domain\Pos\Sync)

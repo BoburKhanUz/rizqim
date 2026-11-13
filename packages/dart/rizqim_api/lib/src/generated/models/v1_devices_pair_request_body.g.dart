@@ -13,6 +13,7 @@ V1DevicesPairRequestBody _$V1DevicesPairRequestBodyFromJson(
   name: json['name'] as String?,
   platform: json['platform'] as String?,
   appVersion: json['app_version'] as String?,
+  app: json['app'] == null ? null : DeviceApp.fromJson(json['app'] as String),
 );
 
 Map<String, dynamic> _$V1DevicesPairRequestBodyToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$V1DevicesPairRequestBodyToJson(
   'name': instance.name,
   'platform': instance.platform,
   'app_version': instance.appVersion,
+  'app': instance.app,
 };

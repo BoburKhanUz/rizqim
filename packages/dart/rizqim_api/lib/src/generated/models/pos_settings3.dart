@@ -21,6 +21,8 @@ class PosSettings3 {
     this.alerts,
     this.bookingSlotMinutes,
     this.holidays,
+    this.autoPrintBill,
+    this.billPrinter,
     this.bookingConfirmation,
   });
 
@@ -40,6 +42,10 @@ class PosSettings3 {
   @JsonKey(name: 'booking_slot_minutes')
   final int? bookingSlotMinutes;
   final List<DateTime>? holidays;
+  @JsonKey(name: 'auto_print_bill')
+  final bool? autoPrintBill;
+  @JsonKey(name: 'bill_printer')
+  final int? billPrinter;
   @JsonKey(name: 'booking_confirmation')
   final BookingConfirmation3? bookingConfirmation;
 

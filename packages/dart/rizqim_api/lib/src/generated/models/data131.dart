@@ -4,10 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'totals.dart';
-import 'by_day.dart';
-import 'by_staff2.dart';
-import 'staff.dart';
+import 'hub3.dart';
+import 'candidates3.dart';
 
 part 'data131.g.dart';
 
@@ -15,13 +13,11 @@ part 'data131.g.dart';
 class Data131 {
   const Data131({
     required this.branchId,
-    required this.from,
-    required this.to,
-    required this.totals,
-    required this.byDay,
-    required this.byStaff,
-    required this.undistributed,
-    required this.staff,
+    required this.keyId,
+    required this.rotatedAt,
+    required this.port,
+    required this.hub,
+    required this.candidates,
   });
 
   factory Data131.fromJson(Map<String, Object?> json) =>
@@ -29,15 +25,13 @@ class Data131 {
 
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final String from;
-  final String to;
-  final Totals totals;
-  @JsonKey(name: 'by_day')
-  final List<ByDay> byDay;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff2> byStaff;
-  final String undistributed;
-  final List<Staff> staff;
+  @JsonKey(name: 'key_id')
+  final int keyId;
+  @JsonKey(name: 'rotated_at')
+  final String? rotatedAt;
+  final int port;
+  final Hub3? hub;
+  final List<Candidates3> candidates;
 
   Map<String, Object?> toJson() => _$Data131ToJson(this);
 }

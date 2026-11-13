@@ -12,6 +12,7 @@ Future<void> main() async {
   final RizqimClient client = RizqimClient(
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
+    app: 'customer_display',
   );
   final DisplaySettingsController settings = DisplaySettingsController(
     PrefsSettingsStore(),
@@ -25,6 +26,7 @@ Future<void> main() async {
         settings: settings,
         sound: AssetReadySound(),
         realtimeFactory: defaultRealtime,
+        lanStore: SecureStorageStore(),
       ),
     ),
   );

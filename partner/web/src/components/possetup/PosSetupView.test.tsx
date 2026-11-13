@@ -385,6 +385,27 @@ describe('Kassa sozlamalari (filial)', () => {
     expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { cashier_discount_max_percent: null } });
   });
 
+  it('prints the bill by itself unless switched off, and names the printer it comes out on (P6)', async () => {
+    const { calls, typing } = await open('Kassa sozlamalari', { 'PUT /api/v1/owner/branches/1/pos-settings': () => ok(posSettings()) });
+    // A server that does not send the setting yet: on, the printing till's printer
+    const toggle = await screen.findByRole('checkbox', { name: /^Schyotni avtomatik chiqarish/ });
+    expect(toggle).toBeChecked();
+    const printerField = screen.getByLabelText('Schyot printeri');
+    // Only the branch's active receipt printers are offered (the kitchen one is not)
+    expect(within(printerField).getAllByRole('option').map((option) => option.textContent)).toEqual(["Chop etuvchi kassaning printeri", 'Kassa printeri']);
+
+    await typing.selectOptions(printerField, '1');
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PUT')).toBe(true));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { bill_printer: 1 } });
+
+    await typing.click(toggle);
+    expect(printerField).toBeDisabled();
+    await typing.click(screen.getByRole('button', { name: 'Saqlash' }));
+    await waitFor(() => expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(2));
+    expect(await last(calls, 'PUT').json()).toEqual({ pos_settings: { auto_print_bill: false } });
+  });
+
   it('refuses a discount limit above 100 or with three decimals before saving', async () => {
     const { calls, typing } = await open('Kassa sozlamalari');
     const field = await screen.findByLabelText("Kassir menejersiz beradigan eng katta chegirma, %");

@@ -411,6 +411,8 @@ Chek printeri — kassada; oshxona printeri — har bir sexda.
 Printer qo'shilmasa, cheklar va oshxona markalari **chop etilmaydi**. Kassada bu **Sozlamalar** → **Printerlar** da "Bu kassa uchun
 printer sozlanmagan" deb turadi.
 
+Printer turlari (Bluetooth, USB, yorliq), printerni qidirish va sinov cheki, skaner va **lokal tarmoq** — [uskunalar.md](uskunalar.md).
+
 Maslahat: LAN printerga routerda doimiy IP bering (IP o'zgarsa, printer topilmay qoladi). Router, printer va Windows kassa uchun UPS
 (elektr o'chganda ishlab turuvchi quvvat manbai) qo'ying. Chop etishni qurilmaning o'zi bajaradi, shuning uchun internet uzilsa ham
 LAN printerga marka chiqadi.
@@ -424,6 +426,8 @@ LAN printerga marka chiqadi.
 | **Kassa rejimi** | **Tez kassa** (stolsiz sotuv, navbat), **Stol va xona** (har buyurtma joyga bog'lanadi) yoki **Aralash** (ikkalasi, kassir tanlaydi). **Aralash tavsiya etiladi** |
 | **Biznes kun boshlanishi** | Soat: shu vaqtgacha bo'lgan savdo oldingi kunga kiradi (00:00 dan 11:59 gacha; standart 05:00). Choyxona uchun 05:00, osh markazi uchun 04:00 bo'lishi mumkin |
 | **Chop etuvchi kassa** | Onlayn buyurtmalar markasini qaysi kassa chiqaradi. Tanlanmasa yoki o'chiq bo'lsa, onlayn buyurtmalar faqat oshxona ekranida ko'rinadi |
+| **Schyotni avtomatik chiqarish** | Yoqiq (standart): ofitsiant "Schyot so'rash"ni bosganda schyot tuziladi va kassada o'zi chop etiladi (fiskal chek emas). O'chiq bo'lsa, schyotni kassir qo'lda chiqaradi. [uskunalar.md](uskunalar.md#8-schyotni-avtomatik-chiqarish) |
+| **Schyot printeri** | Schyot qaysi **Chek** printeridan chiqadi. Bo'sh: chop etuvchi kassaning printeridan. Chop etuvchi kassa ham tanlanmagan bo'lsa, schyot hamma kassada chiqishi mumkin: bittasini tanlang |
 | **Ekran qulfi** | Necha daqiqa tegilmasa, PIN so'raladi (0 — qulflanmaydi; standart 5) |
 | **Bron ushlab turish vaqti** | Tugash vaqti yozilmagan bron xonani necha daqiqa ushlaydi (30–1440; standart 300, ya'ni 5 soat) |
 | **Navbat raqamlari** | Har biznes kunda buyurtmalarga 1 dan boshlab raqam beriladi |

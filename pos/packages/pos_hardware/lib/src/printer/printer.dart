@@ -4,7 +4,8 @@ import 'package:pos_core/pos_core.dart';
 
 import '../escpos/code_page.dart';
 
-/// Printer qayerda: LAN (raw TCP, odatda 9100), Windows'dagi printer (USB, spooler orqali raw), Sunmi ichki printeri.
+/// Printer qayerda: LAN (raw TCP, odatda 9100), Windows'dagi printer (USB, spooler orqali raw), Sunmi ichki printeri,
+/// Android'da Bluetooth (klassik SPP, MAC manzil bilan) va USB OTG printer (P6 uskunalar).
 sealed class PrinterTarget {
   const PrinterTarget();
 
@@ -20,6 +21,10 @@ sealed class PrinterTarget {
         return WindowsPrinterTarget('${json['printer_name']}');
       case 'sunmi':
         return const SunmiPrinterTarget();
+      case 'bluetooth':
+        return BluetoothPrinterTarget('${json['address'] ?? ''}');
+      case 'usb':
+        return UsbPrinterTarget('${json['device_id'] ?? ''}');
     }
     throw FormatException('Unknown printer target', json['type']);
   }
@@ -96,6 +101,61 @@ final class SunmiPrinterTarget extends PrinterTarget {
 
   @override
   int get hashCode => 7;
+}
+
+/// Android: juftlangan (Bluetooth sozlamalarida "ulangan") klassik Bluetooth printer, SPP profili orqali raw baytlar
+/// (58 mm cho'ntak printerlari, ko'p 80 mm printerlar). [address] — MAC manzil (`AA:BB:CC:DD:EE:FF`), katta harflarda
+/// saqlanadi.
+final class BluetoothPrinterTarget extends PrinterTarget {
+  BluetoothPrinterTarget(String address)
+    : address = address.trim().toUpperCase();
+
+  final String address;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{
+    'type': 'bluetooth',
+    'address': address,
+  };
+
+  @override
+  String get description => 'Bluetooth $address';
+
+  @override
+  bool operator ==(Object other) =>
+      other is BluetoothPrinterTarget && other.address == address;
+
+  @override
+  int get hashCode => Object.hash('bluetooth', address);
+}
+
+/// Android: USB OTG orqali ulangan printer (`UsbManager`, bulk OUT endpoint). [deviceId] — qurilma kaliti
+/// `vvvv:pppp` (vendor va product id, 16 lik), aniqrog'i `vvvv:pppp:<seriya>`, yoki tizim nomi
+/// (`/dev/bus/usb/001/002`, qayta ulanganda o'zgaradi); bo'sh — birinchi topilgan USB printer (kassada bittasi bo'lsa).
+final class UsbPrinterTarget extends PrinterTarget {
+  const UsbPrinterTarget(this.deviceId);
+
+  /// Birinchi topilgan USB printer.
+  static const UsbPrinterTarget any = UsbPrinterTarget('');
+
+  final String deviceId;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{
+    'type': 'usb',
+    'device_id': deviceId,
+  };
+
+  @override
+  String get description =>
+      deviceId.isEmpty ? 'USB (Android)' : 'USB (Android): $deviceId';
+
+  @override
+  bool operator ==(Object other) =>
+      other is UsbPrinterTarget && other.deviceId == deviceId;
+
+  @override
+  int get hashCode => Object.hash('usb', deviceId);
 }
 
 /// Matn qanday chop etiladi.
@@ -255,6 +315,10 @@ enum PrinterErrorKind {
 
   /// Bu qurilmada ishlamaydi (masalan, Linux'da Windows printeri, Sunmi bo'lmagan qurilma).
   unsupported(retryable: false),
+
+  /// Hujjatning bir qismi printerga yetib, aloqa uzildi (review P6 C7) — o'zi qayta yuborilmaydi (ikkinchi chala chek
+  /// chiqardi): kassir ogohlantirishni ko'rib qo'lda qayta urinadi.
+  interrupted(retryable: false),
 
   /// Boshqa xato (drayver, spooler, printer xatosi) — qayta uriniladi.
   failed(retryable: true);

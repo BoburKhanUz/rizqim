@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'queue27.dart';
+import 'queue28.dart';
 import 'operations.dart';
 
 part 'v1_pos_sync_request_body.g.dart';
@@ -22,7 +22,7 @@ class V1PosSyncRequestBody {
 
   @JsonKey(name: 'sent_at')
   final DateTime? sentAt;
-  final Queue27? queue;
+  final Queue28? queue;
   final List<Operations> operations;
 
   Map<String, Object?> toJson() => _$V1PosSyncRequestBodyToJson(this);

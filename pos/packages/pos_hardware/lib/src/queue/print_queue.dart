@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../printer/lan_transport.dart';
+import '../printer/native_transport.dart';
 import '../printer/printer.dart';
 import '../printer/sunmi_transport.dart';
 import '../printer/windows_spooler.dart';
@@ -110,16 +111,19 @@ class RetryPolicy {
 /// Printer sozlamasidan transport.
 typedef TransportFactory = PrinterTransport Function(PrinterConfig config);
 
-/// Standart transportlar: LAN, Windows spooler, Sunmi.
-PrinterTransport defaultTransportFor(PrinterConfig config) =>
-    switch (config.target) {
-      final LanPrinterTarget t => LanPrinterTransport(
-        t,
-        language: config.language,
-      ),
-      final WindowsPrinterTarget t => WindowsPrinterTransport(t),
-      SunmiPrinterTarget() => SunmiPrinterTransport(),
-    };
+/// Standart transportlar: LAN, Windows spooler, Sunmi, Bluetooth va USB (Android plagini).
+PrinterTransport defaultTransportFor(
+  PrinterConfig config,
+) => switch (config.target) {
+  final LanPrinterTarget t => LanPrinterTransport(t, language: config.language),
+  final WindowsPrinterTarget t => WindowsPrinterTransport(t),
+  SunmiPrinterTarget() => SunmiPrinterTransport(),
+  final BluetoothPrinterTarget t => BluetoothPrinterTransport(
+    t,
+    language: config.language,
+  ),
+  final UsbPrinterTarget t => UsbPrinterTransport(t, language: config.language),
+};
 
 /// Chop etish navbati: har printer uchun alohida ketma-ket navbat (bir printerga bir vaqtda bitta ish, turli
 /// printerlar parallel), vaqtinchalik xatoda (ulanmadi, vaqt tugadi) [RetryPolicy] bo'yicha qayta urinadi.
@@ -479,7 +483,8 @@ class _PrinterLane {
       queue._emitJob(job);
       queue._emitState(this);
       final Duration? again = queue.autoResumeAfter;
-      if (again != null) {
+      // C7: part of it is on paper already: only the cashier sends it again (the warning's retry)
+      if (again != null && job.lastErrorKind != PrinterErrorKind.interrupted) {
         unawaited(
           queue._sleep(again).then((_) {
             if (!disposed && paused) queue.resume(config.id);
@@ -496,6 +501,7 @@ class _PrinterLane {
     PrinterErrorKind.paperOut => PrinterStatus.paperOut,
     PrinterErrorKind.coverOpen => PrinterStatus.coverOpen,
     PrinterErrorKind.unsupported ||
+    PrinterErrorKind.interrupted ||
     PrinterErrorKind.failed => PrinterStatus.error,
   };
 }

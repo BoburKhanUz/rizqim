@@ -42,12 +42,15 @@ class AuthRemote {
 
   final Dio _dio;
 
-  /// `POST /v1/devices/pair`. Kod chiziqcha bilan yoki usiz, har qanday harf bilan berilishi mumkin.
+  /// `POST /v1/devices/pair`. Kod chiziqcha bilan yoki usiz, har qanday harf bilan berilishi mumkin. [app] (P6 B
+  /// bosqichi) — qaysi POS ilovasi ulanmoqda: `cashier`, `waiter`, `kds`, `customer_display` (filialning lokal tarmoq
+  /// markazi sukut bo'yicha kassa bo'ladi, ofitsiant telefoni emas).
   Future<PairedTerminal> pair(
     String code, {
     String? name,
     String? platform,
     String? appVersion,
+    String? app,
   }) async {
     final String? normalized = PairingCode.normalize(code);
     if (normalized == null) throw const InvalidPairingCodeException();
@@ -59,6 +62,7 @@ class AuthRemote {
           'name': ?name,
           'platform': ?platform,
           'app_version': ?appVersion,
+          'app': ?app,
         },
         options: scoped(AuthScope.none),
       ),

@@ -6,44 +6,10 @@ part of 'order9.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Order9 _$Order9FromJson(Map<String, dynamic> json) => Order9(
-  uuid: json['uuid'] as String,
-  status: json['status'] as String,
-  paymentStatus: json['payment_status'] as String,
-  version: (json['version'] as num).toInt(),
-  queueNumber: (json['queue_number'] as num?)?.toInt(),
-  ticket: json['ticket'] == null
-      ? null
-      : Ticket9.fromJson(json['ticket'] as Map<String, dynamic>),
-  businessDate: json['business_date'] as String?,
-  billLockedAt: json['bill_locked_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  totalPrice: json['total_price'] as String,
-  billedAmount: json['billed_amount'] as String,
-  paidAmount: json['paid_amount'] as String,
-  unbilledAmount: json['unbilled_amount'] as String?,
-  fiscalPending: json['fiscal_pending'] as bool,
-  billsOutOfDate: json['bills_out_of_date'] as bool,
-  bookingUuid: json['booking_uuid'] as String?,
-  depositAvailable: json['deposit_available'] as String,
-);
+Order9 _$Order9FromJson(Map<String, dynamic> json) =>
+    Order9(uuid: json['uuid'] as String, status: json['status'] as String);
 
 Map<String, dynamic> _$Order9ToJson(Order9 instance) => <String, dynamic>{
   'uuid': instance.uuid,
   'status': instance.status,
-  'payment_status': instance.paymentStatus,
-  'version': instance.version,
-  'queue_number': instance.queueNumber,
-  'ticket': instance.ticket,
-  'business_date': instance.businessDate,
-  'bill_locked_at': instance.billLockedAt,
-  'closed_at': instance.closedAt,
-  'total_price': instance.totalPrice,
-  'billed_amount': instance.billedAmount,
-  'paid_amount': instance.paidAmount,
-  'unbilled_amount': instance.unbilledAmount,
-  'fiscal_pending': instance.fiscalPending,
-  'bills_out_of_date': instance.billsOutOfDate,
-  'booking_uuid': instance.bookingUuid,
-  'deposit_available': instance.depositAvailable,
 };

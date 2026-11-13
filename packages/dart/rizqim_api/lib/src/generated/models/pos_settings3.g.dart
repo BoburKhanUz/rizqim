@@ -19,6 +19,8 @@ PosSettings3 _$PosSettings3FromJson(Map<String, dynamic> json) => PosSettings3(
   holidays: (json['holidays'] as List<dynamic>?)
       ?.map((e) => DateTime.parse(e as String))
       .toList(),
+  autoPrintBill: json['auto_print_bill'] as bool?,
+  billPrinter: (json['bill_printer'] as num?)?.toInt(),
   bookingConfirmation: json['booking_confirmation'] == null
       ? null
       : BookingConfirmation3.fromJson(
@@ -36,5 +38,7 @@ Map<String, dynamic> _$PosSettings3ToJson(PosSettings3 instance) =>
       'alerts': instance.alerts,
       'booking_slot_minutes': instance.bookingSlotMinutes,
       'holidays': instance.holidays?.map((e) => e.toIso8601String()).toList(),
+      'auto_print_bill': instance.autoPrintBill,
+      'bill_printer': instance.billPrinter,
       'booking_confirmation': instance.bookingConfirmation,
     };

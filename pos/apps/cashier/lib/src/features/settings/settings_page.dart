@@ -9,12 +9,16 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../../hardware/cashier_hardware.dart';
+import '../../lan/lan_settings_card.dart';
 import '../../printing/printing_service.dart';
 import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
+import '../../shell/routes.dart';
 import '../../shell/unpair_dialog.dart';
 import '../billing/cashier_ui.dart';
 import 'cashier_prefs.dart';
+import 'printer_discovery_page.dart';
 
 /// Sozlamalar (13-ekran 17; P3-31: menejerga "Sinxronlash xatolari"): bootstrap'dagi printerlar (holati, sinov chop etish, xato ishlarni qayta yuborish; shu
 /// qurilmada qog'oz eni va "matnni rasm sifatida"), yangi onlayn buyurtma ovozi, qurilma ma'lumoti va terminalni uzish.
@@ -129,6 +133,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
           PosCard(
             title: 'Printerlar',
+            // P6 hardware: find a LAN/Bluetooth/USB printer and test it before adding it in the panel
+            trailing: TextButton.icon(
+              key: const ValueKey<String>('open-printer-discovery'),
+              onPressed: () => unawaited(
+                CashierRoutes.push<void>(context, const PrinterDiscoveryPage()),
+              ),
+              icon: const Icon(Icons.search_rounded),
+              label: const Text('Printerni qidirish'),
+            ),
             child: printers.isEmpty
                 ? Text(
                     "Bu kassa uchun printer sozlanmagan. Boshqaruv panelida Sozlamalar → Printerlar bo'limidan qo'shing.",
@@ -174,6 +187,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
           _device(c, scope, boot),
+          const SizedBox(height: 16),
+          // P6 stage B: the local bridge (hub state, devices, the manual IP/QR)
+          LanSettingsCard(hub: scope.services.lan),
+          const SizedBox(height: 16),
+          ScannerCard(scans: scope.services.hardware.scans),
         ],
       ),
     );
@@ -398,6 +416,47 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// P6 uskunalar: shtrix-kod skanerini sinash — oxirgi o'qilgan kod va qayerdan keldi (klaviatura skaneri yoki
+/// qurilmaning ichki skaneri).
+class ScannerCard extends StatelessWidget {
+  const ScannerCard({super.key, required this.scans});
+
+  final CashierScans scans;
+
+  @override
+  Widget build(BuildContext context) {
+    final RzColors c = context.rz;
+    return PosCard(
+      title: 'Skaner',
+      child: ListenableBuilder(
+        listenable: scans,
+        builder: (BuildContext context, _) {
+          final BarcodeScan? last = scans.last;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                last == null
+                    ? "Shtrix-kod yoki QR'ni skanerlang: kod shu yerda ko'rinadi (USB/Bluetooth skaner yoki Sunmi ichki skaneri)."
+                    : 'Oxirgi kod (${last.source == ScanSource.keyboard ? 'klaviatura skaneri' : 'ichki skaner'}):',
+                style: RzType.body.copyWith(color: c.fgMuted),
+              ),
+              if (last != null) ...<Widget>[
+                const SizedBox(height: 6),
+                SelectableText(
+                  last.code,
+                  key: const ValueKey<String>('last-scan'),
+                  style: RzType.headline.copyWith(color: c.fg),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

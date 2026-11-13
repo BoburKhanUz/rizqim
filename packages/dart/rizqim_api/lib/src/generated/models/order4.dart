@@ -4,64 +4,143 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'ticket2.dart';
+import 'hall.dart';
+import 'table.dart';
+import 'waiter2.dart';
+import 'discount_kind.dart';
+import 'pickup.dart';
+import 'charges6.dart';
+import 'offline.dart';
+import 'queue.dart';
+import 'courses.dart';
+import 'items4.dart';
 
 part 'order4.g.dart';
 
 @JsonSerializable()
 class Order4 {
   const Order4({
-    required this.uuid,
+    required this.openedBy,
+    required this.shortCode,
     required this.status,
-    required this.paymentStatus,
+    required this.channel,
+    required this.type,
+    required this.storeId,
+    required this.branchId,
     required this.version,
-    required this.queueNumber,
-    required this.ticket,
-    required this.businessDate,
-    required this.billLockedAt,
-    required this.closedAt,
-    required this.totalPrice,
-    required this.billedAmount,
-    required this.paidAmount,
-    required this.unbilledAmount,
-    required this.fiscalPending,
-    required this.billsOutOfDate,
+    required this.hall,
+    required this.table,
+    required this.hallRef,
+    required this.tableRef,
+    required this.tableLabel,
+    required this.guestsCount,
+    required this.waiter,
+    required this.uuid,
+    required this.deviceId,
+    required this.bookingId,
     required this.bookingUuid,
     required this.depositAvailable,
+    required this.billLocked,
+    required this.billRequestedAt,
+    required this.notes,
+    required this.openedAt,
+    required this.updatedAt,
+    required this.subtotal,
+    required this.discount,
+    required this.discountKind,
+    required this.discountValue,
+    required this.items,
+    required this.discountBy,
+    required this.serviceChargeAmount,
+    required this.placeFeeAmount,
+    required this.roomFeeAmount,
+    required this.minSpendTopupAmount,
+    required this.packagingAmount,
+    required this.pickup,
+    required this.totalPrice,
+    required this.charges,
+    required this.offline,
+    required this.queue,
+    required this.rounds,
+    required this.courses,
+    required this.weightPending,
+    required this.discountReason,
   });
 
   factory Order4.fromJson(Map<String, Object?> json) => _$Order4FromJson(json);
 
   final String uuid;
+  @JsonKey(name: 'short_code')
+  final String? shortCode;
   final String status;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
+  final String channel;
+  final String type;
+  @JsonKey(name: 'store_id')
+  final int storeId;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
   final int version;
-  @JsonKey(name: 'queue_number')
-  final int? queueNumber;
-  final Ticket2? ticket;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  @JsonKey(name: 'bill_locked_at')
-  final String? billLockedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'billed_amount')
-  final String billedAmount;
-  @JsonKey(name: 'paid_amount')
-  final String paidAmount;
-  @JsonKey(name: 'unbilled_amount')
-  final String? unbilledAmount;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'bills_out_of_date')
-  final bool billsOutOfDate;
+  final Hall? hall;
+  final Table? table;
+  @JsonKey(name: 'hall_ref')
+  final String? hallRef;
+  @JsonKey(name: 'table_ref')
+  final String? tableRef;
+  @JsonKey(name: 'table_label')
+  final String? tableLabel;
+  @JsonKey(name: 'guests_count')
+  final int? guestsCount;
+  final Waiter2? waiter;
+  @JsonKey(name: 'opened_by')
+  final int openedBy;
+  @JsonKey(name: 'device_id')
+  final int? deviceId;
+  @JsonKey(name: 'booking_id')
+  final int? bookingId;
   @JsonKey(name: 'booking_uuid')
   final String? bookingUuid;
   @JsonKey(name: 'deposit_available')
   final String depositAvailable;
+  @JsonKey(name: 'bill_locked')
+  final bool billLocked;
+  @JsonKey(name: 'bill_requested_at')
+  final String? billRequestedAt;
+  final String? notes;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
+  final String subtotal;
+  final String discount;
+  @JsonKey(name: 'discount_kind')
+  final DiscountKind? discountKind;
+  @JsonKey(name: 'discount_value')
+  final String? discountValue;
+  @JsonKey(name: 'discount_reason')
+  final String? discountReason;
+  @JsonKey(name: 'discount_by')
+  final int? discountBy;
+  @JsonKey(name: 'service_charge_amount')
+  final String serviceChargeAmount;
+  @JsonKey(name: 'place_fee_amount')
+  final String placeFeeAmount;
+  @JsonKey(name: 'room_fee_amount')
+  final String roomFeeAmount;
+  @JsonKey(name: 'min_spend_topup_amount')
+  final String minSpendTopupAmount;
+  @JsonKey(name: 'packaging_amount')
+  final String packagingAmount;
+  final Pickup? pickup;
+  @JsonKey(name: 'total_price')
+  final String totalPrice;
+  final Charges6 charges;
+  final Offline? offline;
+  final Queue? queue;
+  final int rounds;
+  final List<Courses> courses;
+  @JsonKey(name: 'weight_pending')
+  final int weightPending;
+  final List<Items4> items;
 
   Map<String, Object?> toJson() => _$Order4ToJson(this);
 }

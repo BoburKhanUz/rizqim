@@ -4,16 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'calendar.dart';
+import 'tariffs.dart';
+
 part 'data152.g.dart';
 
 @JsonSerializable()
 class Data152 {
-  const Data152({required this.id});
+  const Data152({required this.calendar, required this.tariffs});
 
   factory Data152.fromJson(Map<String, Object?> json) =>
       _$Data152FromJson(json);
 
-  final int id;
+  final Calendar calendar;
+  final List<Tariffs> tariffs;
 
   Map<String, Object?> toJson() => _$Data152ToJson(this);
 }

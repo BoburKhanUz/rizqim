@@ -13,6 +13,8 @@ import '../features/hostess/hostess_page.dart';
 import '../features/me/clock_controller.dart';
 import '../features/me/my_tips_page.dart';
 import '../features/rooms/rooms_page.dart';
+import '../lan/lan_dialog.dart';
+import '../lan/waiter_lan.dart';
 import '../services.dart';
 import 'connection_indicator.dart';
 import 'plan_notice.dart';
@@ -25,10 +27,13 @@ import 'waiter_scope.dart';
 /// P6 2-to'lqin (faqat modul yoqilganda): hostes stoli ([HostessPage]; hostes uchun bosh sahifa, menejerga pastdagi
 /// yorliq), "Mening choy pulim", "Ishga keldim / Ishdan ketdim" va real-time xabarlar ([WaiterAlerts]).
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.services, this.realtime});
+  const HomeShell({super.key, required this.services, this.realtime, this.lan});
 
   final WaiterServices services;
   final PosRealtime? realtime;
+
+  /// P6 lokal ko'prik (belgi bosilsa — uning oynasi).
+  final WaiterLan? lan;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -131,11 +136,18 @@ class _HomeShellState extends State<HomeShell> {
             ],
           ),
           actions: <Widget>[
-            ConnectionIndicator(
-              realtime: widget.realtime,
-              connectivity: widget.services.data.connectivity,
-              pollSeconds: widget.services.pollInterval.inSeconds,
-              compact: true,
+            // P6: the bridge's keys arrive after the bootstrap: the tap appears with them
+            ListenableBuilder(
+              listenable: widget.lan ?? const _NoLan(),
+              builder: (BuildContext context, _) => ConnectionIndicator(
+                realtime: widget.realtime,
+                connectivity: widget.services.data.connectivity,
+                pollSeconds: widget.services.pollInterval.inSeconds,
+                compact: true,
+                onTap: widget.lan == null || !widget.lan!.link.available
+                    ? null
+                    : () => unawaited(LanDialog.show(context, widget.lan!)),
+              ),
             ),
             const SizedBox(width: 4),
             SyncBadge(connectivity: widget.services.data.connectivity),
@@ -314,4 +326,15 @@ class _ClockStrip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// No bridge: nothing ever changes.
+class _NoLan implements Listenable {
+  const _NoLan();
+
+  @override
+  void addListener(VoidCallback listener) {}
+
+  @override
+  void removeListener(VoidCallback listener) {}
 }

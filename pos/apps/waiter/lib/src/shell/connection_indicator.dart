@@ -5,8 +5,8 @@ import 'package:pos_data/pos_data.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
-/// Yuqori paneldagi aloqa belgisi: "Aloqa yo'q" (server javob bermayapti), "Jonli" (real-time ulangan va kanal obunasi
-/// tasdiqlangan), "Ulanmoqda", "Qayta ulanmoqda" yoki "Har 15 soniyada" (real-time sozlanmagan yoki obuna rad
+/// Yuqori paneldagi aloqa belgisi: "Lokal tarmoq" (P6: internet yo'q, buyurtmalar markaz kassa orqali), "Aloqa yo'q"
+/// (server javob bermayapti), "Jonli" (real-time ulangan va kanal obunasi tasdiqlangan), "Ulanmoqda", "Qayta ulanmoqda" yoki "Har 15 soniyada" (real-time sozlanmagan yoki obuna rad
 /// etilgan: ekranlar polling bilan yangilanadi).
 class ConnectionIndicator extends StatefulWidget {
   const ConnectionIndicator({
@@ -15,6 +15,7 @@ class ConnectionIndicator extends StatefulWidget {
     required this.connectivity,
     this.pollSeconds = 15,
     this.compact = false,
+    this.onTap,
   });
 
   final PosRealtime? realtime;
@@ -23,6 +24,9 @@ class ConnectionIndicator extends StatefulWidget {
 
   /// Tor ekranda faqat ikonka.
   final bool compact;
+
+  /// P6: bosilsa — lokal tarmoq oynasi (markaz, manzil).
+  final VoidCallback? onTap;
 
   @override
   State<ConnectionIndicator> createState() => _ConnectionIndicatorState();
@@ -77,12 +81,14 @@ class _ConnectionIndicatorState extends State<ConnectionIndicator> {
     final PosConnectivityState net = widget.connectivity.state;
     final PosLiveState live = widget.realtime?.state ?? PosLiveState.off;
     final String polling = 'Har ${widget.pollSeconds} soniyada';
-    final (
-      IconData icon,
-      Color color,
-      String label,
-      String tooltip,
-    ) = !net.online
+    final (IconData icon, Color color, String label, String tooltip) = net.lan
+        ? (
+            Icons.lan_outlined,
+            c.warningSoftFg,
+            'Lokal tarmoq',
+            "Internet yo'q: buyurtmalar Wi-Fi orqali markaz kassaga boradi. Schyot va to'lov faqat kassada.",
+          )
+        : !net.online
         ? (
             Icons.cloud_off_rounded,
             c.dangerSoftFg,
@@ -123,7 +129,7 @@ class _ConnectionIndicatorState extends State<ConnectionIndicator> {
               "Real-time sozlanmagan: ekranlar har ${widget.pollSeconds} soniyada yangilanadi",
             ),
           };
-    return Tooltip(
+    final Widget badge = Tooltip(
       message: tooltip,
       child: Semantics(
         label: 'Aloqa: $label',
@@ -146,6 +152,13 @@ class _ConnectionIndicatorState extends State<ConnectionIndicator> {
           ],
         ),
       ),
+    );
+    final VoidCallback? tap = widget.onTap;
+    if (tap == null) return badge;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: tap,
+      child: Padding(padding: const EdgeInsets.all(6), child: badge),
     );
   }
 }

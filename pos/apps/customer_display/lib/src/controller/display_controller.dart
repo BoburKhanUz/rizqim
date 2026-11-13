@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_lan/pos_lan.dart';
 
 import '../app_config.dart';
+import '../lan/display_lan.dart';
 import '../settings/display_settings.dart';
 import '../sound/ready_sound.dart';
 
@@ -38,6 +40,9 @@ enum DisplayLink {
 
   /// Server javob bermayapti: oxirgi ma'lum holat ko'rsatilmoqda.
   offline,
+
+  /// P6: internet yo'q, chek va raqamlar Wi-Fi orqali markaz kassadan.
+  lan,
 }
 
 /// Tayyor bo'lgan (yoki qayta chaqirilgan) raqam: ekranda yirik ko'rsatiladi.
@@ -64,6 +69,9 @@ class ReadyAnnouncement {
 ///   uchun [livePollInterval] da; obuna (qayta) tasdiqlanganda darhol.
 /// * **Aloqa uzilsa** oxirgi ma'lum chek va raqamlar turadi, burchakda "Aloqa yo'q"; tiklanganda o'zi yangilanadi.
 /// * **Chek:** "Rahmat" [paidHold] turadi, kassa unutgan chek [staleCart] dan keyin salomlashishga qaytadi.
+/// * **P6 lokal ko'prik** ([lan]): server javob bermasa chek (`cart.display`) va raqamlar (`queue.*`, `order.changed`)
+///   markaz kassadan; shu paytda server so'ralmaydi (ko'prik o'zi tekshiradi), markaz navbati serverga yetgach odatdagi
+///   rejim va darhol yangilanadi.
 class DisplayController extends ChangeNotifier {
   DisplayController({
     required this.repository,
@@ -76,6 +84,7 @@ class DisplayController extends ChangeNotifier {
     this.paidHold = AppConfig.paidHold,
     this.staleCart = AppConfig.staleCart,
     this.announceHold = AppConfig.announceHold,
+    this.lan,
   }) : _clock = clock ?? DateTime.now;
 
   final PosDisplayRepository repository;
@@ -88,6 +97,9 @@ class DisplayController extends ChangeNotifier {
   final Duration paidHold;
   final Duration staleCart;
   final Duration announceHold;
+
+  /// P6 lokal ko'prik; `null` — yo'q.
+  final DisplayLan? lan;
 
   PosDisplayState? _state;
   PosQueueBoard? _board;
@@ -110,6 +122,12 @@ class DisplayController extends ChangeNotifier {
   StreamSubscription<PosEvent>? _eventSub;
   StreamSubscription<PosLiveState>? _liveSub;
   StreamSubscription<void>? _resubSub;
+  StreamSubscription<LanEvent>? _lanSub;
+  bool _viaHub = false;
+
+  // The till's last cart over the LAN (its run and number): an older one that arrives late is dropped
+  String? _lanCartSession;
+  int _lanCartSeq = -1;
 
   // "Rahmat" ekrani qachondan ko'rinadi (mahalliy soat: server soatiga bog'liq emas)
   String? _paidKey;
@@ -151,6 +169,7 @@ class DisplayController extends ChangeNotifier {
   }
 
   DisplayLink get link {
+    if (lan?.viaHub ?? false) return DisplayLink.lan;
     if (_offline) return DisplayLink.offline;
     if (_state == null) return DisplayLink.connecting;
     final PosRealtime? rt = realtime;
@@ -227,8 +246,27 @@ class DisplayController extends ChangeNotifier {
       _resubSub = rt.resubscribed.listen((_) => unawaited(refresh()));
       rt.start();
     }
+    final DisplayLan? l = lan;
+    if (l != null) {
+      _lanSub = l.events.listen(_onLanEvent);
+      l.addListener(_onLanChanged);
+    }
     _armPoll();
     unawaited(refresh());
+  }
+
+  /// The bridge's mode changed: back on the server — load from it now.
+  void _onLanChanged() {
+    final bool viaHub = lan?.viaHub ?? false;
+    if (viaHub != _viaHub) {
+      _viaHub = viaHub;
+      if (!viaHub) {
+        _lanCartSession = null;
+        _lanCartSeq = -1;
+        unawaited(refresh());
+      }
+    }
+    _notify();
   }
 
   /// Hozir qayta o'qiydi. Bir vaqtda bitta so'rov; davomida yana so'ralsa — tugagach bir marta qayta.
@@ -250,9 +288,15 @@ class DisplayController extends ChangeNotifier {
   }
 
   Future<void> _load() async {
+    // Over the LAN the hub is the source; the bridge itself asks the server
+    if (lan?.viaHub ?? false) return;
     try {
       final PosDisplayState s = await repository.state();
       if (_disposed) return;
+      lan?.reportCloud(true);
+      // The server answered while the bridge kept the LAN mode (the hub's queue not on the server yet): the hub's
+      // picture stays until the bridge says it is over
+      if (lan?.viaHub ?? false) return;
       _state = s;
       _fetchedAt = _clock();
       _trackPaid(s.cart);
@@ -272,10 +316,12 @@ class DisplayController extends ChangeNotifier {
       _lastUpdate = _clock();
     } on PosNetworkException {
       _offline = true;
+      lan?.reportCloud(false);
     } on PosException catch (e) {
       // Server javob berdi, lekin rad etdi: tarmoq muammosi emas
       if (e.isNetworkError) {
         _offline = true;
+        lan?.reportCloud(false);
       } else {
         _offline = false;
         _error = e.message;
@@ -306,6 +352,195 @@ class DisplayController extends ChangeNotifier {
         unawaited(refresh());
       default:
         break;
+    }
+  }
+
+  // --- P6: markaz kassa hodisalari ----------------------------------------------------------------------------
+
+  void _onLanEvent(LanEvent e) {
+    if (_disposed || !(lan?.viaHub ?? false)) return;
+    final Map<String, Object?> p = e.payload;
+    switch (e.type) {
+      case LanMsg.cartDisplay:
+        _applyLanCart(p);
+      case LanMsg.queueReady || LanMsg.queueCalled:
+        final int? number = (p['number'] as num?)?.toInt();
+        final String? order = p['order'] as String?;
+        if (number == null || order == null) return;
+        final bool called = e.type == LanMsg.queueCalled || p['called'] == true;
+        final int calls =
+            (p['call_count'] as num?)?.toInt() ?? (called ? 1 : 0);
+        _lanQueue(order, number, ready: true, callCount: calls);
+        _announce(number, callCount: calls, again: called);
+      case LanMsg.queueHanded:
+        final String? order = p['order'] as String?;
+        final int? number = (p['number'] as num?)?.toInt();
+        _lanRemove(order, number);
+        _notify();
+      case LanMsg.orderChanged:
+        _applyLanOrder(p);
+      default:
+        break;
+    }
+  }
+
+  /// The till's cart (`POST /pos/display/cart` body) over the LAN. Only the hub's own cart: a screen that follows
+  /// another till keeps its last one.
+  void _applyLanCart(Map<String, Object?> body) {
+    final String? hub = lan?.hubDevice;
+    final String? till = _state?.tillUuid?.toLowerCase();
+    if (till != null && hub != null && till != hub) return;
+    final String? session = body['session'] as String?;
+    final int seq = (body['seq'] as num?)?.toInt() ?? 0;
+    if (session != null &&
+        session == _lanCartSession &&
+        seq <= _lanCartSeq &&
+        seq > 0) {
+      return;
+    }
+    _lanCartSession = session;
+    _lanCartSeq = seq;
+    final DateTime hubNow = lan!.link.hubNow();
+    final PosDisplayCart cart = PosDisplayCart.fromJson(
+      PosJson(<String, Object?>{
+        ...body,
+        'terminal': hub,
+        'updated_at': hubNow.toUtc().toIso8601String(),
+      }),
+    );
+    final PosDisplayState? was = _state;
+    _state = PosDisplayState(
+      branchId: was?.branchId ?? lan!.link.credentials?.branchId ?? 0,
+      branchName: was?.branchName ?? '',
+      storeName: was?.storeName,
+      deviceName: was?.deviceName ?? '',
+      tillUuid: was?.tillUuid,
+      // A screen started without the internet: the till sends a cart, so this screen shows carts
+      modules:
+          was?.modules ??
+          PosDisplayModules(
+            customerDisplay: true,
+            queueCalling: _board != null,
+          ),
+      serverTime: hubNow,
+      cart: cart,
+    );
+    _fetchedAt = _clock();
+    _trackPaid(cart);
+    _lastUpdate = _clock();
+    _schedulePaidTick();
+    _notify();
+  }
+
+  /// An order on the hub with a queue number (README §6 `order.changed`): new on the board as "preparing", gone when
+  /// handed, closed or canceled. "Ready" comes as `queue.ready` (announced once).
+  void _applyLanOrder(Map<String, Object?> p) {
+    final Object? raw = p['order'];
+    if (raw is! Map) return;
+    final Object? queue = raw['queue'];
+    if (queue is! Map || queue['number'] is! num) return;
+    final String ref = '${p['ref'] ?? raw['uuid']}';
+    final int number = (queue['number']! as num).toInt();
+    final String status = '${queue['status'] ?? ''}';
+    final String orderStatus = '${raw['status'] ?? ''}';
+    if (status == 'handed' ||
+        orderStatus == 'canceled' ||
+        orderStatus == 'cancelled' ||
+        (orderStatus == 'closed' && status != 'ready')) {
+      _lanRemove(ref, number);
+    } else if (status != 'ready') {
+      _lanQueue(ref, number, ready: false, channel: raw['channel'] as String?);
+    }
+    _notify();
+  }
+
+  void _lanQueue(
+    String order,
+    int number, {
+    required bool ready,
+    int callCount = 0,
+    String? channel,
+  }) {
+    final PosQueueBoard b = _board ?? _emptyBoard();
+    bool same(PosQueueEntry x) => x.orderUuid == order || x.number == number;
+    final PosQueueEntry? was = <PosQueueEntry>[
+      ...b.preparing,
+      ...b.ready,
+    ].where(same).firstOrNull;
+    // Already ready: a late "preparing" from an older order.changed does not take it back
+    if (!ready && b.ready.any(same)) return;
+    final DateTime now = lan!.link.hubNow();
+    final PosQueueEntry entry = PosQueueEntry(
+      orderUuid: order,
+      number: number,
+      channel: channel ?? was?.channel ?? 'pos_takeaway',
+      orderStatus: was?.orderStatus ?? 'open',
+      businessDate: was?.businessDate ?? b.businessDate,
+      status: ready ? PosPickupStatus.ready : PosPickupStatus.preparing,
+      readyAt: ready ? (was?.readyAt ?? now) : null,
+      calledAt: callCount > 0 ? now : was?.calledAt,
+      callCount: callCount > (was?.callCount ?? 0)
+          ? callCount
+          : (was?.callCount ?? 0),
+      openedAt: was?.openedAt,
+    );
+    _board = PosQueueBoard(
+      businessDate: b.businessDate,
+      preparing: <PosQueueEntry>[
+        for (final PosQueueEntry x in b.preparing)
+          if (!same(x)) x,
+        if (!ready) entry,
+      ],
+      ready: <PosQueueEntry>[
+        for (final PosQueueEntry x in b.ready)
+          if (!same(x)) x,
+        if (ready) entry,
+      ],
+    );
+    _boardLoaded = true;
+    _ensureQueueModule();
+  }
+
+  void _lanRemove(String? order, int? number) {
+    final PosQueueBoard? b = _board;
+    if (b == null) return;
+    bool same(PosQueueEntry x) =>
+        (order != null && x.orderUuid == order) ||
+        (number != null && x.number == number);
+    _board = PosQueueBoard(
+      businessDate: b.businessDate,
+      preparing: <PosQueueEntry>[
+        for (final PosQueueEntry x in b.preparing)
+          if (!same(x)) x,
+      ],
+      ready: <PosQueueEntry>[
+        for (final PosQueueEntry x in b.ready)
+          if (!same(x)) x,
+      ],
+    );
+  }
+
+  PosQueueBoard _emptyBoard() {
+    final DateTime d = lan!.link.hubNow();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return PosQueueBoard(
+      businessDate: '${d.year}-${two(d.month)}-${two(d.day)}',
+    );
+  }
+
+  /// A screen started without the internet: the hub sends numbers, so this screen shows them.
+  void _ensureQueueModule() {
+    final PosDisplayState? s = _state;
+    final DateTime now = lan!.link.hubNow();
+    if (s == null) {
+      _state = PosDisplayState(
+        branchId: lan!.link.credentials?.branchId ?? 0,
+        branchName: '',
+        deviceName: '',
+        modules: const PosDisplayModules(queueCalling: true),
+        serverTime: now,
+      );
+      _fetchedAt = _clock();
     }
   }
 
@@ -430,6 +665,8 @@ class DisplayController extends ChangeNotifier {
     unawaited(_eventSub?.cancel());
     unawaited(_liveSub?.cancel());
     unawaited(_resubSub?.cancel());
+    unawaited(_lanSub?.cancel());
+    lan?.removeListener(_onLanChanged);
     unawaited(_announcements.close());
     super.dispose();
   }
@@ -441,4 +678,5 @@ String describeLink(DisplayLink link) => switch (link) {
   DisplayLink.live => 'Jonli',
   DisplayLink.polling => 'Har bir necha soniyada',
   DisplayLink.offline => "Aloqa yo'q",
+  DisplayLink.lan => 'Lokal tarmoq',
 };

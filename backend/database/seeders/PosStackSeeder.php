@@ -74,6 +74,14 @@ use RuntimeException;
  * paired devices (two tills, the kitchen display, the expo screen, the ready-numbers board). In the seed file under
  * `fastfood`.
  *
+ * P6 (stage B): a fifth store, the restaurant of the local bridge drill ("Rizqim Lokal Restoran",
+ * e2e/pos/test/internet_outage_lan_test.dart): fiscal on the sandbox driver, a branch on the `restoran` profile with the
+ * customer display on, eight tables, a kitchen of three stations (hot and grill on the kitchen display, the bar
+ * without one), a short menu, its staff with PINs (owner, manager, cashier, two waiters, a cook), the till as the
+ * branch's printing till, a LAN receipt printer, and five paired devices (the till, two waiters' phones, the
+ * kitchen display, the customer display following the till). In the seed file under `lan`, with the devices' server ids
+ * (the orders' `device_id`).
+ *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
  * `POST /devices/pair` answers them, the customer's and the owner's tokens) is written as JSON to E2E_POS_SEED_FILE (default
@@ -125,6 +133,17 @@ class PosStackSeeder extends Seeder
         'cashier2' => '9573',
         'cook' => '1684',
         'expo' => '2795',
+    ];
+
+    /** P6 (stage B): the restaurant of the "internet uzildi" local bridge drill (its own store) */
+    public const LAN_TIN = '301234571';
+
+    public const LAN_PINS = [
+        'manager' => '8152',
+        'cashier' => '9263',
+        'waiter1' => '1374',
+        'waiter2' => '2485',
+        'cook' => '3596',
     ];
 
     private Store $store;
@@ -253,6 +272,7 @@ class PosStackSeeder extends Seeder
             'osh' => $this->oshMarkazi(),
             'restoran' => $this->restaurant(),
             'fastfood' => $this->fastFood(),
+            'lan' => $this->lanRestaurant(),
         ]);
     }
 
@@ -945,6 +965,186 @@ class PosStackSeeder extends Seeder
             'staff' => $seedStaff,
             'terminals' => $terminals,
             'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+        ];
+    }
+
+    /**
+     * P6 (stage B): the restaurant of the "internet uzildi" drill, with its own staff, menu and devices.
+     *
+     * @return array<string, mixed> the seed file's `lan` section (the same shape as the top level)
+     */
+    private function lanRestaurant(): array
+    {
+        $store = Store::forceCreate([
+            'name' => 'Rizqim Lokal Restoran',
+            'slug' => 'rizqim-lokal-restoran',
+            'status' => 'active',
+            'is_open' => true,
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::LAN_TIN,
+            'tax_regime' => 'vat',
+            'payment_settings' => ['cash' => ['enabled' => true], 'delivery_enabled' => false, 'pickup_enabled' => true, 'delivery_fee' => 0],
+            'fiscal_settings' => ['enabled' => true, 'driver' => 'sandbox'],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => 'Chilonzor restorani',
+            'latitude' => 41.285,
+            'longitude' => 69.204,
+            'radius_km' => 8,
+            'status' => BranchStatus::ACTIVE->value,
+            'business_day_starts_at' => '05:00:00',
+        ]);
+
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $pins = self::LAN_PINS;
+        $staff = [
+            'owner' => $person(UserRole::OWNER, 'Nodir Lokalov', '+998901000071', null),
+            'manager' => $person(UserRole::MANAGER, 'Gulnora Menejer', '+998901000072', $pins['manager']),
+            'cashier' => $person(UserRole::CASHIER, 'Dilnoza Kassir', '+998901000073', $pins['cashier']),
+            'waiter1' => $person(UserRole::WAITER, 'Sherzod Ofitsiant', '+998901000074', $pins['waiter1']),
+            'waiter2' => $person(UserRole::WAITER, 'Ulugbek Ofitsiant', '+998901000075', $pins['waiter2']),
+            'cook' => $person(UserRole::COOK, 'Baxtiyor Oshpaz', '+998901000076', $pins['cook']),
+        ];
+
+        $stations = [];
+        foreach ([
+            'hot' => ['Issiq sex', 'kitchen', true],
+            'grill' => ['Mangal', 'mangal', true],
+            'bar' => ['Bar', 'other', false],
+        ] as $key => [$name, $kind, $kds]) {
+            $stations[$key] = KitchenStation::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'name' => $name,
+                'kind' => $kind,
+                'sort_order' => count($stations) + 1,
+                'show_on_kds' => $kds,
+            ]);
+        }
+
+        $categories = [];
+        foreach (['Issiq taomlar' => 'ln-issiq', 'Mangal' => 'ln-mangal', 'Ichimliklar' => 'ln-ichimlik'] as $name => $slug) {
+            $categories[$name] = Category::create(['name' => $name, 'slug' => 'pos-e2e-' . $slug, 'is_active' => true]);
+        }
+        $make = function (string $name, string $category, string $mxik, string $variant, string $price) use ($store, $categories): ProductVariant {
+            $product = Product::create([
+                'store_id' => $store->id,
+                'category_id' => $categories[$category]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-ln-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+
+            return ProductVariant::create(['product_id' => $product->id, 'name' => $variant, 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+        };
+        $menu = [
+            "Lag'mon" => $make("Lag'mon", 'Issiq taomlar', '10202001002000021', 'Porsiya', '48000'),
+            'Manti' => $make('Manti', 'Issiq taomlar', '10202001002000022', 'Porsiya', '42000'),
+            "Qo'y kabob" => $make("Qo'y kabob", 'Mangal', '10202001007000021', 'Six', '26000'),
+            'Tovuq kabob' => $make('Tovuq kabob', 'Mangal', '10202001007000022', 'Six', '22000'),
+            'Choy' => $make('Choy', 'Ichimliklar', '10202001005000021', 'Choynak', '15000'),
+            'Limonad' => $make('Limonad', 'Ichimliklar', '10202001005000022', 'Grafin', '28000'),
+        ];
+        foreach (['hot' => 'Issiq taomlar', 'grill' => 'Mangal', 'bar' => 'Ichimliklar'] as $station => $category) {
+            KitchenStationRoute::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'station_id' => $stations[$station]->id, 'category_id' => $categories[$category]->id, 'product_id' => null]);
+        }
+
+        $hall = Hall::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'Asosiy zal', 'sort_order' => 1]);
+        foreach (range(1, 8) as $number) {
+            DiningTable::create([
+                'store_id' => $store->id,
+                'branch_id' => $branch->id,
+                'hall_id' => $hall->id,
+                'name' => "Stol {$number}",
+                'kind' => 'table',
+                'seats' => 4,
+                'sort_order' => $number,
+                'layout_x' => (($number - 1) % 4) * 5,
+                'layout_y' => intdiv($number - 1, 4) * 4,
+                'layout_w' => 4,
+                'layout_h' => 3,
+            ]);
+        }
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        $devices = [];
+        foreach ([
+            'cashier' => [DeviceType::POS, 'Kassa', 'cashier'],
+            'waiter1' => [DeviceType::POS, 'Ofitsiant 1 telefoni', 'waiter'],
+            'waiter2' => [DeviceType::POS, 'Ofitsiant 2 telefoni', 'waiter'],
+            'kds' => [DeviceType::KDS, 'Oshxona ekrani', 'kds'],
+            'display' => [DeviceType::DISPLAY, 'Mijoz ekrani', 'customer_display'],
+        ] as $key => [$type, $name, $app]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'], $key === 'display' ? $devices['cashier'] : null)['code'];
+            // The app each device runs, as the apps send it at pairing (P6 stage B: the hub is a cashier till)
+            $paired = $pairing->pair($code, ['platform' => 'linux', 'app' => $app]);
+            $devices[$key] = $paired['device'];
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => [
+                    'uuid' => $paired['device']->uuid,
+                    'type' => $type->value,
+                    'name' => $name,
+                    'platform' => 'linux',
+                    'app_version' => null,
+                    'store_id' => $store->id,
+                    'branch_id' => $branch->id,
+                ],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        // The till prints the online orders' tickets and the bills the waiters ask for (auto_print_bill is on by
+        // default); the customer display shows its cart
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(['printing_device_id' => $devices['cashier']->uuid], FormatProfile::RESTORAN, ['customer_display' => true])])->save();
+        // The receipt printer on the LAN (reached by address, tied to no terminal; the printing till prints the bills on
+        // it). The test points it at its emulator
+        $printer = Printer::create([
+            'store_id' => $store->id,
+            'branch_id' => $branch->id,
+            'name' => 'Kassa chek printeri',
+            'purpose' => 'receipt',
+            'connection' => 'lan',
+            'address' => '127.0.0.1',
+            'port' => 9100,
+            'paper_width' => 80,
+        ]);
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-lan-owner')->plainTextToken;
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::LAN_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
+            'terminals' => $terminals,
+            'device_ids' => array_map(fn ($device) => (int) $device->id, $devices),
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+            'stations' => array_map(fn (KitchenStation $station) => (int) $station->id, $stations),
+            'receipt_printer' => ['id' => (int) $printer->id],
         ];
     }
 

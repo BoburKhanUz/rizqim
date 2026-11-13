@@ -13,10 +13,10 @@ import 'by_waiter2.dart';
 import 'discounts2.dart';
 import 'voids2.dart';
 import 'batch_writeoffs2.dart';
-import 'refunds5.dart';
+import 'refunds6.dart';
 import 'deposits2.dart';
 import 'credit5.dart';
-import 'tips10.dart';
+import 'tips11.dart';
 import 'cash3.dart';
 import 'movements2.dart';
 
@@ -64,10 +64,10 @@ class Report2 {
   final Voids2 voids;
   @JsonKey(name: 'batch_writeoffs')
   final BatchWriteoffs2 batchWriteoffs;
-  final Refunds5 refunds;
+  final Refunds6 refunds;
   final Deposits2 deposits;
   final Credit5 credit;
-  final Tips10 tips;
+  final Tips11 tips;
   final Cash3 cash;
   final List<Movements2> movements;
 

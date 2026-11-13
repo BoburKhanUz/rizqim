@@ -2,6 +2,7 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include "customer_monitor.h"
 #include "flutter_window.h"
 #include "utils.h"
 
@@ -21,6 +22,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
+  // P6 Windows: --monitor=N, --fullscreen, --windowed (customer_monitor.h)
+  const CustomerScreenOptions screen_options =
+      ParseCustomerScreenOptions(command_line_arguments);
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
@@ -31,6 +35,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
+  // Full-screen on the second monitor if there is one (before the first frame
+  // shows the window).
+  PlaceCustomerScreen(window.GetHandle(), screen_options);
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {

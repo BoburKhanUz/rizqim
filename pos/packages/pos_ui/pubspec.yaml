@@ -13,6 +13,9 @@ dependencies:
     sdk: flutter
   pos_core:
     path: ../pos_core
+  # P6 hardware: the customer display views (lib/customer_display.dart) draw pos_data's PosDisplayCart
+  pos_data:
+    path: ../pos_data
   rizqim_ui:
     path: ../../../packages/dart/rizqim_ui
 

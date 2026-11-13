@@ -12,7 +12,7 @@ _$PutV1OwnerStaffPayWorkSessionsUuidResponseFromJson(
 ) => PutV1OwnerStaffPayWorkSessionsUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data175.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data178.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerStaffPayWorkSessionsUuidResponseToJson(

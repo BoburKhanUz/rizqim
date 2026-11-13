@@ -9,6 +9,7 @@ library;
 import 'package:dio/dio.dart';
 
 import '../auth/api_exception.dart';
+import '../auth/auth_remote.dart';
 import 'kitchen_models.dart';
 
 /// Sex turlari (`kitchen_stations.kind`, docs/API.md P3-13).
@@ -123,6 +124,7 @@ class KitchenSetup {
     required this.stations,
     this.serverTime,
     this.routes = const KitchenStationRoutes(),
+    this.lan,
   });
 
   /// Faol va KDS'da ko'rsatiladigan sexlar (`sort_order` bo'yicha).
@@ -132,6 +134,10 @@ class KitchenSetup {
   /// Taom -> sex yo'naltirishlari: sexi hali yozilmagan qatorni (ushlab turilgan oldindan buyurtma) o'z sexida
   /// ko'rsatish uchun.
   final KitchenStationRoutes routes;
+
+  /// P6 lokal ko'prik: bootstrap'ning `lan` qismi xomligicha (shu terminal kalitlari va xodimning oflayn granti; `pos_lan`
+  /// `LanCredentials.fromJson` o'qiydi). `null` — yo'q (boshqa terminal, eski server).
+  final Map<String, Object?>? lan;
 }
 
 /// Qozon (partiya): filialda bir taom (yoki variant) uchun pishirilgan va qolgan porsiyalar.
@@ -237,6 +243,17 @@ class KitchenSetupService {
   static const String _batchesPath = '/v1/owner/batches';
   static const String _catalogPath = '/v1/catalog';
 
+  /// P6 lokal ko'prik: server javob beryaptimi — `GET /health` tokensiz (hech qanday sessiyaga ta'sir qilmaydi). Har
+  /// qanday javob (xato ham) — `true`, javob kelmasa — `false`.
+  Future<bool> reachable() async {
+    try {
+      await _dio.get<Object?>('/v1/health', options: scoped(AuthScope.none));
+      return true;
+    } on DioException catch (e) {
+      return e.response != null;
+    }
+  }
+
   /// `GET /pos/bootstrap`: faol sexlar. Oshxona ekrani faqat `show_on_kds` bo'lganlarini ko'rsatadi.
   Future<KitchenSetup> setup({int? branchId}) async {
     final Map<String, Object?> data = await _get(
@@ -256,6 +273,9 @@ class KitchenSetupService {
       stations: stations,
       serverTime: _date(data['server_time']),
       routes: KitchenStationRoutes.fromJson(data['station_routes']),
+      lan: data['lan'] is Map
+          ? (data['lan']! as Map<Object?, Object?>).cast<String, Object?>()
+          : null,
     );
   }
 

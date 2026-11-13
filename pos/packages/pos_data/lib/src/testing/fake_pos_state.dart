@@ -145,6 +145,10 @@ class FakePosState {
   /// Filial POS sozlamasi (P3-37): kassir menejersiz beradigan chegirma foizi; `null` — har chegirma tasdiq bilan.
   String? cashierDiscountMaxPercent = '10.00';
 
+  /// P6 (A bosqichi): `pos_settings.auto_print_bill` va `bill_printer` (printer id).
+  bool autoPrintBill = true;
+  int? billPrinter;
+
   /// Filial POS sozlamasi (P3-37): shu summadan katta chiqimda egaga xabar.
   String? cashOutAlertAmount = '500000.00';
 
@@ -280,6 +284,13 @@ class FakePosState {
   /// Qo'shimcha bootstrap bloklari (P6-15 `daily_menu`, `next_batches`, `meal_sets`; P6-16 `terminal_flow`): kalit →
   /// qiymat, javobga o'zgartirilmay qo'shiladi. Bo'sh — eski server.
   final Map<String, Object?> bootstrapExtras = <String, Object?>{};
+
+  /// P6: `GET /pos/lan` (terminal token) — the terminal's LAN section; `null` — none.
+  Map<String, Object?>? terminalLan;
+
+  /// Review P6 uskunalar/LAN (C2): terminalning o'z tokeni bilan `GET /pos/bill-print-requests` va
+  /// `POST /pos/bill-print-requests/{id}/printed` ([FakeCashierBackend] ulaydi); `null` — bo'sh ro'yxat.
+  FakeResponse? Function(String method, String path)? printInbox;
 
   /// Server javob bermaydigan yo'llar (sinash uchun): yo'l qismi → status.
   final Map<String, int> failPaths = <String, int>{};
@@ -721,6 +732,16 @@ class FakePosState {
       final FakeResponse? sync = terminalRoutes?.call(method, p, query, data);
       if (sync != null) return sync;
     }
+    // P6 local bridge: the terminal's LAN keys with its own token (the customer display)
+    if (p.startsWith('/v1/pos/bill-print-requests') && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      return printInbox?.call(method, p) ??
+          _ok(<String, Object?>{'requests': <Object?>[]});
+    }
+    if (method == 'GET' && p == '/v1/pos/lan' && token == terminalToken) {
+      if (!paired) return _unauthorized();
+      return _ok(terminalLan);
+    }
     if (p.startsWith('/v1/terminal') || p.contains('/staff-session')) {
       if (!paired || token != terminalToken) return _unauthorized();
       if (method == 'GET' && p == '/v1/terminal/staff') {
@@ -1079,6 +1100,8 @@ class FakePosState {
             'holidays': <Object?>[...holidays],
             'booking_slot_minutes': null,
             'cashier_discount_max_percent': cashierDiscountMaxPercent,
+            'auto_print_bill': autoPrintBill,
+            'bill_printer': billPrinter,
             'booking_confirmation': <String, Object?>{...bookingConfirmation},
           },
         },

@@ -153,6 +153,10 @@ class DeviceService
                     'self_revoked' => $self ?: null,
                 ], fn ($value) => $value !== null), ['actor' => $actor] + ($self ? ['device' => $device] : []));
             }
+            // P6 review S5: the branch's LAN hub drops the terminal at once (it refetches GET /pos/lan)
+            if ($device->branch_id !== null && $device->isTerminal()) {
+                event(new \App\Events\Broadcast\PosLanChangedBroadcast((int) $device->branch_id, \App\Domain\Pos\Lan\LanChange::DEVICE_REVOKED, (string) $device->uuid));
+            }
         });
     }
 

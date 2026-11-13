@@ -463,3 +463,6 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
       ofitsiant buyurtma oladi, KDS taom oladi, "tayyor" qaytadi, mijoz ekrani raqam ko'rsatadi; asosiy kassa markaz;
       xabarlar filial kaliti bilan imzolanadi va shifrlanadi; to'lov faqat kassada; internet qaytgach hammasi tartib
       bilan serverga ketadi. Haqiqiy uskunada sinash ro'yxati bilan.
+      **Tugadi (PR #21):** A — drayverlar, `pos_lan` ko'prigi, avtomatik schyot; B — ilovalar ko'prikda, Windows
+      (CI `windows-build`, spooler, ikkinchi monitor, firewall), "internet uzildi" e2e; ikki review tuzatildi. Haqiqiy
+      qurilmada hali sinalmagan — `docs/HARDWARE_TEST.md`.

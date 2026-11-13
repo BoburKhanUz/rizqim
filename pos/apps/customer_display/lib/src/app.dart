@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import 'app_config.dart';
 import 'controller/display_controller.dart';
+import 'lan/display_lan.dart';
 import 'screens/display_screen.dart';
 import 'screens/pairing_screen.dart';
 import 'settings/display_settings.dart';
@@ -31,6 +33,9 @@ class DisplayServices {
     this.paidHold = AppConfig.paidHold,
     this.staleCart = AppConfig.staleCart,
     this.announceHold = AppConfig.announceHold,
+    this.lanEnabled = true,
+    this.lanLinkFactory,
+    this.lanStore,
   }) : sound = sound ?? SilentReadySound(),
        pos = PosData(client, clock: clock);
 
@@ -47,6 +52,15 @@ class DisplayServices {
   final Duration paidHold;
   final Duration staleCart;
   final Duration announceHold;
+
+  /// P6 lokal ko'prik: internet uzilsa chek va raqamlar markaz kassadan (`GET /pos/lan` kalitlari bilan).
+  final bool lanEnabled;
+
+  /// Testlar uchun: ko'prikni boshqa vaqtlar yoki topish bilan yaratish.
+  final LanLink Function(PosData pos)? lanLinkFactory;
+
+  /// LAN kalitlari va qo'lda kiritilgan markaz manzili saqlanadigan joy (`null` — faqat shu ishga tushish).
+  final SecureKeyValueStore? lanStore;
 }
 
 /// Mijoz ekrani ilovasi: ulanmagan — ulash, ulangan — ekran. Standart mavzu qorong'i.
@@ -139,12 +153,21 @@ class TerminalHome extends StatefulWidget {
 class _TerminalHomeState extends State<TerminalHome> {
   late final PosRealtime? _realtime;
   late final DisplayController _controller;
+  DisplayLan? _lan;
 
   @override
   void initState() {
     super.initState();
     final DisplayServices s = widget.services;
     _realtime = s.realtimeFactory?.call(s.client, widget.terminal);
+    if (s.lanEnabled) {
+      _lan = DisplayLan(
+        pos: s.pos,
+        link: s.lanLinkFactory?.call(s.pos),
+        store: s.lanStore,
+      );
+      unawaited(_lan!.start());
+    }
     _controller = DisplayController(
       repository: s.pos.display,
       settings: s.settings,
@@ -156,12 +179,14 @@ class _TerminalHomeState extends State<TerminalHome> {
       paidHold: s.paidHold,
       staleCart: s.staleCart,
       announceHold: s.announceHold,
+      lan: _lan,
     )..start();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _lan?.dispose();
     unawaited(_realtime?.dispose());
     super.dispose();
   }

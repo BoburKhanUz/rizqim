@@ -31,6 +31,11 @@ abstract class PosSyncApi {
   /// gives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the.
   /// last 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including.
   /// this batch: the shift does not close while it is not empty. Only a POS terminal's own token.
+  /// P6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'.
+  /// phones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types.
+  /// kitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an.
+  /// origin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,.
+  /// origin_revoked, relay_not_allowed).
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @POST('/v1/pos/sync')

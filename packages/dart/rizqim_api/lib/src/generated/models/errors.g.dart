@@ -16,17 +16,20 @@ Errors _$ErrorsFromJson(Map<String, dynamic> json) => Errors(
   message: json['message'] as String?,
   staff: json['staff'] == null
       ? null
-      : Staff21.fromJson(json['staff'] as Map<String, dynamic>),
+      : Staff23.fromJson(json['staff'] as Map<String, dynamic>),
   device: json['device'] == null
       ? null
       : Device21.fromJson(json['device'] as Map<String, dynamic>),
+  originDevice: json['origin_device'] == null
+      ? null
+      : OriginDevice.fromJson(json['origin_device'] as Map<String, dynamic>),
   occurredAt: json['occurred_at'] as String?,
   receivedAt: json['received_at'] as String?,
   appliedAt: json['applied_at'] as String?,
   clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
   order: json['order'] == null
       ? null
-      : Order11.fromJson(json['order'] as Map<String, dynamic>),
+      : Order13.fromJson(json['order'] as Map<String, dynamic>),
   payload: json['payload'] as Map<String, dynamic>,
   refs: json['refs'] as Map<String, dynamic>,
   resolvedAt: json['resolved_at'] as String?,
@@ -47,6 +50,7 @@ Map<String, dynamic> _$ErrorsToJson(Errors instance) => <String, dynamic>{
   'message': instance.message,
   'staff': instance.staff,
   'device': instance.device,
+  'origin_device': instance.originDevice,
   'occurred_at': instance.occurredAt,
   'received_at': instance.receivedAt,
   'applied_at': instance.appliedAt,

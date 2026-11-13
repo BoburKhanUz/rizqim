@@ -1,5 +1,5 @@
 name: e2e_pos
-description: Rizqim POS stack end-to-end test - the real Laravel API and Reverb driven through pos_data (choyxona evening, Telegram order, real-time, conflicts, customer display, osh markazi lunch rush, fast food lunch peak).
+description: Rizqim POS stack end-to-end test - the real Laravel API and Reverb driven through pos_data (choyxona evening, Telegram order, real-time, conflicts, customer display, osh markazi lunch rush, fast food lunch peak, the internet outage over the local bridge).
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -17,6 +17,9 @@ dev_dependencies:
   # P6-39: the TSPL label printer emulator and decoder (the pure-Dart part: the tests never load its Flutter code)
   pos_hardware:
     path: ../../pos/packages/pos_hardware
+  # P6 stage B: the local bridge (the till's LanHub, the hall devices' LanClient) of the "internet uzildi" drill
+  pos_lan:
+    path: ../../pos/packages/pos_lan
   rizqim_api:
     path: ../../packages/dart/rizqim_api
   test: ^1.25.0

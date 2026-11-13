@@ -13,6 +13,7 @@ Future<void> main() async {
   final RizqimClient client = RizqimClient(
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
+    app: 'kds',
   );
   final KdsSettingsController settings = KdsSettingsController(
     PrefsSettingsStore(),

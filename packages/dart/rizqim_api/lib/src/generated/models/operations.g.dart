@@ -15,6 +15,7 @@ Operations _$OperationsFromJson(Map<String, dynamic> json) => Operations(
   occurredAt: json['occurred_at'] == null
       ? null
       : DateTime.parse(json['occurred_at'] as String),
+  originDevice: json['origin_device'] as String?,
 );
 
 Map<String, dynamic> _$OperationsToJson(Operations instance) =>
@@ -25,4 +26,5 @@ Map<String, dynamic> _$OperationsToJson(Operations instance) =>
       'occurred_at': instance.occurredAt?.toIso8601String(),
       'staff_id': instance.staffId,
       'payload': instance.payload,
+      'origin_device': instance.originDevice,
     };

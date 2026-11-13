@@ -44,6 +44,7 @@ import 'owner_kitchen_stations/owner_kitchen_stations_api.dart';
 import 'owner_menu_modifiers/owner_menu_modifiers_api.dart';
 import 'owner_staff_access/owner_staff_access_api.dart';
 import 'owner_pos_format/owner_pos_format_api.dart';
+import 'owner_local_bridge/owner_local_bridge_api.dart';
 import 'owner_service_charge_rules/owner_service_charge_rules_api.dart';
 import 'owner_tips/owner_tips_api.dart';
 import 'owner_printers/owner_printers_api.dart';
@@ -63,6 +64,7 @@ import 'pos_staff_pay/pos_staff_pay_api.dart';
 import 'pos_customer_accounts/pos_customer_accounts_api.dart';
 import 'pos_customer_display/pos_customer_display_api.dart';
 import 'pos_orders/pos_orders_api.dart';
+import 'pos_local_bridge/pos_local_bridge_api.dart';
 import 'pos_queue_numbers/pos_queue_numbers_api.dart';
 import 'pos_sync/pos_sync_api.dart';
 import 'pos_hostess/pos_hostess_api.dart';
@@ -133,6 +135,7 @@ class RizqimApi {
   OwnerMenuModifiersApi? _ownerMenuModifiers;
   OwnerStaffAccessApi? _ownerStaffAccess;
   OwnerPosFormatApi? _ownerPosFormat;
+  OwnerLocalBridgeApi? _ownerLocalBridge;
   OwnerServiceChargeRulesApi? _ownerServiceChargeRules;
   OwnerTipsApi? _ownerTips;
   OwnerPrintersApi? _ownerPrinters;
@@ -152,6 +155,7 @@ class RizqimApi {
   PosCustomerAccountsApi? _posCustomerAccounts;
   PosCustomerDisplayApi? _posCustomerDisplay;
   PosOrdersApi? _posOrders;
+  PosLocalBridgeApi? _posLocalBridge;
   PosQueueNumbersApi? _posQueueNumbers;
   PosSyncApi? _posSync;
   PosHostessApi? _posHostess;
@@ -285,6 +289,9 @@ class RizqimApi {
   OwnerPosFormatApi get ownerPosFormat =>
       _ownerPosFormat ??= OwnerPosFormatApi(_dio, baseUrl: _baseUrl);
 
+  OwnerLocalBridgeApi get ownerLocalBridge =>
+      _ownerLocalBridge ??= OwnerLocalBridgeApi(_dio, baseUrl: _baseUrl);
+
   OwnerServiceChargeRulesApi get ownerServiceChargeRules =>
       _ownerServiceChargeRules ??= OwnerServiceChargeRulesApi(
         _dio,
@@ -344,6 +351,9 @@ class RizqimApi {
 
   PosOrdersApi get posOrders =>
       _posOrders ??= PosOrdersApi(_dio, baseUrl: _baseUrl);
+
+  PosLocalBridgeApi get posLocalBridge =>
+      _posLocalBridge ??= PosLocalBridgeApi(_dio, baseUrl: _baseUrl);
 
   PosQueueNumbersApi get posQueueNumbers =>
       _posQueueNumbers ??= PosQueueNumbersApi(_dio, baseUrl: _baseUrl);

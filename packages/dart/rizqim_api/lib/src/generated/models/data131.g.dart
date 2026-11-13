@@ -8,28 +8,22 @@ part of 'data131.dart';
 
 Data131 _$Data131FromJson(Map<String, dynamic> json) => Data131(
   branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  totals: Totals.fromJson(json['totals'] as Map<String, dynamic>),
-  byDay: (json['by_day'] as List<dynamic>)
-      .map((e) => ByDay.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  byStaff: (json['by_staff'] as List<dynamic>)
-      .map((e) => ByStaff2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  undistributed: json['undistributed'] as String,
-  staff: (json['staff'] as List<dynamic>)
-      .map((e) => Staff.fromJson(e as Map<String, dynamic>))
+  keyId: (json['key_id'] as num).toInt(),
+  rotatedAt: json['rotated_at'] as String?,
+  port: (json['port'] as num).toInt(),
+  hub: json['hub'] == null
+      ? null
+      : Hub3.fromJson(json['hub'] as Map<String, dynamic>),
+  candidates: (json['candidates'] as List<dynamic>)
+      .map((e) => Candidates3.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data131ToJson(Data131 instance) => <String, dynamic>{
   'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'totals': instance.totals,
-  'by_day': instance.byDay,
-  'by_staff': instance.byStaff,
-  'undistributed': instance.undistributed,
-  'staff': instance.staff,
+  'key_id': instance.keyId,
+  'rotated_at': instance.rotatedAt,
+  'port': instance.port,
+  'hub': instance.hub,
+  'candidates': instance.candidates,
 };

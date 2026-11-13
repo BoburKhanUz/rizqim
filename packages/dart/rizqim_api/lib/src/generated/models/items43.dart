@@ -4,10 +4,10 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers27.dart';
-import 'added_by17.dart';
-import 'voided_by17.dart';
-import 'weighed_by17.dart';
+import 'modifiers26.dart';
+import 'added_by16.dart';
+import 'voided_by16.dart';
+import 'weighed_by16.dart';
 
 part 'items43.g.dart';
 
@@ -64,7 +64,7 @@ class Items43 {
   final String quantityLabel;
   @JsonKey(name: 'unit_price')
   final String unitPrice;
-  final List<Modifiers27> modifiers;
+  final List<Modifiers26> modifiers;
   @JsonKey(name: 'modifiers_total')
   final String modifiersTotal;
   @JsonKey(name: 'total_price')
@@ -85,13 +85,13 @@ class Items43 {
   @JsonKey(name: 'ready_at')
   final String? readyAt;
   @JsonKey(name: 'added_by')
-  final AddedBy17? addedBy;
+  final AddedBy16? addedBy;
   @JsonKey(name: 'added_at')
   final String? addedAt;
   @JsonKey(name: 'voided_at')
   final String? voidedAt;
   @JsonKey(name: 'voided_by')
-  final VoidedBy17? voidedBy;
+  final VoidedBy16? voidedBy;
   @JsonKey(name: 'void_reason')
   final String? voidReason;
   @JsonKey(name: 'course_no')
@@ -101,7 +101,7 @@ class Items43 {
   @JsonKey(name: 'weight_basis')
   final String? weightBasis;
   @JsonKey(name: 'weighed_by')
-  final WeighedBy17? weighedBy;
+  final WeighedBy16? weighedBy;
   @JsonKey(name: 'weighed_at')
   final String? weighedAt;
 

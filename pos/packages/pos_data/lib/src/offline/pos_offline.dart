@@ -225,7 +225,11 @@ class PosOffline {
   Future<void> captureBootstrap(Map<String, Object?> raw) async {
     settings = PosOfflineSettings.of(raw);
     sender.limits = settings.limits;
-    await _put(_bootstrapKey, raw);
+    // P6: the local bridge's keys are never written to the plain copy on disk (the app keeps them in secure storage)
+    await _put(_bootstrapKey, <String, Object?>{
+      for (final MapEntry<String, Object?> e in raw.entries)
+        if (e.key != 'lan') e.key: e.value,
+    });
   }
 
   Future<void> captureCatalog(PosChannel channel, Object? raw) =>
@@ -357,6 +361,8 @@ class PosOffline {
     String? idempotencyKey,
     int? queueNumber,
     String? tableLabel,
+    int? waiterId,
+    String? waiterName,
   }) async {
     _guard('orders.manage');
     if (status.newOrdersBlocked) {
@@ -384,7 +390,7 @@ class PosOffline {
       settings.devicePrefix ?? 'K',
       serverNext: settings.nextLocalNumber,
     );
-    await store.enqueue(SyncOpType.orderOpen, <String, Object?>{
+    await _enqueue(SyncOpType.orderOpen, <String, Object?>{
       'order': uuid,
       'local_number': local,
       // P6-13: the talon's number from this till's block (the server keeps it or answers queue_number_taken)
@@ -395,6 +401,8 @@ class PosOffline {
       'note': ?note,
       // P6-25: the table plate of a counter order carried to the table
       'table_label': ?tableLabel,
+      // P6 local bridge: a waiter's order is theirs (as the server makes it)
+      'waiter_id': ?waiterId,
       'items': <Object?>[for (final PosLineInput i in items) _line(cat, i)],
       if (send) 'send': true,
       'menu_taken_at': ?store
@@ -417,12 +425,15 @@ class PosOffline {
                 'name': table.name,
                 'kind': table.kind.wire,
               },
-        'staff_name': staffName(),
+        'staff_name': _staffName(),
+        'waiter': waiterId == null
+            ? null
+            : <String, Object?>{'id': waiterId, 'name': waiterName},
       },
       'auto_items': channel == PosChannel.hall
           ? _autoItems(cat, hall?.id, guests)
           : const <Object?>[],
-    }, staffId: _staff());
+    });
     return order(uuid);
   }
 
@@ -440,15 +451,15 @@ class PosOffline {
       throw const PosOfflineUnavailable('Buyurtma yopilgan.');
     }
     final PosCatalog cat = _catalogOf(current.posChannel ?? PosChannel.hall);
-    await store.enqueue(SyncOpType.orderRound, <String, Object?>{
+    await _enqueue(SyncOpType.orderRound, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'items': <Object?>[for (final PosLineInput i in items) _line(cat, i)],
       'fire_mode': ?fireMode?.wire,
       if (send) 'send': true,
       'idempotency_key': ?idempotencyKey,
-      'view': <String, Object?>{'staff_name': staffName()},
-    }, staffId: _staff());
+      'view': <String, Object?>{'staff_name': _staffName()},
+    });
     return order(uuid);
   }
 
@@ -473,12 +484,12 @@ class PosOffline {
         reason: 'nothing_to_send',
       );
     }
-    await store.enqueue(SyncOpType.orderSend, <String, Object?>{
+    await _enqueue(SyncOpType.orderSend, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'lines': ?lines,
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     return order(uuid);
   }
 
@@ -499,12 +510,12 @@ class PosOffline {
         reason: 'nothing_to_send',
       );
     }
-    await store.enqueue(SyncOpType.orderCourseSend, <String, Object?>{
+    await _enqueue(SyncOpType.orderCourseSend, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'course_no': courseNo,
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     return order(uuid);
   }
 
@@ -529,14 +540,14 @@ class PosOffline {
         "Bu qatorning og'irligini internet tiklangach kiriting.",
       );
     }
-    await store.enqueue(SyncOpType.orderWeight, <String, Object?>{
+    await _enqueue(SyncOpType.orderWeight, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'line': ref,
       'quantity': quantity.toApiString(),
       'idempotency_key': ?idempotencyKey,
-      'view': <String, Object?>{'staff_name': staffName()},
-    }, staffId: _staff());
+      'view': <String, Object?>{'staff_name': _staffName()},
+    });
     return order(uuid);
   }
 
@@ -561,13 +572,13 @@ class PosOffline {
         "Bu qatorni (choy-non) internet tiklangach o'chiring.",
       );
     }
-    await store.enqueue(SyncOpType.orderVoid, <String, Object?>{
+    await _enqueue(SyncOpType.orderVoid, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'line': ref,
       'reason': ?reason,
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     return order(uuid);
   }
 
@@ -583,12 +594,12 @@ class PosOffline {
         "Bu qatorni internet tiklangach belgilang.",
       );
     }
-    await store.enqueue(SyncOpType.orderServed, <String, Object?>{
+    await _enqueue(SyncOpType.orderServed, <String, Object?>{
       'order': uuid,
       'base_version': ?_serverVersion(uuid),
       'line': ref,
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     return order(uuid);
   }
 
@@ -597,7 +608,7 @@ class PosOffline {
     String orderUuid, {
     String? idempotencyKey,
   }) async {
-    if (!can('orders.manage') && !can('pos.take_payment')) {
+    if (!_can('orders.manage') && !_can('pos.take_payment')) {
       _guard('pos.take_payment');
     }
     _guard(null);
@@ -615,14 +626,91 @@ class PosOffline {
         reason: 'nothing_to_bill',
       );
     }
-    await store.enqueue(SyncOpType.billCreate, <String, Object?>{
+    await _enqueue(SyncOpType.billCreate, <String, Object?>{
       'order': orderUuid,
       'base_version': ?_serverVersion(orderUuid),
       'bill': newUuid(),
       'expected_total': current.totalPrice.toApiString(),
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     return billing(orderUuid);
+  }
+
+  /// P6 lokal ko'prik: KDS qatorni "tayyor" qildi (oshxonada bo'lgan qator).
+  Future<PosOrder> kitchenBump(String uuid, int itemId) =>
+      _kitchen(uuid, itemId, ready: true);
+
+  /// P6: KDS "tayyor"ni qaytardi (qator yana oshxonada).
+  Future<PosOrder> kitchenRecall(String uuid, int itemId) =>
+      _kitchen(uuid, itemId, ready: false);
+
+  Future<PosOrder> _kitchen(
+    String uuid,
+    int itemId, {
+    required bool ready,
+  }) async {
+    _guard('kitchen.manage');
+    final PosOrderItem? item = order(uuid).item(itemId);
+    if (item == null) throw const PosOfflineUnavailable('Taom topilmadi.');
+    final PosKitchenStatus from = ready
+        ? PosKitchenStatus.sent
+        : PosKitchenStatus.ready;
+    if (item.kitchenStatus != from) {
+      throw PosOfflineUnavailable(
+        ready ? 'Taom oshxonada emas.' : 'Taom hali tayyor emas.',
+        reason: 'kitchen_status',
+      );
+    }
+    final Object? ref = _lineRef(uuid, itemId);
+    if (ref == null) {
+      throw const PosOfflineUnavailable(
+        'Bu qatorni internet tiklangach belgilang.',
+      );
+    }
+    await _enqueue(
+      ready ? SyncOpType.kitchenBump : SyncOpType.kitchenRecall,
+      <String, Object?>{'order': uuid, 'line': ref},
+    );
+    return order(uuid);
+  }
+
+  /// P6: yig'ish ekrani buyurtmani yig'di.
+  Future<PosOrder> kitchenAssembled(
+    String uuid, {
+    String? idempotencyKey,
+  }) async {
+    _guard('kitchen.manage');
+    if (!order(uuid).isOpen) {
+      throw const PosOfflineUnavailable('Buyurtma yopilgan.');
+    }
+    await _enqueue(SyncOpType.kitchenAssembled, <String, Object?>{
+      'order': uuid,
+      'idempotency_key': ?idempotencyKey,
+    });
+    return order(uuid);
+  }
+
+  /// P6: ofitsiant schyot so'radi (bir marta; schyotni kassa tuzadi). [printedOnLan] (P6 B bosqichi): markaz so'rovni
+  /// LAN orqali internetsiz oldi va pre-check'ni o'zi chiqaradi — amalda `printed_on_lan: true`, server navbat yetganda
+  /// uni qayta chiqarmaydi.
+  Future<PosOrder> requestBill(
+    String uuid, {
+    bool printedOnLan = false,
+    String? idempotencyKey,
+  }) async {
+    _guard('orders.manage');
+    final PosOrder current = order(uuid);
+    if (!current.isOpen) {
+      throw const PosOfflineUnavailable('Buyurtma yopilgan.');
+    }
+    if (current.billRequestedAt != null) return current;
+    await _enqueue(SyncOpType.billRequest, <String, Object?>{
+      'order': uuid,
+      if (printedOnLan) 'printed_on_lan': true,
+      'idempotency_key': ?idempotencyKey,
+      'view': <String, Object?>{'staff_name': _staffName()},
+    });
+    return order(uuid);
   }
 
   /// Schyotni chop etish (pre-check): server bilmaydi, kassada belgilanadi.
@@ -680,7 +768,7 @@ class PosOffline {
     final int? waiterId = seen == null
         ? null
         : PosOrder.fromJson(PosJson(seen)).waiter?.id;
-    await store.enqueue(SyncOpType.billPay, <String, Object?>{
+    await _enqueue(SyncOpType.billPay, <String, Object?>{
       'order': orderRef,
       'bill': billUuid,
       'shift_uuid': shift,
@@ -690,12 +778,12 @@ class PosOffline {
       'tip_staff_id': ?tipStaffId,
       'waiter_id': ?waiterId,
       'idempotency_key': ?idempotencyKey,
-    }, staffId: _staff());
+    });
     final PosBilling b = billing(orderRef);
     if (b.order.isClosed) {
-      await store.enqueue(SyncOpType.orderClose, <String, Object?>{
+      await _enqueue(SyncOpType.orderClose, <String, Object?>{
         'order': orderRef,
-      }, staffId: _staff());
+      });
     }
     final PosBilling after = billing(orderRef);
     return PosBillResult(
@@ -793,8 +881,10 @@ class PosOffline {
     if (!s.canSell) {
       throw PosOfflineUnavailable(s.blockReason ?? 'Internet kerak.');
     }
-    if (staffId() == null) throw const PosOfflineUnavailable('Xodim kirmagan.');
-    if (permission != null && !can(permission)) {
+    if (_actor == null && staffId() == null) {
+      throw const PosOfflineUnavailable('Xodim kirmagan.');
+    }
+    if (permission != null && !_can(permission)) {
       throw const PosOfflineUnavailable(
         "Bu amal uchun ruxsat yo'q (internetsiz menejer tasdig'i olinmaydi).",
         reason: 'permission_denied',
@@ -802,7 +892,35 @@ class PosOffline {
     }
   }
 
-  int _staff() => staffId()!;
+  int _staff() => _actor?.staffId ?? staffId()!;
+
+  String? _staffName() => _actor == null ? staffName() : _actor!.staffName;
+
+  bool _can(String permission) => _actor?.can(permission) ?? can(permission);
+
+  // --- P6: lokal ko'prik ------------------------------------------------------------------------------------------
+
+  static final Object _actorKey = Object();
+
+  PosOfflineActor? get _actor => Zone.current[_actorKey] as PosOfflineActor?;
+
+  /// P6 lokal ko'prik (docs/POS_SPEC.md 5.5): markaz boshqa qurilmaning (ofitsiant telefoni, KDS) amalini shu yerning
+  /// o'z qoidalari bilan, lekin o'sha qurilmadagi xodim nomidan va huquqlari bilan qo'llaydi: [body] ichidagi amallar
+  /// navbatga [actor] ning `op_id` si va qurilmasi ([SyncOperation.origin]) bilan yoziladi. Kassadagi xodim va
+  /// boshqa bir vaqtdagi amallar o'zgarmaydi (zona bo'yicha).
+  Future<T> actAs<T>(PosOfflineActor actor, Future<T> Function() body) =>
+      runZoned(body, zoneValues: <Object?, Object?>{_actorKey: actor});
+
+  Future<SyncOperation> _enqueue(String type, Map<String, Object?> payload) {
+    final PosOfflineActor? a = _actor;
+    return store.enqueue(
+      type,
+      payload,
+      staffId: _staff(),
+      opId: a?._takeOpId(),
+      origin: a?.device,
+    );
+  }
 
   int? _serverVersion(String uuid) =>
       (store
@@ -1129,5 +1247,36 @@ class PosOffline {
     // Not awaited: a broadcast stream's close waits for its listeners (the screens) to see the end
     unawaited(_changes.close());
     unawaited(_synced.close());
+  }
+}
+
+/// P6 lokal ko'prik: boshqa qurilmadagi xodim (markaz uning amalini qo'llaganda, [PosOffline.actAs]): server imzolagan
+/// grantdan — kim, huquqlari va qaysi qurilmada; [opId] — o'sha qurilma bergan amal id'si (navbatga shu bilan yoziladi).
+class PosOfflineActor {
+  PosOfflineActor({
+    required this.staffId,
+    required this.device,
+    required Set<String> permissions,
+    this.staffName,
+    this.role,
+    this.opId,
+  }) : permissions = Set<String>.unmodifiable(permissions);
+
+  final int staffId;
+  final String? staffName;
+  final String? role;
+
+  /// Amal qilingan qurilma uuid'si.
+  final String device;
+  final Set<String> permissions;
+  String? opId;
+
+  bool can(String permission) => permissions.contains(permission);
+
+  /// The first queued operation takes the device's op id (a later one, e.g. a close after a payment, gets its own).
+  String? _takeOpId() {
+    final String? id = opId;
+    opId = null;
+    return id;
   }
 }

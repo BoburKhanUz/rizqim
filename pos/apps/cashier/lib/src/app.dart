@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:pos_ui/pos_ui.dart' show KeyboardScanListener;
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
@@ -38,12 +39,16 @@ class _CashierAppState extends State<CashierApp> {
         darkTheme: cashierTheme(RzTheme.dark()),
         themeMode: mode,
         // Navigator'dan yuqorida: dialoglardagi teginish ham hisoblanadi, chiqishda dialoglar yopiladi
-        builder: (BuildContext context, Widget? child) => StaffIdleScope(
-          auth: services.auth,
-          navigator: _navigator,
-          idleTimeout: services.idleTimeout,
-          changes: services.idleChanges,
-          child: child ?? const SizedBox.shrink(),
+        // P6 hardware: a keyboard-wedge barcode scanner anywhere in the app (CashierHardware.scans)
+        builder: (BuildContext context, Widget? child) => KeyboardScanListener(
+          onScan: services.hardware.scans.addKeyboard,
+          child: StaffIdleScope(
+            auth: services.auth,
+            navigator: _navigator,
+            idleTimeout: services.idleTimeout,
+            changes: services.idleChanges,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
         home: AuthGate(services: services),
       ),
@@ -127,6 +132,13 @@ class _TerminalHomeState extends State<TerminalHome> {
   PosRealtime? _realtime;
   late final StreamSubscription<AuthEvent> _authSub;
   late final StreamSubscription<PosSessionPhase> _phaseSub;
+  final List<StreamSubscription<Object?>> _rtSubs =
+      <StreamSubscription<Object?>>[];
+  Timer? _printPoll;
+  late DateTime _lanReadAt = _s.now();
+
+  /// Review P6 S5: the hub reads `GET /pos/lan` again at least this often while online.
+  static const Duration lanRefreshEvery = Duration(minutes: 5);
   String? _notice;
   PosException? _bootstrapError;
   bool _loading = false;
@@ -142,11 +154,61 @@ class _TerminalHomeState extends State<TerminalHome> {
     _phaseSub = _session.changes.listen((_) {
       if (mounted) setState(() {});
     });
+    _listenForTill();
     if (_session.phase == PosSessionPhase.signedIn) unawaited(_loadBootstrap());
+  }
+
+  /// Review P6 hardware/LAN (C2, S5): what the paired till does whoever is signed in, its screen locked too: the
+  /// waiter's bill prints (`bill.print_requested`, and the server's list of the ones it missed: on start, after the
+  /// subscription comes back, on unlock and every [CashierServices.billPrintPoll]); the hub reads its LAN keys again
+  /// on `pos.lan_changed`. Printers come from the last bootstrap (kept while locked) or the till's stored copy.
+  void _listenForTill() {
+    if (_s.printing.configs.isEmpty) {
+      final PosBootstrap? stored = _s.data.offline?.storedBootstrap();
+      if (stored != null) _s.printing.configure(stored.printers);
+    }
+    final PosRealtime? rt = _realtime;
+    if (rt != null) {
+      _rtSubs
+        ..add(
+          rt.events.listen((PosEvent e) {
+            if (e is PosBillPrintRequested) {
+              unawaited(_s.billPrints.handle(e.request));
+            }
+            if (e is PosLanChanged) unawaited(_s.lan.refresh());
+          }),
+        )
+        ..add(
+          rt.resubscribed.listen((_) {
+            unawaited(_s.billPrints.catchUp());
+            unawaited(_s.lan.refresh());
+          }),
+        );
+    }
+    final Duration? every = _s.billPrintPoll;
+    if (every != null) {
+      _printPoll = Timer.periodic(every, (_) {
+        unawaited(_s.billPrints.catchUp());
+        // S5: the hub's device list and keys, every few minutes while online (a lost pos.lan_changed)
+        final DateTime now = _s.now();
+        if (now.difference(_lanReadAt) >= lanRefreshEvery &&
+            (_s.data.offline?.connectivity.state.online ?? true)) {
+          _lanReadAt = now;
+          unawaited(_s.lan.refresh());
+        }
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_s.billPrints.catchUp()),
+    );
   }
 
   @override
   void dispose() {
+    _printPoll?.cancel();
+    for (final StreamSubscription<Object?> s in _rtSubs) {
+      unawaited(s.cancel());
+    }
     unawaited(_authSub.cancel());
     unawaited(_phaseSub.cancel());
     unawaited(_realtime?.dispose());
@@ -159,7 +221,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         _notice = null;
         unawaited(_loadBootstrap());
       case AuthEventKind.staffSignedOut:
-        _s.printing.clear();
+        // Review P6 hardware/LAN (C2): the printers stay (cleared on unpair): a locked till still prints the bills
         _bootstrapError = null;
         _notice = switch (e.reason) {
           'idle' => "Ekranga uzoq tegilmagani uchun ekran qulflandi. Davom etish uchun PIN tering.",
@@ -183,6 +245,17 @@ class _TerminalHomeState extends State<TerminalHome> {
     try {
       final PosBootstrap boot = await _session.loadBootstrap();
       _s.printing.configure(boot.printers);
+      // C2: what came while the screen was locked (or before this sign-in)
+      unawaited(_s.billPrints.catchUp());
+      // P6 hardware: the till's own second screen (Sunmi D2) shows the cart without the server
+      if (_s.hardware.android) {
+        unawaited(
+          _s.hardware.startCustomerScreen(
+            _s.data.displayFeed,
+            storeName: boot.store.name,
+          ),
+        );
+      }
       // Menyu fonda: ish ekrani uni kutmaydi (buyurtma muharriri o'zi kutadi)
       unawaited(
         _s.data.catalog

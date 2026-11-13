@@ -10,6 +10,7 @@ POS ilovalari (kassa, ofitsiant, KDS, mijoz ekrani) uchun umumiy Dart paketlari.
 | [`pos_ui`](pos_ui/README.md) | Sensor ekran komponentlari: katta tugmalar, raqam va kg/ulush klaviaturasi, miqdor stepper, zal xaritasi, xona hisobi kartochkasi | ha (`flutter test`) |
 | [`pos_data`](pos_data/README.md) | Backend bilan ishlash (P3-20): terminal va xodim sessiyasi, menejer tasdig'i, bootstrap, menyu (kesh), zal, buyurtma, schyot, smena, bron, nasiya repozitoriylari, `pos-branch` real-time; internetsiz rejim (`PosOffline`, P3-31); testlar uchun soxta backend | yo'q (`dart test`) |
 | [`pos_sync`](pos_sync/README.md) | Internetsiz cheklangan rejim (P3-31): diskdagi amallar navbati (jurnal + CRC32), `POST /pos/sync` ga tartib bilan yuborish, lokal buyurtma raqami, ogohlantirish chegaralari | yo'q (`dart test`) |
+| [`pos_lan`](pos_lan/README.md) | Lokal ko'prik (P6): internet uzilsa asosiy kassa — markaz; ofitsiant, KDS va mijoz ekrani Wi-Fi orqali; shifrlangan va imzolangan kadrlar, beacon, oflayn grant, amallar markaz navbatiga | yo'q (`dart test`) |
 
 Fiskal chek (provayder bilan ishlash) qurilmada emas, backend'da (`app/Domain/Fiscal`): ilova faqat serverdan kelgan
 fiskal belgi va QR havolasini chekka chiqaradi.

@@ -4,38 +4,47 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch15.dart';
-import 'store3.dart';
-import 'device11.dart';
-import 'modules2.dart';
-import 'cart.dart';
-
 part 'data219.g.dart';
 
 @JsonSerializable()
 class Data219 {
   const Data219({
-    required this.branch,
-    required this.store,
-    required this.device,
-    required this.tillUuid,
-    required this.modules,
-    required this.serverTime,
-    required this.cart,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
+    required this.branchId,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data219.fromJson(Map<String, Object?> json) =>
       _$Data219FromJson(json);
 
-  final Branch15 branch;
-  final Store3? store;
-  final Device11 device;
-  @JsonKey(name: 'till_uuid')
-  final String? tillUuid;
-  final Modules2 modules;
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Cart? cart;
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data219ToJson(this);
 }

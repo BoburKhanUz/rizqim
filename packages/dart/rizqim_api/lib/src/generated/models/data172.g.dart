@@ -20,17 +20,17 @@ Data172 _$Data172FromJson(Map<String, dynamic> json) => Data172(
   paidTotal: json['paid_total'] as String,
   linesCount: (json['lines_count'] as num).toInt(),
   warnings: (json['warnings'] as List<dynamic>)
-      .map((e) => Warnings8.fromJson(e as Map<String, dynamic>))
+      .map((e) => Warnings5.fromJson(e as Map<String, dynamic>))
       .toList(),
   computedAt: json['computed_at'] as String?,
   closedAt: json['closed_at'] as String?,
   version: (json['version'] as num).toInt(),
   createdAt: json['created_at'] as String?,
   lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines14.fromJson(e as Map<String, dynamic>))
+      .map((e) => Lines11.fromJson(e as Map<String, dynamic>))
       .toList(),
   openShifts: (json['open_shifts'] as List<dynamic>)
-      .map((e) => OpenShifts7.fromJson(e as Map<String, dynamic>))
+      .map((e) => OpenShifts4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

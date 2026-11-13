@@ -7,13 +7,13 @@ part of 'data135.dart';
 // **************************************************************************
 
 Data135 _$Data135FromJson(Map<String, dynamic> json) => Data135(
-  tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips.fromJson(e as Map<String, dynamic>))
+  poolPeriod: json['pool_period'] as String,
+  distributions: (json['distributions'] as List<dynamic>)
+      .map((e) => Distributions2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  truncated: json['truncated'] as bool,
 );
 
 Map<String, dynamic> _$Data135ToJson(Data135 instance) => <String, dynamic>{
-  'tips': instance.tips,
-  'truncated': instance.truncated,
+  'pool_period': instance.poolPeriod,
+  'distributions': instance.distributions,
 };

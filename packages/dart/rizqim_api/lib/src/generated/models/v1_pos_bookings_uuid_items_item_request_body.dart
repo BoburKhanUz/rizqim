@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'modifiers8.dart';
+import 'modifiers9.dart';
 
 part 'v1_pos_bookings_uuid_items_item_request_body.g.dart';
 
@@ -31,7 +31,7 @@ class V1PosBookingsUuidItemsItemRequestBody {
 
   /// P3-26
   final num? quantity;
-  final List<Modifiers8>? modifiers;
+  final List<Modifiers9>? modifiers;
   final String? note;
   @JsonKey(name: 'due_at')
   final DateTime? dueAt;

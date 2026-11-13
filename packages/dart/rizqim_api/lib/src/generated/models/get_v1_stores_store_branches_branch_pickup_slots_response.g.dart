@@ -12,7 +12,7 @@ _$GetV1StoresStoreBranchesBranchPickupSlotsResponseFromJson(
 ) => GetV1StoresStoreBranchesBranchPickupSlotsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data288.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data295.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1StoresStoreBranchesBranchPickupSlotsResponseToJson(

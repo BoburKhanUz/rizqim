@@ -7,17 +7,31 @@ part of 'offline2.dart';
 // **************************************************************************
 
 Offline2 _$Offline2FromJson(Map<String, dynamic> json) => Offline2(
-  localNumber: json['local_number'] as String?,
-  createdAt: json['created_at'] as String?,
-  syncedAt: json['synced_at'] as String?,
-  flags: (json['flags'] as List<dynamic>)
-      .map((e) => Flags.fromJson(e as Map<String, dynamic>))
+  devicePrefix: json['device_prefix'] as String?,
+  nextLocalNumber: (json['next_local_number'] as num).toInt(),
+  businessDate: json['business_date'] as String,
+  dayType: json['day_type'] as String,
+  serviceChargeLocked: json['service_charge_locked'] as bool,
+  fees: (json['fees'] as List<dynamic>)
+      .map((e) => Fees.fromJson(e as Map<String, dynamic>))
       .toList(),
+  places: (json['places'] as List<dynamic>)
+      .map((e) => Places.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  guestItems: (json['guest_items'] as List<dynamic>)
+      .map((e) => GuestItems.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  limits: Limits4.fromJson(json['limits'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Offline2ToJson(Offline2 instance) => <String, dynamic>{
-  'local_number': instance.localNumber,
-  'created_at': instance.createdAt,
-  'synced_at': instance.syncedAt,
-  'flags': instance.flags,
+  'device_prefix': instance.devicePrefix,
+  'next_local_number': instance.nextLocalNumber,
+  'business_date': instance.businessDate,
+  'day_type': instance.dayType,
+  'service_charge_locked': instance.serviceChargeLocked,
+  'fees': instance.fees,
+  'places': instance.places,
+  'guest_items': instance.guestItems,
+  'limits': instance.limits,
 };

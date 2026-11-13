@@ -1,9 +1,12 @@
 import 'package:pos_core/pos_core.dart';
+import 'package:rizqim_api/rizqim_api.dart' show AuthScope;
 
 import '../http/pos_exceptions.dart';
 import '../http/pos_http.dart';
+import '../lan/pos_lan_route.dart';
 import '../offline/pos_offline.dart';
 import '../offline/sync_models.dart';
+import 'bill_print_request.dart';
 import 'billing_models.dart';
 
 /// Schyot, to'lov, yopish va qaytarish (docs/API.md, "Schyot, to'lov va smena (P3-18)"). Yupqa qatlam: P3-22 kerakli
@@ -18,7 +21,22 @@ class BillingRepository {
   final PosHttp _http;
   final PosOffline? offline;
 
+  /// P6 lokal ko'prik (ofitsiant): `lan` rejimida schyot, to'lov, yopish va qaytarish yo'q — ular faqat kassaning
+  /// o'zida (masofadan to'lov yo'q); schyotni qayta chiqarish ham faqat internet bilan (menejer PIN va jurnal
+  /// serverda). Hammasi [PosOfflineUnavailable].
+  PosLanRoute? lan;
+
   bool get _limited => offline?.active ?? false;
+
+  /// `lan` rejimida: amal faqat kassada yoki internet bilan.
+  void _notOnLan(String message) {
+    if (lan?.active ?? false) {
+      throw PosOfflineUnavailable(message, reason: 'not_allowed_on_lan');
+    }
+  }
+
+  static const String _tillOnly =
+      "Internet yo'q: schyot va to'lov faqat kassada.";
 
   /// Oflayn ochilgan buyurtma yoki schyotning server uuid'i (sinxronlangandan keyin), bo'lmasa o'zi.
   String _id(String uuid) => offline?.store.resolve(uuid) ?? uuid;
@@ -38,6 +56,7 @@ class BillingRepository {
 
   /// `GET /pos/orders/{uuid}/bills` ([all] — bekor qilingan schyotlar ham).
   Future<PosBilling> bills(String orderUuid, {bool all = false}) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) return o.billing(orderUuid);
     Object? raw;
@@ -58,6 +77,59 @@ class BillingRepository {
     }
   }
 
+  /// `POST /pos/bills/{uuid}/print-request` (P6, A bosqichi): ofitsiantning "Schyotni qayta chiqarish"i. Server
+  /// filialning chop etuvchi kassasiga `bill.print_requested` yuboradi; schyotning nusxa hisobi o'zgarmaydi.
+  /// `pos.reprint_bill` yoki menejer tasdig'i ([approvalToken]) kerak (403 `approval_required`).
+  Future<PosBillPrintAck> requestPrint(
+    String billUuid, {
+    String? approvalToken,
+    String? idempotencyKey,
+  }) async {
+    _notOnLan(
+      "Internet yo'q: schyotni qayta chiqarish faqat internet bilan (yoki kassaning o'zida).",
+    );
+    _onlineOnly('schyotni qayta chiqarish');
+    return _http.mutate(
+      'POST',
+      '/v1/pos/bills/${_id(billUuid)}/print-request',
+      (Object? data) => PosBillPrintAck.fromJson(dataObject(data)),
+      idempotencyKey: idempotencyKey,
+      body: <String, Object?>{'approval_token': ?approvalToken},
+    );
+  }
+
+  /// Review P6 uskunalar/LAN (C2): `GET /pos/bill-print-requests` — shu kassa hali chiqarmagan schyot so'rovlari
+  /// (oxirgi soat, ochiq buyurtmalar), schyot va buyurtmasi bilan. Terminalning o'z tokeni bilan: ekran qulflangan
+  /// kassa ham o'qiydi. Internetsiz rejimda va `lan` da so'ralmaydi (bo'sh ro'yxat).
+  Future<List<PendingBillPrint>> pendingPrintRequests() async {
+    if (_limited || (lan?.active ?? false)) return const <PendingBillPrint>[];
+    return _http.get('/v1/pos/bill-print-requests', (Object? data) {
+      final Object? list = dataObject(data)['requests'];
+      return <PendingBillPrint>[
+        for (final Object? e in (list as List<Object?>?) ?? const <Object?>[])
+          if (e is Map) PendingBillPrint.fromJson(e.cast<String, Object?>()),
+      ];
+    }, scope: AuthScope.terminal);
+  }
+
+  /// Review P6 uskunalar/LAN (C2): `POST /pos/bill-print-requests/{request_id}/printed` — kassa so'rovni chiqarishdan
+  /// oldin oladi: `true` — shu kassa chiqaradi, `false` — boshqa kassa oldi (chiqarilmaydi), `null` — server bu
+  /// so'rovni bilmaydi (kassa baribir chiqaradi). Aloqa xatosi — [PosException].
+  Future<bool?> claimPrintRequest(String requestId) async {
+    try {
+      final PosResponse r = await _http.raw(
+        'POST',
+        '/v1/pos/bill-print-requests/$requestId/printed',
+        scope: AuthScope.terminal,
+        idempotent: false,
+      );
+      final Object? data = r.data;
+      return data is Map ? data['claimed'] != false : true;
+    } on PosNotFound {
+      return null;
+    }
+  }
+
   /// `POST /pos/orders/{uuid}/bills`: schyot tuzish yoki bo'lish (buyurtmaning hali schyotga tushmagan qismidan).
   Future<PosBilling> createBills(
     String orderUuid, {
@@ -66,6 +138,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return _localBill(o, orderUuid, split, idempotencyKey);
@@ -123,6 +196,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     // Offline the pre-check is printed from the till's own bill (the server never learns it was printed)
     if (o != null && o.active) return o.printBill(billUuid);
@@ -152,6 +226,7 @@ class BillingRepository {
     int? tipStaffId,
     String? tipApprovalToken,
   }) async {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return o.pay(
@@ -187,6 +262,7 @@ class BillingRepository {
     String billUuid, {
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     _onlineOnly('fiskal chekni qayta so\'rash');
     return _fiscalRetry(billUuid, idempotencyKey: idempotencyKey);
   }
@@ -205,6 +281,7 @@ class BillingRepository {
   /// `POST /pos/orders/{uuid}/close`: uzilib qolgan yopishni yakunlash. To'lanmagan — [PosConflict]
   /// `order_not_settled`.
   Future<PosBilling> closeOrder(String orderUuid, {String? idempotencyKey}) {
+    _notOnLan(_tillOnly);
     final PosOffline? o = offline;
     if (o != null && o.active) {
       return Future<PosBilling>.value(o.billing(orderUuid));
@@ -230,6 +307,7 @@ class BillingRepository {
     String? approvalToken,
     String? idempotencyKey,
   }) async {
+    _notOnLan(_tillOnly);
     _onlineOnly('pulni qaytarish');
     return _refund(
       paymentUuid: paymentUuid,

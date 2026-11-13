@@ -8,22 +8,30 @@ part of 'lines24.dart';
 
 Lines24 _$Lines24FromJson(Map<String, dynamic> json) => Lines24(
   name: json['name'] as String,
-  qty: json['qty'] as String,
-  price: json['price'] as String,
-  total: json['total'] as String,
-  unit: json['unit'] as String?,
-  modifiers: (json['modifiers'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  note: json['note'] as String?,
+  mxikCode: json['mxik_code'] as String,
+  packageCode: json['package_code'] as String?,
+  unit: json['unit'] as String,
+  quantity: json['quantity'] as String,
+  unitPrice: json['unit_price'] as String,
+  amount: json['amount'] as String,
+  vatRate: json['vat_rate'] as String,
+  vatAmount: json['vat_amount'] as String,
+  noVat: json['no_vat'] as bool,
+  commissionerTin: json['commissioner_tin'] as String?,
+  markingCode: json['marking_code'] as String?,
 );
 
 Map<String, dynamic> _$Lines24ToJson(Lines24 instance) => <String, dynamic>{
   'name': instance.name,
-  'qty': instance.qty,
+  'mxik_code': instance.mxikCode,
+  'package_code': instance.packageCode,
   'unit': instance.unit,
-  'price': instance.price,
-  'total': instance.total,
-  'modifiers': instance.modifiers,
-  'note': instance.note,
+  'quantity': instance.quantity,
+  'unit_price': instance.unitPrice,
+  'amount': instance.amount,
+  'vat_rate': instance.vatRate,
+  'vat_amount': instance.vatAmount,
+  'no_vat': instance.noVat,
+  'commissioner_tin': instance.commissionerTin,
+  'marking_code': instance.markingCode,
 };

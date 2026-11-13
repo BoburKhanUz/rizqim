@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:pos_ui/customer_display.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../board/board_view.dart';
-import '../cart/cart_view.dart';
 import '../controller/display_controller.dart';
+import '../lan/display_lan.dart';
 import '../settings/display_settings.dart';
-import '../widgets/display_type.dart';
 import 'settings_dialog.dart';
 
 /// Mijoz ekrani: kassa cheki, salomlashish yoki raqamlar taxtasi; burchakda aloqa belgisi. Sozlamalar xodimsiz: pastki
@@ -35,7 +35,7 @@ class DisplayScreen extends StatelessWidget {
                       key: ValueKey<DisplayView>(view),
                       child: switch (view) {
                         DisplayView.loading => const _Loading(),
-                        DisplayView.welcome => _Welcome(
+                        DisplayView.welcome => DisplayWelcome(
                           name: controller.storeName,
                         ),
                         DisplayView.cart => CartView(
@@ -60,7 +60,10 @@ class DisplayScreen extends StatelessWidget {
                   bottom: 0,
                   width: 96,
                   height: 96,
-                  child: _SettingsCorner(settings: controller.settings),
+                  child: _SettingsCorner(
+                    settings: controller.settings,
+                    lan: controller.lan,
+                  ),
                 ),
               ],
             );
@@ -77,41 +80,6 @@ class _Loading extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Center(child: CircularProgressIndicator());
-}
-
-class _Welcome extends StatelessWidget {
-  const _Welcome({this.name});
-
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    final RzColors c = context.rz;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(Icons.restaurant_rounded, size: 96, color: c.brand),
-            const SizedBox(height: 24),
-            if (name != null)
-              Text(
-                name!,
-                textAlign: TextAlign.center,
-                style: DisplayType.greeting.copyWith(color: c.fg),
-              ),
-            const SizedBox(height: 12),
-            Text(
-              'Xush kelibsiz!',
-              textAlign: TextAlign.center,
-              style: DisplayType.heading.copyWith(color: c.fgMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _NotEnabled extends StatelessWidget {
@@ -141,7 +109,8 @@ class _NotEnabled extends StatelessWidget {
   }
 }
 
-/// Aloqa belgisi: faqat muammo bo'lganda ko'rinadi (jonli yoki ulanmoqda paytida mijozni chalg'itmaydi).
+/// Aloqa belgisi: faqat muammo bo'lganda ko'rinadi (jonli yoki ulanmoqda paytida mijozni chalg'itmaydi). P6: internet
+/// yo'q, lekin chek va raqamlar Wi-Fi orqali kassadan — kichik "Lokal tarmoq".
 class _LinkChip extends StatelessWidget {
   const _LinkChip({required this.link});
 
@@ -149,15 +118,38 @@ class _LinkChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (link != DisplayLink.offline) return const SizedBox.shrink();
     final RzColors c = context.rz;
+    final (
+      String key,
+      String label,
+      IconData icon,
+      Color bg,
+      Color fg,
+    ) = switch (link) {
+      DisplayLink.offline => (
+        'link-offline',
+        "Aloqa yo'q",
+        Icons.wifi_off_rounded,
+        c.danger,
+        c.onDanger,
+      ),
+      DisplayLink.lan => (
+        'link-lan',
+        'Lokal tarmoq',
+        Icons.lan_outlined,
+        c.warningSoft,
+        c.warningSoftFg,
+      ),
+      _ => ('', '', Icons.circle, Colors.transparent, Colors.transparent),
+    };
+    if (key.isEmpty) return const SizedBox.shrink();
     return Semantics(
       liveRegion: true,
-      label: "Aloqa yo'q",
+      label: label,
       child: DecoratedBox(
-        key: const ValueKey<String>('link-offline'),
+        key: ValueKey<String>(key),
         decoration: BoxDecoration(
-          color: c.danger,
+          color: bg,
           borderRadius: BorderRadius.circular(RzRadius.control),
         ),
         child: Padding(
@@ -165,12 +157,9 @@ class _LinkChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.wifi_off_rounded, color: c.onDanger, size: 22),
+              Icon(icon, color: fg, size: 22),
               const SizedBox(width: 8),
-              Text(
-                "Aloqa yo'q",
-                style: RzType.headline.copyWith(color: c.onDanger),
-              ),
+              Text(label, style: RzType.headline.copyWith(color: fg)),
             ],
           ),
         ),
@@ -180,9 +169,10 @@ class _LinkChip extends StatelessWidget {
 }
 
 class _SettingsCorner extends StatelessWidget {
-  const _SettingsCorner({required this.settings});
+  const _SettingsCorner({required this.settings, this.lan});
 
   final DisplaySettingsController settings;
+  final DisplayLan? lan;
 
   /// Tasodifiy teginish ochmasligi uchun: burchakni shuncha bosib turish kerak.
   static const Duration hold = Duration(seconds: 2);
@@ -200,7 +190,7 @@ class _SettingsCorner extends StatelessWidget {
                 showDialog<void>(
                   context: context,
                   builder: (BuildContext context) =>
-                      DisplaySettingsDialog(settings: settings),
+                      DisplaySettingsDialog(settings: settings, lan: lan),
                 ),
               ),
             ),

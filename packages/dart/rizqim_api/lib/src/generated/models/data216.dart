@@ -4,42 +4,47 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account4.dart';
-import 'entries4.dart';
-
 part 'data216.g.dart';
 
 @JsonSerializable()
 class Data216 {
   const Data216({
-    required this.account,
-    required this.from,
-    required this.to,
-    required this.openingBalance,
-    required this.closingBalance,
-    required this.chargesTotal,
-    required this.repaymentsTotal,
-    required this.adjustmentsTotal,
-    required this.entries,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
+    required this.branchId,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data216.fromJson(Map<String, Object?> json) =>
       _$Data216FromJson(json);
 
-  final Account4 account;
-  final String from;
-  final String to;
-  @JsonKey(name: 'opening_balance')
-  final String openingBalance;
-  @JsonKey(name: 'closing_balance')
-  final String closingBalance;
-  @JsonKey(name: 'charges_total')
-  final String chargesTotal;
-  @JsonKey(name: 'repayments_total')
-  final String repaymentsTotal;
-  @JsonKey(name: 'adjustments_total')
-  final String adjustmentsTotal;
-  final List<Entries4> entries;
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data216ToJson(this);
 }

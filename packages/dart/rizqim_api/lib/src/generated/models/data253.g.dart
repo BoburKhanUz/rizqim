@@ -7,11 +7,31 @@ part of 'data253.dart';
 // **************************************************************************
 
 Data253 _$Data253FromJson(Map<String, dynamic> json) => Data253(
-  slots: (json['slots'] as List<dynamic>)
-      .map((e) => Slots4.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  orderUuid: json['order_uuid'] as String,
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
+      ? null
+      : PickupStatus.fromJson(json['status'] as String),
+  channel: json['channel'] as String,
+  orderStatus: json['order_status'] as String,
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data253ToJson(Data253 instance) => <String, dynamic>{
-  'slots': instance.slots,
+  'order_uuid': instance.orderUuid,
+  'number': instance.number,
+  'business_date': instance.businessDate,
+  'status': instance.status,
+  'channel': instance.channel,
+  'order_status': instance.orderStatus,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
+  'opened_at': instance.openedAt,
 };

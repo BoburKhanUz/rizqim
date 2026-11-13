@@ -4,70 +4,74 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff22.dart';
-import 'device22.dart';
-import 'order12.dart';
-import 'resolved_by2.dart';
+import 'device16.dart';
+import 'opened_by5.dart';
+import 'closed_by8.dart';
+import 'summary5.dart';
+import 'bank_terminal.dart';
 
 part 'data267.g.dart';
 
 @JsonSerializable()
 class Data267 {
   const Data267({
-    required this.opId,
-    required this.seq,
-    required this.type,
-    required this.typeLabel,
+    required this.uuid,
     required this.status,
-    required this.reason,
-    required this.message,
-    required this.staff,
+    required this.branchId,
     required this.device,
-    required this.occurredAt,
-    required this.receivedAt,
-    required this.appliedAt,
-    required this.clockSkewSeconds,
-    required this.order,
-    required this.payload,
-    required this.refs,
-    required this.resolvedAt,
-    required this.resolvedBy,
-    required this.resolution,
-    required this.resolutionNote,
+    required this.businessDate,
+    required this.openedAt,
+    required this.openedBy,
+    required this.openingCash,
+    required this.closedAt,
+    required this.closedBy,
+    required this.expectedCash,
+    required this.countedCash,
+    required this.countedBreakdown,
+    required this.difference,
+    required this.zNumber,
+    required this.forceClosed,
+    required this.closeNote,
+    required this.summary,
+    required this.bankTerminal,
   });
 
   factory Data267.fromJson(Map<String, Object?> json) =>
       _$Data267FromJson(json);
 
-  @JsonKey(name: 'op_id')
-  final String opId;
-  final int seq;
-  final String type;
-  @JsonKey(name: 'type_label')
-  final String typeLabel;
+  final String uuid;
   final String status;
-  final String? reason;
-  final String? message;
-  final Staff22? staff;
-  final Device22? device;
-  @JsonKey(name: 'occurred_at')
-  final String? occurredAt;
-  @JsonKey(name: 'received_at')
-  final String? receivedAt;
-  @JsonKey(name: 'applied_at')
-  final String? appliedAt;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  final Order12? order;
-  final Map<String, dynamic> payload;
-  final Map<String, dynamic> refs;
-  @JsonKey(name: 'resolved_at')
-  final String? resolvedAt;
-  @JsonKey(name: 'resolved_by')
-  final ResolvedBy2? resolvedBy;
-  final String? resolution;
-  @JsonKey(name: 'resolution_note')
-  final String? resolutionNote;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final Device16? device;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'opened_at')
+  final String openedAt;
+  @JsonKey(name: 'opened_by')
+  final OpenedBy5? openedBy;
+  @JsonKey(name: 'opening_cash')
+  final String openingCash;
+  @JsonKey(name: 'closed_at')
+  final String? closedAt;
+  @JsonKey(name: 'closed_by')
+  final ClosedBy8? closedBy;
+  @JsonKey(name: 'expected_cash')
+  final String? expectedCash;
+  @JsonKey(name: 'counted_cash')
+  final String? countedCash;
+  @JsonKey(name: 'counted_breakdown')
+  final Map<String, int>? countedBreakdown;
+  final String? difference;
+  @JsonKey(name: 'z_number')
+  final int? zNumber;
+  @JsonKey(name: 'force_closed')
+  final bool forceClosed;
+  @JsonKey(name: 'close_note')
+  final String? closeNote;
+  final Summary5? summary;
+  @JsonKey(name: 'bank_terminal')
+  final BankTerminal? bankTerminal;
 
   Map<String, Object?> toJson() => _$Data267ToJson(this);
 }

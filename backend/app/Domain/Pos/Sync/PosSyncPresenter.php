@@ -12,7 +12,7 @@ final class PosSyncPresenter
 {
     public const RESULT = 'array{op_id: string, seq: int, type: string, status: string, reason: string|null, message: string|null, duplicate: bool, refs: array<string, mixed>}';
 
-    public const OPERATION = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, staff: array{id: int, name: string|null}|null, device: array{uuid: string, name: string|null}|null, occurred_at: string|null, received_at: string|null, applied_at: string|null, clock_skew_seconds: int|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, payload: array<string, mixed>, refs: array<string, mixed>, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
+    public const OPERATION = 'array{op_id: string, seq: int, type: string, type_label: string, status: string, reason: string|null, message: string|null, staff: array{id: int, name: string|null}|null, device: array{uuid: string, name: string|null}|null, origin_device: array{uuid: string, name: string|null}|null, occurred_at: string|null, received_at: string|null, applied_at: string|null, clock_skew_seconds: int|null, order: array{uuid: string, local_number: string|null, short_code: string|null, table_ref: string|null, status: string}|null, payload: array<string, mixed>, refs: array<string, mixed>, resolved_at: string|null, resolved_by: array{id: int, name: string|null}|null, resolution: string|null, resolution_note: string|null}';
 
     public const DEVICE = 'array{uuid: string, name: string|null, prefix: string|null, last_seq: int, pending_ops: int, oldest_op_at: string|null, reported_at: string|null, clock_skew_seconds: int|null, clock_warning: bool}';
 
@@ -38,7 +38,7 @@ final class PosSyncPresenter
      */
     public static function operation(PosSyncOperation $op): array
     {
-        $op->loadMissing(['staff:id,name', 'device:id,uuid,name', 'order:id,uuid,local_number,short_code,table_ref,status', 'resolver:id,name']);
+        $op->loadMissing(['staff:id,name', 'device:id,uuid,name', 'originDevice:id,uuid,name', 'order:id,uuid,local_number,short_code,table_ref,status', 'resolver:id,name']);
         $type = PosSyncOperationType::tryFrom($op->type);
 
         return [
@@ -51,6 +51,8 @@ final class PosSyncPresenter
             'message' => $op->error,
             'staff' => $op->staff ? ['id' => (int) $op->staff->id, 'name' => $op->staff->name] : null,
             'device' => $op->device ? ['uuid' => (string) $op->device->uuid, 'name' => $op->device->name] : null,
+            // P6: the waiter's phone or KDS the hub relayed it for (null: the till's own)
+            'origin_device' => $op->originDevice ? ['uuid' => (string) $op->originDevice->uuid, 'name' => $op->originDevice->name] : null,
             'occurred_at' => $op->occurred_at?->toJSON(),
             'received_at' => $op->received_at->toJSON(),
             'applied_at' => $op->applied_at?->toJSON(),

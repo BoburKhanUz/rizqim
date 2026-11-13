@@ -338,9 +338,39 @@ yoki stol (chegaralar sozlanadi).
 | Sunmi turidagi Android terminal (Sunmi, PAX, iMin) | ichki printer (ishlab chiqaruvchi SDK), D2 turida ikkinchi ekran | qo'l terminali ofitsiantga ham mos |
 | iPad | faqat LAN printer (USB yo'q) | eng past ustuvorlik; v1 ga kirmaydi |
 
-Uskunaga bog'liq kod faqat `pos_hardware` paketida (drayverlar: ESC/POS LAN, ESC/POS USB Windows, Sunmi). Skaner va
-tarozi — keyinroq. Pilot uchun tavsiya: Android planshet yoki Sunmi + bitta LAN printer (arzon, batareyali) va ofitsiantlar uchun 1–2
+Uskunaga bog'liq kod faqat `pos_hardware` paketida (drayverlar: ESC/POS LAN, ESC/POS USB Windows, Sunmi). Tarozi —
+keyinroq.
+
+**Native drayverlar (P6 uskunalar to'lqini).** Android kassada: Bluetooth (klassik SPP, juftlangan printer, server
+printerida `connection: bluetooth`, `address` — MAC) va USB OTG printer (`connection: usb` Android'da — birinchi ulangan
+USB printer; Windows'da avvalgidek spooler); kassa qutisi har printer orqali. Skaner: klaviatura sifatida ulangan 2D
+skaner (har platformada, tez yozilgan belgilar + Enter) va Sunmi ichki skaneri (broadcast); kod kassada bitta oqimga
+tushadi va Sozlamalar → "Skaner" kartasida ko'rinadi. POS katalogida hozircha shtrix-kod yo'q (backendda variant `sku`
+bor, lekin `GET /pos/catalog` uni bermaydi), shuning uchun taom kod bo'yicha qo'shilmaydi — oqim va ilgak tayyor.
+Sunmi D2 turidagi ikkinchi ekran: kassa ilovasi ikkinchi ekranda o'z mijoz ekranini (mijoz ekrani ilovasi bilan bir xil
+ko'rinish, `pos_ui/customer_display.dart`) serversiz, qurilma ichida ko'rsatadi. Sozlamalar → "Printerni qidirish":
+tarmoq (9100 port), Bluetooth, USB va ichki printerlar ro'yxati, "Sinov cheki" va "Pul qutisini ochish"; printer
+serverga panelda qo'shiladi (ekran manzilni ko'rsatadi). Native kod CI'ning `android-build` jobida kompilyatsiya
+qilinadi; qurilmada tekshirish — `docs/HARDWARE_TEST.md`. Pilot uchun tavsiya: Android planshet yoki Sunmi + bitta LAN printer (arzon, batareyali) va ofitsiantlar uchun 1–2
 Android telefon.
+
+**Schyotni avtomatik chiqarish (P6, egasining 03.11.2026 qarori).** Filial sozlamasi `pos_settings.auto_print_bill`
+(standart yoqiq) va `bill_printer` (filialning faol chek printeri; bo'sh — chop etuvchi kassaning chek printeri). Ofitsiant
+"Schyot so'rash"ni bosganda server schyotni o'zi tuzadi (bitta schyot; kerak bo'lsa eskirganini qayta tuzadi, to'lanayotgan yoki
+bo'lingan buyurtmaga tegmaydi) va `pos-branch.{id}` ga `bill.print_requested` yuboradi: faqat nomlangan kassa (`target_device`:
+printer biriktirilgan qurilma, yoki chop etuvchi kassa, u ham bo'lmasa lokal ko'prik markazi (5.5); filialda bunday kassa yo'q
+bo'lsagina — hamma kassa) schyotni pre-check ("Bu fiskal chek emas") sifatida
+chop etadi, bir `request_id` bir marta. Bu schyotni mehmonga **topshirish emas**: nusxa hisobi ham, buyurtma qulfi ham, `version` ham
+o'zgarmaydi; chop etilmasa kassada oddiy "Chop etilmadi" banneri. Qayta chiqarish — `POST /pos/bills/{uuid}/print-request`
+(`pos.reprint_bill` yoki menejer tasdig'i, `pos.bill_reprinted` jurnali so'ragan xodim bilan); buyurtma schyotdan keyin o'zgargan
+bo'lsa eski summa chiqmaydi — joriy schyot tuziladi va chiqadi (kassa bo'lgan schyot — 409 `bill_stale`), va ofitsiant "Schyot
+so'rash"ni qayta yuborsa yangi pre-check chiqadi. Hodisa tashishdan mustaqil
+(`BillPrintRequest`, `pos_data`): keyingi bosqichda markaz kassa shu so'rovni lokal ko'prik (5.5) orqali ham uzatadi. Hech qachon fiskal emas.
+Review C2: so'rovlarni server saqlaydi; kassa ularni ekrani qulflangan paytda ham chiqaradi (printer sozlamalari qulfda
+o'chmaydi), hodisani o'tkazib yuborsa — ishga tushganda, qayta ulanganda, qulfdan ochilganda va har daqiqada
+`GET /pos/bill-print-requests` dan oladi va chiqarishdan oldin serverda "oladi" (`.../printed`): filialda bir so'rov —
+bitta qog'oz. LAN orqali (5.5): markaz chiqarish va `printed_on_lan` ni bir qadamda hal qiladi, uzilish boshida javobsiz
+qolgan so'rovni ham o'zi chiqaradi (review C6).
 
 ### 2.13. Hisobotlar (v1)
 
@@ -910,12 +940,63 @@ Asosiy qoida: **server haqiqat manbai, lekin bo'lib o'tgan sotuv va olingan pul 
   yo'q.
 - Offlayn chek navbati 48 soatlik chegaraga yaqinlashsa — qizil ogohlantirish, menejer va egaga xabar (fiskal
   bloklanishdan oldin).
-- Qurilmalar orasida LAN orqali sinxronlash **yo'q**: har bir qurilma faqat o'z navbatini saqlaydi.
+- Qurilmalar orasida LAN orqali sinxronlash **yo'q**: har bir qurilma faqat o'z navbatini saqlaydi. P6: lokal ko'prik
+  (5.5) — ofitsiant va KDS amallari asosiy kassaning navbatiga tushadi.
 - Barcha chegaralar bootstrap'ning `offline.limits` qismida keladi (qurilmada standart qiymatlar ham bor).
 
-### 5.5. Doiradan tashqarida (v1 da qilinmaydi)
+### 5.5. Lokal ko'prik (P6, "Uskunalar va lokal tarmoq")
 
-- Restorandagi lokal server yoki qurilmalar orasida LAN orqali sinxronlash ("lokal hub").
+Egasining 03.11.2026 qarori (PHASE6_PLAN 13-bo'lim, 14-band): internet uzilsa, lekin Wi-Fi ishlasa, zal to'xtamaydi.
+**Asosiy kassa — markaz (hub)**: ofitsiant telefonlari, KDS va mijoz ekrani unga lokal tarmoq orqali ulanadi.
+Shartnomaning to'liq matni (kadr, kalitlar, xabarlar) — [`pos/packages/pos_lan/README.md`](../pos/packages/pos_lan/README.md).
+
+- **Holatlar:** `cloud` (server bor, ko'prik bo'sh turadi), `lan` (server yo'q, markaz bor), `alone` (ikkalasi ham
+  yo'q: 5.1 dagi kabi faqat ko'rish). `lan` dan `cloud` ga faqat markaz navbati serverga yetgach qaytiladi.
+- **Markaz:** filialda bitta kassa (ega tanlaydi; tanlanmasa "chop etuvchi" kassa, u ham bo'lmasa birinchi ulangan
+  kassa). Ilovasi ochiq turguncha `dart:io` HTTP + WebSocket serverini (port 18480) va har 2 soniyada UDP beacon
+  yuritadi; zaxira — sozlamalarda IP yoki QR.
+- **Nima ishlaydi:** ofitsiant buyurtma ochadi, bosqich qo'shadi, oshxonaga yuboradi (kurs ham), yuborilmagan qatorni
+  o'chiradi, og'irlik kiritadi, "berildi" belgilaydi, schyot so'raydi; KDS taomni oladi, "tayyor"/qaytarish va yig'ishni
+  belgilaydi; mijoz ekrani savat va raqamlarni ko'rsatadi. Markaz har amalni o'zining 5.2 qoidalari bilan qo'llaydi (narx
+  markazdagi menyu nusxasidan) va serverdagi huquqlar bilan: xodim huquqi, filial modullari, ofitsiant qoidasi (boshqa
+  ofitsiantning buyurtmasi — internetsiz menejer tasdig'i yo'q).
+- **To'lov, schyot tuzish, yopish, qaytarish, chegirma — faqat kassaning o'zida.** Masofadan to'lov yo'q.
+- **Mijoz ilovalari (P6 B):** ofitsiant, KDS va mijoz ekrani bitta `LanLink` bilan ishlaydi — server javob bermasa
+  markazni topadi (qo'lda manzil, beacon — Android'da Wi-Fi multicast qulfi bilan, Windows'da `127.0.0.1`), belgi
+  "Lokal tarmoq" / "Internet yo'q"; server qaytib, markaz navbati yetgach o'zi odatdagi rejimga o'tadi. **Schyotni
+  qayta chiqarish internetsiz yo'q** (menejer PIN'i va nusxa jurnali serverda): ofitsiant ilovasi buni oddiy aytadi.
+  Tafsilot — `pos_lan` README 9.
+- **Markaz kassa (P6 B):** markaz — ega tanlagan kassa, aks holda chop etuvchi kassa, u ham bo'lmasa hozirgi markaz
+  (yangi kassa ulansa markaz jim ko'chmaydi), u ham bo'lmasa kassa ilovasi (ilovalar ulanishda `app` ni, har so'rovda
+  `X-Rizqim-App` ni aytadi: `cashier`, `waiter`, `kds`, `customer_display`); ofitsiant telefoni hech qachon markaz
+  bo'lmaydi. Ilovasi noma'lum eski terminal faqat smena ochilgan bo'lsa (yoki ega tanlasa) markaz bo'ladi; o'zini kassa
+  emas deb aytgan ilovaga markaz siri berilmaydi. Sir ko'chishi auditda, uzilish/kalit/markaz o'zgarishi
+  `pos.lan_changed` bilan darhol filial terminallariga aytiladi. Ega boshqaruv panelida (Kassa sozlamalari → Lokal tarmoq) markazni, portni tanlaydi va kalitni
+  almashtiradi (tasdiq bilan). Kassa o'z chekini (`cart.display`) va navbat amallarini (`queue.*`) LAN qurilmalariga
+  ham yuboradi; internetsiz paytda LAN orqali so'ralgan schyotni (avtomatik chop etish yoqilgan bo'lsa) o'z printerida
+  bir marta chiqaradi va amalni `printed_on_lan` bilan belgilaydi — server keyin qayta chiqarmaydi. Kassa
+  sozlamalarida "Lokal tarmoq" bo'limi: holat, IP, port, ulangan qurilmalar, qo'lda ulanish uchun QR.
+- **Xavfsizlik:** server har filialga sir saqlaydi (ega yangilaydi, audit). Har qurilma o'z kalitini (siridan hosil
+  qilingan) faqat o'z bootstrap'ida oladi — oddiy xodim yoki ega web sessiyasida emas; sirning o'zi faqat markazda. Har
+  xabar shifrlanadi va HMAC-SHA256 bilan imzolanadi; vaqt oynasi (±2 daqiqa) va `(qurilma, seq)` bo'yicha qayta
+  yuborishdan himoya. Xodim kimligi oflaynda — server imzolagan grant (qurilmadagi PIN sessiyasi, huquqlari, PIN kirishdan
+  36 soat; server relay'ni ham amal vaqtiga nisbatan shu 36 soat bilan tekshiradi). Markaz kalitsiz kishidan himoyalangan
+  (review P6): kadr uzunligi WebSocket buferidan oldin tekshiriladi (`hello` gacha 64 KB, keyin 4 MB), siqish
+  kelishilmaydi, `hello` aytmagan ulanishlar alohida kichik hovuzda (manzil bo'yicha cheklangan, 3 soniya) va haqiqiy
+  qurilmani to'smaydi; `hello` markazning shu ulanishga bergan `challenge` ini olib keladi (ushlangan `hello` qayta
+  ishlamaydi); beacon faqat markazning o'z manzilini imzolaydi, qurilma eshitgan har beacon manzilini sinaydi;
+  grantsiz qurilma buyurtmalarni ko'rmaydi (mijoz ekrani — savat va navbat raqamlari).
+- **Sinxronlash:** LAN amallari markaz navbatiga (`pos_sync`) kelib chiqqan qurilma va xodim bilan yoziladi va internet
+  qaytgach tartib bilan `POST /pos/sync` ga ketadi (`op_id` idempotent; `op_id` — qurilma so'rovining
+  `Idempotency-Key` i ham: javobi yo'qolgan onlayn so'rov LAN orqali takrorlansa server uni ikki marta bajarmaydi,
+  onlayn ochilgan buyurtma ikkinchi marta ochilmaydi). Server faqat shu filial markazining relay'ini
+  qabul qiladi, xodimni kelib chiqqan qurilmadagi PIN kirishi va huquqi bo'yicha tekshiradi; qolgani — "Sinxronlash
+  xatolari".
+
+### 5.6. Doiradan tashqarida (v1 da qilinmaydi)
+
+- Restorandagi alohida lokal server (markaz — kassaning o'zi, 5.5) va qurilmalar orasida server holatini to'liq
+  ko'chirish.
 - Kunlab yoki bir smenadan uzoq offline ishlash.
 - Offline onlayn to'lovlar (QR, Click, Payme), offline'da bank terminaliga summa yuborish.
 - Offline'da yangi xodim kirishi, menyu va narxlarni tahrirlash, stop-list va qozon qoldig'ini boshqa qurilmalarga

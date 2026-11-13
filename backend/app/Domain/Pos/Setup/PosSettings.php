@@ -29,6 +29,9 @@ use DateTimeZone;
  *   `auto_send` (default true): sent by itself when a booking becomes confirmed; `sms` (default false, an SMS costs
  *   money): SMS may be used when the guest has no Telegram; `cancel_policy`: the branch's cancellation rule shown in it
  *   (up to 300 characters, null: none). Merged key by key like `alerts`.
+ * - `auto_print_bill` (P6 stage A, owner decision 03.11.2026; default true): the waiter's "Schyot so'rash" makes the
+ *   bill and asks the till to print the pre-check by itself (App\Domain\Pos\Billing\BillPrintRequests); `bill_printer`:
+ *   the id of an active receipt printer of the branch it is printed on (null: the receipt printer of the printing till).
  * - P6-11 `profile` and `modules` (FORMAT_KEYS): the branch's format profile (FormatProfile, `choyxona` when not
  *   set) and the owner's module overrides ({module: bool}, only where they differ from the profile). Read with
  *   format(), written only by PUT /owner/pos/format (withFormat()); the POS settings endpoint neither shows nor takes
@@ -42,7 +45,7 @@ final class PosSettings
     public const MODES = ['counter', 'table', 'hybrid'];
 
     /** Keys written by the API, in the order they are shown. */
-    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes', 'booking_confirmation'];
+    public const KEYS = ['mode', 'printing_device_id', 'screen_lock_minutes', 'queue_numbers', 'cashier_discount_max_percent', 'alerts', 'holidays', 'booking_slot_minutes', 'booking_confirmation', 'auto_print_bill', 'bill_printer'];
 
     /** P6-11: kept by merge(), written by withFormat() only. */
     public const FORMAT_KEYS = ['profile', 'modules'];
@@ -64,7 +67,7 @@ final class PosSettings
     public const MAX_HOLIDAYS = 400;
 
     /**
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}, auto_print_bill: bool, bill_printer: int|null}
      */
     public static function defaults(): array
     {
@@ -88,6 +91,8 @@ final class PosSettings
                 'sms' => false,
                 'cancel_policy' => null,
             ],
+            'auto_print_bill' => true,
+            'bill_printer' => null,
         ];
     }
 
@@ -95,7 +100,7 @@ final class PosSettings
      * The settings as a terminal and the panel read them: every key present, stored values over the defaults.
      *
      * @param  array<string, mixed>|null  $stored
-     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}}
+     * @return array{mode: string, printing_device_id: string|null, screen_lock_minutes: int, queue_numbers: bool, cashier_discount_max_percent: string|null, alerts: array{open_room_hours: int|null, void_amount: string|null, discount_percent: string|null, unaccepted_online_minutes: int|null, cash_out_amount: string|null}, holidays: list<string>, booking_slot_minutes: int|null, booking_confirmation: array{auto_send: bool, sms: bool, cancel_policy: string|null}, auto_print_bill: bool, bill_printer: int|null}
      */
     public static function resolve(?array $stored): array
     {
@@ -139,6 +144,13 @@ final class PosSettings
 
         if (isset($stored['booking_slot_minutes']) && is_int($stored['booking_slot_minutes']) && $stored['booking_slot_minutes'] >= 30 && $stored['booking_slot_minutes'] <= 1440) {
             $settings['booking_slot_minutes'] = $stored['booking_slot_minutes'];
+        }
+
+        if (isset($stored['auto_print_bill']) && is_bool($stored['auto_print_bill'])) {
+            $settings['auto_print_bill'] = $stored['auto_print_bill'];
+        }
+        if (array_key_exists('bill_printer', $stored)) {
+            $settings['bill_printer'] = is_int($stored['bill_printer']) && $stored['bill_printer'] > 0 ? $stored['bill_printer'] : null;
         }
 
         $holidays = is_array($stored['holidays'] ?? null) ? $stored['holidays'] : [];
@@ -198,6 +210,8 @@ final class PosSettings
                 'holidays' => self::normalizeHolidays($changes['holidays']),
                 'screen_lock_minutes' => (int) $changes['screen_lock_minutes'],
                 'queue_numbers' => (bool) $changes['queue_numbers'],
+                'auto_print_bill' => (bool) $changes['auto_print_bill'],
+                'bill_printer' => $changes['bill_printer'] === null ? null : (int) $changes['bill_printer'],
                 'booking_slot_minutes' => $changes['booking_slot_minutes'] === null ? null : (int) $changes['booking_slot_minutes'],
                 'cashier_discount_max_percent' => $changes['cashier_discount_max_percent'] === null ? null : Money::of($changes['cashier_discount_max_percent'])->toString(),
                 default => $changes[$key],

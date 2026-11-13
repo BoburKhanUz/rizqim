@@ -5,6 +5,8 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../lan/kds_lan.dart';
+import '../lan/lan_badge.dart';
 import '../billing/kds_plan.dart';
 import '../board/board_view.dart';
 import '../board/kitchen_board_controller.dart';
@@ -38,6 +40,7 @@ class KitchenBoardScreen extends StatefulWidget {
     this.realtime,
     this.clock,
     this.plan,
+    this.lan,
   });
 
   final KitchenBoardController controller;
@@ -55,6 +58,9 @@ class KitchenBoardScreen extends StatefulWidget {
 
   /// P4-21: tarif xabari (to'lanmagan hisob-faktura, tarifda KDS yo'q); `null` — lenta yo'q.
   final KdsPlanController? plan;
+
+  /// P6 lokal ko'prik (yuqori paneldagi belgi); `null` — yo'q.
+  final KdsLan? lan;
 
   /// Bitta ustunning eng kichik kengligi.
   static const double minColumnWidth = 340;
@@ -206,6 +212,7 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
                   ? view.expo.length
                   : view.active.length,
               realtime: widget.realtime,
+              lan: widget.lan,
               clock: _now,
               muted: settings.muted,
               onToggleMute: () => widget.settings.update(
@@ -745,7 +752,10 @@ class _TopBar extends StatelessWidget {
     required this.onToggleMute,
     required this.onSettings,
     required this.onSignOut,
+    this.lan,
   });
+
+  final KdsLan? lan;
 
   final PairedTerminal terminal;
   final String staffName;
@@ -819,6 +829,7 @@ class _TopBar extends StatelessWidget {
                         compact: compact,
                       ),
                     ),
+                    if (lan != null) KdsLanBadge(lan: lan!, compact: compact),
                   ],
                 ],
               ),

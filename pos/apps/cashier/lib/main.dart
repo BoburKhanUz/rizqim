@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pos_hardware/pos_hardware.dart';
 import 'package:pos_sync/pos_sync.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'src/app.dart';
 import 'src/app_config.dart';
+import 'src/hardware/customer_screen_app.dart';
 import 'src/services.dart';
 import 'src/storage/secure_storage_store.dart';
 import 'src/storage/shell_settings.dart';
@@ -16,6 +18,7 @@ Future<void> main() async {
   final RizqimClient client = RizqimClient(
     baseUrl: AppConfig.apiBaseUrl,
     store: SecureStorageStore(),
+    app: 'cashier',
   );
   final ShellSettingsController settings = ShellSettingsController(
     PrefsShellSettingsStore(),
@@ -34,7 +37,17 @@ Future<void> main() async {
         settings: settings,
         realtimeFactory: defaultRealtime,
         offlineStore: offline,
+        // P6 local bridge: the hub's keys (never in the plain offline copy)
+        lanStore: SecureStorageStore(),
       ),
     ),
   );
+}
+
+/// P6 uskunalar: kassaning ikkinchi ekrani (Sunmi D2 turi). `pos_hardware` plagini uni ikkinchi ekranda alohida
+/// Flutter dvigatelida ishga tushiradi; chek kassadan qurilma ichida keladi (server kerak emas).
+@pragma('vm:entry-point')
+void customerScreenMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(CustomerScreenApp(receiver: CustomerScreenReceiver()));
 }

@@ -17,17 +17,17 @@ Data241 _$Data241FromJson(Map<String, dynamic> json) => Data241(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall15.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall10.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
-      : Table15.fromJson(json['table'] as Map<String, dynamic>),
+      : Table10.fromJson(json['table'] as Map<String, dynamic>),
   hallRef: json['hall_ref'] as String?,
   tableRef: json['table_ref'] as String?,
   tableLabel: json['table_label'] as String?,
   guestsCount: (json['guests_count'] as num?)?.toInt(),
   waiter: json['waiter'] == null
       ? null
-      : Waiter18.fromJson(json['waiter'] as Map<String, dynamic>),
+      : Waiter13.fromJson(json['waiter'] as Map<String, dynamic>),
   uuid: json['uuid'] as String,
   deviceId: (json['device_id'] as num?)?.toInt(),
   bookingId: (json['booking_id'] as num?)?.toInt(),
@@ -45,7 +45,7 @@ Data241 _$Data241FromJson(Map<String, dynamic> json) => Data241(
       : DiscountKind.fromJson(json['discount_kind'] as String?),
   discountValue: json['discount_value'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items39.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items35.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountBy: (json['discount_by'] as num?)?.toInt(),
   serviceChargeAmount: json['service_charge_amount'] as String,
@@ -55,18 +55,18 @@ Data241 _$Data241FromJson(Map<String, dynamic> json) => Data241(
   packagingAmount: json['packaging_amount'] as String,
   pickup: json['pickup'] == null
       ? null
-      : Pickup16.fromJson(json['pickup'] as Map<String, dynamic>),
+      : Pickup11.fromJson(json['pickup'] as Map<String, dynamic>),
   totalPrice: json['total_price'] as String,
-  charges: Charges18.fromJson(json['charges'] as Map<String, dynamic>),
+  charges: Charges13.fromJson(json['charges'] as Map<String, dynamic>),
   offline: json['offline'] == null
       ? null
-      : Offline14.fromJson(json['offline'] as Map<String, dynamic>),
+      : Offline9.fromJson(json['offline'] as Map<String, dynamic>),
   queue: json['queue'] == null
       ? null
-      : Queue16.fromJson(json['queue'] as Map<String, dynamic>),
+      : Queue11.fromJson(json['queue'] as Map<String, dynamic>),
   rounds: (json['rounds'] as num).toInt(),
   courses: (json['courses'] as List<dynamic>)
-      .map((e) => Courses13.fromJson(e as Map<String, dynamic>))
+      .map((e) => Courses8.fromJson(e as Map<String, dynamic>))
       .toList(),
   weightPending: (json['weight_pending'] as num).toInt(),
   discountReason: json['discount_reason'] as String?,

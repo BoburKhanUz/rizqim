@@ -7,6 +7,7 @@ import 'package:pos_hardware/pos_hardware.dart';
 import 'package:pos_hardware/testing.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_cashier/src/app.dart';
+import 'package:rizqim_cashier/src/hardware/cashier_hardware.dart';
 import 'package:rizqim_cashier/src/printing/printing_service.dart';
 import 'package:rizqim_cashier/src/services.dart';
 import 'package:rizqim_cashier/src/storage/shell_settings.dart';
@@ -15,7 +16,11 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 /// Testdagi butun kassa: soxta backend ([FakePosAdapter]), soxta Reverb, xotiradagi omborlar, qo'lda suriladigan soat,
 /// xotiradagi printerlar ([printerFor]: printer id → soxta printer; qayta urinishsiz).
 class CashierHarness {
-  CashierHarness({bool realtime = true, SyncStore? offlineStore}) {
+  CashierHarness({
+    bool realtime = true,
+    SyncStore? offlineStore,
+    CashierHardware? hardware,
+  }) {
     adapter = FakePosAdapter(clock: () => now);
     // Sex printeri testda matn rejimida (rasm rejimi Flutter dvigatelini kutadi)
     for (final Map<String, Object?> p in adapter.state.printers) {
@@ -35,6 +40,8 @@ class CashierHarness {
       settings: settings,
       clock: () => now,
       offlineStore: offlineStore,
+      // P6 hardware: discovery, scanners and the second screen with fake channels (default: none, not Android)
+      hardware: hardware ?? CashierHardware(android: false),
       printing: CashierPrinting(
         printers: PosPrinters(
           queue: PrintQueue(

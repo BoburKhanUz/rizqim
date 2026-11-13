@@ -421,6 +421,7 @@ void main() {
         name: 'KDS 1',
         platform: 'linux',
         appVersion: '0.1.0',
+        app: 'kds',
       );
 
       expect(paired.token, 'terminal-token');
@@ -431,6 +432,7 @@ void main() {
         'name': 'KDS 1',
         'platform': 'linux',
         'app_version': '0.1.0',
+        'app': 'kds',
       });
       expect(
         adapter.requests.single.headers.containsKey('Authorization'),

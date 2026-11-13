@@ -25,6 +25,8 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     Route::get('/orders/{uuid}/bills', [PosBillController::class, 'index'])->whereUuid('uuid')->middleware('permission:orders.view');
     Route::post('/orders/{uuid}/bills', [PosBillController::class, 'store'])->whereUuid('uuid')->middleware(['permission:orders.manage,pos.take_payment', $idempotent('pos.bills.create')]);
     Route::post('/bills/{uuid}/print', [PosBillController::class, 'print'])->whereUuid('uuid')->middleware(['permission:orders.manage,pos.take_payment', $idempotent('pos.bills.print')]);
+    // P6 stage A: the waiter app asks the till to print a bill again (pos.reprint_bill or a manager's approval token, checked in the service)
+    Route::post('/bills/{uuid}/print-request', [PosBillController::class, 'printRequest'])->whereUuid('uuid')->middleware(['permission:orders.manage,pos.take_payment', $idempotent('pos.bills.print_request')]);
     Route::middleware('permission:pos.take_payment')->group(function () use ($idempotent) {
         Route::post('/bills/{uuid}/payments', [PosBillController::class, 'pay'])->whereUuid('uuid')->middleware($idempotent('pos.bills.pay'));
         Route::post('/bills/{uuid}/fiscal-retry', [PosBillController::class, 'fiscalRetry'])->whereUuid('uuid')->middleware($idempotent('pos.bills.fiscal_retry') . ',optional');
@@ -51,4 +53,12 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     // P6-16: the bank terminal's day total of the shift, compared with its card money (never needed to close it)
     Route::put('/shifts/{uuid}/bank-report', [\App\Http\Controllers\Api\V1\PosBilling\PosBankTerminalController::class, 'update'])->whereUuid('uuid')
         ->middleware(['permission:pos.close_shift', 'pos.module:terminal_card_flow', $idempotent('pos.shifts.bank_report')]);
+});
+
+// Review P6 hardware/LAN (C2): the till's catch-up of the waiters' bill print requests with its own token (it prints
+// them while its screen is locked too); App\Domain\Pos\Billing\BillPrintInbox
+Route::middleware(['auth:device', 'throttle:pos-sync'])->prefix('pos/bill-print-requests')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'index']);
+    Route::post('/{requestId}/printed', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'printed'])->whereUuid('requestId')
+        ->middleware(EnsureIdempotency::class . ':pos.bill_print_requests.printed,optional');
 });

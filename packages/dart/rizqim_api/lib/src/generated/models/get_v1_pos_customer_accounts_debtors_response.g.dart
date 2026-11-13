@@ -11,7 +11,7 @@ _$GetV1PosCustomerAccountsDebtorsResponseFromJson(Map<String, dynamic> json) =>
     GetV1PosCustomerAccountsDebtorsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data211.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data217.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1PosCustomerAccountsDebtorsResponseToJson(

@@ -4,64 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'ticket9.dart';
-
 part 'order9.g.dart';
 
 @JsonSerializable()
 class Order9 {
-  const Order9({
-    required this.uuid,
-    required this.status,
-    required this.paymentStatus,
-    required this.version,
-    required this.queueNumber,
-    required this.ticket,
-    required this.businessDate,
-    required this.billLockedAt,
-    required this.closedAt,
-    required this.totalPrice,
-    required this.billedAmount,
-    required this.paidAmount,
-    required this.unbilledAmount,
-    required this.fiscalPending,
-    required this.billsOutOfDate,
-    required this.bookingUuid,
-    required this.depositAvailable,
-  });
+  const Order9({required this.uuid, required this.status});
 
   factory Order9.fromJson(Map<String, Object?> json) => _$Order9FromJson(json);
 
   final String uuid;
   final String status;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final int version;
-  @JsonKey(name: 'queue_number')
-  final int? queueNumber;
-  final Ticket9? ticket;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  @JsonKey(name: 'bill_locked_at')
-  final String? billLockedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'billed_amount')
-  final String billedAmount;
-  @JsonKey(name: 'paid_amount')
-  final String paidAmount;
-  @JsonKey(name: 'unbilled_amount')
-  final String? unbilledAmount;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'bills_out_of_date')
-  final bool billsOutOfDate;
-  @JsonKey(name: 'booking_uuid')
-  final String? bookingUuid;
-  @JsonKey(name: 'deposit_available')
-  final String depositAvailable;
 
   Map<String, Object?> toJson() => _$Order9ToJson(this);
 }

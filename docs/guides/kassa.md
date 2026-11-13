@@ -902,6 +902,14 @@ Chop etishni kassaning o'zi bajaradi (LAN yoki USB orqali), server emas: interne
 chiqaradi. **Sinov chop etish** bilan tekshiring; stiker chiqmasa to'lov baribir o'tadi, ish navbatda turadi va **Qayta yuborish**
 bilan yuboriladi ([fast-food.md](fast-food.md#6-stiker-va-yorliq-printeri)).
 
+**Printerni topish, Bluetooth va USB printer, skaner, kassa qutisi** va **lokal tarmoq** (internet uzilsa ham zal ishlaydi) — [uskunalar.md](uskunalar.md).
+<!-- TEKSHIRILMAGAN: "Printerni qidirish", "Sinov cheki" va lokal tarmoq hozir yozilmoqda; ularning ekran yozuvlari farq qilishi mumkin -->
+
+**Ofitsiant schyot so'raganda schyot o'zi chiqadi** (filial sozlamasi, standart yoqiq): kassa uni o'zining chek printerida (yoki ega
+tanlagan schyot printerida) chop etadi, siz hech narsa bosmaysiz. Bu fiskal chek emas, faqat hisob; buyurtmani qulflamaydi. Chiqmasa
+"Chop etilmadi" banneri chiqadi: **Qayta urinish**. Ofitsiant yana nusxa so'rasa, u **NUSXA** yozuvi bilan chiqadi. Batafsil:
+[uskunalar.md](uskunalar.md#8-schyotni-avtomatik-chiqarish).
+
 **Ovoz:** **Yangi onlayn buyurtma ovozi** — yoqish/o'chirish, **Sinab eshitish**.
 **Qurilma:** nomi, filial, terminal raqami, kirgan xodim va shu kassa onlayn buyurtma markasini chiqarishi yoki chiqarmasligi.
 

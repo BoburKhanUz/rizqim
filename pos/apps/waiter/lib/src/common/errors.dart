@@ -34,6 +34,10 @@ String describeError(Object error) {
     // P6: the button showed from an old bootstrap; the branch has the feature off now
     return "Bu imkoniyat filialda o'chirilgan. Ilovani qayta oching yoki menejerga ayting.";
   }
+  if (error is PosConflict && error.reason == 'bill_stale') {
+    // P6 review C4: the till split the bill and the order changed since; the server never prints the old total
+    return "Schyot chiqqandan keyin buyurtma o'zgardi: yangi schyotni kassir tuzadi. Eski schyot chiqarilmadi.";
+  }
   if (error is PosValidationException) return error.firstError;
   if (error is ApiException) return error.message;
   return "Kutilmagan xato. Qayta urinib ko'ring.";

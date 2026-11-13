@@ -12,7 +12,7 @@ _$PutV1OwnerProductsIdChannelPricesResponseFromJson(
 ) => PutV1OwnerProductsIdChannelPricesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data143.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data146.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerProductsIdChannelPricesResponseToJson(

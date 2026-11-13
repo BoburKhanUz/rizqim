@@ -99,6 +99,8 @@ class RoomsController extends ChangeNotifier {
           e is PosOrderTransferred ||
           e is PosTableStateChanged,
       onRefresh: (PosRefreshReason _) => load(),
+      // P6: the hub's events in `lan` mode
+      localEvents: data.lanEvents,
     )..start();
     unawaited(load());
   }

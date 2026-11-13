@@ -19,6 +19,7 @@ export 'package:pos_sync/pos_sync.dart';
 
 export 'src/accounts/account_models.dart';
 export 'src/accounts/account_repository.dart';
+export 'src/billing/bill_print_request.dart';
 export 'src/billing/billing_models.dart';
 export 'src/billing/billing_repository.dart';
 export 'src/bookings/booking_models.dart';
@@ -45,6 +46,7 @@ export 'src/http/connectivity.dart';
 export 'src/http/pos_exceptions.dart';
 export 'src/http/pos_http.dart';
 export 'src/json.dart';
+export 'src/lan/pos_lan_route.dart';
 export 'src/menu_day/batch_repository.dart';
 export 'src/menu_day/menu_day_models.dart';
 export 'src/offline/offline_book.dart';

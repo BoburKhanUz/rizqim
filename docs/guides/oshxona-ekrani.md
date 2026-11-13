@@ -204,6 +204,8 @@ Doskaning eng tepasida rangli lenta chiqishi mumkin. U faqat xabar: **doska, "ta
 
 To'lovni ega qiladi; to'lov tushgach lenta o'zi yo'qoladi (taxminan 10 daqiqada). Siz hech narsa qilmaysiz, egaga ayting.
 
+**Internet uzilsa-yu Wi-Fi ishlasa** (lokal tarmoq): chiptalar asosiy kassa orqali kelaveradi va **Tayyor** ofitsiantga yetadi; internet qaytgach hammasi serverga o'zi o'tadi. Sozlash va belgilar — [uskunalar.md](uskunalar.md#9-lokal-tarmoq-internet-uzilsa-ham-zal-ishlaydi). <!-- TEKSHIRILMAGAN: oshxona ekrani lokal tarmoqqa hali ulanmagan (stage B) -->
+
 ## 7. Chiqish
 
 - Ish tugasa yoki boshqa oshpaz almashsa: tepadagi **Chiqish** (qulf belgisi) tugmasini bosing.

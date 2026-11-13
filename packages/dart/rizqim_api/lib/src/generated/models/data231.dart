@@ -4,16 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall7.dart';
-import 'table7.dart';
-import 'waiter10.dart';
+import 'hall4.dart';
+import 'table4.dart';
+import 'waiter7.dart';
 import 'discount_kind.dart';
-import 'pickup8.dart';
-import 'charges10.dart';
-import 'offline6.dart';
-import 'queue8.dart';
-import 'courses5.dart';
-import 'items30.dart';
+import 'pickup5.dart';
+import 'charges8.dart';
+import 'offline4.dart';
+import 'queue5.dart';
+import 'courses3.dart';
+import 'items25.dart';
 
 part 'data231.g.dart';
 
@@ -81,8 +81,8 @@ class Data231 {
   @JsonKey(name: 'branch_id')
   final int? branchId;
   final int version;
-  final Hall7? hall;
-  final Table7? table;
+  final Hall4? hall;
+  final Table4? table;
   @JsonKey(name: 'hall_ref')
   final String? hallRef;
   @JsonKey(name: 'table_ref')
@@ -91,7 +91,7 @@ class Data231 {
   final String? tableLabel;
   @JsonKey(name: 'guests_count')
   final int? guestsCount;
-  final Waiter10? waiter;
+  final Waiter7? waiter;
   @JsonKey(name: 'opened_by')
   final int openedBy;
   @JsonKey(name: 'device_id')
@@ -131,17 +131,17 @@ class Data231 {
   final String minSpendTopupAmount;
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
-  final Pickup8? pickup;
+  final Pickup5? pickup;
   @JsonKey(name: 'total_price')
   final String totalPrice;
-  final Charges10 charges;
-  final Offline6? offline;
-  final Queue8? queue;
+  final Charges8 charges;
+  final Offline4? offline;
+  final Queue5? queue;
   final int rounds;
-  final List<Courses5> courses;
+  final List<Courses3> courses;
   @JsonKey(name: 'weight_pending')
   final int weightPending;
-  final List<Items30> items;
+  final List<Items25> items;
 
   Map<String, Object?> toJson() => _$Data231ToJson(this);
 }

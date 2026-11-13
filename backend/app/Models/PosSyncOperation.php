@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $store_id
  * @property int|null $branch_id
  * @property int $device_id
+ * @property int|null $origin_device_id P6: the terminal the branch's hub relayed it for (null: the sender's own)
  * @property string $op_id
  * @property int $seq
  * @property string $type
@@ -40,6 +41,7 @@ class PosSyncOperation extends Model
     {
         return [
             'seq' => 'integer',
+            'origin_device_id' => 'integer',
             'staff_id' => 'integer',
             'order_id' => 'integer',
             'occurred_at' => 'datetime',
@@ -59,6 +61,16 @@ class PosSyncOperation extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
+    }
+
+    /**
+     * P6 local bridge: the terminal the hub relayed this operation for.
+     *
+     * @return BelongsTo<Device, $this>
+     */
+    public function originDevice(): BelongsTo
+    {
+        return $this->belongsTo(Device::class, 'origin_device_id');
     }
 
     /**

@@ -28,10 +28,10 @@ Report3 _$Report3FromJson(Map<String, dynamic> json) => Report3(
   batchWriteoffs: BatchWriteoffs5.fromJson(
     json['batch_writeoffs'] as Map<String, dynamic>,
   ),
-  refunds: Refunds8.fromJson(json['refunds'] as Map<String, dynamic>),
+  refunds: Refunds9.fromJson(json['refunds'] as Map<String, dynamic>),
   deposits: Deposits5.fromJson(json['deposits'] as Map<String, dynamic>),
   credit: Credit8.fromJson(json['credit'] as Map<String, dynamic>),
-  tips: Tips13.fromJson(json['tips'] as Map<String, dynamic>),
+  tips: Tips14.fromJson(json['tips'] as Map<String, dynamic>),
   cash: Cash6.fromJson(json['cash'] as Map<String, dynamic>),
   movements: (json['movements'] as List<dynamic>)
       .map((e) => Movements5.fromJson(e as Map<String, dynamic>))

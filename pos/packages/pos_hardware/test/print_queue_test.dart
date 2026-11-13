@@ -149,6 +149,29 @@ void main() {
     expect(h.sleeps, contains(const Duration(minutes: 1)));
   });
 
+  test('review C7: a job cut off after part of it printed is not sent again by itself, only by hand', () async {
+    final Harness h = Harness(autoResumeAfter: const Duration(minutes: 1));
+    h['kitchen'].failNext(
+      1,
+      const PrinterException(
+        PrinterErrorKind.interrupted,
+        'Chek qisman chiqdi: printer bilan aloqa uzildi',
+      ),
+    );
+    final PrintJob job = h.queue.submit(kitchen, doc('Stol 4'));
+    await pumpEventQueue();
+    expect(job.status, PrintJobStatus.failed);
+    expect(h['kitchen'].sendCalls, 1, reason: 'no automatic resend');
+    expect(h.sleeps, isEmpty, reason: 'no retry, no auto resume');
+    expect(job.lastErrorKind, PrinterErrorKind.interrupted);
+
+    // The cashier saw the warning and asks for it again
+    h.queue.retry(job.id);
+    await job.done;
+    expect(job.status, PrintJobStatus.done);
+    expect(h['kitchen'].sendCalls, 2);
+  });
+
   test('cash drawer jumps the queue', () async {
     final Harness h = Harness();
     h['kitchen'].delay = const Duration(milliseconds: 5);

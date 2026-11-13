@@ -6,6 +6,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../storage/shell_settings.dart';
+import '../lan/lan_indicator.dart';
 import 'clock_button.dart';
 import 'connection_indicator.dart';
 import 'destinations.dart';
@@ -66,6 +67,8 @@ class PosTopBar extends StatelessWidget implements PreferredSizeWidget {
         const SizedBox(width: 8),
         SyncBadge(connectivity: scope.data.connectivity),
         const SizedBox(width: 8),
+        // P6 local bridge: "Lokal tarmoq: 3 qurilma" on the hub till
+        LanIndicator(hub: scope.services.lan, compact: compact),
         // P6-23: "Ishga keldim" / "Ishdan ketdim" (bootstrap `staff_pay.clock`; phone: in the staff menu)
         if (!compact) const ClockButton(),
         StaffMenuButton(

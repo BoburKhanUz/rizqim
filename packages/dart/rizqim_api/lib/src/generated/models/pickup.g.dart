@@ -7,15 +7,17 @@ part of 'pickup.dart';
 // **************************************************************************
 
 Pickup _$PickupFromJson(Map<String, dynamic> json) => Pickup(
-  minLeadMinutes: (json['min_lead_minutes'] as num).toInt(),
-  slotMinutes: (json['slot_minutes'] as num).toInt(),
-  maxDaysAhead: (json['max_days_ahead'] as num).toInt(),
-  prepMinutes: (json['prep_minutes'] as num).toInt(),
+  pickupAt: json['pickup_at'] as String,
+  kitchenFireAt: json['kitchen_fire_at'] as String?,
+  kitchenFiredAt: json['kitchen_fired_at'] as String?,
+  waiting: json['waiting'] as bool,
+  localTime: json['local_time'] as String,
 );
 
 Map<String, dynamic> _$PickupToJson(Pickup instance) => <String, dynamic>{
-  'min_lead_minutes': instance.minLeadMinutes,
-  'slot_minutes': instance.slotMinutes,
-  'max_days_ahead': instance.maxDaysAhead,
-  'prep_minutes': instance.prepMinutes,
+  'pickup_at': instance.pickupAt,
+  'kitchen_fire_at': instance.kitchenFireAt,
+  'kitchen_fired_at': instance.kitchenFiredAt,
+  'waiting': instance.waiting,
+  'local_time': instance.localTime,
 };

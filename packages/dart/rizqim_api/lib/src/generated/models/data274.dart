@@ -4,74 +4,74 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'staff24.dart';
+import 'device22.dart';
+import 'origin_device2.dart';
+import 'order14.dart';
+import 'resolved_by2.dart';
+
 part 'data274.g.dart';
 
 @JsonSerializable()
 class Data274 {
   const Data274({
-    required this.uuid,
-    required this.branchId,
-    required this.businessDate,
-    required this.guestName,
-    required this.guestPhone,
-    required this.guestPhoneMasked,
-    required this.partySize,
-    required this.quotedWaitMinutes,
-    required this.note,
+    required this.opId,
+    required this.seq,
+    required this.type,
+    required this.typeLabel,
     required this.status,
-    required this.statusLabel,
-    required this.position,
-    required this.waitedMinutes,
-    required this.diningTableId,
-    required this.tableName,
-    required this.orderUuid,
-    required this.notifiedAt,
-    required this.seatedAt,
-    required this.closedAt,
-    required this.version,
-    required this.createdAt,
+    required this.reason,
+    required this.message,
+    required this.staff,
+    required this.device,
+    required this.originDevice,
+    required this.occurredAt,
+    required this.receivedAt,
+    required this.appliedAt,
+    required this.clockSkewSeconds,
+    required this.order,
+    required this.payload,
+    required this.refs,
+    required this.resolvedAt,
+    required this.resolvedBy,
+    required this.resolution,
+    required this.resolutionNote,
   });
 
   factory Data274.fromJson(Map<String, Object?> json) =>
       _$Data274FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'guest_name')
-  final String guestName;
-  @JsonKey(name: 'guest_phone')
-  final String? guestPhone;
-  @JsonKey(name: 'guest_phone_masked')
-  final String? guestPhoneMasked;
-  @JsonKey(name: 'party_size')
-  final int partySize;
-  @JsonKey(name: 'quoted_wait_minutes')
-  final int? quotedWaitMinutes;
-  final String? note;
+  @JsonKey(name: 'op_id')
+  final String opId;
+  final int seq;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
   final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final int? position;
-  @JsonKey(name: 'waited_minutes')
-  final int waitedMinutes;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_name')
-  final String? tableName;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'notified_at')
-  final String? notifiedAt;
-  @JsonKey(name: 'seated_at')
-  final String? seatedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String? reason;
+  final String? message;
+  final Staff24? staff;
+  final Device22? device;
+  @JsonKey(name: 'origin_device')
+  final OriginDevice2? originDevice;
+  @JsonKey(name: 'occurred_at')
+  final String? occurredAt;
+  @JsonKey(name: 'received_at')
+  final String? receivedAt;
+  @JsonKey(name: 'applied_at')
+  final String? appliedAt;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  final Order14? order;
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic> refs;
+  @JsonKey(name: 'resolved_at')
+  final String? resolvedAt;
+  @JsonKey(name: 'resolved_by')
+  final ResolvedBy2? resolvedBy;
+  final String? resolution;
+  @JsonKey(name: 'resolution_note')
+  final String? resolutionNote;
 
   Map<String, Object?> toJson() => _$Data274ToJson(this);
 }

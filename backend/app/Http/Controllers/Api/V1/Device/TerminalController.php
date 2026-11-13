@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Device;
 
+use App\Enums\DeviceApp;
 use App\Http\Controllers\Controller;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 /**
  * What a POS/KDS terminal itself calls: pairing with a code, its own details, the staff PIN pad and staff sessions.
@@ -33,9 +35,11 @@ class TerminalController extends Controller
     ) {}
 
     /**
-     * POST /devices/pair {code, name?, platform?, app_version?} (no auth, rate limited).
+     * POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited).
      *
-     * `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter.
+     * `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`
+     * (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the
+     * code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{token: string, device: array{uuid: string, type: string, name: string, platform: string|null, app_version: string|null, store_id: int|null, branch_id: int|null, user: array{id: int, name: string, role: string}|null, has_push_token: bool, last_seen_at: string|null, revoked_at: string|null, created_at: string|null}, store: array{id: int, name: string}|null, branch: array{id: int, name: string}|null}}')]
     public function pair(Request $request): JsonResponse
@@ -45,6 +49,7 @@ class TerminalController extends Controller
             'name' => 'nullable|string|max:100',
             'platform' => 'nullable|string|max:32',
             'app_version' => 'nullable|string|max:32',
+            'app' => ['nullable', Rule::enum(DeviceApp::class)],
         ]);
 
         $this->watchPairingVolume();

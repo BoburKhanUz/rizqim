@@ -46,6 +46,22 @@ enum Type9 {
   @JsonValue('order.weight')
   undefined9('order.weight'),
 
+  /// Incorrect name has been replaced. Original name: `kitchen.bump`.
+  @JsonValue('kitchen.bump')
+  undefined10('kitchen.bump'),
+
+  /// Incorrect name has been replaced. Original name: `kitchen.recall`.
+  @JsonValue('kitchen.recall')
+  undefined11('kitchen.recall'),
+
+  /// Incorrect name has been replaced. Original name: `kitchen.assembled`.
+  @JsonValue('kitchen.assembled')
+  undefined12('kitchen.assembled'),
+
+  /// Incorrect name has been replaced. Original name: `bill.request`.
+  @JsonValue('bill.request')
+  undefined13('bill.request'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

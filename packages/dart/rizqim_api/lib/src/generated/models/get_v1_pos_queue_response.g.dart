@@ -11,7 +11,7 @@ GetV1PosQueueResponse _$GetV1PosQueueResponseFromJson(
 ) => GetV1PosQueueResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data254.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data261.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosQueueResponseToJson(

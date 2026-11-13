@@ -7,55 +7,57 @@ part of 'data267.dart';
 // **************************************************************************
 
 Data267 _$Data267FromJson(Map<String, dynamic> json) => Data267(
-  opId: json['op_id'] as String,
-  seq: (json['seq'] as num).toInt(),
-  type: json['type'] as String,
-  typeLabel: json['type_label'] as String,
+  uuid: json['uuid'] as String,
   status: json['status'] as String,
-  reason: json['reason'] as String?,
-  message: json['message'] as String?,
-  staff: json['staff'] == null
-      ? null
-      : Staff22.fromJson(json['staff'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num).toInt(),
   device: json['device'] == null
       ? null
-      : Device22.fromJson(json['device'] as Map<String, dynamic>),
-  occurredAt: json['occurred_at'] as String?,
-  receivedAt: json['received_at'] as String?,
-  appliedAt: json['applied_at'] as String?,
-  clockSkewSeconds: (json['clock_skew_seconds'] as num?)?.toInt(),
-  order: json['order'] == null
+      : Device16.fromJson(json['device'] as Map<String, dynamic>),
+  businessDate: json['business_date'] as String,
+  openedAt: json['opened_at'] as String,
+  openedBy: json['opened_by'] == null
       ? null
-      : Order12.fromJson(json['order'] as Map<String, dynamic>),
-  payload: json['payload'] as Map<String, dynamic>,
-  refs: json['refs'] as Map<String, dynamic>,
-  resolvedAt: json['resolved_at'] as String?,
-  resolvedBy: json['resolved_by'] == null
+      : OpenedBy5.fromJson(json['opened_by'] as Map<String, dynamic>),
+  openingCash: json['opening_cash'] as String,
+  closedAt: json['closed_at'] as String?,
+  closedBy: json['closed_by'] == null
       ? null
-      : ResolvedBy2.fromJson(json['resolved_by'] as Map<String, dynamic>),
-  resolution: json['resolution'] as String?,
-  resolutionNote: json['resolution_note'] as String?,
+      : ClosedBy8.fromJson(json['closed_by'] as Map<String, dynamic>),
+  expectedCash: json['expected_cash'] as String?,
+  countedCash: json['counted_cash'] as String?,
+  countedBreakdown: (json['counted_breakdown'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, (e as num).toInt()),
+  ),
+  difference: json['difference'] as String?,
+  zNumber: (json['z_number'] as num?)?.toInt(),
+  forceClosed: json['force_closed'] as bool,
+  closeNote: json['close_note'] as String?,
+  summary: json['summary'] == null
+      ? null
+      : Summary5.fromJson(json['summary'] as Map<String, dynamic>),
+  bankTerminal: json['bank_terminal'] == null
+      ? null
+      : BankTerminal.fromJson(json['bank_terminal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data267ToJson(Data267 instance) => <String, dynamic>{
-  'op_id': instance.opId,
-  'seq': instance.seq,
-  'type': instance.type,
-  'type_label': instance.typeLabel,
+  'uuid': instance.uuid,
   'status': instance.status,
-  'reason': instance.reason,
-  'message': instance.message,
-  'staff': instance.staff,
+  'branch_id': instance.branchId,
   'device': instance.device,
-  'occurred_at': instance.occurredAt,
-  'received_at': instance.receivedAt,
-  'applied_at': instance.appliedAt,
-  'clock_skew_seconds': instance.clockSkewSeconds,
-  'order': instance.order,
-  'payload': instance.payload,
-  'refs': instance.refs,
-  'resolved_at': instance.resolvedAt,
-  'resolved_by': instance.resolvedBy,
-  'resolution': instance.resolution,
-  'resolution_note': instance.resolutionNote,
+  'business_date': instance.businessDate,
+  'opened_at': instance.openedAt,
+  'opened_by': instance.openedBy,
+  'opening_cash': instance.openingCash,
+  'closed_at': instance.closedAt,
+  'closed_by': instance.closedBy,
+  'expected_cash': instance.expectedCash,
+  'counted_cash': instance.countedCash,
+  'counted_breakdown': instance.countedBreakdown,
+  'difference': instance.difference,
+  'z_number': instance.zNumber,
+  'force_closed': instance.forceClosed,
+  'close_note': instance.closeNote,
+  'summary': instance.summary,
+  'bank_terminal': instance.bankTerminal,
 };
