@@ -81,7 +81,7 @@ Run in this order; long suites in the background.
 4. Backend: `DB_DATABASE=<own db> php -d memory_limit=2G vendor/bin/phpunit --no-progress` and `vendor/bin/phpstan analyse --memory-limit=2G`
 5. Every pos package/app: `dart format --output=none --set-exit-if-changed`, `flutter analyze`, `flutter test`
 6. packages/ts/staff and partner/web: `npx tsc --noEmit`, lint, `npx vitest run`
-7. `bash scripts/pos-e2e.sh` last.
+7. `bash scripts/pos-e2e.sh`, then `bash scripts/e2e-stack.sh` (cross-app e2e: control center, partner web, Mini App) last.
 
 Never commit while agents are still editing. A stop hook will nag: answer in one line and wait. Commit only when everything is green. No empty commits.
 

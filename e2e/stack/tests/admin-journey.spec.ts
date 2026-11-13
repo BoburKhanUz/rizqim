@@ -154,6 +154,9 @@ test('the control center: invite, 2FA, step-up, team, audit, search, sign-out - 
 
     // The same recovery code does not work a second time
     await page.getByRole('button', { name: 'Chiqish' }).first().click()
+    // Wait for the sign-out to land (as the first one above does): a new sign-in started while the old session's
+    // requests are still answering 401 gets its form reset by "Seans tugadi" and never reaches the 2FA step.
+    await expect(page).toHaveURL(/\/login$/)
     await signInWith(recoveryCodes[0]!)
     await expect(page.getByText("Tiklash kodi noto'g'ri yoki oldin ishlatilgan.")).toBeVisible()
     await signInWith(recoveryCodes[1]!)
