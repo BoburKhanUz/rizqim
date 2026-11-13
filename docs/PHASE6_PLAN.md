@@ -345,7 +345,7 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 | P6-34 | **Qadoq, 24/7, olib ketish** (B8): qadoq qoidasi, yarim tundan o'tadigan smena tekshiruvi, olib ketish vaqti (oldindan buyurtma), yorliq | `PosCharges`, `Shifts`, kassa | Yarim tunda smena va raqam to'g'ri; qadoq chekda o'z MXIK'i bilan |
 | P6-39 | **Review, e2e, pilot:** "tushlik cho'qqisi" e2e (2 kassa, 4 KDS, Telegram buyurtmalari, kombo); fast food va qahvaxona pilotlari | hammasi | 10-bo'lim |
 
-### To'lqin 4 — "To'lov va chek"
+### To'lqin 4 — "To'lov va chek" (tugadi, PR #22)
 
 | Kod | Ish | Asosiy joylar | Tekshiruv |
 |---|---|---|---|
@@ -466,3 +466,13 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
       **Tugadi (PR #21):** A — drayverlar, `pos_lan` ko'prigi, avtomatik schyot; B — ilovalar ko'prikda, Windows
       (CI `windows-build`, spooler, ikkinchi monitor, firewall), "internet uzildi" e2e; ikki review tuzatildi. Haqiqiy
       qurilmada hali sinalmagan — `docs/HARDWARE_TEST.md`.
+15. **4-to'lqin "To'lov va chek" (PR #22) — egasidan kutilayotgan qarorlar** (javob bo'lguncha hozirgi tartib amalda):
+    - sovg'a sertifikatining standart muddati 1 yil; muddati o'tgan sertifikat qoldig'i hisobotda alohida turadi,
+      hisobdan chiqarilmaydi; bo'nak chekida bron avansining MXIK kodi (buxgalter tasdiqlaydi);
+    - promo-kodni RIZQIM jamoasi yaratadi (hamkor panelida yaratish sahifasi yo'q); do'konning har qanday kodi kassada
+      ishlaydi ("kassada ishlaydi" belgisi yo'q);
+    - korxona xodimi telefon raqami bilan ham hisobga yoziladi ("faqat talon" sozlamasi yo'q);
+    - Click va Payme faqat butun to'lovni qaytaradi: to'liq QR bilan to'langan schyotdan bitta taom qaytarilmaydi;
+    - "QR to'langan, oflayn naqd qaytarilsin" hodisasi faqat kassada yoziladi (serverdagi ro'yxatda yo'q);
+    - do'konning o'z Click/Payme merchant hisobi va kabinetdagi webhook manzillari, UzQR uchun bank drayveri kerak;
+      Click/Payme qaytarish va holat so'rovlari provayder hujjatlariga asoslangan — birinchi do'konda tasdiqlanadi.
