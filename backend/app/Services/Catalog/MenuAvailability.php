@@ -2,6 +2,8 @@
 
 namespace App\Services\Catalog;
 
+use App\Domain\Pos\Brands\BrandMenu;
+use App\Domain\Pos\Ingredients\IngredientStops;
 use App\Domain\Pos\Menu\BatchPlans;
 use App\Domain\Pos\Menu\DailyMenuService;
 use App\Domain\Pos\Menu\MealSets;
@@ -185,6 +187,10 @@ class MenuAvailability
         $list = [];
 
         foreach ($entries as $entry) {
+            // P6-55: an ingredient entry closes its dishes below (IngredientStops), it is no menu item itself
+            if ($entry->subject_type === StopListSubject::INGREDIENT) {
+                continue;
+            }
             $key = match ($entry->subject_type) {
                 StopListSubject::PRODUCT => 'products',
                 StopListSubject::VARIANT => 'variants',
@@ -209,6 +215,21 @@ class MenuAvailability
                 'reason' => $override->hidden_reason,
                 'until' => null,
             ];
+        }
+
+        // P6-55 / B9: the dishes a stopped ingredient closes ("Tovuq tugadi", every brand and channel at once) and those
+        // of a brand switched off on the branch, stopped like the stop-list; a dish's own entry stays as it is
+        $ingredients = IngredientStops::resolve($entries);
+        $derived = array_map(fn (array $closed) => $closed['reason'], $ingredients['closed']) + BrandMenu::offOnBranch($branchId);
+        if ($derived !== []) {
+            $own = array_fill_keys($stopped['products'], true);
+            foreach ($derived as $productId => $reason) {
+                if (!isset($own[$productId])) {
+                    $own[$productId] = true;
+                    $stopped['products'][] = $productId;
+                    $list[] = ['id' => null, 'type' => StopListSubject::PRODUCT->value, 'subject_id' => $productId, 'reason' => $reason, 'until' => null];
+                }
+            }
         }
 
         $soldOut = self::soldOutIn($batches, $variants, $tracked);
@@ -241,6 +262,10 @@ class MenuAvailability
             'stopped' => array_map(fn (array $ids) => array_values(array_unique($ids)), $stopped),
             'sold_out' => ['variants' => $soldOut],
             'stop_list' => $list,
+            // P6-55 / B9: the ingredients stopped on the branch ({id, ingredient_id, name, reason, until}) and the dishes a
+            // non-critical link only marks ({product_id, ingredient_ids}: still sold, "tovuqsiz")
+            'stopped_ingredients' => $ingredients['ingredients'],
+            'limited_products' => array_map(fn (int $productId, array $ids) => ['product_id' => $productId, 'ingredient_ids' => $ids], array_keys($ingredients['limited']), array_values($ingredients['limited'])),
             // P6-15: "keyingi partiya HH:MM", earliest first: {id, uuid, product_id, product_variant_id, planned_at, time, quantity, label}
             'next_batches' => $nextBatches,
             'batches' => $batches->map(fn (MenuBatch $batch) => [

@@ -4,20 +4,42 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings3.dart';
-import 'options6.dart';
+import 'items5.dart';
 
 part 'data141.g.dart';
 
 @JsonSerializable()
 class Data141 {
-  const Data141({required this.settings, required this.options});
+  const Data141({
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.perPersonPrice,
+    required this.minimumGuests,
+    required this.included,
+    required this.description,
+    required this.isActive,
+    required this.sortOrder,
+    required this.items,
+  });
 
   factory Data141.fromJson(Map<String, Object?> json) =>
       _$Data141FromJson(json);
 
-  final Settings3 settings;
-  final Options6 options;
+  final int id;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'per_person_price')
+  final String perPersonPrice;
+  @JsonKey(name: 'minimum_guests')
+  final int minimumGuests;
+  final List<String> included;
+  final String? description;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  final List<Items5> items;
 
   Map<String, Object?> toJson() => _$Data141ToJson(this);
 }

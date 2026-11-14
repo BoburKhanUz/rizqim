@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user19.dart';
-import 'approved_by5.dart';
+import 'user16.dart';
+import 'fiscal11.dart';
 
 part 'entries5.g.dart';
 
@@ -15,18 +15,19 @@ class Entries5 {
     required this.uuid,
     required this.type,
     required this.typeLabel,
+    required this.paymentUuid,
     required this.amount,
-    required this.balanceAfter,
-    required this.billUuid,
     required this.tender,
     required this.cardType,
-    required this.transactionId,
-    required this.fiscalReceiptUuid,
-    required this.fiscalStatus,
-    required this.branchId,
+    required this.reference,
+    required this.businessDate,
+    required this.shiftId,
     required this.user,
     required this.approvedBy,
-    required this.note,
+    required this.reason,
+    required this.transferPending,
+    required this.fiscal,
+    required this.originalReceiptUuid,
     required this.createdAt,
   });
 
@@ -37,26 +38,26 @@ class Entries5 {
   final String type;
   @JsonKey(name: 'type_label')
   final String typeLabel;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
   final String amount;
-  @JsonKey(name: 'balance_after')
-  final String balanceAfter;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  final String? tender;
+  final String tender;
   @JsonKey(name: 'card_type')
   final String? cardType;
-  @JsonKey(name: 'transaction_id')
-  final String? transactionId;
-  @JsonKey(name: 'fiscal_receipt_uuid')
-  final String? fiscalReceiptUuid;
-  @JsonKey(name: 'fiscal_status')
-  final String? fiscalStatus;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final User19? user;
+  final String? reference;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  @JsonKey(name: 'shift_id')
+  final int? shiftId;
+  final User16? user;
   @JsonKey(name: 'approved_by')
-  final ApprovedBy5? approvedBy;
-  final String? note;
+  final int? approvedBy;
+  final String? reason;
+  @JsonKey(name: 'transfer_pending')
+  final bool transferPending;
+  final Fiscal11 fiscal;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

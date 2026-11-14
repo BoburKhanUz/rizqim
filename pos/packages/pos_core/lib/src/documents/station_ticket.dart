@@ -9,6 +9,7 @@ final class StationTicketItem {
     this.note,
     this.seat,
     this.parts = const <String>[],
+    this.brandCode,
   });
 
   final String name;
@@ -25,6 +26,9 @@ final class StationTicketItem {
 
   /// Mehmon (o'rin) raqami.
   final int? seat;
+
+  /// P6-55 (`multi_brand`): qator brendining qisqa kodi ("BB"); brendsiz qatorda `null`.
+  final String? brandCode;
 }
 
 /// Sex (oshxona, mangal, bar, choy) markasi: bitta bosqich (`round_no`) taomlari. "Ushlab turish" (`fire_mode =

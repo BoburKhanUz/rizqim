@@ -5,6 +5,7 @@ choy-non qoidasi, xizmat haqi, sexlar va printerlar, fiskal sozlamalar, terminal
 
 Sozlamalarning ko'pi [Hamkor paneli](hamkor-panel.md)da (kompyuter yoki planshetda). Kundalik ish: kassir uchun —
 [kassa.md](kassa.md), ofitsiant uchun — [ofitsiant.md](ofitsiant.md), oshpaz uchun — [oshxona-ekrani.md](oshxona-ekrani.md).
+To'yxona va banket zalini sozlash — [toyxona.md](toyxona.md); bitta oshxonada bir nechta brend (dark kitchen) — [dark-kitchen.md](dark-kitchen.md).
 
 ## Ikki marta hisoblamaslik
 

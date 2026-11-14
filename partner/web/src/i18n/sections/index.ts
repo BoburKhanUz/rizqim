@@ -1,9 +1,13 @@
 import { audit } from './audit';
+import { banquets } from './banquets';
+import { banquetops } from './banquetops';
+import { banquetpay } from './banquetpay';
 import { billing } from './billing';
 import { bookings } from './bookings';
 import { combos } from './combos';
 import { corporate } from './corporate';
 import { dailymenu } from './dailymenu';
+import { darkkitchen } from './darkkitchen';
 import type { SectionMessages } from './define';
 import { fiscal } from './fiscal';
 import { format } from './format';
@@ -27,7 +31,7 @@ import { tips } from './tips';
 import { vouchers } from './vouchers';
 
 // Every section of texts. A new area adds its file here (one import, one entry, one line in the type below).
-export const SECTIONS = { orders, menu, management, reports, fiscal, fiscalterminal, floor, possetup, bookings, shifts, permissions, billing, audit, format, dailymenu, staffpay, hostess, tips, quickstick, kds, takeaway, combos, poslan, corporate, qrpayments, vouchers } as const;
+export const SECTIONS = { orders, menu, management, reports, fiscal, fiscalterminal, floor, possetup, bookings, shifts, permissions, billing, audit, format, dailymenu, staffpay, hostess, tips, quickstick, kds, takeaway, combos, poslan, corporate, qrpayments, vouchers, banquetpay, darkkitchen, banquetops, banquets } as const;
 
 export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof menu> &
@@ -54,4 +58,8 @@ export type AllSectionMessages = SectionMessages<typeof orders> &
   SectionMessages<typeof poslan> &
   SectionMessages<typeof corporate> &
   SectionMessages<typeof qrpayments> &
-  SectionMessages<typeof vouchers>;
+  SectionMessages<typeof vouchers> &
+  SectionMessages<typeof banquetpay> &
+  SectionMessages<typeof darkkitchen> &
+  SectionMessages<typeof banquetops> &
+  SectionMessages<typeof banquets>;

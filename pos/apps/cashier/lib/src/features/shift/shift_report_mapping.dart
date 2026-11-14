@@ -128,6 +128,33 @@ class ShiftReportView {
   PosMoney get cashVouchers =>
       vouchers.drawerCash.isPositive ? vouchers.drawerCash : vouchers.soldCash;
 
+  /// P6-53: smenadagi tadbir avanslari (bo'nak — sotuvga kirmaydi) va bekor qilingan tadbirlar qaytarishlari.
+  PosShiftBanquets get banquets => report.banquets;
+
+  /// Olingan (to'lov turi bo'yicha) va qaytarilgan tadbir pullari.
+  List<ReportAmount> get banquetLines {
+    final PosShiftBanquets b = banquets;
+    if (b.isEmpty) return const <ReportAmount>[];
+    return <ReportAmount>[
+      ReportAmount("Olindi (bo'nak)", b.takenAmount, count: b.takenCount),
+      if (b.takenCash.isPositive) ReportAmount('  naqd', b.takenCash),
+      if (b.takenCard.isPositive) ReportAmount('  karta', b.takenCard),
+      if (b.takenQr.isPositive) ReportAmount('  QR', b.takenQr),
+      if (b.refundedCount > 0)
+        ReportAmount('Qaytarildi', b.refundedAmount, count: b.refundedCount),
+      if (b.refundedCash.isPositive) ReportAmount('  naqd', b.refundedCash),
+    ];
+  }
+
+  /// Kassaga tushgan naqd tadbir avansi (`cash.banquets`; kutilgan naqdga kiradi).
+  PosMoney get cashBanquets =>
+      banquets.drawerCash.isPositive ? banquets.drawerCash : banquets.takenCash;
+
+  /// Kassadan qaytarilgan naqd (`cash.banquet_refunds`; kutilgan naqddan ayiriladi).
+  PosMoney get cashBanquetRefunds => banquets.drawerRefunds.isPositive
+      ? banquets.drawerRefunds
+      : banquets.refundedCash;
+
   /// X/Z dagi choy puli qatorlari (chop etish va ekran uchun).
   List<ReportAmount> get tipLines {
     final PosTipsSummary t = tips;
@@ -203,6 +230,9 @@ class ShiftReportView {
         // P6-43: certificates sold for cash (an advance, not a sale) are in the drawer too
         if (cashVouchers.isPositive)
           ReportAmount('Sertifikat (naqd)', cashVouchers),
+        // P6-53: banquet advances taken in cash (not a sale) are in the drawer
+        if (cashBanquets.isPositive)
+          ReportAmount('Tadbir avansi (naqd)', cashBanquets),
       ],
       cashOut: <ReportAmount>[
         if (purchases.isPositive) ReportAmount('Bozorlik', purchases),
@@ -210,9 +240,12 @@ class ShiftReportView {
         if (tipPayouts.isPositive)
           ReportAmount('Choy puli berildi', tipPayouts),
         if (cashOut.isPositive) ReportAmount('Chiqim', cashOut),
+        if (cashBanquetRefunds.isPositive)
+          ReportAmount('Tadbir qaytarish (naqd)', cashBanquetRefunds),
       ],
       tips: tipLines,
       vouchers: voucherLines,
+      banquets: banquetLines,
       qrProviders: qrProviderLines,
       countedCash: counted,
       denominations: <CashDenomination>[

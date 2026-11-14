@@ -4,62 +4,27 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff17.dart';
-import 'holders7.dart';
-import 'recorded_by7.dart';
-import 'corrections8.dart';
-
 part 'tips7.g.dart';
 
 @JsonSerializable()
 class Tips7 {
   const Tips7({
-    required this.uuid,
-    required this.method,
-    required this.source,
-    required this.amount,
-    required this.originalAmount,
+    required this.enabled,
     required this.mode,
-    required this.staff,
-    required this.holders,
-    required this.businessDate,
-    required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.shiftUuid,
-    required this.recordedBy,
-    required this.closed,
-    required this.corrections,
-    required this.createdAt,
+    required this.poolRule,
+    required this.poolPeriod,
+    required this.roles,
   });
 
   factory Tips7.fromJson(Map<String, Object?> json) => _$Tips7FromJson(json);
 
-  final String uuid;
-  final String method;
-  final String? source;
-  final String amount;
-  @JsonKey(name: 'original_amount')
-  final String originalAmount;
+  final bool enabled;
   final String mode;
-  final Staff17? staff;
-  final List<Holders7> holders;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  @JsonKey(name: 'recorded_by')
-  final RecordedBy7? recordedBy;
-  final bool closed;
-  final List<Corrections8> corrections;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'pool_rule')
+  final String poolRule;
+  @JsonKey(name: 'pool_period')
+  final String poolPeriod;
+  final List<String> roles;
 
   Map<String, Object?> toJson() => _$Tips7ToJson(this);
 }

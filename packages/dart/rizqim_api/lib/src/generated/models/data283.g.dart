@@ -7,27 +7,39 @@ part of 'data283.dart';
 // **************************************************************************
 
 Data283 _$Data283FromJson(Map<String, dynamic> json) => Data283(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal23.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  account: Account4.fromJson(json['account'] as Map<String, dynamic>),
+  month: json['month'] as String,
+  from: json['from'] as String,
+  to: json['to'] as String,
+  days: (json['days'] as List<dynamic>).map((e) => e as String).toList(),
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows16.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  dayTotals: (json['day_totals'] as List<dynamic>)
+      .map((e) => DayTotals.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  total: json['total'] as String,
+  meals: (json['meals'] as num).toInt(),
+  repaidTotal: json['repaid_total'] as String,
+  monthlyLimit: json['monthly_limit'] as String?,
+  balance: json['balance'] as String,
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  masked: json['masked'] as bool,
 );
 
 Map<String, dynamic> _$Data283ToJson(Data283 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
-  'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
+  'account': instance.account,
+  'month': instance.month,
+  'from': instance.from,
+  'to': instance.to,
+  'days': instance.days,
+  'rows': instance.rows,
+  'day_totals': instance.dayTotals,
+  'total': instance.total,
+  'meals': instance.meals,
+  'repaid_total': instance.repaidTotal,
+  'monthly_limit': instance.monthlyLimit,
+  'balance': instance.balance,
+  'branch_id': instance.branchId,
+  'masked': instance.masked,
 };

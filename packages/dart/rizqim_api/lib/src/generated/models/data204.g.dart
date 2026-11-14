@@ -7,23 +7,51 @@ part of 'data204.dart';
 // **************************************************************************
 
 Data204 _$Data204FromJson(Map<String, dynamic> json) => Data204(
+  uuid: json['uuid'] as String,
   branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  timezone: json['timezone'] as String,
-  rooms: (json['rooms'] as List<dynamic>)
-      .map((e) => Rooms.fromJson(e as Map<String, dynamic>))
+  period: json['period'] as String,
+  periodLabel: json['period_label'] as String,
+  periodFrom: json['period_from'] as String,
+  periodTo: json['period_to'] as String,
+  status: json['status'] as String,
+  statusLabel: json['status_label'] as String,
+  grossTotal: json['gross_total'] as String,
+  payableTotal: json['payable_total'] as String,
+  paidTotal: json['paid_total'] as String,
+  linesCount: (json['lines_count'] as num).toInt(),
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings6.fromJson(e as Map<String, dynamic>))
       .toList(),
-  unassigned: (json['unassigned'] as List<dynamic>)
-      .map((e) => Unassigned.fromJson(e as Map<String, dynamic>))
+  computedAt: json['computed_at'] as String?,
+  closedAt: json['closed_at'] as String?,
+  version: (json['version'] as num).toInt(),
+  createdAt: json['created_at'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines12.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  openShifts: (json['open_shifts'] as List<dynamic>)
+      .map((e) => OpenShifts5.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data204ToJson(Data204 instance) => <String, dynamic>{
+  'uuid': instance.uuid,
   'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'timezone': instance.timezone,
-  'rooms': instance.rooms,
-  'unassigned': instance.unassigned,
+  'period': instance.period,
+  'period_label': instance.periodLabel,
+  'period_from': instance.periodFrom,
+  'period_to': instance.periodTo,
+  'status': instance.status,
+  'status_label': instance.statusLabel,
+  'gross_total': instance.grossTotal,
+  'payable_total': instance.payableTotal,
+  'paid_total': instance.paidTotal,
+  'lines_count': instance.linesCount,
+  'warnings': instance.warnings,
+  'computed_at': instance.computedAt,
+  'closed_at': instance.closedAt,
+  'version': instance.version,
+  'created_at': instance.createdAt,
+  'lines': instance.lines,
+  'open_shifts': instance.openShifts,
 };

@@ -4,42 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account6.dart';
-import 'entries5.dart';
+import 'event9.dart';
+import 'guests2.dart';
+import 'stations9.dart';
+import 'osh5.dart';
+import 'warnings16.dart';
 
 part 'data237.g.dart';
 
 @JsonSerializable()
 class Data237 {
   const Data237({
-    required this.account,
-    required this.from,
-    required this.to,
-    required this.openingBalance,
-    required this.closingBalance,
-    required this.chargesTotal,
-    required this.repaymentsTotal,
-    required this.adjustmentsTotal,
-    required this.entries,
+    required this.event,
+    required this.guests,
+    required this.stations,
+    required this.osh,
+    required this.warnings,
   });
 
   factory Data237.fromJson(Map<String, Object?> json) =>
       _$Data237FromJson(json);
 
-  final Account6 account;
-  final String from;
-  final String to;
-  @JsonKey(name: 'opening_balance')
-  final String openingBalance;
-  @JsonKey(name: 'closing_balance')
-  final String closingBalance;
-  @JsonKey(name: 'charges_total')
-  final String chargesTotal;
-  @JsonKey(name: 'repayments_total')
-  final String repaymentsTotal;
-  @JsonKey(name: 'adjustments_total')
-  final String adjustmentsTotal;
-  final List<Entries5> entries;
+  final Event9 event;
+  final Guests2 guests;
+  final List<Stations9> stations;
+  final Osh5? osh;
+  final List<Warnings16> warnings;
 
   Map<String, Object?> toJson() => _$Data237ToJson(this);
 }

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_ui/pos_ui.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../../menu_day/menu_day.dart';
+import '../../shell/pos_scope.dart';
+import '../stoplist/ingredient_stop_sheet.dart';
 import 'order_draft.dart';
 import 'order_format.dart';
 import 'quick_modifiers.dart';
@@ -53,6 +57,9 @@ class MenuPanel extends StatefulWidget {
 
 class _MenuPanelState extends State<MenuPanel> {
   int? _category;
+
+  /// P6-55 (`multi_brand`): tanlangan brend (`null` — hammasi); faqat katalogda brendlar bo'lsa ko'rinadi.
+  int? _brand;
   final TextEditingController _search = TextEditingController();
 
   @override
@@ -80,6 +87,30 @@ class _MenuPanelState extends State<MenuPanel> {
     final PosBatch? b = widget.catalog.batchFor(v);
     if (b != null) return 'Qoldi: ${b.quantityLeft.format()}';
     return null;
+  }
+
+  /// P6-55: ingredient tugagani uchun yopilgan taomning sababi ("Tovuq tugadi"): server sababni stop-listga yozadi.
+  /// Ingredienti to'xtatilmagan do'konda hech narsa o'zgarmaydi (`null`).
+  String? _ingredientReason(PosProduct p) {
+    final PosAvailability a = widget.catalog.availability;
+    if (a.stoppedIngredients.isEmpty || !a.stoppedProducts.contains(p.id)) {
+      return null;
+    }
+    final String? r = a.stopReasons[p.id]?.trim();
+    return r == null || r.isEmpty || r == posOffMenuReason ? null : r;
+  }
+
+  /// P6-55: sotuvda, lekin cheklangan taom ("Tovuqsiz": muhim bo'lmagan ingredient to'xtatilgan).
+  String? _limitedBadge(PosProduct p) {
+    final PosAvailability a = widget.catalog.availability;
+    final List<int>? ids = a.limitedProducts[p.id];
+    if (ids == null) return null;
+    final List<String> names = <String>[
+      for (final PosStoppedIngredient s in a.stoppedIngredients)
+        if (ids.contains(s.ingredientId) && s.name.trim().isNotEmpty)
+          '${s.name.trim()}siz',
+    ];
+    return names.isEmpty ? 'Cheklangan' : names.join(', ');
   }
 
   String _subtitle(PosProduct p) {
@@ -112,10 +143,12 @@ class _MenuPanelState extends State<MenuPanel> {
       subtitle: next?.text ?? _subtitle(p),
       // P6-31: a combo tells its default parts
       detail: p.isCombo ? _comboDetail(p) : day.partsLine,
-      badge: _badge(p),
+      badge: _badge(p) ?? (available ? _limitedBadge(p) : null),
       accent: _accentOf(p.categoryId),
       unavailable: !available,
-      unavailableLabel: day.unavailableLabel(reason?.label ?? 'Tugadi'),
+      unavailableLabel: day.unavailableLabel(
+        _ingredientReason(p) ?? reason?.label ?? 'Tugadi',
+      ),
       onTap: widget.enabled ? () => widget.onTap(p) : null,
       onLongPress: widget.enabled ? () => widget.onLongPress(p) : null,
     );
@@ -190,7 +223,7 @@ class _MenuPanelState extends State<MenuPanel> {
     final String query = _search.text.trim();
     final PosModules modules = menuModulesOf(context);
     // P6-15: the dishes off today's menu are hidden (a search still finds them, greyed)
-    final List<PosProduct> products = visibleProducts(
+    final List<PosProduct> shown = visibleProducts(
       query.isNotEmpty
           ? cat.search(query)
           : (_category == null ? cat.products : cat.productsIn(_category!)),
@@ -198,33 +231,60 @@ class _MenuPanelState extends State<MenuPanel> {
       modules,
       searching: query.isNotEmpty,
     );
+    // P6-55: the brand filter (only when the catalogue has brands)
+    final int? brand = cat.brands.any((PosBrand b) => b.id == _brand)
+        ? _brand
+        : null;
+    final List<PosProduct> products = brand == null
+        ? shown
+        : shown.where((PosProduct p) => p.brandId == brand).toList();
+    final PosSession? session = PosScope.maybeOf(context)?.session;
+    final bool canStop =
+        session != null &&
+        modules.has(PosModule.ingredientStoplist) &&
+        session.can(ingredientStopPermission);
     final List<PosProduct> frequent = visibleProducts(
       widget.frequent,
       cat,
       modules,
       searching: false,
     );
+    final Widget searchField = TextField(
+      controller: _search,
+      decoration: InputDecoration(
+        hintText: 'Taom qidirish',
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: query.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Tozalash',
+                onPressed: _search.clear,
+                icon: const Icon(Icons.close),
+              ),
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: TextField(
-            controller: _search,
-            decoration: InputDecoration(
-              hintText: 'Taom qidirish',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Tozalash',
-                      onPressed: _search.clear,
-                      icon: const Icon(Icons.close),
+          child: canStop
+              ? Row(
+                  children: <Widget>[
+                    Expanded(child: searchField),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      key: const ValueKey<String>('menu-ingredient-stop'),
+                      tooltip: 'Ingredient tugadi',
+                      icon: const Icon(Icons.no_food_outlined),
+                      onPressed: () =>
+                          unawaited(showIngredientStopSheet(context)),
                     ),
-              border: const OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
+                  ],
+                )
+              : searchField,
         ),
         const DailyMenuMissingBanner(compact: true),
         if (frequent.isNotEmpty && query.isEmpty)
@@ -251,6 +311,31 @@ class _MenuPanelState extends State<MenuPanel> {
                       available: cat.isProductAvailable(p),
                       onTap: widget.enabled ? () => widget.onTap(p) : null,
                     ),
+                  ),
+              ],
+            ),
+          ),
+        if (cat.brands.isNotEmpty && query.isEmpty)
+          SizedBox(
+            key: const ValueKey<String>('menu-brands'),
+            height: 60,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              children: <Widget>[
+                _CategoryChip(
+                  key: const ValueKey<String>('brand-chip-all'),
+                  label: 'Hamma brend',
+                  selected: brand == null,
+                  onTap: () => setState(() => _brand = null),
+                ),
+                for (final PosBrand b in cat.brands)
+                  _CategoryChip(
+                    key: ValueKey<String>('brand-chip-${b.id}'),
+                    label: b.name,
+                    color: Color(b.argb),
+                    selected: brand == b.id,
+                    onTap: () => setState(() => _brand = b.id),
                   ),
               ],
             ),
@@ -313,6 +398,7 @@ class _MenuPanelState extends State<MenuPanel> {
 
 class _CategoryChip extends StatelessWidget {
   const _CategoryChip({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

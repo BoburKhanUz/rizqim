@@ -4,67 +4,64 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch15.dart';
-import 'periods.dart';
-import 'sales_attributions.dart';
-import 'component_types.dart';
-import 'guarantee_modes.dart';
-import 'guarantee_per.dart';
-import 'percent_bases.dart';
-import 'event_types.dart';
-import 'roles4.dart';
-import 'staff7.dart';
-import 'rules3.dart';
+import 'branch12.dart';
+import 'sale4.dart';
+import 'buyer4.dart';
+import 'fiscal7.dart';
+import 'blocked5.dart';
+import 'print4.dart';
 
 part 'data171.g.dart';
 
 @JsonSerializable()
 class Data171 {
   const Data171({
+    required this.uuid,
+    required this.code,
+    required this.kind,
+    required this.faceValue,
+    required this.balance,
+    required this.currency,
+    required this.validFrom,
+    required this.validUntil,
+    required this.status,
+    required this.statusLabel,
     required this.branch,
-    required this.period,
-    required this.periodLabel,
-    required this.periods,
-    required this.salesAttribution,
-    required this.salesAttributionLabel,
-    required this.salesAttributions,
-    required this.componentTypes,
-    required this.guaranteeModes,
-    required this.guaranteePer,
-    required this.percentBases,
-    required this.eventTypes,
-    required this.roles,
-    required this.staff,
-    required this.rules,
+    required this.sale,
+    required this.buyer,
+    required this.note,
+    required this.fiscal,
+    required this.blocked,
+    required this.print,
+    required this.createdAt,
   });
 
   factory Data171.fromJson(Map<String, Object?> json) =>
       _$Data171FromJson(json);
 
-  final Branch15 branch;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  final List<Periods> periods;
-  @JsonKey(name: 'sales_attribution')
-  final String salesAttribution;
-  @JsonKey(name: 'sales_attribution_label')
-  final String salesAttributionLabel;
-  @JsonKey(name: 'sales_attributions')
-  final List<SalesAttributions> salesAttributions;
-  @JsonKey(name: 'component_types')
-  final List<ComponentTypes> componentTypes;
-  @JsonKey(name: 'guarantee_modes')
-  final List<GuaranteeModes> guaranteeModes;
-  @JsonKey(name: 'guarantee_per')
-  final List<GuaranteePer> guaranteePer;
-  @JsonKey(name: 'percent_bases')
-  final List<PercentBases> percentBases;
-  @JsonKey(name: 'event_types')
-  final List<EventTypes> eventTypes;
-  final List<Roles4> roles;
-  final List<Staff7> staff;
-  final List<Rules3> rules;
+  final String uuid;
+  final String code;
+  final String kind;
+  @JsonKey(name: 'face_value')
+  final String faceValue;
+  final String balance;
+  final String currency;
+  @JsonKey(name: 'valid_from')
+  final String validFrom;
+  @JsonKey(name: 'valid_until')
+  final String? validUntil;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final Branch12? branch;
+  final Sale4 sale;
+  final Buyer4 buyer;
+  final String? note;
+  final Fiscal7 fiscal;
+  final Blocked5? blocked;
+  final Print4? print;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Data171ToJson(this);
 }

@@ -4,48 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'sold.dart';
-import 'redeemed.dart';
-import 'refunded.dart';
-import 'outstanding.dart';
-import 'blocked2.dart';
-import 'expired.dart';
+import 'schedule_template2.dart';
+import 'cancellation_rules2.dart';
 
 part 'data145.g.dart';
 
 @JsonSerializable()
 class Data145 {
   const Data145({
-    required this.from,
-    required this.to,
-    required this.branchId,
-    required this.sold,
-    required this.redeemed,
-    required this.refunded,
-    required this.netChange,
-    required this.outstanding,
-    required this.blocked,
-    required this.expired,
-    required this.asOf,
+    required this.scheduleTemplate,
+    required this.cancellationRules,
+    required this.reminderDays,
+    required this.overdueReminders,
+    required this.version,
   });
 
   factory Data145.fromJson(Map<String, Object?> json) =>
       _$Data145FromJson(json);
 
-  final String from;
-  final String to;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final Sold sold;
-  final Redeemed redeemed;
-  final Refunded refunded;
-  @JsonKey(name: 'net_change')
-  final String netChange;
-  final Outstanding outstanding;
-  final Blocked2 blocked;
-  final Expired expired;
-  @JsonKey(name: 'as_of')
-  final String asOf;
+  @JsonKey(name: 'schedule_template')
+  final List<ScheduleTemplate2> scheduleTemplate;
+  @JsonKey(name: 'cancellation_rules')
+  final List<CancellationRules2> cancellationRules;
+  @JsonKey(name: 'reminder_days')
+  final List<int> reminderDays;
+  @JsonKey(name: 'overdue_reminders')
+  final bool overdueReminders;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data145ToJson(this);
 }

@@ -8,12 +8,13 @@ part 'hall2.g.dart';
 
 @JsonSerializable()
 class Hall2 {
-  const Hall2({required this.id, required this.name});
+  const Hall2({required this.mxik, required this.packageCode});
 
   factory Hall2.fromJson(Map<String, Object?> json) => _$Hall2FromJson(json);
 
-  final int id;
-  final String? name;
+  final String? mxik;
+  @JsonKey(name: 'package_code')
+  final String? packageCode;
 
   Map<String, Object?> toJson() => _$Hall2ToJson(this);
 }

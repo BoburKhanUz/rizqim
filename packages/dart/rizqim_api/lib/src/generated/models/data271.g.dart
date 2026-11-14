@@ -7,77 +7,91 @@ part of 'data271.dart';
 // **************************************************************************
 
 Data271 _$Data271FromJson(Map<String, dynamic> json) => Data271(
-  uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
-  channel: json['channel'] as String,
-  type: json['type'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  version: (json['version'] as num).toInt(),
-  hall: json['hall'] == null
+  serverTime: json['server_time'] as String,
+  menuVersion: json['menu_version'] as String,
+  store: Store2.fromJson(json['store'] as Map<String, dynamic>),
+  branch: Branch17.fromJson(json['branch'] as Map<String, dynamic>),
+  device: json['device'] == null
       ? null
-      : Hall23.fromJson(json['hall'] as Map<String, dynamic>),
-  table: json['table'] == null
+      : Device10.fromJson(json['device'] as Map<String, dynamic>),
+  user: User23.fromJson(json['user'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations10.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  stationRoutes: StationRoutes.fromJson(
+    json['station_routes'] as Map<String, dynamic>,
+  ),
+  printers: (json['printers'] as List<dynamic>)
+      .map((e) => Printers.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  staff: (json['staff'] as List<dynamic>)
+      .map((e) => Staff20.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls11.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables5.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  shift: json['shift'] == null
       ? null
-      : Table23.fromJson(json['table'] as Map<String, dynamic>),
-  hallRef: json['hall_ref'] as String?,
-  tableRef: json['table_ref'] as String?,
-  tableLabel: json['table_label'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  waiter: json['waiter'] == null
+      : Shift.fromJson(json['shift'] as Map<String, dynamic>),
+  quickItems: (json['quick_items'] as List<dynamic>)
+      .map((e) => QuickItems.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  offline: Offline2.fromJson(json['offline'] as Map<String, dynamic>),
+  terminalFlow: json['terminal_flow'] == null
       ? null
-      : Waiter26.fromJson(json['waiter'] as Map<String, dynamic>),
-  itemsCount: (json['items_count'] as num).toInt(),
-  subtotal: json['subtotal'] as String,
-  totalPrice: json['total_price'] as String,
-  paymentStatus: json['payment_status'] as String,
-  billLocked: json['bill_locked'] as bool,
-  billRequested: json['bill_requested'] as bool,
-  fiscalPending: json['fiscal_pending'] as bool,
-  bookingId: (json['booking_id'] as num?)?.toInt(),
-  businessDate: json['business_date'] as String?,
-  queue: json['queue'] == null
+      : TerminalFlow.fromJson(json['terminal_flow'] as Map<String, dynamic>),
+  staffPay: json['staff_pay'] == null
       ? null
-      : Queue24.fromJson(json['queue'] as Map<String, dynamic>),
-  pickup: json['pickup'] == null
+      : StaffPay.fromJson(json['staff_pay'] as Map<String, dynamic>),
+  format: Format2.fromJson(json['format'] as Map<String, dynamic>),
+  tips: Tips7.fromJson(json['tips'] as Map<String, dynamic>),
+  entitlements: Entitlements.fromJson(
+    json['entitlements'] as Map<String, dynamic>,
+  ),
+  queue: Queue2.fromJson(json['queue'] as Map<String, dynamic>),
+  bookingRules: json['booking_rules'] == null
       ? null
-      : Pickup24.fromJson(json['pickup'] as Map<String, dynamic>),
-  openedAt: json['opened_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
-  online: json['online'] == null
+      : BookingRules.fromJson(json['booking_rules'] as Map<String, dynamic>),
+  labels: json['labels'] == null
       ? null
-      : Online3.fromJson(json['online'] as Map<String, dynamic>),
+      : Labels.fromJson(json['labels'] as Map<String, dynamic>),
+  takeaway: Takeaway.fromJson(json['takeaway'] as Map<String, dynamic>),
+  lan: json['lan'] == null
+      ? null
+      : Lan.fromJson(json['lan'] as Map<String, dynamic>),
+  banquet: json['banquet'] == null
+      ? null
+      : Banquet.fromJson(json['banquet'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data271ToJson(Data271 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
-  'channel': instance.channel,
-  'type': instance.type,
-  'branch_id': instance.branchId,
-  'version': instance.version,
-  'hall': instance.hall,
-  'table': instance.table,
-  'hall_ref': instance.hallRef,
-  'table_ref': instance.tableRef,
-  'table_label': instance.tableLabel,
-  'guests_count': instance.guestsCount,
-  'waiter': instance.waiter,
-  'items_count': instance.itemsCount,
-  'subtotal': instance.subtotal,
-  'total_price': instance.totalPrice,
-  'payment_status': instance.paymentStatus,
-  'bill_locked': instance.billLocked,
-  'bill_requested': instance.billRequested,
-  'fiscal_pending': instance.fiscalPending,
-  'booking_id': instance.bookingId,
-  'business_date': instance.businessDate,
+  'server_time': instance.serverTime,
+  'menu_version': instance.menuVersion,
+  'store': instance.store,
+  'branch': instance.branch,
+  'device': instance.device,
+  'user': instance.user,
+  'stations': instance.stations,
+  'station_routes': instance.stationRoutes,
+  'printers': instance.printers,
+  'staff': instance.staff,
+  'halls': instance.halls,
+  'tables': instance.tables,
+  'shift': instance.shift,
+  'quick_items': instance.quickItems,
+  'offline': instance.offline,
+  'terminal_flow': instance.terminalFlow,
+  'staff_pay': instance.staffPay,
+  'format': instance.format,
+  'tips': instance.tips,
+  'entitlements': instance.entitlements,
   'queue': instance.queue,
-  'pickup': instance.pickup,
-  'opened_at': instance.openedAt,
-  'closed_at': instance.closedAt,
-  'updated_at': instance.updatedAt,
-  'online': instance.online,
+  'booking_rules': instance.bookingRules,
+  'labels': instance.labels,
+  'takeaway': instance.takeaway,
+  'lan': instance.lan,
+  'banquet': instance.banquet,
 };

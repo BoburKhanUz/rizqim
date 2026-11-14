@@ -7,19 +7,41 @@ part of 'data210.dart';
 // **************************************************************************
 
 Data210 _$Data210FromJson(Map<String, dynamic> json) => Data210(
-  text: json['text'] as String,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines21.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  roomFee: json['room_fee'] == null
+  id: (json['id'] as num).toInt(),
+  name: json['name'] as String,
+  role: json['role'] as String,
+  roleLabel: json['role_label'] as String,
+  branch: json['branch'] == null
       ? null
-      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
-  channels: Channels3.fromJson(json['channels'] as Map<String, dynamic>),
+      : Branch16.fromJson(json['branch'] as Map<String, dynamic>),
+  courierType: json['courier_type'] as String?,
+  phone: json['phone'] as String?,
+  loginPhoneEnabled: json['login_phone_enabled'] as bool,
+  loginPhoneProof: json['login_phone_proof'] == null
+      ? null
+      : LoginPhoneProof.fromJson(json['login_phone_proof'] as String?),
+  hasPin: json['has_pin'] as bool,
+  staffCode: json['staff_code'] as String?,
+  telegramLinked: json['telegram_linked'] as bool,
+  invitePending: json['invite_pending'] as bool,
+  canEdit: json['can_edit'] as bool,
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data210ToJson(Data210 instance) => <String, dynamic>{
-  'text': instance.text,
-  'lines': instance.lines,
-  'room_fee': instance.roomFee,
-  'channels': instance.channels,
+  'id': instance.id,
+  'name': instance.name,
+  'role': instance.role,
+  'role_label': instance.roleLabel,
+  'branch': instance.branch,
+  'courier_type': instance.courierType,
+  'phone': instance.phone,
+  'login_phone_enabled': instance.loginPhoneEnabled,
+  'login_phone_proof': instance.loginPhoneProof,
+  'has_pin': instance.hasPin,
+  'staff_code': instance.staffCode,
+  'telegram_linked': instance.telegramLinked,
+  'invite_pending': instance.invitePending,
+  'can_edit': instance.canEdit,
+  'created_at': instance.createdAt,
 };

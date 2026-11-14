@@ -114,6 +114,8 @@ class KitchenService {
     'assembly',
     // P6-34: olib ketish vaqti (oshxonaga tushish vaqti bilan)
     'pickup',
+    // P6-55 (multi_brand): the ticket's brands (a badge on the header)
+    'brands',
   ];
 
   static Map<String, Object?> _withRawTicketFields(
@@ -139,6 +141,8 @@ class KitchenService {
     'target_seconds',
     'late',
     'combo',
+    // P6-55 (multi_brand): the brand the line was sold under {id, name, code, color}
+    'brand',
   ];
 
   static Map<String, Object?> _withRawItemFields(

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'rules2.dart';
+import 'rules.dart';
 
 part 'rows2.g.dart';
 
@@ -39,7 +39,7 @@ class Rows2 {
   final String placeFeeAmount;
   @JsonKey(name: 'place_fee_mode')
   final String placeFeeMode;
-  final Rules2 rules;
+  final Rules rules;
   final String? notice;
   @JsonKey(name: 'notice_preview')
   final String? noticePreview;

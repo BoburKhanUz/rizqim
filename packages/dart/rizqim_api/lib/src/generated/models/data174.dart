@@ -9,22 +9,43 @@ part 'data174.g.dart';
 @JsonSerializable()
 class Data174 {
   const Data174({
-    required this.period,
-    required this.periodLabel,
-    required this.salesAttribution,
-    required this.salesAttributionLabel,
+    required this.id,
+    required this.branchId,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data174.fromJson(Map<String, Object?> json) =>
       _$Data174FromJson(json);
 
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  @JsonKey(name: 'sales_attribution')
-  final String salesAttribution;
-  @JsonKey(name: 'sales_attribution_label')
-  final String salesAttributionLabel;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data174ToJson(this);
 }

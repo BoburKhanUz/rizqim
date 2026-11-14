@@ -5,6 +5,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
+import '../ingredients/kds_ingredients.dart';
 import '../lan/kds_lan.dart';
 import '../lan/lan_badge.dart';
 import '../billing/kds_plan.dart';
@@ -17,6 +18,7 @@ import '../stations/station_selection.dart';
 import '../widgets/compact_ticket_card.dart';
 import '../widgets/connection_status.dart';
 import '../widgets/expo_card.dart';
+import '../widgets/ingredient_stop.dart';
 import '../widgets/kazan_panel.dart';
 import '../widgets/mangal_card.dart';
 import '../widgets/plan_bar.dart';
@@ -41,7 +43,11 @@ class KitchenBoardScreen extends StatefulWidget {
     this.clock,
     this.plan,
     this.lan,
+    this.ingredients,
   });
+
+  /// P6-55: "Ingredient tugadi" tez to'xtatish (ruxsat va modul bo'lsa lenta ko'rinadi); `null` — yo'q.
+  final KdsIngredientsController? ingredients;
 
   final KitchenBoardController controller;
   final AuthSession auth;
@@ -221,6 +227,8 @@ class _KitchenBoardScreenState extends State<KitchenBoardScreen> {
               onSettings: _openSettings,
               onSignOut: _signOut,
             ),
+            if (widget.ingredients != null)
+              IngredientStopBar(controller: widget.ingredients!, now: _read),
             if (board.ready && !choosing)
               _SectionBar(
                 tab: tab,

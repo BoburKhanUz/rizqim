@@ -4,34 +4,36 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data92.dart';
+import 'kassa_status.dart';
 
 part 'data93.g.dart';
 
 @JsonSerializable()
 class Data93 {
   const Data93({
-    required this.data,
-    required this.currentPage,
-    required this.lastPage,
-    required this.perPage,
-    required this.total,
-    required this.from,
-    required this.to,
+    required this.uuid,
+    required this.name,
+    required this.branchId,
+    required this.smartKassa,
+    required this.fiscalKassaId,
+    required this.kassaStatus,
+    required this.lastSeenAt,
   });
 
   factory Data93.fromJson(Map<String, Object?> json) => _$Data93FromJson(json);
 
-  final List<Data92> data;
-  @JsonKey(name: 'current_page')
-  final int currentPage;
-  @JsonKey(name: 'last_page')
-  final int lastPage;
-  @JsonKey(name: 'per_page')
-  final int perPage;
-  final int total;
-  final int? from;
-  final int? to;
+  final String uuid;
+  final String? name;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'smart_kassa')
+  final bool smartKassa;
+  @JsonKey(name: 'fiscal_kassa_id')
+  final String? fiscalKassaId;
+  @JsonKey(name: 'kassa_status')
+  final KassaStatus? kassaStatus;
+  @JsonKey(name: 'last_seen_at')
+  final String? lastSeenAt;
 
   Map<String, Object?> toJson() => _$Data93ToJson(this);
 }

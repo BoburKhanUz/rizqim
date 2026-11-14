@@ -7,15 +7,19 @@ part of 'data110.dart';
 // **************************************************************************
 
 Data110 _$Data110FromJson(Map<String, dynamic> json) => Data110(
-  kinds: (json['kinds'] as List<dynamic>)
-      .map((e) => Kinds.fromJson(e as Map<String, dynamic>))
+  currentPage: (json['current_page'] as num).toInt(),
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data109.fromJson(e as Map<String, dynamic>))
       .toList(),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations4.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data110ToJson(Data110 instance) => <String, dynamic>{
-  'kinds': instance.kinds,
-  'stations': instance.stations,
+  'current_page': instance.currentPage,
+  'data': instance.data,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'last_page': instance.lastPage,
 };

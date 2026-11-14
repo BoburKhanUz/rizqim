@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'packaging_lines16.dart';
+import 'packaging_lines17.dart';
 import 'waivers9.dart';
 
 part 'charges14.g.dart';
@@ -68,7 +68,7 @@ class Charges14 {
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
   @JsonKey(name: 'packaging_lines')
-  final List<PackagingLines16> packagingLines;
+  final List<PackagingLines17> packagingLines;
   final List<Waivers9> waivers;
 
   Map<String, Object?> toJson() => _$Charges14ToJson(this);

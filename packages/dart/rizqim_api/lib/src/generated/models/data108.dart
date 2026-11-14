@@ -8,32 +8,15 @@ part 'data108.g.dart';
 
 @JsonSerializable()
 class Data108 {
-  const Data108({
-    required this.id,
-    required this.branchId,
-    required this.stationId,
-    required this.categoryId,
-    required this.categoryName,
-    required this.productId,
-    required this.productName,
-  });
+  const Data108({required this.branchId, required this.ingredientId});
 
   factory Data108.fromJson(Map<String, Object?> json) =>
       _$Data108FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'station_id')
-  final int stationId;
-  @JsonKey(name: 'category_id')
-  final int? categoryId;
-  @JsonKey(name: 'category_name')
-  final String? categoryName;
-  @JsonKey(name: 'product_id')
-  final int? productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
+  @JsonKey(name: 'ingredient_id')
+  final int ingredientId;
 
   Map<String, Object?> toJson() => _$Data108ToJson(this);
 }

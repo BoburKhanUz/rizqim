@@ -37,6 +37,7 @@ class StopListService
             StopListSubject::PRODUCT => Product::where('store_id', $storeId)->find($id),
             StopListSubject::VARIANT => ProductVariant::whereHas('product', fn ($query) => $query->where('store_id', $storeId))->find($id),
             StopListSubject::MODIFIER => Modifier::whereHas('group', fn ($query) => $query->where('store_id', $storeId))->find($id),
+            StopListSubject::INGREDIENT => \App\Models\Ingredient::where('store_id', $storeId)->find($id), // P6-55
         };
 
         if (!$subject) {
@@ -53,6 +54,10 @@ class StopListService
     {
         if ($until !== null && $until->isPast()) {
             throw ValidationException::withMessages(['until' => "Tugash vaqti kelajakda bo'lishi kerak."]);
+        }
+        // P6-55: stopping an ingredient is the ingredient_stoplist module's new flow (reopening never asks)
+        if ($type === StopListSubject::INGREDIENT) {
+            app(\App\Domain\Pos\Setup\PosModules::class)->assertEnabled($branch, \App\Domain\Pos\Setup\PosModule::INGREDIENT_STOPLIST);
         }
 
         return DB::transaction(function () use ($branch, $type, $subject, $reason, $until, $actor) {
@@ -74,9 +79,7 @@ class StopListService
                 'until' => $entry->until?->toJSON(),
             ], ['actor' => $actor, 'store_id' => (int) $branch->store_id, 'branch_id' => (int) $branch->id]);
 
-            event(new MenuAvailabilityChangedBroadcast((int) $branch->store_id, (int) $branch->id, [
-                ['type' => $type->value, 'id' => (int) $subject->getKey(), 'available' => false],
-            ], 'stop_list'));
+            event(new MenuAvailabilityChangedBroadcast((int) $branch->store_id, (int) $branch->id, self::changed($type, (int) $subject->getKey(), false), 'stop_list'));
 
             return $entry;
         });
@@ -96,9 +99,7 @@ class StopListService
 
             $entry->delete();
 
-            event(new MenuAvailabilityChangedBroadcast((int) $entry->store_id, (int) $entry->branch_id, [
-                ['type' => $entry->subject_type->value, 'id' => (int) $entry->subject_id, 'available' => true],
-            ], 'stop_list'));
+            event(new MenuAvailabilityChangedBroadcast((int) $entry->store_id, (int) $entry->branch_id, self::changed($entry->subject_type, (int) $entry->subject_id, true), 'stop_list'));
         });
     }
 
@@ -113,14 +114,30 @@ class StopListService
             $first = $entries->first();
             StopListEntry::whereIn('id', $entries->pluck('id'))->delete();
 
-            event(new MenuAvailabilityChangedBroadcast((int) $first->store_id, (int) $first->branch_id, $entries->map(fn (StopListEntry $entry) => [
-                'type' => $entry->subject_type->value,
-                'id' => (int) $entry->subject_id,
-                'available' => true,
-            ])->values()->all(), 'stop_list'));
+            event(new MenuAvailabilityChangedBroadcast((int) $first->store_id, (int) $first->branch_id, $entries
+                ->flatMap(fn (StopListEntry $entry) => self::changed($entry->subject_type, (int) $entry->subject_id, true))
+                ->values()->all(), 'stop_list'));
         }
 
         return $expired->count();
+    }
+
+    /**
+     * What the broadcast says changed. P6-55: an ingredient changes the dishes critically linked to it (clients know
+     * product, variant and modifier items), followed by the ingredient itself.
+     *
+     * @return list<array{type: string, id: int, available: bool}>
+     */
+    private static function changed(StopListSubject $type, int $id, bool $available): array
+    {
+        if ($type !== StopListSubject::INGREDIENT) {
+            return [['type' => $type->value, 'id' => $id, 'available' => $available]];
+        }
+
+        $items = array_map(fn (int $productId) => ['type' => StopListSubject::PRODUCT->value, 'id' => $productId, 'available' => $available], \App\Domain\Pos\Ingredients\IngredientStops::closedProductIds($id));
+        $items[] = ['type' => $type->value, 'id' => $id, 'available' => $available];
+
+        return $items;
     }
 
     private function nameOf(Model $subject): ?string

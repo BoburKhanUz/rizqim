@@ -4,8 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'by_method3.dart';
-import 'by_staff3.dart';
+import 'staff25.dart';
+import 'holders10.dart';
+import 'recorded_by10.dart';
 import 'corrections11.dart';
 
 part 'tips10.g.dart';
@@ -13,28 +14,52 @@ part 'tips10.g.dart';
 @JsonSerializable()
 class Tips10 {
   const Tips10({
-    required this.count,
+    required this.uuid,
+    required this.method,
+    required this.source,
     required this.amount,
-    required this.byMethod,
-    required this.personal,
-    required this.pool,
-    required this.unassigned,
-    required this.byStaff,
+    required this.originalAmount,
+    required this.mode,
+    required this.staff,
+    required this.holders,
+    required this.businessDate,
+    required this.orderUuid,
+    required this.billUuid,
+    required this.paymentUuid,
+    required this.shiftUuid,
+    required this.recordedBy,
+    required this.closed,
     required this.corrections,
+    required this.createdAt,
   });
 
   factory Tips10.fromJson(Map<String, Object?> json) => _$Tips10FromJson(json);
 
-  final int count;
+  final String uuid;
+  final String method;
+  final String? source;
   final String amount;
-  @JsonKey(name: 'by_method')
-  final List<ByMethod3> byMethod;
-  final String personal;
-  final String pool;
-  final String unassigned;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff3> byStaff;
-  final Corrections11 corrections;
+  @JsonKey(name: 'original_amount')
+  final String originalAmount;
+  final String mode;
+  final Staff25? staff;
+  final List<Holders10> holders;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'bill_uuid')
+  final String? billUuid;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'recorded_by')
+  final RecordedBy10? recordedBy;
+  final bool closed;
+  final List<Corrections11> corrections;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
 
   Map<String, Object?> toJson() => _$Tips10ToJson(this);
 }

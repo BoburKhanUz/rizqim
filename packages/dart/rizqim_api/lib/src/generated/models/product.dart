@@ -4,9 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'brand.dart';
 import 'category.dart';
 import 'channel_price.dart';
 import 'image_thumb_urls2.dart';
+import 'ingredient.dart';
 import 'menu_batch.dart';
 import 'modifier_group.dart';
 import 'product_kind.dart';
@@ -19,7 +21,7 @@ part 'product.g.dart';
 @JsonSerializable()
 class Product {
   const Product({
-    required this.hasVariants,
+    required this.updatedAt,
     required this.uuid,
     required this.storeId,
     required this.categoryId,
@@ -30,9 +32,9 @@ class Product {
     required this.sku,
     required this.status,
     required this.sortOrder,
-    required this.id,
+    required this.hasVariants,
     required this.createdAt,
-    required this.updatedAt,
+    required this.id,
     required this.deletedAt,
     required this.image,
     required this.batchTracked,
@@ -42,12 +44,13 @@ class Product {
     required this.vatRate,
     required this.quickAdd,
     required this.quickMultipliers,
-    required this.imageThumbUrls,
+    required this.waitMinutes,
     required this.weightMode,
-    required this.kdsTargetSeconds,
+    required this.imageThumbUrls,
+    required this.brandId,
     required this.isActive,
     required this.imageUrl,
-    required this.waitMinutes,
+    required this.kdsTargetSeconds,
     this.store,
     this.category,
     this.variants,
@@ -55,6 +58,8 @@ class Product {
     this.modifierGroupLinks,
     this.channelPrices,
     this.batches,
+    this.brand,
+    this.ingredients,
   });
 
   factory Product.fromJson(Map<String, Object?> json) =>
@@ -102,6 +107,8 @@ class Product {
   final String? weightMode;
   @JsonKey(name: 'kds_target_seconds')
   final int? kdsTargetSeconds;
+  @JsonKey(name: 'brand_id')
+  final int? brandId;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')
@@ -118,6 +125,8 @@ class Product {
   @JsonKey(name: 'channel_prices')
   final List<ChannelPrice>? channelPrices;
   final List<MenuBatch>? batches;
+  final Brand? brand;
+  final List<Ingredient>? ingredients;
 
   Map<String, Object?> toJson() => _$ProductToJson(this);
 }

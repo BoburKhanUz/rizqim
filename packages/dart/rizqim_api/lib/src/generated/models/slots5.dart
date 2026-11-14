@@ -4,22 +4,25 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'morning2.dart';
+import 'day2.dart';
+import 'evening2.dart';
+
 part 'slots5.g.dart';
 
 @JsonSerializable()
 class Slots5 {
   const Slots5({
-    required this.at,
-    required this.time,
-    required this.businessDate,
+    required this.morning,
+    required this.day,
+    required this.evening,
   });
 
   factory Slots5.fromJson(Map<String, Object?> json) => _$Slots5FromJson(json);
 
-  final String at;
-  final String time;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
+  final Morning2 morning;
+  final Day2 day;
+  final Evening2 evening;
 
   Map<String, Object?> toJson() => _$Slots5ToJson(this);
 }

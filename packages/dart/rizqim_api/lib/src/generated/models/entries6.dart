@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user26.dart';
+import 'user17.dart';
+import 'fiscal13.dart';
 
 part 'entries6.g.dart';
 
@@ -14,16 +15,19 @@ class Entries6 {
     required this.uuid,
     required this.type,
     required this.typeLabel,
+    required this.paymentUuid,
     required this.amount,
-    required this.balanceAfter,
-    required this.businessDate,
-    required this.billUuid,
-    required this.refundUuid,
     required this.tender,
-    required this.branchId,
+    required this.cardType,
+    required this.reference,
+    required this.businessDate,
     required this.shiftId,
     required this.user,
-    required this.note,
+    required this.approvedBy,
+    required this.reason,
+    required this.transferPending,
+    required this.fiscal,
+    required this.originalReceiptUuid,
     required this.createdAt,
   });
 
@@ -34,22 +38,26 @@ class Entries6 {
   final String type;
   @JsonKey(name: 'type_label')
   final String typeLabel;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
   final String amount;
-  @JsonKey(name: 'balance_after')
-  final String balanceAfter;
+  final String tender;
+  @JsonKey(name: 'card_type')
+  final String? cardType;
+  final String? reference;
   @JsonKey(name: 'business_date')
   final String? businessDate;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'refund_uuid')
-  final String? refundUuid;
-  final String? tender;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
   @JsonKey(name: 'shift_id')
   final int? shiftId;
-  final User26? user;
-  final String? note;
+  final User17? user;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  final String? reason;
+  @JsonKey(name: 'transfer_pending')
+  final bool transferPending;
+  final Fiscal13 fiscal;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

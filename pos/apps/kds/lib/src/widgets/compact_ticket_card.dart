@@ -8,6 +8,7 @@ import '../board/board_view.dart';
 import '../board/line_timer.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
+import 'brand_badge.dart';
 import 'kds_type.dart';
 import 'line_marks.dart';
 import 'target_timer_label.dart';
@@ -127,6 +128,10 @@ class CompactTicketCard extends StatelessWidget {
                       if (isNew) ...<Widget>[
                         const SizedBox(width: 6),
                         const NewBadge(),
+                      ],
+                      for (final KitchenBrand b in ticket.brands) ...<Widget>[
+                        const SizedBox(width: 6),
+                        BrandBadge(brand: b),
                       ],
                       const Spacer(),
                       Icon(icon, color: fg, size: 20),
@@ -274,8 +279,9 @@ class _CompactLine extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    Text(
-                      line.title,
+                    BrandedTitle(
+                      title: line.title,
+                      brand: line.brand,
                       style: KdsType.line.copyWith(
                         color: textColor,
                         decoration: strike,

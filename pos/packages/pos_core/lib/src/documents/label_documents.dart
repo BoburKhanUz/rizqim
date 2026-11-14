@@ -12,6 +12,7 @@ final class CupSticker {
     this.index = 1,
     this.total = 1,
     this.context,
+    this.brandCode,
   }) : assert(index >= 1 && total >= 1 && index <= total);
 
   /// Navbat raqami ("57"); bo'sh qator — raqamsiz buyurtma (sarlavhada faqat vaqt chiqadi).
@@ -35,6 +36,9 @@ final class CupSticker {
 
   /// P6-31: taom kombo ichida bo'lsa — kombo nomi ("Lavash kombo"): barista qaysi to'plamga ekanini ko'radi.
   final String? context;
+
+  /// P6-55 (`multi_brand`): brendning qisqa kodi ("BB"), stiker pastida teskari rangda; brendsiz qatorda `null`.
+  final String? brandCode;
 }
 
 /// Olib ketish paketiga yorliq (P6-32): buyurtma raqami, mahsulotlar soni, mijoz va olib ketish vaqti.
@@ -46,6 +50,7 @@ final class BagLabel {
     this.orderLabel = 'Olib ketish',
     this.customerName,
     this.pickupAt,
+    this.brandCodes = const <String>[],
   });
 
   /// Navbat raqami yoki buyurtma kodi ("57", "#T057").
@@ -61,4 +66,7 @@ final class BagLabel {
 
   /// Oldindan buyurtma: mijoz olib ketadigan vaqt (`null` — hozir).
   final DateTime? pickupAt;
+
+  /// P6-55: paketdagi brendlar kodlari ("BB", "OM"); brendsiz buyurtmada bo'sh.
+  final List<String> brandCodes;
 }

@@ -7,17 +7,11 @@ part of 'fiscal18.dart';
 // **************************************************************************
 
 Fiscal18 _$Fiscal18FromJson(Map<String, dynamic> json) => Fiscal18(
-  status: json['status'] as String?,
   receiptUuid: json['receipt_uuid'] as String?,
-  error: json['error'] as String?,
-  receipt: json['receipt'] == null
-      ? null
-      : Receipt11.fromJson(json['receipt'] as Map<String, dynamic>),
+  status: json['status'] as String?,
 );
 
 Map<String, dynamic> _$Fiscal18ToJson(Fiscal18 instance) => <String, dynamic>{
-  'status': instance.status,
   'receipt_uuid': instance.receiptUuid,
-  'error': instance.error,
-  'receipt': instance.receipt,
+  'status': instance.status,
 };

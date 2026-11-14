@@ -7,13 +7,17 @@ part of 'halls.dart';
 // **************************************************************************
 
 Halls _$HallsFromJson(Map<String, dynamic> json) => Halls(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
+  hallName: json['hall_name'] as String,
+  branchId: (json['branch_id'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  rates: Rates4.fromJson(json['rates'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$HallsToJson(Halls instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
-  'sort_order': instance.sortOrder,
+  'hall_id': instance.hallId,
+  'hall_name': instance.hallName,
+  'branch_id': instance.branchId,
+  'is_active': instance.isActive,
+  'rates': instance.rates,
 };

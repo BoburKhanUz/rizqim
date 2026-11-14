@@ -7,6 +7,9 @@ Choyxona va katta oshxonada ekran **sexlar** bo'yicha ishlaydi: osh, mangal, sal
 taomlarini ko'radi. Mangal sexida taomlar six sanog'i bilan chiqadi. Oldindan buyurtmalar (nahor oshi, N kg osh) o'z vaqt
 navbatida turadi. Osh qoldig'i uchun **Qozon** paneli bor. Restoran va kafede chiptada yana **kurs**, **og'irlik kutilmoqda**, **mangal vaqti** va **stol raqami** chiqadi
 ([14-bo'lim](#14-restoran-va-kafe-kurslar-ogirlik-mangal-vaqti-stol-raqami)).
+Dark kitchen'da chiptada **brend kodi** (rangli belgi) chiqadi va doska tepasida **"Ingredient tugadi"** tugmasi bor
+([dark-kitchen.md](dark-kitchen.md#5-brend-oshxona-ekranida)). Banket tadbirining oshxona qog'ozi (ishlab chiqarish varag'i) —
+[toyxona.md](toyxona.md#8-ishlab-chiqarish-varagi-osh-kalkulyatori-bozorlik-royxati).
 Fast food va qahvaxonada: sex vaqti taymeri, kombo qismlari va yig'ish ekrani ([15-bo'lim](#15-fast-food-vaqt-maqsadi-kombo-va-yigish-ekrani)).
 
 Bu qo'llanma ikki kishi uchun:

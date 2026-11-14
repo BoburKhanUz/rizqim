@@ -40,6 +40,10 @@ final class MenuVersion
         $parts[] = self::stamp(ComboSlot::withTrashed()->whereIn('combo_id', $comboIds), true);
         $parts[] = self::stamp(ComboSlotOption::withTrashed()->whereIn('combo_slot_id', ComboSlot::withTrashed()->select('id')->whereIn('combo_id', $comboIds)), true);
 
+        // P6-55: brands (name, code, colour, active) and their channel rules change the menu's prices and visibility
+        $parts[] = self::stamp(\App\Models\Brand::query()->where('store_id', $storeId));
+        $parts[] = self::stamp(\App\Models\BrandChannel::query()->where('store_id', $storeId));
+
         return substr(sha1(implode('|', $parts)), 0, 12);
     }
 

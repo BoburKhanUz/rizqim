@@ -28,6 +28,15 @@ PrintLayout layoutStationTicket(StationTicket t, PaperWidth paper) {
     formatReceiptTime(t.sentAt),
   );
   if (t.guests != null) w.text('Mehmonlar: ${t.guests}');
+  // P6-55: a branded ticket names its brands under the header
+  final List<String> brands = <String>[];
+  for (final StationTicketItem item in t.items) {
+    final String? code = item.brandCode?.trim().toUpperCase();
+    if (code != null && code.isNotEmpty && !brands.contains(code)) {
+      brands.add(code);
+    }
+  }
+  if (brands.isNotEmpty) w.text('Brend: ${brands.join(', ')}', bold: true);
   w.divider();
 
   const PrintTextSize itemSize = PrintTextSize.tall;
@@ -36,8 +45,11 @@ PrintLayout layoutStationTicket(StationTicket t, PaperWidth paper) {
         ? item.quantity.label
         : '${item.quantity.label} x';
     final String seat = item.seat == null ? '' : ' (${item.seat}-o\'rin)';
+    final String brand = item.brandCode?.trim().isNotEmpty ?? false
+        ? '[${item.brandCode!.trim().toUpperCase()}] '
+        : '';
     w.text(
-      '${t.isVoid ? '- ' : ''}$qty ${item.name}$seat',
+      '${t.isVoid ? '- ' : ''}$brand$qty ${item.name}$seat',
       bold: true,
       size: itemSize,
     );

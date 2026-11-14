@@ -7,15 +7,23 @@ part of 'data152.dart';
 // **************************************************************************
 
 Data152 _$Data152FromJson(Map<String, dynamic> json) => Data152(
-  productId: (json['product_id'] as num).toInt(),
-  channels: json['channels'] as List<dynamic>,
-  prices: (json['prices'] as List<dynamic>)
-      .map((e) => Prices.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  keyId: (json['key_id'] as num).toInt(),
+  rotatedAt: json['rotated_at'] as String?,
+  port: (json['port'] as num).toInt(),
+  hub: json['hub'] == null
+      ? null
+      : Hub.fromJson(json['hub'] as Map<String, dynamic>),
+  candidates: (json['candidates'] as List<dynamic>)
+      .map((e) => Candidates.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data152ToJson(Data152 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'channels': instance.channels,
-  'prices': instance.prices,
+  'branch_id': instance.branchId,
+  'key_id': instance.keyId,
+  'rotated_at': instance.rotatedAt,
+  'port': instance.port,
+  'hub': instance.hub,
+  'candidates': instance.candidates,
 };

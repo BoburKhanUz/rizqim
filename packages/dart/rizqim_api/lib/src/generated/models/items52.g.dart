@@ -17,7 +17,7 @@ Items52 _$Items52FromJson(Map<String, dynamic> json) => Items52(
   quantityLabel: json['quantity_label'] as String,
   unitPrice: json['unit_price'] as String,
   modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers34.fromJson(e as Map<String, dynamic>))
+      .map((e) => Modifiers28.fromJson(e as Map<String, dynamic>))
       .toList(),
   modifiersTotal: json['modifiers_total'] as String,
   totalPrice: json['total_price'] as String,
@@ -31,19 +31,19 @@ Items52 _$Items52FromJson(Map<String, dynamic> json) => Items52(
   readyAt: json['ready_at'] as String?,
   addedBy: json['added_by'] == null
       ? null
-      : AddedBy23.fromJson(json['added_by'] as Map<String, dynamic>),
+      : AddedBy18.fromJson(json['added_by'] as Map<String, dynamic>),
   addedAt: json['added_at'] as String?,
   voidedAt: json['voided_at'] as String?,
   voidedBy: json['voided_by'] == null
       ? null
-      : VoidedBy23.fromJson(json['voided_by'] as Map<String, dynamic>),
+      : VoidedBy18.fromJson(json['voided_by'] as Map<String, dynamic>),
   voidReason: json['void_reason'] as String?,
   courseNo: (json['course_no'] as num?)?.toInt(),
   weightStatus: json['weight_status'] as String?,
   weightBasis: json['weight_basis'] as String?,
   weighedBy: json['weighed_by'] == null
       ? null
-      : WeighedBy23.fromJson(json['weighed_by'] as Map<String, dynamic>),
+      : WeighedBy18.fromJson(json['weighed_by'] as Map<String, dynamic>),
   weighedAt: json['weighed_at'] as String?,
 );
 

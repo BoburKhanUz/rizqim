@@ -7,27 +7,23 @@ part of 'data237.dart';
 // **************************************************************************
 
 Data237 _$Data237FromJson(Map<String, dynamic> json) => Data237(
-  account: Account6.fromJson(json['account'] as Map<String, dynamic>),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  openingBalance: json['opening_balance'] as String,
-  closingBalance: json['closing_balance'] as String,
-  chargesTotal: json['charges_total'] as String,
-  repaymentsTotal: json['repayments_total'] as String,
-  adjustmentsTotal: json['adjustments_total'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries5.fromJson(e as Map<String, dynamic>))
+  event: Event9.fromJson(json['event'] as Map<String, dynamic>),
+  guests: Guests2.fromJson(json['guests'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  osh: json['osh'] == null
+      ? null
+      : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings16.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data237ToJson(Data237 instance) => <String, dynamic>{
-  'account': instance.account,
-  'from': instance.from,
-  'to': instance.to,
-  'opening_balance': instance.openingBalance,
-  'closing_balance': instance.closingBalance,
-  'charges_total': instance.chargesTotal,
-  'repayments_total': instance.repaymentsTotal,
-  'adjustments_total': instance.adjustmentsTotal,
-  'entries': instance.entries,
+  'event': instance.event,
+  'guests': instance.guests,
+  'stations': instance.stations,
+  'osh': instance.osh,
+  'warnings': instance.warnings,
 };

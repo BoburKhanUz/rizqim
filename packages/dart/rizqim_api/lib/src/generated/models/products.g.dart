@@ -40,8 +40,9 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
       .toList(),
   waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
   weightMode: json['weight_mode'] as String?,
+  kdsTargetSeconds: (json['kds_target_seconds'] as num?)?.toInt(),
+  brandId: (json['brand_id'] as num?)?.toInt(),
   stationId: (json['station_id'] as num?)?.toInt(),
-  isActive: json['is_active'] as bool,
   imageUrl: json['image_url'] as String?,
   imageThumbUrls: ImageThumbUrls2.fromJson(
     json['image_thumb_urls'] as Map<String, dynamic>,
@@ -55,7 +56,7 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
   variants: (json['variants'] as List<dynamic>)
       .map((e) => ProductsVariants.fromJson(e as Map<String, dynamic>))
       .toList(),
-  kdsTargetSeconds: (json['kds_target_seconds'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
   modifierGroups: (json['modifier_groups'] as List<dynamic>)
       .map((e) => ProductsModifierGroups.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -64,6 +65,12 @@ Products _$ProductsFromJson(Map<String, dynamic> json) => Products(
       .toList(),
   batches: (json['batches'] as List<dynamic>?)
       ?.map((e) => MenuBatch.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  brand: json['brand'] == null
+      ? null
+      : Brand.fromJson(json['brand'] as Map<String, dynamic>),
+  ingredients: (json['ingredients'] as List<dynamic>?)
+      ?.map((e) => Ingredient.fromJson(e as Map<String, dynamic>))
       .toList(),
   category: json['category'] == null
       ? null
@@ -103,6 +110,7 @@ Map<String, dynamic> _$ProductsToJson(Products instance) => <String, dynamic>{
   'wait_minutes': instance.waitMinutes,
   'weight_mode': instance.weightMode,
   'kds_target_seconds': instance.kdsTargetSeconds,
+  'brand_id': instance.brandId,
   'is_active': instance.isActive,
   'image_url': instance.imageUrl,
   'image_thumb_urls': instance.imageThumbUrls,
@@ -113,6 +121,8 @@ Map<String, dynamic> _$ProductsToJson(Products instance) => <String, dynamic>{
   'modifier_group_links': instance.modifierGroupLinks,
   'channel_prices': instance.channelPrices,
   'batches': instance.batches,
+  'brand': instance.brand,
+  'ingredients': instance.ingredients,
   'is_available': instance.isAvailable,
   'unavailable_reason': instance.unavailableReason,
   'station_id': instance.stationId,

@@ -4,27 +4,54 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'roles.dart';
-import 'permissions.dart';
+import 'modifiers6.dart';
+import 'product_rules3.dart';
 
 part 'data124.g.dart';
 
 @JsonSerializable()
 class Data124 {
   const Data124({
-    required this.roles,
-    required this.permissions,
-    required this.matrix,
-    required this.defaults,
+    required this.id,
+    required this.uuid,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.displayMode,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data124.fromJson(Map<String, Object?> json) =>
       _$Data124FromJson(json);
 
-  final List<Roles> roles;
-  final List<Permissions> permissions;
-  final Map<String, Map<String, bool>> matrix;
-  final Map<String, Map<String, bool>> defaults;
+  final int id;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'display_mode')
+  final String displayMode;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers6> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules3 productRules;
 
   Map<String, Object?> toJson() => _$Data124ToJson(this);
 }

@@ -4,34 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'slots2.dart';
+import 'rates.dart';
 
 part 'data60.g.dart';
 
 @JsonSerializable()
 class Data60 {
-  const Data60({
-    required this.id,
-    required this.uuid,
-    required this.productId,
-    required this.productName,
-    required this.prices,
-    required this.isActive,
-    required this.slots,
-  });
+  const Data60({required this.rates, required this.channels});
 
   factory Data60.fromJson(Map<String, Object?> json) => _$Data60FromJson(json);
 
-  final int id;
-  final String uuid;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  final List<String> prices;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final List<Slots2> slots;
+  final List<Rates> rates;
+  final List<dynamic> channels;
 
   Map<String, Object?> toJson() => _$Data60ToJson(this);
 }

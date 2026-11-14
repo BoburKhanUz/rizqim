@@ -34,6 +34,14 @@ return [
     App\Domain\Pos\Vouchers\PosVouchersServiceProvider::class,
     // P6-41/P6-42: Click, Payme and UzQR QR at the till: the bootstrap's qr_payments section, bill-change cancel, expiry job
     App\Domain\Pos\QrPayments\PosQrPaymentsServiceProvider::class,
+    // P6-51/P6-52: banquet events: the hold-expiry minute job, the bootstrap's banquet section
+    App\Domain\Pos\Banquet\PosBanquetServiceProvider::class,
+    // P6-53: the banquet payment schedule: re-plan on a changed total, the daily reminders, receipt updates
+    App\Domain\Pos\Banquet\Payments\PosBanquetPaymentsServiceProvider::class,
+    // P6-54: the banquet event day and final settlement: the event order's advance ledger, settled on order close
+    App\Domain\Pos\Banquet\Ops\PosBanquetOpsServiceProvider::class,
+    // P6-55: multiple brands in one kitchen: an order line's brand snapshot
+    App\Domain\Pos\Brands\PosBrandsServiceProvider::class,
     // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
     App\Providers\AdminMonitoringServiceProvider::class,
     // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh

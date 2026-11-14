@@ -4,29 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device23.dart';
-import 'errors2.dart';
+import 'lan_role.dart';
+import 'hub5.dart';
+import 'devices4.dart';
 
 part 'data295.g.dart';
 
 @JsonSerializable()
 class Data295 {
   const Data295({
-    required this.serverTime,
+    required this.v,
+    required this.branchId,
+    required this.keyId,
+    required this.role,
     required this.device,
-    required this.errors,
-    required this.errorsCount,
+    required this.deviceKey,
+    required this.beaconKey,
+    required this.hub,
+    required this.hubSecret,
+    required this.devices,
+    required this.grant,
+    required this.clockWindowSeconds,
   });
 
   factory Data295.fromJson(Map<String, Object?> json) =>
       _$Data295FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  final Device23 device;
-  final List<Errors2> errors;
-  @JsonKey(name: 'errors_count')
-  final int errorsCount;
+  final int v;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'key_id')
+  final int keyId;
+  final LanRole role;
+  final String device;
+  @JsonKey(name: 'device_key')
+  final String deviceKey;
+  @JsonKey(name: 'beacon_key')
+  final String beaconKey;
+  final Hub5 hub;
+  @JsonKey(name: 'hub_secret')
+  final String? hubSecret;
+  final List<Devices4>? devices;
+  final String? grant;
+  @JsonKey(name: 'clock_window_seconds')
+  final int clockWindowSeconds;
 
   Map<String, Object?> toJson() => _$Data295ToJson(this);
 }

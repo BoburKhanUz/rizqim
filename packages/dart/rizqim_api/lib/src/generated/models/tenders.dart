@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tender.dart';
+import 'tender2.dart';
 
 part 'tenders.g.dart';
 
@@ -29,7 +29,7 @@ class Tenders {
   factory Tenders.fromJson(Map<String, Object?> json) =>
       _$TendersFromJson(json);
 
-  final Tender tender;
+  final Tender2 tender;
   final num amount;
   @JsonKey(name: 'tendered_amount')
   final num? tenderedAmount;

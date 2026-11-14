@@ -10,7 +10,7 @@ V1PosBookingsUuidDepositsRequestBody
 _$V1PosBookingsUuidDepositsRequestBodyFromJson(Map<String, dynamic> json) =>
     V1PosBookingsUuidDepositsRequestBody(
       amount: json['amount'] as num,
-      tender: Tender2.fromJson(json['tender'] as String),
+      tender: Tender.fromJson(json['tender'] as String),
       cardType: json['card_type'] as String?,
       transactionId: json['transaction_id'] as String?,
       approvalToken: json['approval_token'] as String?,

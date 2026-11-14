@@ -4,71 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'warnings7.dart';
-import 'lines13.dart';
-import 'open_shifts6.dart';
+import 'period2.dart';
+import 'summary3.dart';
+import 'series.dart';
+import 'by_channel2.dart';
+import 'by_branch.dart';
+import 'by_payment_method2.dart';
+import 'by_order_type2.dart';
 
 part 'data181.g.dart';
 
 @JsonSerializable()
 class Data181 {
   const Data181({
-    required this.uuid,
-    required this.branchId,
     required this.period,
-    required this.periodLabel,
-    required this.periodFrom,
-    required this.periodTo,
-    required this.status,
-    required this.statusLabel,
-    required this.grossTotal,
-    required this.payableTotal,
-    required this.paidTotal,
-    required this.linesCount,
-    required this.warnings,
-    required this.computedAt,
-    required this.closedAt,
-    required this.version,
-    required this.createdAt,
-    required this.lines,
-    required this.openShifts,
+    required this.branchId,
+    required this.summary,
+    required this.byStatus,
+    required this.series,
+    required this.byChannel,
+    required this.byBranch,
+    required this.byPaymentMethod,
+    required this.byOrderType,
   });
 
   factory Data181.fromJson(Map<String, Object?> json) =>
       _$Data181FromJson(json);
 
-  final String uuid;
+  final Period2 period;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String period;
-  @JsonKey(name: 'period_label')
-  final String periodLabel;
-  @JsonKey(name: 'period_from')
-  final String periodFrom;
-  @JsonKey(name: 'period_to')
-  final String periodTo;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  @JsonKey(name: 'gross_total')
-  final String grossTotal;
-  @JsonKey(name: 'payable_total')
-  final String payableTotal;
-  @JsonKey(name: 'paid_total')
-  final String paidTotal;
-  @JsonKey(name: 'lines_count')
-  final int linesCount;
-  final List<Warnings7> warnings;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  final List<Lines13> lines;
-  @JsonKey(name: 'open_shifts')
-  final List<OpenShifts6> openShifts;
+  final int? branchId;
+  final Summary3 summary;
+  @JsonKey(name: 'by_status')
+  final Map<String, int> byStatus;
+  final List<Series> series;
+  @JsonKey(name: 'by_channel')
+  final List<ByChannel2> byChannel;
+  @JsonKey(name: 'by_branch')
+  final List<ByBranch> byBranch;
+  @JsonKey(name: 'by_payment_method')
+  final List<ByPaymentMethod2> byPaymentMethod;
+  @JsonKey(name: 'by_order_type')
+  final List<ByOrderType2> byOrderType;
 
   Map<String, Object?> toJson() => _$Data181ToJson(this);
 }

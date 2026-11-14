@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'brand.dart';
 import 'fire_mode.dart';
 import 'kitchen_item_status.dart';
 import 'menu_batch.dart';
@@ -19,7 +20,7 @@ part 'order_item.g.dart';
 @JsonSerializable()
 class OrderItem {
   const OrderItem({
-    required this.batchId,
+    required this.batchQuantity,
     required this.orderId,
     required this.productVariantId,
     required this.productName,
@@ -33,8 +34,8 @@ class OrderItem {
     required this.unit,
     required this.modifiers,
     required this.modifiersTotal,
+    required this.batchId,
     required this.id,
-    required this.batchQuantity,
     required this.kitchenStatus,
     required this.readyAt,
     required this.roundNo,
@@ -47,8 +48,8 @@ class OrderItem {
     required this.voidedBy,
     required this.voidReason,
     required this.seatNo,
-    required this.comboParentId,
-    required this.clientLineId,
+    required this.note,
+    required this.brand,
     required this.priceSource,
     required this.setParts,
     required this.courseNo,
@@ -57,7 +58,9 @@ class OrderItem {
     required this.weighedBy,
     required this.weighedAt,
     required this.comboParts,
-    required this.note,
+    required this.comboParentId,
+    required this.brandId,
+    required this.clientLineId,
     this.comboChildren,
     this.comboParent,
     this.order,
@@ -141,6 +144,9 @@ class OrderItem {
   final List<Map<String, dynamic>>? comboParts;
   @JsonKey(name: 'combo_parent_id')
   final int? comboParentId;
+  @JsonKey(name: 'brand_id')
+  final int? brandId;
+  final Brand? brand;
   @JsonKey(name: 'combo_children')
   final List<OrderItem>? comboChildren;
   @JsonKey(name: 'combo_parent')

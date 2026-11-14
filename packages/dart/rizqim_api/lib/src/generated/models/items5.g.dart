@@ -7,25 +7,19 @@ part of 'items5.dart';
 // **************************************************************************
 
 Items5 _$Items5FromJson(Map<String, dynamic> json) => Items5(
-  orderItemId: (json['order_item_id'] as num).toInt(),
-  productName: json['product_name'] as String,
-  variantName: json['variant_name'] as String?,
+  id: (json['id'] as num).toInt(),
+  productId: (json['product_id'] as num?)?.toInt(),
+  productVariantId: (json['product_variant_id'] as num?)?.toInt(),
+  name: json['name'] as String,
+  quantityPerPerson: json['quantity_per_person'] as String,
   unit: json['unit'] as String,
-  quantity: json['quantity'] as num,
-  amount: json['amount'] as String,
-  discountAmount: json['discount_amount'] as String,
-  comboParts: (json['combo_parts'] as List<dynamic>?)
-      ?.map((e) => ComboParts2.fromJson(e as Map<String, dynamic>))
-      .toList(),
 );
 
 Map<String, dynamic> _$Items5ToJson(Items5 instance) => <String, dynamic>{
-  'order_item_id': instance.orderItemId,
-  'product_name': instance.productName,
-  'variant_name': instance.variantName,
+  'id': instance.id,
+  'product_id': instance.productId,
+  'product_variant_id': instance.productVariantId,
+  'name': instance.name,
+  'quantity_per_person': instance.quantityPerPerson,
   'unit': instance.unit,
-  'quantity': instance.quantity,
-  'amount': instance.amount,
-  'discount_amount': instance.discountAmount,
-  'combo_parts': instance.comboParts,
 };

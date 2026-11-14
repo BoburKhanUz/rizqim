@@ -7,13 +7,23 @@ part of 'data232.dart';
 // **************************************************************************
 
 Data232 _$Data232FromJson(Map<String, dynamic> json) => Data232(
-  members: (json['members'] as List<dynamic>)
-      .map((e) => Members.fromJson(e as Map<String, dynamic>))
+  event: Event4.fromJson(json['event'] as Map<String, dynamic>),
+  summary: Summary6.fromJson(json['summary'] as Map<String, dynamic>),
+  rows: (json['rows'] as List<dynamic>)
+      .map((e) => Rows7.fromJson(e as Map<String, dynamic>))
       .toList(),
-  activeCount: (json['active_count'] as num).toInt(),
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries5.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  cancellation: json['cancellation'] == null
+      ? null
+      : Cancellation2.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data232ToJson(Data232 instance) => <String, dynamic>{
-  'members': instance.members,
-  'active_count': instance.activeCount,
+  'event': instance.event,
+  'summary': instance.summary,
+  'rows': instance.rows,
+  'entries': instance.entries,
+  'cancellation': instance.cancellation,
 };

@@ -38,6 +38,10 @@ final class PriceHistory
 
         foreach (OrderStamp::CHANNELS as $channel) {
             $price = Money::of($overrides->get($channel->value)->price ?? $variant->price);
+            // P6-55: a brand's channel percent applies where the variant has no channel price (ChannelMenu::priceOf)
+            if (!$overrides->has($channel->value) && ($percent = \App\Domain\Pos\Brands\BrandMenu::percentFor($variant->product->brand_id, $channel)) !== null) {
+                $price = \App\Domain\Pos\Brands\BrandMenu::adjust($price, $percent);
+            }
             $last = MenuPriceHistory::where('product_variant_id', $variant->id)->where('channel', $channel->value)
                 ->orderByDesc('effective_from')->orderByDesc('id')->value('price');
             if ($last !== null && $price->equals((string) $last)) {

@@ -10,25 +10,25 @@ const OWNER = [
 describe('visibleNav', () => {
   it('shows every section to an owner, zones included', () => {
     expect(visibleNav(OWNER).map((item) => item.key)).toEqual([
-      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'combos', 'dailymenu', 'yield', 'kitchentimes', 'shifts', 'tips', 'accounts', 'vouchers', 'staff', 'branches', 'zones', 'settings', 'possetup', 'permissions', 'audit', 'fiscal', 'reports', 'finance', 'billing',
+      'dashboard', 'orders', 'bookings', 'floor', 'menu', 'stoplist', 'batches', 'combos', 'dailymenu', 'yield', 'kitchentimes', 'shifts', 'tips', 'accounts', 'vouchers', 'brands', 'channelrevenue', 'banquetreport', 'staff', 'branches', 'zones', 'settings', 'possetup', 'permissions', 'audit', 'fiscal', 'reports', 'finance', 'billing',
     ]);
   });
 
   it('hides what the permissions do not open (a manager has no zones, settings or finance)', () => {
     const manager = ['orders.view', 'menu.view', 'stoplist.manage', 'batches.manage', 'staff.view', 'branches.manage', 'reports.view'];
-    expect(visibleNav(manager).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'stoplist', 'batches', 'combos', 'dailymenu', 'yield', 'kitchentimes', 'shifts', 'tips', 'vouchers', 'staff', 'branches', 'fiscal', 'reports']);
+    expect(visibleNav(manager).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'stoplist', 'batches', 'combos', 'dailymenu', 'yield', 'kitchentimes', 'shifts', 'tips', 'vouchers', 'brands', 'channelrevenue', 'banquetreport', 'staff', 'branches', 'fiscal', 'reports']);
   });
 
   it('gives a manager the POS sections their permissions open (bookings, tables, nasiya, shifts), not the settings ones', () => {
     const manager = ['orders.view', 'menu.view', 'reports.view', 'tables.manage', 'bookings.manage', 'customer_accounts.manage', 'pos.close_shift', 'branches.manage'];
     const keys = visibleNav(manager).map((item) => item.key);
-    expect(keys).toEqual(['dashboard', 'orders', 'bookings', 'floor', 'menu', 'combos', 'yield', 'kitchentimes', 'shifts', 'tips', 'accounts', 'vouchers', 'branches', 'fiscal', 'reports']);
+    expect(keys).toEqual(['dashboard', 'orders', 'bookings', 'floor', 'menu', 'combos', 'yield', 'kitchentimes', 'shifts', 'tips', 'accounts', 'vouchers', 'brands', 'channelrevenue', 'banquetreport', 'branches', 'fiscal', 'reports']);
     expect(keys).not.toContain('possetup');
   });
 
   it('keeps the fiscal section from people who only read the menu (a cook, a waiter)', () => {
-    expect(visibleNav(['orders.view', 'menu.view', 'kitchen.manage']).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'combos']);
-    expect(visibleNav(['menu.manage']).map((item) => item.key)).toEqual(['menu', 'combos', 'dailymenu', 'fiscal']);
+    expect(visibleNav(['orders.view', 'menu.view', 'kitchen.manage']).map((item) => item.key)).toEqual(['dashboard', 'orders', 'menu', 'combos', 'brands']);
+    expect(visibleNav(['menu.manage']).map((item) => item.key)).toEqual(['menu', 'combos', 'dailymenu', 'brands', 'fiscal']);
   });
 
   it('opens a section with any one of its permissions', () => {
@@ -41,11 +41,13 @@ describe('visibleNav', () => {
     expect(visibleNav(['pos.close_shift']).map((item) => item.key)).toEqual(['shifts']);
     // P6-15: the manager who runs the day sets the daily menu; the yield report is a report
     expect(visibleNav(['stoplist.manage']).map((item) => item.key)).toEqual(['stoplist', 'dailymenu']);
-    expect(visibleNav(['reports.view']).map((item) => item.key)).toEqual(['dashboard', 'yield', 'kitchentimes', 'shifts', 'tips', 'vouchers', 'fiscal', 'reports']);
+    expect(visibleNav(['reports.view']).map((item) => item.key)).toEqual(['dashboard', 'yield', 'kitchentimes', 'shifts', 'tips', 'vouchers', 'channelrevenue', 'banquetreport', 'fiscal', 'reports']);
     // P6-22: tips — the report (reports.view), corrections and the pool split (tips.manage), the settings (settings.manage)
     expect(visibleNav(['tips.manage']).map((item) => item.key)).toEqual(['tips']);
     // P6-43: gift certificates — read with reports.view, blocked with vouchers.manage
     expect(visibleNav(['vouchers.manage']).map((item) => item.key)).toEqual(['vouchers']);
+    // P6-51: the events calendar, packages and prices
+    expect(visibleNav(['banquets.manage']).map((item) => item.key)).toEqual(['banquets', 'banquetreport']);
     expect(hasAny(['a'], ['b', 'a'])).toBe(true);
     expect(hasAny([], ['a'])).toBe(false);
   });

@@ -100,6 +100,10 @@ void main() {
         'qr_payments',
         'vouchers',
         'corporate_accounts',
+        // Wave 5
+        'banquet',
+        'multi_brand',
+        'ingredient_stoplist',
       ]);
       expect(PosModule.fromWire('kds'), PosModule.kds);
       expect(PosModule.fromWire('nope'), isNull);

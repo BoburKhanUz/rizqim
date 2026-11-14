@@ -7,49 +7,31 @@ part of 'data143.dart';
 // **************************************************************************
 
 Data143 _$Data143FromJson(Map<String, dynamic> json) => Data143(
+  id: (json['id'] as num).toInt(),
   uuid: json['uuid'] as String,
-  method: json['method'] as String,
-  source: json['source'] as String?,
-  amount: json['amount'] as String,
-  originalAmount: json['original_amount'] as String,
-  mode: json['mode'] as String,
-  staff: json['staff'] == null
-      ? null
-      : Staff4.fromJson(json['staff'] as Map<String, dynamic>),
-  holders: (json['holders'] as List<dynamic>)
-      .map((e) => Holders2.fromJson(e as Map<String, dynamic>))
+  name: json['name'] as String,
+  perPersonPrice: json['per_person_price'] as String,
+  minimumGuests: (json['minimum_guests'] as num).toInt(),
+  included: (json['included'] as List<dynamic>)
+      .map((e) => e as String)
       .toList(),
-  businessDate: json['business_date'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  shiftUuid: json['shift_uuid'] as String?,
-  recordedBy: json['recorded_by'] == null
-      ? null
-      : RecordedBy2.fromJson(json['recorded_by'] as Map<String, dynamic>),
-  closed: json['closed'] as bool,
-  corrections: (json['corrections'] as List<dynamic>)
-      .map((e) => Corrections3.fromJson(e as Map<String, dynamic>))
+  description: json['description'] as String?,
+  isActive: json['is_active'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items7.fromJson(e as Map<String, dynamic>))
       .toList(),
-  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data143ToJson(Data143 instance) => <String, dynamic>{
+  'id': instance.id,
   'uuid': instance.uuid,
-  'method': instance.method,
-  'source': instance.source,
-  'amount': instance.amount,
-  'original_amount': instance.originalAmount,
-  'mode': instance.mode,
-  'staff': instance.staff,
-  'holders': instance.holders,
-  'business_date': instance.businessDate,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'shift_uuid': instance.shiftUuid,
-  'recorded_by': instance.recordedBy,
-  'closed': instance.closed,
-  'corrections': instance.corrections,
-  'created_at': instance.createdAt,
+  'name': instance.name,
+  'per_person_price': instance.perPersonPrice,
+  'minimum_guests': instance.minimumGuests,
+  'included': instance.included,
+  'description': instance.description,
+  'is_active': instance.isActive,
+  'sort_order': instance.sortOrder,
+  'items': instance.items,
 };

@@ -142,6 +142,11 @@ final class PaymentService
             if ($bill->status === BillStatus::VOID) {
                 throw PosActionException::conflict('bill_void', "Bu schyot bekor qilingan: buyurtmaning joriy schyotini oling.");
             }
+            // Review P6 wave 5 (C1): an in-progress banquet event's order is paid on its settlement bill (money a till took
+            // offline is recorded anyway)
+            if ($offlinePaidAt === null) {
+                \App\Domain\Pos\Banquet\Ops\BanquetBillingGuard::assertPayable($order, $bill);
+            }
 
             $existing = Payment::where('bill_id', $bill->id)->where('status', 'paid')->get();
             $paid = Money::sum(...$existing->pluck('amount')->all());

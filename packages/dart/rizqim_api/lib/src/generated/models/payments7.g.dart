@@ -7,21 +7,27 @@ part of 'payments7.dart';
 // **************************************************************************
 
 Payments7 _$Payments7FromJson(Map<String, dynamic> json) => Payments7(
-  form: Form.fromJson(json['form'] as String),
+  uuid: json['uuid'] as String,
+  kind: json['kind'] as String,
+  kindLabel: json['kind_label'] as String,
+  dueDate: json['due_date'] as String?,
   amount: json['amount'] as String,
-  prepayment: json['prepayment'] as bool,
-  credit: json['credit'] as bool,
-  cardType: json['card_type'] as String?,
-  transactionId: json['transaction_id'] as String?,
-  cardLast4: json['card_last4'] as String?,
+  status: json['status'] as String,
+  statusLabel: json['status_label'] as String,
+  tender: json['tender'] as String?,
+  paidAt: json['paid_at'] as String?,
+  fiscalReceiptUuid: json['fiscal_receipt_uuid'] as String?,
 );
 
 Map<String, dynamic> _$Payments7ToJson(Payments7 instance) => <String, dynamic>{
-  'form': instance.form,
+  'uuid': instance.uuid,
+  'kind': instance.kind,
+  'kind_label': instance.kindLabel,
+  'due_date': instance.dueDate,
   'amount': instance.amount,
-  'prepayment': instance.prepayment,
-  'credit': instance.credit,
-  'card_type': instance.cardType,
-  'transaction_id': instance.transactionId,
-  'card_last4': instance.cardLast4,
+  'status': instance.status,
+  'status_label': instance.statusLabel,
+  'tender': instance.tender,
+  'paid_at': instance.paidAt,
+  'fiscal_receipt_uuid': instance.fiscalReceiptUuid,
 };

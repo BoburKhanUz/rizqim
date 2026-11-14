@@ -7,19 +7,15 @@ part of 'data155.dart';
 // **************************************************************************
 
 Data155 _$Data155FromJson(Map<String, dynamic> json) => Data155(
-  productId: (json['product_id'] as num).toInt(),
-  quickMultipliers: (json['quick_multipliers'] as List<dynamic>?)
-      ?.map((e) => (e as num).toInt())
+  settings: Settings.fromJson(json['settings'] as Map<String, dynamic>),
+  merchants: (json['merchants'] as List<dynamic>)
+      .map((e) => Merchants.fromJson(e as Map<String, dynamic>))
       .toList(),
-  waitMinutes: (json['wait_minutes'] as num?)?.toInt(),
-  weightMode: json['weight_mode'] == null
-      ? null
-      : WeightBasis.fromJson(json['weight_mode'] as String),
+  options: Options4.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data155ToJson(Data155 instance) => <String, dynamic>{
-  'product_id': instance.productId,
-  'quick_multipliers': instance.quickMultipliers,
-  'wait_minutes': instance.waitMinutes,
-  'weight_mode': instance.weightMode,
+  'settings': instance.settings,
+  'merchants': instance.merchants,
+  'options': instance.options,
 };

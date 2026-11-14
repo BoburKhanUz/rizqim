@@ -4,98 +4,100 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'hall23.dart';
-import 'table23.dart';
-import 'waiter26.dart';
-import 'queue24.dart';
-import 'pickup24.dart';
-import 'online3.dart';
+import 'store2.dart';
+import 'branch17.dart';
+import 'device10.dart';
+import 'user23.dart';
+import 'stations10.dart';
+import 'station_routes.dart';
+import 'printers.dart';
+import 'staff20.dart';
+import 'halls11.dart';
+import 'tables5.dart';
+import 'shift.dart';
+import 'quick_items.dart';
+import 'offline2.dart';
+import 'terminal_flow.dart';
+import 'staff_pay.dart';
+import 'format2.dart';
+import 'tips7.dart';
+import 'entitlements.dart';
+import 'queue2.dart';
+import 'booking_rules.dart';
+import 'labels.dart';
+import 'takeaway.dart';
+import 'lan.dart';
+import 'banquet.dart';
 
 part 'data271.g.dart';
 
 @JsonSerializable()
 class Data271 {
   const Data271({
-    required this.uuid,
-    required this.shortCode,
-    required this.status,
-    required this.channel,
-    required this.type,
-    required this.branchId,
-    required this.version,
-    required this.hall,
-    required this.table,
-    required this.hallRef,
-    required this.tableRef,
-    required this.tableLabel,
-    required this.guestsCount,
-    required this.waiter,
-    required this.itemsCount,
-    required this.subtotal,
-    required this.totalPrice,
-    required this.paymentStatus,
-    required this.billLocked,
-    required this.billRequested,
-    required this.fiscalPending,
-    required this.bookingId,
-    required this.businessDate,
+    required this.serverTime,
+    required this.menuVersion,
+    required this.store,
+    required this.branch,
+    required this.device,
+    required this.user,
+    required this.stations,
+    required this.stationRoutes,
+    required this.printers,
+    required this.staff,
+    required this.halls,
+    required this.tables,
+    required this.shift,
+    required this.quickItems,
+    required this.offline,
+    required this.terminalFlow,
+    required this.staffPay,
+    required this.format,
+    required this.tips,
+    required this.entitlements,
     required this.queue,
-    required this.pickup,
-    required this.openedAt,
-    required this.closedAt,
-    required this.updatedAt,
-    required this.online,
+    required this.bookingRules,
+    required this.labels,
+    required this.takeaway,
+    required this.lan,
+    required this.banquet,
   });
 
   factory Data271.fromJson(Map<String, Object?> json) =>
       _$Data271FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  final String channel;
-  final String type;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final int version;
-  final Hall23? hall;
-  final Table23? table;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'table_label')
-  final String? tableLabel;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  final Waiter26? waiter;
-  @JsonKey(name: 'items_count')
-  final int itemsCount;
-  final String subtotal;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  @JsonKey(name: 'bill_locked')
-  final bool billLocked;
-  @JsonKey(name: 'bill_requested')
-  final bool billRequested;
-  @JsonKey(name: 'fiscal_pending')
-  final bool fiscalPending;
-  @JsonKey(name: 'booking_id')
-  final int? bookingId;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
-  final Queue24? queue;
-  final Pickup24? pickup;
-  @JsonKey(name: 'opened_at')
-  final String? openedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  final Online3? online;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  @JsonKey(name: 'menu_version')
+  final String menuVersion;
+  final Store2 store;
+  final Branch17 branch;
+  final Device10? device;
+  final User23 user;
+  final List<Stations10> stations;
+  @JsonKey(name: 'station_routes')
+  final StationRoutes stationRoutes;
+  final List<Printers> printers;
+  final List<Staff20> staff;
+  final List<Halls11> halls;
+  final List<Tables5> tables;
+  final Shift? shift;
+  @JsonKey(name: 'quick_items')
+  final List<QuickItems> quickItems;
+  final Offline2 offline;
+  @JsonKey(name: 'terminal_flow')
+  final TerminalFlow? terminalFlow;
+  @JsonKey(name: 'staff_pay')
+  final StaffPay? staffPay;
+  final Format2 format;
+  final Tips7 tips;
+  final Entitlements entitlements;
+  final Queue2 queue;
+  @JsonKey(name: 'booking_rules')
+  final BookingRules? bookingRules;
+  final Labels? labels;
+  final Takeaway takeaway;
+  final Lan? lan;
+  final Banquet? banquet;
 
   Map<String, Object?> toJson() => _$Data271ToJson(this);
 }

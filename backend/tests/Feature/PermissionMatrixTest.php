@@ -45,6 +45,7 @@ class PermissionMatrixTest extends TestCase
                 'orders.transfer', 'hostess.manage', // P6-24, P6-26
                 'tips.manage', // P6-22
                 'vouchers.manage', // P6-43
+                'banquets.manage', // P6-51
                 'staff_pay.view'], // P6-23
             'cashier' => ['orders.view', 'orders.manage', 'tables.manage', 'menu.view', 'pos.open_shift', 'pos.close_shift', 'pos.take_payment',
                 'bookings.manage', // P3-17

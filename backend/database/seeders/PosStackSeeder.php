@@ -17,17 +17,28 @@ use App\Enums\BranchStatus;
 use App\Enums\DeviceType;
 use App\Enums\UserRole;
 use App\Models\AutoGuestItem;
+use App\Models\BanquetExtra;
+use App\Models\BanquetHallRate;
+use App\Models\BanquetOpsSetting;
+use App\Models\BanquetPackage;
+use App\Models\BanquetPackageItem;
+use App\Models\BanquetPaymentSetting;
+use App\Models\BanquetSetting;
 use App\Models\Branch;
 use App\Models\BranchBookingRules;
 use App\Models\BranchLabelSettings;
 use App\Models\BranchPackagingRule;
 use App\Models\BranchProductRotation;
 use App\Models\BranchTakeawaySettings;
+use App\Models\Brand;
+use App\Models\BrandChannel;
 use App\Models\Category;
+use App\Models\ChannelCommission;
 use App\Models\CustomerAccount;
 use App\Models\CustomerAccountMember;
 use App\Models\DiningTable;
 use App\Models\Hall;
+use App\Models\Ingredient;
 use App\Models\KitchenStation;
 use App\Models\KitchenStationRoute;
 use App\Models\MenuBatch;
@@ -104,6 +115,15 @@ use RuntimeException;
  * promo code, its staff (owner, manager, two cashiers) with PINs and two paired tills. In the seed file under
  * `stolovaya`.
  *
+ * P6-59: a seventh store, a wedding hall ("Rizqim To'yxona", e2e/pos/test/toyxona_wedding_test.dart): the `toyxona`
+ * profile with KDS and staff pay, two halls with rooms, slots, two packages with menu items, extras, hall rates, the
+ * 30/40/rest payment template, cancellation bands, a contract template, the osh calculator, the waiters' event pay, its
+ * staff (owner, two managers — one with a panel token —, cashier, two waiters, a cook), two tills and the kitchen
+ * display; under `toyxona`. And an eighth, a dark kitchen ("Rizqim Dark Kitchen", e2e/pos/test/dark_kitchen_test.dart):
+ * the `dark_kitchen` profile, three brands with channel rules, their dishes on three stations of one kitchen display,
+ * the ingredients "Tovuq" and "Pishloq" linked across brands, the aggregator commission, a Telegram customer, two
+ * aggregator orders of today, its staff, the till and the kitchen display; under `darkkitchen`.
+ *
  * Test-only: it refuses to run in any environment but local, testing and e2e, so it can never put known PINs and
  * tokens into a staging or production database. Everything the test needs (ids, PINs, the terminals as
  * `POST /devices/pair` answers them, the customer's and the owner's tokens) is written as JSON to E2E_POS_SEED_FILE (default
@@ -175,6 +195,27 @@ class PosStackSeeder extends Seeder
         'manager' => '4172',
         'cashier1' => '5283',
         'cashier2' => '6394',
+    ];
+
+    /** P6-59: the wedding hall of the "200 mehmonli to'y" drill (its own store) */
+    public const TOYXONA_TIN = '301234573';
+
+    public const TOYXONA_PINS = [
+        'manager1' => '5162',
+        'manager2' => '6273',
+        'cashier' => '7384',
+        'waiter1' => '8495',
+        'waiter2' => '9516',
+        'cook' => '1627',
+    ];
+
+    /** P6-59: the dark kitchen of the "dark kitchen" drill (its own store) */
+    public const DARK_KITCHEN_TIN = '301234574';
+
+    public const DARK_KITCHEN_PINS = [
+        'manager' => '2738',
+        'cashier' => '3849',
+        'cook' => '4951',
     ];
 
     private Store $store;
@@ -305,6 +346,8 @@ class PosStackSeeder extends Seeder
             'fastfood' => $this->fastFood(),
             'lan' => $this->lanRestaurant(),
             'stolovaya' => $this->stolovaya(),
+            'toyxona' => $this->toyxona(),
+            'darkkitchen' => $this->darkKitchen(),
         ]);
     }
 
@@ -1438,6 +1481,386 @@ class PosStackSeeder extends Seeder
             'vouchers' => $certificates,
             'promo' => ['id' => (int) $promo->id, 'code' => $promo->code],
             'business_date' => $today,
+        ];
+    }
+
+    /**
+     * P6 wave 5 (P6-59): the wedding hall of the "200 mehmonli to'y" drill (e2e/pos/test/toyxona_wedding_test.dart) —
+     * its own store on the `toyxona` profile (banquets, bookings, rooms; KDS and staff pay switched on over it), two
+     * halls (the white hall with two rooms inside it, the blue hall), the slots, two packages with per-person menu
+     * items, extras, the hall rates, the payment template 30 % / 40 % 14 days before / the rest on the day, the
+     * cancellation bands, a contract template, the osh calculator, the production sheet's reserve and MXIK codes,
+     * waiters' event pay, its staff with PINs, two tills and the kitchen display.
+     *
+     * @return array<string, mixed> the seed file's `toyxona` section (the same shape as the top level)
+     */
+    private function toyxona(): array
+    {
+        $store = Store::forceCreate([
+            'name' => "Rizqim To'yxona",
+            'slug' => 'rizqim-toyxona',
+            'status' => 'active',
+            'is_open' => true,
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::TOYXONA_TIN,
+            'tax_regime' => 'vat',
+            'payment_settings' => ['cash' => ['enabled' => true], 'delivery_enabled' => false, 'pickup_enabled' => false, 'delivery_fee' => 0],
+            // Advances (deposits, interims) and the retained part of a cancellation through the charges' MXIK codes too
+            'fiscal_settings' => [
+                'enabled' => true,
+                'driver' => 'sandbox',
+                'charges' => [
+                    'deposit' => ['mxik' => '10202002003000003'],
+                    'booking_fee' => ['mxik' => '10202002007000003'],
+                    'service_charge' => ['mxik' => '10202002005000003'],
+                ],
+            ],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => "Bodomzor to'yxonasi",
+            'latitude' => 41.34,
+            'longitude' => 69.29,
+            'radius_km' => 5,
+            'status' => BranchStatus::ACTIVE->value,
+            // The calendar day is the business day: "today" of the drill is the date the seed file says
+            'business_day_starts_at' => '00:00:00',
+        ]);
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(null, FormatProfile::TOYXONA, ['kds' => true, 'staff_pay' => true])])->save();
+
+        $pins = self::TOYXONA_PINS;
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $staff = [
+            'owner' => $person(UserRole::OWNER, "Rustam To'yxonachi", '+998901000091', null),
+            'manager1' => $person(UserRole::MANAGER, 'Nodira Menejer', '+998901000092', $pins['manager1']),
+            'manager2' => $person(UserRole::MANAGER, 'Ulugbek Menejer', '+998901000093', $pins['manager2']),
+            'cashier' => $person(UserRole::CASHIER, 'Zarina Kassir', '+998901000094', $pins['cashier']),
+            'waiter1' => $person(UserRole::WAITER, 'Shoxrux Ofitsiant', '+998901000095', $pins['waiter1']),
+            'waiter2' => $person(UserRole::WAITER, 'Islom Ofitsiant', '+998901000096', $pins['waiter2']),
+            'cook' => $person(UserRole::COOK, 'Bahodir Oshpaz', '+998901000097', $pins['cook']),
+        ];
+
+        // The kitchen: the osh kazans, the hot kitchen (salads too), the bar; all on the kitchen display
+        $stations = [];
+        foreach (['osh' => ['Qozon', 'osh'], 'kitchen' => ['Issiq sex', 'kitchen'], 'bar' => ['Bar', 'other']] as $key => [$name, $kind]) {
+            $stations[$key] = KitchenStation::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => $name, 'kind' => $kind, 'sort_order' => count($stations) + 1, 'show_on_kds' => true]);
+        }
+        $categories = [];
+        foreach (['Osh' => 'ty-osh', 'Taomlar' => 'ty-taom', 'Salatlar' => 'ty-salat', 'Ichimliklar' => 'ty-ichimlik'] as $name => $slug) {
+            $categories[$name] = Category::create(['name' => $name, 'slug' => 'pos-e2e-' . $slug, 'is_active' => true]);
+        }
+        $make = function (string $name, string $category, string $mxik, string $variant, string $price) use ($store, $categories): ProductVariant {
+            $product = Product::create([
+                'store_id' => $store->id,
+                'category_id' => $categories[$category]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-ty-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+
+            return ProductVariant::create(['product_id' => $product->id, 'name' => $variant, 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+        };
+        $menu = [
+            "To'y oshi" => $make("To'y oshi", 'Osh', '10202001001000051', 'Porsiya', '45000'),
+            'Qazi' => $make('Qazi', 'Taomlar', '10202001002000052', 'Porsiya', '60000'),
+            'Shashlik' => $make('Shashlik', 'Taomlar', '10202001007000053', 'Six', '25000'),
+            'Achichuk' => $make('Achichuk', 'Salatlar', '10202001008000054', 'Porsiya', '12000'),
+            'Coca-Cola 1L' => $make('Coca-Cola 1L', 'Ichimliklar', '10202001005000055', 'Shisha', '15000'),
+            'Choy' => $make('Choy', 'Ichimliklar', '10202001005000056', 'Choynak', '8000'),
+        ];
+        foreach ([['osh', 'Osh'], ['kitchen', 'Taomlar'], ['kitchen', 'Salatlar'], ['bar', 'Ichimliklar']] as [$station, $category]) {
+            KitchenStationRoute::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'station_id' => $stations[$station]->id, 'category_id' => $categories[$category]->id]);
+        }
+
+        // Two halls; the white hall has two rooms inside it (a room may not be booked while a banquet holds the hall)
+        $white = Hall::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => 'Oq zal', 'sort_order' => 1]);
+        $blue = Hall::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => "Ko'k zal", 'sort_order' => 2]);
+        $rooms = [];
+        foreach ([[$white, 'Oq zal VIP 1'], [$white, 'Oq zal VIP 2'], [$blue, "Ko'k zal xonasi"]] as $i => [$hall, $name]) {
+            $rooms[] = DiningTable::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'hall_id' => $hall->id, 'name' => $name, 'kind' => 'room', 'seats' => 12, 'sort_order' => $i + 1, 'layout_x' => $i * 5, 'layout_y' => 0, 'layout_w' => 4, 'layout_h' => 3]);
+        }
+        $rates = ['Oq zal' => ['morning' => '3000000', 'day' => '4000000', 'evening' => '6000000'], "Ko'k zal" => ['morning' => '2000000', 'day' => '2500000', 'evening' => '4000000']];
+        foreach ([$white, $blue] as $hall) {
+            foreach ($rates[$hall->name] as $slot => $price) {
+                BanquetHallRate::create(['store_id' => $store->id, 'hall_id' => $hall->id, 'slot' => $slot, 'price' => $price]);
+            }
+        }
+
+        // Slots, hold hours, warnings (200/250/300 guests, 06:00–23:00) and the MXIK of the advances and the
+        // cancellation fee (test codes; the accountant confirms the real ones)
+        BanquetSetting::create([
+            'store_id' => $store->id,
+            'slots' => ['morning' => ['start' => '07:00', 'end' => '11:00'], 'day' => ['start' => '12:00', 'end' => '16:00'], 'evening' => ['start' => '18:00', 'end' => '23:00']],
+            'hold_hours' => 72,
+            'guest_warning_thresholds' => [200, 250, 300],
+            'window_start' => '06:00',
+            'window_end' => '23:00',
+            'advance_mxik' => '10202002003000003',
+            'cancellation_mxik' => '10202002007000003',
+            'quote_currency' => 'USD',
+            'version' => 1,
+        ]);
+        $packages = [];
+        foreach ([
+            "To'y paketi" => ['180000', 150, ["To'y oshi", 'Qazi', 'Salatlar', 'Choy va non'], [["To'y oshi", '1', 'portion'], ['Qazi', '0.1', 'kg'], ['Achichuk', '0.15', 'kg'], [null, '1', 'piece', 'Non'], ['Choy', '0.25', 'portion']]],
+            'Oddiy paket' => ['120000', 80, ["To'y oshi", 'Salatlar', 'Choy'], [["To'y oshi", '1', 'portion'], ['Achichuk', '0.15', 'kg'], ['Choy', '0.25', 'portion']]],
+        ] as $name => [$price, $minimum, $included, $items]) {
+            $package = BanquetPackage::create(['store_id' => $store->id, 'name' => $name, 'per_person_price' => $price, 'minimum_guests' => $minimum, 'included' => $included, 'sort_order' => count($packages)]);
+            foreach ($items as $i => $item) {
+                $variant = $item[0] !== null ? $menu[$item[0]] : null;
+                BanquetPackageItem::create(['banquet_package_id' => $package->id, 'product_id' => $variant?->product_id, 'product_variant_id' => $variant?->id, 'name' => $item[3] ?? $item[0], 'quantity_per_person' => $item[1], 'unit' => $item[2], 'sort_order' => $i]);
+            }
+            $packages[$name] = $package;
+        }
+        $extras = [];
+        foreach (['Tort' => ['1500000', 'per_event'], 'Dekor' => ['2000000', 'per_event'], "Qo'shimcha soat" => ['1000000', 'per_event'], 'Mineral suv' => ['6000', 'per_person']] as $name => [$price, $pricing]) {
+            $extras[$name] = BanquetExtra::create(['store_id' => $store->id, 'name' => $name, 'price' => $price, 'pricing' => $pricing, 'sort_order' => count($extras)]);
+        }
+        BanquetPaymentSetting::create([
+            'store_id' => $store->id,
+            'schedule_template' => [['kind' => 'deposit', 'percent' => '30', 'days_before' => null], ['kind' => 'interim', 'percent' => '40', 'days_before' => 14], ['kind' => 'final', 'percent' => null, 'days_before' => 0]],
+            'cancellation_rules' => [['min_days' => 30, 'retained_percent' => '0'], ['min_days' => 14, 'retained_percent' => '30'], ['min_days' => 0, 'retained_percent' => '100']],
+            'reminder_days' => [3, 1],
+            'overdue_reminders' => true,
+            'version' => 1,
+        ]);
+        // The osh calculator: 6 guests per kg of osh, its ingredients per kg, the kazans; a 5 % reserve on the sheet;
+        // the final sale's MXIK codes; the store's own contract text
+        BanquetOpsSetting::create([
+            'store_id' => $store->id,
+            'reserve_percent' => '5',
+            'osh' => ['persons_per_kg' => '6', 'product_ids' => [(int) $menu["To'y oshi"]->product_id], 'ingredients' => [
+                ['key' => 'rice', 'name' => 'Guruch', 'unit' => 'kg', 'per_kg' => '1'],
+                ['key' => 'meat', 'name' => "Go'sht", 'unit' => 'kg', 'per_kg' => '0.8'],
+                ['key' => 'carrot', 'name' => 'Sabzi', 'unit' => 'kg', 'per_kg' => '1'],
+                ['key' => 'oil', 'name' => "Yog'", 'unit' => 'l', 'per_kg' => '0.2'],
+            ], 'kazans' => [20, 30, 50]],
+            'portion_weights' => [['product_id' => (int) $menu["To'y oshi"]->product_id, 'grams' => 350]],
+            'package_mxik' => '10305001003000003',
+            'hall_mxik' => '10305001004000003',
+            'extra_mxik' => '10305001005000003',
+            'contract_template' => "RIZQIM TO'YXONA — Bodomzor\n\n" . \App\Domain\Pos\Banquet\Ops\BanquetContracts::DEFAULT_TEMPLATE,
+            'version' => 1,
+        ]);
+        // The waiters get 250 000 so'm for every settled event they served (event_rate, kind `banquet`)
+        StaffPaySetting::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'period' => 'day', 'sales_attribution' => 'at_payment', 'updated_by' => $staff['owner']->id]);
+        app(StaffPayRules::class)->create($branch, ['role' => 'waiter', 'effective_from' => '2026-01-01', 'components' => [['type' => 'event_rate', 'amount' => '250000', 'event_types' => ['banquet']]]], $staff['owner']);
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        foreach (['till1' => [DeviceType::POS, 'Kassa 1'], 'till2' => [DeviceType::POS, 'Kassa 2 (menejer)'], 'kds' => [DeviceType::KDS, 'Oshxona ekrani']] as $key => [$type, $name]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'])['code'];
+            $paired = $pairing->pair($code, ['platform' => 'linux']);
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => ['uuid' => $paired['device']->uuid, 'type' => $type->value, 'name' => $name, 'platform' => 'linux', 'app_version' => null, 'store_id' => $store->id, 'branch_id' => $branch->id],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-toyxona-owner')->plainTextToken;
+        // The second manager works in the web panel (a normal sign-in): the hold race is the till against the panel
+        $seedStaff['manager2']['token'] = $staff['manager2']->createToken('pos-e2e-toyxona-manager2')->plainTextToken;
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::TOYXONA_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
+            'terminals' => $terminals,
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+            'stations' => array_map(fn (KitchenStation $station) => (int) $station->id, $stations),
+            'halls' => ['white' => ['id' => (int) $white->id, 'name' => $white->name], 'blue' => ['id' => (int) $blue->id, 'name' => $blue->name]],
+            'rooms' => array_map(fn (DiningTable $room) => ['id' => (int) $room->id, 'name' => $room->name, 'hall_id' => (int) $room->hall_id], $rooms),
+            'hall_rates' => $rates,
+            'packages' => array_map(fn (BanquetPackage $package) => ['id' => (int) $package->id, 'per_person_price' => Money::of($package->per_person_price)->toString(), 'minimum_guests' => (int) $package->minimum_guests], $packages),
+            'extras' => array_map(fn (BanquetExtra $extra) => ['id' => (int) $extra->id, 'price' => Money::of($extra->price)->toString(), 'pricing' => $extra->pricing->value], $extras),
+            'business_date' => now('Asia/Tashkent')->toDateString(),
+        ];
+    }
+
+    /**
+     * P6 wave 5 (P6-59): the dark kitchen of the "dark kitchen" drill (e2e/pos/test/dark_kitchen_test.dart) — its own
+     * store on the `dark_kitchen` profile (brands, the ingredient stop-list): three brands in one kitchen with their
+     * channel rules (Burger Bro 15 % dearer on the aggregator, Lavash Lab 10 % dearer in the mobile app, Shirin Bar not
+     * sold in the mobile app), their dishes on three stations of one kitchen display, the ingredients "Tovuq" (closes
+     * a burger and two lavash dishes of two brands) and "Pishloq" (not critical: its dishes stay on sale, marked), the
+     * owner's 25 % aggregator commission, a Telegram customer, its staff with PINs, the till and the kitchen display.
+     * Two aggregator orders of today are placed through the checkout action with the `aggregator` channel and
+     * delivered: there is no aggregator API yet (their prices are the channel's).
+     *
+     * @return array<string, mixed> the seed file's `darkkitchen` section (the same shape as the top level)
+     */
+    private function darkKitchen(): array
+    {
+        $store = Store::forceCreate([
+            'name' => 'Rizqim Dark Kitchen',
+            'slug' => 'rizqim-dark-kitchen',
+            'status' => 'active',
+            'is_open' => true,
+            'open_time' => '00:00:00',
+            'close_time' => '00:00:00',
+            'commission_rate' => 10,
+            'tin' => self::DARK_KITCHEN_TIN,
+            'tax_regime' => 'vat',
+            'payment_settings' => ['cash' => ['enabled' => true], 'delivery_enabled' => false, 'pickup_enabled' => true, 'delivery_fee' => 0],
+            'fiscal_settings' => ['enabled' => true, 'driver' => 'sandbox'],
+        ]);
+        $branch = Branch::create([
+            'store_id' => $store->id,
+            'name' => 'Chilonzor oshxonasi',
+            'latitude' => 41.28,
+            'longitude' => 69.20,
+            'radius_km' => 8,
+            'status' => BranchStatus::ACTIVE->value,
+            'business_day_starts_at' => '00:00:00',
+        ]);
+        $branch->forceFill(['pos_settings' => PosSettings::withFormat(null, FormatProfile::DARK_KITCHEN, [])])->save();
+
+        $pins = self::DARK_KITCHEN_PINS;
+        $person = function (UserRole $role, string $name, string $phone, ?string $pin) use ($store, $branch): User {
+            $user = User::create([
+                'name' => $name,
+                'phone' => $phone,
+                'password' => bcrypt('pos-e2e-staff-not-used'),
+                'store_id' => $store->id,
+                'branch_id' => $role === UserRole::OWNER ? null : $branch->id,
+                'role' => $role->value,
+            ]);
+            if ($pin !== null) {
+                app(StaffPinService::class)->setPin($user, $pin, null);
+            }
+
+            return $user->refresh();
+        };
+        $staff = [
+            'owner' => $person(UserRole::OWNER, 'Akmal Brendov', '+998901000101', null),
+            'manager' => $person(UserRole::MANAGER, 'Sevinch Menejer', '+998901000102', $pins['manager']),
+            'cashier' => $person(UserRole::CASHIER, 'Doston Kassir', '+998901000103', $pins['cashier']),
+            'cook' => $person(UserRole::COOK, 'Javlon Oshpaz', '+998901000104', $pins['cook']),
+        ];
+
+        $brands = [];
+        foreach (['burger' => ['Burger Bro', 'BB', '#DC2626'], 'lavash' => ['Lavash Lab', 'LL', '#2563EB'], 'shirin' => ['Shirin Bar', 'SB', '#DB2777']] as $key => [$name, $code, $color]) {
+            $brands[$key] = Brand::create(['store_id' => $store->id, 'name' => $name, 'short_code' => $code, 'color' => $color, 'is_active' => true, 'sort_order' => count($brands)]);
+        }
+        BrandChannel::create(['store_id' => $store->id, 'brand_id' => $brands['burger']->id, 'channel' => 'aggregator', 'is_hidden' => false, 'price_percent' => '15']);
+        BrandChannel::create(['store_id' => $store->id, 'brand_id' => $brands['lavash']->id, 'channel' => 'mobile', 'is_hidden' => false, 'price_percent' => '10']);
+        BrandChannel::create(['store_id' => $store->id, 'brand_id' => $brands['shirin']->id, 'channel' => 'mobile', 'is_hidden' => true, 'price_percent' => null]);
+
+        $stations = [];
+        $categories = [];
+        foreach (['burger' => ['Grill', 'grill', 'Burgerlar'], 'lavash' => ['Lavash sexi', 'kitchen', 'Lavashlar'], 'shirin' => ['Desert', 'other', 'Desertlar']] as $key => [$name, $kind, $category]) {
+            $stations[$key] = KitchenStation::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'name' => $name, 'kind' => $kind, 'sort_order' => count($stations) + 1, 'show_on_kds' => true]);
+            $categories[$key] = Category::create(['name' => $category, 'slug' => 'pos-e2e-dk-' . $key, 'is_active' => true]);
+            KitchenStationRoute::create(['store_id' => $store->id, 'branch_id' => $branch->id, 'station_id' => $stations[$key]->id, 'category_id' => $categories[$key]->id]);
+        }
+        $make = function (string $brand, string $name, string $mxik, string $price) use ($store, $categories, $brands): ProductVariant {
+            $product = Product::create([
+                'store_id' => $store->id,
+                'category_id' => $categories[$brand]->id,
+                'brand_id' => $brands[$brand]->id,
+                'name' => $name,
+                'slug' => 'pos-e2e-dk-' . mb_strtolower(preg_replace('/\W+/', '-', $name)),
+                'status' => 'active',
+                'mxik_code' => $mxik,
+            ]);
+
+            return ProductVariant::create(['product_id' => $product->id, 'name' => 'Porsiya', 'price' => $price, 'stock' => 100000, 'is_active' => true]);
+        };
+        $menu = [
+            'Chiken burger' => $make('burger', 'Chiken burger', '10202001020000061', '45000'),
+            'Double burger' => $make('burger', 'Double burger', '10202001020000062', '55000'),
+            'Fri' => $make('burger', 'Fri', '10202001020000063', '15000'),
+            'Tovuqli lavash' => $make('lavash', 'Tovuqli lavash', '10202001020000064', '35000'),
+            "Go'shtli lavash" => $make('lavash', "Go'shtli lavash", '10202001020000065', '40000'),
+            'Tovuqli shaurma' => $make('lavash', 'Tovuqli shaurma', '10202001020000066', '32000'),
+            'Cheesecake' => $make('shirin', 'Cheesecake', '10202001020000067', '28000'),
+            'Milkshake' => $make('shirin', 'Milkshake', '10202001020000068', '22000'),
+        ];
+
+        // "Tovuq" closes the chicken dishes of two brands; "Pishloq" only marks its dishes (not critical)
+        $chicken = Ingredient::create(['store_id' => $store->id, 'name' => 'Tovuq', 'unit' => 'kg']);
+        $chicken->products()->attach(array_fill_keys(array_map(fn (string $dish) => (int) $menu[$dish]->product_id, ['Chiken burger', 'Tovuqli lavash', 'Tovuqli shaurma']), ['is_critical' => true]));
+        $cheese = Ingredient::create(['store_id' => $store->id, 'name' => 'Pishloq', 'unit' => 'kg']);
+        $cheese->products()->attach(array_fill_keys(array_map(fn (string $dish) => (int) $menu[$dish]->product_id, ['Double burger', 'Cheesecake']), ['is_critical' => false]));
+        // The aggregator (Yandex Eats) takes 25 %; Telegram and the mobile app pay RIZQIM's commission (the order's own)
+        ChannelCommission::create(['store_id' => $store->id, 'channel' => 'aggregator', 'percent' => '25', 'note' => 'Yandex Eats']);
+
+        $customer = User::create(['name' => 'Laylo Mijoz', 'phone' => '+998901000109', 'password' => bcrypt('pos-e2e-customer-not-used'), 'telegram_id' => '910000109']);
+        // The same customer signed in on the mobile app: a token bound to a customer_mobile device is the `mobile`
+        // channel of POST /orders (the Mini App's token has no device: `telegram`)
+        $phone = \App\Models\Device::create(['user_id' => $customer->id, 'type' => DeviceType::CUSTOMER_MOBILE->value, 'name' => 'Mijoz ilovasi', 'platform' => 'android', 'last_seen_at' => now()]);
+        $mobileToken = app(\App\Services\Auth\TokenService::class)->createDeviceToken($customer, $phone, \App\Services\Auth\TokenService::ACCESS_TOKEN_NAME, ['*'], now()->addDay())->plainTextToken;
+
+        // Two aggregator orders of today, delivered (no aggregator API yet: the checkout action with that channel).
+        // Nothing listens while the seeder runs: no broadcasts
+        $broadcaster = config('broadcasting.default');
+        config(['broadcasting.default' => 'null']);
+        $aggregator = [];
+        foreach ([[['Double burger', 2], ['Milkshake', 1]], [["Go'shtli lavash", 1], ['Chiken burger', 1]]] as $lines) {
+            $order = app(\App\Actions\Order\CreateOrderAction::class)->execute(
+                $customer,
+                array_map(fn (array $line) => ['variant_id' => $menu[$line[0]]->uuid, 'quantity' => $line[1]], $lines),
+                ['store_id' => $store->id, 'branch_id' => $branch->id, 'type' => 'pickup', 'payment_method' => 'cash', 'channel' => 'aggregator', 'notes' => 'Yandex Eats'],
+            );
+            $order->forceFill(['status' => \App\Enums\OrderStatus::DELIVERED->value])->save();
+            $aggregator[] = ['uuid' => (string) $order->uuid, 'total' => Money::of($order->total_price)->toString(), 'discount' => Money::of($order->discount ?? '0')->toString()];
+        }
+        config(['broadcasting.default' => $broadcaster]);
+
+        $pairing = app(DevicePairingService::class);
+        $terminals = [];
+        foreach (['till' => [DeviceType::POS, 'Kassa'], 'kds' => [DeviceType::KDS, 'Oshxona ekrani']] as $key => [$type, $name]) {
+            $code = $pairing->createCode($store, $branch, $type, $name, $staff['owner'])['code'];
+            $paired = $pairing->pair($code, ['platform' => 'linux']);
+            $terminals[$key] = [
+                'token' => $paired['token'],
+                'device' => ['uuid' => $paired['device']->uuid, 'type' => $type->value, 'name' => $name, 'platform' => 'linux', 'app_version' => null, 'store_id' => $store->id, 'branch_id' => $branch->id],
+                'store' => ['id' => $store->id, 'name' => $store->name],
+                'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            ];
+        }
+
+        $seedStaff = [];
+        foreach ($staff as $key => $user) {
+            $seedStaff[$key] = ['id' => $user->id, 'name' => $user->name, 'pin' => $pins[$key] ?? null];
+        }
+        $seedStaff['owner']['token'] = $staff['owner']->createToken('pos-e2e-darkkitchen-owner')->plainTextToken;
+
+        return [
+            'store' => ['id' => $store->id, 'name' => $store->name, 'tin' => self::DARK_KITCHEN_TIN],
+            'branch' => ['id' => $branch->id, 'name' => $branch->name],
+            'staff' => $seedStaff,
+            'terminals' => $terminals,
+            'customer' => ['id' => $customer->id, 'name' => $customer->name, 'token' => $customer->createToken('pos-e2e-darkkitchen')->plainTextToken, 'mobile_token' => $mobileToken],
+            'brands' => array_map(fn (Brand $brand) => ['id' => (int) $brand->id, 'name' => $brand->name, 'code' => $brand->short_code, 'color' => $brand->color], $brands),
+            'products' => array_map(fn (ProductVariant $variant) => ['product_id' => (int) $variant->product_id, 'variant_id' => (int) $variant->id], $menu),
+            'stations' => array_map(fn (KitchenStation $station) => (int) $station->id, $stations),
+            'ingredients' => ['chicken' => ['id' => (int) $chicken->id, 'name' => $chicken->name], 'cheese' => ['id' => (int) $cheese->id, 'name' => $cheese->name]],
+            'aggregator_orders' => $aggregator,
+            'business_date' => now('Asia/Tashkent')->toDateString(),
         ];
     }
 

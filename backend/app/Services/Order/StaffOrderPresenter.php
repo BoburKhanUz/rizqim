@@ -138,7 +138,7 @@ class StaffOrderPresenter
         // P6-31: a combo line is cooked as its parts: each on its own station, with the combo's name as context
         $items = \App\Domain\Pos\Menu\ComboKitchen::forKitchen($order->items->sortBy('id'))->filter(fn (OrderItem $item) => self::kitchenSees($item))->values();
 
-        return [
+        return self::withBrands([
             'uuid' => (string) $order->uuid,
             'short_code' => $order->short_code,
             'status' => $order->status->value,
@@ -170,7 +170,25 @@ class StaffOrderPresenter
             'assembly' => $this->kitchenContext($now)['assembly']->present($order, $items),
             // P6-39: an order for a later pickup (P6-34): the time, when the kitchen got it; null without one
             'pickup' => \App\Domain\Pos\Takeaway\ScheduledPickup::present($order),
-        ];
+        ], $items);
+    }
+
+    /**
+     * P6-55 (multi_brand): a ticket with branded lines also lists its brands ({id, name, code, color}, in line order)
+     * as `brands`; a ticket without any keeps its shape.
+     *
+     * @param  array<string, mixed>  $ticket
+     * @param  \Illuminate\Support\Collection<int, OrderItem>  $items
+     * @return array<string, mixed>
+     */
+    private static function withBrands(array $ticket, \Illuminate\Support\Collection $items): array
+    {
+        $brands = $items->map(fn (OrderItem $item) => $item->brand)->filter()->unique('id')->values()->all();
+        if ($brands !== []) {
+            $ticket['brands'] = $brands;
+        }
+
+        return $ticket;
     }
 
     /** @var array{now: Carbon|null, targets: KitchenTargets, assembly: KitchenAssembly}|null */
@@ -282,6 +300,12 @@ class StaffOrderPresenter
         // P6-15: the parts of a kompleks line: the kitchen prepares each (docs/POS_SPEC.md "Kompleks")
         if ($item->set_parts) {
             $data['set_parts'] = $item->set_parts;
+        }
+
+        // P6-55 (multi_brand): the brand the line was sold under ({id, name, code, color}: the ticket's badge), only on
+        // a branded line
+        if ($item->brand !== null) {
+            $data['brand'] = $item->brand;
         }
 
         // P3-12: a POS line also says its round, firing, station, seat, note and void ("O'CHIRILDI"); an online line

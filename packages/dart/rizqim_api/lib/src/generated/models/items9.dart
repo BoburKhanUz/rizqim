@@ -10,37 +10,24 @@ part 'items9.g.dart';
 class Items9 {
   const Items9({
     required this.id,
+    required this.productId,
     required this.productVariantId,
-    required this.productVariantUuid,
-    required this.productName,
-    required this.variantName,
+    required this.name,
+    required this.quantityPerPerson,
     required this.unit,
-    required this.quantity,
-    required this.modifiers,
-    required this.unitPrice,
-    required this.note,
-    required this.dueAt,
   });
 
   factory Items9.fromJson(Map<String, Object?> json) => _$Items9FromJson(json);
 
   final int id;
+  @JsonKey(name: 'product_id')
+  final int? productId;
   @JsonKey(name: 'product_variant_id')
-  final int productVariantId;
-  @JsonKey(name: 'product_variant_uuid')
-  final String? productVariantUuid;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
+  final int? productVariantId;
+  final String name;
+  @JsonKey(name: 'quantity_per_person')
+  final String quantityPerPerson;
   final String unit;
-  final num quantity;
-  final List<Map<String, dynamic>> modifiers;
-  @JsonKey(name: 'unit_price')
-  final String unitPrice;
-  final String? note;
-  @JsonKey(name: 'due_at')
-  final String? dueAt;
 
   Map<String, Object?> toJson() => _$Items9ToJson(this);
 }

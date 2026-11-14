@@ -7,43 +7,17 @@ part of 'orders2.dart';
 // **************************************************************************
 
 Orders2 _$Orders2FromJson(Map<String, dynamic> json) => Orders2(
-  uuid: json['uuid'] as String,
-  shortCode: json['short_code'] as String?,
-  status: json['status'] as String,
-  channel: json['channel'] as String,
-  version: (json['version'] as num).toInt(),
-  openedAt: json['opened_at'] as String?,
-  openMinutes: (json['open_minutes'] as num).toInt(),
-  overdue: json['overdue'] as bool,
-  billPrinted: json['bill_printed'] as bool,
-  billRequested: json['bill_requested'] as bool,
-  billRequestedAt: json['bill_requested_at'] as String?,
-  guestsCount: (json['guests_count'] as num?)?.toInt(),
-  waiter: json['waiter'] == null
-      ? null
-      : Waiter3.fromJson(json['waiter'] as Map<String, dynamic>),
-  totalPrice: json['total_price'] as String,
-  itemsCount: (json['items_count'] as num).toInt(),
-  unsentCount: (json['unsent_count'] as num).toInt(),
-  readyCount: (json['ready_count'] as num).toInt(),
+  lines: json['lines'] as String,
+  discount: json['discount'] as String,
+  serviceCharge: json['service_charge'] as String,
+  otherCharges: json['other_charges'] as String,
+  total: json['total'] as String,
 );
 
 Map<String, dynamic> _$Orders2ToJson(Orders2 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'short_code': instance.shortCode,
-  'status': instance.status,
-  'channel': instance.channel,
-  'version': instance.version,
-  'opened_at': instance.openedAt,
-  'open_minutes': instance.openMinutes,
-  'overdue': instance.overdue,
-  'bill_printed': instance.billPrinted,
-  'bill_requested': instance.billRequested,
-  'bill_requested_at': instance.billRequestedAt,
-  'guests_count': instance.guestsCount,
-  'waiter': instance.waiter,
-  'total_price': instance.totalPrice,
-  'items_count': instance.itemsCount,
-  'unsent_count': instance.unsentCount,
-  'ready_count': instance.readyCount,
+  'lines': instance.lines,
+  'discount': instance.discount,
+  'service_charge': instance.serviceCharge,
+  'other_charges': instance.otherCharges,
+  'total': instance.total,
 };

@@ -44,7 +44,9 @@ use App\Support\Money;
  *   min spend top-up  = max(0, minimum spend − after discount), whole so'm
  *   packaging         = P6-34: the packaging lines of a takeaway (module packaging; PackagingRules: per order and per
  *                       dish, each with its own MXIK and price; a line the cashier took off is 0)
- *   total             = after discount + service charge + place fee + room fee + top-up + packaging
+ *   banquet           = P6-54: a banquet event's package, hall rent and extras (orders.banquet_amount, written by the
+ *                       event's final settlement, BanquetSettlementService)
+ *   total             = after discount + service charge + place fee + room fee + top-up + packaging + banquet
  *
  * P6-22 (C1): with the branch's `service_charge_rules` module, the row's service charge rules (ServiceChargeRules)
  * pick the percent — by the order's type (hall, table service, takeaway), the large-group rule — and may charge the
@@ -148,7 +150,9 @@ class PosChargesCalculator
         // P6-34: the packaging lines of a takeaway (module packaging, PackagingRules), never discounted
         $packaging = app(\App\Domain\Pos\Takeaway\PackagingRules::class)->forOrder($order);
 
-        $total = $after->plus($serviceCharge)->plus($placeFee)->plus($roomFee)->plus($topup)->plus($packaging['amount']);
+        $total = $after->plus($serviceCharge)->plus($placeFee)->plus($roomFee)->plus($topup)->plus($packaging['amount'])
+            // P6-54: a banquet event's package, hall rent and extras, set by its final settlement (never discounted)
+            ->plus(Money::of($order->getAttribute('banquet_amount') ?? '0'));
 
         return new PosCharges($items, $discount, $after, Money::of($percent)->toString(), $serviceCharge, $placeFee, $roomFee, $tariffId, $businessDate, $dayType, $minSpend, $topup, $waived, $total, $rule, $cover && $placeFee->isPositive() ? PosCharges::COVER : PosCharges::PLACE_FEE, $notice, packaging: $packaging['amount'], packagingLines: $packaging['lines']);
     }

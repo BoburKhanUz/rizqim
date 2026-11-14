@@ -7,35 +7,29 @@ part of 'data82.dart';
 // **************************************************************************
 
 Data82 _$Data82FromJson(Map<String, dynamic> json) => Data82(
-  debtBalance: json['debt_balance'] as num,
-  walletBalance: json['wallet_balance'] as num,
-  creditLimit: json['credit_limit'] as num,
-  minPayoutReserve: json['min_payout_reserve'] as num,
-  paymentAccountType: json['payment_account_type'] as String,
-  commissionRate: json['commission_rate'] as num,
-  status: StoreStatus.fromJson(json['status'] as String),
-  isOrderLocked: json['is_order_locked'] as bool,
-  ledgerTransactions: (json['ledger_transactions'] as List<dynamic>)
-      .map((e) => StoreTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  walletTransactions: (json['wallet_transactions'] as List<dynamic>)
-      .map((e) => StoreWalletTransaction.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  payoutRequests: (json['payout_requests'] as List<dynamic>)
-      .map((e) => PayoutRequests.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  hallId: (json['hall_id'] as num).toInt(),
+  name: json['name'] as String,
+  kind: json['kind'] as String,
+  seats: (json['seats'] as num?)?.toInt(),
+  layout: Layout6.fromJson(json['layout'] as Map<String, dynamic>),
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  minSpend: json['min_spend'] as String?,
+  minSpendMode: json['min_spend_mode'] as String,
 );
 
 Map<String, dynamic> _$Data82ToJson(Data82 instance) => <String, dynamic>{
-  'debt_balance': instance.debtBalance,
-  'wallet_balance': instance.walletBalance,
-  'credit_limit': instance.creditLimit,
-  'min_payout_reserve': instance.minPayoutReserve,
-  'payment_account_type': instance.paymentAccountType,
-  'commission_rate': instance.commissionRate,
-  'status': instance.status,
-  'is_order_locked': instance.isOrderLocked,
-  'ledger_transactions': instance.ledgerTransactions,
-  'wallet_transactions': instance.walletTransactions,
-  'payout_requests': instance.payoutRequests,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'hall_id': instance.hallId,
+  'name': instance.name,
+  'kind': instance.kind,
+  'seats': instance.seats,
+  'layout': instance.layout,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'min_spend': instance.minSpend,
+  'min_spend_mode': instance.minSpendMode,
 };

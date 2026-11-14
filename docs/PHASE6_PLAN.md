@@ -355,7 +355,7 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
 | P6-44 | **Korxona hisobi va talon** (D4): hisob turi "korxona", xodimlar, kunlik limit, talon, oylik hisobot (Excel) | `Pos/Accounts`, panel | Limit va oylik hisobot testlari |
 | P6-49 | **Review, e2e, pilot:** to'lovlar xavfsizlik review'i (webhook imzolari, idempotentlik); stolovaya (korxona talonlari bilan) va Click/Payme QR'ni hamma pilot joylarda yoqish | hammasi | 10-bo'lim |
 
-### To'lqin 5 — "Banket va dark kitchen"
+### To'lqin 5 — "Banket va dark kitchen" (tugadi, PR #23)
 
 | Kod | Ish | Asosiy joylar | Tekshiruv |
 |---|---|---|---|
@@ -476,3 +476,20 @@ keyin parallel agentlar, mening tekshiruvim, mustaqil review va bitta PR; POS_SP
     - "QR to'langan, oflayn naqd qaytarilsin" hodisasi faqat kassada yoziladi (serverdagi ro'yxatda yo'q);
     - do'konning o'z Click/Payme merchant hisobi va kabinetdagi webhook manzillari, UzQR uchun bank drayveri kerak;
       Click/Payme qaytarish va holat so'rovlari provayder hujjatlariga asoslangan — birinchi do'konda tasdiqlanadi.
+16. **5-to'lqin "Banket va dark kitchen" (PR #23) — egasi qarori kutilmoqda; hozircha standart qiymat ishlaydi:**
+    - yakuniy hisob: mehmonlar soni max(haqiqiy, kafolatlangan, minimal) bo'yicha; xizmat haqi faqat tadbir kunidagi
+      buyurtmalarga;
+    - to'lov jadvali shabloni: 30 % zaklad / 40 % (14 kun oldin) / qoldiq tadbir kuni;
+    - bekor qilish: 30 kun va undan ko'p — 0 %, 14–29 kun — 30 %, 14 kundan kam — 100 % ushlab qolinadi;
+    - bank o'tkazmasi: smenasiz va cheksiz, panelda yoziladi, yakuniy chekda oldindan to'lov sifatida hisobga olinadi;
+      har bir o'tkazma haqida egaga Telegram xabari; xato o'tkazmani menejer yakuniy hisobgacha sabab bilan bekor qiladi;
+    - yakuniy schyot chiqqandan keyin qoldiq bank o'tkazmasi bilan to'lanmaydi (faqat naqd, karta yoki QR);
+    - yakuniy chekdan keyin qo'shilgan buyurtma — alohida chek; avval "osilib qolgan" tadbir (buyurtmasi
+      to'g'ridan-to'g'ri yopilgan) yakuniy hisobda ikkinchi chek bilan yopiladi;
+    - kanal komissiyasi qoidasi (kanal sof tushumi hisobotida);
+    - hold muddati 72 soat;
+    - kassada bekor qilish menejer PIN'i bilanmi; sanani ko'chirish va jadvalni tahrirlash kassadami yoki faqat panelda;
+    - "Ingredient tugadi" tugmasi barcha oshpazlargami yoki faqat huquqi borlargami;
+    - hisobotda mijoz ismi faqat hisobot ko'ra oladigan xodimga yashirilsinmi;
+    - buxgalter uchun: avans, bekor qilish va paket MXIK kodlari;
+    - oflayn kassadan tadbir buyurtmasiga schyot yaratish rad etiladi (yakuniy hisob faqat onlayn).

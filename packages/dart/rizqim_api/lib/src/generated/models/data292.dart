@@ -4,35 +4,38 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'results.dart';
-import 'device20.dart';
+import 'branch19.dart';
+import 'store3.dart';
+import 'device11.dart';
+import 'modules2.dart';
+import 'cart.dart';
 
 part 'data292.g.dart';
 
 @JsonSerializable()
 class Data292 {
   const Data292({
-    required this.serverTime,
-    required this.clockSkewSeconds,
-    required this.clockWarning,
-    required this.stoppedAt,
-    required this.results,
+    required this.branch,
+    required this.store,
     required this.device,
+    required this.tillUuid,
+    required this.modules,
+    required this.serverTime,
+    required this.cart,
   });
 
   factory Data292.fromJson(Map<String, Object?> json) =>
       _$Data292FromJson(json);
 
+  final Branch19 branch;
+  final Store3? store;
+  final Device11 device;
+  @JsonKey(name: 'till_uuid')
+  final String? tillUuid;
+  final Modules2 modules;
   @JsonKey(name: 'server_time')
   final String serverTime;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  @JsonKey(name: 'clock_warning')
-  final bool clockWarning;
-  @JsonKey(name: 'stopped_at')
-  final int? stoppedAt;
-  final List<Results> results;
-  final Device20 device;
+  final Cart? cart;
 
   Map<String, Object?> toJson() => _$Data292ToJson(this);
 }

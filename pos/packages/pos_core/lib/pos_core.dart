@@ -3,6 +3,7 @@
 /// ([PrintLayout] — `pos_hardware` uni ESC/POS yoki rasmga aylantiradi).
 library;
 
+export 'src/documents/banquet_documents.dart';
 export 'src/documents/common.dart';
 export 'src/documents/corporate_talon.dart';
 export 'src/documents/fiscal_receipt.dart';
@@ -15,6 +16,7 @@ export 'src/documents/shift_report.dart';
 export 'src/floor.dart';
 export 'src/format.dart';
 export 'src/labels/label_layout.dart';
+export 'src/layout/banquet_layout.dart';
 export 'src/layout/corporate_talon_layout.dart';
 export 'src/layout/gift_certificate_layout.dart';
 export 'src/layout/label_templates.dart';

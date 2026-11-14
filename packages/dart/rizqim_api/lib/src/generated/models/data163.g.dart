@@ -7,27 +7,13 @@ part of 'data163.dart';
 // **************************************************************************
 
 Data163 _$Data163FromJson(Map<String, dynamic> json) => Data163(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  tips: (json['tips'] as List<dynamic>)
+      .map((e) => Tips.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  truncated: json['truncated'] as bool,
 );
 
 Map<String, dynamic> _$Data163ToJson(Data163 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'tips': instance.tips,
+  'truncated': instance.truncated,
 };

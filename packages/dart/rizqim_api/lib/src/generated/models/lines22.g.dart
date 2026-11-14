@@ -7,31 +7,21 @@ part of 'lines22.dart';
 // **************************************************************************
 
 Lines22 _$Lines22FromJson(Map<String, dynamic> json) => Lines22(
+  uuid: json['uuid'] as String,
+  kind: json['kind'] as String,
   name: json['name'] as String,
-  mxikCode: json['mxik_code'] as String,
-  packageCode: json['package_code'] as String?,
-  unit: json['unit'] as String,
-  quantity: json['quantity'] as String,
   unitPrice: json['unit_price'] as String,
+  quantity: json['quantity'] as String,
+  persons: (json['persons'] as num?)?.toInt(),
   amount: json['amount'] as String,
-  vatRate: json['vat_rate'] as String,
-  vatAmount: json['vat_amount'] as String,
-  noVat: json['no_vat'] as bool,
-  commissionerTin: json['commissioner_tin'] as String?,
-  markingCode: json['marking_code'] as String?,
 );
 
 Map<String, dynamic> _$Lines22ToJson(Lines22 instance) => <String, dynamic>{
+  'uuid': instance.uuid,
+  'kind': instance.kind,
   'name': instance.name,
-  'mxik_code': instance.mxikCode,
-  'package_code': instance.packageCode,
-  'unit': instance.unit,
-  'quantity': instance.quantity,
   'unit_price': instance.unitPrice,
+  'quantity': instance.quantity,
+  'persons': instance.persons,
   'amount': instance.amount,
-  'vat_rate': instance.vatRate,
-  'vat_amount': instance.vatAmount,
-  'no_vat': instance.noVat,
-  'commissioner_tin': instance.commissionerTin,
-  'marking_code': instance.markingCode,
 };

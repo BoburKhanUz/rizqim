@@ -141,6 +141,8 @@ StationTicket buildStationTicket(
           modifiers: itemModifierLabels(i),
           note: i.note,
           seat: i.seatNo,
+          // P6-55: the brand the line was sold under (a short code on the paper ticket)
+          brandCode: i.brand?.code,
           // P6-31: a combo's parts (each goes to its own station on the KDS; the paper ticket lists them)
           parts: <String>[
             for (final PosComboPart p in i.comboParts ?? const <PosComboPart>[])

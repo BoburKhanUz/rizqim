@@ -11,7 +11,7 @@ PostV1PosApprovalsResponse _$PostV1PosApprovalsResponseFromJson(
 ) => PostV1PosApprovalsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data193.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data217.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosApprovalsResponseToJson(

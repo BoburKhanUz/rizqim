@@ -11,7 +11,7 @@ _$PostV1OwnerPosVouchersUuidBlockResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerPosVouchersUuidBlockResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data147.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data170.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerPosVouchersUuidBlockResponseToJson(

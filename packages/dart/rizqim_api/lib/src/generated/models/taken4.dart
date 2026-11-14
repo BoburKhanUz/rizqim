@@ -8,13 +8,21 @@ part 'taken4.g.dart';
 
 @JsonSerializable()
 class Taken4 {
-  const Taken4({required this.count, required this.amount, required this.cash});
+  const Taken4({
+    required this.count,
+    required this.amount,
+    required this.cash,
+    required this.card,
+    required this.qr,
+  });
 
   factory Taken4.fromJson(Map<String, Object?> json) => _$Taken4FromJson(json);
 
   final int count;
   final String amount;
   final String cash;
+  final String card;
+  final String qr;
 
   Map<String, Object?> toJson() => _$Taken4ToJson(this);
 }

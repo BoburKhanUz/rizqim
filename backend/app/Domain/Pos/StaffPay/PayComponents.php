@@ -29,6 +29,12 @@ final class PayComponents
 
     public const MAX_AMOUNT = '100000000';
 
+    /**
+     * P6-54: the event_rate kind of a settled banquet event (banquet_events, P6-51): counted once per event for each
+     * staff member assigned to it (banquet_event_staff; none assigned: the event order's waiter), StaffPayMetrics.
+     */
+    public const BANQUET_EVENT = 'banquet';
+
     /** One component as the API shows it (fields a type does not use are absent). */
     public const SHAPE = 'array{type: string, label: string, amount?: string, percent?: string, per?: string, mode?: string, base?: string, event_types?: list<string>}';
 
@@ -108,7 +114,7 @@ final class PayComponents
     {
         $types = is_array($component['event_types'] ?? null) ? array_values($component['event_types']) : [];
 
-        return $types !== [] ? $types : array_values(array_diff(BookingEventType::values(), [BookingEventType::OTHER->value]));
+        return $types !== [] ? $types : [...array_values(array_diff(BookingEventType::values(), [BookingEventType::OTHER->value])), self::BANQUET_EVENT];
     }
 
     /**
@@ -169,8 +175,9 @@ final class PayComponents
     private static function eventTypes(array $component, string $key): array
     {
         $value = $component['event_types'] ?? [];
-        if (!is_array($value) || array_diff(array_map(fn ($type) => is_string($type) ? $type : '', $value), BookingEventType::values()) !== []) {
-            throw ValidationException::withMessages(["{$key}.event_types" => "Tadbir turlari: " . implode(', ', BookingEventType::values()) . '.']);
+        $allowed = [...BookingEventType::values(), self::BANQUET_EVENT];
+        if (!is_array($value) || array_diff(array_map(fn ($type) => is_string($type) ? $type : '', $value), $allowed) !== []) {
+            throw ValidationException::withMessages(["{$key}.event_types" => "Tadbir turlari: " . implode(', ', $allowed) . '.']);
         }
 
         return array_values(array_unique($value));

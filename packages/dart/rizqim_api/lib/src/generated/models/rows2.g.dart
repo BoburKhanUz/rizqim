@@ -16,7 +16,7 @@ Rows2 _$Rows2FromJson(Map<String, dynamic> json) => Rows2(
       .toList(),
   placeFeeAmount: json['place_fee_amount'] as String,
   placeFeeMode: json['place_fee_mode'] as String,
-  rules: Rules2.fromJson(json['rules'] as Map<String, dynamic>),
+  rules: Rules.fromJson(json['rules'] as Map<String, dynamic>),
   notice: json['notice'] as String?,
   noticePreview: json['notice_preview'] as String?,
 );

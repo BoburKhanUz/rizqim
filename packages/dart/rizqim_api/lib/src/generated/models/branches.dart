@@ -16,6 +16,8 @@ class Branches {
     required this.stopped,
     required this.soldOut,
     required this.stopList,
+    required this.stoppedIngredients,
+    required this.limitedProducts,
     required this.nextBatches,
     required this.batches,
   });
@@ -30,6 +32,13 @@ class Branches {
   final SoldOut soldOut;
   @JsonKey(name: 'stop_list')
   final List<dynamic> stopList;
+
+  /// P6-55 / B9: the ingredients stopped on the branch ({id, ingredient_id, name, reason, until}) and the dishes a.
+  /// non-critical link only marks ({product_id, ingredient_ids}: still sold, "tovuqsiz").
+  @JsonKey(name: 'stopped_ingredients')
+  final String stoppedIngredients;
+  @JsonKey(name: 'limited_products')
+  final List<dynamic> limitedProducts;
   @JsonKey(name: 'next_batches')
   final dynamic nextBatches;
   final List<Batches> batches;

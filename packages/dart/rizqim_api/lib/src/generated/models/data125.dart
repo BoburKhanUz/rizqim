@@ -4,24 +4,43 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'role3.dart';
+import 'order3.dart';
+import 'fiscal3.dart';
 
 part 'data125.g.dart';
 
 @JsonSerializable()
 class Data125 {
   const Data125({
-    required this.role,
-    required this.permission,
-    required this.allowed,
+    required this.uuid,
+    required this.provider,
+    required this.providerTransactionId,
+    required this.status,
+    required this.amount,
+    required this.paidAt,
+    required this.cancelledAt,
+    required this.createdAt,
+    required this.order,
+    required this.fiscal,
   });
 
   factory Data125.fromJson(Map<String, Object?> json) =>
       _$Data125FromJson(json);
 
-  final Role3 role;
-  final String permission;
-  final bool allowed;
+  final String uuid;
+  final String provider;
+  @JsonKey(name: 'provider_transaction_id')
+  final String? providerTransactionId;
+  final String status;
+  final String amount;
+  @JsonKey(name: 'paid_at')
+  final String? paidAt;
+  @JsonKey(name: 'cancelled_at')
+  final String? cancelledAt;
+  @JsonKey(name: 'created_at')
+  final String createdAt;
+  final Order3 order;
+  final Fiscal3? fiscal;
 
   Map<String, Object?> toJson() => _$Data125ToJson(this);
 }

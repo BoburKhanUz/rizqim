@@ -4,39 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'next_due4.dart';
+
 part 'summary8.g.dart';
 
 @JsonSerializable()
 class Summary8 {
   const Summary8({
     required this.total,
-    required this.waiting,
-    required this.seated,
-    required this.canceled,
-    required this.noShow,
-    required this.partySizeTotal,
-    required this.avgQuotedWaitMinutes,
-    required this.avgSeatedWaitMinutes,
-    required this.longestWaitingMinutes,
+    required this.paid,
+    required this.outstanding,
+    required this.overdue,
+    required this.overdueAmount,
+    required this.overdueCount,
+    required this.nextDue,
   });
 
   factory Summary8.fromJson(Map<String, Object?> json) =>
       _$Summary8FromJson(json);
 
-  final int total;
-  final int waiting;
-  final int seated;
-  final int canceled;
-  @JsonKey(name: 'no_show')
-  final int noShow;
-  @JsonKey(name: 'party_size_total')
-  final int partySizeTotal;
-  @JsonKey(name: 'avg_quoted_wait_minutes')
-  final int? avgQuotedWaitMinutes;
-  @JsonKey(name: 'avg_seated_wait_minutes')
-  final int? avgSeatedWaitMinutes;
-  @JsonKey(name: 'longest_waiting_minutes')
-  final int? longestWaitingMinutes;
+  final String total;
+  final String paid;
+  final String outstanding;
+  final bool overdue;
+  @JsonKey(name: 'overdue_amount')
+  final String overdueAmount;
+  @JsonKey(name: 'overdue_count')
+  final int overdueCount;
+  @JsonKey(name: 'next_due')
+  final NextDue4? nextDue;
 
   Map<String, Object?> toJson() => _$Summary8ToJson(this);
 }

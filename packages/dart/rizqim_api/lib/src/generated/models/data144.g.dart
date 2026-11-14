@@ -7,13 +7,23 @@ part of 'data144.dart';
 // **************************************************************************
 
 Data144 _$Data144FromJson(Map<String, dynamic> json) => Data144(
-  vouchers: (json['vouchers'] as List<dynamic>)
-      .map((e) => Vouchers.fromJson(e as Map<String, dynamic>))
+  scheduleTemplate: (json['schedule_template'] as List<dynamic>)
+      .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
       .toList(),
-  meta: Meta.fromJson(json['meta'] as Map<String, dynamic>),
+  cancellationRules: (json['cancellation_rules'] as List<dynamic>)
+      .map((e) => CancellationRules.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  reminderDays: (json['reminder_days'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  overdueReminders: json['overdue_reminders'] as bool,
+  version: (json['version'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data144ToJson(Data144 instance) => <String, dynamic>{
-  'vouchers': instance.vouchers,
-  'meta': instance.meta,
+  'schedule_template': instance.scheduleTemplate,
+  'cancellation_rules': instance.cancellationRules,
+  'reminder_days': instance.reminderDays,
+  'overdue_reminders': instance.overdueReminders,
+  'version': instance.version,
 };

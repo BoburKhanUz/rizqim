@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff21.dart';
+import 'staff23.dart';
 import 'holders9.dart';
 import 'recorded_by9.dart';
 import 'corrections10.dart';
@@ -42,7 +42,7 @@ class Tips9 {
   @JsonKey(name: 'original_amount')
   final String originalAmount;
   final String mode;
-  final Staff21? staff;
+  final Staff23? staff;
   final List<Holders9> holders;
   @JsonKey(name: 'business_date')
   final String businessDate;

@@ -6,9 +6,14 @@ part of 'data279.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data279 _$Data279FromJson(Map<String, dynamic> json) =>
-    Data279(qr: Qr5.fromJson(json['qr'] as Map<String, dynamic>));
+Data279 _$Data279FromJson(Map<String, dynamic> json) => Data279(
+  account: Account.fromJson(json['account'] as String),
+  member: Member.fromJson(json['member'] as Map<String, dynamic>),
+  usage: Usage.fromJson(json['usage'] as Map<String, dynamic>),
+);
 
 Map<String, dynamic> _$Data279ToJson(Data279 instance) => <String, dynamic>{
-  'qr': instance.qr,
+  'account': instance.account,
+  'member': instance.member,
+  'usage': instance.usage,
 };

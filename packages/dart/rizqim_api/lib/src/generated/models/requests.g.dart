@@ -13,7 +13,7 @@ Requests _$RequestsFromJson(Map<String, dynamic> json) => Requests(
   targetDevice: json['target_device'] as String?,
   requestedBy: (json['requested_by'] as num?)?.toInt(),
   requestedAt: json['requested_at'] as String?,
-  bill: Bill.fromJson(json['bill'] as Map<String, dynamic>),
+  bill: Bill2.fromJson(json['bill'] as Map<String, dynamic>),
   order: Order4.fromJson(json['order'] as Map<String, dynamic>),
   billing: Billing.fromJson(json['billing'] as Map<String, dynamic>),
 );

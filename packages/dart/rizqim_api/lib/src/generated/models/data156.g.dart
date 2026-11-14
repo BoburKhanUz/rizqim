@@ -7,39 +7,15 @@ part of 'data156.dart';
 // **************************************************************************
 
 Data156 _$Data156FromJson(Map<String, dynamic> json) => Data156(
-  branchId: (json['branch_id'] as num).toInt(),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  timezone: json['timezone'] as String,
-  dayStartsAt: json['day_starts_at'] as String,
-  stationId: (json['station_id'] as num?)?.toInt(),
-  summary: Summary2.fromJson(json['summary'] as Map<String, dynamic>),
-  orders: Orders.fromJson(json['orders'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations8.fromJson(e as Map<String, dynamic>))
+  settings: Settings2.fromJson(json['settings'] as Map<String, dynamic>),
+  merchants: (json['merchants'] as List<dynamic>)
+      .map((e) => Merchants2.fromJson(e as Map<String, dynamic>))
       .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products7.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  hours: (json['hours'] as List<dynamic>)
-      .map((e) => Hours.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  expo: json['expo'] == null
-      ? null
-      : Expo.fromJson(json['expo'] as Map<String, dynamic>),
+  options: Options5.fromJson(json['options'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data156ToJson(Data156 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'from': instance.from,
-  'to': instance.to,
-  'timezone': instance.timezone,
-  'day_starts_at': instance.dayStartsAt,
-  'station_id': instance.stationId,
-  'summary': instance.summary,
-  'orders': instance.orders,
-  'stations': instance.stations,
-  'products': instance.products,
-  'hours': instance.hours,
-  'expo': instance.expo,
+  'settings': instance.settings,
+  'merchants': instance.merchants,
+  'options': instance.options,
 };

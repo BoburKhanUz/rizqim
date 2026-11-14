@@ -173,11 +173,31 @@ class LabelWriter {
   int reserved = 0;
 
   /// Ostki qator(lar): [reserved] qatordan boshlab yorliq tagida (tana qancha joy olganidan qat'i nazar).
-  void footer(String text, {bool bold = false, bool inverted = false}) {
+  void footer(
+    String text, {
+    bool bold = false,
+    bool inverted = false,
+    String? right,
+  }) {
     final int row = size.rows - 1;
+    // P6-55: a short mark flush right (the brand code, inverted); the left text gives way to it
+    final String mark = right == null ? '' : _flat(right);
+    final int markCells = mark.isEmpty ? 0 : textWidth(mark) + 2;
+    final int leftMax = markCells == 0 ? size.cols : size.cols - markCells - 1;
     texts.add(
-      LabelText(row, 0, _clip(text, size.cols), bold: bold, inverted: inverted),
+      LabelText(row, 0, _clip(text, leftMax), bold: bold, inverted: inverted),
     );
+    if (mark.isNotEmpty && leftMax > 0) {
+      texts.add(
+        LabelText(
+          row,
+          size.cols - markCells,
+          ' $mark ',
+          bold: true,
+          inverted: true,
+        ),
+      );
+    }
   }
 
   void bar() {

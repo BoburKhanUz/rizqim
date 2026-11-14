@@ -11,7 +11,7 @@ _$V1PosCustomerAccountsUuidRepaymentsRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosCustomerAccountsUuidRepaymentsRequestBody(
   amount: json['amount'] as num,
-  tender: Tender2.fromJson(json['tender'] as String),
+  tender: Tender.fromJson(json['tender'] as String),
   cardType: json['card_type'] as String?,
   transactionId: json['transaction_id'] as String?,
   note: json['note'] as String?,

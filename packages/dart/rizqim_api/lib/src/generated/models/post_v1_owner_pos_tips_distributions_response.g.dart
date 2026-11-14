@@ -11,7 +11,7 @@ _$PostV1OwnerPosTipsDistributionsResponseFromJson(Map<String, dynamic> json) =>
     PostV1OwnerPosTipsDistributionsResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data138.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data161.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1OwnerPosTipsDistributionsResponseToJson(

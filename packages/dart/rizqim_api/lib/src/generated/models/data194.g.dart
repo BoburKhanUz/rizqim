@@ -7,11 +7,11 @@ part of 'data194.dart';
 // **************************************************************************
 
 Data194 _$Data194FromJson(Map<String, dynamic> json) => Data194(
-  requests: (json['requests'] as List<dynamic>)
-      .map((e) => Requests.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  staff: Staff6.fromJson(json['staff'] as Map<String, dynamic>),
+  inviteLink: json['invite_link'] as String,
 );
 
 Map<String, dynamic> _$Data194ToJson(Data194 instance) => <String, dynamic>{
-  'requests': instance.requests,
+  'staff': instance.staff,
+  'invite_link': instance.inviteLink,
 };

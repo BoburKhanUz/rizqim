@@ -1,5 +1,6 @@
 import 'package:pos_core/pos_core.dart';
 
+import '../catalog/brand_models.dart';
 import '../catalog/catalog_models.dart';
 import '../catalog/combo_models.dart';
 import '../json.dart';
@@ -450,6 +451,7 @@ class PosOrderItem {
     this.weighedBy,
     this.weighedAt,
     this.comboParts,
+    this.brand,
   });
 
   factory PosOrderItem.fromJson(PosJson j) => PosOrderItem(
@@ -485,6 +487,7 @@ class PosOrderItem {
     weighedBy: PosRef.maybe(j, 'weighed_by'),
     weighedAt: j.dateOrNull('weighed_at'),
     comboParts: PosComboPart.listOf(j['combo_parts']),
+    brand: PosBrand.maybe(j['brand']),
   );
 
   final int id;
@@ -532,6 +535,9 @@ class PosOrderItem {
   /// P6-31: kombo qatorining tarkibi (sotuv paytidagi nusxa, narxsiz yorliqlari bilan; kombo emas — `null`). Qator
   /// oshxona holati — tarkibiniki (hammasi tayyor bo'lsa tayyor).
   final List<PosComboPart>? comboParts;
+
+  /// P6-55 (`multi_brand`): qator sotilgan brend (sotuv paytidagi nusxa; asosiy brendda `null`): chipta va yorliqda kod va rang.
+  final PosBrand? brand;
 
   bool get isCombo => comboParts != null && comboParts!.isNotEmpty;
 

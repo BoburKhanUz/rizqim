@@ -119,6 +119,16 @@ class ShiftReportBody extends StatelessWidget {
               muted: t.label.startsWith('  '),
             ),
         ],
+        // P6-53: banquet schedule payments are advances (not sales); refunds of cancelled events
+        if (v.banquetLines.isNotEmpty) ...<Widget>[
+          title('Tadbirlar'),
+          for (final ReportAmount t in v.banquetLines)
+            AmountRow(
+              label: t.count == null ? t.label : '${t.label} (${t.count})',
+              amount: t.amount,
+              muted: t.label.startsWith('  '),
+            ),
+        ],
         title('Avans va nasiya'),
         AmountRow(label: 'Olingan avanslar', amount: v.depositsTaken),
         AmountRow(label: 'Sotuvda ayirilgan avans', amount: v.depositsApplied),
@@ -174,6 +184,12 @@ class ShiftReportBody extends StatelessWidget {
             label: 'Sertifikat sotuvi (naqd)',
             amount: v.cashVouchers,
           ),
+        if (v.cashBanquets.isPositive)
+          AmountRow(
+            key: const ValueKey<String>('x-cash-banquets'),
+            label: 'Tadbir avansi (naqd)',
+            amount: v.cashBanquets,
+          ),
         if (v.cashTips.isPositive)
           AmountRow(
             key: const ValueKey<String>('x-cash-tips'),
@@ -190,6 +206,13 @@ class ShiftReportBody extends StatelessWidget {
           AmountRow(
             label: 'Avans qaytarish',
             amount: v.cashDepositRefunds,
+            negative: true,
+          ),
+        if (v.cashBanquetRefunds.isPositive)
+          AmountRow(
+            key: const ValueKey<String>('x-cash-banquet-refunds'),
+            label: 'Tadbir qaytarish (naqd)',
+            amount: v.cashBanquetRefunds,
             negative: true,
           ),
         if (v.purchases.isPositive)

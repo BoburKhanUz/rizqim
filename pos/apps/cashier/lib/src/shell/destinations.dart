@@ -4,6 +4,7 @@ import 'package:pos_data/pos_data.dart';
 import '../counter/counter_format.dart';
 import '../counter/counter_page.dart';
 import '../features/accounts/accounts_page.dart';
+import '../features/banquets/banquets_page.dart';
 import '../features/bookings/bookings_page.dart';
 import '../features/floor/floor_page.dart';
 import '../features/queue/queue_page.dart';
@@ -37,6 +38,15 @@ enum CashierDestination {
     Icons.event_outlined,
     Icons.event,
     anyOf: <String>{PosPermissions.bookingsManage},
+  ),
+
+  /// P6-51…P6-54: tadbirlar (to'yxona, banket): taqvim, tadbir kartasi, to'lov jadvali, tadbir kuni, yakuniy hisob
+  /// (`features/banquets`). `banquet` moduli yoqiq bo'lsa ko'rinadi.
+  banquets(
+    'Tadbirlar',
+    Icons.celebration_outlined,
+    Icons.celebration,
+    anyOf: <String>{PosPermissions.banquetsManage, PosPermissions.takePayment},
   ),
 
   /// Nasiya hisoblari (P3-22: `features/accounts`).
@@ -86,6 +96,7 @@ enum CashierDestination {
       CashierDestination.counter => session.showsCounter,
       CashierDestination.floor => session.showsFloor,
       CashierDestination.bookings => session.hasModule(PosModule.bookings),
+      CashierDestination.banquets => session.hasModule(PosModule.banquet),
       CashierDestination.accounts => session.hasModule(
         PosModule.customerAccounts,
       ),
@@ -103,6 +114,7 @@ enum CashierDestination {
     CashierDestination.floor => const FloorPage(),
     CashierDestination.queue => const QueuePage(),
     CashierDestination.bookings => const BookingsPage(),
+    CashierDestination.banquets => const BanquetsPage(),
     CashierDestination.accounts => const AccountsPage(),
     CashierDestination.shift => const ShiftPage(),
     CashierDestination.settings => const SettingsPage(),

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'lines27.dart';
+import 'lines38.dart';
 import 'payment5.dart';
 
 part 'cart.g.dart';
@@ -31,7 +31,7 @@ class Cart {
   final int seq;
   final String? session;
   final String state;
-  final List<Lines27> lines;
+  final List<Lines38> lines;
   final String subtotal;
   final String discount;
   final String total;

@@ -7,23 +7,31 @@ part of 'data129.dart';
 // **************************************************************************
 
 Data129 _$Data129FromJson(Map<String, dynamic> json) => Data129(
-  branchId: (json['branch_id'] as num).toInt(),
-  keyId: (json['key_id'] as num).toInt(),
-  rotatedAt: json['rotated_at'] as String?,
-  port: (json['port'] as num).toInt(),
-  hub: json['hub'] == null
-      ? null
-      : Hub.fromJson(json['hub'] as Map<String, dynamic>),
-  candidates: (json['candidates'] as List<dynamic>)
-      .map((e) => Candidates.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  id: (json['id'] as num).toInt(),
+  amount: json['amount'] as String,
+  card: json['card'] as String,
+  status: Status4.fromJson(json['status'] as String),
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
+  storeId: (json['store_id'] as num).toInt(),
+  cardNumber: json['card_number'] as String,
+  processedBy: (json['processed_by'] as num?)?.toInt(),
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data129ToJson(Data129 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'key_id': instance.keyId,
-  'rotated_at': instance.rotatedAt,
-  'port': instance.port,
-  'hub': instance.hub,
-  'candidates': instance.candidates,
+  'id': instance.id,
+  'amount': instance.amount,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
+  'created_at': instance.createdAt,
+  'store_id': instance.storeId,
+  'card_number': instance.cardNumber,
+  'processed_by': instance.processedBy,
+  'updated_at': instance.updatedAt,
 };

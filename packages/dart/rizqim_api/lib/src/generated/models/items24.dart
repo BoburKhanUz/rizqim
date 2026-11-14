@@ -4,49 +4,44 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fire_mode.dart';
-import 'combo2.dart';
-
 part 'items24.g.dart';
 
 @JsonSerializable()
 class Items24 {
   const Items24({
-    required this.variantId,
+    required this.id,
+    required this.productVariantId,
+    required this.productVariantUuid,
+    required this.productName,
+    required this.variantName,
+    required this.unit,
     required this.quantity,
-    this.modifiers,
-    this.note,
-    this.seatNo,
-    this.fireMode,
-    this.dueAt,
-    this.courseNo,
-    this.awaitingWeight,
-    this.combo,
+    required this.modifiers,
+    required this.unitPrice,
+    required this.note,
+    required this.dueAt,
   });
 
   factory Items24.fromJson(Map<String, Object?> json) =>
       _$Items24FromJson(json);
 
-  @JsonKey(name: 'variant_id')
-  final String variantId;
+  final int id;
+  @JsonKey(name: 'product_variant_id')
+  final int productVariantId;
+  @JsonKey(name: 'product_variant_uuid')
+  final String? productVariantUuid;
+  @JsonKey(name: 'product_name')
+  final String productName;
+  @JsonKey(name: 'variant_name')
+  final String? variantName;
+  final String unit;
   final num quantity;
-  final List<String>? modifiers;
+  final List<Map<String, dynamic>> modifiers;
+  @JsonKey(name: 'unit_price')
+  final String unitPrice;
   final String? note;
-  @JsonKey(name: 'seat_no')
-  final int? seatNo;
-  @JsonKey(name: 'fire_mode')
-  final FireMode? fireMode;
   @JsonKey(name: 'due_at')
-  final DateTime? dueAt;
-
-  /// P6-21: the line's course (module courses); P6-25: a dish weighed later (module weight_later)
-  @JsonKey(name: 'course_no')
-  final int? courseNo;
-  @JsonKey(name: 'awaiting_weight')
-  final bool? awaitingWeight;
-
-  /// P6-31: a combo's picks ({option_id, quantity?, modifiers?}; docs/MENU.md "Kombo")
-  final List<Combo2>? combo;
+  final String? dueAt;
 
   Map<String, Object?> toJson() => _$Items24ToJson(this);
 }

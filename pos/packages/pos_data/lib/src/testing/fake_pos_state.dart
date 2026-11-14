@@ -231,6 +231,9 @@ class FakePosState {
   /// Menyu (`GET /catalog`): kategoriyalar va mahsulotlar.
   final List<Map<String, Object?>> categories = <Map<String, Object?>>[];
   final List<Map<String, Object?>> products = <Map<String, Object?>>[];
+
+  /// P6-55 (`multi_brand`): katalogdagi brendlar (`{id, name, code, color}`); bo'sh — brendsiz do'kon (kalit yuborilmaydi).
+  final List<Map<String, Object?>> brands = <Map<String, Object?>>[];
   final Map<String, Object?> availability = <String, Object?>{
     'branch_id': branchId,
     'stopped': <String, Object?>{
@@ -1219,6 +1222,7 @@ class FakePosState {
       'branch': <String, Object?>{'id': branchId, 'name': 'Chilonzor'},
       'categories': categories,
       'products': products,
+      if (brands.isNotEmpty) 'brands': brands,
       'availability': availability,
     });
   }

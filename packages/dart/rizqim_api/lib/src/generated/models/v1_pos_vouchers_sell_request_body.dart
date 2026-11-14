@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tender2.dart';
+import 'tender.dart';
 
 part 'v1_pos_vouchers_sell_request_body.g.dart';
 
@@ -29,7 +29,7 @@ class V1PosVouchersSellRequestBody {
 
   @JsonKey(name: 'face_value')
   final num faceValue;
-  final Tender2 tender;
+  final Tender tender;
   @JsonKey(name: 'card_type')
   final String? cardType;
   @JsonKey(name: 'transaction_id')

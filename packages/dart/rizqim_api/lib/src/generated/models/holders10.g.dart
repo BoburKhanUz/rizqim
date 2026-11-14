@@ -10,7 +10,7 @@ Holders10 _$Holders10FromJson(Map<String, dynamic> json) => Holders10(
   mode: json['mode'] as String,
   staff: json['staff'] == null
       ? null
-      : Staff27.fromJson(json['staff'] as Map<String, dynamic>),
+      : Staff26.fromJson(json['staff'] as Map<String, dynamic>),
   amount: json['amount'] as String,
 );
 

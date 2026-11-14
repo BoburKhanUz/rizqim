@@ -10,41 +10,35 @@ part 'payments5.g.dart';
 class Payments5 {
   const Payments5({
     required this.uuid,
-    required this.tender,
+    required this.kind,
+    required this.kindLabel,
+    required this.dueDate,
     required this.amount,
-    required this.tenderedAmount,
-    required this.changeAmount,
-    required this.cardType,
-    required this.transactionId,
-    required this.cardLast4,
-    required this.reference,
     required this.status,
+    required this.statusLabel,
+    required this.tender,
     required this.paidAt,
-    required this.tipAmount,
+    required this.fiscalReceiptUuid,
   });
 
   factory Payments5.fromJson(Map<String, Object?> json) =>
       _$Payments5FromJson(json);
 
   final String uuid;
-  final String tender;
+  final String kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'due_date')
+  final String? dueDate;
   final String amount;
-  @JsonKey(name: 'tendered_amount')
-  final String? tenderedAmount;
-  @JsonKey(name: 'change_amount')
-  final String? changeAmount;
-  @JsonKey(name: 'card_type')
-  final String? cardType;
-  @JsonKey(name: 'transaction_id')
-  final String? transactionId;
-  @JsonKey(name: 'card_last4')
-  final String? cardLast4;
-  final String? reference;
   final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final String? tender;
   @JsonKey(name: 'paid_at')
   final String? paidAt;
-  @JsonKey(name: 'tip_amount')
-  final String tipAmount;
+  @JsonKey(name: 'fiscal_receipt_uuid')
+  final String? fiscalReceiptUuid;
 
   Map<String, Object?> toJson() => _$Payments5ToJson(this);
 }

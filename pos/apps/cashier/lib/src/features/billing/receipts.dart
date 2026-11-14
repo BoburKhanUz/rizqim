@@ -587,6 +587,49 @@ FiscalReceipt creditReceiptOf({
   );
 }
 
+/// P6-53: tadbir pulining cheki — bo'nak (zaklad, oraliq to'lov), qaytarish yoki "Bekor qilish haqi" sotuvi. Qatorlar
+/// va to'lovlar serverdagi chekdan ([detail]); o'qib bo'lmasa — bitta qator ([name], [amount], [tender]).
+FiscalReceipt banquetReceiptOf({
+  required FiscalReceiptType type,
+  required ReceiptHeader header,
+  required DateTime now,
+  required String name,
+  required PosMoney amount,
+  required String tender,
+  PosFiscalReceiptDetail? detail,
+  String? cashier,
+  String? customerName,
+  String? cardType,
+  String? reference,
+  String? note,
+  bool copy = false,
+}) => FiscalReceipt(
+  type: type,
+  header: header,
+  number: detail?.receiptNumber ?? '-',
+  issuedAt: (detail?.issuedAt ?? now).toLocal(),
+  lines:
+      _linesOf(detail) ??
+      <ReceiptLine>[
+        ReceiptLine(
+          name: name,
+          quantity: const ItemQuantity(PosQuantity.one),
+          unitPrice: amount,
+          amount: amount,
+        ),
+      ],
+  payments:
+      _paymentsOf(detail) ??
+      <ReceiptPayment>[
+        _payment(tender, amount, cardType: cardType, reference: reference),
+      ],
+  cashier: cashier,
+  customerName: customerName,
+  fiscal: _fiscalOf(detail),
+  isCopy: copy,
+  note: <String>[?note, ?_nonFiscalNote(detail)].join('\n').ifEmpty,
+);
+
 extension on String {
   String? get ifEmpty => isEmpty ? null : this;
 }

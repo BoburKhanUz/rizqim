@@ -7,25 +7,23 @@ part of 'summary8.dart';
 // **************************************************************************
 
 Summary8 _$Summary8FromJson(Map<String, dynamic> json) => Summary8(
-  total: (json['total'] as num).toInt(),
-  waiting: (json['waiting'] as num).toInt(),
-  seated: (json['seated'] as num).toInt(),
-  canceled: (json['canceled'] as num).toInt(),
-  noShow: (json['no_show'] as num).toInt(),
-  partySizeTotal: (json['party_size_total'] as num).toInt(),
-  avgQuotedWaitMinutes: (json['avg_quoted_wait_minutes'] as num?)?.toInt(),
-  avgSeatedWaitMinutes: (json['avg_seated_wait_minutes'] as num?)?.toInt(),
-  longestWaitingMinutes: (json['longest_waiting_minutes'] as num?)?.toInt(),
+  total: json['total'] as String,
+  paid: json['paid'] as String,
+  outstanding: json['outstanding'] as String,
+  overdue: json['overdue'] as bool,
+  overdueAmount: json['overdue_amount'] as String,
+  overdueCount: (json['overdue_count'] as num).toInt(),
+  nextDue: json['next_due'] == null
+      ? null
+      : NextDue4.fromJson(json['next_due'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Summary8ToJson(Summary8 instance) => <String, dynamic>{
   'total': instance.total,
-  'waiting': instance.waiting,
-  'seated': instance.seated,
-  'canceled': instance.canceled,
-  'no_show': instance.noShow,
-  'party_size_total': instance.partySizeTotal,
-  'avg_quoted_wait_minutes': instance.avgQuotedWaitMinutes,
-  'avg_seated_wait_minutes': instance.avgSeatedWaitMinutes,
-  'longest_waiting_minutes': instance.longestWaitingMinutes,
+  'paid': instance.paid,
+  'outstanding': instance.outstanding,
+  'overdue': instance.overdue,
+  'overdue_amount': instance.overdueAmount,
+  'overdue_count': instance.overdueCount,
+  'next_due': instance.nextDue,
 };

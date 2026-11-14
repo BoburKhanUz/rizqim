@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\Menu\MenuStaffController;
 use App\Models\Branch;
 use App\Models\Store;
+use App\Models\User;
 use App\Support\RowId;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -59,5 +60,17 @@ abstract class ManagementController extends MenuStaffController
         $this->authorizeFor($request, $permission, $branch);
 
         return $branch;
+    }
+
+    /**
+     * A store-wide setting (every branch reads it): a caller bound to one branch (or acting on one branch's terminal)
+     * reads it but does not change it, whatever they were granted (403 `store_wide_only`, as KdsTargetsController).
+     */
+    protected function assertStoreWide(Request $request, string $message): void
+    {
+        $user = $request->user();
+        if (!$user instanceof User || $this->permissions->actingBranchId($user) !== null) {
+            throw new HttpResponseException($this->error($message, ['reason' => 'store_wide_only'], 403));
+        }
     }
 }

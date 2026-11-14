@@ -121,6 +121,11 @@ final class ShiftOwnerSummary
         if (Money::of(is_numeric($sold) ? (string) $sold : 0)->isPositive() || (int) ($report['vouchers']['redeemed']['count'] ?? 0) > 0) {
             $lines[] = 'Sertifikat: sotildi ' . $uzs($sold) . ', ishlatildi ' . $uzs($report['vouchers']['redeemed']['amount'] ?? 0);
         }
+        // P6-53: banquet advances taken (not in the takings) and refunds of cancelled events
+        $banquet = $report['banquets']['taken']['amount'] ?? 0;
+        if (Money::of(is_numeric($banquet) ? (string) $banquet : 0)->isPositive() || (int) ($report['banquets']['refunded']['count'] ?? 0) > 0) {
+            $lines[] = 'Tadbir avanslari: ' . $uzs($banquet) . ', qaytarildi ' . $uzs($report['banquets']['refunded']['amount'] ?? 0);
+        }
         $lines[] = 'Kutilgan naqd: ' . $uzs($shift->expected_cash) . ', sanaldi: ' . $uzs($shift->counted_cash);
         $difference = Money::of($shift->difference);
         $lines[] = 'Farq: ' . ($difference->isNegative() ? '-' : ($difference->isPositive() ? '+' : '')) . $uzs($difference->abs()->toString());

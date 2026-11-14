@@ -4,20 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'shift5.dart';
-import 'report3.dart';
+import 'preparing.dart';
+import 'ready.dart';
 
 part 'data291.g.dart';
 
 @JsonSerializable()
 class Data291 {
-  const Data291({required this.shift, required this.report});
+  const Data291({
+    required this.businessDate,
+    required this.preparing,
+    required this.ready,
+  });
 
   factory Data291.fromJson(Map<String, Object?> json) =>
       _$Data291FromJson(json);
 
-  final Shift5 shift;
-  final Report3 report;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  final List<Preparing> preparing;
+  final List<Ready> ready;
 
   Map<String, Object?> toJson() => _$Data291ToJson(this);
 }

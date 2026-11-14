@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bill.dart';
+import 'bill2.dart';
 import 'order4.dart';
 import 'billing.dart';
 
@@ -38,7 +38,7 @@ class Requests {
   final int? requestedBy;
   @JsonKey(name: 'requested_at')
   final String? requestedAt;
-  final Bill bill;
+  final Bill2 bill;
   final Order4 order;
   final Billing billing;
 

@@ -126,8 +126,20 @@ class OrderLineBuilder
             return $stopped;
         }
 
-        foreach (StopListEntry::where('branch_id', $branch->id)->active()->get(['subject_type', 'subject_id', 'reason']) as $entry) {
-            $stopped[$entry->subject_type->value][(int) $entry->subject_id] = $entry->reason;
+        $entries = StopListEntry::where('branch_id', $branch->id)->active()->get(['id', 'subject_type', 'subject_id', 'reason', 'until']);
+        foreach ($entries as $entry) {
+            if ($entry->subject_type !== StopListSubject::INGREDIENT) {
+                $stopped[$entry->subject_type->value][(int) $entry->subject_id] = $entry->reason;
+            }
+        }
+
+        // P6-55 / B9: a stopped ingredient closes its dishes, and a brand switched off on the branch its own (MenuAvailability
+        // shows the same); a dish's own entry keeps its reason
+        $closedByIngredient = array_map(fn (array $closed) => $closed['reason'], \App\Domain\Pos\Ingredients\IngredientStops::resolve($entries)['closed']);
+        foreach ($closedByIngredient + \App\Domain\Pos\Brands\BrandMenu::offOnBranch((int) $branch->id) as $productId => $reason) {
+            if (!array_key_exists($productId, $stopped[StopListSubject::PRODUCT->value])) {
+                $stopped[StopListSubject::PRODUCT->value][$productId] = $reason;
+            }
         }
 
         // P6-15: dishes off today's "Bugungi menyu" count as stopped, and so does a kompleks with a stopped, sold-out or switched-off part

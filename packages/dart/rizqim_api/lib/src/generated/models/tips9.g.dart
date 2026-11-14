@@ -15,7 +15,7 @@ Tips9 _$Tips9FromJson(Map<String, dynamic> json) => Tips9(
   mode: json['mode'] as String,
   staff: json['staff'] == null
       ? null
-      : Staff21.fromJson(json['staff'] as Map<String, dynamic>),
+      : Staff23.fromJson(json['staff'] as Map<String, dynamic>),
   holders: (json['holders'] as List<dynamic>)
       .map((e) => Holders9.fromJson(e as Map<String, dynamic>))
       .toList(),

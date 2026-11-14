@@ -286,6 +286,14 @@ final class BillFiscalizer
                 }
                 continue;
             }
+            // P6-54: an event's package, hall rent and extras: one receipt line per part, each with its own MXIK
+            if ($charge === \App\Domain\Pos\Banquet\Ops\BanquetFiscal::CHARGE) {
+                $order = Order::find($bill->order_id);
+                if ($order !== null) {
+                    array_push($parts, ...\App\Domain\Pos\Banquet\Ops\BanquetFiscal::parts($store, $order, $amount->toTiyin()));
+                }
+                continue;
+            }
             if ($amount->isPositive()) {
                 $parts[] = [
                     'amount' => $amount->toTiyin(),
@@ -308,6 +316,11 @@ final class BillFiscalizer
         foreach ($payments as $payment) {
             $tender = PosTender::tryFrom((string) $payment->provider);
             $amount = Money::of($payment->amount);
+            // P6-54: an event's advances offset on its final bill, in the forms they were taken in
+            if ($tender === PosTender::PREPAYMENT && ($banquet = \App\Domain\Pos\Banquet\Ops\BanquetFiscal::prepayments($bill, $amount)) !== null) {
+                array_push($fiscal, ...$banquet);
+                continue;
+            }
             $fiscal[] = match ($tender) {
                 // P6-16: the bank terminal's transaction (RRN) number and, when typed, the card's last four digits
                 PosTender::CARD => new FiscalPayment(FiscalPaymentForm::CARD, $amount, cardType: $payment->getAttribute('card_type'), transactionId: $payment->getAttribute('transaction_id'), cardLast4: $payment->getAttribute('card_last4')),
@@ -332,6 +345,10 @@ final class BillFiscalizer
     private function depositForm(OrderBill $bill): FiscalPaymentForm
     {
         $order = Order::find($bill->order_id);
+        // P6-54: an event's order: the form of its advances (one form, else cash)
+        if ($order !== null && ($banquet = \App\Domain\Pos\Banquet\Ops\BanquetFiscal::prepayments($bill, Money::of($bill->total))) !== null) {
+            return count($banquet) === 1 ? $banquet[0]->form : FiscalPaymentForm::CASH;
+        }
         $tenders = DB::table('booking_payments')
             ->where(fn ($query) => $query->where('order_id', $bill->order_id)
                 ->when($order?->getAttribute('booking_id') !== null, fn ($query) => $query->orWhere('booking_id', $order?->getAttribute('booking_id'))))

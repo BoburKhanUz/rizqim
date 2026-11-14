@@ -4,29 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch8.dart';
-import 'setup.dart';
-import 'devices2.dart';
-
 part 'branches2.g.dart';
 
 @JsonSerializable()
 class Branches2 {
-  const Branches2({
-    required this.branch,
-    required this.moduleEnabled,
-    required this.setup,
-    required this.devices,
-  });
+  const Branches2({required this.branchId, required this.isActive});
 
   factory Branches2.fromJson(Map<String, Object?> json) =>
       _$Branches2FromJson(json);
 
-  final Branch8 branch;
-  @JsonKey(name: 'module_enabled')
-  final bool moduleEnabled;
-  final Setup setup;
-  final List<Devices2> devices;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
 
   Map<String, Object?> toJson() => _$Branches2ToJson(this);
 }

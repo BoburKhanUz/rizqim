@@ -8,7 +8,7 @@ part of 'bills4.dart';
 
 Bills4 _$Bills4FromJson(Map<String, dynamic> json) => Bills4(
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items29.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items36.fromJson(e as Map<String, dynamic>))
       .toList(),
   guests: (json['guests'] as num?)?.toInt(),
 );

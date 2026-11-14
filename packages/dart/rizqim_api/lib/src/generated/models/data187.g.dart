@@ -7,13 +7,27 @@ part of 'data187.dart';
 // **************************************************************************
 
 Data187 _$Data187FromJson(Map<String, dynamic> json) => Data187(
-  userId: (json['user_id'] as num).toInt(),
-  staffCode: json['staff_code'] as String?,
-  pinSetAt: json['pin_set_at'] as String?,
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
+  hallId: (json['hall_id'] as num?)?.toInt(),
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data187ToJson(Data187 instance) => <String, dynamic>{
-  'user_id': instance.userId,
-  'staff_code': instance.staffCode,
-  'pin_set_at': instance.pinSetAt,
+  'id': instance.id,
+  'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
+  'hall_id': instance.hallId,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

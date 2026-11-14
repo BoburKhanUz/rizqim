@@ -7,31 +7,23 @@ part of 'data127.dart';
 // **************************************************************************
 
 Data127 _$Data127FromJson(Map<String, dynamic> json) => Data127(
-  branchId: (json['branch_id'] as num).toInt(),
-  profile: json['profile'] as String,
-  profileLabel: json['profile_label'] as String,
-  mode: json['mode'] as String,
-  firstScreen: json['first_screen'] as String,
-  modules: (json['modules'] as List<dynamic>).map((e) => e as String).toList(),
-  locks: Locks2.fromJson(json['locks'] as Map<String, dynamic>),
-  moduleRows: (json['module_rows'] as List<dynamic>)
-      .map((e) => ModuleRows2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  profiles: (json['profiles'] as List<dynamic>)
-      .map((e) => Profiles2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  template: Template2.fromJson(json['template'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  amount: json['amount'] as String,
+  card: json['card'] as String,
+  status: Status4.fromJson(json['status'] as String),
+  notes: json['notes'] as String?,
+  resolutionNotes: json['resolution_notes'] as String?,
+  processedAt: json['processed_at'] as String?,
+  createdAt: json['created_at'] as String,
 );
 
 Map<String, dynamic> _$Data127ToJson(Data127 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'profile': instance.profile,
-  'profile_label': instance.profileLabel,
-  'mode': instance.mode,
-  'first_screen': instance.firstScreen,
-  'modules': instance.modules,
-  'locks': instance.locks,
-  'module_rows': instance.moduleRows,
-  'profiles': instance.profiles,
-  'template': instance.template,
+  'id': instance.id,
+  'amount': instance.amount,
+  'card': instance.card,
+  'status': instance.status,
+  'notes': instance.notes,
+  'resolution_notes': instance.resolutionNotes,
+  'processed_at': instance.processedAt,
+  'created_at': instance.createdAt,
 };

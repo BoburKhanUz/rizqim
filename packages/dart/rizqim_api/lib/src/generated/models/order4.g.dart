@@ -17,7 +17,7 @@ Order4 _$Order4FromJson(Map<String, dynamic> json) => Order4(
   version: (json['version'] as num).toInt(),
   hall: json['hall'] == null
       ? null
-      : Hall.fromJson(json['hall'] as Map<String, dynamic>),
+      : Hall3.fromJson(json['hall'] as Map<String, dynamic>),
   table: json['table'] == null
       ? null
       : Table.fromJson(json['table'] as Map<String, dynamic>),
@@ -45,7 +45,7 @@ Order4 _$Order4FromJson(Map<String, dynamic> json) => Order4(
       : DiscountKind.fromJson(json['discount_kind'] as String?),
   discountValue: json['discount_value'] as String?,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items4.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items11.fromJson(e as Map<String, dynamic>))
       .toList(),
   discountBy: (json['discount_by'] as num?)?.toInt(),
   promoNote: json['promo_note'] as String?,

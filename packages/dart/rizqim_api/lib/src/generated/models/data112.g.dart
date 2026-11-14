@@ -7,25 +7,23 @@ part of 'data112.dart';
 // **************************************************************************
 
 Data112 _$Data112FromJson(Map<String, dynamic> json) => Data112(
-  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  name: json['name'] as String,
-  kind: json['kind'] as String,
-  kindLabel: json['kind_label'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  showOnKds: json['show_on_kds'] as bool,
-  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
+  enabled: json['enabled'] as bool,
+  expoScope: json['expo_scope'] as String,
+  limits: Limits2.fromJson(json['limits'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products5.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data112ToJson(Data112 instance) => <String, dynamic>{
-  'id': instance.id,
   'branch_id': instance.branchId,
-  'name': instance.name,
-  'kind': instance.kind,
-  'kind_label': instance.kindLabel,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'show_on_kds': instance.showOnKds,
-  'target_seconds': instance.targetSeconds,
+  'enabled': instance.enabled,
+  'expo_scope': instance.expoScope,
+  'limits': instance.limits,
+  'stations': instance.stations,
+  'products': instance.products,
 };

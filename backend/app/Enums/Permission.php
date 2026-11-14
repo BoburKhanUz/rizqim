@@ -62,6 +62,9 @@ enum Permission: string
     // P6-43: gift certificates and vouchers: block, correct and see the liability report (selling and redeeming at the
     // till is pos.take_payment)
     case VOUCHERS_MANAGE = 'vouchers.manage';
+    // P6-51..P6-54: banquet events, packages and the payment schedule (taking a scheduled payment at the till is
+    // pos.take_payment, the reports reports.view)
+    case BANQUETS_MANAGE = 'banquets.manage';
 
     public function label(): string
     {
@@ -107,6 +110,7 @@ enum Permission: string
             self::STAFF_PAY_MANAGE => "Ish haqi qoidalari va hisob-kitob", // P6-23
             self::TIPS_MANAGE => "Choy pulini tuzatish va umumiy qozonni bo'lish", // P6-22
             self::VOUCHERS_MANAGE => "Sovg'a sertifikatlari va vaucherlar", // P6-43
+            self::BANQUETS_MANAGE => "Tadbirlar, banket paketlari va to'lov jadvali", // P6-51
         };
     }
 

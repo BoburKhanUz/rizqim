@@ -71,7 +71,8 @@ class PosBillController extends PosBillingController
      * pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
      * (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
      * `nothing_to_bill`, `order_closed`,
-     * `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
+     * `not_pos_order`, `banquet_settle_first` (an in-progress banquet event's order: billed by POST
+     * /pos/banquets/{uuid}/settle only; `event_uuid`); 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
      */
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . self::STATE . '}')]
     public function store(Request $request, BillService $bills, BillPresenter $presenter, string $uuid): JsonResponse
@@ -185,7 +186,8 @@ class PosBillController extends PosBillingController
      * balance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,
      * 409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;
      * online only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
-     * The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
+     * The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). An in-progress
+     * banquet event's order is paid on its settlement bill only (409 `banquet_settle_first` with `event_uuid`). When the bill is
      * covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
      * order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
      * carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,

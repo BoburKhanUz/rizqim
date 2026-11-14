@@ -3,7 +3,10 @@ import {
   BadgeCheck,
   CalendarCheck,
   CalendarDays,
+  CalendarHeart,
+  CalendarRange,
   ChartColumn,
+  ChartPie,
   CookingPot,
   ClipboardList,
   Coins,
@@ -22,6 +25,7 @@ import {
   Settings,
   ShieldCheck,
   Store,
+  Tags,
   Timer,
   UtensilsCrossed,
   Users,
@@ -44,7 +48,11 @@ import type { MessageKey } from '@/i18n';
 //   floor      halls, places, the floor map, room tariffs, per-guest items (tables.manage; tariffs and guest items inside need
 //              settings.manage, changing halls the owner or manager role)
 //   bookings   the booking calendar (bookings.manage)
+//   banquets   the events calendar, an event, packages and prices (banquets.manage; P6-51/P6-52, module banquet)
 //   accounts   customer accounts, nasiya (customer_accounts.manage)
+//   brands     brands in one kitchen: channels, prices, branches, dishes (menu.view / menu.manage; P6-55, module multi_brand)
+//   banquetreport the "Tadbirlar" report and the banquet payment rules (banquets.manage / reports.view; P6-53)
+//   channelrevenue the channel net revenue report and the channel commissions (reports.view; P6-55)
 //   vouchers   gift certificates: list, history, block, report and Excel (vouchers.manage / reports.view; P6-43)
 //   shifts     shifts with X and Z reports (pos.close_shift or reports.view)
 //   tips       tips (choy puli): report, pool split, tip settings, service charge rules (reports.view / tips.manage /
@@ -60,6 +68,7 @@ export type NavKey =
   | 'dashboard'
   | 'orders'
   | 'bookings'
+  | 'banquets'
   | 'floor'
   | 'menu'
   | 'stoplist'
@@ -73,6 +82,9 @@ export type NavKey =
   | 'tips'
   | 'accounts'
   | 'vouchers'
+  | 'brands'
+  | 'channelrevenue'
+  | 'banquetreport'
   | 'staff'
   | 'branches'
   | 'zones'
@@ -97,6 +109,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'dashboard', href: '/dashboard', label: 'nav_dashboard', anyOf: ['orders.view', 'reports.view'], icon: LayoutDashboard },
   { key: 'orders', href: '/orders', label: 'nav_orders', anyOf: ['orders.view'], icon: ClipboardList },
   { key: 'bookings', href: '/bookings', label: 'nav_bookings', anyOf: ['bookings.manage'], icon: CalendarDays },
+  // P6-51/P6-52: the to'yxona's events (halls × dates × slots), packages and prices
+  { key: 'banquets', href: '/banquets', label: 'bq_nav', anyOf: ['banquets.manage'], icon: CalendarHeart },
   { key: 'floor', href: '/floor', label: 'nav_floor', anyOf: ['tables.manage'], icon: Armchair },
   { key: 'menu', href: '/menu', label: 'nav_menu', anyOf: ['menu.view', 'menu.manage'], icon: UtensilsCrossed },
   { key: 'stoplist', href: '/stoplist', label: 'nav_stoplist', anyOf: ['stoplist.manage'], icon: PackageX },
@@ -113,6 +127,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'accounts', href: '/accounts', label: 'nav_accounts', anyOf: ['customer_accounts.manage'], icon: HandCoins },
   // P6-43: gift certificates sold at the till
   { key: 'vouchers', href: '/vouchers', label: 'vch_nav', anyOf: ['vouchers.manage', 'reports.view'], icon: Gift },
+  // P6-55: brands in one kitchen (module multi_brand) and the channel net revenue report
+  { key: 'brands', href: '/brands', label: 'dk_nav_brands', anyOf: ['menu.view', 'menu.manage'], icon: Tags },
+  { key: 'channelrevenue', href: '/reports/channels', label: 'dk_nav_revenue', anyOf: ['reports.view'], icon: ChartPie },
+  // P6-53: the "Tadbirlar" report (a report reader too) and the payment rules
+  { key: 'banquetreport', href: '/banquets/report', label: 'bqp_reportNav', anyOf: ['banquets.manage', 'reports.view'], icon: CalendarRange },
   { key: 'staff', href: '/staff', label: 'nav_staff', anyOf: ['staff.view'], icon: Users },
   { key: 'branches', href: '/branches', label: 'nav_branches', anyOf: ['branches.manage', 'settings.manage'], icon: Store },
   { key: 'zones', href: '/zones', label: 'nav_zones', anyOf: ['zones.manage'], icon: Map },

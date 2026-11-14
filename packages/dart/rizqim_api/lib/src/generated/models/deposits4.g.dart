@@ -7,9 +7,9 @@ part of 'deposits4.dart';
 // **************************************************************************
 
 Deposits4 _$Deposits4FromJson(Map<String, dynamic> json) => Deposits4(
-  taken: Taken4.fromJson(json['taken'] as Map<String, dynamic>),
+  taken: Taken7.fromJson(json['taken'] as Map<String, dynamic>),
   applied: Applied4.fromJson(json['applied'] as Map<String, dynamic>),
-  refunded: Refunded5.fromJson(json['refunded'] as Map<String, dynamic>),
+  refunded: Refunded8.fromJson(json['refunded'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Deposits4ToJson(Deposits4 instance) => <String, dynamic>{

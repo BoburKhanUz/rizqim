@@ -4,9 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'brand.dart';
 import 'category.dart';
 import 'channel_price.dart';
 import 'image_thumb_urls2.dart';
+import 'ingredient.dart';
 import 'menu_batch.dart';
 import 'modifier_group.dart';
 import 'product.dart';
@@ -48,17 +50,20 @@ class Products {
     required this.quickMultipliers,
     required this.waitMinutes,
     required this.weightMode,
+    required this.kdsTargetSeconds,
+    required this.brandId,
     required this.stationId,
-    required this.isActive,
     required this.imageUrl,
     required this.imageThumbUrls,
     required this.unavailableReason,
     required this.isAvailable,
     required this.variants,
-    required this.kdsTargetSeconds,
+    required this.isActive,
     required this.modifierGroups,
     this.channelPrices,
     this.batches,
+    this.brand,
+    this.ingredients,
     this.category,
     this.store,
     this.modifierGroupLinks,
@@ -109,6 +114,8 @@ class Products {
   final String? weightMode;
   @JsonKey(name: 'kds_target_seconds')
   final int? kdsTargetSeconds;
+  @JsonKey(name: 'brand_id')
+  final int? brandId;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')
@@ -125,6 +132,8 @@ class Products {
   @JsonKey(name: 'channel_prices')
   final List<ChannelPrice>? channelPrices;
   final List<MenuBatch>? batches;
+  final Brand? brand;
+  final List<Ingredient>? ingredients;
   @JsonKey(name: 'is_available')
   final bool isAvailable;
   @JsonKey(name: 'unavailable_reason')

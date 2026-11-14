@@ -8,22 +8,20 @@ part of 'data115.dart';
 
 Data115 _$Data115FromJson(Map<String, dynamic> json) => Data115(
   id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  productId: (json['product_id'] as num).toInt(),
-  productName: json['product_name'] as String,
-  prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
-  isActive: json['is_active'] as bool,
-  parts: (json['parts'] as List<dynamic>)
-      .map((e) => Parts4.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  branchId: (json['branch_id'] as num).toInt(),
+  stationId: (json['station_id'] as num).toInt(),
+  categoryId: (json['category_id'] as num?)?.toInt(),
+  categoryName: json['category_name'] as String?,
+  productId: (json['product_id'] as num?)?.toInt(),
+  productName: json['product_name'] as String?,
 );
 
 Map<String, dynamic> _$Data115ToJson(Data115 instance) => <String, dynamic>{
   'id': instance.id,
-  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'station_id': instance.stationId,
+  'category_id': instance.categoryId,
+  'category_name': instance.categoryName,
   'product_id': instance.productId,
   'product_name': instance.productName,
-  'prices': instance.prices,
-  'is_active': instance.isActive,
-  'parts': instance.parts,
 };

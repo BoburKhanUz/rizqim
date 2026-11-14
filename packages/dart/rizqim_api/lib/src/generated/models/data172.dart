@@ -4,44 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'components2.dart';
-
 part 'data172.g.dart';
 
 @JsonSerializable()
 class Data172 {
   const Data172({
-    required this.uuid,
+    required this.id,
     required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.role,
-    required this.roleLabel,
-    required this.effectiveFrom,
-    required this.components,
-    required this.note,
-    required this.updatedAt,
+    required this.name,
+    required this.purpose,
+    required this.connection,
+    required this.address,
+    required this.port,
+    required this.paperWidth,
+    required this.stationId,
+    required this.deviceId,
+    required this.isActive,
+    required this.encoding,
+    required this.printAsImage,
   });
 
   factory Data172.fromJson(Map<String, Object?> json) =>
       _$Data172FromJson(json);
 
-  final String uuid;
+  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'user_id')
-  final int? userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  final String? role;
-  @JsonKey(name: 'role_label')
-  final String? roleLabel;
-  @JsonKey(name: 'effective_from')
-  final String effectiveFrom;
-  final List<Components2> components;
-  final String? note;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String name;
+  final String purpose;
+  final String connection;
+  final String? address;
+  final int? port;
+  @JsonKey(name: 'paper_width')
+  final int paperWidth;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  @JsonKey(name: 'device_id')
+  final String? deviceId;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? encoding;
+  @JsonKey(name: 'print_as_image')
+  final bool printAsImage;
 
   Map<String, Object?> toJson() => _$Data172ToJson(this);
 }

@@ -20,7 +20,7 @@ describe('types from the generated schema', () => {
     expectTypeOf<StopListEntry>().toHaveProperty('branch_id').toBeNumber();
     expectTypeOf<Batch>().toHaveProperty('quantity_left');
     expectTypeOf<TopupProvider>().toEqualTypeOf<'click' | 'payme'>();
-    expectTypeOf<StopListInput['type']>().toEqualTypeOf<'product' | 'variant' | 'modifier'>();
+    expectTypeOf<StopListInput['type']>().toEqualTypeOf<'product' | 'variant' | 'modifier' | 'ingredient'>();
     expectTypeOf<OkData<'order.index'>>().not.toBeNever();
     expectTypeOf<JsonRequest<'order.updateStatus'>['status']>().not.toBeNever();
   });

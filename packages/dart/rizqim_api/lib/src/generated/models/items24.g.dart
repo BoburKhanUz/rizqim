@@ -7,35 +7,31 @@ part of 'items24.dart';
 // **************************************************************************
 
 Items24 _$Items24FromJson(Map<String, dynamic> json) => Items24(
-  variantId: json['variant_id'] as String,
+  id: (json['id'] as num).toInt(),
+  productVariantId: (json['product_variant_id'] as num).toInt(),
+  productVariantUuid: json['product_variant_uuid'] as String?,
+  productName: json['product_name'] as String,
+  variantName: json['variant_name'] as String?,
+  unit: json['unit'] as String,
   quantity: json['quantity'] as num,
-  modifiers: (json['modifiers'] as List<dynamic>?)
-      ?.map((e) => e as String)
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => e as Map<String, dynamic>)
       .toList(),
+  unitPrice: json['unit_price'] as String,
   note: json['note'] as String?,
-  seatNo: (json['seat_no'] as num?)?.toInt(),
-  fireMode: json['fire_mode'] == null
-      ? null
-      : FireMode.fromJson(json['fire_mode'] as String?),
-  dueAt: json['due_at'] == null
-      ? null
-      : DateTime.parse(json['due_at'] as String),
-  courseNo: (json['course_no'] as num?)?.toInt(),
-  awaitingWeight: json['awaiting_weight'] as bool?,
-  combo: (json['combo'] as List<dynamic>?)
-      ?.map((e) => Combo2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  dueAt: json['due_at'] as String?,
 );
 
 Map<String, dynamic> _$Items24ToJson(Items24 instance) => <String, dynamic>{
-  'variant_id': instance.variantId,
+  'id': instance.id,
+  'product_variant_id': instance.productVariantId,
+  'product_variant_uuid': instance.productVariantUuid,
+  'product_name': instance.productName,
+  'variant_name': instance.variantName,
+  'unit': instance.unit,
   'quantity': instance.quantity,
   'modifiers': instance.modifiers,
+  'unit_price': instance.unitPrice,
   'note': instance.note,
-  'seat_no': instance.seatNo,
-  'fire_mode': instance.fireMode,
-  'due_at': instance.dueAt?.toIso8601String(),
-  'course_no': instance.courseNo,
-  'awaiting_weight': instance.awaitingWeight,
-  'combo': instance.combo,
+  'due_at': instance.dueAt,
 };

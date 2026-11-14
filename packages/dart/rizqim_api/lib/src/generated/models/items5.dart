@@ -4,38 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'combo_parts2.dart';
-
 part 'items5.g.dart';
 
 @JsonSerializable()
 class Items5 {
   const Items5({
-    required this.orderItemId,
-    required this.productName,
-    required this.variantName,
+    required this.id,
+    required this.productId,
+    required this.productVariantId,
+    required this.name,
+    required this.quantityPerPerson,
     required this.unit,
-    required this.quantity,
-    required this.amount,
-    required this.discountAmount,
-    required this.comboParts,
   });
 
   factory Items5.fromJson(Map<String, Object?> json) => _$Items5FromJson(json);
 
-  @JsonKey(name: 'order_item_id')
-  final int orderItemId;
-  @JsonKey(name: 'product_name')
-  final String productName;
-  @JsonKey(name: 'variant_name')
-  final String? variantName;
+  final int id;
+  @JsonKey(name: 'product_id')
+  final int? productId;
+  @JsonKey(name: 'product_variant_id')
+  final int? productVariantId;
+  final String name;
+  @JsonKey(name: 'quantity_per_person')
+  final String quantityPerPerson;
   final String unit;
-  final num quantity;
-  final String amount;
-  @JsonKey(name: 'discount_amount')
-  final String discountAmount;
-  @JsonKey(name: 'combo_parts')
-  final List<ComboParts2>? comboParts;
 
   Map<String, Object?> toJson() => _$Items5ToJson(this);
 }

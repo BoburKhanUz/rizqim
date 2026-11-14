@@ -18,6 +18,7 @@ class LabelDish {
     this.categoryId,
     this.context,
     this.measured = false,
+    this.brandCode,
   });
 
   final String name;
@@ -31,6 +32,9 @@ class LabelDish {
   /// Kombo ichida — kombo nomi.
   final String? context;
   final bool measured;
+
+  /// P6-55 (`multi_brand`): qator brendining qisqa kodi; brendsiz qatorda `null`.
+  final String? brandCode;
 }
 
 /// Bitta buyurtmaning stikerlari va paket yorlig'i (chop etishdan oldin ko'rish ham mumkin).
@@ -135,7 +139,14 @@ class CashierLabels {
           j.strOrNull('product_name') ?? j.strOrNull('name') ?? '';
       if (parts != null) {
         for (final PosComboPart p in parts) {
-          dishes.add(_partDish(p, qty, name));
+          dishes.add(
+            _partDish(
+              p,
+              qty,
+              name,
+              brandCode: PosBrand.maybe(j['brand'])?.code,
+            ),
+          );
         }
         continue;
       }
@@ -143,6 +154,7 @@ class CashierLabels {
         LabelDish(
           name: name,
           variantName: j.strOrNull('variant_name'),
+          brandCode: PosBrand.maybe(j['brand'])?.code,
           quantity: qty,
           modifiers: <String>[
             for (final Object? m in j.list('modifiers'))
@@ -181,7 +193,7 @@ class CashierLabels {
     if (parts != null && parts.isNotEmpty) {
       return <LabelDish>[
         for (final PosComboPart p in parts)
-          _partDish(p, i.quantity, i.productName),
+          _partDish(p, i.quantity, i.productName, brandCode: i.brand?.code),
       ];
     }
     return <LabelDish>[
@@ -196,24 +208,30 @@ class CashierLabels {
         ],
         categoryId: _categoryOfVariant(i.productVariantId),
         measured: i.unit.isMeasured,
+        brandCode: i.brand?.code,
       ),
     ];
   }
 
-  LabelDish _partDish(PosComboPart p, PosQuantity combos, String comboName) =>
-      LabelDish(
-        name: p.name,
-        variantName: p.variantName,
-        quantity: combos.isWhole
-            ? PosQuantity.milli(combos.milli * p.quantity)
-            : PosQuantity.whole(p.quantity),
-        modifiers: <String>[
-          for (final PosComboModifier m in p.modifiers)
-            m.quantity > 1 ? '${m.name} x${m.quantity}' : m.name,
-        ],
-        categoryId: _categoryOfProduct(p.productId) ?? _categoryByName(p.name),
-        context: comboName,
-      );
+  LabelDish _partDish(
+    PosComboPart p,
+    PosQuantity combos,
+    String comboName, {
+    String? brandCode,
+  }) => LabelDish(
+    name: p.name,
+    variantName: p.variantName,
+    quantity: combos.isWhole
+        ? PosQuantity.milli(combos.milli * p.quantity)
+        : PosQuantity.whole(p.quantity),
+    modifiers: <String>[
+      for (final PosComboModifier m in p.modifiers)
+        m.quantity > 1 ? '${m.name} x${m.quantity}' : m.name,
+    ],
+    categoryId: _categoryOfProduct(p.productId) ?? _categoryByName(p.name),
+    context: comboName,
+    brandCode: brandCode,
+  );
 
   LabelBatch _batch(
     PosLabelSettings s,
@@ -246,6 +264,7 @@ class CashierLabels {
             index: n,
             total: total,
             context: d.context,
+            brandCode: d.brandCode,
           ),
         );
       }
@@ -261,6 +280,12 @@ class CashierLabels {
               orderLabel: bagLabel,
               customerName: customer,
               pickupAt: pickupAt,
+              // P6-55: the brands of the bag, in the order of the lines
+              brandCodes: <String>{
+                for (final LabelDish d in dishes)
+                  if (d.brandCode?.trim().isNotEmpty ?? false)
+                    d.brandCode!.trim(),
+              }.toList(),
             )
           : null,
     );

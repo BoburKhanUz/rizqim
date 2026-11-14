@@ -10,41 +10,65 @@ part 'payments35.g.dart';
 class Payments35 {
   const Payments35({
     required this.uuid,
-    required this.tender,
     required this.amount,
-    required this.tenderedAmount,
-    required this.changeAmount,
+    required this.tender,
     required this.cardType,
     required this.transactionId,
-    required this.cardLast4,
-    required this.reference,
     required this.status,
-    required this.paidAt,
-    required this.tipAmount,
+    required this.statusLabel,
+    required this.remaining,
+    required this.appliedAmount,
+    required this.refundedAmount,
+    required this.retainedAmount,
+    required this.fiscalReceiptUuid,
+    required this.fiscalStatus,
+    required this.settleReason,
+    required this.settleReceiptUuid,
+    required this.settleFiscalStatus,
+    required this.approvedBy,
+    required this.userId,
+    required this.createdAt,
+    required this.settledAt,
   });
 
   factory Payments35.fromJson(Map<String, Object?> json) =>
       _$Payments35FromJson(json);
 
   final String uuid;
-  final String tender;
   final String amount;
-  @JsonKey(name: 'tendered_amount')
-  final String? tenderedAmount;
-  @JsonKey(name: 'change_amount')
-  final String? changeAmount;
+  final String tender;
   @JsonKey(name: 'card_type')
   final String? cardType;
   @JsonKey(name: 'transaction_id')
   final String? transactionId;
-  @JsonKey(name: 'card_last4')
-  final String? cardLast4;
-  final String? reference;
   final String status;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'tip_amount')
-  final String tipAmount;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final String remaining;
+  @JsonKey(name: 'applied_amount')
+  final String appliedAmount;
+  @JsonKey(name: 'refunded_amount')
+  final String refundedAmount;
+  @JsonKey(name: 'retained_amount')
+  final String retainedAmount;
+  @JsonKey(name: 'fiscal_receipt_uuid')
+  final String? fiscalReceiptUuid;
+  @JsonKey(name: 'fiscal_status')
+  final String? fiscalStatus;
+  @JsonKey(name: 'settle_reason')
+  final String? settleReason;
+  @JsonKey(name: 'settle_receipt_uuid')
+  final String? settleReceiptUuid;
+  @JsonKey(name: 'settle_fiscal_status')
+  final String? settleFiscalStatus;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  @JsonKey(name: 'user_id')
+  final int? userId;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'settled_at')
+  final String? settledAt;
 
   Map<String, Object?> toJson() => _$Payments35ToJson(this);
 }

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data62.dart';
+import 'data65.dart';
 
 part 'post_v1_owner_combos_id_preview_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1OwnerCombosIdPreviewResponse {
 
   final bool success;
   final String message;
-  final Data62 data;
+  final Data65 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1OwnerCombosIdPreviewResponseToJson(this);

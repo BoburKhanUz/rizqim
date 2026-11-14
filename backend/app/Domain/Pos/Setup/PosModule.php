@@ -62,6 +62,11 @@ enum PosModule: string
     case VOUCHERS = 'vouchers';
     case CORPORATE_ACCOUNTS = 'corporate_accounts';
 
+    // Wave 5 "Banket va dark kitchen" (docs/PHASE6_PLAN.md §9)
+    case BANQUET = 'banquet';
+    case MULTI_BRAND = 'multi_brand';
+    case INGREDIENT_STOPLIST = 'ingredient_stoplist';
+
     public function label(): string
     {
         return match ($this) {
@@ -103,6 +108,9 @@ enum PosModule: string
             self::QR_PAYMENTS => "Click, Payme va UzQR kassada",
             self::VOUCHERS => "Sovg'a sertifikati va vaucher",
             self::CORPORATE_ACCOUNTS => 'Korxona hisobi va talon',
+            self::BANQUET => 'Banket va tadbirlar',
+            self::MULTI_BRAND => "Ko'p brend",
+            self::INGREDIENT_STOPLIST => "Ingredient bo'yicha stop-list",
         };
     }
 
@@ -150,6 +158,9 @@ enum PosModule: string
             self::QR_PAYMENTS => "Schyot summasiga Click, Payme yoki UzQR QR kodi: mijoz skanerlaydi, to'lov avtomatik tasdiqlanadi.",
             self::VOUCHERS => "Sovg'a sertifikatini sotish (bo'nak cheki) va to'lovda ishlatish, qoldiq va muddat; promo-kod kassada.",
             self::CORPORATE_ACCOUNTS => "Korxona hisobi: xodimlar ro'yxati, kunlik limit, talon va oylik hisobot.",
+            self::BANQUET => "Tadbirlar taqvimi (zal × sana × vaqt), paket va narx, to'lov jadvali, ishlab chiqarish varag'i.",
+            self::MULTI_BRAND => "Bitta oshxonada bir nechta brend: har brendning menyusi, kanallari va narxlari.",
+            self::INGREDIENT_STOPLIST => "Ingredient tugasa (masalan, tovuq) unga bog'liq hamma taomlar bir bosishda yopiladi.",
         };
     }
 
@@ -165,6 +176,9 @@ enum PosModule: string
      * kitchen display and the cup stickers and labels (Asosiy) with it too (the label printer sits next to the KDS).
      * Wave 4: the QR payments at the till are on every plan; the gift certificates and vouchers (Asosiy) go with the
      * deposits (both are an advance receipted before the sale), the corporate accounts (Asosiy) with the nasiya.
+     * Wave 5: the banquet module (Pro) has its own plan feature; multiple brands and the ingredient stop-list (both Pro,
+     * docs/PHASE6_PLAN.md §7) go with the aggregator orders (a dark kitchen sells its brands through the delivery
+     * channels).
      */
     public function planFeature(): ?PlanFeature
     {
@@ -182,6 +196,8 @@ enum PosModule: string
             self::KDS_EXPO, self::LABELS => PlanFeature::KDS,
             self::VOUCHERS => PlanFeature::DEPOSITS,
             self::CORPORATE_ACCOUNTS => PlanFeature::CUSTOMER_ACCOUNTS,
+            self::BANQUET => PlanFeature::BANQUET,
+            self::MULTI_BRAND, self::INGREDIENT_STOPLIST => PlanFeature::AGGREGATOR_ORDERS,
             default => null,
         };
     }
