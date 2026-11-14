@@ -11,7 +11,7 @@ PostV1OwnerDiningTablesResponse _$PostV1OwnerDiningTablesResponseFromJson(
 ) => PostV1OwnerDiningTablesResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data76.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data79.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerDiningTablesResponseToJson(

@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data74.dart';
+import 'data77.dart';
 
 part 'post_v1_owner_devices_uuid_revoke_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1OwnerDevicesUuidRevokeResponse {
 
   final bool success;
   final String message;
-  final Data74 data;
+  final Data77 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1OwnerDevicesUuidRevokeResponseToJson(this);

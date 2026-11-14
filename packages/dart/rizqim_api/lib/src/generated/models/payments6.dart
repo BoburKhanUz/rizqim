@@ -4,35 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'form.dart';
-
 part 'payments6.g.dart';
 
 @JsonSerializable()
 class Payments6 {
   const Payments6({
-    required this.form,
+    required this.uuid,
+    required this.kind,
+    required this.kindLabel,
+    required this.dueDate,
     required this.amount,
-    required this.prepayment,
-    required this.credit,
-    required this.cardType,
-    required this.transactionId,
-    required this.cardLast4,
+    required this.status,
+    required this.statusLabel,
+    required this.tender,
+    required this.paidAt,
+    required this.fiscalReceiptUuid,
   });
 
   factory Payments6.fromJson(Map<String, Object?> json) =>
       _$Payments6FromJson(json);
 
-  final Form form;
+  final String uuid;
+  final String kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'due_date')
+  final String? dueDate;
   final String amount;
-  final bool prepayment;
-  final bool credit;
-  @JsonKey(name: 'card_type')
-  final String? cardType;
-  @JsonKey(name: 'transaction_id')
-  final String? transactionId;
-  @JsonKey(name: 'card_last4')
-  final String? cardLast4;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final String? tender;
+  @JsonKey(name: 'paid_at')
+  final String? paidAt;
+  @JsonKey(name: 'fiscal_receipt_uuid')
+  final String? fiscalReceiptUuid;
 
   Map<String, Object?> toJson() => _$Payments6ToJson(this);
 }

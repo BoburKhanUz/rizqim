@@ -4,44 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'distributions2.dart';
+
 part 'data160.g.dart';
 
 @JsonSerializable()
 class Data160 {
-  const Data160({
-    required this.id,
-    required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
-  });
+  const Data160({required this.poolPeriod, required this.distributions});
 
   factory Data160.fromJson(Map<String, Object?> json) =>
       _$Data160FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  @JsonKey(name: 'pool_period')
+  final String poolPeriod;
+  final List<Distributions2> distributions;
 
   Map<String, Object?> toJson() => _$Data160ToJson(this);
 }

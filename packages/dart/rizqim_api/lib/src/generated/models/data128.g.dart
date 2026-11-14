@@ -7,29 +7,23 @@ part of 'data128.dart';
 // **************************************************************************
 
 Data128 _$Data128FromJson(Map<String, dynamic> json) => Data128(
-  stationsCreated: (json['stations_created'] as List<dynamic>)
-      .map((e) => e as String)
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data127.fromJson(e as Map<String, dynamic>))
       .toList(),
-  stationsSkipped: (json['stations_skipped'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  categoriesCreated: (json['categories_created'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  dishesCreated: (json['dishes_created'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  dishesSkipped: (json['dishes_skipped'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  format: Format.fromJson(json['format'] as Map<String, dynamic>),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data128ToJson(Data128 instance) => <String, dynamic>{
-  'stations_created': instance.stationsCreated,
-  'stations_skipped': instance.stationsSkipped,
-  'categories_created': instance.categoriesCreated,
-  'dishes_created': instance.dishesCreated,
-  'dishes_skipped': instance.dishesSkipped,
-  'format': instance.format,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

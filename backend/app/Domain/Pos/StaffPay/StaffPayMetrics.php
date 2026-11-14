@@ -26,7 +26,9 @@ use Illuminate\Support\Facades\DB;
  *    whole order for the new one. A refund made in the period takes its share off both from the same person as the
  *    refunded bill, in the proportion of that bill (on the refund's business day);
  *  - events: completed bookings of the branch whose order the person served, by kind (BookingEventType), on the
- *    business day the booking started;
+ *    business day the booking started; P6-54: settled banquet events (kind `banquet`) for each staff member assigned
+ *    to the event (none assigned: the event order's waiter), on the event's date — the event's bill itself is the
+ *    waiter's sales and service charge like any other bill (the package, hall rent and extras are a charge, not sales);
  *  - tips: StaffTipsSource (P6-22);
  *  - advances: wage money given to them from the branch's tills in the period (cash movements `wage`, categories
  *    advance and daily_wage; a bonus is extra and not taken off; payroll payments of statements are not advances, but
@@ -143,6 +145,27 @@ final class StaffPayMetrics
             $userId = (int) $booking->waiter_id;
             $touch($userId, $date);
             $days[$userId][$date]['events'][(string) $booking->event_type] = ($days[$userId][$date]['events'][(string) $booking->event_type] ?? 0) + 1;
+        }
+
+        // P6-54: settled banquet events, once for each staff member assigned (none assigned: the event order's waiter), on
+        // the event's date
+        $banquets = DB::table('banquet_events')
+            ->leftJoin('orders', 'orders.id', '=', 'banquet_events.order_id')
+            ->where('banquet_events.branch_id', $branch->id)
+            ->where('banquet_events.status', 'settled')
+            ->whereBetween('banquet_events.event_date', [$from, $to])
+            ->get(['banquet_events.id', 'banquet_events.event_date', 'orders.waiter_id']);
+        $assigned = DB::table('banquet_event_staff')->whereIn('banquet_event_id', $banquets->pluck('id')->all() ?: [0])->get(['banquet_event_id', 'user_id'])->groupBy('banquet_event_id');
+        foreach ($banquets as $banquet) {
+            $date = substr((string) $banquet->event_date, 0, 10);
+            $staff = $assigned->get($banquet->id)?->pluck('user_id')->map(fn ($id) => (int) $id)->all() ?? [];
+            if ($staff === [] && $banquet->waiter_id !== null) {
+                $staff = [(int) $banquet->waiter_id];
+            }
+            foreach (array_unique($staff) as $userId) {
+                $touch($userId, $date);
+                $days[$userId][$date]['events'][PayComponents::BANQUET_EVENT] = ($days[$userId][$date]['events'][PayComponents::BANQUET_EVENT] ?? 0) + 1;
+            }
         }
 
         foreach ($this->tips->tipsByDay($branch, $from, $to) as $userId => $byDate) {

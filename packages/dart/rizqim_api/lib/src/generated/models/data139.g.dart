@@ -7,43 +7,27 @@ part of 'data139.dart';
 // **************************************************************************
 
 Data139 _$Data139FromJson(Map<String, dynamic> json) => Data139(
-  uuid: json['uuid'] as String,
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  rule: json['rule'] as String,
-  roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
-  roleWeights: Map<String, String>.from(json['role_weights'] as Map),
-  poolAmount: json['pool_amount'] as String,
-  tipsCount: (json['tips_count'] as num).toInt(),
-  distributed: json['distributed'] as String,
-  status: json['status'] as String,
-  computedAt: json['computed_at'] as String?,
-  closedAt: json['closed_at'] as String?,
-  closedBy: json['closed_by'] == null
-      ? null
-      : ClosedBy3.fromJson(json['closed_by'] as Map<String, dynamic>),
-  manualParticipants: json['manual_participants'] as bool,
-  lines: (json['lines'] as List<dynamic>)
-      .map((e) => Lines7.fromJson(e as Map<String, dynamic>))
+  reservePercent: json['reserve_percent'] as String,
+  osh: Osh2.fromJson(json['osh'] as Map<String, dynamic>),
+  portionWeights: (json['portion_weights'] as List<dynamic>)
+      .map((e) => PortionWeights2.fromJson(e as Map<String, dynamic>))
       .toList(),
+  mxik: Mxik2.fromJson(json['mxik'] as Map<String, dynamic>),
+  contractTemplate: json['contract_template'] as String,
+  contractTemplateIsDefault: json['contract_template_is_default'] as bool,
+  contractPlaceholders: (json['contract_placeholders'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  version: (json['version'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data139ToJson(Data139 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'shift_uuid': instance.shiftUuid,
-  'rule': instance.rule,
-  'roles': instance.roles,
-  'role_weights': instance.roleWeights,
-  'pool_amount': instance.poolAmount,
-  'tips_count': instance.tipsCount,
-  'distributed': instance.distributed,
-  'status': instance.status,
-  'computed_at': instance.computedAt,
-  'closed_at': instance.closedAt,
-  'closed_by': instance.closedBy,
-  'manual_participants': instance.manualParticipants,
-  'lines': instance.lines,
+  'reserve_percent': instance.reservePercent,
+  'osh': instance.osh,
+  'portion_weights': instance.portionWeights,
+  'mxik': instance.mxik,
+  'contract_template': instance.contractTemplate,
+  'contract_template_is_default': instance.contractTemplateIsDefault,
+  'contract_placeholders': instance.contractPlaceholders,
+  'version': instance.version,
 };

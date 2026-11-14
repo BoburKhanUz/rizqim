@@ -1,10 +1,14 @@
 // An in-memory stand-in for the backend API, shaped like the real answers (docs/API.md, the OpenAPI spec). It serves both
 // the Next server's session route handlers (sign-in, refresh, sign-out) and the browser's own calls (with the access
 // token). The feature areas live in their own modules; this one has the accounts, tokens and the routing.
+import { FakeBanquetPay } from './banquetpay'
+import { FakeBanquetOps } from './banquetops'
+import { FakeBanquets } from './banquets'
 import { FakeBilling } from './billing'
 import { FakeBookings } from './bookings'
 import { FakeCombos } from './combos'
 import { FakeCorporate } from './corporate'
+import { FakeDarkKitchen } from './darkkitchen'
 import { FakeFiscal } from './fiscal'
 import { FakeFloor } from './floor'
 import { FakeFormat } from './format'
@@ -45,6 +49,8 @@ export const OWNER_PERMISSIONS = [
   'tips.manage',
   // P6-43: gift certificates (block, unblock)
   'vouchers.manage',
+  // P6-51..P6-53: banquet events, packages and the payment schedule
+  'banquets.manage',
 ]
 
 export interface Account {
@@ -124,6 +130,14 @@ export class FakeBackend {
   corporate: FakeCorporate
   // P6-43: gift certificates ("Sertifikatlar")
   vouchers: FakeVouchers
+  // P6-53: the banquet payment schedule, cancellation, rules and the "Tadbirlar" report
+  banquetPay: FakeBanquetPay
+  // P6-51/P6-52: the events calendar, an event, packages, extras, hall rent and banquet settings
+  banquets: FakeBanquets
+  // P6-54: the event's production sheet, contract, settlement; the shopping list and operations settings
+  banquetOps: FakeBanquetOps
+  // P6-55: brands, ingredients and their quick stop, the channel net revenue report
+  darkKitchen: FakeDarkKitchen
   kds: FakeKds
   combos: FakeCombos
   takeaway: FakeTakeaway
@@ -149,6 +163,10 @@ export class FakeBackend {
     this.tips = new FakeTips(this)
     this.corporate = new FakeCorporate(this)
     this.vouchers = new FakeVouchers(this)
+    this.banquetPay = new FakeBanquetPay(this)
+    this.banquets = new FakeBanquets(this)
+    this.banquetOps = new FakeBanquetOps(this)
+    this.darkKitchen = new FakeDarkKitchen(this)
     this.kds = new FakeKds(this)
     this.combos = new FakeCombos(this)
     this.takeaway = new FakeTakeaway(this)
@@ -314,7 +332,7 @@ export class FakeBackend {
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
     }
 
-    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate]) {
+    for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate, this.banquetPay, this.banquetOps, this.banquets, this.darkKitchen]) {
       const reply = area.handle(req, json)
       if (reply) return reply
     }

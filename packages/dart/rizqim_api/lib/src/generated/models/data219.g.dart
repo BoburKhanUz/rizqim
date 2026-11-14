@@ -7,87 +7,123 @@ part of 'data219.dart';
 // **************************************************************************
 
 Data219 _$Data219FromJson(Map<String, dynamic> json) => Data219(
-  serverTime: json['server_time'] as String,
-  menuVersion: json['menu_version'] as String,
-  store: Store2.fromJson(json['store'] as Map<String, dynamic>),
-  branch: Branch17.fromJson(json['branch'] as Map<String, dynamic>),
-  device: json['device'] == null
-      ? null
-      : Device10.fromJson(json['device'] as Map<String, dynamic>),
-  user: User15.fromJson(json['user'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  stationRoutes: StationRoutes.fromJson(
-    json['station_routes'] as Map<String, dynamic>,
-  ),
-  printers: (json['printers'] as List<dynamic>)
-      .map((e) => Printers.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  staff: (json['staff'] as List<dynamic>)
-      .map((e) => Staff16.fromJson(e as Map<String, dynamic>))
+  customerPhone: json['customer_phone'] as String?,
+  branchId: (json['branch_id'] as num).toInt(),
+  eventDate: json['event_date'] as String,
+  slot: json['slot'] as String,
+  slotLabel: json['slot_label'] as String,
+  startTime: json['start_time'] as String,
+  endTime: json['end_time'] as String,
+  startsAt: json['starts_at'] as String,
+  endsAt: json['ends_at'] as String,
+  hallIds: (json['hall_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
       .toList(),
   halls: (json['halls'] as List<dynamic>)
-      .map((e) => Halls.fromJson(e as Map<String, dynamic>))
+      .map((e) => Halls3.fromJson(e as Map<String, dynamic>))
       .toList(),
-  tables: (json['tables'] as List<dynamic>)
-      .map((e) => Tables5.fromJson(e as Map<String, dynamic>))
+  eventType: json['event_type'] as String,
+  eventTypeLabel: json['event_type_label'] as String,
+  status: json['status'] as String,
+  statusLabel: json['status_label'] as String,
+  title: json['title'] as String?,
+  customerName: json['customer_name'] as String,
+  uuid: json['uuid'] as String,
+  guestsGuaranteed: (json['guests_guaranteed'] as num).toInt(),
+  guestsMinimum: (json['guests_minimum'] as num).toInt(),
+  guestsActual: (json['guests_actual'] as num?)?.toInt(),
+  guestsBilled: (json['guests_billed'] as num).toInt(),
+  packageId: (json['package_id'] as num?)?.toInt(),
+  packageName: json['package_name'] as String?,
+  total: json['total'] as String,
+  paidTotal: json['paid_total'] as String,
+  outstanding: json['outstanding'] as String,
+  holdExpiresAt: json['hold_expires_at'] as String?,
+  frozen: json['frozen'] as bool,
+  contractNo: json['contract_no'] as String?,
+  version: (json['version'] as num).toInt(),
+  packageSnapshot: json['package_snapshot'] as Map<String, dynamic>?,
+  packageTotal: json['package_total'] as String,
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings9.fromJson(e as Map<String, dynamic>))
       .toList(),
-  shift: json['shift'] == null
+  extrasTotal: json['extras_total'] as String,
+  ordersTotal: json['orders_total'] as String,
+  quote: json['quote'] == null
       ? null
-      : Shift.fromJson(json['shift'] as Map<String, dynamic>),
-  quickItems: (json['quick_items'] as List<dynamic>)
-      .map((e) => QuickItems.fromJson(e as Map<String, dynamic>))
+      : Quote.fromJson(json['quote'] as Map<String, dynamic>),
+  frozenAt: json['frozen_at'] as String?,
+  note: json['note'] as String?,
+  orderUuid: json['order_uuid'] as String?,
+  cancelReason: json['cancel_reason'] as String?,
+  createdBy: (json['created_by'] as num?)?.toInt(),
+  confirmedAt: json['confirmed_at'] as String?,
+  startedAt: json['started_at'] as String?,
+  settledAt: json['settled_at'] as String?,
+  cancelledAt: json['cancelled_at'] as String?,
+  releasedAt: json['released_at'] as String?,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines16.fromJson(e as Map<String, dynamic>))
       .toList(),
-  offline: Offline2.fromJson(json['offline'] as Map<String, dynamic>),
-  terminalFlow: json['terminal_flow'] == null
-      ? null
-      : TerminalFlow.fromJson(json['terminal_flow'] as Map<String, dynamic>),
-  staffPay: json['staff_pay'] == null
-      ? null
-      : StaffPay.fromJson(json['staff_pay'] as Map<String, dynamic>),
-  format: Format2.fromJson(json['format'] as Map<String, dynamic>),
-  tips: Tips6.fromJson(json['tips'] as Map<String, dynamic>),
-  entitlements: Entitlements.fromJson(
-    json['entitlements'] as Map<String, dynamic>,
-  ),
-  queue: Queue2.fromJson(json['queue'] as Map<String, dynamic>),
-  bookingRules: json['booking_rules'] == null
-      ? null
-      : BookingRules.fromJson(json['booking_rules'] as Map<String, dynamic>),
-  labels: json['labels'] == null
-      ? null
-      : Labels.fromJson(json['labels'] as Map<String, dynamic>),
-  takeaway: Takeaway.fromJson(json['takeaway'] as Map<String, dynamic>),
-  lan: json['lan'] == null
-      ? null
-      : Lan.fromJson(json['lan'] as Map<String, dynamic>),
+  payments: (json['payments'] as List<dynamic>)
+      .map((e) => Payments4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  hallTotal: json['hall_total'] as String,
 );
 
 Map<String, dynamic> _$Data219ToJson(Data219 instance) => <String, dynamic>{
-  'server_time': instance.serverTime,
-  'menu_version': instance.menuVersion,
-  'store': instance.store,
-  'branch': instance.branch,
-  'device': instance.device,
-  'user': instance.user,
-  'stations': instance.stations,
-  'station_routes': instance.stationRoutes,
-  'printers': instance.printers,
-  'staff': instance.staff,
+  'uuid': instance.uuid,
+  'branch_id': instance.branchId,
+  'event_date': instance.eventDate,
+  'slot': instance.slot,
+  'slot_label': instance.slotLabel,
+  'start_time': instance.startTime,
+  'end_time': instance.endTime,
+  'starts_at': instance.startsAt,
+  'ends_at': instance.endsAt,
+  'hall_ids': instance.hallIds,
   'halls': instance.halls,
-  'tables': instance.tables,
-  'shift': instance.shift,
-  'quick_items': instance.quickItems,
-  'offline': instance.offline,
-  'terminal_flow': instance.terminalFlow,
-  'staff_pay': instance.staffPay,
-  'format': instance.format,
-  'tips': instance.tips,
-  'entitlements': instance.entitlements,
-  'queue': instance.queue,
-  'booking_rules': instance.bookingRules,
-  'labels': instance.labels,
-  'takeaway': instance.takeaway,
-  'lan': instance.lan,
+  'event_type': instance.eventType,
+  'event_type_label': instance.eventTypeLabel,
+  'status': instance.status,
+  'status_label': instance.statusLabel,
+  'title': instance.title,
+  'customer_name': instance.customerName,
+  'customer_phone': instance.customerPhone,
+  'guests_guaranteed': instance.guestsGuaranteed,
+  'guests_minimum': instance.guestsMinimum,
+  'guests_actual': instance.guestsActual,
+  'guests_billed': instance.guestsBilled,
+  'package_id': instance.packageId,
+  'package_name': instance.packageName,
+  'total': instance.total,
+  'paid_total': instance.paidTotal,
+  'outstanding': instance.outstanding,
+  'hold_expires_at': instance.holdExpiresAt,
+  'frozen': instance.frozen,
+  'contract_no': instance.contractNo,
+  'version': instance.version,
+  'package_snapshot': instance.packageSnapshot,
+  'package_total': instance.packageTotal,
+  'hall_total': instance.hallTotal,
+  'extras_total': instance.extrasTotal,
+  'orders_total': instance.ordersTotal,
+  'quote': instance.quote,
+  'frozen_at': instance.frozenAt,
+  'note': instance.note,
+  'order_uuid': instance.orderUuid,
+  'cancel_reason': instance.cancelReason,
+  'created_by': instance.createdBy,
+  'confirmed_at': instance.confirmedAt,
+  'started_at': instance.startedAt,
+  'settled_at': instance.settledAt,
+  'cancelled_at': instance.cancelledAt,
+  'released_at': instance.releasedAt,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
+  'lines': instance.lines,
+  'payments': instance.payments,
+  'warnings': instance.warnings,
 };

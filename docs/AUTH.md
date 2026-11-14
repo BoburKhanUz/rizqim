@@ -303,6 +303,7 @@ superadmin uchun.
 | `hostess.manage` | Hostes stoli: kutish ro'yxati, stolning "tozalanmoqda" belgisi (P6-24, P6-26: `/pos/waitlist*`, `PUT /pos/tables/{id}/state`); stol broni `bookings.manage` bilan. Hostes roli ikkalasiga ham ega | ✓ | ✓ |  |  |  |  |
 | `tips.manage` | Choy pulini sabab bilan tuzatish, umumiy qozonni bo'lish va yopish (P6-22: `POST /owner/pos/tips/{uuid}/corrections`, `/owner/pos/tips/distributions*`, `POST /pos/tips/{uuid}/corrections`); kassir menejer PIN tasdig'i bilan | ✓ | ✓ |  |  |  |  |
 | `vouchers.manage` | Sovg'a sertifikatini bloklash va blokdan chiqarish, to'liq telefon (P6-43: `POST /owner/pos/vouchers/{uuid}/block`, `.../unblock`); ro'yxat, hisobot va Excel `reports.view` bilan ham; sotish va ishlatish — `pos.take_payment` | ✓ | ✓ |  |  |  |  |
+| `banquets.manage` | Tadbirlar (P6-51..P6-53): zalni band qilish, tadbirni o'zgartirish va ko'chirish, narxni muzlatish va (sabab bilan) muzlatishni bekor qilish, paketlar, qo'shimchalar, zal ijarasi va banket sozlamalari, to'lov jadvali; tadbirni o'qish `pos.take_payment` bilan ham (kassir jadvaldagi to'lovni oladi), hisobot `reports.view` | ✓ | ✓ |  |  |  |  |
 
 **Do'kon bo'yicha o'zgartirish.** Ega `PUT /owner/permissions {role, permission, allowed: true|false|null}` yoki
 panelda "Ruxsatlar" sahifasida menejer, kassir, ofitsiant, oshpaz va kuryer huquqlarini o'zgartira oladi (`null` —

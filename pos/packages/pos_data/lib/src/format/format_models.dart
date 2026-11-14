@@ -50,7 +50,12 @@ enum PosModule {
   // 4-to'lqin "To'lov va chek"
   qrPayments('qr_payments', 'Click, Payme va UzQR kassada'),
   vouchers('vouchers', "Sovg'a sertifikati va vaucher"),
-  corporateAccounts('corporate_accounts', 'Korxona hisobi va talon');
+  corporateAccounts('corporate_accounts', 'Korxona hisobi va talon'),
+
+  // 5-to'lqin "Banket va dark kitchen"
+  banquet('banquet', 'Banket va tadbirlar'),
+  multiBrand('multi_brand', "Ko'p brend"),
+  ingredientStoplist('ingredient_stoplist', "Ingredient bo'yicha stop-list");
 
   const PosModule(this.wire, this.label);
 

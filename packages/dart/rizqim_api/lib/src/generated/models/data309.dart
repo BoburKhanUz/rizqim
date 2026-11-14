@@ -4,118 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer4.dart';
-import 'delivery7.dart';
-import 'courier4.dart';
-import 'items61.dart';
+import 'pickup_status.dart';
 
 part 'data309.g.dart';
 
 @JsonSerializable()
 class Data309 {
   const Data309({
-    required this.subtotal,
-    required this.shortCode,
+    required this.orderUuid,
+    required this.number,
+    required this.businessDate,
     required this.status,
-    required this.statusLabel,
-    required this.type,
     required this.channel,
-    required this.storeId,
-    required this.branchId,
-    required this.branchName,
-    required this.paymentMethod,
-    required this.paymentStatus,
-    required this.uuid,
-    required this.discount,
-    required this.deliveryPrice,
-    required this.serviceChargeAmount,
-    required this.placeFeeAmount,
-    required this.totalPrice,
-    required this.notes,
-    required this.guestsCount,
-    required this.hallRef,
-    required this.tableRef,
-    required this.cancelReason,
-    required this.cancelNote,
-    required this.waitingSeconds,
-    required this.delivery,
-    required this.courier,
-    required this.itemsTotal,
-    required this.itemsReady,
-    required this.items,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.acceptedAt,
-    required this.preparingAt,
+    required this.orderStatus,
     required this.readyAt,
-    required this.closedAt,
-    required this.customer,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
+    required this.openedAt,
   });
 
   factory Data309.fromJson(Map<String, Object?> json) =>
       _$Data309FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'short_code')
-  final String? shortCode;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final String type;
+  @JsonKey(name: 'order_uuid')
+  final String orderUuid;
+  final int number;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  final PickupStatus? status;
   final String channel;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'branch_name')
-  final String? branchName;
-  @JsonKey(name: 'payment_method')
-  final String paymentMethod;
-  @JsonKey(name: 'payment_status')
-  final String paymentStatus;
-  final String subtotal;
-  final String discount;
-  @JsonKey(name: 'delivery_price')
-  final String deliveryPrice;
-  @JsonKey(name: 'service_charge_amount')
-  final String serviceChargeAmount;
-  @JsonKey(name: 'place_fee_amount')
-  final String placeFeeAmount;
-  @JsonKey(name: 'total_price')
-  final String totalPrice;
-  final String? notes;
-  @JsonKey(name: 'guests_count')
-  final int? guestsCount;
-  @JsonKey(name: 'hall_ref')
-  final String? hallRef;
-  @JsonKey(name: 'table_ref')
-  final String? tableRef;
-  @JsonKey(name: 'cancel_reason')
-  final String? cancelReason;
-  @JsonKey(name: 'cancel_note')
-  final String? cancelNote;
-  final Customer4? customer;
-  final Delivery7? delivery;
-  final Courier4? courier;
-  @JsonKey(name: 'items_total')
-  final int itemsTotal;
-  @JsonKey(name: 'items_ready')
-  final int itemsReady;
-  final List<Items61> items;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
-  @JsonKey(name: 'accepted_at')
-  final String? acceptedAt;
-  @JsonKey(name: 'preparing_at')
-  final String? preparingAt;
+  @JsonKey(name: 'order_status')
+  final String orderStatus;
   @JsonKey(name: 'ready_at')
   final String? readyAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'waiting_seconds')
-  final int waitingSeconds;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
 
   Map<String, Object?> toJson() => _$Data309ToJson(this);
 }

@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'service_fee3.dart';
-import 'tables4.dart';
+import 'service_fee.dart';
+import 'tables2.dart';
 
 part 'data102.g.dart';
 
@@ -33,8 +33,8 @@ class Data102 {
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'service_fee')
-  final ServiceFee3? serviceFee;
-  final List<Tables4> tables;
+  final ServiceFee? serviceFee;
+  final List<Tables2> tables;
 
   Map<String, Object?> toJson() => _$Data102ToJson(this);
 }

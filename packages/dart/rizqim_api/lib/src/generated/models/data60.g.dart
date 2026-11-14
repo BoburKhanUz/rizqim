@@ -7,23 +7,13 @@ part of 'data60.dart';
 // **************************************************************************
 
 Data60 _$Data60FromJson(Map<String, dynamic> json) => Data60(
-  id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  productId: (json['product_id'] as num).toInt(),
-  productName: json['product_name'] as String?,
-  prices: (json['prices'] as List<dynamic>).map((e) => e as String).toList(),
-  isActive: json['is_active'] as bool,
-  slots: (json['slots'] as List<dynamic>)
-      .map((e) => Slots2.fromJson(e as Map<String, dynamic>))
+  rates: (json['rates'] as List<dynamic>)
+      .map((e) => Rates.fromJson(e as Map<String, dynamic>))
       .toList(),
+  channels: json['channels'] as List<dynamic>,
 );
 
 Map<String, dynamic> _$Data60ToJson(Data60 instance) => <String, dynamic>{
-  'id': instance.id,
-  'uuid': instance.uuid,
-  'product_id': instance.productId,
-  'product_name': instance.productName,
-  'prices': instance.prices,
-  'is_active': instance.isActive,
-  'slots': instance.slots,
+  'rates': instance.rates,
+  'channels': instance.channels,
 };

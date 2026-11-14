@@ -4,67 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device12.dart';
-import 'opened_by.dart';
-import 'closed_by4.dart';
-
 part 'data284.g.dart';
 
 @JsonSerializable()
 class Data284 {
   const Data284({
     required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
-    required this.businessDate,
-    required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
+    required this.name,
+    required this.phone,
+    required this.code,
+    required this.dailyLimit,
+    required this.mealsPerDay,
+    required this.isActive,
+    required this.note,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data284.fromJson(Map<String, Object?> json) =>
       _$Data284FromJson(json);
 
   final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device12? device;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy4? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
+  final String name;
+  final String? phone;
+  final String code;
+  @JsonKey(name: 'daily_limit')
+  final String? dailyLimit;
+  @JsonKey(name: 'meals_per_day')
+  final int? mealsPerDay;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final String? note;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data284ToJson(this);
 }

@@ -4,64 +4,49 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch12.dart';
-import 'sale4.dart';
-import 'buyer4.dart';
-import 'fiscal7.dart';
-import 'blocked5.dart';
-import 'print4.dart';
+import 'slots5.dart';
 
 part 'data148.g.dart';
 
 @JsonSerializable()
 class Data148 {
   const Data148({
-    required this.uuid,
-    required this.code,
-    required this.kind,
-    required this.faceValue,
-    required this.balance,
-    required this.currency,
-    required this.validFrom,
-    required this.validUntil,
-    required this.status,
-    required this.statusLabel,
-    required this.branch,
-    required this.sale,
-    required this.buyer,
-    required this.note,
-    required this.fiscal,
-    required this.blocked,
-    required this.print,
-    required this.createdAt,
+    required this.slots,
+    required this.holdHours,
+    required this.guestWarningThresholds,
+    required this.windowStart,
+    required this.windowEnd,
+    required this.advanceMxik,
+    required this.advancePackageCode,
+    required this.cancellationMxik,
+    required this.cancellationPackageCode,
+    required this.quoteCurrency,
+    required this.version,
   });
 
   factory Data148.fromJson(Map<String, Object?> json) =>
       _$Data148FromJson(json);
 
-  final String uuid;
-  final String code;
-  final String kind;
-  @JsonKey(name: 'face_value')
-  final String faceValue;
-  final String balance;
-  final String currency;
-  @JsonKey(name: 'valid_from')
-  final String validFrom;
-  @JsonKey(name: 'valid_until')
-  final String? validUntil;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final Branch12? branch;
-  final Sale4 sale;
-  final Buyer4 buyer;
-  final String? note;
-  final Fiscal7 fiscal;
-  final Blocked5? blocked;
-  final Print4? print;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final Slots5 slots;
+  @JsonKey(name: 'hold_hours')
+  final int holdHours;
+  @JsonKey(name: 'guest_warning_thresholds')
+  final List<int> guestWarningThresholds;
+  @JsonKey(name: 'window_start')
+  final String windowStart;
+  @JsonKey(name: 'window_end')
+  final String windowEnd;
+  @JsonKey(name: 'advance_mxik')
+  final String? advanceMxik;
+  @JsonKey(name: 'advance_package_code')
+  final String? advancePackageCode;
+  @JsonKey(name: 'cancellation_mxik')
+  final String? cancellationMxik;
+  @JsonKey(name: 'cancellation_package_code')
+  final String? cancellationPackageCode;
+  @JsonKey(name: 'quote_currency')
+  final String? quoteCurrency;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data148ToJson(this);
 }

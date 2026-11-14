@@ -4,26 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'settings.dart';
-import 'merchants.dart';
-import 'options4.dart';
+import 'extras.dart';
 
 part 'data132.g.dart';
 
 @JsonSerializable()
 class Data132 {
-  const Data132({
-    required this.settings,
-    required this.merchants,
-    required this.options,
-  });
+  const Data132({required this.extras});
 
   factory Data132.fromJson(Map<String, Object?> json) =>
       _$Data132FromJson(json);
 
-  final Settings settings;
-  final List<Merchants> merchants;
-  final Options4 options;
+  final List<Extras> extras;
 
   Map<String, Object?> toJson() => _$Data132ToJson(this);
 }

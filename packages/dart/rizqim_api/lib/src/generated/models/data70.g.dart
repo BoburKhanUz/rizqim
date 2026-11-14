@@ -12,9 +12,9 @@ Data70 _$Data70FromJson(Map<String, dynamic> json) => Data70(
   branchId: (json['branch_id'] as num?)?.toInt(),
   branch: json['branch'] == null
       ? null
-      : Branch6.fromJson(json['branch'] as Map<String, dynamic>),
-  polygon: Polygon4.fromJson(json['polygon'] as Map<String, dynamic>),
-  bbox: Bbox4.fromJson(json['bbox'] as Map<String, dynamic>),
+      : Branch3.fromJson(json['branch'] as Map<String, dynamic>),
+  polygon: Polygon.fromJson(json['polygon'] as Map<String, dynamic>),
+  bbox: Bbox.fromJson(json['bbox'] as Map<String, dynamic>),
   areaKm2: json['area_km2'] as String,
   deliveryPrice: json['delivery_price'] as String,
   minOrderAmount: json['min_order_amount'] as String,

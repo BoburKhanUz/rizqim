@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal9.dart';
+import 'fiscal23.dart';
 
 part 'refunds.g.dart';
 
@@ -38,7 +38,7 @@ class Refunds {
   final String reason;
   @JsonKey(name: 'approved_by')
   final int? approvedBy;
-  final Fiscal9 fiscal;
+  final Fiscal23 fiscal;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

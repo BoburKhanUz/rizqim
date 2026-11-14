@@ -23,7 +23,7 @@ Voucher2 _$Voucher2FromJson(Map<String, dynamic> json) => Voucher2(
   sale: Sale6.fromJson(json['sale'] as Map<String, dynamic>),
   buyer: Buyer6.fromJson(json['buyer'] as Map<String, dynamic>),
   note: json['note'] as String?,
-  fiscal: Fiscal25.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal39.fromJson(json['fiscal'] as Map<String, dynamic>),
   blocked: json['blocked'] == null
       ? null
       : Blocked7.fromJson(json['blocked'] as Map<String, dynamic>),

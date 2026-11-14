@@ -11,7 +11,7 @@ _$PostV1PosQrUuidSimulatePaidResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosQrUuidSimulatePaidResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data280.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data331.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosQrUuidSimulatePaidResponseToJson(

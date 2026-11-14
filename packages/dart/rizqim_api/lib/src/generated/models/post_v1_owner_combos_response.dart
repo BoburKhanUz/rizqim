@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data60.dart';
+import 'data63.dart';
 
 part 'post_v1_owner_combos_response.g.dart';
 
@@ -21,7 +21,7 @@ class PostV1OwnerCombosResponse {
 
   final bool success;
   final String message;
-  final Data60 data;
+  final Data63 data;
 
   Map<String, Object?> toJson() => _$PostV1OwnerCombosResponseToJson(this);
 }

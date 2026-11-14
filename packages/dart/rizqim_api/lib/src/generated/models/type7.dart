@@ -12,6 +12,8 @@ enum Type7 {
   variant('variant'),
   @JsonValue('modifier')
   modifier('modifier'),
+  @JsonValue('ingredient')
+  ingredient('ingredient'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -40,6 +40,8 @@ abstract class CatalogApi {
   ///
   /// [categoryId] - Global feed: only this category and its subcategories.
   ///
+  /// [brand] - P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404).
+  ///
   /// [channel] - P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).
   @GET('/v1/catalog')
   Future<dynamic> catalogIndex({
@@ -50,6 +52,7 @@ abstract class CatalogApi {
     @Query('district_id') int? districtId,
     @Query('branch_id') int? branchId,
     @Query('category_id') int? categoryId,
+    @Query('brand') String? brand,
     @Query('channel') Channel? channel,
   });
 

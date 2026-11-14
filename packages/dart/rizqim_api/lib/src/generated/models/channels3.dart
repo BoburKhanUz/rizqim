@@ -4,17 +4,22 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'channel3.dart';
+
 part 'channels3.g.dart';
 
 @JsonSerializable()
 class Channels3 {
-  const Channels3({required this.telegram, required this.sms});
+  const Channels3({required this.channel, this.isHidden, this.pricePercent});
 
   factory Channels3.fromJson(Map<String, Object?> json) =>
       _$Channels3FromJson(json);
 
-  final bool telegram;
-  final bool sms;
+  final Channel3 channel;
+  @JsonKey(name: 'is_hidden')
+  final bool? isHidden;
+  @JsonKey(name: 'price_percent')
+  final num? pricePercent;
 
   Map<String, Object?> toJson() => _$Channels3ToJson(this);
 }

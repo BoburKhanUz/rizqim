@@ -29,6 +29,7 @@ class _CatalogApi implements CatalogApi {
     int? districtId,
     int? branchId,
     int? categoryId,
+    String? brand,
     Channel? channel,
   }) async {
     final _extra = <String, dynamic>{};
@@ -40,6 +41,7 @@ class _CatalogApi implements CatalogApi {
       r'district_id': districtId,
       r'branch_id': branchId,
       r'category_id': categoryId,
+      r'brand': brand,
       r'channel': channel?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);

@@ -4,52 +4,45 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'store_status.dart';
-import 'store_transaction.dart';
-import 'store_wallet_transaction.dart';
-import 'payout_requests.dart';
+import 'layout6.dart';
 
 part 'data82.g.dart';
 
 @JsonSerializable()
 class Data82 {
   const Data82({
-    required this.debtBalance,
-    required this.walletBalance,
-    required this.creditLimit,
-    required this.minPayoutReserve,
-    required this.paymentAccountType,
-    required this.commissionRate,
-    required this.status,
-    required this.isOrderLocked,
-    required this.ledgerTransactions,
-    required this.walletTransactions,
-    required this.payoutRequests,
+    required this.id,
+    required this.branchId,
+    required this.hallId,
+    required this.name,
+    required this.kind,
+    required this.seats,
+    required this.layout,
+    required this.sortOrder,
+    required this.isActive,
+    required this.minSpend,
+    required this.minSpendMode,
   });
 
   factory Data82.fromJson(Map<String, Object?> json) => _$Data82FromJson(json);
 
-  @JsonKey(name: 'debt_balance')
-  final num debtBalance;
-  @JsonKey(name: 'wallet_balance')
-  final num walletBalance;
-  @JsonKey(name: 'credit_limit')
-  final num creditLimit;
-  @JsonKey(name: 'min_payout_reserve')
-  final num minPayoutReserve;
-  @JsonKey(name: 'payment_account_type')
-  final String paymentAccountType;
-  @JsonKey(name: 'commission_rate')
-  final num commissionRate;
-  final StoreStatus status;
-  @JsonKey(name: 'is_order_locked')
-  final bool isOrderLocked;
-  @JsonKey(name: 'ledger_transactions')
-  final List<StoreTransaction> ledgerTransactions;
-  @JsonKey(name: 'wallet_transactions')
-  final List<StoreWalletTransaction> walletTransactions;
-  @JsonKey(name: 'payout_requests')
-  final List<PayoutRequests> payoutRequests;
+  final int id;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'hall_id')
+  final int hallId;
+  final String name;
+  final String kind;
+  final int? seats;
+  final Layout6 layout;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  @JsonKey(name: 'min_spend')
+  final String? minSpend;
+  @JsonKey(name: 'min_spend_mode')
+  final String minSpendMode;
 
   Map<String, Object?> toJson() => _$Data82ToJson(this);
 }

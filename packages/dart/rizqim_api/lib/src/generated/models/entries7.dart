@@ -4,31 +4,30 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'user18.dart';
+import 'fiscal15.dart';
+
 part 'entries7.g.dart';
 
 @JsonSerializable()
 class Entries7 {
   const Entries7({
     required this.uuid,
-    required this.branchId,
+    required this.type,
+    required this.typeLabel,
+    required this.paymentUuid,
+    required this.amount,
+    required this.tender,
+    required this.cardType,
+    required this.reference,
     required this.businessDate,
-    required this.guestName,
-    required this.guestPhone,
-    required this.guestPhoneMasked,
-    required this.partySize,
-    required this.quotedWaitMinutes,
-    required this.note,
-    required this.status,
-    required this.statusLabel,
-    required this.position,
-    required this.waitedMinutes,
-    required this.diningTableId,
-    required this.tableName,
-    required this.orderUuid,
-    required this.notifiedAt,
-    required this.seatedAt,
-    required this.closedAt,
-    required this.version,
+    required this.shiftId,
+    required this.user,
+    required this.approvedBy,
+    required this.reason,
+    required this.transferPending,
+    required this.fiscal,
+    required this.originalReceiptUuid,
     required this.createdAt,
   });
 
@@ -36,40 +35,29 @@ class Entries7 {
       _$Entries7FromJson(json);
 
   final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
+  final String type;
+  @JsonKey(name: 'type_label')
+  final String typeLabel;
+  @JsonKey(name: 'payment_uuid')
+  final String? paymentUuid;
+  final String amount;
+  final String tender;
+  @JsonKey(name: 'card_type')
+  final String? cardType;
+  final String? reference;
   @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'guest_name')
-  final String guestName;
-  @JsonKey(name: 'guest_phone')
-  final String? guestPhone;
-  @JsonKey(name: 'guest_phone_masked')
-  final String? guestPhoneMasked;
-  @JsonKey(name: 'party_size')
-  final int partySize;
-  @JsonKey(name: 'quoted_wait_minutes')
-  final int? quotedWaitMinutes;
-  final String? note;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final int? position;
-  @JsonKey(name: 'waited_minutes')
-  final int waitedMinutes;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'table_name')
-  final String? tableName;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'notified_at')
-  final String? notifiedAt;
-  @JsonKey(name: 'seated_at')
-  final String? seatedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  final int version;
+  final String? businessDate;
+  @JsonKey(name: 'shift_id')
+  final int? shiftId;
+  final User18? user;
+  @JsonKey(name: 'approved_by')
+  final int? approvedBy;
+  final String? reason;
+  @JsonKey(name: 'transfer_pending')
+  final bool transferPending;
+  final Fiscal15 fiscal;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

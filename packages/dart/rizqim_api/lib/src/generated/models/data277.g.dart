@@ -7,11 +7,15 @@ part of 'data277.dart';
 // **************************************************************************
 
 Data277 _$Data277FromJson(Map<String, dynamic> json) => Data277(
-  slots: (json['slots'] as List<dynamic>)
-      .map((e) => Slots4.fromJson(e as Map<String, dynamic>))
+  totalDebt: json['total_debt'] as String,
+  count: (json['count'] as num).toInt(),
+  accounts: (json['accounts'] as List<dynamic>)
+      .map((e) => Accounts2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data277ToJson(Data277 instance) => <String, dynamic>{
-  'slots': instance.slots,
+  'total_debt': instance.totalDebt,
+  'count': instance.count,
+  'accounts': instance.accounts,
 };

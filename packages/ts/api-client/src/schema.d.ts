@@ -5195,6 +5195,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The store's brands
+         * @description Each brand: `id`, `uuid`, `name`, `short_code` (on the kitchen ticket and the label), `color` (#RRGGBB),
+         *     `logo_url`, `is_active`, `sort_order`, `products_count`, `channels` ({channel, is_hidden, price_percent}; a
+         *     channel without a row: visible at the dishes' own prices) and `off_branch_ids` (branches it is switched off on).
+         *     `channels_available`: the channels a rule may name.
+         */
+        get: operations["brand.index"];
+        put?: never;
+        /**
+         * Create a brand
+         * @description `short_code`: 1–8 letters or digits, unique in the store (upper-cased). `color`: #RRGGBB.
+         */
+        post: operations["brand.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/brands/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a brand
+         * @description Its dishes go back to the house brand; sold lines keep the brand they were sold under.
+         */
+        delete: operations["brand.destroy"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a brand
+         * @description Any of name, short_code, color, logo_url, is_active (an inactive brand's dishes are hidden on every channel),
+         *     sort_order.
+         */
+        patch: operations["brand.update"];
+        trace?: never;
+    };
+    "/v1/owner/brands/{id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch a brand on or off on branches
+         * @description `branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every
+         *     channel); a branch left out keeps its state.
+         */
+        put: operations["brand.branches"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/brands/{id}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a brand's channel rules
+         * @description `channels`: [{channel, is_hidden, price_percent}] — `is_hidden`: the brand is not sold on that channel;
+         *     `price_percent` (−90…+300, two decimals): its dishes cost that much more (or less) there, half up to whole so'm,
+         *     unless a variant has its own channel price (that one wins). A channel left out: visible at the own prices.
+         */
+        put: operations["brand.channels"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/categories": {
         parameters: {
             query?: never;
@@ -5210,6 +5305,32 @@ export interface paths {
         put?: never;
         /** Create a new global category */
         post: operations["ownerCatalog.storeCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/channel-commissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Channel commissions
+         * @description The owner's commission percent per channel ({channel, percent, note}); a channel without one uses the order's
+         *     own RIZQIM commission (docs/BILLING.md). `channels`: the channels a rate may name.
+         */
+        get: operations["channelRevenue.commissions"];
+        /**
+         * Replace the channel commissions
+         * @description `rates`: [{channel, percent (0–100, two decimals), note}]; a channel left out goes back to the order's own
+         *     commission. Audited.
+         */
+        put: operations["channelRevenue.updateCommissions"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5992,6 +6113,121 @@ export interface paths {
         patch: operations["hall.update"];
         trace?: never;
     };
+    "/v1/owner/ingredients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The store's ingredients
+         * @description Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped
+         *     now: {branch_id, entry_id, reason, until}) and `stopped_here` (on `branch_id`, when given).
+         */
+        get: operations["ingredient.index"];
+        put?: never;
+        /**
+         * Create an ingredient
+         * @description `name` unique in the store (case-insensitive); `unit` optional (kg, dona…), shown only.
+         */
+        post: operations["ingredient.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/ingredients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an ingredient
+         * @description Its links go, and where it was stopped the dishes reopen.
+         */
+        delete: operations["ingredient.destroy"];
+        options?: never;
+        head?: never;
+        /** Edit an ingredient */
+        patch: operations["ingredient.update"];
+        trace?: never;
+    };
+    "/v1/owner/ingredients/{id}/link-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link whole categories to an ingredient
+         * @description Every dish of the categories (and their subcategories) is linked, keeping the other links; `added`: how many.
+         */
+        post: operations["ingredient.linkCategories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/ingredients/{id}/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the dishes that use an ingredient
+         * @description `links`: [{product_id, is_critical}] (up to 1 000; `is_critical` default true: stopping the ingredient closes
+         *     the dish; false: the dish stays on sale, marked in `limited_products` of the availability).
+         */
+        put: operations["ingredient.links"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/ingredients/{id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop an ingredient on a branch ("Tovuq tugadi")
+         * @description Closes every critically linked dish there at once (all brands, all channels); `until` (optional, a future ISO
+         *     time) reopens by itself; stopping it again updates the reason and time. `closed_product_ids`: the dishes it
+         *     closes. Broadcasts menu.availability_changed. Needs the ingredient_stoplist module on the branch. A till sends an
+         *     Idempotency-Key (optional): a retry with the same key gets the first answer.
+         */
+        post: operations["ingredient.stop"];
+        /**
+         * Reopen an ingredient on a branch
+         * @description Its dishes come back (a dish stopped by its own entry stays stopped). 404 when it is not stopped there. An
+         *     Idempotency-Key is optional, as for the stop.
+         */
+        delete: operations["ingredient.reopen"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/invoices": {
         parameters: {
             query?: never;
@@ -6369,6 +6605,255 @@ export interface paths {
          *     now (`allowed`: the effective value).
          */
         put: operations["staffAccess.updatePermission"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * "Tadbirlar" report (Excel)
+         * @description As GET /owner/pos/banquets/report: the events on the "Tadbirlar" sheet, the totals on "Jami". Recorded in the
+         *     audit log.
+         */
+        get: operations["banquetPayments.export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/extras": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Banquet extras */
+        get: operations["banquetSetup.extras"];
+        put?: never;
+        /**
+         * Create a banquet extra
+         * @description `pricing`: per_event (price × quantity) or per_person (price × quantity × the billed guests).
+         */
+        post: operations["banquetSetup.storeExtra"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/extras/{extra}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a banquet extra
+         * @description An extra an event uses is archived (inactive) instead (`data.deleted` false).
+         */
+        delete: operations["banquetSetup.destroyExtra"];
+        options?: never;
+        head?: never;
+        /** Change a banquet extra */
+        patch: operations["banquetSetup.updateExtra"];
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/halls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Halls and their rent per slot */
+        get: operations["banquetSetup.halls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/halls/{hall}/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a hall's rent per slot
+         * @description `rates`: {morning|day|evening|custom: price or null (no rent)}. Only the slots sent change; audited.
+         */
+        put: operations["banquetSetup.updateHallRates"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/ops-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Banquet operations settings */
+        get: operations["banquetOpsSettings.show"];
+        /**
+         * Change the banquet operations settings
+         * @description Only the fields sent change. `reserve_percent` 0–50; `osh`: {persons_per_kg 1–20, ingredients: [{key, name,
+         *     unit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};
+         *     `portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent
+         *     and extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000
+         *     characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Audited.
+         */
+        put: operations["banquetOpsSettings.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banquet packages
+         * @description Every package of the store (archived ones too), with what they include and their menu items.
+         */
+        get: operations["banquetSetup.packages"];
+        put?: never;
+        /**
+         * Create a banquet package
+         * @description `per_person_price` (so'm), `minimum_guests`, `included` (free text lines), `items`: menu items per person
+         *     (`product_variant_id` or `product_id` of the store, or a free `name`; `quantity_per_person`, `unit`).
+         */
+        post: operations["banquetSetup.storePackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/packages/{package}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a banquet package
+         * @description A package an event uses is archived (inactive) instead (`data.deleted` false).
+         */
+        delete: operations["banquetSetup.destroyPackage"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a banquet package
+         * @description Only the fields sent change (`items` replaces the menu items). Events with frozen prices keep theirs.
+         */
+        patch: operations["banquetSetup.updatePackage"];
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/payment-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banquet payment rules
+         * @description The schedule template a new event's schedule is planned from (`percent` of the total, `days_before` the event;
+         *     null: at booking; the final row takes the rest), the cancellation rule table (`min_days` → `retained_percent` of
+         *     what was paid) and the reminder days. Defaults when the store saved none (`version` 0).
+         */
+        get: operations["banquetPayments.settings"];
+        /**
+         * Save banquet payment rules
+         * @description Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents
+         *     up to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days
+         *     before a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new
+         *     schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; audited.
+         */
+        put: operations["banquetPayments.updateSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * "Tadbirlar" report
+         * @description The events dated `from`..`to` (default this month; at most 366 days), one branch with `branch_id`: per event and
+         *     in total — guests, total, paid (advances and bank transfers), outstanding, overdue, retained and refunded parts of
+         *     cancelled events, bank transfers still to give back. The customer's phone is masked without banquets.manage.
+         */
+        get: operations["banquetPayments.report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/pos/banquets/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Banquet settings */
+        get: operations["banquetSetup.settings"];
+        /**
+         * Change the banquet settings
+         * @description Only the fields sent change. `slots`: {morning|day|evening: {start, end}} ("HH:MM", an end before the start is
+         *     the next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window
+         *     are warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the
+         *     accountant confirms them). Audited.
+         */
+        put: operations["banquetSetup.updateSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -6887,6 +7372,27 @@ export interface paths {
         patch: operations["printer.update"];
         trace?: never;
     };
+    "/v1/owner/product-brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put dishes under a brand
+         * @description `brand_id`: the brand (null: the house brand); `product_ids`: the store's dishes (up to 500). Returns how many
+         *     changed.
+         */
+        put: operations["brand.assignProducts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/products": {
         parameters: {
             query?: never;
@@ -7057,6 +7563,49 @@ export interface paths {
          *     `module_disabled` (clearing never is). Audited. menu.manage.
          */
         patch: operations["productPosService.update"];
+        trace?: never;
+    };
+    "/v1/owner/reports/channel-revenue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Channel net revenue
+         * @description `rows`: one per channel × brand ({channel, channel_label, commission_percent, commission_source: owner|billing,
+         *     brand_id (null: the house brand), brand_name, brand_code, brand_color, orders, gross, discounts, refunds,
+         *     commission, net}); `by_channel`, `by_brand`, `totals`. Money as decimal strings in so'm. The period is at most
+         *     366 days (store time zone days; default today).
+         */
+        get: operations["channelRevenue.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/reports/channel-revenue/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Channel net revenue (Excel)
+         * @description The same report as an .xlsx workbook: "Kanal va brend", "Kanallar", "Brendlar". Recorded in the audit log.
+         */
+        get: operations["channelRevenue.export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/owner/reports/export": {
@@ -7901,6 +8450,553 @@ export interface paths {
          *     people are in the audit log (`pos.approval_granted`, and `pos.approval_used` when the action consumes it).
          */
         post: operations["posApproval.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banquet events (list, search by phone)
+         * @description Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4
+         *     digits): the customer's events across dates, newest first. Filter by `status`. At most 200.
+         */
+        get: operations["banquet.index"];
+        put?: never;
+        /**
+         * Hold halls for an event
+         * @description One or several merged halls (`hall_ids`) of the branch on `event_date` in a `slot` (morning, day, evening with
+         *     the store's times; custom with `start_time`/`end_time` "HH:MM", an end before the start is the next day). The
+         *     event starts as a hold until `hold_expires_at` (released by itself unless the deposit is paid, P6-53). Priced
+         *     from the catalogue: package × max(guests_guaranteed, guests_minimum) + the halls' rent for the slot + `extras`
+         *     (a catalogue `extra_id` or a free `name` + `unit_price` + `per_person`; `quantity`). `guests_minimum` defaults to
+         *     the package's minimum. 409 `slot_taken` (`data.conflicts`) when a hall is held then; 409 `hall_has_bookings`
+         *     when a room inside a hall is booked then. Money in so'm; `quote_currency`/`quote_rate` (USD and the day's rate)
+         *     only for display.
+         */
+        post: operations["banquet.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banquet calendar (halls × days × slots)
+         * @description The branch's halls (with their rent per slot) and the events between `from` and `to` (the store's dates, `to`
+         *     inclusive, at most 62 days; default this month). An event merging halls is listed under each of them. Cancelled
+         *     events only with `include_cancelled=1`. `slots`: the store's slot times.
+         */
+        get: operations["banquet.calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Banquet catalogue for the event editor
+         * @description The store's active packages and extras and the branch's halls with their rent per slot, plus the settings
+         *     (slot times, hold hours, warnings).
+         */
+        get: operations["banquet.catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/osh-calculator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Osh calculator
+         * @description For `persons` guests (1–5000): kg of osh, the ingredients by the store's ratios and the kazans. banquets.manage,
+         *     pos.take_payment, reports.view or kitchen.manage.
+         */
+        get: operations["banquetOps.osh"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/shopping-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shopping list (bozorlik) of a date range
+         * @description The branch's events on `from`..`to` (the store's dates, at most 62 days; default today) that hold their halls
+         *     (hold, confirmed, in progress): their dishes summed by product and unit, the osh ingredients summed, each event's
+         *     planned guests. No customer data. banquets.manage, pos.take_payment, reports.view or kitchen.manage.
+         */
+        get: operations["banquetOps.shopping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/shopping-list/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shopping list as Excel */
+        get: operations["banquetOps.shoppingExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A banquet event */
+        get: operations["banquet.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or move an event
+         * @description Only the fields sent change (a hold or a confirmed event). Moving it (`event_date`, `slot`, `start_time`/
+         *     `end_time`, `hall_ids`) keeps its payments and is checked for conflicts again (409 `slot_taken`,
+         *     `hall_has_bookings`). `extras` replaces the event's extras (a line kept by its `line_uuid` or catalogue
+         *     `extra_id`). On a frozen event the package cannot change (409 `event_frozen`); guests and extras can (frozen
+         *     prices, new lines at today's price). `version`: the one read (409 `stale_version`).
+         */
+        patch: operations["banquet.update"];
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What cancelling the event would do
+         * @description The days left before the event, the rule band's retained %, what was paid, the retained and refunded parts and,
+         *     per paid row, how its refund goes back (`cash_drawer`, `card`, `qr`, `bank_transfer`). `retained`: preview a
+         *     manager's own retained amount (0 … paid). Needs banquets.manage.
+         */
+        get: operations["banquetPayment.quote"];
+        put?: never;
+        /**
+         * Cancel the event with its refund and retained parts
+         * @description `reason` required. The rule table decides the retained part of what was paid (GET …/cancellation shows it); a
+         *     manager may send `retained` (0 … paid) with `override_reason` (422 `override_reason_required`; audited, the
+         *     owner hears it). Refunds: cash from the drawer of the open shift on this terminal (409 `refund_needs_shift`
+         *     elsewhere; pos.refund or a manager's `approval_token`), card and QR the way they were paid (REFUND receipts
+         *     against the advance receipts), a bank transfer marked "to be returned by transfer"; the retained part is a SALE
+         *     receipt of the cancellation service paid by the advance (prepayment). The unpaid rows go and the halls are free.
+         *     Nothing paid: the event is just released. 409 `event_not_cancellable`. Needs banquets.manage.
+         */
+        post: operations["banquetPayment.cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/contract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contract (shartnoma)
+         * @description The store's contract template filled from the event: `text` (and `lines`) to print, the `fields` used, the
+         *     warnings. `contract_no` is null until POST .../contract/number. banquets.manage.
+         */
+        get: operations["banquetOps.contract"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/contract/number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give the contract its number
+         * @description "<year>-<seq>" per store and year, once (the same number again on a retry). Audited. banquets.manage.
+         */
+        post: operations["banquetOps.numberContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze the prices (contract day)
+         * @description Stamps the current prices into the event's lines and the package snapshot; later catalogue edits do not change
+         *     the event. 409 `already_frozen`. Optional `version`.
+         */
+        post: operations["banquet.freeze"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/guests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the guests who came
+         * @description `guests_actual` (0–100000), optional `version`. The final bill uses max(actual, guaranteed, minimum). Audited.
+         *     banquets.manage.
+         */
+        patch: operations["banquetOps.guests"];
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An event's payment schedule
+         * @description The rows (deposit, interims, final: due date, amount, status, tender, ADVANCE receipt; `overdue` once its date has
+         *     passed unpaid), every money entry (payments, bank transfers, refunds, retained parts), the figures for the event
+         *     card (`summary`: paid, outstanding, overdue, next due) and, for a cancelled event, what the cancellation decided.
+         */
+        get: operations["banquetPayment.show"];
+        /**
+         * Edit the unpaid rows of the schedule
+         * @description `rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or
+         *     final; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with
+         *     `expected`). Paid rows never change. `version`: the event's (409 `version_conflict`). Needs banquets.manage and
+         *     the `banquet` module; audited.
+         */
+        put: operations["banquetPayment.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/payments/{row}/bank-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a bank transfer against a row
+         * @description The manager records money the customer sent by bank transfer: `reference` (the payment order number), `paid_on`
+         *     (default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the
+         *     invoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale
+         *     receipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs
+         *     banquets.manage. The same Idempotency-Key returns the same entry.
+         */
+        post: operations["banquetPayment.transfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/payments/{row}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a scheduled payment at the till
+         * @description The row's amount (or a part: `amount`; the rest stays an unpaid row with the same date) by `tender` cash, card
+         *     (`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money
+         *     lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under
+         *     `banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its
+         *     deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`,
+         *     `tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The
+         *     same Idempotency-Key returns the same payment.
+         */
+        post: operations["banquetPayment.pay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/production-sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Production sheet of an event
+         * @description The dishes of the event's package × the planned guests (max of actual, guaranteed, minimum, plus the store's
+         *     reserve %), in portions and kg by kitchen station, the osh calculator's result (kazans and ingredients) and the
+         *     event's warnings. No customer data. banquets.manage, pos.take_payment, reports.view or kitchen.manage.
+         */
+        get: operations["banquetOps.production"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/production-sheet/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Production sheet as Excel */
+        get: operations["banquetOps.productionExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Settle the event
+         * @description At the till: the package, hall rent and extras join the event's order as its `banquet` charge, the order is billed
+         *     as one bill and the paid advances are offset on it (prepayment, in the open shift: `shift_uuid` or the
+         *     terminal's). The answer carries the `bill`: pay what is left on POST /pos/bills/{uuid}/payments with any tender;
+         *     once it is covered ONE sale receipt is issued for the full total (the advances as its prepayment part), the order
+         *     closes and the event becomes `settled`. Advances over the total are refunded against their advance receipts (cash
+         *     from the drawer needs pos.refund or a manager's `approval_token`; else `excess_status` stays `pending` — POST
+         *     .../settlement/refund-excess). Retrying before money is on the bill recomputes it. 409 `invalid_transition`,
+         *     `order_closed`, `shift_not_open`; 422 `mxik_missing`. pos.take_payment.
+         */
+        post: operations["banquetOps.settle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Final settlement (preview)
+         * @description What the final bill is now: the billed guests, the package, hall and extras lines, the event-day order, the
+         *     total, the advances paid (and offset), what is left to pay or to give back; with the settlement once made.
+         *     banquets.manage or pos.take_payment.
+         */
+        get: operations["banquetOps.settlement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/settlement/refund-excess": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund the advances over the total
+         * @description After the final bill is covered: what the advances hold beyond it goes back against their advance receipts,
+         *     newest first (cash from the open shift's drawer: pos.refund or a manager's `approval_token`). pos.take_payment.
+         */
+        post: operations["banquetOps.refundExcess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff assigned to the event */
+        get: operations["banquetOps.staff"];
+        /**
+         * Assign the event's staff
+         * @description `user_ids`: the waiters who serve the event (staff of the store, up to 100; an empty list clears it). A settled
+         *     event counts once for each of them in the staff pay rules' event rate (kind `banquet`). Audited. banquets.manage.
+         */
+        put: operations["banquetOps.updateStaff"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start the event day
+         * @description A confirmed event opens its tab: a hall order bound to the event (`order_uuid`; drinks and extra dishes are its
+         *     ordinary rounds) and becomes `in_progress`. Optional `waiter_id`, `version`. Again: the same tab. 409
+         *     `invalid_transition` (not confirmed), `stale_version`. banquets.manage or pos.take_payment.
+         */
+        post: operations["banquetOps.start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/unfreeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unfreeze the prices
+         * @description banquets.manage and a `reason` (audited): the event is priced from the catalogue again. 409 `not_frozen`.
+         */
+        post: operations["banquet.unfreeze"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/warnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event warnings
+         * @description Guests over the store's thresholds, a time outside the window: warnings only, never a refusal.
+         */
+        get: operations["banquetOps.warnings"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10980,6 +12076,29 @@ export interface components {
          */
         AdminPermission: "admin.today.view" | "admin.orders.view" | "admin.orders.intervene" | "admin.orders.refund_request" | "admin.orders.refund_approve" | "admin.stores.view" | "admin.stores.manage" | "admin.stores.impersonate" | "admin.finance.view" | "admin.finance.manage" | "admin.payouts.approve" | "admin.subscriptions.manage" | "admin.devices.view" | "admin.monitoring.view" | "admin.monitoring.manage" | "admin.support.view" | "admin.support.manage" | "admin.users.view" | "admin.marketing.view" | "admin.marketing.manage" | "admin.integrations.view" | "admin.integrations.manage" | "admin.system.manage" | "admin.team.manage" | "admin.audit.view" | "admin.pii.view" | "admin.export";
         /**
+         * BanquetEventStatus
+         * @description A banquet event's life (P6-51): hold (the hall is held without a deposit until `hold_expires_at`; the minute command `pos:banquet-release-holds` cancels an expired hold and releases the hall) → confirmed (the deposit row of the payment schedule is paid, P6-53) → in_progress (the event-day tab is open, P6-54) → settled (the final sale receipt, P6-54). hold or confirmed → cancelled (P6-53 computes the refund/retained parts).
+         * @enum {string}
+         */
+        BanquetEventStatus: "hold" | "confirmed" | "in_progress" | "settled" | "cancelled";
+        /**
+         * BanquetEventType
+         * @enum {string}
+         */
+        BanquetEventType: "toy" | "osh" | "birthday" | "corporate" | "other";
+        /**
+         * BanquetExtraPricing
+         * @description How an extra of the catalogue is priced (P6-52): once per event (tort, dekor, an extra hour) or per billed guest.
+         * @enum {string}
+         */
+        BanquetExtraPricing: "per_event" | "per_person";
+        /**
+         * BanquetSlot
+         * @description The part of the day an event takes (P6-51): the three slots with the store's times (banquet_settings.slots) or a custom start and end.
+         * @enum {string}
+         */
+        BanquetSlot: "morning" | "day" | "evening" | "custom";
+        /**
          * BillStatus
          * @description order_bills.status: `open` when made, `printed` once handed to the guest (the order is locked from then on), `paid` when its payments cover it AND its sale receipt is issued, `void` when the order was billed again or cancelled.
          * @enum {string}
@@ -11168,6 +12287,20 @@ export interface components {
             region?: components["schemas"]["Region"] | null;
             district?: components["schemas"]["District"] | null;
         };
+        /** BranchBrand */
+        BranchBrand: {
+            id: number;
+            store_id: number;
+            branch_id: number;
+            brand_id: number;
+            is_active: boolean;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            brand?: components["schemas"]["Brand"];
+            branch?: components["schemas"]["Branch"];
+        };
         /** BranchProductVariant */
         BranchProductVariant: {
             id: number;
@@ -11188,6 +12321,40 @@ export interface components {
          * @enum {string}
          */
         BranchStatus: "active" | "inactive" | "temporarily_closed";
+        /** Brand */
+        Brand: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            name: string;
+            short_code: string;
+            color: string;
+            logo_url: string | null;
+            is_active: boolean;
+            sort_order: number;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            products?: components["schemas"]["Product"][];
+            channels?: components["schemas"]["BrandChannel"][];
+            branch_switches?: components["schemas"]["BranchBrand"][];
+        };
+        /** BrandChannel */
+        BrandChannel: {
+            id: number;
+            store_id: number;
+            brand_id: number;
+            channel: components["schemas"]["OrderChannel"];
+            is_hidden: boolean;
+            price_percent: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            brand?: components["schemas"]["Brand"];
+        };
         /**
          * CancelReason
          * @description Why an order was cancelled or rejected (orders.cancel_reason). Every cancellation made from now on carries one; rows cancelled before the column existed have none. Only `no_show` counts towards the cash pickup ban (Order::cashPickupBanApplies).
@@ -11492,6 +12659,20 @@ export interface components {
             store?: components["schemas"]["Store"];
             branch?: components["schemas"]["Branch"];
             tables?: components["schemas"]["DiningTable"][];
+        };
+        /** Ingredient */
+        Ingredient: {
+            id: number;
+            uuid: string;
+            store_id: number;
+            name: string;
+            unit: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+            store?: components["schemas"]["Store"];
+            products?: components["schemas"]["Product"][];
         };
         /**
          * IntegrationConnectionStatus
@@ -11824,6 +13005,8 @@ export interface components {
             /** Format: date-time */
             kitchen_fired_at: string | null;
             promo_note: string | null;
+            banquet_amount: string;
+            banquet_lines: string | null;
             type: string;
             address: string | null;
             store?: components["schemas"]["Store"];
@@ -11882,6 +13065,7 @@ export interface components {
             seat_no: number | null;
             waiter_id: number | null;
             packaging_amount: string;
+            banquet_amount: string;
             order?: components["schemas"]["Order"];
             items?: components["schemas"]["OrderBillItem"][];
             payments?: components["schemas"]["Payment"][];
@@ -11976,6 +13160,13 @@ export interface components {
                 [key: string]: unknown;
             }[] | null;
             combo_parent_id: number | null;
+            brand_id: number | null;
+            brand: {
+                id: number;
+                name: string;
+                code: string;
+                color: string;
+            } | null;
             combo_children?: components["schemas"]["OrderItem"][];
             combo_parent?: components["schemas"]["OrderItem"] | null;
             order?: components["schemas"]["Order"];
@@ -12087,7 +13278,7 @@ export interface components {
          * @description What a store staff member may do. Each role gets a default set (App\Services\Auth\RolePermissions) that an owner can adjust per store (role_permission_overrides); App\Services\Auth\PermissionService resolves the effective set, and the Gate answers `$user->can('orders.cancel', $order)` with it (branch scoping included).
          * @enum {string}
          */
-        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund" | "orders.transfer" | "hostess.manage" | "staff_pay.view" | "staff_pay.manage" | "tips.manage" | "vouchers.manage";
+        Permission: "orders.view" | "orders.manage" | "orders.cancel" | "orders.discount" | "orders.void_item" | "orders.assign_courier" | "orders.refund" | "kitchen.manage" | "deliveries.manage" | "tables.manage" | "menu.view" | "menu.manage" | "stoplist.manage" | "batches.manage" | "staff.view" | "staff.manage" | "staff.pin" | "devices.view" | "devices.manage" | "reports.view" | "finance.view" | "finance.manage" | "settings.manage" | "zones.manage" | "audit.view" | "permissions.manage" | "pos.open_shift" | "pos.close_shift" | "pos.cash_in_out" | "pos.take_payment" | "pos.reprint_bill" | "branches.manage" | "bookings.manage" | "customer_accounts.manage" | "pos.refund" | "orders.transfer" | "hostess.manage" | "staff_pay.view" | "staff_pay.manage" | "tips.manage" | "vouchers.manage" | "banquets.manage";
         /**
          * PickupStatus
          * @description P6-13 (A2): where a counter order with a queue number is for the customer waiting for it (orders.pickup_status, PickupQueue): `preparing` (the kitchen has it, the number shows under "Tayyorlanmoqda"), `ready` (called: the number shows under "Tayyor" and is announced), `handed` (the customer took it). Null: the order is not in the pickup queue (a table order, a delivery, a POS counter order before its lines went to the kitchen, an online pickup order of a branch without `queue_calling`). A POS counter order is tracked in every format (its kitchen lines outlive a payment taken first); only where `queue_calling` is on is it shown on the board and announced.
@@ -12176,6 +13367,7 @@ export interface components {
             wait_minutes: number | null;
             weight_mode: string | null;
             kds_target_seconds: number | null;
+            brand_id: number | null;
             is_active: boolean;
             image_url: string | null;
             image_thumb_urls: {
@@ -12189,6 +13381,8 @@ export interface components {
             modifier_group_links?: components["schemas"]["ProductModifierGroup"][];
             channel_prices?: components["schemas"]["ChannelPrice"][];
             batches?: components["schemas"]["MenuBatch"][];
+            brand?: components["schemas"]["Brand"] | null;
+            ingredients?: components["schemas"]["Ingredient"][];
         };
         /**
          * ProductKind
@@ -24526,6 +25720,8 @@ export interface operations {
                 branch_id?: number;
                 /** @description Global feed: only this category and its subcategories. */
                 category_id?: number;
+                /** @description P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404). */
+                brand?: string;
                 /** @description P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi). */
                 channel?: "telegram" | "mobile" | "pos_hall" | "pos_takeaway";
             };
@@ -24592,16 +25788,22 @@ export interface operations {
                                     id: null;
                                     type: string;
                                     subject_id: string;
-                                    /** @constant */
-                                    reason: "Bugungi menyuda yo'q";
+                                    reason: string;
                                     until: null;
                                 } | {
                                     id: null;
                                     type: string;
                                     subject_id: string;
-                                    reason: string;
+                                    /** @constant */
+                                    reason: "Bugungi menyuda yo'q";
                                     until: null;
                                 })[];
+                                /**
+                                 * @description P6-55 / B9: the ingredients stopped on the branch ({id, ingredient_id, name, reason, until}) and the dishes a
+                                 *     non-critical link only marks ({product_id, ingredient_ids}: still sold, "tovuqsiz")
+                                 */
+                                stopped_ingredients: string;
+                                limited_products: unknown[];
                                 /** @description P6-15: "keyingi partiya HH:MM", earliest first: {id, uuid, product_id, product_variant_id, planned_at, time, quantity, label} */
                                 next_batches: string | string[];
                                 batches: {
@@ -28019,6 +29221,209 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "brand.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            brands: string[];
+                            channels_available: unknown[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "brand.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    short_code: string;
+                    color?: string | null;
+                    /** Format: uri */
+                    logo_url?: string | null;
+                    is_active?: boolean | null;
+                    sort_order?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "brand.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "brand.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    short_code?: string;
+                    color?: string;
+                    /** Format: uri */
+                    logo_url?: string | null;
+                    is_active?: boolean;
+                    sort_order?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "brand.branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branches: {
+                        branch_id: number;
+                        is_active: boolean;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "brand.channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    channels: {
+                        /** @enum {string} */
+                        channel: "telegram" | "mobile" | "pos_hall" | "pos_takeaway" | "aggregator";
+                        is_hidden?: boolean | null;
+                        price_percent?: number | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerCatalog.getCategories": {
         parameters: {
             query?: never;
@@ -28078,6 +29483,80 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "channelRevenue.commissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            rates: {
+                                channel: string;
+                                percent: string;
+                                note: string | null;
+                            }[];
+                            channels: unknown[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "channelRevenue.updateCommissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rates: {
+                        /** @enum {string} */
+                        channel: "telegram" | "mobile" | "pos_hall" | "pos_takeaway" | "aggregator";
+                        percent: number;
+                        note?: string | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            rates: {
+                                channel: string;
+                                percent: string;
+                                note: string | null;
+                            }[];
+                            channels: unknown[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -30905,6 +32384,291 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "ingredient.index": {
+        parameters: {
+            query?: {
+                /** @description The branch `stopped_here` is about (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number | null;
+                            ingredients: string[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    unit?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: null;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "ingredient.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    unit?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.linkCategories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    category_ids: number[];
+                    is_critical?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: unknown[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    links: {
+                        product_id: number;
+                        is_critical?: boolean | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.stop": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    reason?: string | null;
+                    /** Format: date-time */
+                    until?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            entry_id: number;
+                            branch_id: number;
+                            ingredient_id: number;
+                            reason: string;
+                            until: string | null;
+                            closed_product_ids: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "ingredient.reopen": {
+        parameters: {
+            query?: {
+                /** @description The branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            ingredient_id: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerBilling.invoices": {
         parameters: {
             query?: {
@@ -32097,6 +33861,929 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayments.export": {
+        parameters: {
+            query?: {
+                /** @description One branch (a branch-bound caller: their own). */
+                branch_id?: number;
+                /** @description First event date (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last event date (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
+                };
+            };
+        };
+    };
+    "banquetSetup.extras": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            extras: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                price: string;
+                                pricing: string;
+                                pricing_label: string;
+                                is_active: boolean;
+                                sort_order: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.storeExtra": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    price: number;
+                    pricing: components["schemas"]["BanquetExtraPricing"];
+                    is_active?: boolean | null;
+                    sort_order?: number | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            price: string;
+                            pricing: string;
+                            pricing_label: string;
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetSetup.destroyExtra": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                extra: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.updateExtra": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                extra: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    price?: number;
+                    pricing?: components["schemas"]["BanquetExtraPricing"];
+                    is_active?: boolean;
+                    sort_order?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            price: string;
+                            pricing: string;
+                            pricing_label: string;
+                            is_active: boolean;
+                            sort_order: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetSetup.halls": {
+        parameters: {
+            query?: {
+                /** @description One branch (default: every branch of the store). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            halls: {
+                                hall_id: number;
+                                hall_name: string;
+                                branch_id: number;
+                                is_active: boolean;
+                                rates: {
+                                    morning: string | null;
+                                    day: string | null;
+                                    evening: string | null;
+                                    custom: string | null;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.updateHallRates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hall: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rates: {
+                        morning?: number | null;
+                        day?: number | null;
+                        evening?: number | null;
+                        custom?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            hall_id: number;
+                            hall_name: string;
+                            branch_id: number;
+                            is_active: boolean;
+                            rates: {
+                                morning: string | null;
+                                day: string | null;
+                                evening: string | null;
+                                custom: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOpsSettings.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            reserve_percent: string;
+                            osh: {
+                                persons_per_kg: string;
+                                product_ids: number[];
+                                ingredients: {
+                                    key: string;
+                                    name: string;
+                                    unit: string;
+                                    per_kg: string;
+                                }[];
+                                kazans: number[];
+                            };
+                            portion_weights: {
+                                product_id: number;
+                                grams: number;
+                            }[];
+                            mxik: {
+                                package: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                                hall: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                                extra: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                            };
+                            contract_template: string;
+                            contract_template_is_default: boolean;
+                            contract_placeholders: string[];
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOpsSettings.update": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                    reserve_percent?: number;
+                    osh: {
+                        persons_per_kg?: number;
+                        ingredients?: {
+                            key?: string | null;
+                            name: string;
+                            /** @enum {string} */
+                            unit: "kg" | "l" | "dona";
+                            per_kg: number;
+                        }[];
+                        kazans?: number[];
+                        product_ids?: number[];
+                    };
+                    portion_weights?: {
+                        product_id: number;
+                        grams: number;
+                    }[];
+                    package_mxik?: string | null;
+                    package_package_code?: string | null;
+                    hall_mxik?: string | null;
+                    hall_package_code?: string | null;
+                    extra_mxik?: string | null;
+                    extra_package_code?: string | null;
+                    contract_template?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            reserve_percent: string;
+                            osh: {
+                                persons_per_kg: string;
+                                product_ids: number[];
+                                ingredients: {
+                                    key: string;
+                                    name: string;
+                                    unit: string;
+                                    per_kg: string;
+                                }[];
+                                kazans: number[];
+                            };
+                            portion_weights: {
+                                product_id: number;
+                                grams: number;
+                            }[];
+                            mxik: {
+                                package: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                                hall: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                                extra: {
+                                    mxik: string | null;
+                                    package_code: string | null;
+                                };
+                            };
+                            contract_template: string;
+                            contract_template_is_default: boolean;
+                            contract_placeholders: string[];
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetSetup.packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            packages: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                per_person_price: string;
+                                minimum_guests: number;
+                                included: string[];
+                                description: string | null;
+                                is_active: boolean;
+                                sort_order: number;
+                                items: {
+                                    id: number;
+                                    product_id: number | null;
+                                    product_variant_id: number | null;
+                                    name: string;
+                                    quantity_per_person: string;
+                                    unit: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.storePackage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    per_person_price: number;
+                    minimum_guests?: number | null;
+                    included?: (string | null)[] | null;
+                    description?: string | null;
+                    is_active?: boolean | null;
+                    sort_order?: number | null;
+                    items?: {
+                        product_id?: number | null;
+                        product_variant_id?: number | null;
+                        name?: string | null;
+                        quantity_per_person: number;
+                        /** @enum {string|null} */
+                        unit?: "portion" | "piece" | "kg" | "l" | null;
+                    }[] | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            per_person_price: string;
+                            minimum_guests: number;
+                            included: string[];
+                            description: string | null;
+                            is_active: boolean;
+                            sort_order: number;
+                            items: {
+                                id: number;
+                                product_id: number | null;
+                                product_variant_id: number | null;
+                                name: string;
+                                quantity_per_person: string;
+                                unit: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetSetup.destroyPackage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.updatePackage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    per_person_price?: number;
+                    minimum_guests?: number;
+                    included?: (string | null)[] | null;
+                    description?: string | null;
+                    is_active?: boolean;
+                    sort_order?: number;
+                    items?: {
+                        product_id?: number | null;
+                        product_variant_id?: number | null;
+                        name?: string | null;
+                        quantity_per_person: number;
+                        /** @enum {string|null} */
+                        unit?: "portion" | "piece" | "kg" | "l" | null;
+                    }[] | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            id: number;
+                            uuid: string;
+                            name: string;
+                            per_person_price: string;
+                            minimum_guests: number;
+                            included: string[];
+                            description: string | null;
+                            is_active: boolean;
+                            sort_order: number;
+                            items: {
+                                id: number;
+                                product_id: number | null;
+                                product_variant_id: number | null;
+                                name: string;
+                                quantity_per_person: string;
+                                unit: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayments.settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            schedule_template: {
+                                kind: string;
+                                percent: string | null;
+                                days_before: number | null;
+                            }[];
+                            cancellation_rules: {
+                                min_days: number;
+                                retained_percent: string;
+                            }[];
+                            reminder_days: number[];
+                            overdue_reminders: boolean;
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetPayments.updateSettings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    schedule_template?: {
+                        /** @enum {string} */
+                        kind: "deposit" | "interim" | "final";
+                        percent?: number | null;
+                        days_before?: number | null;
+                    }[];
+                    cancellation_rules?: {
+                        min_days: number;
+                        retained_percent: number;
+                    }[];
+                    reminder_days?: number[];
+                    overdue_reminders?: boolean;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            schedule_template: {
+                                kind: string;
+                                percent: string | null;
+                                days_before: number | null;
+                            }[];
+                            cancellation_rules: {
+                                min_days: number;
+                                retained_percent: string;
+                            }[];
+                            reminder_days: number[];
+                            overdue_reminders: boolean;
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayments.report": {
+        parameters: {
+            query?: {
+                /** @description One branch (a branch-bound caller: their own). */
+                branch_id?: number;
+                /** @description First event date (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last event date (YYYY-MM-DD). */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            from: string;
+                            to: string;
+                            branch_id: number | null;
+                            events: number;
+                            cancelled: number;
+                            by_status: {
+                                status: string;
+                                count: number;
+                            }[];
+                            guests: number;
+                            total: string;
+                            paid: string;
+                            outstanding: string;
+                            overdue: {
+                                count: number;
+                                amount: string;
+                            };
+                            retained: string;
+                            refunded: string;
+                            transfer_pending: string;
+                            rows: {
+                                uuid: string;
+                                event_date: string;
+                                slot: string;
+                                event_type: string;
+                                title: string | null;
+                                branch_id: number;
+                                customer_name: string;
+                                customer_phone: string | null;
+                                status: string;
+                                status_label: string;
+                                guests_guaranteed: number;
+                                guests_minimum: number;
+                                guests_actual: number | null;
+                                guests: number;
+                                total: string;
+                                paid: string;
+                                refunded: string;
+                                retained: string;
+                                outstanding: string;
+                                overdue: string;
+                                transfer_pending: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            slots: {
+                                morning: {
+                                    start: string;
+                                    end: string;
+                                };
+                                day: {
+                                    start: string;
+                                    end: string;
+                                };
+                                evening: {
+                                    start: string;
+                                    end: string;
+                                };
+                            };
+                            hold_hours: number;
+                            guest_warning_thresholds: number[];
+                            window_start: string;
+                            window_end: string;
+                            advance_mxik: string | null;
+                            advance_package_code: string | null;
+                            cancellation_mxik: string | null;
+                            cancellation_package_code: string | null;
+                            quote_currency: string | null;
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetSetup.updateSettings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    slots?: {
+                        start: string;
+                        end: string;
+                    }[];
+                    hold_hours?: number;
+                    guest_warning_thresholds?: number[] | null;
+                    window_start?: string;
+                    window_end?: string;
+                    advance_mxik?: string | null;
+                    advance_package_code?: string | null;
+                    cancellation_mxik?: string | null;
+                    cancellation_package_code?: string | null;
+                    quote_currency?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            slots: {
+                                morning: {
+                                    start: string;
+                                    end: string;
+                                };
+                                day: {
+                                    start: string;
+                                    end: string;
+                                };
+                                evening: {
+                                    start: string;
+                                    end: string;
+                                };
+                            };
+                            hold_hours: number;
+                            guest_warning_thresholds: number[];
+                            window_start: string;
+                            window_end: string;
+                            advance_mxik: string | null;
+                            advance_package_code: string | null;
+                            cancellation_mxik: string | null;
+                            cancellation_package_code: string | null;
+                            quote_currency: string | null;
+                            version: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -34018,6 +36705,41 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "brand.assignProducts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    brand_id: number | null;
+                    product_ids: number[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            changed: string;
+                            brand_id: number | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "ownerCatalog.getProducts": {
         parameters: {
             query?: never;
@@ -34417,6 +37139,83 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "channelRevenue.show": {
+        parameters: {
+            query?: {
+                /** @description First day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last day (YYYY-MM-DD). */
+                to?: string;
+                /** @description One branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "channelRevenue.export": {
+        parameters: {
+            query?: {
+                /** @description First day (YYYY-MM-DD). */
+                from?: string;
+                /** @description Last day (YYYY-MM-DD). */
+                to?: string;
+                /** @description One branch (a branch-bound caller: their own). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+            /** @description An error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example Faylni tayyorlab bo'lmadi.
+                         */
+                        message: string;
+                    };
+                };
+            };
         };
     };
     "report.export": {
@@ -36975,7 +39774,7 @@ export interface operations {
                 "application/json": {
                     branch_id?: number | null;
                     /** @enum {string} */
-                    type: "product" | "variant" | "modifier";
+                    type: "product" | "variant" | "modifier" | "ingredient";
                     id: number;
                     reason?: string | null;
                     /** Format: date-time */
@@ -37375,6 +40174,2761 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "banquet.index": {
+        parameters: {
+            query?: {
+                /** @description One branch (default: the caller's; the whole store for store-wide staff). */
+                branch_id?: number;
+                /** @description Search by the customer phone (digits, at least 4). */
+                phone?: string;
+                /** @description An App\Domain\Pos\Banquet\BanquetEventStatus value. */
+                status?: string;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            events: {
+                                uuid: string;
+                                branch_id: number;
+                                event_date: string;
+                                slot: string;
+                                slot_label: string;
+                                start_time: string;
+                                end_time: string;
+                                starts_at: string;
+                                ends_at: string;
+                                hall_ids: number[];
+                                halls: {
+                                    id: number;
+                                    name: string;
+                                }[];
+                                event_type: string;
+                                event_type_label: string;
+                                status: string;
+                                status_label: string;
+                                title: string | null;
+                                customer_name: string;
+                                customer_phone: string | null;
+                                guests_guaranteed: number;
+                                guests_minimum: number;
+                                guests_actual: number | null;
+                                guests_billed: number;
+                                package_id: number | null;
+                                package_name: string | null;
+                                total: string;
+                                paid_total: string;
+                                outstanding: string;
+                                hold_expires_at: string | null;
+                                frozen: boolean;
+                                contract_no: string | null;
+                                version: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquet.store": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    branch_id?: number | null;
+                    /** Format: date */
+                    event_date: string;
+                    slot: components["schemas"]["BanquetSlot"];
+                    start_time?: string | null;
+                    end_time?: string | null;
+                    hall_ids: number[];
+                    event_type?: components["schemas"]["BanquetEventType"] | null;
+                    title?: string | null;
+                    customer_name: string;
+                    customer_phone?: string | null;
+                    guests_guaranteed: number;
+                    guests_minimum?: number | null;
+                    banquet_package_id?: number | null;
+                    extras?: {
+                        extra_id?: number | null;
+                        name?: string | null;
+                        unit_price?: number | null;
+                        per_person?: boolean | null;
+                        quantity?: number | null;
+                        note?: string | null;
+                    }[] | null;
+                    quote_currency?: string | null;
+                    quote_rate?: number | null;
+                    note?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            event_date: string;
+                            slot: string;
+                            slot_label: string;
+                            start_time: string;
+                            end_time: string;
+                            starts_at: string;
+                            ends_at: string;
+                            hall_ids: number[];
+                            halls: {
+                                id: number;
+                                name: string;
+                            }[];
+                            event_type: string;
+                            event_type_label: string;
+                            status: string;
+                            status_label: string;
+                            title: string | null;
+                            customer_name: string;
+                            customer_phone: string | null;
+                            guests_guaranteed: number;
+                            guests_minimum: number;
+                            guests_actual: number | null;
+                            guests_billed: number;
+                            package_id: number | null;
+                            package_name: string | null;
+                            total: string;
+                            paid_total: string;
+                            outstanding: string;
+                            hold_expires_at: string | null;
+                            frozen: boolean;
+                            contract_no: string | null;
+                            version: number;
+                            package_snapshot: {
+                                [key: string]: unknown;
+                            } | null;
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders_total: string;
+                            quote: {
+                                currency: string;
+                                rate: string;
+                                total: string;
+                            } | null;
+                            frozen_at: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            cancel_reason: string | null;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            started_at: string | null;
+                            settled_at: string | null;
+                            cancelled_at: string | null;
+                            released_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                name: string;
+                                extra_id: number | null;
+                                hall_id: number | null;
+                                quantity: string;
+                                persons: number | null;
+                                per_person: boolean;
+                                unit_price: string;
+                                amount: string;
+                                frozen: boolean;
+                                note: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                tender: string | null;
+                                paid_at: string | null;
+                                fiscal_receipt_uuid: string | null;
+                            }[];
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A hall is taken at that time */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquet.calendar": {
+        parameters: {
+            query?: {
+                /** @description The branch (default: the one the caller works in). */
+                branch_id?: number;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+                /** @description Also cancelled events. */
+                include_cancelled?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            timezone: string;
+                            slots: {
+                                morning: {
+                                    start: string;
+                                    end: string;
+                                };
+                                day: {
+                                    start: string;
+                                    end: string;
+                                };
+                                evening: {
+                                    start: string;
+                                    end: string;
+                                };
+                            };
+                            halls: {
+                                id: number;
+                                name: string;
+                                is_active: boolean;
+                                events: {
+                                    uuid: string;
+                                    branch_id: number;
+                                    event_date: string;
+                                    slot: string;
+                                    slot_label: string;
+                                    start_time: string;
+                                    end_time: string;
+                                    starts_at: string;
+                                    ends_at: string;
+                                    hall_ids: number[];
+                                    halls: {
+                                        id: number;
+                                        name: string;
+                                    }[];
+                                    event_type: string;
+                                    event_type_label: string;
+                                    status: string;
+                                    status_label: string;
+                                    title: string | null;
+                                    customer_name: string;
+                                    customer_phone: string | null;
+                                    guests_guaranteed: number;
+                                    guests_minimum: number;
+                                    guests_actual: number | null;
+                                    guests_billed: number;
+                                    package_id: number | null;
+                                    package_name: string | null;
+                                    total: string;
+                                    paid_total: string;
+                                    outstanding: string;
+                                    hold_expires_at: string | null;
+                                    frozen: boolean;
+                                    contract_no: string | null;
+                                    version: number;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquet.catalog": {
+        parameters: {
+            query?: {
+                /** @description The branch (default: the one the caller works in). */
+                branch_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            packages: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                per_person_price: string;
+                                minimum_guests: number;
+                                included: string[];
+                                description: string | null;
+                                is_active: boolean;
+                                sort_order: number;
+                                items: {
+                                    id: number;
+                                    product_id: number | null;
+                                    product_variant_id: number | null;
+                                    name: string;
+                                    quantity_per_person: string;
+                                    unit: string;
+                                }[];
+                            }[];
+                            extras: {
+                                id: number;
+                                uuid: string;
+                                name: string;
+                                price: string;
+                                pricing: string;
+                                pricing_label: string;
+                                is_active: boolean;
+                                sort_order: number;
+                            }[];
+                            halls: {
+                                hall_id: number;
+                                hall_name: string;
+                                branch_id: number;
+                                is_active: boolean;
+                                rates: {
+                                    morning: string | null;
+                                    day: string | null;
+                                    evening: string | null;
+                                    custom: string | null;
+                                };
+                            }[];
+                            settings: {
+                                slots: {
+                                    morning: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                    day: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                    evening: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                };
+                                hold_hours: number;
+                                guest_warning_thresholds: number[];
+                                window_start: string;
+                                window_end: string;
+                                advance_mxik: string | null;
+                                advance_package_code: string | null;
+                                cancellation_mxik: string | null;
+                                cancellation_package_code: string | null;
+                                quote_currency: string | null;
+                                version: number;
+                            };
+                            event_types: {
+                                value: string;
+                                label: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.osh": {
+        parameters: {
+            query: {
+                /** @description How many guests (1–5000). */
+                persons: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            persons: number;
+                            persons_per_kg: string;
+                            osh_kg: string;
+                            ingredients: {
+                                key: string;
+                                name: string;
+                                unit: string;
+                                per_kg: string;
+                                quantity: string;
+                            }[];
+                            kazans: {
+                                size_kg: number;
+                                count: number;
+                            }[];
+                            kazan_capacity_kg: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.shopping": {
+        parameters: {
+            query?: {
+                /** @description The branch (default: the one the caller works in). */
+                branch_id?: number;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            branch_id: number;
+                            from: string;
+                            to: string;
+                            events: {
+                                uuid: string;
+                                title: string | null;
+                                event_type: string;
+                                event_date: string;
+                                slot: string;
+                                status: string;
+                                planned_guests: number;
+                            }[];
+                            dishes: {
+                                product_id: number | null;
+                                name: string;
+                                unit: string;
+                                quantity_per_person: string | null;
+                                quantity: string;
+                                kg: string | null;
+                            }[];
+                            osh: {
+                                persons: number;
+                                osh_kg: string;
+                                ingredients: {
+                                    key: string;
+                                    name: string;
+                                    unit: string;
+                                    per_kg: string;
+                                    quantity: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.shoppingExport": {
+        parameters: {
+            query?: {
+                /** @description The branch (default: the one the caller works in). */
+                branch_id?: number;
+                /** @description First day, Y-m-d (store time zone). */
+                from?: string;
+                /** @description Last day, Y-m-d, inclusive. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquet.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            event_date: string;
+                            slot: string;
+                            slot_label: string;
+                            start_time: string;
+                            end_time: string;
+                            starts_at: string;
+                            ends_at: string;
+                            hall_ids: number[];
+                            halls: {
+                                id: number;
+                                name: string;
+                            }[];
+                            event_type: string;
+                            event_type_label: string;
+                            status: string;
+                            status_label: string;
+                            title: string | null;
+                            customer_name: string;
+                            customer_phone: string | null;
+                            guests_guaranteed: number;
+                            guests_minimum: number;
+                            guests_actual: number | null;
+                            guests_billed: number;
+                            package_id: number | null;
+                            package_name: string | null;
+                            total: string;
+                            paid_total: string;
+                            outstanding: string;
+                            hold_expires_at: string | null;
+                            frozen: boolean;
+                            contract_no: string | null;
+                            version: number;
+                            package_snapshot: {
+                                [key: string]: unknown;
+                            } | null;
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders_total: string;
+                            quote: {
+                                currency: string;
+                                rate: string;
+                                total: string;
+                            } | null;
+                            frozen_at: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            cancel_reason: string | null;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            started_at: string | null;
+                            settled_at: string | null;
+                            cancelled_at: string | null;
+                            released_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                name: string;
+                                extra_id: number | null;
+                                hall_id: number | null;
+                                quantity: string;
+                                persons: number | null;
+                                per_person: boolean;
+                                unit_price: string;
+                                amount: string;
+                                frozen: boolean;
+                                note: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                tender: string | null;
+                                paid_at: string | null;
+                                fiscal_receipt_uuid: string | null;
+                            }[];
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquet.update": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: date */
+                    event_date?: string;
+                    slot?: components["schemas"]["BanquetSlot"];
+                    start_time?: string | null;
+                    end_time?: string | null;
+                    hall_ids?: number[];
+                    event_type?: components["schemas"]["BanquetEventType"];
+                    title?: string | null;
+                    customer_name?: string;
+                    customer_phone?: string | null;
+                    guests_guaranteed?: number;
+                    guests_minimum?: number;
+                    banquet_package_id?: number | null;
+                    extras?: {
+                        /** Format: uuid */
+                        line_uuid?: string | null;
+                        extra_id?: number | null;
+                        name?: string | null;
+                        unit_price?: number | null;
+                        per_person?: boolean | null;
+                        quantity?: number | null;
+                        note?: string | null;
+                    }[] | null;
+                    quote_currency?: string | null;
+                    quote_rate?: number | null;
+                    note?: string | null;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            event_date: string;
+                            slot: string;
+                            slot_label: string;
+                            start_time: string;
+                            end_time: string;
+                            starts_at: string;
+                            ends_at: string;
+                            hall_ids: number[];
+                            halls: {
+                                id: number;
+                                name: string;
+                            }[];
+                            event_type: string;
+                            event_type_label: string;
+                            status: string;
+                            status_label: string;
+                            title: string | null;
+                            customer_name: string;
+                            customer_phone: string | null;
+                            guests_guaranteed: number;
+                            guests_minimum: number;
+                            guests_actual: number | null;
+                            guests_billed: number;
+                            package_id: number | null;
+                            package_name: string | null;
+                            total: string;
+                            paid_total: string;
+                            outstanding: string;
+                            hold_expires_at: string | null;
+                            frozen: boolean;
+                            contract_no: string | null;
+                            version: number;
+                            package_snapshot: {
+                                [key: string]: unknown;
+                            } | null;
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders_total: string;
+                            quote: {
+                                currency: string;
+                                rate: string;
+                                total: string;
+                            } | null;
+                            frozen_at: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            cancel_reason: string | null;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            started_at: string | null;
+                            settled_at: string | null;
+                            cancelled_at: string | null;
+                            released_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                name: string;
+                                extra_id: number | null;
+                                hall_id: number | null;
+                                quantity: string;
+                                persons: number | null;
+                                per_person: boolean;
+                                unit_price: string;
+                                amount: string;
+                                frozen: boolean;
+                                note: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                tender: string | null;
+                                paid_at: string | null;
+                                fiscal_receipt_uuid: string | null;
+                            }[];
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.quote": {
+        parameters: {
+            query?: {
+                /** @description A manager's own retained amount to preview (0 … paid). */
+                retained?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            days_before: number;
+                            rule_percent: string;
+                            paid: string;
+                            computed_retained: string;
+                            retained: string;
+                            refund: string;
+                            overridden: boolean;
+                            cash_refund: string;
+                            transfer_refund: string;
+                            rows: {
+                                payment_uuid: string;
+                                kind: string;
+                                tender: string | null;
+                                amount: string;
+                                retain: string;
+                                refund: string;
+                                refund_path: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.cancel": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    retained?: number | null;
+                    override_reason?: string | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                status_label: string;
+                                event_date: string;
+                                total: string;
+                                paid_total: string;
+                                version: number;
+                            };
+                            summary: {
+                                total: string;
+                                paid: string;
+                                outstanding: string;
+                                overdue: boolean;
+                                overdue_amount: string;
+                                overdue_count: number;
+                                next_due: {
+                                    date: string;
+                                    amount: string;
+                                    kind: string;
+                                } | null;
+                            };
+                            rows: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                overdue: boolean;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                paid_at: string | null;
+                                paid_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                refunded_amount: string;
+                                retained_amount: string;
+                                settle_receipt_uuid: string | null;
+                                note: string | null;
+                            }[];
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            }[];
+                            cancellation: {
+                                days_before: number;
+                                rule_percent: string;
+                                paid: string;
+                                computed_retained: string;
+                                retained: string;
+                                refund: string;
+                                override_reason: string | null;
+                                reason: string | null;
+                                business_date: string | null;
+                                cancelled_by: number | null;
+                                created_at: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.contract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            contract_no: string | null;
+                            text: string;
+                            lines: string[];
+                            fields: {
+                                [key: string]: string;
+                            };
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.numberContract": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            contract_no: string | null;
+                            text: string;
+                            lines: string[];
+                            fields: {
+                                [key: string]: string;
+                            };
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquet.freeze": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            event_date: string;
+                            slot: string;
+                            slot_label: string;
+                            start_time: string;
+                            end_time: string;
+                            starts_at: string;
+                            ends_at: string;
+                            hall_ids: number[];
+                            halls: {
+                                id: number;
+                                name: string;
+                            }[];
+                            event_type: string;
+                            event_type_label: string;
+                            status: string;
+                            status_label: string;
+                            title: string | null;
+                            customer_name: string;
+                            customer_phone: string | null;
+                            guests_guaranteed: number;
+                            guests_minimum: number;
+                            guests_actual: number | null;
+                            guests_billed: number;
+                            package_id: number | null;
+                            package_name: string | null;
+                            total: string;
+                            paid_total: string;
+                            outstanding: string;
+                            hold_expires_at: string | null;
+                            frozen: boolean;
+                            contract_no: string | null;
+                            version: number;
+                            package_snapshot: {
+                                [key: string]: unknown;
+                            } | null;
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders_total: string;
+                            quote: {
+                                currency: string;
+                                rate: string;
+                                total: string;
+                            } | null;
+                            frozen_at: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            cancel_reason: string | null;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            started_at: string | null;
+                            settled_at: string | null;
+                            cancelled_at: string | null;
+                            released_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                name: string;
+                                extra_id: number | null;
+                                hall_id: number | null;
+                                quantity: string;
+                                persons: number | null;
+                                per_person: boolean;
+                                unit_price: string;
+                                amount: string;
+                                frozen: boolean;
+                                note: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                tender: string | null;
+                                paid_at: string | null;
+                                fiscal_receipt_uuid: string | null;
+                            }[];
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.guests": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    guests_actual: number;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                version: number;
+                                order_uuid: string | null;
+                                started_at: string | null;
+                            };
+                            settlement: {
+                                event: {
+                                    uuid: string;
+                                    status: string;
+                                    version: number;
+                                    order_uuid: string | null;
+                                };
+                                guests: {
+                                    guaranteed: number;
+                                    minimum: number;
+                                    actual: number | null;
+                                    billed: number;
+                                };
+                                lines: {
+                                    uuid: string;
+                                    kind: string;
+                                    name: string;
+                                    unit_price: string;
+                                    quantity: string;
+                                    persons: number | null;
+                                    amount: string;
+                                }[];
+                                package_total: string;
+                                hall_total: string;
+                                extras_total: string;
+                                orders: {
+                                    lines: string;
+                                    discount: string;
+                                    service_charge: string;
+                                    other_charges: string;
+                                    total: string;
+                                };
+                                total: string;
+                                advances: {
+                                    total: string;
+                                    applied: string;
+                                    rows: {
+                                        uuid: string;
+                                        tender: string;
+                                        amount: string;
+                                        paid_at: string | null;
+                                    }[];
+                                };
+                                due: string;
+                                excess: string;
+                                settlement: {
+                                    uuid: string;
+                                    status: string;
+                                    bill_uuid: string | null;
+                                    applied_amount: string;
+                                    excess_amount: string;
+                                    excess_status: string;
+                                    settled_at: string | null;
+                                } | null;
+                                warnings: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                status_label: string;
+                                event_date: string;
+                                total: string;
+                                paid_total: string;
+                                version: number;
+                            };
+                            summary: {
+                                total: string;
+                                paid: string;
+                                outstanding: string;
+                                overdue: boolean;
+                                overdue_amount: string;
+                                overdue_count: number;
+                                next_due: {
+                                    date: string;
+                                    amount: string;
+                                    kind: string;
+                                } | null;
+                            };
+                            rows: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                overdue: boolean;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                paid_at: string | null;
+                                paid_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                refunded_amount: string;
+                                retained_amount: string;
+                                settle_receipt_uuid: string | null;
+                                note: string | null;
+                            }[];
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            }[];
+                            cancellation: {
+                                days_before: number;
+                                rule_percent: string;
+                                paid: string;
+                                computed_retained: string;
+                                retained: string;
+                                refund: string;
+                                override_reason: string | null;
+                                reason: string | null;
+                                business_date: string | null;
+                                cancelled_by: number | null;
+                                created_at: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetPayment.update": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rows: {
+                        /** Format: uuid */
+                        uuid?: string | null;
+                        /** @enum {string} */
+                        kind: "deposit" | "interim" | "final";
+                        /** Format: date */
+                        due_date: string;
+                        amount: number;
+                    }[];
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                status_label: string;
+                                event_date: string;
+                                total: string;
+                                paid_total: string;
+                                version: number;
+                            };
+                            summary: {
+                                total: string;
+                                paid: string;
+                                outstanding: string;
+                                overdue: boolean;
+                                overdue_amount: string;
+                                overdue_count: number;
+                                next_due: {
+                                    date: string;
+                                    amount: string;
+                                    kind: string;
+                                } | null;
+                            };
+                            rows: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                overdue: boolean;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                paid_at: string | null;
+                                paid_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                refunded_amount: string;
+                                retained_amount: string;
+                                settle_receipt_uuid: string | null;
+                                note: string | null;
+                            }[];
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            }[];
+                            cancellation: {
+                                days_before: number;
+                                rule_percent: string;
+                                paid: string;
+                                computed_retained: string;
+                                retained: string;
+                                refund: string;
+                                override_reason: string | null;
+                                reason: string | null;
+                                business_date: string | null;
+                                cancelled_by: number | null;
+                                created_at: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.transfer": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                row: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount?: number | null;
+                    reference: string;
+                    /** Format: date */
+                    paid_on?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            schedule: {
+                                event: {
+                                    uuid: string;
+                                    status: string;
+                                    status_label: string;
+                                    event_date: string;
+                                    total: string;
+                                    paid_total: string;
+                                    version: number;
+                                };
+                                summary: {
+                                    total: string;
+                                    paid: string;
+                                    outstanding: string;
+                                    overdue: boolean;
+                                    overdue_amount: string;
+                                    overdue_count: number;
+                                    next_due: {
+                                        date: string;
+                                        amount: string;
+                                        kind: string;
+                                    } | null;
+                                };
+                                rows: {
+                                    uuid: string;
+                                    kind: string;
+                                    kind_label: string;
+                                    due_date: string | null;
+                                    amount: string;
+                                    status: string;
+                                    status_label: string;
+                                    overdue: boolean;
+                                    tender: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    shift_id: number | null;
+                                    paid_at: string | null;
+                                    paid_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    fiscal: {
+                                        receipt_uuid: string | null;
+                                        status: string | null;
+                                    };
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    settle_receipt_uuid: string | null;
+                                    note: string | null;
+                                }[];
+                                entries: {
+                                    uuid: string;
+                                    type: string;
+                                    type_label: string;
+                                    payment_uuid: string | null;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    reference: string | null;
+                                    business_date: string | null;
+                                    shift_id: number | null;
+                                    user: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    approved_by: number | null;
+                                    reason: string | null;
+                                    transfer_pending: boolean;
+                                    fiscal: {
+                                        receipt_uuid: string | null;
+                                        status: string | null;
+                                    };
+                                    original_receipt_uuid: string | null;
+                                    created_at: string | null;
+                                }[];
+                                cancellation: {
+                                    days_before: number;
+                                    rule_percent: string;
+                                    paid: string;
+                                    computed_retained: string;
+                                    retained: string;
+                                    refund: string;
+                                    override_reason: string | null;
+                                    reason: string | null;
+                                    business_date: string | null;
+                                    cancelled_by: number | null;
+                                    created_at: string | null;
+                                } | null;
+                            };
+                            entry: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.pay": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+                row: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    amount?: number | null;
+                    /** @enum {string} */
+                    tender: "cash" | "card" | "qr";
+                    card_type?: string | null;
+                    transaction_id?: string | null;
+                    reference?: string | null;
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            schedule: {
+                                event: {
+                                    uuid: string;
+                                    status: string;
+                                    status_label: string;
+                                    event_date: string;
+                                    total: string;
+                                    paid_total: string;
+                                    version: number;
+                                };
+                                summary: {
+                                    total: string;
+                                    paid: string;
+                                    outstanding: string;
+                                    overdue: boolean;
+                                    overdue_amount: string;
+                                    overdue_count: number;
+                                    next_due: {
+                                        date: string;
+                                        amount: string;
+                                        kind: string;
+                                    } | null;
+                                };
+                                rows: {
+                                    uuid: string;
+                                    kind: string;
+                                    kind_label: string;
+                                    due_date: string | null;
+                                    amount: string;
+                                    status: string;
+                                    status_label: string;
+                                    overdue: boolean;
+                                    tender: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    reference: string | null;
+                                    shift_id: number | null;
+                                    paid_at: string | null;
+                                    paid_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    fiscal: {
+                                        receipt_uuid: string | null;
+                                        status: string | null;
+                                    };
+                                    refunded_amount: string;
+                                    retained_amount: string;
+                                    settle_receipt_uuid: string | null;
+                                    note: string | null;
+                                }[];
+                                entries: {
+                                    uuid: string;
+                                    type: string;
+                                    type_label: string;
+                                    payment_uuid: string | null;
+                                    amount: string;
+                                    tender: string;
+                                    card_type: string | null;
+                                    reference: string | null;
+                                    business_date: string | null;
+                                    shift_id: number | null;
+                                    user: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    approved_by: number | null;
+                                    reason: string | null;
+                                    transfer_pending: boolean;
+                                    fiscal: {
+                                        receipt_uuid: string | null;
+                                        status: string | null;
+                                    };
+                                    original_receipt_uuid: string | null;
+                                    created_at: string | null;
+                                }[];
+                                cancellation: {
+                                    days_before: number;
+                                    rule_percent: string;
+                                    paid: string;
+                                    computed_retained: string;
+                                    retained: string;
+                                    refund: string;
+                                    override_reason: string | null;
+                                    reason: string | null;
+                                    business_date: string | null;
+                                    cancelled_by: number | null;
+                                    created_at: string | null;
+                                } | null;
+                            };
+                            entry: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            };
+                            fiscal: {
+                                status: string | null;
+                                receipt_uuid: string | null;
+                                error: string | null;
+                                receipt: {
+                                    uuid: string;
+                                    /** @enum {string} */
+                                    type: "sale" | "refund" | "advance" | "credit";
+                                    /** @enum {string} */
+                                    status: "pending" | "issued" | "failed";
+                                    /** @enum {string} */
+                                    payment_form: "cash" | "card" | "qr" | "mixed";
+                                    non_fiscal: boolean;
+                                    total: string;
+                                    vat_total: string;
+                                    fiscal_sign: string | null;
+                                    receipt_number: string | null;
+                                    qr_url: string | null;
+                                    terminal_id: string | null;
+                                    error: string | null;
+                                    issued_at: string | null;
+                                    created_at: string | null;
+                                    branch_id: number | null;
+                                    original_receipt_uuid: string | null;
+                                    lines: {
+                                        name: string;
+                                        mxik_code: string;
+                                        package_code: string | null;
+                                        unit: string;
+                                        quantity: string;
+                                        unit_price: string;
+                                        amount: string;
+                                        vat_rate: string;
+                                        vat_amount: string;
+                                        no_vat: boolean;
+                                        commissioner_tin: string | null;
+                                        marking_code: string | null;
+                                    }[];
+                                    payments: {
+                                        /** @enum {string} */
+                                        form: "cash" | "card" | "qr";
+                                        amount: string;
+                                        prepayment: boolean;
+                                        credit: boolean;
+                                        card_type: string | null;
+                                        transaction_id: string | null;
+                                        card_last4: string | null;
+                                    }[];
+                                } | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.production": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                title: string | null;
+                                event_type: string;
+                                event_type_label: string;
+                                event_date: string;
+                                slot: string;
+                                starts_at: string | null;
+                                ends_at: string | null;
+                                local_time: string;
+                                status: string;
+                                halls: string[];
+                            };
+                            guests: {
+                                guaranteed: number;
+                                minimum: number;
+                                actual: number | null;
+                                base: number;
+                                reserve_percent: string;
+                                planned: number;
+                            };
+                            stations: {
+                                station_id: number | null;
+                                name: string;
+                                dishes: {
+                                    product_id: number | null;
+                                    name: string;
+                                    unit: string;
+                                    quantity_per_person: string | null;
+                                    quantity: string;
+                                    kg: string | null;
+                                }[];
+                            }[];
+                            osh: {
+                                persons: number;
+                                persons_per_kg: string;
+                                osh_kg: string;
+                                ingredients: {
+                                    key: string;
+                                    name: string;
+                                    unit: string;
+                                    per_kg: string;
+                                    quantity: string;
+                                }[];
+                                kazans: {
+                                    size_kg: number;
+                                    count: number;
+                                }[];
+                                kazan_capacity_kg: string;
+                            } | null;
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.productionExport": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /** @example attachment */
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.settle": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    shift_uuid?: string | null;
+                    version?: number | null;
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            settlement: {
+                                event: {
+                                    uuid: string;
+                                    status: string;
+                                    version: number;
+                                    order_uuid: string | null;
+                                };
+                                guests: {
+                                    guaranteed: number;
+                                    minimum: number;
+                                    actual: number | null;
+                                    billed: number;
+                                };
+                                lines: {
+                                    uuid: string;
+                                    kind: string;
+                                    name: string;
+                                    unit_price: string;
+                                    quantity: string;
+                                    persons: number | null;
+                                    amount: string;
+                                }[];
+                                package_total: string;
+                                hall_total: string;
+                                extras_total: string;
+                                orders: {
+                                    lines: string;
+                                    discount: string;
+                                    service_charge: string;
+                                    other_charges: string;
+                                    total: string;
+                                };
+                                total: string;
+                                advances: {
+                                    total: string;
+                                    applied: string;
+                                    rows: {
+                                        uuid: string;
+                                        tender: string;
+                                        amount: string;
+                                        paid_at: string | null;
+                                    }[];
+                                };
+                                due: string;
+                                excess: string;
+                                settlement: {
+                                    uuid: string;
+                                    status: string;
+                                    bill_uuid: string | null;
+                                    applied_amount: string;
+                                    excess_amount: string;
+                                    excess_status: string;
+                                    settled_at: string | null;
+                                } | null;
+                                warnings: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            };
+                            bill: {
+                                uuid: string;
+                                order_uuid: string;
+                                number: number;
+                                status: string;
+                                split_mode: string;
+                                subtotal: string;
+                                discount: string;
+                                room_fee_amount: string;
+                                min_spend_topup_amount: string;
+                                service_charge_amount: string;
+                                place_fee_amount: string;
+                                packaging_amount: string;
+                                packaging_lines: {
+                                    rule_id: number;
+                                    name: string;
+                                    quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
+                                    unit: string;
+                                    amount: string;
+                                }[];
+                                total: string;
+                                paid_amount: string;
+                                due_amount: string;
+                                guests_share: number | null;
+                                seat_no: number | null;
+                                per_guest_amount: string | null;
+                                printed_count: number;
+                                printed_at: string | null;
+                                paid_at: string | null;
+                                fiscal: {
+                                    status: string | null;
+                                    receipt_uuid: string | null;
+                                    error: string | null;
+                                    receipt: {
+                                        uuid: string;
+                                        /** @enum {string} */
+                                        type: "sale" | "refund" | "advance" | "credit";
+                                        /** @enum {string} */
+                                        status: "pending" | "issued" | "failed";
+                                        /** @enum {string} */
+                                        payment_form: "cash" | "card" | "qr" | "mixed";
+                                        non_fiscal: boolean;
+                                        total: string;
+                                        vat_total: string;
+                                        fiscal_sign: string | null;
+                                        receipt_number: string | null;
+                                        qr_url: string | null;
+                                        terminal_id: string | null;
+                                        error: string | null;
+                                        issued_at: string | null;
+                                        created_at: string | null;
+                                        branch_id: number | null;
+                                        original_receipt_uuid: string | null;
+                                        lines: {
+                                            name: string;
+                                            mxik_code: string;
+                                            package_code: string | null;
+                                            unit: string;
+                                            quantity: string;
+                                            unit_price: string;
+                                            amount: string;
+                                            vat_rate: string;
+                                            vat_amount: string;
+                                            no_vat: boolean;
+                                            commissioner_tin: string | null;
+                                            marking_code: string | null;
+                                        }[];
+                                        payments: {
+                                            /** @enum {string} */
+                                            form: "cash" | "card" | "qr";
+                                            amount: string;
+                                            prepayment: boolean;
+                                            credit: boolean;
+                                            card_type: string | null;
+                                            transaction_id: string | null;
+                                            card_last4: string | null;
+                                        }[];
+                                    } | null;
+                                };
+                                items: {
+                                    order_item_id: number;
+                                    product_name: string;
+                                    variant_name: string | null;
+                                    unit: string;
+                                    quantity: number;
+                                    amount: string;
+                                    discount_amount: string;
+                                    combo_parts: {
+                                        slot_name: string;
+                                        name: string;
+                                        variant_name: string | null;
+                                        quantity: number;
+                                        label: string;
+                                    }[] | null;
+                                }[];
+                                payments: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    tendered_amount: string | null;
+                                    change_amount: string | null;
+                                    card_type: string | null;
+                                    transaction_id: string | null;
+                                    card_last4: string | null;
+                                    reference: string | null;
+                                    status: string;
+                                    paid_at: string | null;
+                                    tip_amount: string;
+                                }[];
+                                tips_amount: string;
+                                tips: {
+                                    uuid: string;
+                                    method: string;
+                                    source: string | null;
+                                    amount: string;
+                                    original_amount: string;
+                                    mode: string;
+                                    staff: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    holders: {
+                                        mode: string;
+                                        staff: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        amount: string;
+                                    }[];
+                                    business_date: string;
+                                    order_uuid: string | null;
+                                    bill_uuid: string | null;
+                                    payment_uuid: string | null;
+                                    shift_uuid: string | null;
+                                    recorded_by: {
+                                        id: number;
+                                        name: string | null;
+                                    } | null;
+                                    closed: boolean;
+                                    corrections: {
+                                        amount: string;
+                                        mode: string;
+                                        staff_id: number | null;
+                                        reason: string | null;
+                                        by: {
+                                            id: number;
+                                            name: string | null;
+                                        } | null;
+                                        approved_by: number | null;
+                                        created_at: string | null;
+                                    }[];
+                                    created_at: string | null;
+                                }[];
+                                service_charge_notice: string | null;
+                                ticket: {
+                                    number: number;
+                                    business_date: string | null;
+                                    order_label: string;
+                                    message: string;
+                                } | null;
+                                created_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                version: number;
+                                order_uuid: string | null;
+                            };
+                            guests: {
+                                guaranteed: number;
+                                minimum: number;
+                                actual: number | null;
+                                billed: number;
+                            };
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                name: string;
+                                unit_price: string;
+                                quantity: string;
+                                persons: number | null;
+                                amount: string;
+                            }[];
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders: {
+                                lines: string;
+                                discount: string;
+                                service_charge: string;
+                                other_charges: string;
+                                total: string;
+                            };
+                            total: string;
+                            advances: {
+                                total: string;
+                                applied: string;
+                                rows: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    paid_at: string | null;
+                                }[];
+                            };
+                            due: string;
+                            excess: string;
+                            settlement: {
+                                uuid: string;
+                                status: string;
+                                bill_uuid: string | null;
+                                applied_amount: string;
+                                excess_amount: string;
+                                excess_status: string;
+                                settled_at: string | null;
+                            } | null;
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.refundExcess": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required: a new UUID per action, the same one when retrying it (428 or 400 without). */
+                "Idempotency-Key": string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    approval_token?: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                version: number;
+                                order_uuid: string | null;
+                            };
+                            guests: {
+                                guaranteed: number;
+                                minimum: number;
+                                actual: number | null;
+                                billed: number;
+                            };
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                name: string;
+                                unit_price: string;
+                                quantity: string;
+                                persons: number | null;
+                                amount: string;
+                            }[];
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders: {
+                                lines: string;
+                                discount: string;
+                                service_charge: string;
+                                other_charges: string;
+                                total: string;
+                            };
+                            total: string;
+                            advances: {
+                                total: string;
+                                applied: string;
+                                rows: {
+                                    uuid: string;
+                                    tender: string;
+                                    amount: string;
+                                    paid_at: string | null;
+                                }[];
+                            };
+                            due: string;
+                            excess: string;
+                            settlement: {
+                                uuid: string;
+                                status: string;
+                                bill_uuid: string | null;
+                                applied_amount: string;
+                                excess_amount: string;
+                                excess_status: string;
+                                settled_at: string | null;
+                            } | null;
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            staff: {
+                                id: number;
+                                name: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "banquetOps.updateStaff": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    user_ids: number[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            staff: {
+                                id: number;
+                                name: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.start": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    version?: number | null;
+                    waiter_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                version: number;
+                                order_uuid: string | null;
+                                started_at: string | null;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquet.unfreeze": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    version?: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            uuid: string;
+                            branch_id: number;
+                            event_date: string;
+                            slot: string;
+                            slot_label: string;
+                            start_time: string;
+                            end_time: string;
+                            starts_at: string;
+                            ends_at: string;
+                            hall_ids: number[];
+                            halls: {
+                                id: number;
+                                name: string;
+                            }[];
+                            event_type: string;
+                            event_type_label: string;
+                            status: string;
+                            status_label: string;
+                            title: string | null;
+                            customer_name: string;
+                            customer_phone: string | null;
+                            guests_guaranteed: number;
+                            guests_minimum: number;
+                            guests_actual: number | null;
+                            guests_billed: number;
+                            package_id: number | null;
+                            package_name: string | null;
+                            total: string;
+                            paid_total: string;
+                            outstanding: string;
+                            hold_expires_at: string | null;
+                            frozen: boolean;
+                            contract_no: string | null;
+                            version: number;
+                            package_snapshot: {
+                                [key: string]: unknown;
+                            } | null;
+                            package_total: string;
+                            hall_total: string;
+                            extras_total: string;
+                            orders_total: string;
+                            quote: {
+                                currency: string;
+                                rate: string;
+                                total: string;
+                            } | null;
+                            frozen_at: string | null;
+                            note: string | null;
+                            order_uuid: string | null;
+                            cancel_reason: string | null;
+                            created_by: number | null;
+                            confirmed_at: string | null;
+                            started_at: string | null;
+                            settled_at: string | null;
+                            cancelled_at: string | null;
+                            released_at: string | null;
+                            created_at: string | null;
+                            updated_at: string | null;
+                            lines: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                name: string;
+                                extra_id: number | null;
+                                hall_id: number | null;
+                                quantity: string;
+                                persons: number | null;
+                                per_person: boolean;
+                                unit_price: string;
+                                amount: string;
+                                frozen: boolean;
+                                note: string | null;
+                            }[];
+                            payments: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                tender: string | null;
+                                paid_at: string | null;
+                                fiscal_receipt_uuid: string | null;
+                            }[];
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetOps.warnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            warnings: {
+                                code: string;
+                                message: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
     "posBillPrintRequest.index": {
         parameters: {
             query?: never;
@@ -37619,6 +43173,14 @@ export interface operations {
                                             rule_id: number;
                                             name: string;
                                             quantity: number;
+                                            unit: string;
+                                            amount: string;
+                                        }[];
+                                        banquet_amount: string;
+                                        banquet_lines: {
+                                            kind: string;
+                                            name: string;
+                                            quantity: string;
                                             unit: string;
                                             amount: string;
                                         }[];
@@ -37917,6 +43479,14 @@ export interface operations {
                                     unit: string;
                                     amount: string;
                                 }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -38164,6 +43734,14 @@ export interface operations {
                                     unit: string;
                                     amount: string;
                                 }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -38385,6 +43963,14 @@ export interface operations {
                                     rule_id: number;
                                     name: string;
                                     quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
                                     unit: string;
                                     amount: string;
                                 }[];
@@ -41080,6 +46666,27 @@ export interface operations {
                                 grant: string | null;
                                 clock_window_seconds: number;
                             } | null;
+                            banquet: {
+                                slots: {
+                                    morning: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                    day: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                    evening: {
+                                        start: string;
+                                        end: string;
+                                    };
+                                };
+                                hold_hours: number;
+                                guest_warning_thresholds: number[];
+                                window_start: string;
+                                window_end: string;
+                                quote_currency: string | null;
+                            } | null;
                         };
                     };
                 };
@@ -43692,6 +49299,14 @@ export interface operations {
                                     unit: string;
                                     amount: string;
                                 }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
+                                    unit: string;
+                                    amount: string;
+                                }[];
                                 total: string;
                                 paid_amount: string;
                                 due_amount: string;
@@ -43983,6 +49598,14 @@ export interface operations {
                                     rule_id: number;
                                     name: string;
                                     quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
                                     unit: string;
                                     amount: string;
                                 }[];
@@ -44968,6 +50591,14 @@ export interface operations {
                                     rule_id: number;
                                     name: string;
                                     quantity: number;
+                                    unit: string;
+                                    amount: string;
+                                }[];
+                                banquet_amount: string;
+                                banquet_lines: {
+                                    kind: string;
+                                    name: string;
+                                    quantity: string;
                                     unit: string;
                                     amount: string;
                                 }[];
@@ -50418,6 +56049,20 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                banquets: {
+                                    taken: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    refunded: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -50432,6 +56077,8 @@ export interface operations {
                                     tips: string;
                                     tip_payouts: string;
                                     vouchers: string;
+                                    banquets: string;
+                                    banquet_refunds: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -50626,6 +56273,20 @@ export interface operations {
                                             amount: string;
                                         };
                                     };
+                                    banquets: {
+                                        taken: {
+                                            count: number;
+                                            amount: string;
+                                            cash: string;
+                                            card: string;
+                                            qr: string;
+                                        };
+                                        refunded: {
+                                            count: number;
+                                            amount: string;
+                                            cash: string;
+                                        };
+                                    };
                                     cash: {
                                         opening: string;
                                         sales: string;
@@ -50640,6 +56301,8 @@ export interface operations {
                                         tips: string;
                                         tip_payouts: string;
                                         vouchers: string;
+                                        banquets: string;
+                                        banquet_refunds: string;
                                         expected: string;
                                     };
                                     movements: {
@@ -50876,6 +56539,20 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                banquets: {
+                                    taken: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    refunded: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -50890,6 +56567,8 @@ export interface operations {
                                     tips: string;
                                     tip_payouts: string;
                                     vouchers: string;
+                                    banquets: string;
+                                    banquet_refunds: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -51408,6 +57087,20 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                banquets: {
+                                    taken: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    refunded: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -51422,6 +57115,8 @@ export interface operations {
                                     tips: string;
                                     tip_payouts: string;
                                     vouchers: string;
+                                    banquets: string;
+                                    banquet_refunds: string;
                                     expected: string;
                                 };
                                 movements: {
@@ -51713,6 +57408,20 @@ export interface operations {
                                         amount: string;
                                     };
                                 };
+                                banquets: {
+                                    taken: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                        card: string;
+                                        qr: string;
+                                    };
+                                    refunded: {
+                                        count: number;
+                                        amount: string;
+                                        cash: string;
+                                    };
+                                };
                                 cash: {
                                     opening: string;
                                     sales: string;
@@ -51727,6 +57436,8 @@ export interface operations {
                                     tips: string;
                                     tip_payouts: string;
                                     vouchers: string;
+                                    banquets: string;
+                                    banquet_refunds: string;
                                     expected: string;
                                 };
                                 movements: {

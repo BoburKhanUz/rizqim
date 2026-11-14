@@ -11,7 +11,7 @@ _$PostV1PosWaitlistUuidCancelResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosWaitlistUuidCancelResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data303.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data354.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosWaitlistUuidCancelResponseToJson(

@@ -4,61 +4,41 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'closed_by3.dart';
-import 'lines7.dart';
+import 'osh2.dart';
+import 'portion_weights2.dart';
+import 'mxik2.dart';
 
 part 'data139.g.dart';
 
 @JsonSerializable()
 class Data139 {
   const Data139({
-    required this.uuid,
-    required this.branchId,
-    required this.businessDate,
-    required this.shiftUuid,
-    required this.rule,
-    required this.roles,
-    required this.roleWeights,
-    required this.poolAmount,
-    required this.tipsCount,
-    required this.distributed,
-    required this.status,
-    required this.computedAt,
-    required this.closedAt,
-    required this.closedBy,
-    required this.manualParticipants,
-    required this.lines,
+    required this.reservePercent,
+    required this.osh,
+    required this.portionWeights,
+    required this.mxik,
+    required this.contractTemplate,
+    required this.contractTemplateIsDefault,
+    required this.contractPlaceholders,
+    required this.version,
   });
 
   factory Data139.fromJson(Map<String, Object?> json) =>
       _$Data139FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'shift_uuid')
-  final String? shiftUuid;
-  final String rule;
-  final List<String> roles;
-  @JsonKey(name: 'role_weights')
-  final Map<String, String> roleWeights;
-  @JsonKey(name: 'pool_amount')
-  final String poolAmount;
-  @JsonKey(name: 'tips_count')
-  final int tipsCount;
-  final String distributed;
-  final String status;
-  @JsonKey(name: 'computed_at')
-  final String? computedAt;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy3? closedBy;
-  @JsonKey(name: 'manual_participants')
-  final bool manualParticipants;
-  final List<Lines7> lines;
+  @JsonKey(name: 'reserve_percent')
+  final String reservePercent;
+  final Osh2 osh;
+  @JsonKey(name: 'portion_weights')
+  final List<PortionWeights2> portionWeights;
+  final Mxik2 mxik;
+  @JsonKey(name: 'contract_template')
+  final String contractTemplate;
+  @JsonKey(name: 'contract_template_is_default')
+  final bool contractTemplateIsDefault;
+  @JsonKey(name: 'contract_placeholders')
+  final List<String> contractPlaceholders;
+  final int version;
 
   Map<String, Object?> toJson() => _$Data139ToJson(this);
 }

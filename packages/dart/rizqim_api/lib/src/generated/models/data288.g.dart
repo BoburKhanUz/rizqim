@@ -7,73 +7,27 @@ part of 'data288.dart';
 // **************************************************************************
 
 Data288 _$Data288FromJson(Map<String, dynamic> json) => Data288(
-  uuid: json['uuid'] as String,
-  shiftUuid: json['shift_uuid'] as String?,
-  zNumber: (json['z_number'] as num?)?.toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  businessDate: json['business_date'] as String,
-  source: Source.fromJson(json['source'] as String),
-  terminalRef: json['terminal_ref'] as String?,
-  shared: json['shared'] as bool,
-  finalValue: json['final'] as bool,
-  shifts: (json['shifts'] as List<dynamic>)
-      .map((e) => Shifts6.fromJson(e as Map<String, dynamic>))
+  account: Account6.fromJson(json['account'] as Map<String, dynamic>),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  openingBalance: json['opening_balance'] as String,
+  closingBalance: json['closing_balance'] as String,
+  chargesTotal: json['charges_total'] as String,
+  repaymentsTotal: json['repayments_total'] as String,
+  adjustmentsTotal: json['adjustments_total'] as String,
+  entries: (json['entries'] as List<dynamic>)
+      .map((e) => Entries10.fromJson(e as Map<String, dynamic>))
       .toList(),
-  bankTotal: json['bank_total'] as String,
-  bankCount: (json['bank_count'] as num?)?.toInt(),
-  rizqimTotal: json['rizqim_total'] as String?,
-  rizqimCount: (json['rizqim_count'] as num?)?.toInt(),
-  rizqimBreakdown: json['rizqim_breakdown'] == null
-      ? null
-      : RizqimBreakdown4.fromJson(
-          json['rizqim_breakdown'] as Map<String, dynamic>,
-        ),
-  difference: json['difference'] as String?,
-  threshold: json['threshold'] as String?,
-  overThreshold: json['over_threshold'] as bool?,
-  transactions: (json['transactions'] as List<dynamic>?)
-      ?.map((e) => Transactions5.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  unmatched: json['unmatched'] == null
-      ? null
-      : Unmatched4.fromJson(json['unmatched'] as Map<String, dynamic>),
-  history: (json['history'] as List<dynamic>)
-      .map((e) => History4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  note: json['note'] as String?,
-  enteredBy: json['entered_by'] == null
-      ? null
-      : EnteredBy4.fromJson(json['entered_by'] as Map<String, dynamic>),
-  alertedAt: json['alerted_at'] as String?,
-  createdAt: json['created_at'] as String?,
-  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data288ToJson(Data288 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'shift_uuid': instance.shiftUuid,
-  'z_number': instance.zNumber,
-  'branch_id': instance.branchId,
-  'business_date': instance.businessDate,
-  'source': instance.source,
-  'terminal_ref': instance.terminalRef,
-  'shared': instance.shared,
-  'final': instance.finalValue,
-  'shifts': instance.shifts,
-  'bank_total': instance.bankTotal,
-  'bank_count': instance.bankCount,
-  'rizqim_total': instance.rizqimTotal,
-  'rizqim_count': instance.rizqimCount,
-  'rizqim_breakdown': instance.rizqimBreakdown,
-  'difference': instance.difference,
-  'threshold': instance.threshold,
-  'over_threshold': instance.overThreshold,
-  'transactions': instance.transactions,
-  'unmatched': instance.unmatched,
-  'history': instance.history,
-  'note': instance.note,
-  'entered_by': instance.enteredBy,
-  'alerted_at': instance.alertedAt,
-  'created_at': instance.createdAt,
-  'updated_at': instance.updatedAt,
+  'account': instance.account,
+  'from': instance.from,
+  'to': instance.to,
+  'opening_balance': instance.openingBalance,
+  'closing_balance': instance.closingBalance,
+  'charges_total': instance.chargesTotal,
+  'repayments_total': instance.repaymentsTotal,
+  'adjustments_total': instance.adjustmentsTotal,
+  'entries': instance.entries,
 };

@@ -11,7 +11,7 @@ PutV1OwnerPosLanResponse _$PutV1OwnerPosLanResponseFromJson(
 ) => PutV1OwnerPosLanResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data130.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data153.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PutV1OwnerPosLanResponseToJson(

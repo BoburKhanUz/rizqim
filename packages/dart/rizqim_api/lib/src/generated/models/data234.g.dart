@@ -7,13 +7,11 @@ part of 'data234.dart';
 // **************************************************************************
 
 Data234 _$Data234FromJson(Map<String, dynamic> json) => Data234(
-  created: (json['created'] as num).toInt(),
-  members: (json['members'] as List<dynamic>)
-      .map((e) => Members2.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  schedule: Schedule.fromJson(json['schedule'] as Map<String, dynamic>),
+  entry: Entry.fromJson(json['entry'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data234ToJson(Data234 instance) => <String, dynamic>{
-  'created': instance.created,
-  'members': instance.members,
+  'schedule': instance.schedule,
+  'entry': instance.entry,
 };

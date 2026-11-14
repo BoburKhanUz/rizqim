@@ -145,6 +145,8 @@ export function makeOrder(over: Partial<Order> = {}): Order {
     pickup_called_at: null,
     pickup_call_count: 0,
     pickup_handed_at: null,
+    banquet_amount: '0.00',
+    banquet_lines: null,
     ...over,
   };
 }

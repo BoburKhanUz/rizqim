@@ -7,25 +7,21 @@ part of 'data220.dart';
 // **************************************************************************
 
 Data220 _$Data220FromJson(Map<String, dynamic> json) => Data220(
-  channel: Channel6.fromJson(json['channel'] as String),
-  menuVersion: json['menu_version'] as String,
-  branch: Branch18.fromJson(json['branch'] as Map<String, dynamic>),
-  categories: (json['categories'] as List<dynamic>)
-      .map((e) => Category.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  from: json['from'] as String,
+  to: json['to'] as String,
+  timezone: json['timezone'] as String,
+  slots: Slots7.fromJson(json['slots'] as Map<String, dynamic>),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls5.fromJson(e as Map<String, dynamic>))
       .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  availability: Availability.fromJson(
-    json['availability'] as Map<String, dynamic>,
-  ),
 );
 
 Map<String, dynamic> _$Data220ToJson(Data220 instance) => <String, dynamic>{
-  'channel': instance.channel,
-  'menu_version': instance.menuVersion,
-  'branch': instance.branch,
-  'categories': instance.categories,
-  'products': instance.products,
-  'availability': instance.availability,
+  'branch_id': instance.branchId,
+  'from': instance.from,
+  'to': instance.to,
+  'timezone': instance.timezone,
+  'slots': instance.slots,
+  'halls': instance.halls,
 };

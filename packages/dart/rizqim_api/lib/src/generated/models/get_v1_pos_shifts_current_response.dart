@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data286.dart';
+import 'data337.dart';
 
 part 'get_v1_pos_shifts_current_response.g.dart';
 
@@ -21,7 +21,7 @@ class GetV1PosShiftsCurrentResponse {
 
   final bool success;
   final String message;
-  final Data286 data;
+  final Data337 data;
 
   Map<String, Object?> toJson() => _$GetV1PosShiftsCurrentResponseToJson(this);
 }

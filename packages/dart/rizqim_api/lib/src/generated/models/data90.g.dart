@@ -7,23 +7,23 @@ part of 'data90.dart';
 // **************************************************************************
 
 Data90 _$Data90FromJson(Map<String, dynamic> json) => Data90(
-  uuid: json['uuid'] as String,
-  name: json['name'] as String?,
-  branchId: (json['branch_id'] as num?)?.toInt(),
-  smartKassa: json['smart_kassa'] as bool,
-  fiscalKassaId: json['fiscal_kassa_id'] as String?,
-  kassaStatus: json['kassa_status'] == null
-      ? null
-      : KassaStatus.fromJson(json['kassa_status'] as Map<String, dynamic>),
-  lastSeenAt: json['last_seen_at'] as String?,
+  data: (json['data'] as List<dynamic>)
+      .map((e) => Data89.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  currentPage: (json['current_page'] as num).toInt(),
+  lastPage: (json['last_page'] as num).toInt(),
+  perPage: (json['per_page'] as num).toInt(),
+  total: (json['total'] as num).toInt(),
+  from: (json['from'] as num?)?.toInt(),
+  to: (json['to'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$Data90ToJson(Data90 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'branch_id': instance.branchId,
-  'smart_kassa': instance.smartKassa,
-  'fiscal_kassa_id': instance.fiscalKassaId,
-  'kassa_status': instance.kassaStatus,
-  'last_seen_at': instance.lastSeenAt,
+  'data': instance.data,
+  'current_page': instance.currentPage,
+  'last_page': instance.lastPage,
+  'per_page': instance.perPage,
+  'total': instance.total,
+  'from': instance.from,
+  'to': instance.to,
 };

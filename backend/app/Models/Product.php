@@ -25,6 +25,7 @@ use App\Traits\HasMenuImage;
  * @property list<int>|null $quick_multipliers P6-25: the one-tap ×N buttons of a skewer or piece dish
  * @property int|null $wait_minutes P6-25: how long the grill takes
  * @property string|null $weight_mode P6-25: raw|cooked — weighed after it is chosen (App\Domain\Pos\Orders\WeightBasis)
+ * @property int|null $brand_id P6-55: the dish's brand (module multi_brand); null: the house brand
  */
 class Product extends Model
 {
@@ -127,5 +128,25 @@ class Product extends Model
     public function batches(): HasMany
     {
         return $this->hasMany(MenuBatch::class);
+    }
+
+    /**
+     * P6-55: the dish's brand (null: the house brand).
+     *
+     * @return BelongsTo<Brand, $this>
+     */
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    /**
+     * P6-55 / B9: the ingredients the dish uses (pivot `is_critical`: stopping one closes the dish).
+     *
+     * @return BelongsToMany<Ingredient, $this>
+     */
+    public function ingredients(): BelongsToMany
+    {
+        return $this->belongsToMany(Ingredient::class, 'product_ingredients')->withPivot('is_critical')->withTimestamps();
     }
 }

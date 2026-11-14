@@ -11,7 +11,7 @@ GetV1PosVouchersCodeResponse _$GetV1PosVouchersCodeResponseFromJson(
 ) => GetV1PosVouchersCodeResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data300.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data351.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosVouchersCodeResponseToJson(

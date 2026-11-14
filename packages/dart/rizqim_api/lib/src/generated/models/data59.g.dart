@@ -7,13 +7,11 @@ part of 'data59.dart';
 // **************************************************************************
 
 Data59 _$Data59FromJson(Map<String, dynamic> json) => Data59(
-  combos: (json['combos'] as List<dynamic>)
-      .map((e) => Combos.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  fiscalMode: ComboFiscalMode.fromJson(json['fiscal_mode'] as String),
+  brands: (json['brands'] as List<dynamic>).map((e) => e as String).toList(),
+  channelsAvailable: json['channels_available'] as List<dynamic>,
 );
 
 Map<String, dynamic> _$Data59ToJson(Data59 instance) => <String, dynamic>{
-  'combos': instance.combos,
-  'fiscal_mode': instance.fiscalMode,
+  'brands': instance.brands,
+  'channels_available': instance.channelsAvailable,
 };

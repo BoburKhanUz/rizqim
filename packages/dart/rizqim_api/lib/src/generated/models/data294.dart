@@ -4,74 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff24.dart';
-import 'device22.dart';
-import 'origin_device2.dart';
-import 'order14.dart';
-import 'resolved_by2.dart';
+import 'lan_role.dart';
+import 'hub5.dart';
+import 'devices4.dart';
 
 part 'data294.g.dart';
 
 @JsonSerializable()
 class Data294 {
   const Data294({
-    required this.opId,
-    required this.seq,
-    required this.type,
-    required this.typeLabel,
-    required this.status,
-    required this.reason,
-    required this.message,
-    required this.staff,
+    required this.v,
+    required this.branchId,
+    required this.keyId,
+    required this.role,
     required this.device,
-    required this.originDevice,
-    required this.occurredAt,
-    required this.receivedAt,
-    required this.appliedAt,
-    required this.clockSkewSeconds,
-    required this.order,
-    required this.payload,
-    required this.refs,
-    required this.resolvedAt,
-    required this.resolvedBy,
-    required this.resolution,
-    required this.resolutionNote,
+    required this.deviceKey,
+    required this.beaconKey,
+    required this.hub,
+    required this.hubSecret,
+    required this.devices,
+    required this.grant,
+    required this.clockWindowSeconds,
   });
 
   factory Data294.fromJson(Map<String, Object?> json) =>
       _$Data294FromJson(json);
 
-  @JsonKey(name: 'op_id')
-  final String opId;
-  final int seq;
-  final String type;
-  @JsonKey(name: 'type_label')
-  final String typeLabel;
-  final String status;
-  final String? reason;
-  final String? message;
-  final Staff24? staff;
-  final Device22? device;
-  @JsonKey(name: 'origin_device')
-  final OriginDevice2? originDevice;
-  @JsonKey(name: 'occurred_at')
-  final String? occurredAt;
-  @JsonKey(name: 'received_at')
-  final String? receivedAt;
-  @JsonKey(name: 'applied_at')
-  final String? appliedAt;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  final Order14? order;
-  final Map<String, dynamic> payload;
-  final Map<String, dynamic> refs;
-  @JsonKey(name: 'resolved_at')
-  final String? resolvedAt;
-  @JsonKey(name: 'resolved_by')
-  final ResolvedBy2? resolvedBy;
-  final String? resolution;
-  @JsonKey(name: 'resolution_note')
-  final String? resolutionNote;
+  final int v;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'key_id')
+  final int keyId;
+  final LanRole role;
+  final String device;
+  @JsonKey(name: 'device_key')
+  final String deviceKey;
+  @JsonKey(name: 'beacon_key')
+  final String beaconKey;
+  final Hub5 hub;
+  @JsonKey(name: 'hub_secret')
+  final String? hubSecret;
+  final List<Devices4>? devices;
+  final String? grant;
+  @JsonKey(name: 'clock_window_seconds')
+  final int clockWindowSeconds;
 
   Map<String, Object?> toJson() => _$Data294ToJson(this);
 }

@@ -22,7 +22,7 @@ use App\Support\Quantity;
  */
 final class BillPresenter
 {
-    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, packaging_amount: string, packaging_lines: list<array{rule_id: int, name: string, quantity: int, unit: string, amount: string}>, total: string, paid_amount: string, due_amount: string, guests_share: int|null, seat_no: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string, combo_parts: list<array{slot_name: string, name: string, variant_name: string|null, quantity: int, label: string}>|null}>, payments: list<' . self::PAYMENT . '>, tips_amount: string, tips: list<' . TipPresenter::TIP . '>, service_charge_notice: string|null, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
+    public const BILL = 'array{uuid: string, order_uuid: string, number: int, status: string, split_mode: string, subtotal: string, discount: string, room_fee_amount: string, min_spend_topup_amount: string, service_charge_amount: string, place_fee_amount: string, packaging_amount: string, packaging_lines: list<array{rule_id: int, name: string, quantity: int, unit: string, amount: string}>, banquet_amount: string, banquet_lines: list<array{kind: string, name: string, quantity: string, unit: string, amount: string}>, total: string, paid_amount: string, due_amount: string, guests_share: int|null, seat_no: int|null, per_guest_amount: string|null, printed_count: int, printed_at: string|null, paid_at: string|null, fiscal: ' . PosFiscalReceipt::FISCAL . ', items: list<array{order_item_id: int, product_name: string, variant_name: string|null, unit: string, quantity: int|float, amount: string, discount_amount: string, combo_parts: list<array{slot_name: string, name: string, variant_name: string|null, quantity: int, label: string}>|null}>, payments: list<' . self::PAYMENT . '>, tips_amount: string, tips: list<' . TipPresenter::TIP . '>, service_charge_notice: string|null, ticket: ' . PickupQueue::TICKET . '|null, created_at: string|null}';
 
     public const PAYMENT = 'array{uuid: string, tender: string, amount: string, tendered_amount: string|null, change_amount: string|null, card_type: string|null, transaction_id: string|null, card_last4: string|null, reference: string|null, status: string, paid_at: string|null, tip_amount: string}';
 
@@ -64,6 +64,15 @@ final class BillPresenter
                 'unit' => (string) $line['unit'],
                 'amount' => (string) $line['amount'],
             ], \App\Domain\Pos\Takeaway\PackagingRules::shareLines($order, Money::of($bill->getAttribute('packaging_amount'))->toTiyin())) : [],
+            // P6-54: a banquet event's package, hall rent and extras on its final bill, and their lines
+            'banquet_amount' => Money::of($bill->getAttribute('banquet_amount'))->toString(),
+            'banquet_lines' => Money::of($bill->getAttribute('banquet_amount'))->isPositive() ? array_map(fn ($line) => [
+                'kind' => (string) ($line['kind'] ?? ''),
+                'name' => (string) ($line['name'] ?? ''),
+                'quantity' => (string) ($line['quantity'] ?? '1'),
+                'unit' => (string) ($line['unit'] ?? ''),
+                'amount' => (string) ($line['amount'] ?? '0'),
+            ], \App\Domain\Pos\Banquet\Ops\BanquetFiscal::linesOf($order)) : [],
             'total' => $total->toString(),
             'paid_amount' => $paid->toString(),
             'due_amount' => Money::max(Money::zero(), $total->minus($paid))->toString(),

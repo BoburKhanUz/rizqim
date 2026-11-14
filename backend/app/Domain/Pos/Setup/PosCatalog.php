@@ -84,6 +84,9 @@ final class PosCatalog
             'categories' => $own->merge($parents)->unique('id')->sortBy('sort_order')->values(),
             'products' => $products,
             'availability' => $availability,
+            // P6-55 (multi_brand): the store's brands sold on this channel (a product's `brand_id` names one; empty
+            // without brands): the till's badge and filter
+            'brands' => \App\Domain\Pos\Brands\BrandMenu::catalogBrands($storeId, $channel),
         ];
     }
 

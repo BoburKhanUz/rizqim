@@ -8,30 +8,40 @@ part of 'data123.dart';
 
 Data123 _$Data123FromJson(Map<String, dynamic> json) => Data123(
   id: (json['id'] as num).toInt(),
-  amount: json['amount'] as String,
-  card: json['card'] as String,
-  status: Status4.fromJson(json['status'] as String),
-  notes: json['notes'] as String?,
-  resolutionNotes: json['resolution_notes'] as String?,
-  processedAt: json['processed_at'] as String?,
-  createdAt: json['created_at'] as String,
-  storeId: (json['store_id'] as num).toInt(),
-  cardNumber: json['card_number'] as String,
-  processedBy: (json['processed_by'] as num?)?.toInt(),
-  updatedAt: json['updated_at'] as String?,
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  minSelect: (json['min_select'] as num).toInt(),
+  maxSelect: (json['max_select'] as num?)?.toInt(),
+  isRequired: json['is_required'] as bool,
+  displayMode: json['display_mode'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  modifiers: (json['modifiers'] as List<dynamic>)
+      .map((e) => Modifiers5.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  productIds: (json['product_ids'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  productRules: ProductRules2.fromJson(
+    json['product_rules'] as Map<String, dynamic>,
+  ),
 );
 
 Map<String, dynamic> _$Data123ToJson(Data123 instance) => <String, dynamic>{
   'id': instance.id,
-  'amount': instance.amount,
-  'card': instance.card,
-  'status': instance.status,
-  'notes': instance.notes,
-  'resolution_notes': instance.resolutionNotes,
-  'processed_at': instance.processedAt,
-  'created_at': instance.createdAt,
-  'store_id': instance.storeId,
-  'card_number': instance.cardNumber,
-  'processed_by': instance.processedBy,
-  'updated_at': instance.updatedAt,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'name_i18n': instance.nameI18n,
+  'min_select': instance.minSelect,
+  'max_select': instance.maxSelect,
+  'is_required': instance.isRequired,
+  'display_mode': instance.displayMode,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'modifiers': instance.modifiers,
+  'product_ids': instance.productIds,
+  'product_rules': instance.productRules,
 };

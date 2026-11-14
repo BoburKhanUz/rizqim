@@ -4,81 +4,164 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'customer_account_kind.dart';
-import 'talon_mode.dart';
+import 'halls8.dart';
+import 'quote3.dart';
+import 'lines18.dart';
+import 'payments6.dart';
+import 'warnings11.dart';
 
 part 'data225.g.dart';
 
 @JsonSerializable()
 class Data225 {
   const Data225({
-    required this.uuid,
-    required this.name,
-    required this.phone,
-    required this.groupName,
+    required this.customerPhone,
     required this.branchId,
-    required this.creditLimit,
-    required this.balance,
-    required this.availableCredit,
-    required this.isBlocked,
+    required this.eventDate,
+    required this.slot,
+    required this.slotLabel,
+    required this.startTime,
+    required this.endTime,
+    required this.startsAt,
+    required this.endsAt,
+    required this.hallIds,
+    required this.halls,
+    required this.eventType,
+    required this.eventTypeLabel,
+    required this.status,
+    required this.statusLabel,
+    required this.title,
+    required this.customerName,
+    required this.uuid,
+    required this.guestsGuaranteed,
+    required this.guestsMinimum,
+    required this.guestsActual,
+    required this.guestsBilled,
+    required this.packageId,
+    required this.packageName,
+    required this.total,
+    required this.paidTotal,
+    required this.outstanding,
+    required this.holdExpiresAt,
+    required this.frozen,
+    required this.contractNo,
+    required this.version,
+    required this.packageSnapshot,
+    required this.packageTotal,
+    required this.warnings,
+    required this.extrasTotal,
+    required this.ordersTotal,
+    required this.quote,
+    required this.frozenAt,
     required this.note,
-    required this.kind,
-    required this.kindLabel,
-    required this.companyName,
-    required this.inn,
-    required this.contactName,
-    required this.contactPhone,
-    required this.invoiceEmail,
-    required this.monthlyLimit,
-    required this.chargeApproval,
-    required this.talonMode,
-    required this.membersCount,
+    required this.orderUuid,
+    required this.cancelReason,
+    required this.createdBy,
+    required this.confirmedAt,
+    required this.startedAt,
+    required this.settledAt,
+    required this.cancelledAt,
+    required this.releasedAt,
     required this.createdAt,
     required this.updatedAt,
+    required this.lines,
+    required this.payments,
+    required this.hallTotal,
   });
 
   factory Data225.fromJson(Map<String, Object?> json) =>
       _$Data225FromJson(json);
 
   final String uuid;
-  final String name;
-  final String? phone;
-  @JsonKey(name: 'group_name')
-  final String? groupName;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  @JsonKey(name: 'credit_limit')
-  final String? creditLimit;
-  final String balance;
-  @JsonKey(name: 'available_credit')
-  final String? availableCredit;
-  @JsonKey(name: 'is_blocked')
-  final bool isBlocked;
+  final int branchId;
+  @JsonKey(name: 'event_date')
+  final String eventDate;
+  final String slot;
+  @JsonKey(name: 'slot_label')
+  final String slotLabel;
+  @JsonKey(name: 'start_time')
+  final String startTime;
+  @JsonKey(name: 'end_time')
+  final String endTime;
+  @JsonKey(name: 'starts_at')
+  final String startsAt;
+  @JsonKey(name: 'ends_at')
+  final String endsAt;
+  @JsonKey(name: 'hall_ids')
+  final List<int> hallIds;
+  final List<Halls8> halls;
+  @JsonKey(name: 'event_type')
+  final String eventType;
+  @JsonKey(name: 'event_type_label')
+  final String eventTypeLabel;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
+  final String? title;
+  @JsonKey(name: 'customer_name')
+  final String customerName;
+  @JsonKey(name: 'customer_phone')
+  final String? customerPhone;
+  @JsonKey(name: 'guests_guaranteed')
+  final int guestsGuaranteed;
+  @JsonKey(name: 'guests_minimum')
+  final int guestsMinimum;
+  @JsonKey(name: 'guests_actual')
+  final int? guestsActual;
+  @JsonKey(name: 'guests_billed')
+  final int guestsBilled;
+  @JsonKey(name: 'package_id')
+  final int? packageId;
+  @JsonKey(name: 'package_name')
+  final String? packageName;
+  final String total;
+  @JsonKey(name: 'paid_total')
+  final String paidTotal;
+  final String outstanding;
+  @JsonKey(name: 'hold_expires_at')
+  final String? holdExpiresAt;
+  final bool frozen;
+  @JsonKey(name: 'contract_no')
+  final String? contractNo;
+  final int version;
+  @JsonKey(name: 'package_snapshot')
+  final Map<String, dynamic>? packageSnapshot;
+  @JsonKey(name: 'package_total')
+  final String packageTotal;
+  @JsonKey(name: 'hall_total')
+  final String hallTotal;
+  @JsonKey(name: 'extras_total')
+  final String extrasTotal;
+  @JsonKey(name: 'orders_total')
+  final String ordersTotal;
+  final Quote3? quote;
+  @JsonKey(name: 'frozen_at')
+  final String? frozenAt;
   final String? note;
-  final CustomerAccountKind kind;
-  @JsonKey(name: 'kind_label')
-  final String kindLabel;
-  @JsonKey(name: 'company_name')
-  final String? companyName;
-  final String? inn;
-  @JsonKey(name: 'contact_name')
-  final String? contactName;
-  @JsonKey(name: 'contact_phone')
-  final String? contactPhone;
-  @JsonKey(name: 'invoice_email')
-  final String? invoiceEmail;
-  @JsonKey(name: 'monthly_limit')
-  final String? monthlyLimit;
-  @JsonKey(name: 'charge_approval')
-  final bool chargeApproval;
-  @JsonKey(name: 'talon_mode')
-  final TalonMode talonMode;
-  @JsonKey(name: 'members_count')
-  final int membersCount;
+  @JsonKey(name: 'order_uuid')
+  final String? orderUuid;
+  @JsonKey(name: 'cancel_reason')
+  final String? cancelReason;
+  @JsonKey(name: 'created_by')
+  final int? createdBy;
+  @JsonKey(name: 'confirmed_at')
+  final String? confirmedAt;
+  @JsonKey(name: 'started_at')
+  final String? startedAt;
+  @JsonKey(name: 'settled_at')
+  final String? settledAt;
+  @JsonKey(name: 'cancelled_at')
+  final String? cancelledAt;
+  @JsonKey(name: 'released_at')
+  final String? releasedAt;
   @JsonKey(name: 'created_at')
   final String? createdAt;
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
+  final List<Lines18> lines;
+  final List<Payments6> payments;
+  final List<Warnings11> warnings;
 
   Map<String, Object?> toJson() => _$Data225ToJson(this);
 }

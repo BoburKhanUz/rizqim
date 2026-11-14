@@ -67,6 +67,10 @@ export const POS_MODULES = [
   'qr_payments',
   'vouchers',
   'corporate_accounts',
+  // Wave 5 "Banket va dark kitchen"
+  'banquet',
+  'multi_brand',
+  'ingredient_stoplist',
 ] as const;
 export type PosModuleKey = (typeof POS_MODULES)[number];
 

@@ -22,6 +22,8 @@ class Cash6 {
     required this.tips,
     required this.tipPayouts,
     required this.vouchers,
+    required this.banquets,
+    required this.banquetRefunds,
     required this.expected,
   });
 
@@ -44,6 +46,9 @@ class Cash6 {
   @JsonKey(name: 'tip_payouts')
   final String tipPayouts;
   final String vouchers;
+  final String banquets;
+  @JsonKey(name: 'banquet_refunds')
+  final String banquetRefunds;
   final String expected;
 
   Map<String, Object?> toJson() => _$Cash6ToJson(this);

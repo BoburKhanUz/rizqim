@@ -17,7 +17,7 @@ Movements4 _$Movements4FromJson(Map<String, dynamic> json) => Movements4(
       : Employee5.fromJson(json['employee'] as Map<String, dynamic>),
   user: json['user'] == null
       ? null
-      : User24.fromJson(json['user'] as Map<String, dynamic>),
+      : User31.fromJson(json['user'] as Map<String, dynamic>),
   approvedBy: (json['approved_by'] as num?)?.toInt(),
   createdAt: json['created_at'] as String?,
   approver: json['approver'] == null

@@ -4,20 +4,16 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'movement.dart';
-import 'shift4.dart';
-
 part 'data289.g.dart';
 
 @JsonSerializable()
 class Data289 {
-  const Data289({required this.movement, required this.shift});
+  const Data289({required this.stored});
 
   factory Data289.fromJson(Map<String, Object?> json) =>
       _$Data289FromJson(json);
 
-  final Movement movement;
-  final Shift4 shift;
+  final bool stored;
 
   Map<String, Object?> toJson() => _$Data289ToJson(this);
 }

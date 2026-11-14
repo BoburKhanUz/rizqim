@@ -7,7 +7,7 @@ part of 'order_item.dart';
 // **************************************************************************
 
 OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
-  batchId: (json['batch_id'] as num?)?.toInt(),
+  batchQuantity: json['batch_quantity'] as String?,
   orderId: (json['order_id'] as num).toInt(),
   productVariantId: (json['product_variant_id'] as num?)?.toInt(),
   productName: json['product_name'] as String,
@@ -29,8 +29,8 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
       ?.map((e) => e as Map<String, dynamic>)
       .toList(),
   modifiersTotal: json['modifiers_total'] as String,
+  batchId: (json['batch_id'] as num?)?.toInt(),
   id: (json['id'] as num).toInt(),
-  batchQuantity: json['batch_quantity'] as String?,
   kitchenStatus: KitchenItemStatus.fromJson(json['kitchen_status'] as String),
   readyAt: json['ready_at'] == null
       ? null
@@ -53,8 +53,10 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   voidedBy: json['voided_by'],
   voidReason: json['void_reason'] as String?,
   seatNo: (json['seat_no'] as num?)?.toInt(),
-  comboParentId: (json['combo_parent_id'] as num?)?.toInt(),
-  clientLineId: json['client_line_id'] as String?,
+  note: json['note'] as String?,
+  brand: json['brand'] == null
+      ? null
+      : Brand.fromJson(json['brand'] as Map<String, dynamic>),
   priceSource: json['price_source'] as String?,
   setParts: (json['set_parts'] as List<dynamic>?)
       ?.map((e) => e as Map<String, dynamic>)
@@ -73,7 +75,9 @@ OrderItem _$OrderItemFromJson(Map<String, dynamic> json) => OrderItem(
   comboParts: (json['combo_parts'] as List<dynamic>?)
       ?.map((e) => e as Map<String, dynamic>)
       .toList(),
-  note: json['note'] as String?,
+  comboParentId: (json['combo_parent_id'] as num?)?.toInt(),
+  brandId: (json['brand_id'] as num?)?.toInt(),
+  clientLineId: json['client_line_id'] as String?,
   comboChildren: (json['combo_children'] as List<dynamic>?)
       ?.map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -133,6 +137,8 @@ Map<String, dynamic> _$OrderItemToJson(OrderItem instance) => <String, dynamic>{
   'weighed_at': instance.weighedAt?.toIso8601String(),
   'combo_parts': instance.comboParts,
   'combo_parent_id': instance.comboParentId,
+  'brand_id': instance.brandId,
+  'brand': instance.brand,
   'combo_children': instance.comboChildren,
   'combo_parent': instance.comboParent,
   'order': instance.order,

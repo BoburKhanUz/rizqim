@@ -3,6 +3,7 @@ import 'package:pos_core/pos_core.dart';
 import '../json.dart';
 import '../menu_day/menu_day_models.dart';
 import '../orders/course_models.dart';
+import 'brand_models.dart';
 import 'combo_models.dart';
 
 /// POS kanali: zal (`pos_hall`) yoki olib ketish (`pos_takeaway`). Narx kanal bo'yicha.
@@ -51,6 +52,7 @@ class PosCatalog {
     required this.products,
     required this.availability,
     this.fetchedAt,
+    this.brands = const <PosBrand>[],
   });
 
   factory PosCatalog.fromJson(PosJson j, {DateTime? fetchedAt}) {
@@ -71,6 +73,7 @@ class PosCatalog {
           ? PosAvailability.fromJson(j.obj('availability'))
           : const PosAvailability(),
       fetchedAt: fetchedAt,
+      brands: j.objects('brands', PosBrand.fromJson),
     );
   }
 
@@ -84,6 +87,9 @@ class PosCatalog {
   final PosAvailability availability;
   final DateTime? fetchedAt;
 
+  /// P6-55 (`multi_brand`): shu kanalda sotiladigan brendlar (brendsiz do'konda bo'sh).
+  final List<PosBrand> brands;
+
   PosCatalog withAvailability(PosAvailability next) => PosCatalog(
     channel: channel,
     menuVersion: menuVersion,
@@ -92,7 +98,22 @@ class PosCatalog {
     products: products,
     availability: next,
     fetchedAt: fetchedAt,
+    brands: brands,
   );
+
+  /// P6-55: taomning brendi (asosiy brendda yoki ro'yxatda yo'q bo'lsa `null`).
+  PosBrand? brandOf(PosProduct p) {
+    final int? id = p.brandId;
+    if (id == null) return null;
+    for (final PosBrand b in brands) {
+      if (b.id == id) return b;
+    }
+    return null;
+  }
+
+  /// P6-55: brend taomlari (`null` — asosiy brend).
+  List<PosProduct> productsOfBrand(int? brandId) =>
+      products.where((PosProduct p) => p.brandId == brandId).toList();
 
   /// Kategoriyadagi taomlar (o'z tartibida).
   List<PosProduct> productsIn(int categoryId) =>
@@ -214,6 +235,7 @@ class PosProduct {
     this.waitMinutes,
     this.weightMode,
     this.combo,
+    this.brandId,
   });
 
   factory PosProduct.fromJson(PosJson j) => PosProduct(
@@ -244,6 +266,7 @@ class PosProduct {
     waitMinutes: j.intOrNull('wait_minutes'),
     weightMode: PosWeightBasis.fromWire(j.strOrNull('weight_mode')),
     combo: PosCombo.maybe(j['combo']),
+    brandId: j.intOrNull('brand_id'),
   );
 
   final int id;
@@ -290,6 +313,9 @@ class PosProduct {
 
   /// P6-31: kombo slotlari va tanlovlari (kombo emas — `null`).
   final PosCombo? combo;
+
+  /// P6-55 (`multi_brand`): taom brendi ([PosCatalog.brands] dan; asosiy brend — `null`).
+  final int? brandId;
 
   /// Og'irligi keyin kiritiladigan taom.
   bool get weighedLater => weightMode != null;
@@ -510,6 +536,8 @@ class PosAvailability {
     this.batches = const <PosBatch>[],
     this.stopReasons = const <int, String>{},
     this.nextBatches = const <PosPlannedBatch>[],
+    this.stoppedIngredients = const <PosStoppedIngredient>[],
+    this.limitedProducts = const <int, List<int>>{},
   });
 
   factory PosAvailability.fromJson(PosJson j) {
@@ -525,6 +553,20 @@ class PosAvailability {
       batches: j.objects('batches', PosBatch.fromJson),
       stopReasons: _stopReasons(j),
       nextBatches: j.objects('next_batches', PosPlannedBatch.fromJson),
+      stoppedIngredients: j.objects(
+        'stopped_ingredients',
+        PosStoppedIngredient.fromJson,
+      ),
+      limitedProducts: <int, List<int>>{
+        for (final Object? e in j.list('limited_products'))
+          if (e is Map && e['product_id'] is num)
+            (e['product_id']! as num).toInt(): <int>[
+              for (final Object? id
+                  in (e['ingredient_ids'] as List<Object?>?) ??
+                      const <Object?>[])
+                if (id is num) id.toInt(),
+            ],
+      },
     );
   }
 
@@ -553,6 +595,12 @@ class PosAvailability {
 
   /// P6-15: rejalashtirilgan partiyalar (eng yaqini birinchi).
   final List<PosPlannedBatch> nextBatches;
+
+  /// P6-55 / B9: filialda to'xtatilgan ingredientlar ("Tovuq tugadi"); bog'langan taomlar [stoppedProducts] da.
+  final List<PosStoppedIngredient> stoppedIngredients;
+
+  /// P6-55: muhim bo'lmagan bog'lanish bilan belgilangan taomlar (sotuvda, masalan "tovuqsiz"): taom → ingredientlar.
+  final Map<int, List<int>> limitedProducts;
 
   /// Taomning eng yaqin rejalashtirilgan partiyasi.
   PosNextBatch? nextBatchFor(int productId) {

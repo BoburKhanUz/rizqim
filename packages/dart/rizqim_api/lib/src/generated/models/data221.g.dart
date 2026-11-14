@@ -7,15 +7,25 @@ part of 'data221.dart';
 // **************************************************************************
 
 Data221 _$Data221FromJson(Map<String, dynamic> json) => Data221(
-  session: json['session'] == null
-      ? null
-      : Session2.fromJson(json['session'] as Map<String, dynamic>),
-  todayMinutes: (json['today_minutes'] as num).toInt(),
-  businessDate: json['business_date'] as String,
+  packages: (json['packages'] as List<dynamic>)
+      .map((e) => Packages2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  extras: (json['extras'] as List<dynamic>)
+      .map((e) => Extras3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  halls: (json['halls'] as List<dynamic>)
+      .map((e) => Halls6.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  settings: Settings6.fromJson(json['settings'] as Map<String, dynamic>),
+  eventTypes: (json['event_types'] as List<dynamic>)
+      .map((e) => EventTypes2.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data221ToJson(Data221 instance) => <String, dynamic>{
-  'session': instance.session,
-  'today_minutes': instance.todayMinutes,
-  'business_date': instance.businessDate,
+  'packages': instance.packages,
+  'extras': instance.extras,
+  'halls': instance.halls,
+  'settings': instance.settings,
+  'event_types': instance.eventTypes,
 };

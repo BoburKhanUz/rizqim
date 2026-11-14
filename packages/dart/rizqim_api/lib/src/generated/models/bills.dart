@@ -4,12 +4,13 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'packaging_lines2.dart';
-import 'fiscal8.dart';
-import 'items5.dart';
-import 'payments5.dart';
-import 'tips2.dart';
-import 'ticket2.dart';
+import 'packaging_lines3.dart';
+import 'banquet_lines2.dart';
+import 'fiscal22.dart';
+import 'items12.dart';
+import 'payments13.dart';
+import 'tips3.dart';
+import 'ticket3.dart';
 
 part 'bills.g.dart';
 
@@ -29,6 +30,8 @@ class Bills {
     required this.placeFeeAmount,
     required this.packagingAmount,
     required this.packagingLines,
+    required this.banquetAmount,
+    required this.banquetLines,
     required this.total,
     required this.paidAmount,
     required this.dueAmount,
@@ -70,7 +73,11 @@ class Bills {
   @JsonKey(name: 'packaging_amount')
   final String packagingAmount;
   @JsonKey(name: 'packaging_lines')
-  final List<PackagingLines2> packagingLines;
+  final List<PackagingLines3> packagingLines;
+  @JsonKey(name: 'banquet_amount')
+  final String banquetAmount;
+  @JsonKey(name: 'banquet_lines')
+  final List<BanquetLines2> banquetLines;
   final String total;
   @JsonKey(name: 'paid_amount')
   final String paidAmount;
@@ -88,15 +95,15 @@ class Bills {
   final String? printedAt;
   @JsonKey(name: 'paid_at')
   final String? paidAt;
-  final Fiscal8 fiscal;
-  final List<Items5> items;
-  final List<Payments5> payments;
+  final Fiscal22 fiscal;
+  final List<Items12> items;
+  final List<Payments13> payments;
   @JsonKey(name: 'tips_amount')
   final String tipsAmount;
-  final List<Tips2> tips;
+  final List<Tips3> tips;
   @JsonKey(name: 'service_charge_notice')
   final String? serviceChargeNotice;
-  final Ticket2? ticket;
+  final Ticket3? ticket;
   @JsonKey(name: 'created_at')
   final String? createdAt;
 

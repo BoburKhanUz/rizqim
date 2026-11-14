@@ -7,25 +7,15 @@ part of 'stations9.dart';
 // **************************************************************************
 
 Stations9 _$Stations9FromJson(Map<String, dynamic> json) => Stations9(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
+  stationId: (json['station_id'] as num?)?.toInt(),
   name: json['name'] as String,
-  kind: json['kind'] as String,
-  kindLabel: json['kind_label'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  showOnKds: json['show_on_kds'] as bool,
-  targetSeconds: (json['target_seconds'] as num?)?.toInt(),
+  dishes: (json['dishes'] as List<dynamic>)
+      .map((e) => Dishes5.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Stations9ToJson(Stations9 instance) => <String, dynamic>{
-  'id': instance.id,
-  'branch_id': instance.branchId,
+  'station_id': instance.stationId,
   'name': instance.name,
-  'kind': instance.kind,
-  'kind_label': instance.kindLabel,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'show_on_kds': instance.showOnKds,
-  'target_seconds': instance.targetSeconds,
+  'dishes': instance.dishes,
 };

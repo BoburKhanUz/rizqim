@@ -17,8 +17,9 @@ import 'batch_writeoffs2.dart';
 import 'refunds6.dart';
 import 'deposits2.dart';
 import 'credit5.dart';
-import 'tips11.dart';
+import 'tips12.dart';
 import 'vouchers3.dart';
+import 'banquets2.dart';
 import 'cash3.dart';
 import 'movements2.dart';
 
@@ -44,6 +45,7 @@ class Report2 {
     required this.credit,
     required this.tips,
     required this.vouchers,
+    required this.banquets,
     required this.cash,
     required this.movements,
   });
@@ -73,8 +75,9 @@ class Report2 {
   final Refunds6 refunds;
   final Deposits2 deposits;
   final Credit5 credit;
-  final Tips11 tips;
+  final Tips12 tips;
   final Vouchers3 vouchers;
+  final Banquets2 banquets;
   final Cash3 cash;
   final List<Movements2> movements;
 

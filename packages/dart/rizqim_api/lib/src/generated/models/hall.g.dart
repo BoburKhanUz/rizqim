@@ -6,10 +6,12 @@ part of 'hall.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Hall _$HallFromJson(Map<String, dynamic> json) =>
-    Hall(id: (json['id'] as num).toInt(), name: json['name'] as String?);
+Hall _$HallFromJson(Map<String, dynamic> json) => Hall(
+  mxik: json['mxik'] as String?,
+  packageCode: json['package_code'] as String?,
+);
 
 Map<String, dynamic> _$HallToJson(Hall instance) => <String, dynamic>{
-  'id': instance.id,
-  'name': instance.name,
+  'mxik': instance.mxik,
+  'package_code': instance.packageCode,
 };

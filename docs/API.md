@@ -4344,3 +4344,150 @@ qilinadi, aks holda `fiscal_settings.uzqr.driver: sandbox` — 422; review P6W4 
 o'chiq), `QR_PAYMENTS_RETURN_URL`, `CLICK_MERCHANT_API_URL`, `PAYME_API_URL`. Ish: `pos:expire-qr-payments` (har daqiqa:
 muddati o'tgan QR — UzQR avval shlyuzdan so'raladi —, javobsiz QR qaytarishlari). Migratsiyalar `2026_11_19_100100`
 (`pos_qr_payments`), `2026_11_19_100200` (`pos_qr_settings`), `2026_11_20_100100` (`pos_qr_refund_attempts`).
+
+## Tadbirlar: taqvim, tadbir, paket va narx (P6-51, P6-52)
+
+To'yxona va banket (modul `banquet`, Pro; `toyxona` profilida sukut bo'yicha). Hammasi `/api/v1` ostida. Kassa (PIN sessiyasi)
+va panel (oddiy kirish) tadbirlarni `/pos/banquets/**` orqali o'qiydi: `banquets.manage` yoki `pos.take_payment`; har bir
+o'zgartirish `banquets.manage`. Do'kon sozlamalari (`/owner/pos/banquets/**`) faqat panel (PIN sessiyasi — 403),
+`banquets.manage`, har bir o'zgarish auditda. Boshqa do'kon yoki filial tadbiri — 404. Yangi tadbir va sozlash yozuvlari
+`pos.module:banquet` (403 `module_disabled` / `plan_feature_missing`); mavjud tadbir modul o'chsa ham ishlayveradi.
+
+| So'rov | Nima qiladi |
+|---|---|
+| `GET /pos/banquets/calendar?branch_id&from&to&include_cancelled` | Filial zallari (`halls[]`) va har birining kunlardagi tadbirlari (birlashtirilgan tadbir har zal ostida), do'kon vaqtlari `slots`. Ko'pi bilan 62 kun, sukut — joriy oy |
+| `GET /pos/banquets?branch_id&from&to&status&phone` | Ro'yxat yoki telefon (kamida 4 raqam) bo'yicha qidirish, ko'pi bilan 200 |
+| `GET /pos/banquets/catalog?branch_id` | Faol paketlar, qo'shimchalar, filial zallari va slot ijarasi, sozlamalar, tadbir turlari |
+| `POST /pos/banquets` | Zalni vaqtincha band qilish (`hold`): `event_date`, `slot` (morning/day/evening yoki `custom` + `start_time`/`end_time` "HH:MM", tugash boshlanishdan oldin — ertasi kun), `hall_ids[]` (bir nechta — birlashtiriladi), `customer_name`, `customer_phone`, `event_type` (toy, osh, birthday, corporate, other), `guests_guaranteed`, `guests_minimum` (sukut — paket minimumi), `banquet_package_id`, `extras[]` (`extra_id` yoki erkin `name`+`unit_price`+`per_person`; `quantity`), `quote_currency`+`quote_rate` (faqat ko'rsatish), `note`. `hold_expires_at` = hozir + `hold_hours`. 409 `slot_taken` (`data.conflicts`), 409 `hall_has_bookings` (zaldagi xona bron qilingan), 422 `event_in_past`, `hall_not_found`, `package_not_found` |
+| `GET /pos/banquets/{uuid}` | Tadbir: qatorlar (`lines`: package, hall_rent, extra, order), summalar, jadval qatorlari (qisqa), `warnings` (mehmonlar chegaradan ko'p, vaqt oynadan tashqarida — rad etish emas), `quote` |
+| `PATCH /pos/banquets/{uuid}` | O'zgartirish yoki ko'chirish (sana, slot, vaqt, zallar): to'lovlar saqlanadi, to'qnashuv qayta tekshiriladi. `extras` — to'liq ro'yxat (`line_uuid` yoki `extra_id` bo'yicha mos qator saqlanadi). Muzlatilgan tadbirda paket o'zgarmaydi (409 `event_frozen`). `version` (409 `stale_version`); 409 `event_not_editable` |
+| `POST /pos/banquets/{uuid}/freeze` | Shartnoma kuni: narxlar qatorlarga muhrlanadi, paket surati olinadi; keyin katalog o'zgarsa ham tadbir o'zgarmaydi. 409 `already_frozen` |
+| `POST /pos/banquets/{uuid}/unfreeze` | `reason` bilan (audit `banquet.unfrozen`): narxlar yana katalogdan. 409 `not_frozen` |
+| `GET/PUT /owner/pos/banquets/settings` | `slots` {morning, day, evening: {start, end}}, `hold_hours` (0 — o'zi bo'shamaydi), `guest_warning_thresholds` [200, 250, 300], `window_start`/`window_end` (06:00–23:00), `advance_mxik`, `cancellation_mxik` (+ paket kodlari; buxgalter tasdiqlaydi), `quote_currency` |
+| `GET/POST /owner/pos/banquets/packages`, `PATCH/DELETE …/{id}` | Paket: `name`, `per_person_price`, `minimum_guests`, `included[]` (erkin matn), `items[]` (`product_variant_id`/`product_id` yoki `name`, `quantity_per_person`, `unit` portion/piece/kg/l — P6-54 ishlab chiqarish varag'i). Tadbirda ishlatilgan paket o'chirilmaydi — arxivlanadi (`deleted: false`) |
+| `GET/POST /owner/pos/banquets/extras`, `PATCH/DELETE …/{id}` | Qo'shimcha: `name`, `price`, `pricing` per_event/per_person; ishlatilgani arxivlanadi |
+| `GET /owner/pos/banquets/halls?branch_id`, `PUT …/halls/{id}/rates` | Zal ijarasi slot bo'yicha (`rates` {morning, day, evening, custom: narx yoki null}) |
+
+**Formula.** jami = paket narxi × max(`guests_guaranteed`, `guests_minimum`) + har zal ijarasi (slot narxi) + qo'shimchalar
+(tadbirga: narx × miqdor; har mehmonga: narx × miqdor × hisoblangan mehmonlar) + tadbir kuni buyurtma (P6-54). Muzlatilgan
+qatorning narxi qoladi, miqdori mehmonlarga ergashadi; muzlatilgan tadbirga qo'shilgan yangi zal yoki qo'shimcha bugungi
+narxda va darhol muzlatiladi; slot o'zgarsa zal ijarasi yangi slot narxida. Hammasi so'mda; `quote` faqat ko'rsatish.
+
+**Ikki marta band qilmaslik.** Har bir yozuv filial qatorini qulflaydi (xona bronlari ham shu qulfni oladi), keyin shu
+zallarda `hold`/`confirmed`/`in_progress` tadbir bilan [starts_at, ends_at) kesishishini (409 `slot_taken`) va zal ichidagi
+xonaning faol broni bilan kesishishini (409 `hall_has_bookings`) tekshiradi. Teskari tomoni: banket zalidagi xonani shu
+vaqtga bron qilish — 409 `banquet_conflict` (BookingService). Holatlar: hold → confirmed (zaklad to'langanda, P6-53) →
+in_progress → settled; hold/confirmed → cancelled. `pos:banquet-release-holds` (har daqiqa): muddati o'tgan, to'langan
+qatori yo'q `hold` bekor qilinadi (`released_at`, audit `banquet.hold_expired`). Bootstrap: `banquet` bo'limi (slotlar,
+`hold_hours`, chegaralar; modul o'chiq — null). Migratsiya `2026_11_21_100100` (`banquet_settings`, `banquet_packages`,
+`banquet_package_items`, `banquet_extras`, `banquet_hall_rates`, `banquet_events`, `banquet_event_halls`,
+`banquet_event_lines`, `banquet_payments`).
+
+## Tadbirlar: to'lov jadvali, bekor qilish, hisobot (P6-53)
+
+Qoidalar va fiskal: [POS_SPEC.md](POS_SPEC.md) §4.4 "Tadbir to'lov jadvali". Hammasi `/api/v1` ostida. Kassa (PIN sessiyasi)
+va web panel (oddiy kirish) — tadbirlarning o'zidek. Mavjud tadbirning puli (`pay`, bank o'tkazmasi, bekor qilish, hisobot)
+`banquet` modulini so'ramaydi; jadvalni tahrirlash va qoidalarni saqlash — so'raydi (`pos.module:banquet`). Boshqa do'kon yoki
+filial tadbiri/qatori — 404 (`event_not_found`, `payment_not_found`). Pul — o'nlik satr, so'mda.
+
+Jadval (`banquet_payments`): tadbir yaratilganda yoki summasi o'zgarganda (`BanquetEventChanged`) do'kon shablonidan tuziladi
+(standart: 30 % zaklad band qilishda, 40 % 14 kun oldin, qolgani tadbir kuni; butun so'm, oxirgi qator qolganini oladi; o'tgan
+sana — bugun). Summa o'zgarsa farq to'lanmagan qatorlarga: oshsa — oxirgisiga (qolmagan bo'lsa tadbir kuniga yangi yakuniy
+qator), kamaysa — oxiridan; to'langan qator hech qachon o'zgarmaydi; to'langandan kam bo'lsa to'lanmagan qatorlar o'chadi
+(farq yakuniy hisobda qaytariladi, P6-54).
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `GET /pos/banquets/{uuid}/payments` | `banquets.manage` yoki `pos.take_payment` | `{event{uuid, status, event_date, total, paid_total, version}, summary{total, paid, outstanding, overdue, overdue_amount, overdue_count, next_due}, rows[], entries[], cancellation\|null}`; qator: `kind` deposit\|interim\|final, `due_date`, `amount`, `status` due\|paid\|refunded\|retained, `overdue`, `tender`, `reference`, `shift_id`, `fiscal{receipt_uuid, status}`, `refunded_amount`, `retained_amount`; yozuv (`entries`): `type` payment\|transfer\|refund\|retain, `transfer_pending` |
+| `PUT /pos/banquets/{uuid}/payments {rows[{uuid?, kind, due_date, amount}], version?}` | `banquets.manage` + modul | to'lanmagan qatorlar (mavjudi `uuid` bilan saqlanadi); yig'indisi qolgan summaga teng (422 `schedule_sum_mismatch`, `data.expected`); 422 `payment_not_editable`, `due_date_past`, `amount_invalid`; 409 `version_conflict`, `event_not_editable`. Audit `banquet.schedule_updated` |
+| `POST /pos/banquets/{uuid}/payments/{row}/pay {tender: cash\|card\|qr, amount?, card_type?, transaction_id?, reference?, shift_uuid?}` | `pos.take_payment` | `Idempotency-Key` majburiy (400 `idempotency_key_required`; o'sha kalit — o'sha to'lov). Qator yoki uning qismi (`amount`; qolgani o'sha sanali yangi qator). Pul terminalning ochiq smenasiga (409 `shift_not_open`, `shift_closed`), keyin darhol **ADVANCE** cheki. Zaklad qatori to'liq to'langanda tadbir `confirmed` (hold muddati o'chadi). Dinamik Click/Payme QR schyotga bog'langan — jadval qatori uchun hozircha statik QR. 201 `{schedule, entry, fiscal}`. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`, `tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Audit `banquet.payment_taken` |
+| `POST /pos/banquets/{uuid}/payments/{row}/bank-transfer {reference, paid_on?, amount?}` | `banquets.manage` | `Idempotency-Key` majburiy. Smenasiz, cheksiz (ESF tizimdan tashqarida — egasi qarori); to'langan summaga kiradi, yakuniy chekda `prepayment`. 422 `paid_on_future`. Audit `banquet.transfer_recorded` |
+| `GET /pos/banquets/{uuid}/cancellation?retained=` | `banquets.manage` | hisob: `{days_before, rule_percent, paid, computed_retained, retained, refund, overridden, cash_refund, transfer_refund, rows[{payment_uuid, kind, tender, amount, retain, refund, refund_path: cash_drawer\|card\|qr\|bank_transfer}]}`; `retained` — menejer summasini ko'rish |
+| `POST /pos/banquets/{uuid}/cancellation {reason, retained?, override_reason?, approval_token?}` | `banquets.manage` | `Idempotency-Key` majburiy. Ushlab qolinadigan qism eng eski to'lovlardan (zaklad birinchi), qolgani qaytariladi: naqd — shu terminalning ochiq smenasidan (409 `refund_needs_shift`; `pos.refund` yoki menejer `approval_token`), karta/QR — to'langan yo'li bilan (har biriga asl bo'nak chekiga bog'langan **REFUND** cheki), bank o'tkazmasi — `transfer_pending`. Ushlab qolingan qism — "Bekor qilish haqi" **SALE** cheki, to'lovi `prepayment`. To'lanmagan qatorlar o'chadi, tadbir `cancelled` (zal bo'shaydi). Hech narsa to'lanmagan — shunchaki bekor. 422 `override_reason_required`, `retained_invalid`; 409 `event_not_cancellable`. Audit `banquet.cancelled`; egasiga Telegram (override bo'lsa alohida qator) |
+| `GET /owner/pos/banquets/payment-settings` | `banquets.manage` | `{schedule_template[{kind, percent\|null, days_before\|null}], cancellation_rules[{min_days, retained_percent}], reminder_days[], overdue_reminders, version}` (`version` 0 — standart qiymatlar) |
+| `PUT /owner/pos/banquets/payment-settings {…, version?}` | `banquets.manage` + modul | shablon: 1–8 qator, oxirgisi `final` (`percent` null), ko'pi bilan bitta zaklad, foizlar jami ≤ 100; bekor qilish: 1–10 qator, `min_days` takrorlanmaydi, 0 bo'lishi shart (standart ≥ 30 kun 0 %, 14–29 kun 30 %, < 14 kun 100 %); `reminder_days` 0–60. Audit `banquet.payment_settings_updated` |
+| `GET /owner/pos/banquets/report?branch_id&from&to` | `banquets.manage` yoki `reports.view` | tadbir sanasi bo'yicha (standart joriy oy, ≤ 366 kun): `{events, cancelled, by_status[], guests, total, paid, outstanding, overdue{count, amount}, retained, refunded, transfer_pending, rows[]}`; bekor qilinganlar `total`/`outstanding` ga kirmaydi; `banquets.manage` siz telefon niqoblangan |
+| `GET /owner/pos/banquets/export?…` | `banquets.manage` yoki `reports.view` | `.xlsx`: "Tadbirlar" va "Jami". Audit `banquet.report_exported` |
+
+Qo'shimchalar: X/Z (`ShiftReport`) — `banquets {taken{count, amount, cash, card, qr}, refunded{count, amount, cash}}`,
+`cash.banquets` (kutilgan naqdga qo'shiladi), `cash.banquet_refunds` (ayiriladi); Z Telegram xulosasida "Tadbir avanslari"
+qatori. Eslatmalar: `pos:banquet-payment-reminders` har kuni 09:05 (Toshkent) — to'lanmagan qator sanasidan `reminder_days`
+oldin (standart 3 va 1) va muddati o'tgach 1-kun, keyin har 7 kunda; bir qatorga bir kunda bitta (`banquet_payment_reminders`).
+Migratsiya `2026_11_21_200100` (`banquet_payment_settings`, `banquet_payment_entries`, `banquet_cancellations`,
+`banquet_payment_reminders`).
+
+## Tadbirlar: ishlab chiqarish varag'i, shartnoma, tadbir kuni va yakuniy hisob (P6-54)
+
+Hammasi `/api/v1` ostida; kassa (PIN sessiyasi) va web panel — tadbirlarning o'zidek, boshqa do'kon/filial tadbiri — 404.
+Varaqlar, shartnoma va tadbir kunini boshlash — yangi oqim (`pos.module:banquet`); yakuniy hisob — to'lov, modul so'ramaydi.
+Oshxona qog'ozlarida (varaq, bozorlik) mijoz ma'lumoti yo'q; shartnoma (ism, telefon) — faqat `banquets.manage`.
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `GET /pos/banquets/{uuid}/production-sheet` (+ `/export` `.xlsx`) | `banquets.manage`, `pos.take_payment`, `reports.view` yoki `kitchen.manage` | `{event{uuid, title, event_type, event_date, local_time, halls[]…}, guests{guaranteed, minimum, actual, base, reserve_percent, planned}, stations[{station_id, name, dishes[{product_id, name, unit, quantity_per_person, quantity, kg}]}], osh\|null, warnings[]}`. base = max(kelgan, kafolatlangan, minimal); planned = base × (1 + zaxira %), yuqoriga; taom = paket (muzlatilgan snapshot) qatori × planned; kg — kg/l da o'zi, porsiyada porsiya grammi sozlangan bo'lsa; sex — taomning `kitchen_station_routes` yo'nalishi (yo'q — "Umumiy") |
+| `GET /pos/banquets/shopping-list?branch_id&from&to` (+ `/export`) | o'shalar | ≤ 62 kun, standart bugun; hold/confirmed/in_progress tadbirlar: `{events[{uuid, title, event_type, event_date, slot, status, planned_guests}], dishes[] (product+birlik bo'yicha jami, quantity_per_person null), osh{persons, osh_kg, ingredients[]}}` |
+| `GET /pos/banquets/osh-calculator?persons=` | o'shalar | 1–5000 kishi: `{persons, persons_per_kg, osh_kg, ingredients[{key, name, unit, per_kg, quantity}], kazans[{size_kg, count}], kazan_capacity_kg}`; osh kg = persons / persons_per_kg, keyingi 0,5 kg ga yuqoriga; qozonlar — eng kattasi qoldiq undan kichik bo'lguncha, keyin qoldiqni sig'diradigan eng kichigi |
+| `GET /pos/banquets/{uuid}/warnings` | `banquets.manage`, `pos.take_payment`, `reports.view` | `{warnings[{code: guests_over_threshold\|outside_time_window, message}]}` (tadbir kartasidagi qoida; hech qachon rad etish emas) |
+| `GET /pos/banquets/{uuid}/contract` | `banquets.manage` + modul | `{contract_no\|null, text, lines[], fields{}, warnings[]}`: do'kon shabloni `{{placeholder}}` lari to'ldirilgan (mijoz, sana/vaqt, zal, mehmonlar, paket, jamilar, to'lov jadvali, bekor qilish qoidalari, kotirovka valyutasi — faqat ma'lumot uchun) |
+| `POST /pos/banquets/{uuid}/contract/number` | `banquets.manage` + modul | raqam bir marta: `"<yil>-<0001>"` do'kon va yil bo'yicha (qo'lda yozilgan band raqam o'tkazib yuboriladi). Audit `banquet.contract_numbered` |
+| `POST /pos/banquets/{uuid}/start {version?, waiter_id?}` | `banquets.manage` yoki `pos.take_payment` + modul | `confirmed` tadbir tadbir kuni buyurtmasini ochadi (stolsiz zal buyurtmasi, `banquet_events.order_id`; joy narxi waive; ichimlik va qo'shimcha taomlar — uning oddiy raundlari) va `in_progress`. Qayta — o'sha buyurtma. 409 `invalid_transition`, `stale_version`. Audit `banquet.started` |
+| `PATCH /pos/banquets/{uuid}/guests {guests_actual, version?}` | `banquets.manage` | kelgan mehmonlar (confirmed/in_progress). `{event, settlement}`. Audit `banquet.guests_actual` |
+| `GET`/`PUT /pos/banquets/{uuid}/staff {user_ids[]}` | o'qish: `banquets.manage`/`pos.take_payment`; yozish: `banquets.manage` | tadbirga biriktirilgan xodimlar (ish haqi `event_rate`, turi `banquet`). Audit `banquet.staff_assigned` |
+| `GET /pos/banquets/{uuid}/settlement` | `banquets.manage` yoki `pos.take_payment` | `{event, guests{…, billed}, lines[{kind, name, unit_price, quantity, persons, amount}], package_total, hall_total, extras_total, orders{lines, discount, service_charge, other_charges, total}, total, advances{total, applied, rows[]}, due, excess, settlement{status: open\|settled, bill_uuid, applied_amount, excess_amount, excess_status: none\|pending\|refunded}\|null, warnings[]}` |
+| `POST /pos/banquets/{uuid}/settle {shift_uuid?, version?, approval_token?}` | `pos.take_payment` | `Idempotency-Key` majburiy (428). Paket × max(kelgan, kafolatlangan, minimal) + zal + qo'shimchalar buyurtmaning `banquet` charge'i bo'ladi, jadvalning to'lanmagan qatorlari o'chadi, buyurtma bitta schyot qilinadi va to'langan zakladlar (kassa + bank o'tkazmasi) `prepayment` bilan ayiriladi. Qoldiq — `POST /pos/bills/{uuid}/payments` istalgan usulda; schyot yopilganda BITTA **SALE** cheki (to'liq summa, zakladlar — to'lovning `prepayment` qismi, o'z shakllarida), buyurtma yopiladi, tadbir `settled`, zal bo'sh. Zaklad summadan ko'p — schyot zakladdan to'liq, ortig'i eng yangi zakladdan **REFUND** chekida (naqd — ochiq smena, `pos.refund` yoki menejer tasdig'i; yo'q bo'lsa `excess_status: pending`). Pul qo'yilmagan schyotni qayta `settle` qayta hisoblaydi. `{settlement, bill}`. 409 `invalid_transition`, `order_closed`, `shift_not_open`; 422 `mxik_missing` |
+| `POST /pos/banquets/{uuid}/settlement/refund-excess {approval_token?}` | `pos.take_payment` | `Idempotency-Key` majburiy. Ortiqcha zakladni qaytarish (yuqoridagidek); 403 `approval_required`, 409 `refund_needs_shift`. Audit `banquet.excess_refunded` |
+| `GET`/`PUT /owner/pos/banquets/ops-settings` | `banquets.manage` (PIN sessiyasi emas; yozish + modul) | `{reserve_percent (0–50), osh{persons_per_kg, ingredients[{key, name, unit kg\|l\|dona, per_kg}], kazans[], product_ids[]}, portion_weights[{product_id, grams}], mxik{package, hall, extra: {mxik, package_code}}, contract_template, contract_template_is_default, contract_placeholders[], version}`; 409 `version_conflict`. Audit `banquet.ops_settings_updated` |
+
+Schyotda (`BillPresenter`): `banquet_amount`, `banquet_lines[{kind, name, quantity, unit, amount}]`. Chek qatorlari: "Banket
+paketi: <nomi>" (kishi), har zal ijarasi, har qo'shimcha — MXIK `ops-settings` dan (buxgalter tasdiqlaydi). Xizmat haqi faqat
+tadbir kuni buyurtma qatorlariga (filial qoidasi bilan); paket, zal va qo'shimchalarga yo'q. Ish haqi: `settled` tadbir
+biriktirilgan har xodimga (yo'q bo'lsa buyurtma ofitsiantiga) `event_rate` ning `banquet` turida bitta tadbir; schyotning o'zi —
+oddiy sotuv (paket charge — sotuv emas). Migratsiya `2026_11_21_300100` (`banquet_ops_settings`, `banquet_event_staff`,
+`banquet_settlements`, `orders.banquet_amount/banquet_lines`, `order_bills.banquet_amount`).
+
+## Ko'p brend, ingredient stop-list, kanal tushumi (P6-55)
+
+Dark kitchen (E6, B9). Hammasi `/api/v1` ostida; boshqa do'konning brendi yoki ingredienti — 404; har o'zgarish auditda. Brendsiz va
+ingredientsiz do'konda hech narsa o'zgarmaydi (katalog, kanal narxi, stop-list va KDS shakllari avvalgidek). Modullar: `multi_brand`
+(Pro, `aggregator_orders` bilan; `dark_kitchen` profilida yoqiq), `ingredient_stoplist` (Pro, `aggregator_orders` bilan; faqat `dark_kitchen`
+profilida yoqiq). Modul faqat sozlash va yangi oqimni yopadi: brend qoidalari, filial o'chirgichi va ingredient to'xtatilishi
+modul o'chsa ham amalda qoladi, ingredientni qayta ochish modul so'ramaydi. Mini App / Telegram'da brend bo'yicha alohida vitrina —
+bu bosqichda yo'q (katalogda faqat `brand` filtri).
+
+| Yo'l | Ruxsat | Qisqacha |
+|---|---|---|
+| `GET /owner/brands` | `menu.view`/`menu.manage` + `multi_brand` | `{brands[{id, uuid, name, short_code, color, logo_url, is_active, sort_order, products_count, channels[{channel, is_hidden, price_percent}], off_branch_ids[]}], channels_available[]}` |
+| `POST /owner/brands {name, short_code, color?, logo_url?, is_active?, sort_order?}` / `PATCH /owner/brands/{id}` / `DELETE /owner/brands/{id}` | `menu.manage` (PIN sessiyasi emas) | `short_code` 1–8 harf/raqam, do'konda yagona (katta harf); `color` `#RRGGBB`. Nofaol brend taomlari hamma kanalda yashirin. O'chirilsa taomlari asosiy brendga o'tadi, sotilgan qatorlar o'z nusxasini saqlaydi. Audit `brand.created/updated/deleted` |
+| `PUT /owner/brands/{id}/channels {channels[{channel, is_hidden, price_percent}]}` | `menu.manage` | brend × kanal: `is_hidden` — o'sha kanalda sotilmaydi; `price_percent` (−90…+300) — taomlari o'sha kanalda shuncha foiz qimmat/arzon, butun so'mga half-up; taomning o'z kanal narxi (`channel_prices`) bo'lsa o'sha ustun. `ChannelMenu` (katalog, checkout, kassa) va `PriceHistory` (oflayn narx) shuni o'qiydi; `menu_version` o'zgaradi. Audit `brand.channels_changed` |
+| `PUT /owner/brands/{id}/branches {branches[{branch_id, is_active}]}` | `menu.manage` | filial × brend: o'chiq filialda brend taomlari stop-listdagidek yopiq (`MenuAvailability`, checkout 422, sabab "<brend> bu filialda o'chirilgan"); `menu.availability_changed` (`reason: brand`). Audit `brand.branches_changed` |
+| `PUT /owner/product-brands {brand_id\|null, product_ids[]}` | `menu.manage` | taomlarni brendga (null — asosiy brend) o'tkazadi (500 tagacha); `{changed, brand_id}`. Audit `brand.products_assigned` |
+| `GET /owner/ingredients?branch_id` | `menu.view`/`menu.manage`/`stoplist.manage` + `ingredient_stoplist` | `{branch_id, ingredients[{id, uuid, name, unit, links[{product_id, name, is_critical}], stopped[{branch_id, entry_id, reason, until}], stopped_here}]}` (terminal PIN sessiyasi ham — 2-bosqich kassa/KDS) |
+| `POST /owner/ingredients {name, unit?}` / `PATCH /owner/ingredients/{id}` / `DELETE /owner/ingredients/{id}` | `menu.manage` | nom do'konda yagona (katta-kichik harf farqsiz). O'chirilsa bog'lanishlar ketadi, to'xtatilgan filiallarda taomlar qayta ochiladi. Audit `ingredient.*` |
+| `PUT /owner/ingredients/{id}/products {links[{product_id, is_critical}]}` | `menu.manage` | bog'lanishlarni almashtiradi (1 000 tagacha). `is_critical` (standart true) — ingredient to'xtasa taom yopiladi; false — sotuvda qoladi, mavjudlikda `limited_products` |
+| `POST /owner/ingredients/{id}/link-categories {category_ids[], is_critical?}` | `menu.manage` | kategoriya (va pastki kategoriyalari) taomlarini qo'shadi; `added` |
+| `POST /owner/ingredients/{id}/stop {branch_id?, reason?, until?}` | `stoplist.manage` (o'z filiali) + `ingredient_stoplist` | "Tovuq tugadi": oddiy stop-list yozuvi (`subject_type: ingredient`; `GET /owner/stop-list` da ham ko'rinadi, `POST /owner/stop-list {type: ingredient}` ham shu — modul tekshiriladi). Muhim bog'langan hamma taom shu filialda bir vaqtda, barcha brend va kanalda yopiladi; `until` — o'zi ochiladi (`menu:expire-stop-list`). 201 `{entry_id, branch_id, ingredient_id, reason, until, closed_product_ids[]}`. `Idempotency-Key` ixtiyoriy. Broadcast `menu.availability_changed` (`items`: yopilgan taomlar `type: product` + `type: ingredient`) |
+| `DELETE /owner/ingredients/{id}/stop?branch_id` | `stoplist.manage` | qayta ochadi (modul so'ramaydi); o'z yozuvi bilan to'xtatilgan taom yopiq qoladi. 404 — filialda to'xtatilmagan |
+| `GET /owner/reports/channel-revenue?from&to&branch_id` | `reports.view` + `multi_brand` | davr (≤ 366 kun, do'kon vaqt zonasi, UTC'da solishtiriladi; standart bugun) × kanal × brend: `rows[{channel, channel_label, commission_percent, commission_source: owner\|billing, brand_id (null — asosiy brend), brand_name, brand_code, brand_color, orders, gross, discounts, refunds, commission, net}]`, `by_channel[]`, `by_brand[]`, `totals`. Qoidalar pastda |
+| `GET /owner/reports/channel-revenue/export?…` | `reports.view` + `multi_brand` | `.xlsx`: "Kanal va brend", "Kanallar", "Brendlar" (har birida "Jami"). Audit `report.channel_revenue_exported` |
+| `GET /owner/channel-commissions` / `PUT {rates[{channel, percent 0–100, note?}]}` | o'qish `settings.manage`/`reports.view`; yozish `settings.manage` | egasining kanal komissiyasi (agregator — Yandex, Uzum o'zinikini oladi). Kanal yo'q bo'lsa buyurtmaning RIZQIM komissiyasi. Audit `settings.channel_commissions_changed` |
+
+Kanal tushumi qoidalari: buyurtmalar — `delivered` yoki keyin `refunded`, joylashtirilgan kuni bo'yicha; `gross = total_price +
+discount` (yetkazish, xizmat, qadoq qatorlari bilan), `discounts = discount`, `refunds` — buyurtmaning POS qaytarishlari
+(`pos_refunds`), qaytarishsiz `refunded` buyurtmada to'liq summa; `commission` — egasining kanal foizi × `total_price`, bo'lmasa
+buyurtmaning `commission_amount` (docs/BILLING.md); `net = gross − discounts − refunds − commission`. Bir nechta brendli buyurtma
+brendlarning qator summasi ulushida bo'linadi (oxirgi brend yaxlitlash qoldig'ini oladi, brend qatorlari buyurtmaga aynan teng);
+`orders` buyurtmani har brendda bir marta, kanal va jami qatorlarida bir marta sanaydi.
+
+Mavjud endpointlarga qo'shimchalar (additive):
+- Katalog (`GET /catalog?store_id=…`): mahsulotda `brand_id`; `brand=<uuid|id>` — faqat shu brend taomlari (nofaol yoki noma'lum
+  brend — 404); brendli do'konda `brands[{id, uuid, name, code, color, logo_url}]` (shu kanalda sotiladiganlari). POS katalogi
+  (`GET /pos/catalog`) — har doim `brands[]` (brendsiz do'konda bo'sh).
+- Mavjudlik (`availability`, `GET /catalog/availability`): ingredient yoki o'chiq brend yopgan taomlar `stopped.products` va
+  `stop_list` da (`type: product`, `id: null`, sabab "Tovuq tugadi" yoki yozuvdagi sabab); yangi `stopped_ingredients[{id,
+  ingredient_id, name, reason, until}]` va `limited_products[{product_id, ingredient_ids[]}]` (bo'sh ro'yxatlar). Checkout
+  (`OrderLineBuilder::stopList`) xuddi shuni rad etadi.
+- Buyurtma qatori brendni sotilgan paytdagi nusxa sifatida saqlaydi (`order_items.brand_id`, `brand {id, name, code, color}`;
+  kombo qismi kombo brendida): oshxona chiptasi (`GET /staff/kitchen/tickets`) va POS buyurtmasi qatorida `brand` (faqat brendli
+  qatorda), chiptada `brands[]` (faqat brendli chiptada) — yorliq va KDS belgisi (2-bosqich) shundan.
+- Migratsiyalar: `2026_11_21_400100` (`brands`, `branch_brands`, `brand_channels`, `products.brand_id`, `order_items.brand_id`,
+  `order_items.brand`), `2026_11_21_400200` (`ingredients`, `product_ingredients`, `channel_commissions`).

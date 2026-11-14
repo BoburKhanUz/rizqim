@@ -9,41 +9,19 @@ part 'data185.g.dart';
 @JsonSerializable()
 class Data185 {
   const Data185({
-    required this.uuid,
     required this.branchId,
-    required this.userId,
-    required this.userName,
-    required this.businessDate,
-    required this.clockInAt,
-    required this.clockOutAt,
-    required this.abandoned,
-    required this.open,
-    required this.minutes,
-    required this.source,
-    required this.note,
+    required this.weekendDays,
+    required this.holidays,
   });
 
   factory Data185.fromJson(Map<String, Object?> json) =>
       _$Data185FromJson(json);
 
-  final String uuid;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'clock_in_at')
-  final String clockInAt;
-  @JsonKey(name: 'clock_out_at')
-  final String? clockOutAt;
-  final bool abandoned;
-  final bool open;
-  final int minutes;
-  final String source;
-  final String? note;
+  @JsonKey(name: 'weekend_days')
+  final List<int> weekendDays;
+  final List<String> holidays;
 
   Map<String, Object?> toJson() => _$Data185ToJson(this);
 }

@@ -786,6 +786,30 @@ orqali to'laydi. Payshanba hisobi: taomlar 3 800 000, xona puli 300 000, xizmat 
 | Mehmon kelmadi, avans ushlab qolindi | ehtimol **sotuv** (bron xizmati), T3 | 1 000 000 | 10202002003000002 | — |
 | Yopilgan schyot avans qismi bilan qaytarildi (P3-35) | **qaytarish** (asl sotuv chekiga bog'langan) | qaytarilgan summa | sotuv chekining qatorlari ulushi bilan | avans olingan shaklda, `prepayment: true`: pul mehmonga emas, avansga qaytadi; avans yana bron daftarida (`booking_payments`) va keyin yuqoridagi qatorlardek qaytariladi yoki ushlab qolinadi |
 
+**Tadbir to'lov jadvali: bir nechta bo'nak → bitta sotuv (P6-53).** To'y yoki banketning zaklad, oraliq va yakuniy
+to'lovlari jadval qatorlari (`banquet_payments`). Kassada olingan har bir to'lov (naqd, karta, statik QR; qatorning bir qismi
+ham bo'ladi — qolgani yangi qator) darhol **bo'nak** cheki (bitta qator "Tadbir zakladi (avans)" / "oraliq to'lov", MXIK
+`banquet_settings.advance_mxik`, bo'lmasa `deposit`); pul smenaga tushadi (X/Z `banquets` bo'limi, savdoga kirmaydi). Bank
+o'tkazmasini menejer panelda yozadi: smenasiz, cheksiz (hisob-faktura/ESF tizimdan tashqarida — egasi tasdiqlaydi), lekin
+to'langan summaga kiradi va yakuniy sotuv chekida avanslar kabi `prepayment` bo'ladi (buxgalter tasdiqlaydi, T10). Yakuniy
+hisob (P6-54) — tadbirning **to'liq summasiga bitta sotuv cheki**, barcha avanslar `prepayment` qismida. Bekor qilishda
+qoida jadvali (tadbirgacha kunlar → to'langanning ushlab qolinadigan %, menejer sabab bilan o'zgartira oladi) qismlarni
+hisoblaydi: qaytariladigan qism — har bir bo'nak chekiga bog'langan **qaytarish** cheki (naqd ochiq smena kassasidan),
+ushlab qolingan qism — "Bekor qilish haqi" xizmat qatorining **sotuv** cheki, to'lovi `prepayment` (bo'nak olingan shaklda;
+MXIK `cancellation_mxik`, bo'lmasa `booking_fee`; T3, T11). Bank o'tkazmasi qismiga chek yo'q (qaytarish — "o'tkazma bilan
+qaytariladi" belgisi). Yangi `FiscalReceiptType` yo'q.
+
+**Tadbirning yakuniy hisobi: bitta sotuv cheki (P6-54).** Tadbir kuni buyurtma (stolsiz zal buyurtmasi, tadbirga bog'langan)
+ochiladi; ichimlik va qo'shimcha taomlar — uning oddiy qatorlari. Yakuniy hisobda paket × max(kelgan, kafolatlangan, minimal
+mehmon) — hech qachon kafolatlangandan kam emas —, har zal ijarasi va qo'shimchalar (har mehmonga — shu son bilan) buyurtmaning
+`banquet` qatoriga yoziladi (chekda har biri o'z qatori, MXIK `banquet_ops_settings`: paket, zal, qo'shimcha — buxgalter
+tasdiqlaydi, T12); xizmat haqi faqat tadbir kuni buyurtma qatorlariga (filial qoidasi), joy narxi olinmaydi. Buyurtma bitta
+schyot bo'ladi, to'langan barcha avanslar (kassa va bank o'tkazmasi) `prepayment` bilan ayiriladi (bo'nak olingan shakllarda,
+eng eskisidan; o'tkazma — karta shaklida, T10), qolgani kassada istalgan usulda. Schyot yopilganda **to'liq summaga bitta sotuv
+cheki**: `prepayment` qismlari + kassadagi to'lov = chek summasi. Avanslar summadan ko'p bo'lsa schyot avansdan to'liq to'lanadi,
+ortig'i eng yangi avansdan uning bo'nak chekiga bog'langan **qaytarish** cheki bilan qaytariladi (naqd — ochiq smenadan, menejer
+tasdig'i bilan). Yakuniy schyotni bo'lish bu bosqichda yo'q.
+
 **Nasiya: sotuv → kredit.** Xizmat ko'rsatilgan kuni to'liq summaga sotuv cheki chiqadi (to'lovgacha kechiktirilmaydi).
 Qarzning har bir to'lovida kredit cheki chiqadi. Misol: hisob 850 000 so'm, mijoz 350 000 ni naqd to'laydi, 500 000 ni
 keyingi haftaga qoldiradi.
@@ -855,6 +879,9 @@ kafolatiga tayanadi.
 | T7 | Tanlangan provayder bo'nak va kredit cheklarini API orqali qo'llaydimi | v1 ning asosiy talabi | Provayder (P3-32) |
 | T8 | VM 393 bo'yicha "integratsiya" ta'rifi va provayder orqali ulanish yetarliligi | Butun POS ning qonuniyligi | Provayderning yozma kafolati (egasi rasmiy so'rov yubormaydi) |
 | T9 | Markirovkali ichimliklar ovqatlanishda stolda skanerlanadimi (PF-175) | Suv va ichimlik sotuvi | Provayder, buxgalter |
+| T10 | Tadbir uchun bank o'tkazmasi (hisob-faktura/ESF tizimdan tashqarida) yakuniy sotuv chekida `prepayment` sifatida ko'rsatiladimi | Banket hisobi, P6-53 | Buxgalter |
+| T11 | Bekor qilingan tadbirning ushlab qolingan zakladi: "Bekor qilish haqi" xizmati sotuvi va uning MXIK kodi; qaytarilgan zaklad — qaytarish cheki | Banket bekor qilish, P6-53 | Buxgalter, soliq maslahatchisi |
+| T12 | Yakuniy tadbir chekida banket paketi, zal ijarasi va qo'shimchalar MXIK kodlari (ovqatlanish xizmati yoki ijara), paketni bitta qator "kishi" birligida ko'rsatish | Banket yakuniy hisobi, P6-54 | Buxgalter |
 
 ### 4.10. Fiskal terminal oqimlari (P6-16, D5)
 

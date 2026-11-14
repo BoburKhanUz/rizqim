@@ -7,23 +7,25 @@ part of 'data105.dart';
 // **************************************************************************
 
 Data105 _$Data105FromJson(Map<String, dynamic> json) => Data105(
+  id: (json['id'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
-  enabled: json['enabled'] as bool,
-  expoScope: json['expo_scope'] as String,
-  limits: Limits.fromJson(json['limits'] as Map<String, dynamic>),
-  stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  products: (json['products'] as List<dynamic>)
-      .map((e) => Products4.fromJson(e as Map<String, dynamic>))
+  name: json['name'] as String,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  isActive: json['is_active'] as bool,
+  serviceFee: json['service_fee'] == null
+      ? null
+      : ServiceFee3.fromJson(json['service_fee'] as Map<String, dynamic>),
+  tables: (json['tables'] as List<dynamic>)
+      .map((e) => Tables4.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data105ToJson(Data105 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
-  'enabled': instance.enabled,
-  'expo_scope': instance.expoScope,
-  'limits': instance.limits,
-  'stations': instance.stations,
-  'products': instance.products,
+  'name': instance.name,
+  'sort_order': instance.sortOrder,
+  'is_active': instance.isActive,
+  'service_fee': instance.serviceFee,
+  'tables': instance.tables,
 };

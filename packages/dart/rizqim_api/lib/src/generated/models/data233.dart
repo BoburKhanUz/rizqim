@@ -4,41 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'event5.dart';
+import 'summary7.dart';
+import 'rows8.dart';
+import 'entries6.dart';
+import 'cancellation3.dart';
+
 part 'data233.g.dart';
 
 @JsonSerializable()
 class Data233 {
   const Data233({
-    required this.uuid,
-    required this.name,
-    required this.phone,
-    required this.code,
-    required this.dailyLimit,
-    required this.mealsPerDay,
-    required this.isActive,
-    required this.note,
-    required this.createdAt,
-    required this.updatedAt,
+    required this.event,
+    required this.summary,
+    required this.rows,
+    required this.entries,
+    required this.cancellation,
   });
 
   factory Data233.fromJson(Map<String, Object?> json) =>
       _$Data233FromJson(json);
 
-  final String uuid;
-  final String name;
-  final String? phone;
-  final String code;
-  @JsonKey(name: 'daily_limit')
-  final String? dailyLimit;
-  @JsonKey(name: 'meals_per_day')
-  final int? mealsPerDay;
-  @JsonKey(name: 'is_active')
-  final bool isActive;
-  final String? note;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final Event5 event;
+  final Summary7 summary;
+  final List<Rows8> rows;
+  final List<Entries6> entries;
+  final Cancellation3? cancellation;
 
   Map<String, Object?> toJson() => _$Data233ToJson(this);
 }

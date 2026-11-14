@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'tender2.dart';
+import 'tender.dart';
 
 part 'v1_pos_bookings_uuid_deposits_request_body.g.dart';
 
@@ -23,7 +23,7 @@ class V1PosBookingsUuidDepositsRequestBody {
   ) => _$V1PosBookingsUuidDepositsRequestBodyFromJson(json);
 
   final num amount;
-  final Tender2 tender;
+  final Tender tender;
   @JsonKey(name: 'card_type')
   final String? cardType;
   @JsonKey(name: 'transaction_id')

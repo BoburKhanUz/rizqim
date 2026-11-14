@@ -7,41 +7,15 @@ part of 'data116.dart';
 // **************************************************************************
 
 Data116 _$Data116FromJson(Map<String, dynamic> json) => Data116(
-  id: (json['id'] as num).toInt(),
-  uuid: json['uuid'] as String,
-  name: json['name'] as String,
-  nameI18n: (json['name_i18n'] as Map<String, dynamic>?)?.map(
-    (k, e) => MapEntry(k, e as String),
-  ),
-  minSelect: (json['min_select'] as num).toInt(),
-  maxSelect: (json['max_select'] as num?)?.toInt(),
-  isRequired: json['is_required'] as bool,
-  displayMode: json['display_mode'] as String,
-  sortOrder: (json['sort_order'] as num).toInt(),
-  isActive: json['is_active'] as bool,
-  modifiers: (json['modifiers'] as List<dynamic>)
-      .map((e) => Modifiers4.fromJson(e as Map<String, dynamic>))
+  kinds: (json['kinds'] as List<dynamic>)
+      .map((e) => Kinds.fromJson(e as Map<String, dynamic>))
       .toList(),
-  productIds: (json['product_ids'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  productRules: ProductRules.fromJson(
-    json['product_rules'] as Map<String, dynamic>,
-  ),
 );
 
 Map<String, dynamic> _$Data116ToJson(Data116 instance) => <String, dynamic>{
-  'id': instance.id,
-  'uuid': instance.uuid,
-  'name': instance.name,
-  'name_i18n': instance.nameI18n,
-  'min_select': instance.minSelect,
-  'max_select': instance.maxSelect,
-  'is_required': instance.isRequired,
-  'display_mode': instance.displayMode,
-  'sort_order': instance.sortOrder,
-  'is_active': instance.isActive,
-  'modifiers': instance.modifiers,
-  'product_ids': instance.productIds,
-  'product_rules': instance.productRules,
+  'kinds': instance.kinds,
+  'stations': instance.stations,
 };

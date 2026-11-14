@@ -11,7 +11,7 @@ GetV1OwnerPosQrPaymentsResponse _$GetV1OwnerPosQrPaymentsResponseFromJson(
 ) => GetV1OwnerPosQrPaymentsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data132.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data155.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPosQrPaymentsResponseToJson(

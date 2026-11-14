@@ -4,43 +4,20 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'fiscal23.dart';
+import 'members.dart';
 
 part 'data283.g.dart';
 
 @JsonSerializable()
 class Data283 {
-  const Data283({
-    required this.uuid,
-    required this.orderUuid,
-    required this.billUuid,
-    required this.paymentUuid,
-    required this.amount,
-    required this.method,
-    required this.reason,
-    required this.approvedBy,
-    required this.fiscal,
-    required this.createdAt,
-  });
+  const Data283({required this.members, required this.activeCount});
 
   factory Data283.fromJson(Map<String, Object?> json) =>
       _$Data283FromJson(json);
 
-  final String uuid;
-  @JsonKey(name: 'order_uuid')
-  final String? orderUuid;
-  @JsonKey(name: 'bill_uuid')
-  final String? billUuid;
-  @JsonKey(name: 'payment_uuid')
-  final String? paymentUuid;
-  final String amount;
-  final String method;
-  final String reason;
-  @JsonKey(name: 'approved_by')
-  final int? approvedBy;
-  final Fiscal23 fiscal;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final List<Members> members;
+  @JsonKey(name: 'active_count')
+  final int activeCount;
 
   Map<String, Object?> toJson() => _$Data283ToJson(this);
 }

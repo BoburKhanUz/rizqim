@@ -4,20 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'errors.dart';
-import 'meta3.dart';
+import 'halls12.dart';
+import 'untabled_orders.dart';
 
 part 'data293.g.dart';
 
 @JsonSerializable()
 class Data293 {
-  const Data293({required this.errors, required this.meta});
+  const Data293({
+    required this.branchId,
+    required this.generatedAt,
+    required this.overdueAfterHours,
+    required this.halls,
+    required this.untabledOrders,
+  });
 
   factory Data293.fromJson(Map<String, Object?> json) =>
       _$Data293FromJson(json);
 
-  final List<Errors> errors;
-  final Meta3 meta;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
+  @JsonKey(name: 'generated_at')
+  final String generatedAt;
+  @JsonKey(name: 'overdue_after_hours')
+  final int overdueAfterHours;
+  final List<Halls12> halls;
+  @JsonKey(name: 'untabled_orders')
+  final List<UntabledOrders> untabledOrders;
 
   Map<String, Object?> toJson() => _$Data293ToJson(this);
 }

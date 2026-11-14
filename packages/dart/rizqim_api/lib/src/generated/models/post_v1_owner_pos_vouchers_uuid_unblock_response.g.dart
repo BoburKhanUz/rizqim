@@ -12,7 +12,7 @@ _$PostV1OwnerPosVouchersUuidUnblockResponseFromJson(
 ) => PostV1OwnerPosVouchersUuidUnblockResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data148.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data171.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1OwnerPosVouchersUuidUnblockResponseToJson(

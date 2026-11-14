@@ -20,7 +20,11 @@ Bills _$BillsFromJson(Map<String, dynamic> json) => Bills(
   placeFeeAmount: json['place_fee_amount'] as String,
   packagingAmount: json['packaging_amount'] as String,
   packagingLines: (json['packaging_lines'] as List<dynamic>)
-      .map((e) => PackagingLines2.fromJson(e as Map<String, dynamic>))
+      .map((e) => PackagingLines3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  banquetAmount: json['banquet_amount'] as String,
+  banquetLines: (json['banquet_lines'] as List<dynamic>)
+      .map((e) => BanquetLines2.fromJson(e as Map<String, dynamic>))
       .toList(),
   total: json['total'] as String,
   paidAmount: json['paid_amount'] as String,
@@ -31,21 +35,21 @@ Bills _$BillsFromJson(Map<String, dynamic> json) => Bills(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal8.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal22.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items12.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments5.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments13.fromJson(e as Map<String, dynamic>))
       .toList(),
   tipsAmount: json['tips_amount'] as String,
   tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips2.fromJson(e as Map<String, dynamic>))
+      .map((e) => Tips3.fromJson(e as Map<String, dynamic>))
       .toList(),
   serviceChargeNotice: json['service_charge_notice'] as String?,
   ticket: json['ticket'] == null
       ? null
-      : Ticket2.fromJson(json['ticket'] as Map<String, dynamic>),
+      : Ticket3.fromJson(json['ticket'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 
@@ -63,6 +67,8 @@ Map<String, dynamic> _$BillsToJson(Bills instance) => <String, dynamic>{
   'place_fee_amount': instance.placeFeeAmount,
   'packaging_amount': instance.packagingAmount,
   'packaging_lines': instance.packagingLines,
+  'banquet_amount': instance.banquetAmount,
+  'banquet_lines': instance.banquetLines,
   'total': instance.total,
   'paid_amount': instance.paidAmount,
   'due_amount': instance.dueAmount,

@@ -40,6 +40,8 @@ class OrderBill extends Model
         'place_fee' => 'place_fee_amount',
         // P6-34: the packaging lines' share (one receipt line per packaging line, App\Domain\Pos\Takeaway\PackagingFiscal)
         'packaging' => 'packaging_amount',
+        // P6-54: a banquet event's package, hall rent and extras (one receipt line per part, App\Domain\Pos\Banquet\Ops\BanquetFiscal)
+        'banquet' => 'banquet_amount',
     ];
 
     protected $guarded = ['id'];

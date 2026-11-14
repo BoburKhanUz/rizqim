@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order2.dart';
+import 'order.dart';
 
 part 'data86.g.dart';
 
@@ -31,7 +31,7 @@ class Data86 {
   final String balanceBefore;
   @JsonKey(name: 'balance_after')
   final String balanceAfter;
-  final Order2? order;
+  final Order? order;
   @JsonKey(name: 'reference_id')
   final String? referenceId;
   final String? notes;

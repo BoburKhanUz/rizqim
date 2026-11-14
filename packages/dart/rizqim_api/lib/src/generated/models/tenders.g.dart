@@ -7,7 +7,7 @@ part of 'tenders.dart';
 // **************************************************************************
 
 Tenders _$TendersFromJson(Map<String, dynamic> json) => Tenders(
-  tender: Tender.fromJson(json['tender'] as String),
+  tender: Tender2.fromJson(json['tender'] as String),
   amount: json['amount'] as num,
   tenderedAmount: json['tendered_amount'] as num?,
   cardType: json['card_type'] as String?,

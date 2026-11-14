@@ -14,7 +14,7 @@ Data86 _$Data86FromJson(Map<String, dynamic> json) => Data86(
   balanceAfter: json['balance_after'] as String,
   order: json['order'] == null
       ? null
-      : Order2.fromJson(json['order'] as Map<String, dynamic>),
+      : Order.fromJson(json['order'] as Map<String, dynamic>),
   referenceId: json['reference_id'] as String?,
   notes: json['notes'] as String?,
   createdAt: json['created_at'] as String,

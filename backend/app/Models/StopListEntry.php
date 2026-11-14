@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A product, variant or modifier on a branch's stop-list, until removed or until `until` passes.
+ * A product, variant, modifier or (P6-55) ingredient on a branch's stop-list, until removed or until `until` passes.
  *
  * @property StopListSubject $subject_type
  * @property \Illuminate\Support\Carbon|null $until
@@ -67,8 +67,9 @@ class StopListEntry extends Model
             StopListSubject::PRODUCT => Product::class,
             StopListSubject::VARIANT => ProductVariant::class,
             StopListSubject::MODIFIER => Modifier::class,
+            StopListSubject::INGREDIENT => Ingredient::class, // P6-55 (not soft-deleted)
         };
 
-        return $class::withTrashed()->find($this->subject_id);
+        return $class === Ingredient::class ? Ingredient::find($this->subject_id) : $class::withTrashed()->find($this->subject_id);
     }
 }

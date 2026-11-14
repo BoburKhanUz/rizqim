@@ -11,7 +11,7 @@ GetV1OwnerCombosResponse _$GetV1OwnerCombosResponseFromJson(
 ) => GetV1OwnerCombosResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data59.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data62.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerCombosResponseToJson(

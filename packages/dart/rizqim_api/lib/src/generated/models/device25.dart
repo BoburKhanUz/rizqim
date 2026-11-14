@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user27.dart';
+import 'user34.dart';
 
 part 'device25.g.dart';
 
@@ -38,7 +38,7 @@ class Device25 {
   final int? storeId;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final User27? user;
+  final User34? user;
   @JsonKey(name: 'has_push_token')
   final bool hasPushToken;
   @JsonKey(name: 'last_seen_at')

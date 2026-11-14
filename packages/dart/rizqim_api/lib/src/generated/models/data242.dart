@@ -4,33 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'halls2.dart';
-import 'untabled_orders.dart';
+import 'event12.dart';
 
 part 'data242.g.dart';
 
 @JsonSerializable()
 class Data242 {
-  const Data242({
-    required this.branchId,
-    required this.generatedAt,
-    required this.overdueAfterHours,
-    required this.halls,
-    required this.untabledOrders,
-  });
+  const Data242({required this.event});
 
   factory Data242.fromJson(Map<String, Object?> json) =>
       _$Data242FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'generated_at')
-  final String generatedAt;
-  @JsonKey(name: 'overdue_after_hours')
-  final int overdueAfterHours;
-  final List<Halls2> halls;
-  @JsonKey(name: 'untabled_orders')
-  final List<UntabledOrders> untabledOrders;
+  final Event12 event;
 
   Map<String, Object?> toJson() => _$Data242ToJson(this);
 }

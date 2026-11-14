@@ -7,13 +7,13 @@ part of 'slots5.dart';
 // **************************************************************************
 
 Slots5 _$Slots5FromJson(Map<String, dynamic> json) => Slots5(
-  at: json['at'] as String,
-  time: json['time'] as String,
-  businessDate: json['business_date'] as String,
+  morning: Morning2.fromJson(json['morning'] as Map<String, dynamic>),
+  day: Day2.fromJson(json['day'] as Map<String, dynamic>),
+  evening: Evening2.fromJson(json['evening'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Slots5ToJson(Slots5 instance) => <String, dynamic>{
-  'at': instance.at,
-  'time': instance.time,
-  'business_date': instance.businessDate,
+  'morning': instance.morning,
+  'day': instance.day,
+  'evening': instance.evening,
 };

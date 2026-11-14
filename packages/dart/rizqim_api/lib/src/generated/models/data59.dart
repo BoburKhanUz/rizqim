@@ -4,20 +4,17 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'combos.dart';
-import 'combo_fiscal_mode.dart';
-
 part 'data59.g.dart';
 
 @JsonSerializable()
 class Data59 {
-  const Data59({required this.combos, required this.fiscalMode});
+  const Data59({required this.brands, required this.channelsAvailable});
 
   factory Data59.fromJson(Map<String, Object?> json) => _$Data59FromJson(json);
 
-  final List<Combos> combos;
-  @JsonKey(name: 'fiscal_mode')
-  final ComboFiscalMode fiscalMode;
+  final List<String> brands;
+  @JsonKey(name: 'channels_available')
+  final List<dynamic> channelsAvailable;
 
   Map<String, Object?> toJson() => _$Data59ToJson(this);
 }

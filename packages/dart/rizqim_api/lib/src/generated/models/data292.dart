@@ -4,35 +4,69 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'results.dart';
-import 'device20.dart';
+import 'type6.dart';
+import 'status5.dart';
+import 'payment_form.dart';
+import 'lines39.dart';
+import 'payments38.dart';
 
 part 'data292.g.dart';
 
 @JsonSerializable()
 class Data292 {
   const Data292({
-    required this.serverTime,
-    required this.clockSkewSeconds,
-    required this.clockWarning,
-    required this.stoppedAt,
-    required this.results,
-    required this.device,
+    required this.uuid,
+    required this.type,
+    required this.status,
+    required this.paymentForm,
+    required this.nonFiscal,
+    required this.total,
+    required this.vatTotal,
+    required this.fiscalSign,
+    required this.receiptNumber,
+    required this.qrUrl,
+    required this.terminalId,
+    required this.error,
+    required this.issuedAt,
+    required this.createdAt,
+    required this.branchId,
+    required this.originalReceiptUuid,
+    required this.lines,
+    required this.payments,
   });
 
   factory Data292.fromJson(Map<String, Object?> json) =>
       _$Data292FromJson(json);
 
-  @JsonKey(name: 'server_time')
-  final String serverTime;
-  @JsonKey(name: 'clock_skew_seconds')
-  final int? clockSkewSeconds;
-  @JsonKey(name: 'clock_warning')
-  final bool clockWarning;
-  @JsonKey(name: 'stopped_at')
-  final int? stoppedAt;
-  final List<Results> results;
-  final Device20 device;
+  final String uuid;
+  final Type6 type;
+  final Status5 status;
+  @JsonKey(name: 'payment_form')
+  final PaymentForm paymentForm;
+  @JsonKey(name: 'non_fiscal')
+  final bool nonFiscal;
+  final String total;
+  @JsonKey(name: 'vat_total')
+  final String vatTotal;
+  @JsonKey(name: 'fiscal_sign')
+  final String? fiscalSign;
+  @JsonKey(name: 'receipt_number')
+  final String? receiptNumber;
+  @JsonKey(name: 'qr_url')
+  final String? qrUrl;
+  @JsonKey(name: 'terminal_id')
+  final String? terminalId;
+  final String? error;
+  @JsonKey(name: 'issued_at')
+  final String? issuedAt;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  @JsonKey(name: 'original_receipt_uuid')
+  final String? originalReceiptUuid;
+  final List<Lines39> lines;
+  final List<Payments38> payments;
 
   Map<String, Object?> toJson() => _$Data292ToJson(this);
 }

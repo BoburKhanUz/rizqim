@@ -7,11 +7,31 @@ part of 'data141.dart';
 // **************************************************************************
 
 Data141 _$Data141FromJson(Map<String, dynamic> json) => Data141(
-  settings: Settings3.fromJson(json['settings'] as Map<String, dynamic>),
-  options: Options6.fromJson(json['options'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  perPersonPrice: json['per_person_price'] as String,
+  minimumGuests: (json['minimum_guests'] as num).toInt(),
+  included: (json['included'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  description: json['description'] as String?,
+  isActive: json['is_active'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
+  items: (json['items'] as List<dynamic>)
+      .map((e) => Items5.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data141ToJson(Data141 instance) => <String, dynamic>{
-  'settings': instance.settings,
-  'options': instance.options,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'per_person_price': instance.perPersonPrice,
+  'minimum_guests': instance.minimumGuests,
+  'included': instance.included,
+  'description': instance.description,
+  'is_active': instance.isActive,
+  'sort_order': instance.sortOrder,
+  'items': instance.items,
 };

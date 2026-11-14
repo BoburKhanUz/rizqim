@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'status4.dart';
+import 'modifiers5.dart';
+import 'product_rules2.dart';
 
 part 'data123.g.dart';
 
@@ -12,41 +13,45 @@ part 'data123.g.dart';
 class Data123 {
   const Data123({
     required this.id,
-    required this.amount,
-    required this.card,
-    required this.status,
-    required this.notes,
-    required this.resolutionNotes,
-    required this.processedAt,
-    required this.createdAt,
-    required this.storeId,
-    required this.cardNumber,
-    required this.processedBy,
-    required this.updatedAt,
+    required this.uuid,
+    required this.name,
+    required this.nameI18n,
+    required this.minSelect,
+    required this.maxSelect,
+    required this.isRequired,
+    required this.displayMode,
+    required this.sortOrder,
+    required this.isActive,
+    required this.modifiers,
+    required this.productIds,
+    required this.productRules,
   });
 
   factory Data123.fromJson(Map<String, Object?> json) =>
       _$Data123FromJson(json);
 
   final int id;
-  final String amount;
-  final String card;
-  final Status4 status;
-  final String? notes;
-  @JsonKey(name: 'resolution_notes')
-  final String? resolutionNotes;
-  @JsonKey(name: 'processed_at')
-  final String? processedAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  @JsonKey(name: 'store_id')
-  final int storeId;
-  @JsonKey(name: 'card_number')
-  final String cardNumber;
-  @JsonKey(name: 'processed_by')
-  final int? processedBy;
-  @JsonKey(name: 'updated_at')
-  final String? updatedAt;
+  final String uuid;
+  final String name;
+  @JsonKey(name: 'name_i18n')
+  final Map<String, String>? nameI18n;
+  @JsonKey(name: 'min_select')
+  final int minSelect;
+  @JsonKey(name: 'max_select')
+  final int? maxSelect;
+  @JsonKey(name: 'is_required')
+  final bool isRequired;
+  @JsonKey(name: 'display_mode')
+  final String displayMode;
+  @JsonKey(name: 'sort_order')
+  final int sortOrder;
+  @JsonKey(name: 'is_active')
+  final bool isActive;
+  final List<Modifiers5> modifiers;
+  @JsonKey(name: 'product_ids')
+  final List<int> productIds;
+  @JsonKey(name: 'product_rules')
+  final ProductRules2 productRules;
 
   Map<String, Object?> toJson() => _$Data123ToJson(this);
 }

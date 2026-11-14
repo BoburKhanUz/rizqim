@@ -7,17 +7,31 @@ part of 'data301.dart';
 // **************************************************************************
 
 Data301 _$Data301FromJson(Map<String, dynamic> json) => Data301(
-  branchId: (json['branch_id'] as num).toInt(),
-  date: json['date'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries7.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
+  orderUuid: json['order_uuid'] as String,
+  number: (json['number'] as num).toInt(),
+  businessDate: json['business_date'] as String?,
+  status: json['status'] == null
+      ? null
+      : PickupStatus.fromJson(json['status'] as String),
+  channel: json['channel'] as String,
+  orderStatus: json['order_status'] as String,
+  readyAt: json['ready_at'] as String?,
+  calledAt: json['called_at'] as String?,
+  callCount: (json['call_count'] as num).toInt(),
+  handedAt: json['handed_at'] as String?,
+  openedAt: json['opened_at'] as String?,
 );
 
 Map<String, dynamic> _$Data301ToJson(Data301 instance) => <String, dynamic>{
-  'branch_id': instance.branchId,
-  'date': instance.date,
-  'entries': instance.entries,
-  'summary': instance.summary,
+  'order_uuid': instance.orderUuid,
+  'number': instance.number,
+  'business_date': instance.businessDate,
+  'status': instance.status,
+  'channel': instance.channel,
+  'order_status': instance.orderStatus,
+  'ready_at': instance.readyAt,
+  'called_at': instance.calledAt,
+  'call_count': instance.callCount,
+  'handed_at': instance.handedAt,
+  'opened_at': instance.openedAt,
 };

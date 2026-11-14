@@ -7,27 +7,13 @@ part of 'data283.dart';
 // **************************************************************************
 
 Data283 _$Data283FromJson(Map<String, dynamic> json) => Data283(
-  uuid: json['uuid'] as String,
-  orderUuid: json['order_uuid'] as String?,
-  billUuid: json['bill_uuid'] as String?,
-  paymentUuid: json['payment_uuid'] as String?,
-  amount: json['amount'] as String,
-  method: json['method'] as String,
-  reason: json['reason'] as String,
-  approvedBy: (json['approved_by'] as num?)?.toInt(),
-  fiscal: Fiscal23.fromJson(json['fiscal'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  members: (json['members'] as List<dynamic>)
+      .map((e) => Members.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  activeCount: (json['active_count'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data283ToJson(Data283 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'order_uuid': instance.orderUuid,
-  'bill_uuid': instance.billUuid,
-  'payment_uuid': instance.paymentUuid,
-  'amount': instance.amount,
-  'method': instance.method,
-  'reason': instance.reason,
-  'approved_by': instance.approvedBy,
-  'fiscal': instance.fiscal,
-  'created_at': instance.createdAt,
+  'members': instance.members,
+  'active_count': instance.activeCount,
 };

@@ -4,44 +4,19 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'tips.dart';
+
 part 'data163.g.dart';
 
 @JsonSerializable()
 class Data163 {
-  const Data163({
-    required this.id,
-    required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
-  });
+  const Data163({required this.tips, required this.truncated});
 
   factory Data163.fromJson(Map<String, Object?> json) =>
       _$Data163FromJson(json);
 
-  final int id;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  final List<Tips> tips;
+  final bool truncated;
 
   Map<String, Object?> toJson() => _$Data163ToJson(this);
 }

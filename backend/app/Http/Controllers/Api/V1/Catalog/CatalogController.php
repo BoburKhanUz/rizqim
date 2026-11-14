@@ -36,6 +36,7 @@ class CatalogController extends Controller
     #[QueryParameter('district_id', description: 'Global feed without coordinates: stores with a branch in this district.', type: 'int')]
     #[QueryParameter('branch_id', description: 'P3-13, POS channels only: the branch (an owner or a store-wide terminal; a branch-bound staff member always gets their own).', type: 'int', required: false)]
     #[QueryParameter('category_id', description: 'Global feed: only this category and its subcategories.', type: 'int')]
+    #[QueryParameter('brand', description: "P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404).", type: 'string', required: false)]
     #[QueryParameter('channel', description: "P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).", type: "'telegram'|'mobile'|'pos_hall'|'pos_takeaway'")]
     public function index(Request $request): JsonResponse
     {
@@ -195,11 +196,25 @@ class CatalogController extends Controller
 
         $storeId = $store->id;
 
+        // P6-55 (multi_brand): `brand` (a brand's uuid or id) narrows the store menu to that brand's dishes; a store
+        // with brands also lists them (`brands`). A storefront per brand is out of scope (docs/API.md)
+        $brandFilter = null;
+        $brandKey = $request->query('brand');
+        if (is_string($brandKey) && $brandKey !== '') {
+            $brandFilter = \App\Models\Brand::where('store_id', $storeId)->where('is_active', true)
+                ->where(ctype_digit($brandKey) ? 'id' : 'uuid', ctype_digit($brandKey) ? (\App\Support\RowId::parse($brandKey) ?? 0) : strtolower($brandKey))
+                ->first();
+            if ($brandFilter === null) {
+                return $this->error('Brend topilmadi.', [], 404);
+            }
+        }
+
         $products = Product::with(['variants' => function($q) {
                 $q->where('is_active', true);
             }])
             ->where('store_id', $storeId)
             ->where('status', 'active')
+            ->when($brandFilter !== null, fn ($query) => $query->where('brand_id', $brandFilter->id))
             ->get();
 
             // P1-21: channel prices and visibility, units, modifier groups (additive fields)
@@ -217,13 +232,20 @@ class CatalogController extends Controller
             
         $categories = $childCategories->merge($parentCategories)->sortBy('sort_order')->values();
 
-        return $this->success([
+        $payload = [
             'store' => $store,
             'categories' => $categories,
             'products' => $products,
             // P1-21: what is unavailable on each branch now (stop-list, sold-out batches); GET /catalog/availability
             'availability' => app(\App\Services\Catalog\MenuAvailability::class)->forStore((int) $storeId),
-        ]);
+        ];
+        // P6-55: the store's brands sold on this channel ({id, uuid, name, code, color, logo_url}), only when it has some
+        $brands = \App\Domain\Pos\Brands\BrandMenu::catalogBrands((int) $storeId, $this->channel($request));
+        if ($brands !== []) {
+            $payload['brands'] = $brands;
+        }
+
+        return $this->success($payload);
     }
 
     /**

@@ -11,7 +11,7 @@ _$PostV1PosOrdersUuidTableLabelResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosOrdersUuidTableLabelResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data275.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data326.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosOrdersUuidTableLabelResponseToJson(

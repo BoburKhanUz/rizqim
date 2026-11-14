@@ -22,6 +22,10 @@ Bill4 _$Bill4FromJson(Map<String, dynamic> json) => Bill4(
   packagingLines: (json['packaging_lines'] as List<dynamic>)
       .map((e) => PackagingLines5.fromJson(e as Map<String, dynamic>))
       .toList(),
+  banquetAmount: json['banquet_amount'] as String,
+  banquetLines: (json['banquet_lines'] as List<dynamic>)
+      .map((e) => BanquetLines4.fromJson(e as Map<String, dynamic>))
+      .toList(),
   total: json['total'] as String,
   paidAmount: json['paid_amount'] as String,
   dueAmount: json['due_amount'] as String,
@@ -31,12 +35,12 @@ Bill4 _$Bill4FromJson(Map<String, dynamic> json) => Bill4(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal12.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal25.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items8.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items14.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments12.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments18.fromJson(e as Map<String, dynamic>))
       .toList(),
   tipsAmount: json['tips_amount'] as String,
   tips: (json['tips'] as List<dynamic>)
@@ -45,7 +49,7 @@ Bill4 _$Bill4FromJson(Map<String, dynamic> json) => Bill4(
   serviceChargeNotice: json['service_charge_notice'] as String?,
   ticket: json['ticket'] == null
       ? null
-      : Ticket7.fromJson(json['ticket'] as Map<String, dynamic>),
+      : Ticket6.fromJson(json['ticket'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 
@@ -63,6 +67,8 @@ Map<String, dynamic> _$Bill4ToJson(Bill4 instance) => <String, dynamic>{
   'place_fee_amount': instance.placeFeeAmount,
   'packaging_amount': instance.packagingAmount,
   'packaging_lines': instance.packagingLines,
+  'banquet_amount': instance.banquetAmount,
+  'banquet_lines': instance.banquetLines,
   'total': instance.total,
   'paid_amount': instance.paidAmount,
   'due_amount': instance.dueAmount,

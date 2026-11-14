@@ -11,7 +11,7 @@ GetV1OwnerPayoutsResponse _$GetV1OwnerPayoutsResponseFromJson(
 ) => GetV1OwnerPayoutsResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data122.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data128.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPayoutsResponseToJson(

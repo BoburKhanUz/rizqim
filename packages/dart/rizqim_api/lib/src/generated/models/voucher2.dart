@@ -7,7 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'branch21.dart';
 import 'sale6.dart';
 import 'buyer6.dart';
-import 'fiscal25.dart';
+import 'fiscal39.dart';
 import 'blocked7.dart';
 import 'print6.dart';
 
@@ -57,7 +57,7 @@ class Voucher2 {
   final Sale6 sale;
   final Buyer6 buyer;
   final String? note;
-  final Fiscal25 fiscal;
+  final Fiscal39 fiscal;
   final Blocked7? blocked;
   final Print6? print;
   @JsonKey(name: 'created_at')

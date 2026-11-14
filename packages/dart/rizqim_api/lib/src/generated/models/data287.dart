@@ -4,74 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'device16.dart';
-import 'opened_by5.dart';
-import 'closed_by8.dart';
-import 'summary5.dart';
-import 'bank_terminal.dart';
+import 'account5.dart';
+import 'entry4.dart';
+import 'fiscal30.dart';
 
 part 'data287.g.dart';
 
 @JsonSerializable()
 class Data287 {
   const Data287({
-    required this.uuid,
-    required this.status,
-    required this.branchId,
-    required this.device,
-    required this.businessDate,
-    required this.openedAt,
-    required this.openedBy,
-    required this.openingCash,
-    required this.closedAt,
-    required this.closedBy,
-    required this.expectedCash,
-    required this.countedCash,
-    required this.countedBreakdown,
-    required this.difference,
-    required this.zNumber,
-    required this.forceClosed,
-    required this.closeNote,
-    required this.summary,
-    required this.bankTerminal,
+    required this.account,
+    required this.entry,
+    required this.fiscal,
   });
 
   factory Data287.fromJson(Map<String, Object?> json) =>
       _$Data287FromJson(json);
 
-  final String uuid;
-  final String status;
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final Device16? device;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'opened_at')
-  final String openedAt;
-  @JsonKey(name: 'opened_by')
-  final OpenedBy5? openedBy;
-  @JsonKey(name: 'opening_cash')
-  final String openingCash;
-  @JsonKey(name: 'closed_at')
-  final String? closedAt;
-  @JsonKey(name: 'closed_by')
-  final ClosedBy8? closedBy;
-  @JsonKey(name: 'expected_cash')
-  final String? expectedCash;
-  @JsonKey(name: 'counted_cash')
-  final String? countedCash;
-  @JsonKey(name: 'counted_breakdown')
-  final Map<String, int>? countedBreakdown;
-  final String? difference;
-  @JsonKey(name: 'z_number')
-  final int? zNumber;
-  @JsonKey(name: 'force_closed')
-  final bool forceClosed;
-  @JsonKey(name: 'close_note')
-  final String? closeNote;
-  final Summary5? summary;
-  @JsonKey(name: 'bank_terminal')
-  final BankTerminal? bankTerminal;
+  final Account5 account;
+  final Entry4 entry;
+  final Fiscal30 fiscal;
 
   Map<String, Object?> toJson() => _$Data287ToJson(this);
 }

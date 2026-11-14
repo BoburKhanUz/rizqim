@@ -10,7 +10,7 @@ V1PosVouchersSellRequestBody _$V1PosVouchersSellRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1PosVouchersSellRequestBody(
   faceValue: json['face_value'] as num,
-  tender: Tender2.fromJson(json['tender'] as String),
+  tender: Tender.fromJson(json['tender'] as String),
   cardType: json['card_type'] as String?,
   transactionId: json['transaction_id'] as String?,
   reference: json['reference'] as String?,

@@ -41,6 +41,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * P6-31: a combo line keeps its parts as sold (Combos::resolve) and has one zero-priced kitchen line per part
  * @property list<array<string, mixed>>|null $combo_parts
  * @property int|null $combo_parent_id
+ * @property int|null $brand_id P6-55
+ * @property array{id: int, name: string, code: string, color: string}|null $brand P6-55: the brand snapshot
  */
 class OrderItem extends Model
 {
@@ -75,6 +77,9 @@ class OrderItem extends Model
         // P6-31
         'combo_parts' => 'array',
         'combo_parent_id' => 'integer',
+        // P6-55: the brand the line was sold under (snapshot {id, name, code, color}; null: the house brand)
+        'brand_id' => 'integer',
+        'brand' => 'array',
     ];
 
     protected $attributes = [

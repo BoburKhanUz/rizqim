@@ -11,7 +11,7 @@ GetV1OwnerPosLanResponse _$GetV1OwnerPosLanResponseFromJson(
 ) => GetV1OwnerPosLanResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data129.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data152.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1OwnerPosLanResponseToJson(

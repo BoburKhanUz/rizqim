@@ -9,43 +9,42 @@ part 'lines17.g.dart';
 @JsonSerializable()
 class Lines17 {
   const Lines17({
+    required this.uuid,
+    required this.kind,
+    required this.kindLabel,
     required this.name,
-    required this.mxikCode,
-    required this.packageCode,
-    required this.unit,
+    required this.extraId,
+    required this.hallId,
     required this.quantity,
+    required this.persons,
+    required this.perPerson,
     required this.unitPrice,
     required this.amount,
-    required this.vatRate,
-    required this.vatAmount,
-    required this.noVat,
-    required this.commissionerTin,
-    required this.markingCode,
+    required this.frozen,
+    required this.note,
   });
 
   factory Lines17.fromJson(Map<String, Object?> json) =>
       _$Lines17FromJson(json);
 
+  final String uuid;
+  final String kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
   final String name;
-  @JsonKey(name: 'mxik_code')
-  final String mxikCode;
-  @JsonKey(name: 'package_code')
-  final String? packageCode;
-  final String unit;
+  @JsonKey(name: 'extra_id')
+  final int? extraId;
+  @JsonKey(name: 'hall_id')
+  final int? hallId;
   final String quantity;
+  final int? persons;
+  @JsonKey(name: 'per_person')
+  final bool perPerson;
   @JsonKey(name: 'unit_price')
   final String unitPrice;
   final String amount;
-  @JsonKey(name: 'vat_rate')
-  final String vatRate;
-  @JsonKey(name: 'vat_amount')
-  final String vatAmount;
-  @JsonKey(name: 'no_vat')
-  final bool noVat;
-  @JsonKey(name: 'commissioner_tin')
-  final String? commissionerTin;
-  @JsonKey(name: 'marking_code')
-  final String? markingCode;
+  final bool frozen;
+  final String? note;
 
   Map<String, Object?> toJson() => _$Lines17ToJson(this);
 }

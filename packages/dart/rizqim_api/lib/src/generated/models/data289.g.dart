@@ -6,12 +6,9 @@ part of 'data289.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data289 _$Data289FromJson(Map<String, dynamic> json) => Data289(
-  movement: Movement.fromJson(json['movement'] as Map<String, dynamic>),
-  shift: Shift4.fromJson(json['shift'] as Map<String, dynamic>),
-);
+Data289 _$Data289FromJson(Map<String, dynamic> json) =>
+    Data289(stored: json['stored'] as bool);
 
 Map<String, dynamic> _$Data289ToJson(Data289 instance) => <String, dynamic>{
-  'movement': instance.movement,
-  'shift': instance.shift,
+  'stored': instance.stored,
 };

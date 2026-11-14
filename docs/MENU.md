@@ -91,6 +91,12 @@ product|variant|modifier, id, reason?, until?}`, `DELETE /owner/stop-list/{id}`.
 `created_by_name` — kim qo'shgani (faqat `stoplist.manage` borlarga; `menu.view` bilan o'qiganda `null`). Filialga biriktirilgan xodim faqat o'z
 filialida. Panelda "Stop-list" ekrani. Jurnal: `menu.stop_list_added`, `menu.stop_list_removed`.
 
+P6-55 / B9 (modul `ingredient_stoplist`): `type: ingredient` — ingredient (masalan, "Tovuq") to'xtatiladi; unga muhim
+(`is_critical`) bog'langan hamma taom shu filialda barcha brend va kanalda bir vaqtda yopiladi (`MenuAvailability` va
+checkout shu yozuvni taomlarga aylantiradi, sabab "Tovuq tugadi"), `until` va muddati o'tish avvalgidek; yozuv olinsa
+taomlar qaytadi, o'z yozuvi bilan to'xtatilgan taom yopiq qoladi. Retsept emas: miqdor yo'q. Panelda "Ingredientlar"
+(Stop-list → Ingredientlar). Endpointlar: [API.md](API.md) "Ko'p brend, ingredient stop-list, kanal tushumi".
+
 ## 6. Mavjudlik va real-time
 
 `GET /catalog/availability?store_id=&branch_id=` (`store_id` — uuid yoki son; juda katta yoki noto'g'ri son
@@ -123,6 +129,11 @@ yashiriladi). Katalog (`GET /catalog`, `channel=telegram` standart, `channel=mob
 variantning o'z narxini `base_price` da ko'rsatadi, yashirilganlarni chiqarmaydi; checkout shu narxni oladi va
 yashirilganni 422 bilan rad etadi. Ega: `GET/PUT /owner/products/{id}/channel-prices` (`menu.manage`). Analitikada
 `by_channel`.
+
+P6-55 (modul `multi_brand`): taom bitta brendga tegishli (`products.brand_id`, bo'sh — asosiy brend). Brend × kanal
+(`brand_channels`): brend o'sha kanalda yashirin (`is_hidden`) va/yoki taomlari narxi foizda farq qiladi (`price_percent`,
+butun so'mga half-up); variantning o'z kanal narxi bo'lsa o'sha ustun. Nofaol brend taomlari hamma kanalda yashirin; filialda
+o'chirilgan brend (`branch_brands`) taomlari o'sha filialda stop-listdagidek yopiq. Katalogda `brand` filtri.
 
 ## 8. Idempotency kaliti
 

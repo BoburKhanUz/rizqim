@@ -4,34 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'limits3.dart';
-import 'stations3.dart';
-import 'products6.dart';
-
 part 'data107.g.dart';
 
 @JsonSerializable()
 class Data107 {
   const Data107({
+    required this.entryId,
     required this.branchId,
-    required this.enabled,
-    required this.expoScope,
-    required this.limits,
-    required this.stations,
-    required this.products,
+    required this.ingredientId,
+    required this.reason,
+    required this.until,
+    required this.closedProductIds,
   });
 
   factory Data107.fromJson(Map<String, Object?> json) =>
       _$Data107FromJson(json);
 
+  @JsonKey(name: 'entry_id')
+  final int entryId;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  final bool enabled;
-  @JsonKey(name: 'expo_scope')
-  final String expoScope;
-  final Limits3 limits;
-  final List<Stations3> stations;
-  final List<Products6> products;
+  @JsonKey(name: 'ingredient_id')
+  final int ingredientId;
+  final String reason;
+  final String? until;
+  @JsonKey(name: 'closed_product_ids')
+  final Map<String, int> closedProductIds;
 
   Map<String, Object?> toJson() => _$Data107ToJson(this);
 }

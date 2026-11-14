@@ -7,15 +7,23 @@ part of 'data133.dart';
 // **************************************************************************
 
 Data133 _$Data133FromJson(Map<String, dynamic> json) => Data133(
-  settings: Settings2.fromJson(json['settings'] as Map<String, dynamic>),
-  merchants: (json['merchants'] as List<dynamic>)
-      .map((e) => Merchants2.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  options: Options5.fromJson(json['options'] as Map<String, dynamic>),
+  id: (json['id'] as num).toInt(),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  price: json['price'] as String,
+  pricing: json['pricing'] as String,
+  pricingLabel: json['pricing_label'] as String,
+  isActive: json['is_active'] as bool,
+  sortOrder: (json['sort_order'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data133ToJson(Data133 instance) => <String, dynamic>{
-  'settings': instance.settings,
-  'merchants': instance.merchants,
-  'options': instance.options,
+  'id': instance.id,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'price': instance.price,
+  'pricing': instance.pricing,
+  'pricing_label': instance.pricingLabel,
+  'is_active': instance.isActive,
+  'sort_order': instance.sortOrder,
 };

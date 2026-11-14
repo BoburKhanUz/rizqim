@@ -7,13 +7,23 @@ part of 'data236.dart';
 // **************************************************************************
 
 Data236 _$Data236FromJson(Map<String, dynamic> json) => Data236(
-  account: Account5.fromJson(json['account'] as Map<String, dynamic>),
-  entry: Entry2.fromJson(json['entry'] as Map<String, dynamic>),
-  fiscal: Fiscal16.fromJson(json['fiscal'] as Map<String, dynamic>),
+  event: Event8.fromJson(json['event'] as Map<String, dynamic>),
+  guests: Guests2.fromJson(json['guests'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations9.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  osh: json['osh'] == null
+      ? null
+      : Osh5.fromJson(json['osh'] as Map<String, dynamic>),
+  warnings: (json['warnings'] as List<dynamic>)
+      .map((e) => Warnings16.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data236ToJson(Data236 instance) => <String, dynamic>{
-  'account': instance.account,
-  'entry': instance.entry,
-  'fiscal': instance.fiscal,
+  'event': instance.event,
+  'guests': instance.guests,
+  'stations': instance.stations,
+  'osh': instance.osh,
+  'warnings': instance.warnings,
 };

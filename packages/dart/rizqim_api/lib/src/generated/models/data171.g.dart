@@ -7,57 +7,49 @@ part of 'data171.dart';
 // **************************************************************************
 
 Data171 _$Data171FromJson(Map<String, dynamic> json) => Data171(
-  branch: Branch15.fromJson(json['branch'] as Map<String, dynamic>),
-  period: json['period'] as String,
-  periodLabel: json['period_label'] as String,
-  periods: (json['periods'] as List<dynamic>)
-      .map((e) => Periods.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  salesAttribution: json['sales_attribution'] as String,
-  salesAttributionLabel: json['sales_attribution_label'] as String,
-  salesAttributions: (json['sales_attributions'] as List<dynamic>)
-      .map((e) => SalesAttributions.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  componentTypes: (json['component_types'] as List<dynamic>)
-      .map((e) => ComponentTypes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  guaranteeModes: (json['guarantee_modes'] as List<dynamic>)
-      .map((e) => GuaranteeModes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  guaranteePer: (json['guarantee_per'] as List<dynamic>)
-      .map((e) => GuaranteePer.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  percentBases: (json['percent_bases'] as List<dynamic>)
-      .map((e) => PercentBases.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  eventTypes: (json['event_types'] as List<dynamic>)
-      .map((e) => EventTypes.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  roles: (json['roles'] as List<dynamic>)
-      .map((e) => Roles4.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  staff: (json['staff'] as List<dynamic>)
-      .map((e) => Staff7.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  rules: (json['rules'] as List<dynamic>)
-      .map((e) => Rules3.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  code: json['code'] as String,
+  kind: json['kind'] as String,
+  faceValue: json['face_value'] as String,
+  balance: json['balance'] as String,
+  currency: json['currency'] as String,
+  validFrom: json['valid_from'] as String,
+  validUntil: json['valid_until'] as String?,
+  status: json['status'] as String,
+  statusLabel: json['status_label'] as String,
+  branch: json['branch'] == null
+      ? null
+      : Branch12.fromJson(json['branch'] as Map<String, dynamic>),
+  sale: Sale4.fromJson(json['sale'] as Map<String, dynamic>),
+  buyer: Buyer4.fromJson(json['buyer'] as Map<String, dynamic>),
+  note: json['note'] as String?,
+  fiscal: Fiscal7.fromJson(json['fiscal'] as Map<String, dynamic>),
+  blocked: json['blocked'] == null
+      ? null
+      : Blocked5.fromJson(json['blocked'] as Map<String, dynamic>),
+  print: json['print'] == null
+      ? null
+      : Print4.fromJson(json['print'] as Map<String, dynamic>),
+  createdAt: json['created_at'] as String?,
 );
 
 Map<String, dynamic> _$Data171ToJson(Data171 instance) => <String, dynamic>{
+  'uuid': instance.uuid,
+  'code': instance.code,
+  'kind': instance.kind,
+  'face_value': instance.faceValue,
+  'balance': instance.balance,
+  'currency': instance.currency,
+  'valid_from': instance.validFrom,
+  'valid_until': instance.validUntil,
+  'status': instance.status,
+  'status_label': instance.statusLabel,
   'branch': instance.branch,
-  'period': instance.period,
-  'period_label': instance.periodLabel,
-  'periods': instance.periods,
-  'sales_attribution': instance.salesAttribution,
-  'sales_attribution_label': instance.salesAttributionLabel,
-  'sales_attributions': instance.salesAttributions,
-  'component_types': instance.componentTypes,
-  'guarantee_modes': instance.guaranteeModes,
-  'guarantee_per': instance.guaranteePer,
-  'percent_bases': instance.percentBases,
-  'event_types': instance.eventTypes,
-  'roles': instance.roles,
-  'staff': instance.staff,
-  'rules': instance.rules,
+  'sale': instance.sale,
+  'buyer': instance.buyer,
+  'note': instance.note,
+  'fiscal': instance.fiscal,
+  'blocked': instance.blocked,
+  'print': instance.print,
+  'created_at': instance.createdAt,
 };

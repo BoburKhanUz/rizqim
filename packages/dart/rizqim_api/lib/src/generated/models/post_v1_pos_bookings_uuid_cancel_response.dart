@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data208.dart';
+import 'data259.dart';
 
 part 'post_v1_pos_bookings_uuid_cancel_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosBookingsUuidCancelResponse {
 
   final bool success;
   final String message;
-  final Data208 data;
+  final Data259 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosBookingsUuidCancelResponseToJson(this);

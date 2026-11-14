@@ -34,7 +34,7 @@ Booking _$BookingFromJson(Map<String, dynamic> json) => Booking(
   cancelReason: json['cancel_reason'] as String?,
   version: (json['version'] as num).toInt(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments16.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments24.fromJson(e as Map<String, dynamic>))
       .toList(),
   confirmedAt: json['confirmed_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,
@@ -47,7 +47,7 @@ Booking _$BookingFromJson(Map<String, dynamic> json) => Booking(
   depositRequired: json['deposit_required'] as String,
   depositMissing: json['deposit_missing'] as String,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items12.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items19.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdBy: (json['created_by'] as num?)?.toInt(),
 );

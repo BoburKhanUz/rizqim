@@ -225,6 +225,19 @@ Route::prefix('v1')->group(function () {
     // P6-41/P6-42: Click, Payme and UzQR dynamic QR at the till: owner settings, the till's QR, poll, cancel
     require __DIR__ . '/api_pos_qr.php';
 
+    // P6-51/P6-52: banquet events: calendar, events, prices and their freeze; the owner's packages, extras, hall rent and
+    // settings (docs/API.md "Tadbirlar")
+    require __DIR__ . '/api_pos_banquets.php';
+
+    // P6-53: the banquet payment schedule, advance receipts, bank transfers, cancellation, the "Tadbirlar" report
+    require __DIR__ . '/api_pos_banquet_payments.php';
+
+    // P6-54: the banquet production sheet, osh calculator, shopping list, contract, event day and final settlement
+    require __DIR__ . '/api_pos_banquet_ops.php';
+
+    // P6-55: brands in one kitchen, the ingredient stop-list, the channel net revenue report (docs/API.md)
+    require __DIR__ . '/api_pos_brands.php';
+
     // P4-11: the Boshqaruv markazi's admin API (/admin/*: own admin token with 2FA, team permissions, audit;
     // docs/API.md "Admin API")
     require __DIR__ . '/api_admin.php';

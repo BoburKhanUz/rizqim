@@ -215,6 +215,10 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
     sales: { count: 1, amount: '300000.00' },
     repayments: { count: 1, amount: '80000.00', cash: '80000.00' },
   },
+  banquets: {
+    taken: { count: 0, amount: '0.00', cash: '0.00', card: '0.00', qr: '0.00' },
+    refunded: { count: 0, amount: '0.00', cash: '0.00' },
+  },
   cash: {
     opening: '500000.00',
     sales: '1500000.00',
@@ -229,6 +233,8 @@ export const report = (over: Partial<ShiftReport> = {}): ShiftReport => ({
     tips: '0.00',
     tip_payouts: '0.00',
     vouchers: '0.00',
+    banquets: '0.00',
+    banquet_refunds: '0.00',
     expected: '1730000.00',
   },
   movements: [

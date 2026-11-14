@@ -7,49 +7,31 @@ part of 'data147.dart';
 // **************************************************************************
 
 Data147 _$Data147FromJson(Map<String, dynamic> json) => Data147(
-  uuid: json['uuid'] as String,
-  code: json['code'] as String,
-  kind: json['kind'] as String,
-  faceValue: json['face_value'] as String,
-  balance: json['balance'] as String,
-  currency: json['currency'] as String,
-  validFrom: json['valid_from'] as String,
-  validUntil: json['valid_until'] as String?,
-  status: json['status'] as String,
-  statusLabel: json['status_label'] as String,
-  branch: json['branch'] == null
-      ? null
-      : Branch11.fromJson(json['branch'] as Map<String, dynamic>),
-  sale: Sale3.fromJson(json['sale'] as Map<String, dynamic>),
-  buyer: Buyer3.fromJson(json['buyer'] as Map<String, dynamic>),
-  note: json['note'] as String?,
-  fiscal: Fiscal6.fromJson(json['fiscal'] as Map<String, dynamic>),
-  blocked: json['blocked'] == null
-      ? null
-      : Blocked4.fromJson(json['blocked'] as Map<String, dynamic>),
-  print: json['print'] == null
-      ? null
-      : Print3.fromJson(json['print'] as Map<String, dynamic>),
-  createdAt: json['created_at'] as String?,
+  slots: Slots4.fromJson(json['slots'] as Map<String, dynamic>),
+  holdHours: (json['hold_hours'] as num).toInt(),
+  guestWarningThresholds: (json['guest_warning_thresholds'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  windowStart: json['window_start'] as String,
+  windowEnd: json['window_end'] as String,
+  advanceMxik: json['advance_mxik'] as String?,
+  advancePackageCode: json['advance_package_code'] as String?,
+  cancellationMxik: json['cancellation_mxik'] as String?,
+  cancellationPackageCode: json['cancellation_package_code'] as String?,
+  quoteCurrency: json['quote_currency'] as String?,
+  version: (json['version'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Data147ToJson(Data147 instance) => <String, dynamic>{
-  'uuid': instance.uuid,
-  'code': instance.code,
-  'kind': instance.kind,
-  'face_value': instance.faceValue,
-  'balance': instance.balance,
-  'currency': instance.currency,
-  'valid_from': instance.validFrom,
-  'valid_until': instance.validUntil,
-  'status': instance.status,
-  'status_label': instance.statusLabel,
-  'branch': instance.branch,
-  'sale': instance.sale,
-  'buyer': instance.buyer,
-  'note': instance.note,
-  'fiscal': instance.fiscal,
-  'blocked': instance.blocked,
-  'print': instance.print,
-  'created_at': instance.createdAt,
+  'slots': instance.slots,
+  'hold_hours': instance.holdHours,
+  'guest_warning_thresholds': instance.guestWarningThresholds,
+  'window_start': instance.windowStart,
+  'window_end': instance.windowEnd,
+  'advance_mxik': instance.advanceMxik,
+  'advance_package_code': instance.advancePackageCode,
+  'cancellation_mxik': instance.cancellationMxik,
+  'cancellation_package_code': instance.cancellationPackageCode,
+  'quote_currency': instance.quoteCurrency,
+  'version': instance.version,
 };

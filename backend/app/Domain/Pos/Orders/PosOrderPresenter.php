@@ -157,6 +157,10 @@ class PosOrderPresenter
         if ($item->set_parts) {
             $data['set_parts'] = $item->set_parts;
         }
+        // P6-55 (multi_brand): the line's brand ({id, name, code, color}) for the ticket and the label, only on a branded line
+        if ($item->brand !== null) {
+            $data['brand'] = $item->brand;
+        }
         // P6-31: a combo line's parts as sold (slot, dish, pieces, modifiers, price delta, receipt label, kitchen line id),
         // only on such lines; the line's kitchen_status is its parts' (ready once all are)
         if ($item->isComboLine()) {

@@ -495,6 +495,18 @@ class BookingService
     {
         $conflicts = $this->conflicts($branchId, $tableIds, $start, $end, $exceptId);
         if ($conflicts->isEmpty()) {
+            // P6-51: a room inside a banquet's hall is not sold while the banquet holds the hall
+            $banquets = app(\App\Domain\Pos\Banquet\BanquetEventService::class)->hallConflicts($branchId, $tableIds, $start, $end);
+            if ($banquets->isNotEmpty()) {
+                throw new BookingException('Bu vaqtda zalda tadbir (banket) bor. Boshqa vaqt yoki xonani tanlang.', 'banquet_conflict', 409, [
+                    'banquets' => $banquets->map(fn (\App\Models\BanquetEvent $event) => [
+                        'uuid' => $event->uuid,
+                        'starts_at' => $event->starts_at->toJSON(),
+                        'ends_at' => $event->ends_at->toJSON(),
+                    ])->values()->all(),
+                ]);
+            }
+
             return;
         }
 

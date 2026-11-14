@@ -7,11 +7,23 @@ part of 'data113.dart';
 // **************************************************************************
 
 Data113 _$Data113FromJson(Map<String, dynamic> json) => Data113(
-  sets: (json['sets'] as List<dynamic>)
-      .map((e) => Sets.fromJson(e as Map<String, dynamic>))
+  branchId: (json['branch_id'] as num).toInt(),
+  enabled: json['enabled'] as bool,
+  expoScope: json['expo_scope'] as String,
+  limits: Limits3.fromJson(json['limits'] as Map<String, dynamic>),
+  stations: (json['stations'] as List<dynamic>)
+      .map((e) => Stations3.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products6.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data113ToJson(Data113 instance) => <String, dynamic>{
-  'sets': instance.sets,
+  'branch_id': instance.branchId,
+  'enabled': instance.enabled,
+  'expo_scope': instance.expoScope,
+  'limits': instance.limits,
+  'stations': instance.stations,
+  'products': instance.products,
 };

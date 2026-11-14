@@ -4,28 +4,48 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'entries7.dart';
-import 'summary8.dart';
+import 'pickup_status.dart';
 
 part 'data301.g.dart';
 
 @JsonSerializable()
 class Data301 {
   const Data301({
-    required this.branchId,
-    required this.date,
-    required this.entries,
-    required this.summary,
+    required this.orderUuid,
+    required this.number,
+    required this.businessDate,
+    required this.status,
+    required this.channel,
+    required this.orderStatus,
+    required this.readyAt,
+    required this.calledAt,
+    required this.callCount,
+    required this.handedAt,
+    required this.openedAt,
   });
 
   factory Data301.fromJson(Map<String, Object?> json) =>
       _$Data301FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String date;
-  final List<Entries7> entries;
-  final Summary8 summary;
+  @JsonKey(name: 'order_uuid')
+  final String orderUuid;
+  final int number;
+  @JsonKey(name: 'business_date')
+  final String? businessDate;
+  final PickupStatus? status;
+  final String channel;
+  @JsonKey(name: 'order_status')
+  final String orderStatus;
+  @JsonKey(name: 'ready_at')
+  final String? readyAt;
+  @JsonKey(name: 'called_at')
+  final String? calledAt;
+  @JsonKey(name: 'call_count')
+  final int callCount;
+  @JsonKey(name: 'handed_at')
+  final String? handedAt;
+  @JsonKey(name: 'opened_at')
+  final String? openedAt;
 
   Map<String, Object?> toJson() => _$Data301ToJson(this);
 }

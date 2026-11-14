@@ -4,9 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'taken2.dart';
+import 'taken3.dart';
 import 'applied2.dart';
-import 'refunded3.dart';
+import 'refunded4.dart';
 
 part 'deposits2.g.dart';
 
@@ -21,9 +21,9 @@ class Deposits2 {
   factory Deposits2.fromJson(Map<String, Object?> json) =>
       _$Deposits2FromJson(json);
 
-  final Taken2 taken;
+  final Taken3 taken;
   final Applied2 applied;
-  final Refunded3 refunded;
+  final Refunded4 refunded;
 
   Map<String, Object?> toJson() => _$Deposits2ToJson(this);
 }

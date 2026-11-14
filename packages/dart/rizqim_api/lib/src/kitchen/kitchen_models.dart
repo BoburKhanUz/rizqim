@@ -66,6 +66,43 @@ class KitchenCombo {
   }
 }
 
+/// P6-55 (`multi_brand`): qator sotilgan brend (chipta va yorliqdagi belgi: qisqa kod va rang). Brendsiz (asosiy
+/// brend) qatorda yo'q.
+class KitchenBrand {
+  const KitchenBrand({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.color,
+  });
+
+  factory KitchenBrand.fromJson(Map<String, Object?> json) => KitchenBrand(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    name: '${json['name'] ?? ''}',
+    code: '${json['code'] ?? ''}',
+    color: (json['color'] as String?) ?? '#64748B',
+  );
+
+  static KitchenBrand? maybe(Object? json) =>
+      json is Map ? KitchenBrand.fromJson(json.cast<String, Object?>()) : null;
+
+  final int id;
+  final String name;
+
+  /// Qisqa kod ("BB"): chiptada katta harflar bilan.
+  final String code;
+
+  /// `#RRGGBB`.
+  final String color;
+
+  /// Rang ARGB butun son sifatida (`Color(argb)` uchun); noto'g'ri qiymatda kulrang.
+  int get argb {
+    final String hex = color.startsWith('#') ? color.substring(1) : color;
+    final int? rgb = hex.length == 6 ? int.tryParse(hex, radix: 16) : null;
+    return 0xFF000000 | (rgb ?? 0x64748B);
+  }
+}
+
 /// P6-33: chiptadagi bitta sexning yig'ishdagi holati.
 class KitchenAssemblyStation {
   const KitchenAssemblyStation({
@@ -160,6 +197,7 @@ class KitchenLine {
     this.targetSeconds,
     this.late = false,
     this.combo,
+    this.brand,
   });
 
   factory KitchenLine.fromJson(Map<String, Object?> json) => KitchenLine(
@@ -193,6 +231,7 @@ class KitchenLine {
             (json['combo']! as Map<Object?, Object?>).cast<String, Object?>(),
           )
         : null,
+    brand: KitchenBrand.maybe(json['brand']),
   );
 
   final int id;
@@ -254,6 +293,9 @@ class KitchenLine {
 
   /// P6-31: kombo qismi bo'lsa, qaysi kombodan; oddiy qatorda `null`.
   final KitchenCombo? combo;
+
+  /// P6-55: qator brendi (asosiy brendda `null`).
+  final KitchenBrand? brand;
 
   /// Og'irligi hali tortilmagan qator (oshxona "og'irlik kutilmoqda" deb ko'rsatadi).
   bool get awaitingWeight => weightStatus == 'awaiting';
@@ -330,6 +372,7 @@ class KitchenLine {
     targetSeconds: targetSeconds ?? this.targetSeconds,
     late: late ?? this.late,
     combo: combo ?? this.combo,
+    brand: brand,
   );
 }
 
@@ -393,6 +436,7 @@ class KitchenTicket {
     this.tableLabel,
     this.assembly,
     this.pickup,
+    this.brands = const <KitchenBrand>[],
   });
 
   /// [receivedAt] — javob qurilmaga kelgan payt (qurilma soati bilan): kutish vaqti `waiting_seconds` dan shu paytdan
@@ -433,6 +477,7 @@ class KitchenTicket {
         : null,
     waitingSeconds: (json['waiting_seconds'] as num?)?.toInt() ?? 0,
     receivedAt: receivedAt,
+    brands: _list(json['brands'], KitchenBrand.fromJson),
   );
 
   final String uuid;
@@ -473,6 +518,9 @@ class KitchenTicket {
 
   /// P6-34: olib ketish vaqti tanlangan buyurtmaning vaqti; vaqtsizda `null`.
   final KitchenPickup? pickup;
+
+  /// P6-55 (`multi_brand`): chiptadagi brendlar (qatorlar tartibida); brendsiz buyurtmada bo'sh.
+  final List<KitchenBrand> brands;
 
   /// Bekor qilingan yoki rad etilgan payt (P3-26: `canceled_within` bilan so'ralgan ro'yxatda; tirik chiptada `null`).
   final DateTime? canceledAt;
@@ -568,6 +616,7 @@ class KitchenTicket {
     pickup: pickup ?? this.pickup,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
+    brands: brands,
   );
 }
 

@@ -11,7 +11,7 @@ DeleteV1PosQrUuidResponse _$DeleteV1PosQrUuidResponseFromJson(
 ) => DeleteV1PosQrUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data279.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data330.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$DeleteV1PosQrUuidResponseToJson(

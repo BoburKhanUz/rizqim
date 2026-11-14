@@ -4,36 +4,52 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'blocks2.dart';
+import 'account4.dart';
+import 'rows15.dart';
+import 'day_totals.dart';
 
 part 'data282.g.dart';
 
 @JsonSerializable()
 class Data282 {
   const Data282({
-    required this.numbers,
-    required this.calling,
-    required this.businessDate,
-    required this.blockSize,
-    required this.lowWater,
-    required this.blocks,
-    required this.nextNumber,
+    required this.account,
+    required this.month,
+    required this.from,
+    required this.to,
+    required this.days,
+    required this.rows,
+    required this.dayTotals,
+    required this.total,
+    required this.meals,
+    required this.repaidTotal,
+    required this.monthlyLimit,
+    required this.balance,
+    required this.branchId,
+    required this.masked,
   });
 
   factory Data282.fromJson(Map<String, Object?> json) =>
       _$Data282FromJson(json);
 
-  final bool numbers;
-  final bool calling;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'block_size')
-  final int blockSize;
-  @JsonKey(name: 'low_water')
-  final int lowWater;
-  final List<Blocks2> blocks;
-  @JsonKey(name: 'next_number')
-  final int? nextNumber;
+  final Account4 account;
+  final String month;
+  final String from;
+  final String to;
+  final List<String> days;
+  final List<Rows15> rows;
+  @JsonKey(name: 'day_totals')
+  final List<DayTotals> dayTotals;
+  final String total;
+  final int meals;
+  @JsonKey(name: 'repaid_total')
+  final String repaidTotal;
+  @JsonKey(name: 'monthly_limit')
+  final String? monthlyLimit;
+  final String balance;
+  @JsonKey(name: 'branch_id')
+  final int? branchId;
+  final bool masked;
 
   Map<String, Object?> toJson() => _$Data282ToJson(this);
 }

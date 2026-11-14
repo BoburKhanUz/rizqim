@@ -7,15 +7,23 @@ part of 'data222.dart';
 // **************************************************************************
 
 Data222 _$Data222FromJson(Map<String, dynamic> json) => Data222(
-  session: json['session'] == null
-      ? null
-      : Session3.fromJson(json['session'] as Map<String, dynamic>),
-  todayMinutes: (json['today_minutes'] as num).toInt(),
-  businessDate: json['business_date'] as String,
+  persons: (json['persons'] as num).toInt(),
+  personsPerKg: json['persons_per_kg'] as String,
+  oshKg: json['osh_kg'] as String,
+  ingredients: (json['ingredients'] as List<dynamic>)
+      .map((e) => Ingredients4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  kazans: (json['kazans'] as List<dynamic>)
+      .map((e) => Kazans.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  kazanCapacityKg: json['kazan_capacity_kg'] as String,
 );
 
 Map<String, dynamic> _$Data222ToJson(Data222 instance) => <String, dynamic>{
-  'session': instance.session,
-  'today_minutes': instance.todayMinutes,
-  'business_date': instance.businessDate,
+  'persons': instance.persons,
+  'persons_per_kg': instance.personsPerKg,
+  'osh_kg': instance.oshKg,
+  'ingredients': instance.ingredients,
+  'kazans': instance.kazans,
+  'kazan_capacity_kg': instance.kazanCapacityKg,
 };

@@ -20,7 +20,11 @@ Bills5 _$Bills5FromJson(Map<String, dynamic> json) => Bills5(
   placeFeeAmount: json['place_fee_amount'] as String,
   packagingAmount: json['packaging_amount'] as String,
   packagingLines: (json['packaging_lines'] as List<dynamic>)
-      .map((e) => PackagingLines13.fromJson(e as Map<String, dynamic>))
+      .map((e) => PackagingLines14.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  banquetAmount: json['banquet_amount'] as String,
+  banquetLines: (json['banquet_lines'] as List<dynamic>)
+      .map((e) => BanquetLines8.fromJson(e as Map<String, dynamic>))
       .toList(),
   total: json['total'] as String,
   paidAmount: json['paid_amount'] as String,
@@ -31,21 +35,21 @@ Bills5 _$Bills5FromJson(Map<String, dynamic> json) => Bills5(
   printedCount: (json['printed_count'] as num).toInt(),
   printedAt: json['printed_at'] as String?,
   paidAt: json['paid_at'] as String?,
-  fiscal: Fiscal21.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal35.fromJson(json['fiscal'] as Map<String, dynamic>),
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items33.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items40.fromJson(e as Map<String, dynamic>))
       .toList(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments38.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments46.fromJson(e as Map<String, dynamic>))
       .toList(),
   tipsAmount: json['tips_amount'] as String,
   tips: (json['tips'] as List<dynamic>)
-      .map((e) => Tips9.fromJson(e as Map<String, dynamic>))
+      .map((e) => Tips10.fromJson(e as Map<String, dynamic>))
       .toList(),
   serviceChargeNotice: json['service_charge_notice'] as String?,
   ticket: json['ticket'] == null
       ? null
-      : Ticket14.fromJson(json['ticket'] as Map<String, dynamic>),
+      : Ticket15.fromJson(json['ticket'] as Map<String, dynamic>),
   createdAt: json['created_at'] as String?,
 );
 
@@ -63,6 +67,8 @@ Map<String, dynamic> _$Bills5ToJson(Bills5 instance) => <String, dynamic>{
   'place_fee_amount': instance.placeFeeAmount,
   'packaging_amount': instance.packagingAmount,
   'packaging_lines': instance.packagingLines,
+  'banquet_amount': instance.banquetAmount,
+  'banquet_lines': instance.banquetLines,
   'total': instance.total,
   'paid_amount': instance.paidAmount,
   'due_amount': instance.dueAmount,

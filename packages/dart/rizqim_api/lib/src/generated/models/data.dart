@@ -4,9 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'brand.dart';
 import 'category.dart';
 import 'channel_price.dart';
 import 'image_thumb_urls2.dart';
+import 'ingredient.dart';
 import 'menu_batch.dart';
 import 'modifier_group.dart';
 import 'product.dart';
@@ -20,7 +22,7 @@ part 'data.g.dart';
 @JsonSerializable()
 class Data {
   const Data({
-    required this.hasVariants,
+    required this.updatedAt,
     required this.uuid,
     required this.storeId,
     required this.categoryId,
@@ -31,9 +33,9 @@ class Data {
     required this.sku,
     required this.status,
     required this.sortOrder,
-    required this.id,
+    required this.hasVariants,
     required this.createdAt,
-    required this.updatedAt,
+    required this.id,
     required this.deletedAt,
     required this.image,
     required this.batchTracked,
@@ -43,18 +45,21 @@ class Data {
     required this.vatRate,
     required this.quickAdd,
     required this.quickMultipliers,
-    required this.modifierGroupLinks,
+    required this.waitMinutes,
     required this.weightMode,
-    required this.kdsTargetSeconds,
+    required this.modifierGroupLinks,
+    required this.brandId,
     required this.isActive,
     required this.imageUrl,
-    required this.waitMinutes,
+    required this.kdsTargetSeconds,
     required this.imageThumbUrls,
     this.category,
     this.variants,
     this.modifierGroups,
-    this.batches,
+    this.ingredients,
     this.channelPrices,
+    this.batches,
+    this.brand,
     this.store,
   });
 
@@ -102,6 +107,8 @@ class Data {
   final String? weightMode;
   @JsonKey(name: 'kds_target_seconds')
   final int? kdsTargetSeconds;
+  @JsonKey(name: 'brand_id')
+  final int? brandId;
   @JsonKey(name: 'is_active')
   final bool isActive;
   @JsonKey(name: 'image_url')
@@ -118,6 +125,8 @@ class Data {
   @JsonKey(name: 'channel_prices')
   final List<ChannelPrice>? channelPrices;
   final List<MenuBatch>? batches;
+  final Brand? brand;
+  final List<Ingredient>? ingredients;
 
   Map<String, Object?> toJson() => _$DataToJson(this);
 }

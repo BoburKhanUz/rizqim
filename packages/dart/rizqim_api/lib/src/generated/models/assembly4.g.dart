@@ -12,7 +12,7 @@ Assembly4 _$Assembly4FromJson(Map<String, dynamic> json) => Assembly4(
   waiting: json['waiting'] as bool,
   assembledAt: json['assembled_at'] as String?,
   stations: (json['stations'] as List<dynamic>)
-      .map((e) => Stations13.fromJson(e as Map<String, dynamic>))
+      .map((e) => Stations14.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

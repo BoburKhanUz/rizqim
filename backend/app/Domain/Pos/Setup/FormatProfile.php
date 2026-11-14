@@ -104,7 +104,8 @@ enum FormatProfile: string
      * The modules a profile switches on (docs/PHASE6_PLAN.md §6). `terminal_card_flow` is on everywhere: a bank
      * terminal next to the till is the common case, and the flow only adds an optional transaction number. Wave 4: QR at
      * the till in the kafe, restoran, fast food and qahvaxona (a card-and-QR crowd; elsewhere the owner switches it on);
-     * gift certificates in the kafe, restoran and qahvaxona; the corporate talons in the stolovaya.
+     * gift certificates in the kafe, restoran and qahvaxona; the corporate talons in the stolovaya. Wave 5: the banquet
+     * module in the toyxona; brands and the ingredient stop-list in the dark kitchen, the ingredient stop in fast food.
      *
      * @return list<PosModule>
      */
@@ -127,8 +128,8 @@ enum FormatProfile: string
             // Wave 3: the combo, packaging, the expo screen and the pickup time; 24/7 is the owner's switch
             self::FAST_FOOD => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::COMBO_MEAL, PosModule::KDS, PosModule::COMBO, PosModule::QUICK_MODIFIERS, PosModule::LABELS, PosModule::KDS_EXPO, PosModule::PACKAGING, PosModule::SCHEDULED_PICKUP, PosModule::QR_PAYMENTS],
             self::QAHVAXONA => [PosModule::QUICK_COUNTER, PosModule::QUEUE_NUMBERS, PosModule::QUEUE_CALLING, PosModule::CUSTOMER_DISPLAY, PosModule::KDS, PosModule::QUICK_MODIFIERS, PosModule::LABELS, PosModule::PACKAGING, PosModule::SCHEDULED_PICKUP, PosModule::QR_PAYMENTS, PosModule::VOUCHERS],
-            self::TOYXONA => [PosModule::BOOKINGS, PosModule::ROOMS, PosModule::CUSTOMER_ACCOUNTS],
-            self::DARK_KITCHEN => [PosModule::QUICK_COUNTER, PosModule::KDS, PosModule::COMBO, PosModule::PACKAGING, PosModule::KDS_EXPO],
+            self::TOYXONA => [PosModule::BOOKINGS, PosModule::ROOMS, PosModule::CUSTOMER_ACCOUNTS, PosModule::BANQUET],
+            self::DARK_KITCHEN => [PosModule::QUICK_COUNTER, PosModule::KDS, PosModule::COMBO, PosModule::PACKAGING, PosModule::KDS_EXPO, PosModule::MULTI_BRAND, PosModule::INGREDIENT_STOPLIST],
         };
         $modules[] = PosModule::TERMINAL_CARD_FLOW;
 

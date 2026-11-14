@@ -5,7 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'employee.dart';
-import 'user20.dart';
+import 'user27.dart';
 import 'approver.dart';
 
 part 'movements.g.dart';
@@ -34,7 +34,7 @@ class Movements {
   final String amount;
   final String? note;
   final Employee? employee;
-  final User20? user;
+  final User27? user;
   @JsonKey(name: 'approved_by')
   final int? approvedBy;
   final Approver? approver;

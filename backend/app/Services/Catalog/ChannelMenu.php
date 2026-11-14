@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 /**
  * A store's menu as one sales channel sees it: the variants' prices on that channel (a channel_prices override, else
- * the variant's own price) and what is hidden there. Built once per request from a single query.
+ * the variant's own price) and what is hidden there. Built once per request from a single query. P6-55: plus one query
+ * for the brands (BrandMenu::channelRules: a brand hidden on the channel or inactive hides its dishes, a brand's channel
+ * percent adjusts the dishes without a channel price of their own).
  */
 final class ChannelMenu
 {
@@ -19,12 +21,14 @@ final class ChannelMenu
      * @param  array<int, true>  $hiddenProducts
      * @param  array<int, true>  $hiddenVariants
      * @param  array<int, string>  $variantPrices  variant id => decimal string
+     * @param  array<int, string>  $brandPercents  P6-55: product id => its brand's price percent on this channel
      */
     private function __construct(
         public readonly OrderChannel $channel,
         private readonly array $hiddenProducts,
         private readonly array $hiddenVariants,
         private readonly array $variantPrices,
+        private readonly array $brandPercents = [],
     ) {}
 
     /**
@@ -57,7 +61,12 @@ final class ChannelMenu
             }
         }
 
-        return new self($channel, $hiddenProducts, $hiddenVariants, $variantPrices);
+        // P6-55 (multi_brand): an inactive brand or one hidden on the channel hides its dishes; a brand's channel
+        // percent adjusts the prices of its dishes that have no channel price of their own
+        $brands = \App\Domain\Pos\Brands\BrandMenu::channelRules(array_map('intval', (array) $storeIds), $channel);
+        $hiddenProducts += $brands['hidden'];
+
+        return new self($channel, $hiddenProducts, $hiddenVariants, $variantPrices, $brands['percents']);
     }
 
     public function isProductHidden(Product|int $product): bool
@@ -75,7 +84,13 @@ final class ChannelMenu
      */
     public function priceOf(ProductVariant $variant): Money
     {
-        return Money::of($this->variantPrices[(int) $variant->id] ?? $variant->price);
+        if (isset($this->variantPrices[(int) $variant->id])) {
+            return Money::of($this->variantPrices[(int) $variant->id]);
+        }
+
+        $percent = $this->brandPercents[(int) $variant->product_id] ?? null;
+
+        return $percent !== null ? \App\Domain\Pos\Brands\BrandMenu::adjust(Money::of($variant->price), $percent) : Money::of($variant->price);
     }
 
     /**

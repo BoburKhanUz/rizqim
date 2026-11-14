@@ -4,43 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'order3.dart';
-import 'fiscal3.dart';
+import 'sets.dart';
 
 part 'data119.g.dart';
 
 @JsonSerializable()
 class Data119 {
-  const Data119({
-    required this.uuid,
-    required this.provider,
-    required this.providerTransactionId,
-    required this.status,
-    required this.amount,
-    required this.paidAt,
-    required this.cancelledAt,
-    required this.createdAt,
-    required this.order,
-    required this.fiscal,
-  });
+  const Data119({required this.sets});
 
   factory Data119.fromJson(Map<String, Object?> json) =>
       _$Data119FromJson(json);
 
-  final String uuid;
-  final String provider;
-  @JsonKey(name: 'provider_transaction_id')
-  final String? providerTransactionId;
-  final String status;
-  final String amount;
-  @JsonKey(name: 'paid_at')
-  final String? paidAt;
-  @JsonKey(name: 'cancelled_at')
-  final String? cancelledAt;
-  @JsonKey(name: 'created_at')
-  final String createdAt;
-  final Order3 order;
-  final Fiscal3? fiscal;
+  final List<Sets> sets;
 
   Map<String, Object?> toJson() => _$Data119ToJson(this);
 }

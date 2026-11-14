@@ -16,7 +16,7 @@ Device25 _$Device25FromJson(Map<String, dynamic> json) => Device25(
   branchId: (json['branch_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User27.fromJson(json['user'] as Map<String, dynamic>),
+      : User34.fromJson(json['user'] as Map<String, dynamic>),
   hasPushToken: json['has_push_token'] as bool,
   lastSeenAt: json['last_seen_at'] as String?,
   revokedAt: json['revoked_at'] as String?,

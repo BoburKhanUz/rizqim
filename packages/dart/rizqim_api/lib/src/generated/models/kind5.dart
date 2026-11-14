@@ -6,10 +6,30 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Kind5 {
-  @JsonValue('percent')
-  percent('percent'),
-  @JsonValue('amount')
-  amount('amount'),
+  @JsonValue('header')
+  header('header'),
+  @JsonValue('place')
+  place('place'),
+  @JsonValue('time')
+  time('time'),
+  @JsonValue('room')
+  room('room'),
+  @JsonValue('room_fee')
+  roomFee('room_fee'),
+  @JsonValue('min_spend')
+  minSpend('min_spend'),
+  @JsonValue('service_charge')
+  serviceCharge('service_charge'),
+  @JsonValue('place_fee')
+  placeFee('place_fee'),
+  @JsonValue('pre_order')
+  preOrder('pre_order'),
+  @JsonValue('deposit')
+  deposit('deposit'),
+  @JsonValue('cancel_policy')
+  cancelPolicy('cancel_policy'),
+  @JsonValue('contact')
+  contact('contact'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

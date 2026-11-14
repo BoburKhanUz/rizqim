@@ -5,6 +5,8 @@ import 'package:pos_sync/pos_sync.dart';
 import 'package:rizqim_api/rizqim_api.dart';
 
 import 'accounts/account_repository.dart';
+import 'banquets/banquet_ops_repository.dart';
+import 'banquets/banquet_repository.dart';
 import 'billing/billing_repository.dart';
 import 'bookings/booking_repository.dart';
 import 'bootstrap/bootstrap_repository.dart';
@@ -13,6 +15,7 @@ import 'display/display_feed.dart';
 import 'display/display_repository.dart';
 import 'floor/floor_repository.dart';
 import 'hostess/hostess_repository.dart';
+import 'ingredients/ingredient_repository.dart';
 import 'http/connectivity.dart';
 import 'http/pos_http.dart';
 import 'lan/pos_lan_route.dart';
@@ -89,6 +92,9 @@ class PosData {
     tips = PosTipsRepository(http);
     vouchers = PosVoucherRepository(http, offline: offline);
     qr = PosQrPaymentRepository(http, offline: offline);
+    banquets = PosBanquetRepository(http, offline: offline);
+    banquetOps = PosBanquetOpsRepository(http, offline: offline);
+    ingredients = PosIngredientRepository(http);
     final PosOffline? o = offline;
     if (o != null) {
       o
@@ -173,6 +179,15 @@ class PosData {
 
   /// P6-41/P6-42: schyot summasiga Click, Payme yoki UzQR dinamik QR (provayder o'zi tasdiqlaydi; internet bilan).
   late final PosQrPaymentRepository qr;
+
+  /// P6-51/P6-52: tadbirlar taqvimi, tadbir kartasi, zalni band qilish va narxni muzlatish (faqat internet bilan).
+  late final PosBanquetRepository banquets;
+
+  /// P6-54: ishlab chiqarish varag'i, osh kalkulyatori, bozorlik, shartnoma, tadbir kuni va yakuniy hisob (internet bilan).
+  late final PosBanquetOpsRepository banquetOps;
+
+  /// P6-55 / B9: ingredient bo'yicha tez stop ("Tovuq tugadi"; faqat internet bilan).
+  late final PosIngredientRepository ingredients;
 
   AuthSession get auth => client.auth;
   PosConnectivity get connectivity => http.connectivity;

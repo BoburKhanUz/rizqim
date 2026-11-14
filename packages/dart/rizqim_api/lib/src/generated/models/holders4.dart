@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'staff11.dart';
+import 'staff13.dart';
 
 part 'holders4.g.dart';
 
@@ -20,7 +20,7 @@ class Holders4 {
       _$Holders4FromJson(json);
 
   final String mode;
-  final Staff11? staff;
+  final Staff13? staff;
   final String amount;
 
   Map<String, Object?> toJson() => _$Holders4ToJson(this);
