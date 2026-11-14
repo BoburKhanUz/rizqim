@@ -189,7 +189,8 @@ class BanquetEventService
      */
     public function freeze(BanquetEvent $event, User $actor, ?int $version = null): BanquetEvent
     {
-        $event = DB::transaction(function () use ($event, $actor, $version) {
+        $totalChanged = false;
+        $event = DB::transaction(function () use ($event, $actor, $version, &$totalChanged) {
             $event = $this->lockFresh($event, $version);
             if (!$event->status->isEditable()) {
                 throw new BanquetException("Bu tadbir narxini muzlatib bo'lmaydi: u \"{$event->status->label()}\" holatida.", 'event_not_editable', 409);
@@ -198,19 +199,22 @@ class BanquetEventService
                 throw new BanquetException('Narxlar allaqachon muzlatilgan.', 'already_frozen', 409);
             }
             $before = $this->auditFields($event);
+            $totalBefore = Money::of($event->total)->toString();
             $this->pricing->apply($event);
             $this->pricing->freeze($event);
             $event->frozen_at = now();
             $event->frozen_by = $actor->id;
             $event->version = $event->version + 1;
             $event->save();
+            // Review C3: freezing re-prices from the catalogue; a changed total re-plans the unpaid rows
+            $totalChanged = Money::of($event->total)->toString() !== $totalBefore;
 
             $this->audit->record('banquet.frozen', $event, $before, $this->auditFields($event), ['total' => $event->total], ['actor' => $actor]);
 
             return $event;
         });
 
-        event(new BanquetEventChanged($event, 'frozen', false));
+        event(new BanquetEventChanged($event, 'frozen', $totalChanged));
 
         return $event;
     }

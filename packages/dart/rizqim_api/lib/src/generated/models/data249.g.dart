@@ -7,13 +7,11 @@ part of 'data249.dart';
 // **************************************************************************
 
 Data249 _$Data249FromJson(Map<String, dynamic> json) => Data249(
-  bill: Bill5.fromJson(json['bill'] as Map<String, dynamic>),
-  copy: json['copy'] as bool,
-  order: Order8.fromJson(json['order'] as Map<String, dynamic>),
+  bill: Bill4.fromJson(json['bill'] as Map<String, dynamic>),
+  order: Order7.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data249ToJson(Data249 instance) => <String, dynamic>{
   'bill': instance.bill,
-  'copy': instance.copy,
   'order': instance.order,
 };

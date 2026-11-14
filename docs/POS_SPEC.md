@@ -808,7 +808,11 @@ schyot bo'ladi, to'langan barcha avanslar (kassa va bank o'tkazmasi) `prepayment
 eng eskisidan; o'tkazma — karta shaklida, T10), qolgani kassada istalgan usulda. Schyot yopilganda **to'liq summaga bitta sotuv
 cheki**: `prepayment` qismlari + kassadagi to'lov = chek summasi. Avanslar summadan ko'p bo'lsa schyot avansdan to'liq to'lanadi,
 ortig'i eng yangi avansdan uning bo'nak chekiga bog'langan **qaytarish** cheki bilan qaytariladi (naqd — ochiq smenadan, menejer
-tasdig'i bilan). Yakuniy schyotni bo'lish bu bosqichda yo'q.
+tasdig'i bilan). Yakuniy schyotni bo'lish bu bosqichda yo'q. Tadbir davomida uning buyurtmasi faqat yakuniy hisob orqali
+schyot qilinadi va to'lanadi (oddiy schyot va to'lov — 409 `banquet_settle_first`), shuning uchun avans har doim shu bitta
+chekda ayiriladi. Yakuniy hisob cheki chiqqandan keyin qo'shilgan buyurtma — o'z schyoti va o'z sotuv cheki (bitta yakuniy
+hisob — bitta chek). Bu qoidadan oldin buyurtmasi alohida to'lanib yopilgan tadbirda yakuniy hisob banket summasini avanslar
+bilan alohida schyotda oladi (ikki sotuv cheki).
 
 **Nasiya: sotuv → kredit.** Xizmat ko'rsatilgan kuni to'liq summaga sotuv cheki chiqadi (to'lovgacha kechiktirilmaydi).
 Qarzning har bir to'lovida kredit cheki chiqadi. Misol: hisob 850 000 so'm, mijoz 350 000 ni naqd to'laydi, 500 000 ni

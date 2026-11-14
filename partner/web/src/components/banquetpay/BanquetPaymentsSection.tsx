@@ -1,31 +1,42 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Ban, CalendarClock, Landmark, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Ban, CalendarClock, Landmark, Pencil, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button, Card, Dialog, Field, InlineError, Notice, Skeleton, fieldClass, formatDate, formatDateTime, formatMoney } from '@rizqim/ui';
+import type { Translate } from '@/i18n';
 import { useI18n } from '../I18nProvider';
 import { useCan } from '../management/access';
-import { errorText } from '../management/errors';
+import { errorText, reasonOf } from '../management/errors';
 import { DateField, SelectField, TextField } from '../pos/fields';
 import { DataTable, Pill, Td, Th, type Tone } from '../reports/ui';
-import { PAYMENT_KINDS, type PaymentKind, type PaymentStatus, type Schedule, type ScheduleRow, type ScheduleRowInput } from './api';
-import { useCancelEvent, useCancellationQuote, useRecordTransfer, useSaveSchedule, useSchedule } from './hooks';
+import { PAYMENT_KINDS, type PaymentKind, type PaymentStatus, type Schedule, type ScheduleEntry, type ScheduleRow, type ScheduleRowInput } from './api';
+import { useCancelEvent, useCancellationQuote, useRecordTransfer, useSaveSchedule, useSchedule, useVoidTransfer } from './hooks';
 import { sumAmounts } from './money';
 
 const TONES: Record<PaymentStatus, Tone> = { due: 'neutral', paid: 'success', refunded: 'info', retained: 'warning' };
+
+// The schedule's own refusals in the panel's language; anything else as the server words it
+function bqpErrorText(err: unknown, t: Translate): string {
+  const reason = reasonOf(err);
+  if (reason === 'event_billed') return t('bqp_billedNote');
+  if (reason === 'transfer_duplicate') return t('bqp_transferDuplicate');
+  return errorText(err, t);
+}
 
 const newKey = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 // The payment schedule of one banquet event (P6-53) for the event page: the figures (paid, outstanding, overdue), the
 // rows with their status and receipts, every money movement, and the manager's actions — a bank transfer against a
 // row, editing the unpaid rows, cancelling with the computed refund and retained parts. Cash, card and QR are taken at
-// the till only.
+// the till only. Once the final bill exists (`event.billed`) the schedule is read-only: the rest is paid on that bill at
+// the till, and a bank transfer can no longer be recorded or voided.
 export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
   const { t, language } = useI18n();
   const access = useCan();
   const canManage = access.can('banquets.manage');
   const schedule = useSchedule(eventUuid);
   const [transferRow, setTransferRow] = useState<ScheduleRow | null>(null);
+  const [voidEntry, setVoidEntry] = useState<ScheduleEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -49,7 +60,9 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
   const data = schedule.data;
   const { summary, event } = data;
   const live = event.status === 'hold' || event.status === 'confirmed' || event.status === 'in_progress';
-  const editable = canManage && (event.status === 'hold' || event.status === 'confirmed' || event.status === 'in_progress');
+  const billed = event.billed === true;
+  const editable = canManage && live && !billed;
+  const voidable = editable && data.entries.some((entry) => entry.type === 'transfer');
   const cancellable = canManage && (event.status === 'hold' || event.status === 'confirmed');
 
   return (
@@ -75,6 +88,7 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
         </div>
       </div>
       <Notice message={notice} />
+      {live && billed && <p className="rounded-control border border-line bg-surface-2 p-3 text-body">{t('bqp_billedNote')}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -169,6 +183,7 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
               <Th numeric>{t('bqp_colAmount')}</Th>
               <Th>{t('bqp_colTender')}</Th>
               <Th>{t('bqp_entryBy')}</Th>
+              {voidable && <Th>{t('mgmt_actions')}</Th>}
             </tr>
           </thead>
           <tbody>
@@ -180,6 +195,8 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
                 <Td>
                   {entry.type_label}
                   {entry.transfer_pending ? ` (${t('bqp_transferPending')})` : ''}
+                  {entry.reference ? ` · ${entry.reference}` : ''}
+                  {entry.type === 'transfer_void' && entry.reason ? ` — ${entry.reason}` : ''}
                 </Td>
                 <Td numeric className="whitespace-nowrap">
                   {entry.type === 'refund' ? '−' : ''}
@@ -187,6 +204,15 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
                 </Td>
                 <Td muted>{t(`bqp_tender_${entry.tender}`)}</Td>
                 <Td muted>{entry.user?.name ?? '—'}</Td>
+                {voidable && (
+                  <Td>
+                    {entry.type === 'transfer' && (
+                      <Button variant="secondary" icon={Undo2} aria-label={t('bqp_voidTransferAria', { reference: entry.reference ?? '' })} onClick={() => setVoidEntry(entry)}>
+                        {t('bqp_voidTransfer')}
+                      </Button>
+                    )}
+                  </Td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -201,6 +227,17 @@ export function BanquetPaymentsSection({ eventUuid }: { eventUuid: string }) {
           onDone={() => {
             setTransferRow(null);
             setNotice(t('bqp_transferDone'));
+          }}
+        />
+      )}
+      {voidEntry && (
+        <VoidTransferDialog
+          eventUuid={eventUuid}
+          entry={voidEntry}
+          onClose={() => setVoidEntry(null)}
+          onDone={() => {
+            setVoidEntry(null);
+            setNotice(t('bqp_voided'));
           }}
         />
       )}
@@ -276,7 +313,60 @@ function TransferDialog({ eventUuid, row, onClose, onDone }: { eventUuid: string
         <TextField label={t('bqp_amountOptional')} value={amount} inputMode="decimal" maxLength={14} onChange={setAmount} />
         {save.isError && (
           <p role="alert" className="text-footnote font-bold text-danger-soft-fg">
-            {errorText(save.error, t)}
+            {bqpErrorText(save.error, t)}
+          </p>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+// A transfer recorded by mistake: voided with a reason (the row is unpaid again; the owner hears it)
+function VoidTransferDialog({ eventUuid, entry, onClose, onDone }: { eventUuid: string; entry: ScheduleEntry; onClose: () => void; onDone: () => void }) {
+  const { t, language } = useI18n();
+  const [reason, setReason] = useState('');
+  const [missing, setMissing] = useState(false);
+  const [key] = useState(newKey);
+  const save = useVoidTransfer(eventUuid, onDone);
+
+  return (
+    <Dialog
+      open
+      variant="center"
+      title={t('bqp_voidTitle')}
+      description={t('bqp_voidText')}
+      closeLabel={t('mgmt_close')}
+      busy={save.isPending}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={save.isPending}>
+            {t('mgmt_cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            loading={save.isPending}
+            onClick={() => {
+              if (reason.trim().length < 3) {
+                setMissing(true);
+                return;
+              }
+              save.mutate({ entry: entry.uuid, reason: reason.trim(), key });
+            }}
+          >
+            {t('bqp_voidConfirm')}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-body font-bold">
+          {entry.reference ?? '—'} · {moneyIn(entry.amount, language)}
+        </p>
+        <TextField label={t('bqp_voidReason')} value={reason} maxLength={500} onChange={(value) => (setReason(value), setMissing(false))} error={missing ? t('bqp_reasonRequired') : undefined} autoFocus />
+        {save.isError && (
+          <p role="alert" className="text-footnote font-bold text-danger-soft-fg">
+            {bqpErrorText(save.error, t)}
           </p>
         )}
       </div>
@@ -335,7 +425,7 @@ function EditScheduleDialog({ schedule, onClose, onDone }: { schedule: Schedule;
         </div>
         {save.isError && (
           <p role="alert" className="text-footnote font-bold text-danger-soft-fg">
-            {errorText(save.error, t)}
+            {bqpErrorText(save.error, t)}
           </p>
         )}
       </div>

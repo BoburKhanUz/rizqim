@@ -75,7 +75,13 @@ export interface EventSummary {
   package_id: number | null;
   package_name: string | null;
   total: string;
+  /** Money received on the schedule (P6-53), never reduced by refunds. */
   paid_total: string;
+  /** Review C4: received less refunded, the final bill included (older servers omit it: paid_total). */
+  paid?: string;
+  /** Review C4: given back (cancellation, an excess refund); older servers omit it. */
+  refunded?: string;
+  /** Review C4: zero once settled or cancelled. */
   outstanding: string;
   hold_expires_at: string | null;
   frozen: boolean;

@@ -5258,7 +5258,8 @@ export interface paths {
         /**
          * Switch a brand on or off on branches
          * @description `branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every
-         *     channel); a branch left out keeps its state.
+         *     channel); a branch left out keeps its state. Each branch sent needs menu.manage there (a caller bound to one
+         *     branch: their own only, another branch 403).
          */
         put: operations["brand.branches"];
         post?: never;
@@ -6123,7 +6124,8 @@ export interface paths {
         /**
          * The store's ingredients
          * @description Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped
-         *     now: {branch_id, entry_id, reason, until}) and `stopped_here` (on `branch_id`, when given).
+         *     now: {branch_id, entry_id, reason, until}; a caller bound to one branch: that branch only) and `stopped_here`
+         *     (on `branch_id`, when given).
          */
         get: operations["ingredient.index"];
         put?: never;
@@ -6727,7 +6729,8 @@ export interface paths {
          *     unit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};
          *     `portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent
          *     and extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000
-         *     characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Audited.
+         *     characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Store-wide:
+         *     a caller bound to one branch is refused (403 `store_wide_only`). Audited.
          */
         put: operations["banquetOpsSettings.update"];
         post?: never;
@@ -6805,7 +6808,8 @@ export interface paths {
          * @description Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents
          *     up to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days
          *     before a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new
-         *     schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; audited.
+         *     schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; store-wide: a caller
+         *     bound to one branch is refused (403 `store_wide_only`). Audited.
          */
         put: operations["banquetPayments.updateSettings"];
         post?: never;
@@ -6851,7 +6855,7 @@ export interface paths {
          * @description Only the fields sent change. `slots`: {morning|day|evening: {start, end}} ("HH:MM", an end before the start is
          *     the next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window
          *     are warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the
-         *     accountant confirms them). Audited.
+         *     accountant confirms them). Store-wide: a caller bound to one branch is refused (403 `store_wide_only`). Audited.
          */
         put: operations["banquetSetup.updateSettings"];
         post?: never;
@@ -8466,7 +8470,8 @@ export interface paths {
         /**
          * Banquet events (list, search by phone)
          * @description Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4
-         *     digits): the customer's events across dates, newest first. Filter by `status`. At most 200.
+         *     digits): the customer's events across dates, newest first — at most 20 searches a minute per staff member and
+         *     per terminal (429 `search_rate_limited`). Filter by `status`. At most 200.
          */
         get: operations["banquet.index"];
         put?: never;
@@ -8749,12 +8754,39 @@ export interface paths {
          * Edit the unpaid rows of the schedule
          * @description `rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or
          *     final; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with
-         *     `expected`). Paid rows never change. `version`: the event's (409 `version_conflict`). Needs banquets.manage and
-         *     the `banquet` module; audited.
+         *     `expected`; the same `uuid` twice: 422). Paid rows never change. `version`: the event's (409 `version_conflict`).
+         *     Once the final settlement exists (the event is billed, `event.billed`) the schedule is closed: 409
+         *     `event_billed` (the remainder is paid on the settlement bill). Needs banquets.manage and the `banquet` module;
+         *     audited.
          */
         put: operations["banquetPayment.update"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pos/banquets/{uuid}/payments/transfers/{entry}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Void a bank transfer recorded by mistake
+         * @description `reason` (query, required). Only before the event is billed (409 `event_billed`) and while it is live (409
+         *     `event_not_payable`); 409 `transfer_not_voidable` when its row was refunded or retained. The entry stays in the
+         *     list as `transfer_void` (no longer money received), its row is unpaid again and the paid total goes down; a
+         *     confirmed event with nothing else paid becomes a hold again with a fresh hold time, otherwise it stays
+         *     confirmed. Audited (`banquet.transfer_voided`); the owner gets a Telegram alert. Voiding it again changes
+         *     nothing. Needs banquets.manage from the web panel (403 `panel_only`). Not a transfer of this event: 404.
+         */
+        delete: operations["banquetPayment.voidTransfer"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8775,7 +8807,10 @@ export interface paths {
          *     (default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the
          *     invoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale
          *     receipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs
-         *     banquets.manage. The same Idempotency-Key returns the same entry.
+         *     banquets.manage from the web panel (a terminal PIN session: 403 `panel_only`). The owner gets a Telegram alert
+         *     with the amount and the reference. The same `reference` already recorded on this event (ignoring case): 409
+         *     `transfer_duplicate`. Only before the final settlement (409 `event_billed`: after it the remainder is paid on the
+         *     settlement bill by cash, card or QR). The same Idempotency-Key returns the same entry.
          */
         post: operations["banquetPayment.transfer"];
         delete?: never;
@@ -8799,7 +8834,8 @@ export interface paths {
          *     (`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money
          *     lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under
          *     `banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its
-         *     deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`,
+         *     deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`, `event_billed` (the final settlement
+         *     exists: pay the settlement bill instead); 422 `amount_exceeds_row`,
          *     `tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The
          *     same Idempotency-Key returns the same payment.
          */
@@ -8866,8 +8902,11 @@ export interface paths {
          *     once it is covered ONE sale receipt is issued for the full total (the advances as its prepayment part), the order
          *     closes and the event becomes `settled`. Advances over the total are refunded against their advance receipts (cash
          *     from the drawer needs pos.refund or a manager's `approval_token`; else `excess_status` stays `pending` — POST
-         *     .../settlement/refund-excess). Retrying before money is on the bill recomputes it. 409 `invalid_transition`,
-         *     `order_closed`, `shift_not_open`; 422 `mxik_missing`. pos.take_payment.
+         *     .../settlement/refund-excess). Retrying before money is on the bill recomputes it; lines added after only the
+         *     advances were offset are billed again onto the same settlement; once its receipt exists, lines added since are
+         *     billed apart and `bill` is that bill (its own receipt; `settlement.settlement.extra_bills`). An order closed by
+         *     a direct payment before the settlement is opened again for it (the banquet charge on a bill of its own). 409
+         *     `invalid_transition`, `order_closed`, `shift_not_open`, `stale_version`; 422 `mxik_missing`. pos.take_payment.
          */
         post: operations["banquetOps.settle"];
         delete?: never;
@@ -9099,7 +9138,8 @@ export interface paths {
          *     balance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,
          *     409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;
          *     online only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).
-         *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is
+         *     The money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). An in-progress
+         *     banquet event's order is paid on its settlement bill only (409 `banquet_settle_first` with `event_uuid`). When the bill is
          *     covered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the
          *     order is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may
          *     carry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,
@@ -10222,7 +10262,8 @@ export interface paths {
          *     pos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders
          *     (another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409
          *     `nothing_to_bill`, `order_closed`,
-         *     `not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
+         *     `not_pos_order`, `banquet_settle_first` (an in-progress banquet event's order: billed by POST
+         *     /pos/banquets/{uuid}/settle only; `event_uuid`); 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.
          */
         post: operations["posBill.store"];
         delete?: never;
@@ -34631,6 +34672,7 @@ export interface operations {
                             }[];
                             guests: number;
                             total: string;
+                            received: string;
                             paid: string;
                             outstanding: string;
                             overdue: {
@@ -34657,6 +34699,7 @@ export interface operations {
                                 guests: number;
                                 total: string;
                                 paid: string;
+                                received: string;
                                 refunded: string;
                                 retained: string;
                                 outstanding: string;
@@ -40233,6 +40276,8 @@ export interface operations {
                                 package_name: string | null;
                                 total: string;
                                 paid_total: string;
+                                paid: string;
+                                refunded: string;
                                 outstanding: string;
                                 hold_expires_at: string | null;
                                 frozen: boolean;
@@ -40328,6 +40373,8 @@ export interface operations {
                             package_name: string | null;
                             total: string;
                             paid_total: string;
+                            paid: string;
+                            refunded: string;
                             outstanding: string;
                             hold_expires_at: string | null;
                             frozen: boolean;
@@ -40485,6 +40532,8 @@ export interface operations {
                                     package_name: string | null;
                                     total: string;
                                     paid_total: string;
+                                    paid: string;
+                                    refunded: string;
                                     outstanding: string;
                                     hold_expires_at: string | null;
                                     frozen: boolean;
@@ -40787,6 +40836,8 @@ export interface operations {
                             package_name: string | null;
                             total: string;
                             paid_total: string;
+                            paid: string;
+                            refunded: string;
                             outstanding: string;
                             hold_expires_at: string | null;
                             frozen: boolean;
@@ -40939,6 +40990,8 @@ export interface operations {
                             package_name: string | null;
                             total: string;
                             paid_total: string;
+                            paid: string;
+                            refunded: string;
                             outstanding: string;
                             hold_expires_at: string | null;
                             frozen: boolean;
@@ -41097,6 +41150,7 @@ export interface operations {
                                 total: string;
                                 paid_total: string;
                                 version: number;
+                                billed: boolean;
                             };
                             summary: {
                                 total: string;
@@ -41320,6 +41374,8 @@ export interface operations {
                             package_name: string | null;
                             total: string;
                             paid_total: string;
+                            paid: string;
+                            refunded: string;
                             outstanding: string;
                             hold_expires_at: string | null;
                             frozen: boolean;
@@ -41479,6 +41535,13 @@ export interface operations {
                                     excess_amount: string;
                                     excess_status: string;
                                     settled_at: string | null;
+                                    extra_bills: {
+                                        uuid: string;
+                                        status: string;
+                                        total: string;
+                                        paid_amount: string;
+                                    }[];
+                                    extra_bills_notice: string | null;
                                 } | null;
                                 warnings: {
                                     code: string;
@@ -41521,6 +41584,7 @@ export interface operations {
                                 total: string;
                                 paid_total: string;
                                 version: number;
+                                billed: boolean;
                             };
                             summary: {
                                 total: string;
@@ -41654,6 +41718,131 @@ export interface operations {
                                 total: string;
                                 paid_total: string;
                                 version: number;
+                                billed: boolean;
+                            };
+                            summary: {
+                                total: string;
+                                paid: string;
+                                outstanding: string;
+                                overdue: boolean;
+                                overdue_amount: string;
+                                overdue_count: number;
+                                next_due: {
+                                    date: string;
+                                    amount: string;
+                                    kind: string;
+                                } | null;
+                            };
+                            rows: {
+                                uuid: string;
+                                kind: string;
+                                kind_label: string;
+                                due_date: string | null;
+                                amount: string;
+                                status: string;
+                                status_label: string;
+                                overdue: boolean;
+                                tender: string | null;
+                                card_type: string | null;
+                                transaction_id: string | null;
+                                reference: string | null;
+                                shift_id: number | null;
+                                paid_at: string | null;
+                                paid_by: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                refunded_amount: string;
+                                retained_amount: string;
+                                settle_receipt_uuid: string | null;
+                                note: string | null;
+                            }[];
+                            entries: {
+                                uuid: string;
+                                type: string;
+                                type_label: string;
+                                payment_uuid: string | null;
+                                amount: string;
+                                tender: string;
+                                card_type: string | null;
+                                reference: string | null;
+                                business_date: string | null;
+                                shift_id: number | null;
+                                user: {
+                                    id: number;
+                                    name: string | null;
+                                } | null;
+                                approved_by: number | null;
+                                reason: string | null;
+                                transfer_pending: boolean;
+                                fiscal: {
+                                    receipt_uuid: string | null;
+                                    status: string | null;
+                                };
+                                original_receipt_uuid: string | null;
+                                created_at: string | null;
+                            }[];
+                            cancellation: {
+                                days_before: number;
+                                rule_percent: string;
+                                paid: string;
+                                computed_retained: string;
+                                retained: string;
+                                refund: string;
+                                override_reason: string | null;
+                                reason: string | null;
+                                business_date: string | null;
+                                cancelled_by: number | null;
+                                created_at: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "banquetPayment.voidTransfer": {
+        parameters: {
+            query: {
+                /** @description Why the transfer is voided (3–500 characters). */
+                reason: string;
+            };
+            header?: {
+                /** @description Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                uuid: string;
+                entry: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            event: {
+                                uuid: string;
+                                status: string;
+                                status_label: string;
+                                event_date: string;
+                                total: string;
+                                paid_total: string;
+                                version: number;
+                                billed: boolean;
                             };
                             summary: {
                                 total: string;
@@ -41784,6 +41973,7 @@ export interface operations {
                                     total: string;
                                     paid_total: string;
                                     version: number;
+                                    billed: boolean;
                                 };
                                 summary: {
                                     total: string;
@@ -41944,6 +42134,7 @@ export interface operations {
                                     total: string;
                                     paid_total: string;
                                     version: number;
+                                    billed: boolean;
                                 };
                                 summary: {
                                     total: string;
@@ -42298,6 +42489,13 @@ export interface operations {
                                     excess_amount: string;
                                     excess_status: string;
                                     settled_at: string | null;
+                                    extra_bills: {
+                                        uuid: string;
+                                        status: string;
+                                        total: string;
+                                        paid_amount: string;
+                                    }[];
+                                    extra_bills_notice: string | null;
                                 } | null;
                                 warnings: {
                                     code: string;
@@ -42554,6 +42752,13 @@ export interface operations {
                                 excess_amount: string;
                                 excess_status: string;
                                 settled_at: string | null;
+                                extra_bills: {
+                                    uuid: string;
+                                    status: string;
+                                    total: string;
+                                    paid_amount: string;
+                                }[];
+                                extra_bills_notice: string | null;
                             } | null;
                             warnings: {
                                 code: string;
@@ -42647,6 +42852,13 @@ export interface operations {
                                 excess_amount: string;
                                 excess_status: string;
                                 settled_at: string | null;
+                                extra_bills: {
+                                    uuid: string;
+                                    status: string;
+                                    total: string;
+                                    paid_amount: string;
+                                }[];
+                                extra_bills_notice: string | null;
                             } | null;
                             warnings: {
                                 code: string;
@@ -42836,6 +43048,8 @@ export interface operations {
                             package_name: string | null;
                             total: string;
                             paid_total: string;
+                            paid: string;
+                            refunded: string;
                             outstanding: string;
                             hold_expires_at: string | null;
                             frozen: boolean;

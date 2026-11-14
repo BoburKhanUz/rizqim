@@ -51,7 +51,8 @@ class BanquetPaymentsController extends ManagementController
      * Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents
      * up to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days
      * before a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new
-     * schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; audited.
+     * schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; store-wide: a caller
+     * bound to one branch is refused (403 `store_wide_only`). Audited.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetPaymentSettings::SHAPE . '}')]
     public function updateSettings(Request $request): JsonResponse
@@ -70,6 +71,7 @@ class BanquetPaymentsController extends ManagementController
             'version' => 'nullable|integer|min:0',
         ], UzValidation::messages());
         $this->authorizeFor($request, Permission::BANQUETS_MANAGE, null);
+        $this->assertStoreWide($request, "To'lov qoidalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
 
         return $this->success(app(BanquetPaymentSettings::class)->update($this->currentStore($request), $data, $request->user()), "Sozlamalar saqlandi.");
     }

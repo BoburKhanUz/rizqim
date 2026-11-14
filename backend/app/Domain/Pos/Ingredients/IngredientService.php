@@ -153,11 +153,17 @@ final class IngredientService
     }
 
     /**
+     * `$visibleBranchId`: the one branch the caller acts in (PermissionService::actingBranchId; null: the whole store):
+     * `stopped` lists only that branch's entries.
+     *
      * @return array<string, mixed>
      */
-    public function present(Ingredient $ingredient, ?int $branchId = null): array
+    public function present(Ingredient $ingredient, ?int $branchId = null, ?int $visibleBranchId = null): array
     {
         $entries = $this->entries($ingredient, true);
+        if ($visibleBranchId !== null) {
+            $entries = $entries->filter(fn (StopListEntry $entry) => (int) $entry->branch_id === $visibleBranchId)->values();
+        }
 
         return [
             'id' => (int) $ingredient->id,

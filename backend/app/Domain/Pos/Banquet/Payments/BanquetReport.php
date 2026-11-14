@@ -4,15 +4,12 @@ namespace App\Domain\Pos\Banquet\Payments;
 
 use App\Domain\Pos\Banquet\BanquetEventStatus;
 use App\Domain\Pos\Banquet\BanquetPaymentStatus;
-use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Shifts\BusinessDay;
 use App\Models\BanquetEvent;
 use App\Models\BanquetPayment;
 use App\Models\BanquetPaymentEntry;
 use App\Models\BanquetSettlement;
 use App\Models\Branch;
-use App\Models\OrderBill;
-use App\Models\Payment;
 use App\Services\Audit\AuditRedactor;
 use App\Support\Money;
 
@@ -26,12 +23,18 @@ use App\Support\Money;
  * An event billed by its final settlement (P6-54): the schedule's unpaid rows are gone, so `paid` also counts what was
  * paid on the final bill at the till (its payments other than the advances' prepayment offset), and `outstanding` is
  * what is still due on that bill (zero once it is paid and the event settled).
+ *
+ * Review P6 wave 5 (C7): the figures are Ops\BanquetFigures' (the till and the panel show the same): `received` is the
+ * money that came in (schedule payments, bank transfers, the event order's bills at the till), `paid` is it less what
+ * was refunded (a cancellation, advances over the total), `refunded` and `retained` apart; `outstanding` = total − paid
+ * (zero for a settled or cancelled event). `overdue`: unpaid schedule rows due before the branch's business day, and
+ * for an event billed by its settlement whose bill is still unpaid after the event date, that remainder.
  */
 final class BanquetReport
 {
-    public const EVENT = 'array{uuid: string, event_date: string, slot: string, event_type: string, title: string|null, branch_id: int, customer_name: string, customer_phone: string|null, status: string, status_label: string, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests: int, total: string, paid: string, refunded: string, retained: string, outstanding: string, overdue: string, transfer_pending: string}';
+    public const EVENT = 'array{uuid: string, event_date: string, slot: string, event_type: string, title: string|null, branch_id: int, customer_name: string, customer_phone: string|null, status: string, status_label: string, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests: int, total: string, paid: string, received: string, refunded: string, retained: string, outstanding: string, overdue: string, transfer_pending: string}';
 
-    public const REPORT = 'array{from: string, to: string, branch_id: int|null, events: int, cancelled: int, by_status: list<array{status: string, count: int}>, guests: int, total: string, paid: string, outstanding: string, overdue: array{count: int, amount: string}, retained: string, refunded: string, transfer_pending: string, rows: list<' . self::EVENT . '>}';
+    public const REPORT = 'array{from: string, to: string, branch_id: int|null, events: int, cancelled: int, by_status: list<array{status: string, count: int}>, guests: int, total: string, received: string, paid: string, outstanding: string, overdue: array{count: int, amount: string}, retained: string, refunded: string, transfer_pending: string, rows: list<' . self::EVENT . '>}';
 
     /**
      * @return array<string, mixed>
@@ -46,14 +49,13 @@ final class BanquetReport
         $ids = $events->pluck('id');
         $rows = BanquetPayment::whereIn('banquet_event_id', $ids)->get(['banquet_event_id', 'status', 'amount', 'due_date'])->groupBy('banquet_event_id');
         $entries = BanquetPaymentEntry::whereIn('banquet_event_id', $ids)->get(['banquet_event_id', 'type', 'amount', 'transfer_pending'])->groupBy('banquet_event_id');
-        // The final bills of billed events: what the till took on them beyond the advances, and what is still due
+        // The events billed by their final settlement
         $finalBills = BanquetSettlement::whereIn('banquet_event_id', $ids)->whereNotNull('bill_id')->pluck('bill_id', 'banquet_event_id');
-        $billTotals = OrderBill::whereIn('id', $finalBills->values())->pluck('total', 'id');
-        $billPayments = Payment::whereIn('bill_id', $finalBills->values())->where('status', 'paid')->get(['bill_id', 'provider', 'amount'])->groupBy('bill_id');
+        $figures = \App\Domain\Pos\Banquet\Ops\BanquetFigures::of($events);
         $todays = Branch::where('store_id', $storeId)->get()->mapWithKeys(fn (Branch $branch) => [(int) $branch->id => BusinessDay::of($branch)])->all();
 
         $out = [];
-        $totals = ['total' => Money::zero(), 'paid' => Money::zero(), 'outstanding' => Money::zero(), 'overdue' => Money::zero(), 'retained' => Money::zero(), 'refunded' => Money::zero(), 'pending' => Money::zero()];
+        $totals = ['total' => Money::zero(), 'received' => Money::zero(), 'paid' => Money::zero(), 'outstanding' => Money::zero(), 'overdue' => Money::zero(), 'retained' => Money::zero(), 'refunded' => Money::zero(), 'pending' => Money::zero()];
         $overdueCount = 0;
         $guests = 0;
         foreach ($events as $event) {
@@ -65,16 +67,16 @@ final class BanquetReport
             $open = $live && $event->status !== BanquetEventStatus::SETTLED;
             $due = $eventRows->filter(fn ($row) => $row->status === BanquetPaymentStatus::DUE);
             $overdue = $open ? $sum($due->filter(fn ($row) => $row->due_date !== null && $row->due_date->toDateString() < $today)) : Money::zero();
-            $paid = $sum($eventEntries->filter(fn ($entry) => $entry->type->isReceipt()));
-            $refunded = $sum($eventEntries->where('type', BanquetEntryType::REFUND));
-            $retained = $sum($eventEntries->where('type', BanquetEntryType::RETAIN));
+            $money = $figures[(int) $event->id];
+            $received = $money['received'];
+            $paid = $money['paid'];
+            $refunded = $money['refunded'];
+            $retained = $money['retained'];
             $pending = $sum($eventEntries->where('type', BanquetEntryType::REFUND)->where('transfer_pending', true));
-            $outstanding = $open ? $sum($due) : Money::zero();
-            $billId = $finalBills->get($event->id);
-            if ($billId !== null && $live) {
-                $payments = $billPayments->get($billId, collect());
-                $paid = $paid->plus($sum($payments->where('provider', '!==', PosTender::PREPAYMENT->value)));
-                $outstanding = $open ? Money::max(Money::zero(), Money::of($billTotals->get($billId, '0'))->minus($sum($payments))) : Money::zero();
+            $outstanding = $money['outstanding'];
+            if ($open && $finalBills->has($event->id) && $event->event_date->toDateString() < $today) {
+                // Billed, the event is over and its bill is not paid in full: the remainder is overdue
+                $overdue = $outstanding;
             }
             $billed = max((int) ($event->guests_actual ?? 0), $event->billedGuests());
 
@@ -82,6 +84,7 @@ final class BanquetReport
                 $totals['total'] = $totals['total']->plus($event->total);
                 $guests += $billed;
             }
+            $totals['received'] = $totals['received']->plus($received);
             $totals['paid'] = $totals['paid']->plus($paid);
             $totals['outstanding'] = $totals['outstanding']->plus($outstanding);
             $totals['overdue'] = $totals['overdue']->plus($overdue);
@@ -108,6 +111,7 @@ final class BanquetReport
                 'guests_actual' => $event->guests_actual !== null ? (int) $event->guests_actual : null,
                 'guests' => $billed,
                 'total' => Money::of($event->total)->toString(),
+                'received' => $received->toString(),
                 'paid' => $paid->toString(),
                 'refunded' => $refunded->toString(),
                 'retained' => $retained->toString(),
@@ -131,6 +135,7 @@ final class BanquetReport
             'by_status' => $byStatus,
             'guests' => $guests,
             'total' => $totals['total']->toString(),
+            'received' => $totals['received']->toString(),
             'paid' => $totals['paid']->toString(),
             'outstanding' => $totals['outstanding']->toString(),
             'overdue' => ['count' => $overdueCount, 'amount' => $totals['overdue']->toString()],

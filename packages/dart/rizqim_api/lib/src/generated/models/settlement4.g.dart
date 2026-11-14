@@ -7,7 +7,7 @@ part of 'settlement4.dart';
 // **************************************************************************
 
 Settlement4 _$Settlement4FromJson(Map<String, dynamic> json) => Settlement4(
-  event: Event9.fromJson(json['event'] as Map<String, dynamic>),
+  event: Event10.fromJson(json['event'] as Map<String, dynamic>),
   guests: Guests3.fromJson(json['guests'] as Map<String, dynamic>),
   lines: (json['lines'] as List<dynamic>)
       .map((e) => Lines22.fromJson(e as Map<String, dynamic>))

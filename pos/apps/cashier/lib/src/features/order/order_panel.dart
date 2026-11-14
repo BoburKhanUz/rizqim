@@ -33,6 +33,7 @@ class OrderPanel extends StatefulWidget {
     this.onSendCourse,
     this.onPackaging,
     this.onPickup,
+    this.onSettlement,
   });
 
   final OrderController controller;
@@ -62,6 +63,10 @@ class OrderPanel extends StatefulWidget {
 
   /// P6-34: "Vaqtga" (olib ketish vaqti); `null` — tugma yo'q.
   final VoidCallback? onPickup;
+
+  /// P6-54 (C1): a banquet event's day order: no "Schyot" — it is paid only through the event's final settlement
+  /// ("Yakuniy hisob"); `null` — an ordinary order.
+  final VoidCallback? onSettlement;
 
   @override
   State<OrderPanel> createState() => _OrderPanelState();
@@ -280,25 +285,45 @@ class _OrderPanelState extends State<OrderPanel> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // P6-25: no bill while a dish waits for its weight (the server refuses it: weight_pending)
-                RzButton(
-                  key: const ValueKey<String>('order-bill'),
-                  label: (order?.weightPending ?? 0) > 0
-                      ? weightPendingLabel(order!.weightPending)
-                      : 'Schyot',
-                  icon: (order?.weightPending ?? 0) > 0
-                      ? Icons.scale_outlined
-                      : Icons.receipt_long_outlined,
-                  size: RzButtonSize.lg,
-                  variant: RzButtonVariant.success,
-                  fullWidth: true,
-                  onPressed:
-                      order != null &&
-                          !ctl.busy &&
-                          (order.weightPending == 0 || !order.isOpen)
-                      ? widget.onBill
-                      : null,
-                ),
+                if (widget.onSettlement != null) ...<Widget>[
+                  Text(
+                    "Yakuniy hisob orqali to'lanadi",
+                    key: const ValueKey<String>('order-banquet-note'),
+                    textAlign: TextAlign.center,
+                    style: RzType.footnote.copyWith(color: c.fgMuted),
+                  ),
+                  const SizedBox(height: 4),
+                  RzButton(
+                    key: const ValueKey<String>('order-banquet-settlement'),
+                    label: 'Yakuniy hisob',
+                    icon: Icons.receipt_long_outlined,
+                    size: RzButtonSize.lg,
+                    variant: RzButtonVariant.success,
+                    fullWidth: true,
+                    onPressed: order != null && !ctl.busy
+                        ? widget.onSettlement
+                        : null,
+                  ),
+                ] else
+                  // P6-25: no bill while a dish waits for its weight (the server refuses it: weight_pending)
+                  RzButton(
+                    key: const ValueKey<String>('order-bill'),
+                    label: (order?.weightPending ?? 0) > 0
+                        ? weightPendingLabel(order!.weightPending)
+                        : 'Schyot',
+                    icon: (order?.weightPending ?? 0) > 0
+                        ? Icons.scale_outlined
+                        : Icons.receipt_long_outlined,
+                    size: RzButtonSize.lg,
+                    variant: RzButtonVariant.success,
+                    fullWidth: true,
+                    onPressed:
+                        order != null &&
+                            !ctl.busy &&
+                            (order.weightPending == 0 || !order.isOpen)
+                        ? widget.onBill
+                        : null,
+                  ),
               ],
             ),
           ),

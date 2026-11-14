@@ -16,7 +16,7 @@ use OpenSpout\Writer\XLSX\Writer;
  */
 final class BanquetReportExport
 {
-    public const HEADERS = ['Sana', 'Vaqt', 'Turi', 'Nomi', 'Mijoz', 'Telefon', 'Holat', 'Mehmonlar', 'Jami', "To'langan", 'Qolgan', "Muddati o'tgan", 'Ushlab qolingan', 'Qaytarilgan'];
+    public const HEADERS = ['Sana', 'Vaqt', 'Turi', 'Nomi', 'Mijoz', 'Telefon', 'Holat', 'Mehmonlar', 'Jami', 'Kelib tushgan', "To'langan", 'Qolgan', "Muddati o'tgan", 'Ushlab qolingan', 'Qaytarilgan'];
 
     /**
      * @param  array<string, mixed>  $report  BanquetReport::build()
@@ -41,6 +41,7 @@ final class BanquetReportExport
                 (string) $event['status_label'],
                 (int) $event['guests'],
                 $number($event['total']),
+                $number($event['received']),
                 $number($event['paid']),
                 $number($event['outstanding']),
                 $number($event['overdue']),
@@ -56,7 +57,8 @@ final class BanquetReportExport
         $writer->addRow(self::row(['Bekor qilingan', (int) $report['cancelled']]));
         $writer->addRow(self::row(['Mehmonlar', (int) $report['guests']]));
         $writer->addRow(self::row(['Jami summa', $number($report['total'])]));
-        $writer->addRow(self::row(["To'langan", $number($report['paid'])]));
+        $writer->addRow(self::row(['Kelib tushgan', $number($report['received'])]));
+        $writer->addRow(self::row(["To'langan (qaytarilgani ayirilgan)", $number($report['paid'])]));
         $writer->addRow(self::row(["Qolgan to'lov", $number($report['outstanding'])]));
         $writer->addRow(self::row(["Muddati o'tgan", $number($report['overdue']['amount'])]));
         $writer->addRow(self::row(['Ushlab qolingan', $number($report['retained'])]));

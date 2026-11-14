@@ -78,6 +78,8 @@ class BanquetCancellationService
     public function cancel(BanquetEvent $event, string $reason, ?Money $retained, ?string $overrideReason, ?string $approvalToken, User $actor, ?int $deviceId, ?\Closure $applied = null): BanquetCancellation
     {
         [$cancellation, $entries, $event] = DB::transaction(function () use ($event, $reason, $retained, $overrideReason, $approvalToken, $actor, $deviceId, $applied) {
+            // Review C9: one lock order with a till payment (PaymentService, BanquetPaymentService::pay): the shift, then the event
+            $shiftId = $this->shiftOf($event, $deviceId);
             $event = BanquetEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
             if (!$event->status->canMoveTo(BanquetEventStatus::CANCELLED)) {
                 throw PosActionException::conflict('event_not_cancellable', "Tadbir \"{$event->status->label()}\" holatida: bekor qilib bo'lmaydi.");
@@ -91,7 +93,6 @@ class BanquetCancellationService
 
             $branch = Branch::findOrFail($event->branch_id);
             $today = BusinessDay::of($branch);
-            $shiftId = $this->shiftOf($event, $deviceId);
             $approver = null;
             if (Money::of($quote['cash_refund'])->isPositive()) {
                 if ($shiftId === null) {
@@ -281,7 +282,8 @@ class BanquetCancellationService
 
     /**
      * The shift open on the terminal in the event's branch, locked (a closing Z cannot miss a refund made at the same
-     * moment); none without a terminal (the web panel).
+     * moment) — locked before the event (review C9), the way PosShift::lockForMoney locks it for a payment; none
+     * without a terminal (the web panel).
      */
     private function shiftOf(BanquetEvent $event, ?int $deviceId): ?int
     {
@@ -289,12 +291,21 @@ class BanquetCancellationService
             return null;
         }
         $id = PosShift::where('device_id', $deviceId)->where('branch_id', $event->branch_id)
-            ->where('status', ShiftStatus::OPEN->value)->lockForUpdate()->value('id');
+            ->where('status', ShiftStatus::OPEN->value)->value('id');
+        if ($id === null) {
+            return null;
+        }
+        $shift = PosShift::lockForMoney((int) $id);
 
-        return $id !== null ? (int) $id : null;
+        return $shift->isOpen() ? (int) $shift->id : null;
     }
 
-    private function receipt(Store $store, BanquetPaymentEntry $entry): void
+    /**
+     * The REFUND receipt of a refunded part (against its advance receipt) or the SALE receipt of a retained part (paid
+     * by the advance as prepayment). Also the excess refunds of a settlement (same document) when sent again by
+     * BanquetReceiptRetry (`again`: the same receipt key, never a second receipt).
+     */
+    public function receipt(Store $store, BanquetPaymentEntry $entry, bool $again = false): void
     {
         if ($entry->tender === BanquetPaymentService::BANK_TRANSFER) {
             return;
@@ -302,6 +313,10 @@ class BanquetCancellationService
         $row = BanquetPayment::find($entry->banquet_payment_id);
         $amount = Money::of($entry->amount);
         $refund = $entry->type === BanquetEntryType::REFUND;
+        if ($refund && $entry->original_receipt_uuid === null && $row?->fiscal_receipt_uuid !== null) {
+            // The advance receipt was issued later (a retry): the refund goes against it
+            $entry->forceFill(['original_receipt_uuid' => $row->fiscal_receipt_uuid])->save();
+        }
         try {
             $line = $refund ? $this->lines->advance($store, $amount, $row->kind ?? BanquetPaymentKind::INTERIM) : $this->lines->cancellation($store, $amount);
         } catch (\Throwable $e) {
@@ -324,7 +339,7 @@ class BanquetCancellationService
             BanquetPaymentService::FISCAL_SUBJECT,
             (int) $entry->id,
         );
-        BanquetPaymentService::issue($entry, $document);
+        BanquetPaymentService::issue($entry, $document, $again);
         if ($row !== null && $entry->fiscal_receipt_uuid !== null && ($refund || $row->settle_receipt_uuid === null)) {
             $row->forceFill(['settle_receipt_uuid' => $entry->fiscal_receipt_uuid, 'settle_fiscal_status' => $entry->fiscal_status])->save();
         }

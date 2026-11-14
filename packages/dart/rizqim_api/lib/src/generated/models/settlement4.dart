@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event9.dart';
+import 'event10.dart';
 import 'guests3.dart';
 import 'lines22.dart';
 import 'orders3.dart';
@@ -35,7 +35,7 @@ class Settlement4 {
   factory Settlement4.fromJson(Map<String, Object?> json) =>
       _$Settlement4FromJson(json);
 
-  final Event9 event;
+  final Event10 event;
   final Guests3 guests;
   final List<Lines22> lines;
   @JsonKey(name: 'package_total')

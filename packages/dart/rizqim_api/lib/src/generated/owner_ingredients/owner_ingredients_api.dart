@@ -29,7 +29,8 @@ abstract class OwnerIngredientsApi {
   /// The store's ingredients.
   ///
   /// Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped.
-  /// now: {branch_id, entry_id, reason, until}) and `stopped_here` (on `branch_id`, when given).
+  /// now: {branch_id, entry_id, reason, until}; a caller bound to one branch: that branch only) and `stopped_here`.
+  /// (on `branch_id`, when given).
   ///
   /// [branchId] - The branch `stopped_here` is about (a branch-bound caller: their own).
   @GET('/v1/owner/ingredients')

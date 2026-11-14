@@ -23,7 +23,9 @@ use Illuminate\Validation\Rule;
  * sozlamalar; docs/API.md "Tadbirlar"): packages with what they include and their menu items per person, the extras
  * catalogue, the halls' rent per slot and the store's banquet settings (slot times, hold hours, guest and time
  * warnings, MXIK codes). Reading and writing with banquets.manage (a web sign-in, never a terminal PIN session); every
- * change audited. Another store's package, extra or hall: 404.
+ * change audited. Another store's package, extra or hall: 404. The settings, packages and extras are store-wide (every
+ * branch's events use them): a caller bound to one branch reads them but every write is refused (403
+ * `store_wide_only`); a hall's rent is that hall's branch's (a branch-bound manager sets their own halls').
  */
 #[Group('Owner: banquets', "Banket sozlamalari: paketlar, qo'shimchalar, zal ijarasi, vaqtlar va ogohlantirishlar (P6-51, P6-52).")]
 class BanquetSetupController extends ManagementController
@@ -43,11 +45,12 @@ class BanquetSetupController extends ManagementController
      * Only the fields sent change. `slots`: {morning|day|evening: {start, end}} ("HH:MM", an end before the start is
      * the next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window
      * are warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the
-     * accountant confirms them). Audited.
+     * accountant confirms them). Store-wide: a caller bound to one branch is refused (403 `store_wide_only`). Audited.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetSettings::VIEW . '}')]
     public function updateSettings(Request $request): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $store = $this->currentStore($request);
         $data = $request->validate([
             'slots' => 'sometimes|array:morning,day,evening',
@@ -95,6 +98,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . BanquetCatalog::PACKAGE . '}')]
     public function storePackage(Request $request): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $store = $this->currentStore($request);
         $data = $request->validate([
             'name' => 'required|string|max:120',
@@ -126,6 +130,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetCatalog::PACKAGE . '}')]
     public function updatePackage(Request $request, string $package): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $store = $this->currentStore($request);
         $model = $this->findPackage((int) $store->id, $package);
         $data = $request->validate([
@@ -157,6 +162,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{deleted: bool}}')]
     public function destroyPackage(Request $request, string $package): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $model = $this->findPackage((int) $this->currentStore($request)->id, $package);
         $deleted = app(BanquetCatalog::class)->deletePackage($model, $request->user());
 
@@ -185,6 +191,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: ' . BanquetCatalog::EXTRA . '}')]
     public function storeExtra(Request $request): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $store = $this->currentStore($request);
         $data = $request->validate([
             'name' => 'required|string|max:120',
@@ -204,6 +211,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetCatalog::EXTRA . '}')]
     public function updateExtra(Request $request, string $extra): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $store = $this->currentStore($request);
         $model = $this->findExtra((int) $store->id, $extra);
         $data = $request->validate([
@@ -226,6 +234,7 @@ class BanquetSetupController extends ManagementController
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{deleted: bool}}')]
     public function destroyExtra(Request $request, string $extra): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $model = $this->findExtra((int) $this->currentStore($request)->id, $extra);
         $deleted = app(BanquetCatalog::class)->deleteExtra($model, $request->user());
 

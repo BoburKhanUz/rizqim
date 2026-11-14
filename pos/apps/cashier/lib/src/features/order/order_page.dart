@@ -12,6 +12,7 @@ import '../../shell/limited_mode.dart';
 import '../../shell/pos_scope.dart';
 import '../../printing/label_printing.dart';
 import '../../shell/routes.dart';
+import '../banquets/banquet_settlement_page.dart';
 import 'combo_sheet.dart';
 import 'discount_dialog.dart';
 import 'frequent_items.dart';
@@ -36,13 +37,24 @@ import 'takeaway_widgets.dart';
 /// Tezlik: ochiq buyurtmaga 3 ta taomni qo'shib oshxonaga yuborish — 4 bosish (3 taom + "Yuborish"); kg taom
 /// qo'shilsa — klaviaturada tez tugma va "Qo'shish" (yana 2 bosish).
 class OrderPage extends StatefulWidget {
-  const OrderPage({super.key, this.orderUuid, this.tableId, this.placeTitle});
+  const OrderPage({
+    super.key,
+    this.orderUuid,
+    this.tableId,
+    this.placeTitle,
+    this.banquetEvent,
+  });
 
   final String? orderUuid;
   final int? tableId;
 
   /// P6-54: sarlavhadagi joy nomi o'rniga (tadbir kuni buyurtmasi — tadbir nomi).
   final String? placeTitle;
+
+  /// P6-54 (C1): the order is a banquet event's day order: it is billed and paid only through the event's final
+  /// settlement (one bill, one sale receipt, the advances offset), so "Schyot" gives way to "Yakuniy hisob". The server
+  /// refuses a direct bill or payment with 409 `banquet_settle_first` either way.
+  final PosBanquetEvent? banquetEvent;
 
   @override
   State<OrderPage> createState() => _OrderPageState();
@@ -586,6 +598,27 @@ class _OrderPageState extends State<OrderPage> {
     if (mounted) unawaited(ctl.refresh());
   }
 
+  /// C1: the event-day order goes to the final settlement instead of its own bill.
+  Future<void> _settlement() async {
+    final OrderController ctl = _ctl!;
+    final PosBanquetEvent? event = widget.banquetEvent;
+    if (event == null) return;
+    if (ctl.draft.isNotEmpty) {
+      _showNotice(
+        const OrderNotice(
+          'Avval yangi bosqichni yuboring yoki saqlang: yakuniy hisob faqat saqlangan taomlardan tuziladi.',
+          error: true,
+        ),
+      );
+      return;
+    }
+    await CashierRoutes.push<void>(
+      context,
+      BanquetSettlementPage(event: event),
+    );
+    if (mounted) unawaited(ctl.refresh());
+  }
+
   Future<bool> _confirmLeave() async {
     final OrderController? ctl = _ctl;
     if (ctl == null || ctl.draft.isEmpty) return true;
@@ -821,6 +854,9 @@ class _OrderPageState extends State<OrderPage> {
       onSubmit: (bool send) => unawaited(_submit(send)),
       onSendHeld: () => unawaited(_sendHeld()),
       onBill: () => unawaited(_bill()),
+      onSettlement: widget.banquetEvent == null
+          ? null
+          : () => unawaited(_settlement()),
       onCharge: (PosChargeKind k, bool waived) =>
           unawaited(_onCharge(k, waived)),
       onRemoveDiscount:

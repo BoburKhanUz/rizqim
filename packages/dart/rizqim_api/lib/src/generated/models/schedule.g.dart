@@ -7,17 +7,17 @@ part of 'schedule.dart';
 // **************************************************************************
 
 Schedule _$ScheduleFromJson(Map<String, dynamic> json) => Schedule(
-  event: Event6.fromJson(json['event'] as Map<String, dynamic>),
-  summary: Summary8.fromJson(json['summary'] as Map<String, dynamic>),
+  event: Event7.fromJson(json['event'] as Map<String, dynamic>),
+  summary: Summary9.fromJson(json['summary'] as Map<String, dynamic>),
   rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows10.fromJson(e as Map<String, dynamic>))
+      .map((e) => Rows11.fromJson(e as Map<String, dynamic>))
       .toList(),
   entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries7.fromJson(e as Map<String, dynamic>))
+      .map((e) => Entries8.fromJson(e as Map<String, dynamic>))
       .toList(),
   cancellation: json['cancellation'] == null
       ? null
-      : Cancellation4.fromJson(json['cancellation'] as Map<String, dynamic>),
+      : Cancellation5.fromJson(json['cancellation'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$ScheduleToJson(Schedule instance) => <String, dynamic>{

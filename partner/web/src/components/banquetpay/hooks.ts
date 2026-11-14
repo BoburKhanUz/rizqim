@@ -10,6 +10,7 @@ import {
   recordTransfer,
   savePaymentRules,
   saveSchedule,
+  voidTransfer,
   type PaymentRules,
   type ReportRange,
   type Schedule,
@@ -42,6 +43,8 @@ function useScheduleWrite<I>(write: (input: I) => Promise<Schedule | { schedule:
       void queryClient.invalidateQueries({ queryKey: ['owner', 'banquets'] });
       onSuccess?.(schedule);
     },
+    // A refusal (e.g. 409 event_billed: the final bill was made meanwhile) may mean the schedule moved on: read it again
+    onError: () => void queryClient.invalidateQueries({ queryKey: banquetPayKeys.schedule(uuid) }),
   });
 }
 
@@ -53,6 +56,11 @@ export function useSaveSchedule(uuid: string, onSuccess?: (schedule: Schedule) =
 export function useRecordTransfer(uuid: string, onSuccess?: (schedule: Schedule) => void) {
   const api = useStaffApi();
   return useScheduleWrite((input: { row: string; reference: string; paid_on?: string; amount?: string; key: string }) => recordTransfer(api, { uuid, ...input }), uuid, onSuccess);
+}
+
+export function useVoidTransfer(uuid: string, onSuccess?: (schedule: Schedule) => void) {
+  const api = useStaffApi();
+  return useScheduleWrite((input: { entry: string; reason: string; key: string }) => voidTransfer(api, { uuid, ...input }), uuid, onSuccess);
 }
 
 export function useCancellationQuote(uuid: string, retained: string, enabled: boolean) {

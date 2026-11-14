@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button, Card, InlineError, Notice, Skeleton } from '@rizqim/ui';
 import { useI18n } from '../I18nProvider';
+import { StoreWideNote } from '../banquets/BanquetSetupView';
+import { useCan } from '../management/access';
 import { errorText } from '../management/errors';
 import { SelectField, TextField } from '../pos/fields';
 import { PAYMENT_KINDS, type CancellationRule, type PaymentKind, type PaymentRules, type TemplateRow } from './api';
@@ -16,6 +18,9 @@ export function PaymentRulesCard() {
   const { t } = useI18n();
   const rules = usePaymentRules();
   const [notice, setNotice] = useState<string | null>(null);
+  // The rules are store-wide: a manager bound to one branch reads them (the server answers 403 store_wide_only)
+  const access = useCan();
+  const readOnly = access.ready && access.branchScoped;
 
   return (
     <Card className="flex flex-col gap-4">
@@ -30,14 +35,15 @@ export function PaymentRulesCard() {
       ) : (
         <>
           <Notice message={notice} />
-          <RulesForm key={rules.data.version} initial={rules.data} onSaved={() => setNotice(t('bqp_rulesSaved'))} />
+          {readOnly && <StoreWideNote />}
+          <RulesForm key={rules.data.version} initial={rules.data} readOnly={readOnly} onSaved={() => setNotice(t('bqp_rulesSaved'))} />
         </>
       )}
     </Card>
   );
 }
 
-function RulesForm({ initial, onSaved }: { initial: PaymentRules; onSaved: () => void }) {
+function RulesForm({ initial, readOnly, onSaved }: { initial: PaymentRules; readOnly: boolean; onSaved: () => void }) {
   const { t } = useI18n();
   const [template, setTemplate] = useState<TemplateRow[]>(initial.schedule_template);
   const [cancellation, setCancellation] = useState<CancellationRule[]>(initial.cancellation_rules);
@@ -49,7 +55,7 @@ function RulesForm({ initial, onSaved }: { initial: PaymentRules; onSaved: () =>
   const setRule = (index: number, patch: Partial<CancellationRule>) => setCancellation((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
   return (
-    <div className="flex flex-col gap-4">
+    <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-4">
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-body font-bold">{t('bqp_template')}</legend>
         {template.map((row, index) => (
@@ -111,7 +117,7 @@ function RulesForm({ initial, onSaved }: { initial: PaymentRules; onSaved: () =>
           {errorText(save.error, t)}
         </p>
       )}
-      <div>
+      <div hidden={readOnly}>
         <Button
           loading={save.isPending}
           onClick={() =>
@@ -131,6 +137,6 @@ function RulesForm({ initial, onSaved }: { initial: PaymentRules; onSaved: () =>
           {t('bqp_save')}
         </Button>
       </div>
-    </div>
+    </fieldset>
   );
 }

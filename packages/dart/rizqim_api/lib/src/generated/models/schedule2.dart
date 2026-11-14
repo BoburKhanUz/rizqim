@@ -4,11 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'event7.dart';
-import 'summary9.dart';
-import 'rows11.dart';
-import 'entries8.dart';
-import 'cancellation5.dart';
+import 'event8.dart';
+import 'summary10.dart';
+import 'rows12.dart';
+import 'entries9.dart';
+import 'cancellation6.dart';
 
 part 'schedule2.g.dart';
 
@@ -25,11 +25,11 @@ class Schedule2 {
   factory Schedule2.fromJson(Map<String, Object?> json) =>
       _$Schedule2FromJson(json);
 
-  final Event7 event;
-  final Summary9 summary;
-  final List<Rows11> rows;
-  final List<Entries8> entries;
-  final Cancellation5? cancellation;
+  final Event8 event;
+  final Summary10 summary;
+  final List<Rows12> rows;
+  final List<Entries9> entries;
+  final Cancellation6? cancellation;
 
   Map<String, Object?> toJson() => _$Schedule2ToJson(this);
 }

@@ -6,9 +6,12 @@ part of 'data329.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data329 _$Data329FromJson(Map<String, dynamic> json) =>
-    Data329(qr: Qr4.fromJson(json['qr'] as Map<String, dynamic>));
+Data329 _$Data329FromJson(Map<String, dynamic> json) => Data329(
+  slots: (json['slots'] as List<dynamic>)
+      .map((e) => Slots10.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
 
 Map<String, dynamic> _$Data329ToJson(Data329 instance) => <String, dynamic>{
-  'qr': instance.qr,
+  'slots': instance.slots,
 };

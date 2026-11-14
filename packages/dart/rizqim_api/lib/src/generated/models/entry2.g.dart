@@ -19,11 +19,11 @@ Entry2 _$Entry2FromJson(Map<String, dynamic> json) => Entry2(
   shiftId: (json['shift_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User21.fromJson(json['user'] as Map<String, dynamic>),
+      : User22.fromJson(json['user'] as Map<String, dynamic>),
   approvedBy: (json['approved_by'] as num?)?.toInt(),
   reason: json['reason'] as String?,
   transferPending: json['transfer_pending'] as bool,
-  fiscal: Fiscal19.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal21.fromJson(json['fiscal'] as Map<String, dynamic>),
   originalReceiptUuid: json['original_receipt_uuid'] as String?,
   createdAt: json['created_at'] as String?,
 );

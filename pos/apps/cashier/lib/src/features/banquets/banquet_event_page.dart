@@ -40,6 +40,10 @@ class BanquetEventPage extends StatefulWidget {
 class _BanquetEventPageState extends State<BanquetEventPage> {
   PosBanquetEvent? _event;
   PosBanquetSchedule? _schedule;
+
+  /// C2: the final settlement of an event in progress (`null` — none yet, or not read): once it has a bill the
+  /// schedule is closed and the remainder is paid on that bill.
+  PosBanquetSettlement? _settlementView;
   String? _error;
   bool _busy = false;
   bool _started = false;
@@ -64,10 +68,20 @@ class _BanquetEventPageState extends State<BanquetEventPage> {
       final PosBanquetSchedule s = await _scope.data.banquetPayments.schedule(
         widget.uuid,
       );
+      PosBanquetSettlement? settlement;
+      // An older server's schedule does not say whether the event is billed: the settlement view does
+      if (e.status == PosBanquetStatus.inProgress && s.billed == null) {
+        try {
+          settlement = await _scope.data.banquetOps.settlement(widget.uuid);
+        } on PosException {
+          // The card still shows; the server refuses a row payment after billing (event_billed)
+        }
+      }
       if (!mounted) return;
       setState(() {
         _event = e;
         _schedule = s;
+        _settlementView = settlement;
         _error = null;
       });
     } on PosException catch (e) {
@@ -165,6 +179,7 @@ class _BanquetEventPageState extends State<BanquetEventPage> {
         context,
         orderUuid: order,
         placeTitle: _orderTitle,
+        banquetEvent: _event,
       );
       if (mounted) await _load();
     });
@@ -177,6 +192,7 @@ class _BanquetEventPageState extends State<BanquetEventPage> {
       context,
       orderUuid: order,
       placeTitle: _orderTitle,
+      banquetEvent: _event,
     );
     if (mounted) await _load();
   }
@@ -402,44 +418,80 @@ class _BanquetEventPageState extends State<BanquetEventPage> {
     );
   }
 
-  Widget _lines(RzColors c, PosBanquetEvent e) => PosCard(
-    title: 'Hisob',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (final PosBanquetLine l in e.lines)
+  /// C2: billed (a settlement bill exists), settled or cancelled: the schedule only shows, nothing is taken on it.
+  bool _scheduleClosed(PosBanquetEvent e) =>
+      e.status == PosBanquetStatus.settled ||
+      e.status == PosBanquetStatus.cancelled ||
+      (_schedule?.billed ?? false) ||
+      (_settlementView?.status ?? PosSettlementStatus.none) !=
+          PosSettlementStatus.none;
+
+  /// C4: refunds from the schedule entries, for a server that does not send `refunded` yet.
+  PosMoney? get _scheduleRefunds => _schedule?.entries
+      .where((PosBanquetPaymentEntry x) => x.type == 'refund')
+      .fold<PosMoney>(
+        PosMoney.zero,
+        (PosMoney sum, PosBanquetPaymentEntry x) => sum + x.amount,
+      );
+
+  Widget _lines(RzColors c, PosBanquetEvent e) {
+    final PosMoney refunded = e.refunded ?? _scheduleRefunds ?? PosMoney.zero;
+    // C4: no remainder on a settled or cancelled event; the paid figure is net of refunds
+    final bool open =
+        e.status != PosBanquetStatus.settled &&
+        e.status != PosBanquetStatus.cancelled;
+    return PosCard(
+      title: 'Hisob',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (final PosBanquetLine l in e.lines)
+            AmountRow(
+              label: l.perPerson
+                  ? '${l.name} · ${l.unitPrice.format()} × ${l.persons}'
+                  : (l.quantity == PosQuantity.one
+                        ? l.name
+                        : '${l.name} × ${l.quantity.format()}'),
+              amount: l.amount,
+            ),
+          const Divider(height: 20),
           AmountRow(
-            label: l.perPerson
-                ? '${l.name} · ${l.unitPrice.format()} × ${l.persons}'
-                : (l.quantity == PosQuantity.one
-                      ? l.name
-                      : '${l.name} × ${l.quantity.format()}'),
-            amount: l.amount,
+            key: const ValueKey<String>('banquet-event-total'),
+            label: 'Jami',
+            amount: e.total,
+            bold: true,
+            large: true,
           ),
-        const Divider(height: 20),
-        AmountRow(
-          key: const ValueKey<String>('banquet-event-total'),
-          label: 'Jami',
-          amount: e.total,
-          bold: true,
-          large: true,
-        ),
-        AmountRow(label: "To'langan", amount: e.paidTotal),
-        AmountRow(
-          key: const ValueKey<String>('banquet-event-outstanding'),
-          label: 'Qoldiq',
-          amount: e.outstanding,
-          bold: true,
-          tone: e.outstanding.isPositive ? StatusTone.warning : null,
-        ),
-      ],
-    ),
-  );
+          AmountRow(
+            key: const ValueKey<String>('banquet-event-paid'),
+            label: "To'langan",
+            amount: e.paidOf(refunds: refunded),
+          ),
+          if (refunded.isPositive)
+            AmountRow(
+              key: const ValueKey<String>('banquet-event-refunded'),
+              label: 'Qaytarilgan',
+              amount: refunded,
+            ),
+          if (open)
+            AmountRow(
+              key: const ValueKey<String>('banquet-event-outstanding'),
+              label: 'Qoldiq',
+              amount: e.remaining,
+              bold: true,
+              tone: e.remaining.isPositive ? StatusTone.warning : null,
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _scheduleCard(RzColors c, PosBanquetEvent e) {
     final PosBanquetSchedule? s = _schedule;
+    final bool closed = _scheduleClosed(e);
     final bool payable =
         _takePayment &&
+        !closed &&
         (e.status == PosBanquetStatus.hold ||
             e.status == PosBanquetStatus.confirmed ||
             e.status == PosBanquetStatus.inProgress);
@@ -465,6 +517,18 @@ class _BanquetEventPageState extends State<BanquetEventPage> {
                         "Muddati o'tgan: ${s.summary.overdueCount} ta, ${s.summary.overdueAmount.format()}.",
                     tone: StatusTone.danger,
                     icon: Icons.warning_amber_rounded,
+                  ),
+                ],
+                if (closed &&
+                    e.status != PosBanquetStatus.cancelled) ...<Widget>[
+                  const SizedBox(height: 8),
+                  NoticeBanner(
+                    key: const ValueKey<String>('banquet-schedule-billed'),
+                    message: e.status == PosBanquetStatus.settled
+                        ? "Tadbir yakunlangan: qoldiq yakuniy hisobda to'langan."
+                        : "Qoldiq yakuniy hisobda to'lanadi.",
+                    tone: StatusTone.neutral,
+                    icon: Icons.receipt_long_outlined,
                   ),
                 ],
                 if (s.cancellation != null) ...<Widget>[

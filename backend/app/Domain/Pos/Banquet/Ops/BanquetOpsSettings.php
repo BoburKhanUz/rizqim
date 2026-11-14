@@ -128,14 +128,20 @@ final class BanquetOpsSettings
             $row->save();
 
             $after = $this->of($storeId);
-            $this->audit->record('banquet.ops_settings_updated', $row, self::auditable($before), self::auditable($after), [], ['actor' => $actor, 'store_id' => $storeId]);
+            $auditAfter = self::auditable($after);
+            if ($before['contract_template'] !== $after['contract_template']) {
+                $auditAfter['contract_template']['changed_lines'] = self::changedLines((string) $before['contract_template'], (string) $after['contract_template']);
+            }
+            $this->audit->record('banquet.ops_settings_updated', $row, self::auditable($before), $auditAfter, [], ['actor' => $actor, 'store_id' => $storeId]);
         });
 
         return $this->of($storeId);
     }
 
     /**
-     * The settings as the audit log keeps them (the template as a hash and length: it can be long).
+     * The settings as the audit log keeps them. The contract template (it can be long) as a diff summary: its length,
+     * line count and sha1, and on the new side the first changed line numbers (1-based, at most 20: `changed_lines`).
+     * An osh ingredient's `key` is logged as `slug` (the redactor drops any key named like a secret).
      *
      * @param  array<string, mixed>  $settings
      * @return array<string, mixed>
@@ -143,9 +149,35 @@ final class BanquetOpsSettings
     private static function auditable(array $settings): array
     {
         unset($settings['contract_placeholders'], $settings['contract_template_is_default']);
-        $settings['contract_template'] = ['length' => mb_strlen((string) $settings['contract_template']), 'sha1' => sha1((string) $settings['contract_template'])];
+        $template = (string) $settings['contract_template'];
+        $settings['contract_template'] = ['length' => mb_strlen($template), 'lines' => substr_count($template, "\n") + 1, 'sha1' => sha1($template)];
+        if (is_array($settings['osh'] ?? null) && is_array($settings['osh']['ingredients'] ?? null)) {
+            $settings['osh']['ingredients'] = array_map(
+                fn (array $ingredient) => ['slug' => $ingredient['key'] ?? null] + array_diff_key($ingredient, ['key' => true]),
+                $settings['osh']['ingredients'],
+            );
+        }
 
         return $settings;
+    }
+
+    /**
+     * The first line numbers (1-based) where two texts differ, at most 20.
+     *
+     * @return list<int>
+     */
+    private static function changedLines(string $before, string $after): array
+    {
+        $old = explode("\n", $before);
+        $new = explode("\n", $after);
+        $changed = [];
+        for ($i = 0, $n = max(count($old), count($new)); $i < $n && count($changed) < 20; $i++) {
+            if (($old[$i] ?? null) !== ($new[$i] ?? null)) {
+                $changed[] = $i + 1;
+            }
+        }
+
+        return $changed;
     }
 
     /**

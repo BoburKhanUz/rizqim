@@ -204,6 +204,8 @@ class PosBanquetEvent {
     this.warnings = const <PosBanquetWarning>[],
     this.overdue = false,
     this.orderUuid,
+    this.paidNet,
+    this.refunded,
   });
 
   factory PosBanquetEvent.fromJson(PosJson j) {
@@ -256,6 +258,9 @@ class PosBanquetEvent {
           : const <PosBanquetWarning>[],
       overdue: j.boolean('overdue'),
       orderUuid: j.strOrNull('order_uuid'),
+      // C4: the net figures (schedule entries + final-bill payments − refunds); an older server sends neither
+      paidNet: j.moneyOrNull('paid_net') ?? j.moneyOrNull('paid'),
+      refunded: j.moneyOrNull('refunded'),
     );
   }
 
@@ -310,6 +315,32 @@ class PosBanquetEvent {
 
   /// P6-54: tadbir kuni buyurtmasi (`in_progress` dan keyin).
   final String? orderUuid;
+
+  /// C4: money received net of refunds, the final bill's payments included (`paid_net`, or `paid`); `null` — the
+  /// server does not send it yet ([paid] falls back to the old computation).
+  final PosMoney? paidNet;
+
+  /// C4: money given back (cancellation refunds, an excess refund); `null` — not sent.
+  final PosMoney? refunded;
+
+  /// C4: the paid figure to show: [paidNet], or (older server) the schedule money [paidTotal] less [refunded] (or
+  /// [refunds] the caller summed from the schedule entries); a settled event is fully paid by definition (its one
+  /// bill closed).
+  PosMoney paidOf({PosMoney? refunds}) {
+    final PosMoney? net = paidNet;
+    if (net != null) return net;
+    if (status == PosBanquetStatus.settled && total > paidTotal) return total;
+    final PosMoney left = paidTotal - (refunded ?? refunds ?? PosMoney.zero);
+    return left.isNegative ? PosMoney.zero : left;
+  }
+
+  PosMoney get paid => paidOf();
+
+  /// C4: what is still to pay: nothing on a settled or cancelled event, whatever an older server says.
+  PosMoney get remaining =>
+      status == PosBanquetStatus.settled || status == PosBanquetStatus.cancelled
+      ? PosMoney.zero
+      : outstanding;
 
   /// Ekrandagi nomi: sarlavha yoki mijoz.
   String get displayName =>

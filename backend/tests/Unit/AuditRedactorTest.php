@@ -52,6 +52,43 @@ class AuditRedactorTest extends TestCase
         $this->assertSame(7, $clean['courier_id']);
     }
 
+    // P6 wave 5 S5: the banquet settings' fiscal package codes are shown; real secrets and money codes stay redacted
+    public function test_package_codes_are_shown_and_secrets_and_voucher_codes_stay_redacted(): void
+    {
+        $clean = AuditRedactor::clean([
+            'advance_package_code' => '1501234',
+            'cancellation_package_code' => '1505678',
+            'mxik' => ['package' => ['mxik' => '10305001003000000', 'package_code' => '1509999']],
+            'secret_key' => 'sk',
+            'api_key' => 'k',
+            'apiKey' => 'k',
+            'key' => 'rice',
+            'token' => 't',
+            'access_token' => 't',
+            'code' => '777',
+            'voucher_code' => 'VCH-1234',
+            'promo_code' => 'YOZ2026',
+            'talon_code' => 'T-0042',
+            'gift_card_code' => 'GC-1',
+            'redeem_code' => 'R-1',
+            'codes' => ['A', 'B'],
+            'package_code_hash' => 'f00',
+            'package_secret' => 'x',
+            'webhook_secret' => 'w',
+            'pin_code' => '1234',
+            'ingredients' => [['key' => 'rice', 'name' => 'Guruch']],
+        ]);
+
+        $this->assertSame('1501234', $clean['advance_package_code']);
+        $this->assertSame('1505678', $clean['cancellation_package_code']);
+        $this->assertSame(['package' => ['mxik' => '10305001003000000', 'package_code' => '1509999']], $clean['mxik']);
+        foreach (['secret_key', 'api_key', 'apiKey', 'key', 'token', 'access_token', 'code', 'voucher_code', 'promo_code', 'talon_code', 'gift_card_code', 'redeem_code', 'codes', 'package_code_hash', 'package_secret', 'webhook_secret', 'pin_code'] as $key) {
+            $this->assertSame(AuditRedactor::REDACTED, $clean[$key], $key);
+        }
+        // A bare `key` is never allowed (the osh ingredient keys are logged as `slug` instead)
+        $this->assertSame(AuditRedactor::REDACTED, $clean['ingredients'][0]['key']);
+    }
+
     public function test_phone_numbers_are_masked_by_key_and_in_text(): void
     {
         $clean = AuditRedactor::clean([

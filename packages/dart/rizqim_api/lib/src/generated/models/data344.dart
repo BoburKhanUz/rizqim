@@ -4,20 +4,35 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'errors.dart';
-import 'meta3.dart';
+import 'results.dart';
+import 'device20.dart';
 
 part 'data344.g.dart';
 
 @JsonSerializable()
 class Data344 {
-  const Data344({required this.errors, required this.meta});
+  const Data344({
+    required this.serverTime,
+    required this.clockSkewSeconds,
+    required this.clockWarning,
+    required this.stoppedAt,
+    required this.results,
+    required this.device,
+  });
 
   factory Data344.fromJson(Map<String, Object?> json) =>
       _$Data344FromJson(json);
 
-  final List<Errors> errors;
-  final Meta3 meta;
+  @JsonKey(name: 'server_time')
+  final String serverTime;
+  @JsonKey(name: 'clock_skew_seconds')
+  final int? clockSkewSeconds;
+  @JsonKey(name: 'clock_warning')
+  final bool clockWarning;
+  @JsonKey(name: 'stopped_at')
+  final int? stoppedAt;
+  final List<Results> results;
+  final Device20 device;
 
   Map<String, Object?> toJson() => _$Data344ToJson(this);
 }

@@ -11,7 +11,7 @@ part 'events.g.dart';
 @JsonSerializable()
 class Events {
   const Events({
-    required this.uuid,
+    required this.eventType,
     required this.branchId,
     required this.eventDate,
     required this.slot,
@@ -22,7 +22,7 @@ class Events {
     required this.endsAt,
     required this.hallIds,
     required this.halls,
-    required this.eventType,
+    required this.uuid,
     required this.eventTypeLabel,
     required this.status,
     required this.statusLabel,
@@ -32,17 +32,19 @@ class Events {
     required this.guestsGuaranteed,
     required this.guestsMinimum,
     required this.guestsActual,
-    required this.guestsBilled,
+    required this.overdue,
     required this.packageId,
     required this.packageName,
     required this.total,
     required this.paidTotal,
+    required this.paid,
+    required this.refunded,
     required this.outstanding,
     required this.holdExpiresAt,
     required this.frozen,
     required this.contractNo,
     required this.version,
-    required this.overdue,
+    required this.guestsBilled,
   });
 
   factory Events.fromJson(Map<String, Object?> json) => _$EventsFromJson(json);
@@ -93,6 +95,8 @@ class Events {
   final String total;
   @JsonKey(name: 'paid_total')
   final String paidTotal;
+  final String paid;
+  final String refunded;
   final String outstanding;
   @JsonKey(name: 'hold_expires_at')
   final String? holdExpiresAt;

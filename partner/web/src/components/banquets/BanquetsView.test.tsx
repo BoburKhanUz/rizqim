@@ -226,6 +226,28 @@ describe('the event page', () => {
     expect(await screen.findByText('Narxlar muzlatilgan')).toBeInTheDocument();
   });
 
+  it('a cancelled event shows the net paid and the refund, no remainder (review C4)', async () => {
+    base({
+      [`GET /api/v1/pos/banquets/${UUID}`]: () =>
+        ok(detail({ status: 'cancelled', status_label: 'Bekor qilingan', paid_total: '12000000.00', paid: '3600000.00', refunded: '8400000.00', outstanding: '0.00' })),
+    });
+    renderPage(<BanquetEventView uuid={UUID} />);
+    const paid = (await screen.findByText("To'langan")).parentElement!;
+    expect(within(paid).getByText(/3\s?600\s?000/)).toBeInTheDocument();
+    const refunded = screen.getByText('Qaytarilgan').parentElement!;
+    expect(within(refunded).getByText(/8\s?400\s?000/)).toBeInTheDocument();
+    expect(screen.queryByText('Qolgan')).not.toBeInTheDocument();
+  });
+
+  it('an open event still shows the remainder; an older server without the net figures falls back to paid_total', async () => {
+    base({ [`GET /api/v1/pos/banquets/${UUID}`]: () => ok(detail({ status: 'confirmed', paid_total: '12000000.00', outstanding: '33300000.00' })) });
+    renderPage(<BanquetEventView uuid={UUID} />);
+    const paid = (await screen.findByText("To'langan")).parentElement!;
+    expect(within(paid).getByText(/12\s?000\s?000/)).toBeInTheDocument();
+    expect(screen.getByText('Qolgan')).toBeInTheDocument();
+    expect(screen.queryByText('Qaytarilgan')).not.toBeInTheDocument();
+  });
+
   it('unfreezing asks for a reason first', async () => {
     const { calls } = base({
       [`GET /api/v1/pos/banquets/${UUID}`]: () => ok(detail({ frozen: true, version: 4 })),

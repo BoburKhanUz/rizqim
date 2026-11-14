@@ -4,18 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'bookings.dart';
+import 'qr.dart';
 
 part 'data253.g.dart';
 
 @JsonSerializable()
 class Data253 {
-  const Data253({required this.bookings});
+  const Data253({required this.qr});
 
   factory Data253.fromJson(Map<String, Object?> json) =>
       _$Data253FromJson(json);
 
-  final List<Bookings> bookings;
+  final Qr qr;
 
   Map<String, Object?> toJson() => _$Data253ToJson(this);
 }

@@ -10,7 +10,7 @@ Advances3 _$Advances3FromJson(Map<String, dynamic> json) => Advances3(
   total: json['total'] as String,
   applied: json['applied'] as String,
   rows: (json['rows'] as List<dynamic>)
-      .map((e) => Rows13.fromJson(e as Map<String, dynamic>))
+      .map((e) => Rows14.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

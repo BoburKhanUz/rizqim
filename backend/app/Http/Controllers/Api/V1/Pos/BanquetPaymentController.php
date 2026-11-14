@@ -10,8 +10,10 @@ use App\Domain\Pos\Banquet\Payments\BanquetSchedule;
 use App\Domain\Pos\Billing\PosFiscalReceipt;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\Menu\MenuStaffController;
+use App\Http\Middleware\RejectStaffSession;
 use App\Models\BanquetEvent;
 use App\Models\BanquetPayment;
+use App\Models\BanquetPaymentEntry;
 use App\Services\Idempotency\IdempotencyService;
 use App\Support\Money;
 use App\Support\UzValidation;
@@ -24,11 +26,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * P6-53: a banquet event's payment schedule for the till and the web panel (docs/API.md "Tadbirlar: to'lov jadvali").
  * Reading with banquets.manage or pos.take_payment; taking a row's payment at the till with pos.take_payment (an open
- * shift on the terminal); editing the schedule, recording a bank transfer and cancelling with banquets.manage. Money
+ * shift on the terminal); editing the schedule, recording (web panel only) or voiding a bank transfer and cancelling
+ * with banquets.manage. Once the event's final settlement exists the schedule is closed (409 `event_billed`). Money
  * of an existing event is never gated by the `banquet` module (editing the schedule is). Another store's or branch's
  * event or row: 404.
  */
@@ -55,8 +59,10 @@ class BanquetPaymentController extends MenuStaffController
      *
      * `rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or
      * final; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with
-     * `expected`). Paid rows never change. `version`: the event's (409 `version_conflict`). Needs banquets.manage and
-     * the `banquet` module; audited.
+     * `expected`; the same `uuid` twice: 422). Paid rows never change. `version`: the event's (409 `version_conflict`).
+     * Once the final settlement exists (the event is billed, `event.billed`) the schedule is closed: 409
+     * `event_billed` (the remainder is paid on the settlement bill). Needs banquets.manage and the `banquet` module;
+     * audited.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Optional: the same key when retrying the request returns the first answer.', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetPaymentPresenter::SCHEDULE . '}')]
@@ -64,7 +70,7 @@ class BanquetPaymentController extends MenuStaffController
     {
         $data = $request->validate([
             'rows' => 'present|array|max:24',
-            'rows.*.uuid' => 'nullable|uuid',
+            'rows.*.uuid' => 'nullable|uuid|distinct',
             'rows.*.kind' => ['required', 'string', Rule::in(BanquetPaymentKind::values())],
             'rows.*.due_date' => 'required|date_format:Y-m-d',
             'rows.*.amount' => 'required|numeric|min:0.01|max:9999999999|decimal:0,2',
@@ -90,7 +96,8 @@ class BanquetPaymentController extends MenuStaffController
      * (`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money
      * lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under
      * `banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its
-     * deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`,
+     * deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`, `event_billed` (the final settlement
+     * exists: pay the settlement bill instead); 422 `amount_exceeds_row`,
      * `tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The
      * same Idempotency-Key returns the same payment.
      */
@@ -138,7 +145,10 @@ class BanquetPaymentController extends MenuStaffController
      * (default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the
      * invoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale
      * receipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs
-     * banquets.manage. The same Idempotency-Key returns the same entry.
+     * banquets.manage from the web panel (a terminal PIN session: 403 `panel_only`). The owner gets a Telegram alert
+     * with the amount and the reference. The same `reference` already recorded on this event (ignoring case): 409
+     * `transfer_duplicate`. Only before the final settlement (409 `event_billed`: after it the remainder is paid on the
+     * settlement bill by cash, card or QR). The same Idempotency-Key returns the same entry.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per transfer, the same one when retrying it (400 without).', type: 'string')]
     #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{schedule: ' . BanquetPaymentPresenter::SCHEDULE . ', entry: ' . BanquetPaymentPresenter::ENTRY . '}}')]
@@ -150,6 +160,7 @@ class BanquetPaymentController extends MenuStaffController
             'reference' => 'required|string|min:2|max:120',
             'paid_on' => 'nullable|date_format:Y-m-d',
         ], UzValidation::messages());
+        $this->panelOnly($request);
         $event = $this->event($request, $uuid, true);
         $payment = $this->row($event, $row);
 
@@ -163,6 +174,35 @@ class BanquetPaymentController extends MenuStaffController
             'schedule' => app(BanquetPaymentPresenter::class)->schedule($event->refresh()),
             'entry' => app(BanquetPaymentPresenter::class)->entry($entry),
         ], "Bank o'tkazmasi yozildi.", 201);
+    }
+
+    /**
+     * Void a bank transfer recorded by mistake
+     *
+     * `reason` (query, required). Only before the event is billed (409 `event_billed`) and while it is live (409
+     * `event_not_payable`); 409 `transfer_not_voidable` when its row was refunded or retained. The entry stays in the
+     * list as `transfer_void` (no longer money received), its row is unpaid again and the paid total goes down; a
+     * confirmed event with nothing else paid becomes a hold again with a fresh hold time, otherwise it stays
+     * confirmed. Audited (`banquet.transfer_voided`); the owner gets a Telegram alert. Voiding it again changes
+     * nothing. Needs banquets.manage from the web panel (403 `panel_only`). Not a transfer of this event: 404.
+     */
+    #[QueryParameter('reason', description: 'Why the transfer is voided (3–500 characters).', type: 'string', required: true)]
+    #[HeaderParameter('Idempotency-Key', description: 'Optional: the same key when retrying the request returns the first answer.', type: 'string')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetPaymentPresenter::SCHEDULE . '}')]
+    public function voidTransfer(Request $request, string $uuid, string $entry): JsonResponse
+    {
+        $data = $request->validate(['reason' => 'required|string|min:3|max:500'], UzValidation::messages());
+        $this->panelOnly($request);
+        $event = $this->event($request, $uuid, true);
+        $transfer = Str::isUuid($entry) ? BanquetPaymentEntry::where('banquet_event_id', $event->id)->where('uuid', $entry)
+            ->whereIn('type', ['transfer', 'transfer_void'])->first() : null;
+        if ($transfer === null) {
+            throw new HttpResponseException($this->error("Bank o'tkazmasi topilmadi.", ['reason' => 'transfer_not_found'], 404));
+        }
+
+        $voided = app(BanquetPaymentService::class)->voidTransfer($event, $transfer, (string) $data['reason'], $request->user());
+
+        return $this->success(app(BanquetPaymentPresenter::class)->schedule($event->refresh()), $voided ? "Bank o'tkazmasi bekor qilindi." : "Bank o'tkazmasi avval bekor qilingan.");
     }
 
     /**
@@ -239,6 +279,17 @@ class BanquetPaymentController extends MenuStaffController
         }
 
         return $event;
+    }
+
+    /**
+     * Review S4: bank transfers are the manager's web panel work, never a terminal PIN session (no receipt, no drawer).
+     */
+    private function panelOnly(Request $request): void
+    {
+        $token = $request->user()?->currentAccessToken();
+        if ($token instanceof PersonalAccessToken && RejectStaffSession::isStaffSession($token)) {
+            throw new HttpResponseException($this->error("Bank o'tkazmasi faqat veb-panelda yoziladi va bekor qilinadi.", ['reason' => 'panel_only'], 403));
+        }
     }
 
     private function row(BanquetEvent $event, string $uuid): BanquetPayment

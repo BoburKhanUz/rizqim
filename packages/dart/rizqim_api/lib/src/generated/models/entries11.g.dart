@@ -12,15 +12,19 @@ Entries11 _$Entries11FromJson(Map<String, dynamic> json) => Entries11(
   typeLabel: json['type_label'] as String,
   amount: json['amount'] as String,
   balanceAfter: json['balance_after'] as String,
-  businessDate: json['business_date'] as String?,
   billUuid: json['bill_uuid'] as String?,
-  refundUuid: json['refund_uuid'] as String?,
   tender: json['tender'] as String?,
+  cardType: json['card_type'] as String?,
+  transactionId: json['transaction_id'] as String?,
+  fiscalReceiptUuid: json['fiscal_receipt_uuid'] as String?,
+  fiscalStatus: json['fiscal_status'] as String?,
   branchId: (json['branch_id'] as num?)?.toInt(),
-  shiftId: (json['shift_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User33.fromJson(json['user'] as Map<String, dynamic>),
+      : User27.fromJson(json['user'] as Map<String, dynamic>),
+  approvedBy: json['approved_by'] == null
+      ? null
+      : ApprovedBy5.fromJson(json['approved_by'] as Map<String, dynamic>),
   note: json['note'] as String?,
   createdAt: json['created_at'] as String?,
 );
@@ -31,13 +35,15 @@ Map<String, dynamic> _$Entries11ToJson(Entries11 instance) => <String, dynamic>{
   'type_label': instance.typeLabel,
   'amount': instance.amount,
   'balance_after': instance.balanceAfter,
-  'business_date': instance.businessDate,
   'bill_uuid': instance.billUuid,
-  'refund_uuid': instance.refundUuid,
   'tender': instance.tender,
+  'card_type': instance.cardType,
+  'transaction_id': instance.transactionId,
+  'fiscal_receipt_uuid': instance.fiscalReceiptUuid,
+  'fiscal_status': instance.fiscalStatus,
   'branch_id': instance.branchId,
-  'shift_id': instance.shiftId,
   'user': instance.user,
+  'approved_by': instance.approvedBy,
   'note': instance.note,
   'created_at': instance.createdAt,
 };

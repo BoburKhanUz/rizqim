@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/delete_v1_pos_banquets_uuid_payments_transfers_entry_response.dart';
 import '../models/get_v1_pos_banquets_uuid_cancellation_response.dart';
 import '../models/get_v1_pos_banquets_uuid_payments_response.dart';
 import '../models/post_v1_pos_banquets_uuid_cancellation_response.dart';
@@ -68,8 +69,10 @@ abstract class PosBanquetPaymentsApi {
   ///
   /// `rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or.
   /// final; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with.
-  /// `expected`). Paid rows never change. `version`: the event's (409 `version_conflict`). Needs banquets.manage and.
-  /// the `banquet` module; audited.
+  /// `expected`; the same `uuid` twice: 422). Paid rows never change. `version`: the event's (409 `version_conflict`).
+  /// Once the final settlement exists (the event is billed, `event.billed`) the schedule is closed: 409.
+  /// `event_billed` (the remainder is paid on the settlement bill). Needs banquets.manage and the `banquet` module;.
+  /// audited.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @PUT('/v1/pos/banquets/{uuid}/payments')
@@ -79,13 +82,37 @@ abstract class PosBanquetPaymentsApi {
     @Header('Idempotency-Key') String? idempotencyKey,
   });
 
+  /// Void a bank transfer recorded by mistake.
+  ///
+  /// `reason` (query, required). Only before the event is billed (409 `event_billed`) and while it is live (409.
+  /// `event_not_payable`); 409 `transfer_not_voidable` when its row was refunded or retained. The entry stays in the.
+  /// list as `transfer_void` (no longer money received), its row is unpaid again and the paid total goes down; a.
+  /// confirmed event with nothing else paid becomes a hold again with a fresh hold time, otherwise it stays.
+  /// confirmed. Audited (`banquet.transfer_voided`); the owner gets a Telegram alert. Voiding it again changes.
+  /// nothing. Needs banquets.manage from the web panel (403 `panel_only`). Not a transfer of this event: 404.
+  ///
+  /// [reason] - Why the transfer is voided (3–500 characters).
+  ///
+  /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
+  @DELETE('/v1/pos/banquets/{uuid}/payments/transfers/{entry}')
+  Future<DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse>
+  banquetPaymentVoidTransfer({
+    @Path('uuid') required String uuid,
+    @Path('entry') required String entry,
+    @Query('reason') required String reason,
+    @Header('Idempotency-Key') String? idempotencyKey,
+  });
+
   /// Record a bank transfer against a row.
   ///
   /// The manager records money the customer sent by bank transfer: `reference` (the payment order number), `paid_on`.
   /// (default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the.
   /// invoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale.
   /// receipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs.
-  /// banquets.manage. The same Idempotency-Key returns the same entry.
+  /// banquets.manage from the web panel (a terminal PIN session: 403 `panel_only`). The owner gets a Telegram alert.
+  /// with the amount and the reference. The same `reference` already recorded on this event (ignoring case): 409.
+  /// `transfer_duplicate`. Only before the final settlement (409 `event_billed`: after it the remainder is paid on the.
+  /// settlement bill by cash, card or QR). The same Idempotency-Key returns the same entry.
   ///
   /// [idempotencyKey] - Required: a new UUID per action, the same one when retrying it (428 or 400 without).
   @POST('/v1/pos/banquets/{uuid}/payments/{row}/bank-transfer')
@@ -103,7 +130,8 @@ abstract class PosBanquetPaymentsApi {
   /// (`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money.
   /// lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under.
   /// `banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its.
-  /// deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`,.
+  /// deposit row is paid in full. 409 `payment_not_due`, `event_not_payable`, `event_billed` (the final settlement.
+  /// exists: pay the settlement bill instead); 422 `amount_exceeds_row`,.
   /// `tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The.
   /// same Idempotency-Key returns the same payment.
   ///

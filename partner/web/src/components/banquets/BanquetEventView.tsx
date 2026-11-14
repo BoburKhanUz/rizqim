@@ -168,8 +168,10 @@ export function BanquetEventView({ uuid }: { uuid: string }) {
           <Info label={t('bq_hallTotal')} value={money(event.hall_total)} />
           <Info label={t('bq_extrasTotal')} value={money(event.extras_total)} />
           <Info label={t('bq_total')} value={money(event.total)} />
-          <Info label={t('bq_paid')} value={money(event.paid_total)} />
-          <Info label={t('bq_outstanding')} value={money(event.outstanding)} />
+          <Info label={t('bq_paid')} value={money(event.paid ?? event.paid_total)} />
+          {Number(event.refunded ?? 0) > 0 && <Info label={t('bq_refunded')} value={money(event.refunded!)} />}
+          {/* Review C4: nothing is left to pay on a settled or cancelled event */}
+          {event.status !== 'settled' && event.status !== 'cancelled' && <Info label={t('bq_outstanding')} value={money(event.outstanding)} />}
           {event.quote && (
             <Info
               label={t('bq_quote')}

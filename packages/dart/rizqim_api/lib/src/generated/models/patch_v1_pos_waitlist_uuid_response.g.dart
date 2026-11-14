@@ -11,7 +11,7 @@ PatchV1PosWaitlistUuidResponse _$PatchV1PosWaitlistUuidResponseFromJson(
 ) => PatchV1PosWaitlistUuidResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data353.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data354.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PatchV1PosWaitlistUuidResponseToJson(

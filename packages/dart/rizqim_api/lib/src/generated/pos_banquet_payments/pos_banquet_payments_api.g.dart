@@ -150,6 +150,46 @@ class _PosBanquetPaymentsApi implements PosBanquetPaymentsApi {
   }
 
   @override
+  Future<DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse>
+  banquetPaymentVoidTransfer({
+    required String uuid,
+    required String entry,
+    required String reason,
+    String? idempotencyKey,
+  }) async {
+    final _extra = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'reason': reason};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'Idempotency-Key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
+    const Map<String, dynamic>? _data = null;
+    final _options =
+        _setStreamType<DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse>(
+          Options(method: 'DELETE', headers: _headers, extra: _extra)
+              .compose(
+                _dio.options,
+                '/v1/pos/banquets/${uuid}/payments/transfers/${entry}',
+                queryParameters: queryParameters,
+                data: _data,
+              )
+              .copyWith(
+                baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl),
+              ),
+        );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse _value;
+    try {
+      _value = DeleteV1PosBanquetsUuidPaymentsTransfersEntryResponse.fromJson(
+        _result.data!,
+      );
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostV1PosBanquetsUuidPaymentsRowBankTransferResponse>
   banquetPaymentTransfer({
     required String uuid,

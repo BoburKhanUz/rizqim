@@ -12,7 +12,7 @@ Fiscal31 _$Fiscal31FromJson(Map<String, dynamic> json) => Fiscal31(
   error: json['error'] as String?,
   receipt: json['receipt'] == null
       ? null
-      : Receipt12.fromJson(json['receipt'] as Map<String, dynamic>),
+      : Receipt10.fromJson(json['receipt'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Fiscal31ToJson(Fiscal31 instance) => <String, dynamic>{

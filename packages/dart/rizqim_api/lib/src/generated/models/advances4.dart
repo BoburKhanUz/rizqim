@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'rows14.dart';
+import 'rows15.dart';
 
 part 'advances4.g.dart';
 
@@ -21,7 +21,7 @@ class Advances4 {
 
   final String total;
   final String applied;
-  final List<Rows14> rows;
+  final List<Rows15> rows;
 
   Map<String, Object?> toJson() => _$Advances4ToJson(this);
 }

@@ -22,6 +22,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
         Route::middleware('permission:banquets.manage')->group(function () {
             Route::put('/banquets/{uuid}/payments', [BanquetPaymentController::class, 'update'])->whereUuid('uuid')->middleware(['pos.module:banquet', EnsureIdempotency::class]);
             Route::post('/banquets/{uuid}/payments/{row}/bank-transfer', [BanquetPaymentController::class, 'transfer'])->whereUuid(['uuid', 'row'])->middleware(EnsureIdempotency::class . ':pos.banquets.transfer');
+            Route::delete('/banquets/{uuid}/payments/transfers/{entry}', [BanquetPaymentController::class, 'voidTransfer'])->whereUuid(['uuid', 'entry'])->middleware(EnsureIdempotency::class);
             Route::get('/banquets/{uuid}/cancellation', [BanquetPaymentController::class, 'quote'])->whereUuid('uuid');
             Route::post('/banquets/{uuid}/cancellation', [BanquetPaymentController::class, 'cancel'])->whereUuid('uuid')->middleware(EnsureIdempotency::class . ':pos.banquets.cancel');
         });

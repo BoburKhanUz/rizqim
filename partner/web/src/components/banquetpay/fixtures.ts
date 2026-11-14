@@ -32,7 +32,7 @@ const row = (uuid: string, kind: 'deposit' | 'interim' | 'final', due: string, a
 
 export function scheduleFixture(over: Partial<Schedule> = {}): Schedule {
   return {
-    event: { uuid: EVENT_UUID, status: 'confirmed', status_label: 'Tasdiqlangan', event_date: '2027-01-20', total: '10000000.00', paid_total: '3000000.00', version: 3 },
+    event: { uuid: EVENT_UUID, status: 'confirmed', status_label: 'Tasdiqlangan', event_date: '2027-01-20', total: '10000000.00', paid_total: '3000000.00', version: 3, billed: false },
     summary: { total: '10000000.00', paid: '3000000.00', outstanding: '7000000.00', overdue: true, overdue_amount: '4000000.00', overdue_count: 1, next_due: { date: '2026-11-10', amount: '4000000.00', kind: 'interim' } },
     rows: [
       row(DEPOSIT_UUID, 'deposit', '2026-11-01', '3000000.00', { status: 'paid', status_label: "To'langan", tender: 'cash', fiscal: { receipt_uuid: 'r1', status: 'issued' } }),

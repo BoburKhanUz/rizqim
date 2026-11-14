@@ -1114,8 +1114,9 @@ void main() {
     expect(rows[wedding]!['guests'], 200);
     expect(money(rows[second]!['paid']), som(18400000));
     expect(rows[second]!['guests'], 120);
-    // The over-paid one: 14 500 000 received, 1 800 000 given back
-    expect(money(rows[overpaid]!['paid']), som(14500000));
+    // The over-paid one: 14 500 000 received, 1 800 000 given back (paid is net of refunds, review C7)
+    expect(money(rows[overpaid]!['received']), som(14500000));
+    expect(money(rows[overpaid]!['paid']), som(12700000));
     expect(money(rows[overpaid]!['refunded']), som(1800000));
     expect(rows[cancelled]!['status'], 'cancelled');
     expect(money(rows[cancelled]!['retained']), som(2436000));
@@ -1132,8 +1133,13 @@ void main() {
     expect(money(report['retained']), som(2436000));
     expect(money(report['refunded']), som(5684000) + som(1800000));
     expect(
-      money(report['paid']),
+      money(report['received']),
       weddingTotal + som(18400000) + som(14500000) + som(8120000),
+    );
+    // Net of what was given back: the over-paid one's 1 800 000, the cancelled one's 5 684 000
+    expect(
+      money(report['paid']),
+      weddingTotal + som(18400000) + som(12700000) + som(2436000),
     );
 
     final Response<Object?> x = await owner.dio.get<Object?>(

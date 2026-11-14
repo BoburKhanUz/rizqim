@@ -7,27 +7,13 @@ part of 'data288.dart';
 // **************************************************************************
 
 Data288 _$Data288FromJson(Map<String, dynamic> json) => Data288(
-  account: Account6.fromJson(json['account'] as Map<String, dynamic>),
-  from: json['from'] as String,
-  to: json['to'] as String,
-  openingBalance: json['opening_balance'] as String,
-  closingBalance: json['closing_balance'] as String,
-  chargesTotal: json['charges_total'] as String,
-  repaymentsTotal: json['repayments_total'] as String,
-  adjustmentsTotal: json['adjustments_total'] as String,
-  entries: (json['entries'] as List<dynamic>)
-      .map((e) => Entries10.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  account: Account5.fromJson(json['account'] as Map<String, dynamic>),
+  entry: Entry4.fromJson(json['entry'] as Map<String, dynamic>),
+  fiscal: Fiscal32.fromJson(json['fiscal'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data288ToJson(Data288 instance) => <String, dynamic>{
   'account': instance.account,
-  'from': instance.from,
-  'to': instance.to,
-  'opening_balance': instance.openingBalance,
-  'closing_balance': instance.closingBalance,
-  'charges_total': instance.chargesTotal,
-  'repayments_total': instance.repaymentsTotal,
-  'adjustments_total': instance.adjustmentsTotal,
-  'entries': instance.entries,
+  'entry': instance.entry,
+  'fiscal': instance.fiscal,
 };

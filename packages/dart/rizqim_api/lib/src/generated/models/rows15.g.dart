@@ -7,19 +7,15 @@ part of 'rows15.dart';
 // **************************************************************************
 
 Rows15 _$Rows15FromJson(Map<String, dynamic> json) => Rows15(
-  member: json['member'] == null
-      ? null
-      : Member3.fromJson(json['member'] as Map<String, dynamic>),
-  cells: (json['cells'] as List<dynamic>)
-      .map((e) => Cells.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  uuid: json['uuid'] as String,
+  tender: json['tender'] as String,
   amount: json['amount'] as String,
-  meals: (json['meals'] as num).toInt(),
+  paidAt: json['paid_at'] as String?,
 );
 
 Map<String, dynamic> _$Rows15ToJson(Rows15 instance) => <String, dynamic>{
-  'member': instance.member,
-  'cells': instance.cells,
+  'uuid': instance.uuid,
+  'tender': instance.tender,
   'amount': instance.amount,
-  'meals': instance.meals,
+  'paid_at': instance.paidAt,
 };

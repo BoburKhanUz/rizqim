@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pos_data/pos_data.dart';
 
 import '../features/billing/billing_page.dart';
 import '../features/order/order_page.dart';
@@ -13,14 +14,21 @@ import 'pos_scope.dart';
 /// `BillingPage` (P3-22, `features/billing/billing_page.dart`) — `BillingPage({required orderUuid})`.
 abstract final class CashierRoutes {
   /// Mavjud buyurtma ([orderUuid]) yoki joyda yangisi ([tableId]; ikkalasi `null` — stolsiz / olib ketish).
+  /// [banquetEvent] — tadbir kuni buyurtmasi: "Schyot" o'rniga "Yakuniy hisob" (faqat yakuniy hisob orqali to'lanadi).
   static Future<T?> openOrder<T>(
     BuildContext context, {
     String? orderUuid,
     int? tableId,
     String? placeTitle,
+    PosBanquetEvent? banquetEvent,
   }) => push<T>(
     context,
-    OrderPage(orderUuid: orderUuid, tableId: tableId, placeTitle: placeTitle),
+    OrderPage(
+      orderUuid: orderUuid,
+      tableId: tableId,
+      placeTitle: placeTitle,
+      banquetEvent: banquetEvent,
+    ),
   );
 
   /// Buyurtmaning schyoti va to'lovi.

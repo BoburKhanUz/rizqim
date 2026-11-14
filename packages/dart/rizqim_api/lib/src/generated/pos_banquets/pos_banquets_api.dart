@@ -27,7 +27,8 @@ abstract class PosBanquetsApi {
   /// Banquet events (list, search by phone).
   ///
   /// Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4.
-  /// digits): the customer's events across dates, newest first. Filter by `status`. At most 200.
+  /// digits): the customer's events across dates, newest first — at most 20 searches a minute per staff member and.
+  /// per terminal (429 `search_rate_limited`). Filter by `status`. At most 200.
   ///
   /// [branchId] - One branch (default: the caller's; the whole store for store-wide staff).
   ///

@@ -269,6 +269,8 @@ class PosBanquetSettlement {
     this.billUuid,
     this.excessStatus = 'none',
     this.warnings = const <PosBanquetWarning>[],
+    this.extraBills = const <PosSettlementExtraBill>[],
+    this.extraBillsNotice,
   });
 
   factory PosBanquetSettlement.fromJson(PosJson j) {
@@ -293,6 +295,10 @@ class PosBanquetSettlement {
       billUuid: settlement?.strOrNull('bill_uuid'),
       excessStatus: settlement?.strOrNull('excess_status') ?? 'none',
       warnings: j.objects('warnings', PosBanquetWarning.fromJson),
+      extraBills: settlement != null && settlement.has('extra_bills')
+          ? settlement.objects('extra_bills', PosSettlementExtraBill.fromJson)
+          : const <PosSettlementExtraBill>[],
+      extraBillsNotice: settlement?.strOrNull('extra_bills_notice'),
     );
   }
 
@@ -313,6 +319,39 @@ class PosBanquetSettlement {
   /// `none`, `pending` (menejer tasdig'i bilan kassada qaytariladi), `refunded`.
   final String excessStatus;
   final List<PosBanquetWarning> warnings;
+
+  /// Review C10: the event order's other bills (an add-on after the settlement's receipt, or a bill paid directly on
+  /// an event stuck before the rule), each with its own receipt; empty — none (or an older server).
+  final List<PosSettlementExtraBill> extraBills;
+
+  /// Review C10: the server's plain words about [extraBills] (`null` — none).
+  final String? extraBillsNotice;
+}
+
+/// Review C10: one of the event order's bills besides the settlement's.
+class PosSettlementExtraBill {
+  const PosSettlementExtraBill({
+    required this.uuid,
+    required this.status,
+    required this.total,
+    required this.paidAmount,
+  });
+
+  factory PosSettlementExtraBill.fromJson(PosJson j) => PosSettlementExtraBill(
+    uuid: j.str('uuid'),
+    status: j.strOrNull('status') ?? 'open',
+    total: j.money('total'),
+    paidAmount: j.money('paid_amount'),
+  );
+
+  final String uuid;
+
+  /// `open`, `printed`, `paid` ... (BillStatus).
+  final String status;
+  final PosMoney total;
+  final PosMoney paidAmount;
+
+  bool get isPaid => status == 'paid';
 }
 
 /// `POST /pos/banquets/{uuid}/settle` javobi: yakuniy hisob va schyot (qoldiq `POST /pos/bills/{uuid}/payments`).

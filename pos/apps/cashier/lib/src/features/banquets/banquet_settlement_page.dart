@@ -304,6 +304,34 @@ class _BanquetSettlementPageState extends State<BanquetSettlementPage> {
           "Bitta sotuv cheki to'liq summaga chiqadi: zakladlar — oldindan to'langan qism.",
           style: RzType.footnote.copyWith(color: c.fgMuted),
         ),
+        // C10: the event order's other bills, each with its own receipt (the server says so plainly)
+        if (s.extraBillsNotice != null || s.extraBills.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          NoticeBanner(
+            key: const ValueKey<String>('banquet-settlement-extra'),
+            message: s.extraBillsNotice ?? "Yakuniy hisobdan tashqari schyotlar alohida to'lanadi va alohida chek bo'ladi.",
+            tone: StatusTone.info,
+          ),
+          for (final PosSettlementExtraBill b in s.extraBills)
+            AmountRow(
+              key: ValueKey<String>('banquet-settlement-extra-${b.uuid}'),
+              label: b.isPaid
+                  ? "Alohida schyot (to'langan)"
+                  : "Alohida schyot (to'lanmagan)",
+              amount: b.total,
+              tone: b.isPaid ? null : StatusTone.warning,
+            ),
+        ],
+        // C10: one settlement, one sale receipt; what the event day orders after its bill is explained
+        if (s.status != PosSettlementStatus.none) ...<Widget>[
+          const SizedBox(height: 8),
+          Text(
+            "Yakuniy schyotdan keyin qo'shilgan taomlar: sotuv cheki hali chiqmagan bo'lsa, «Qoldiqni to'lash» "
+            "ularni shu schyotga qo'shib qayta tuzadi; chek chiqqan bo'lsa — ular alohida schyot va alohida chek bo'ladi.",
+            key: const ValueKey<String>('banquet-settlement-addons'),
+            style: RzType.footnote.copyWith(color: c.fgMuted),
+          ),
+        ],
         const SizedBox(height: 12),
         if (!settled && canPay)
           RzButton(

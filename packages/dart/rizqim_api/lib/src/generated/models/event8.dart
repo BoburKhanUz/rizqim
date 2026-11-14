@@ -10,37 +10,28 @@ part 'event8.g.dart';
 class Event8 {
   const Event8({
     required this.uuid,
-    required this.title,
-    required this.eventType,
-    required this.eventTypeLabel,
-    required this.eventDate,
-    required this.slot,
-    required this.startsAt,
-    required this.endsAt,
-    required this.localTime,
     required this.status,
-    required this.halls,
+    required this.statusLabel,
+    required this.eventDate,
+    required this.total,
+    required this.paidTotal,
+    required this.version,
+    required this.billed,
   });
 
   factory Event8.fromJson(Map<String, Object?> json) => _$Event8FromJson(json);
 
   final String uuid;
-  final String? title;
-  @JsonKey(name: 'event_type')
-  final String eventType;
-  @JsonKey(name: 'event_type_label')
-  final String eventTypeLabel;
+  final String status;
+  @JsonKey(name: 'status_label')
+  final String statusLabel;
   @JsonKey(name: 'event_date')
   final String eventDate;
-  final String slot;
-  @JsonKey(name: 'starts_at')
-  final String? startsAt;
-  @JsonKey(name: 'ends_at')
-  final String? endsAt;
-  @JsonKey(name: 'local_time')
-  final String localTime;
-  final String status;
-  final List<String> halls;
+  final String total;
+  @JsonKey(name: 'paid_total')
+  final String paidTotal;
+  final int version;
+  final bool billed;
 
   Map<String, Object?> toJson() => _$Event8ToJson(this);
 }

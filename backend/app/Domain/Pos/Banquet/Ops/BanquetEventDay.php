@@ -54,8 +54,16 @@ final class BanquetEventDay
 
             // The guests are written after opening: the tea-and-bread lines per guest of an ordinary hall order are not
             // added for a banquet (the package has them)
+            // The note reaches kitchen tickets and the KDS: no customer data (never the customer's name nor the event's
+            // title, which often holds names) — "Tadbir: <event type>, <halls>, <date>"; the till titles the order from
+            // the event itself
+            $note = implode(', ', array_filter([
+                $event->event_type->label(),
+                $halls->pluck('name')->implode(', '),
+                $event->event_date->format('d.m.Y'),
+            ], fn (string $part) => $part !== ''));
             $order = $this->orders->openOrder($branch, OrderChannel::POS_HALL, null, 0, $waiterId, $deviceId, $actor, [
-                'note' => mb_substr('Tadbir: ' . ($event->title ?: $event->customer_name) . ', ' . $event->event_date->format('d.m.Y'), 0, 255),
+                'note' => mb_substr('Tadbir: ' . $note, 0, 255),
             ]);
             $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $order->forceFill([

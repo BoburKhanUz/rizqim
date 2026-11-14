@@ -52,7 +52,8 @@ abstract class OwnerBanquetPaymentsApi {
   /// Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents.
   /// up to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days.
   /// before a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new.
-  /// schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; audited.
+  /// schedules and cancellations from now on. Needs banquets.manage and the `banquet` module; store-wide: a caller.
+  /// bound to one branch is refused (403 `store_wide_only`). Audited.
   @PUT('/v1/owner/pos/banquets/payment-settings')
   Future<PutV1OwnerPosBanquetsPaymentSettingsResponse>
   banquetPaymentsUpdateSettings({

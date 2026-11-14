@@ -6,9 +6,12 @@ use App\Domain\Fiscal\FiscalDocument;
 use App\Domain\Fiscal\FiscalIssuer;
 use App\Domain\Fiscal\FiscalPayment;
 use App\Domain\Fiscal\FiscalReceiptType;
+use App\Domain\Pos\Accounts\PosOwnerAlerts;
+use App\Domain\Pos\Banquet\BanquetEventChanged;
 use App\Domain\Pos\Banquet\BanquetEventStatus;
 use App\Domain\Pos\Banquet\BanquetPaymentKind;
 use App\Domain\Pos\Banquet\BanquetPaymentStatus;
+use App\Domain\Pos\Banquet\BanquetSettings;
 use App\Domain\Pos\Billing\PaymentService;
 use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Booking\BookingDepositService;
@@ -41,9 +44,14 @@ use Throwable;
  *    once (FiscalIssuer; its key is the entry's, so a retry never issues a second one). The event becomes `confirmed`
  *    once its deposit row is paid in full. Idempotent by the Idempotency-Key. A dynamic Click/Payme/UzQR QR is bound to
  *    a bill (QrPayments) and is not offered for schedule rows yet (stage B decision);
- *  - bank transfer (the manager, banquets.manage): recorded with its reference and date; no shift, no receipt (the
- *    invoice/ESF is issued outside the system — owner decision to confirm with the accountant); counted in the event's
- *    paid total and offset in the final sale receipt as prepayment like the advances.
+ *  - bank transfer (the manager, banquets.manage, from the web panel only — review S4): recorded with its reference and
+ *    date; no shift, no receipt (the invoice/ESF is issued outside the system — owner decision to confirm with the
+ *    accountant); counted in the event's paid total and offset in the final sale receipt as prepayment like the
+ *    advances. The owner hears every one (Telegram); the same payment order twice on one event is refused (409
+ *    `transfer_duplicate`); a mistaken one is voided before the event is billed (voidTransfer).
+ *
+ * Once the event's final settlement exists (review C2) no row is paid or transferred any more (409 `event_billed`):
+ * the remainder is paid on the settlement bill.
  */
 class BanquetPaymentService
 {
@@ -138,10 +146,15 @@ class BanquetPaymentService
         }
 
         try {
-            return DB::transaction(function () use ($event, $row, $amount, $reference, $paidOn, $user, $key, $applied) {
+            $entry = DB::transaction(function () use ($event, $row, $amount, $reference, $paidOn, $user, $key, $applied) {
                 [$event, $row, $existing] = $this->lock($event, $row, $key);
                 if ($existing !== null) {
                     return $existing;
+                }
+                // Review C11: one payment order is recorded once per event (a voided one may be recorded again)
+                if (BanquetPaymentEntry::where('banquet_event_id', $event->id)->where('type', BanquetEntryType::TRANSFER->value)
+                    ->whereRaw('lower(reference) = ?', [mb_strtolower($reference)])->exists()) {
+                    throw PosActionException::conflict('transfer_duplicate', "Bu to'lov topshirig'i ({$reference}) shu tadbirga allaqachon yozilgan.", ['reference' => $reference]);
                 }
                 $row = $this->schedule->split($row, $this->amount($row, $amount->toString()));
 
@@ -153,6 +166,96 @@ class BanquetPaymentService
         } catch (UniqueConstraintViolationException) {
             return BanquetPaymentEntry::where('banquet_event_id', $event->id)->where('idempotency_key', $key)->firstOrFail();
         }
+
+        if ($entry->wasRecentlyCreated) {
+            // Review S4: no receipt and no drawer for a transfer, so the owner hears every one
+            app(PosOwnerAlerts::class)->send((int) $event->store_id, "🏦 Bank o'tkazmasi yozildi: " . self::describe($event)
+                . "\nSumma: " . PosOwnerAlerts::sum($entry->amount)
+                . "\nTo'lov topshirig'i: {$reference} (" . Carbon::parse($paidOn)->format('d.m.Y') . ')'
+                . "\nYozdi: {$user->name}");
+        }
+
+        return $entry;
+    }
+
+    /**
+     * Review C11: a bank transfer recorded by mistake is voided (`reason` required; audited; the owner hears it) while
+     * the event is not billed yet (409 `event_billed`; a cancelled event: `event_not_payable`). The entry stays as
+     * `transfer_void` (no longer money received), its row is unpaid again, the paid total goes down; a confirmed event
+     * with nothing else paid is a hold again with a fresh hold time (the store's hold hours) — anything else paid keeps
+     * it confirmed. Voiding a voided one changes nothing. Returns whether it was voided now.
+     */
+    public function voidTransfer(BanquetEvent $event, BanquetPaymentEntry $entry, string $reason, User $user): bool
+    {
+        $reason = mb_substr(trim($reason), 0, 500);
+        $voided = DB::transaction(function () use ($event, $entry, $reason, $user) {
+            $event = BanquetEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
+            $entry = BanquetPaymentEntry::whereKey($entry->id)->where('banquet_event_id', $event->id)->lockForUpdate()->firstOrFail();
+            if ($entry->type === BanquetEntryType::TRANSFER_VOID) {
+                return null;
+            }
+            BanquetSchedule::refuseBilled($event);
+            if (!in_array($event->status, [BanquetEventStatus::HOLD, BanquetEventStatus::CONFIRMED, BanquetEventStatus::IN_PROGRESS], true)) {
+                throw PosActionException::conflict('event_not_payable', "Tadbir \"{$event->status->label()}\" holatida: o'tkazmani bekor qilib bo'lmaydi.");
+            }
+            $row = $entry->banquet_payment_id !== null ? BanquetPayment::whereKey($entry->banquet_payment_id)->lockForUpdate()->first() : null;
+            if ($entry->type !== BanquetEntryType::TRANSFER || $row === null || $row->status !== BanquetPaymentStatus::PAID
+                || Money::of($row->refunded_amount)->isPositive() || Money::of($row->retained_amount)->isPositive()) {
+                throw PosActionException::conflict('transfer_not_voidable', "Bu o'tkazmani bekor qilib bo'lmaydi.");
+            }
+
+            $row->forceFill([
+                'status' => BanquetPaymentStatus::DUE,
+                'tender' => null,
+                'reference' => null,
+                'paid_at' => null,
+                'paid_by' => null,
+                'idempotency_key' => null,
+            ])->save();
+            $entry->forceFill(['type' => BanquetEntryType::TRANSFER_VOID, 'reason' => $reason])->save();
+
+            $before = $event->status;
+            $event->paid_total = Money::max(Money::zero(), Money::of($event->paid_total)->minus($entry->amount))->toString();
+            $somethingPaid = BanquetPayment::where('banquet_event_id', $event->id)->where('status', '!=', BanquetPaymentStatus::DUE->value)->exists();
+            if ($event->status === BanquetEventStatus::CONFIRMED && !$somethingPaid) {
+                $holdHours = app(BanquetSettings::class)->view((int) $event->store_id)['hold_hours'];
+                $event->status = BanquetEventStatus::HOLD;
+                $event->confirmed_at = null;
+                $event->hold_expires_at = $holdHours > 0 ? now()->addHours($holdHours) : null;
+            }
+            $event->version = (int) $event->version + 1;
+            $event->save();
+
+            $this->audit->record('banquet.transfer_voided', $event, ['status' => $before->value], ['status' => $event->status->value], [
+                'payment_uuid' => $row->uuid,
+                'entry_uuid' => $entry->uuid,
+                'amount' => Money::of($entry->amount)->toString(),
+                'reference' => $entry->reference,
+                'reason' => $reason,
+            ], ['actor' => $user]);
+            if ($event->status !== $before) {
+                event(new BanquetEventChanged($event, $event->status->value, false));
+            }
+
+            return [$event, $entry];
+        });
+        if ($voided === null) {
+            return false;
+        }
+
+        [$event, $entry] = $voided;
+        app(PosOwnerAlerts::class)->send((int) $event->store_id, "↩️ Bank o'tkazmasi bekor qilindi: " . self::describe($event)
+            . "\nSumma: " . PosOwnerAlerts::sum($entry->amount)
+            . "\nTo'lov topshirig'i: {$entry->reference}"
+            . "\nSabab: {$reason}"
+            . "\nBekor qildi: {$user->name}");
+
+        return true;
+    }
+
+    private static function describe(BanquetEvent $event): string
+    {
+        return $event->event_date->format('d.m.Y') . ", {$event->customer_name}";
     }
 
     /**
@@ -180,6 +283,7 @@ class BanquetPaymentService
         if ($key !== null && ($existing = BanquetPaymentEntry::where('banquet_event_id', $event->id)->where('idempotency_key', $key)->first())) {
             return [$event, $row, $existing];
         }
+        BanquetSchedule::refuseBilled($event);
         if (!in_array($event->status, [BanquetEventStatus::HOLD, BanquetEventStatus::CONFIRMED, BanquetEventStatus::IN_PROGRESS], true)) {
             throw PosActionException::conflict('event_not_payable', "Tadbir \"{$event->status->label()}\" holatida: to'lov olib bo'lmaydi.");
         }
@@ -234,7 +338,7 @@ class BanquetPaymentService
             $event->status = BanquetEventStatus::CONFIRMED;
             $event->confirmed_at = now();
             $event->hold_expires_at = null;
-            event(new \App\Domain\Pos\Banquet\BanquetEventChanged($event, BanquetEventStatus::CONFIRMED->value, false));
+            event(new BanquetEventChanged($event, BanquetEventStatus::CONFIRMED->value, false));
         }
         $event->version = (int) $event->version + 1;
         $event->save();

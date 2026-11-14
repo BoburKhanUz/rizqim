@@ -7,13 +7,27 @@ part of 'data287.dart';
 // **************************************************************************
 
 Data287 _$Data287FromJson(Map<String, dynamic> json) => Data287(
-  account: Account5.fromJson(json['account'] as Map<String, dynamic>),
-  entry: Entry4.fromJson(json['entry'] as Map<String, dynamic>),
-  fiscal: Fiscal30.fromJson(json['fiscal'] as Map<String, dynamic>),
+  uuid: json['uuid'] as String,
+  name: json['name'] as String,
+  phone: json['phone'] as String?,
+  code: json['code'] as String,
+  dailyLimit: json['daily_limit'] as String?,
+  mealsPerDay: (json['meals_per_day'] as num?)?.toInt(),
+  isActive: json['is_active'] as bool,
+  note: json['note'] as String?,
+  createdAt: json['created_at'] as String?,
+  updatedAt: json['updated_at'] as String?,
 );
 
 Map<String, dynamic> _$Data287ToJson(Data287 instance) => <String, dynamic>{
-  'account': instance.account,
-  'entry': instance.entry,
-  'fiscal': instance.fiscal,
+  'uuid': instance.uuid,
+  'name': instance.name,
+  'phone': instance.phone,
+  'code': instance.code,
+  'daily_limit': instance.dailyLimit,
+  'meals_per_day': instance.mealsPerDay,
+  'is_active': instance.isActive,
+  'note': instance.note,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
 };

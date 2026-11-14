@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, Field, FormError, IconButton, InlineError, No
 import { useOwnerProducts } from '@rizqim/staff';
 import { useI18n } from '../I18nProvider';
 import { useCan } from '../management/access';
+import { StoreWideNote } from '../banquets/BanquetSetupView';
 import { errorText } from '../management/errors';
 import { SelectField, TextField } from '../pos/fields';
 import { parseKazans, type Ingredient, type IngredientUnit, type OpsSettings, type OpsSettingsInput } from './api';
@@ -93,7 +94,9 @@ export function OpsSettingsView() {
       ) : settings.data ? (
         <>
           <Notice message={notice} />
-          <SettingsForm key={settings.data.version} settings={settings.data} onSaved={() => setNotice(t('bqo_saved'))} onEdit={() => setNotice(null)} />
+          {/* Store-wide: a manager bound to one branch reads them (the server answers 403 store_wide_only) */}
+          {access.ready && access.branchScoped && <StoreWideNote />}
+          <SettingsForm key={settings.data.version} settings={settings.data} readOnly={access.ready && access.branchScoped} onSaved={() => setNotice(t('bqo_saved'))} onEdit={() => setNotice(null)} />
         </>
       ) : (
         <Skeleton className="h-96 w-full" />
@@ -102,7 +105,7 @@ export function OpsSettingsView() {
   );
 }
 
-function SettingsForm({ settings, onSaved, onEdit }: { settings: OpsSettings; onSaved: () => void; onEdit: () => void }) {
+function SettingsForm({ settings, readOnly, onSaved, onEdit }: { settings: OpsSettings; readOnly: boolean; onSaved: () => void; onEdit: () => void }) {
   const { t } = useI18n();
   const products = useOwnerProducts();
   const [draft, setDraft] = useState(() => draftOf(settings));
@@ -133,136 +136,140 @@ function SettingsForm({ settings, onSaved, onEdit }: { settings: OpsSettings; on
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
       {save.isError && <FormError message={errorText(save.error, t)} />}
+      <fieldset disabled={readOnly} className="contents">
 
-      <Card className="flex flex-col gap-3">
-        <TextField label={t('bqo_reserve')} hint={t('bqo_reserveHint')} value={draft.reserve} onChange={(reserve) => patch({ reserve })} inputMode="decimal" maxLength={5} className="max-w-48" />
-      </Card>
+        <Card className="flex flex-col gap-3">
+          <TextField label={t('bqo_reserve')} hint={t('bqo_reserveHint')} value={draft.reserve} onChange={(reserve) => patch({ reserve })} inputMode="decimal" maxLength={5} className="max-w-48" />
+        </Card>
 
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-headline font-extrabold text-fg">{t('bqo_osh')}</h2>
-        <div className="flex flex-wrap gap-3">
-          <TextField label={t('bqo_personsPerKg')} hint={t('bqo_personsPerKgHint')} value={draft.personsPerKg} onChange={(personsPerKg) => patch({ personsPerKg })} inputMode="decimal" maxLength={4} className="max-w-48" />
-          <TextField label={t('bqo_kazanSizes')} hint={t('bqo_kazanSizesHint')} value={draft.kazans} onChange={(kazans) => patch({ kazans })} maxLength={60} className="max-w-72" />
-        </div>
-        <span className="text-footnote font-bold text-fg-muted">{t('bqo_ingredients')}</span>
-        {draft.ingredients.map((ingredient, index) => (
-          <div key={`${ingredient.key}-${index}`} className="flex flex-wrap items-end gap-2">
-            <TextField label={t('bqo_ingredientName')} value={ingredient.name} onChange={(name) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, name } : item)) })} maxLength={60} />
-            <SelectField label={t('bqo_ingredientUnit')} value={ingredient.unit} onChange={(unit) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, unit } : item)) })} options={UNITS.map((unit) => ({ value: unit, label: unit }))} />
-            <TextField label={t('bqo_ingredientPerKg')} value={ingredient.per_kg} onChange={(perKg) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, per_kg: perKg } : item)) })} inputMode="decimal" maxLength={7} className="max-w-36" />
-            <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ ingredients: draft.ingredients.filter((_, i) => i !== index) })} />
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-headline font-extrabold text-fg">{t('bqo_osh')}</h2>
+          <div className="flex flex-wrap gap-3">
+            <TextField label={t('bqo_personsPerKg')} hint={t('bqo_personsPerKgHint')} value={draft.personsPerKg} onChange={(personsPerKg) => patch({ personsPerKg })} inputMode="decimal" maxLength={4} className="max-w-48" />
+            <TextField label={t('bqo_kazanSizes')} hint={t('bqo_kazanSizesHint')} value={draft.kazans} onChange={(kazans) => patch({ kazans })} maxLength={60} className="max-w-72" />
           </div>
-        ))}
-        <div>
-          <Button variant="secondary" icon={Plus} onClick={() => patch({ ingredients: [...draft.ingredients, { key: `item${draft.ingredients.length + 1}`, name: '', unit: 'kg', per_kg: '0' }] })}>
-            {t('bqo_addIngredient')}
-          </Button>
-        </div>
-
-        <span className="text-footnote font-bold text-fg-muted">{t('bqo_oshProducts')}</span>
-        <span className="text-footnote text-fg-muted">{t('bqo_oshProductsHint')}</span>
-        <ul className="flex flex-wrap gap-2">
-          {draft.oshProducts.map((id) => (
-            <li key={id} className="flex items-center gap-1 rounded-control border border-line px-2 py-1 text-footnote">
-              {productName(id)}
-              <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ oshProducts: draft.oshProducts.filter((other) => other !== id) })} />
-            </li>
+          <span className="text-footnote font-bold text-fg-muted">{t('bqo_ingredients')}</span>
+          {draft.ingredients.map((ingredient, index) => (
+            <div key={`${ingredient.key}-${index}`} className="flex flex-wrap items-end gap-2">
+              <TextField label={t('bqo_ingredientName')} value={ingredient.name} onChange={(name) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, name } : item)) })} maxLength={60} />
+              <SelectField label={t('bqo_ingredientUnit')} value={ingredient.unit} onChange={(unit) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, unit } : item)) })} options={UNITS.map((unit) => ({ value: unit, label: unit }))} />
+              <TextField label={t('bqo_ingredientPerKg')} value={ingredient.per_kg} onChange={(perKg) => patch({ ingredients: draft.ingredients.map((item, i) => (i === index ? { ...item, per_kg: perKg } : item)) })} inputMode="decimal" maxLength={7} className="max-w-36" />
+              <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ ingredients: draft.ingredients.filter((_, i) => i !== index) })} />
+            </div>
           ))}
-        </ul>
-        {unused(draft.oshProducts).length > 0 && (
-          <div className="flex flex-wrap items-end gap-2">
-            <SelectField label={t('bqo_colDish')} value={oshPick} onChange={setOshPick} options={[{ value: '', label: '—' }, ...unused(draft.oshProducts)]} />
-            <Button
-              variant="secondary"
-              icon={Plus}
-              disabled={oshPick === ''}
-              onClick={() => {
-                patch({ oshProducts: [...draft.oshProducts, Number(oshPick)] });
-                setOshPick('');
-              }}
-            >
-              {t('bqo_addWeight')}
+          <div>
+            <Button variant="secondary" icon={Plus} onClick={() => patch({ ingredients: [...draft.ingredients, { key: `item${draft.ingredients.length + 1}`, name: '', unit: 'kg', per_kg: '0' }] })}>
+              {t('bqo_addIngredient')}
             </Button>
           </div>
-        )}
-      </Card>
 
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-headline font-extrabold text-fg">{t('bqo_calculator')}</h2>
-        <TextField label={t('bqo_calculatorPersons')} value={persons} onChange={setPersons} inputMode="numeric" maxLength={4} className="max-w-48" />
-        {calculation.data && <OshCard osh={calculation.data} />}
-      </Card>
+          <span className="text-footnote font-bold text-fg-muted">{t('bqo_oshProducts')}</span>
+          <span className="text-footnote text-fg-muted">{t('bqo_oshProductsHint')}</span>
+          <ul className="flex flex-wrap gap-2">
+            {draft.oshProducts.map((id) => (
+              <li key={id} className="flex items-center gap-1 rounded-control border border-line px-2 py-1 text-footnote">
+                {productName(id)}
+                <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ oshProducts: draft.oshProducts.filter((other) => other !== id) })} />
+              </li>
+            ))}
+          </ul>
+          {unused(draft.oshProducts).length > 0 && (
+            <div className="flex flex-wrap items-end gap-2">
+              <SelectField label={t('bqo_colDish')} value={oshPick} onChange={setOshPick} options={[{ value: '', label: '—' }, ...unused(draft.oshProducts)]} />
+              <Button
+                variant="secondary"
+                icon={Plus}
+                disabled={oshPick === ''}
+                onClick={() => {
+                  patch({ oshProducts: [...draft.oshProducts, Number(oshPick)] });
+                  setOshPick('');
+                }}
+              >
+                {t('bqo_addWeight')}
+              </Button>
+            </div>
+          )}
+        </Card>
 
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-headline font-extrabold text-fg">{t('bqo_portionWeights')}</h2>
-        <span className="text-footnote text-fg-muted">{t('bqo_portionWeightsHint')}</span>
-        {draft.weights.map((weight, index) => (
-          <div key={weight.product_id} className="flex flex-wrap items-end gap-2">
-            <span className="min-w-48 pb-2 text-body text-fg">{productName(weight.product_id)}</span>
-            <TextField label={t('bqo_grams')} value={weight.grams} onChange={(grams) => patch({ weights: draft.weights.map((item, i) => (i === index ? { ...item, grams } : item)) })} inputMode="numeric" maxLength={6} className="max-w-36" />
-            <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ weights: draft.weights.filter((_, i) => i !== index) })} />
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-headline font-extrabold text-fg">{t('bqo_calculator')}</h2>
+          <TextField label={t('bqo_calculatorPersons')} value={persons} onChange={setPersons} inputMode="numeric" maxLength={4} className="max-w-48" />
+          {calculation.data && <OshCard osh={calculation.data} />}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-headline font-extrabold text-fg">{t('bqo_portionWeights')}</h2>
+          <span className="text-footnote text-fg-muted">{t('bqo_portionWeightsHint')}</span>
+          {draft.weights.map((weight, index) => (
+            <div key={weight.product_id} className="flex flex-wrap items-end gap-2">
+              <span className="min-w-48 pb-2 text-body text-fg">{productName(weight.product_id)}</span>
+              <TextField label={t('bqo_grams')} value={weight.grams} onChange={(grams) => patch({ weights: draft.weights.map((item, i) => (i === index ? { ...item, grams } : item)) })} inputMode="numeric" maxLength={6} className="max-w-36" />
+              <IconButton icon={Trash2} label={t('bqo_remove')} onClick={() => patch({ weights: draft.weights.filter((_, i) => i !== index) })} />
+            </div>
+          ))}
+          {unused(draft.weights.map((weight) => weight.product_id)).length > 0 && (
+            <div className="flex flex-wrap items-end gap-2">
+              <SelectField label={t('bqo_colDish')} value={weightPick} onChange={setWeightPick} options={[{ value: '', label: '—' }, ...unused(draft.weights.map((weight) => weight.product_id))]} />
+              <Button
+                variant="secondary"
+                icon={Plus}
+                disabled={weightPick === ''}
+                onClick={() => {
+                  patch({ weights: [...draft.weights, { product_id: Number(weightPick), grams: '300' }] });
+                  setWeightPick('');
+                }}
+              >
+                {t('bqo_addWeight')}
+              </Button>
+            </div>
+          )}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-headline font-extrabold text-fg">{t('bqo_mxik')}</h2>
+          <span className="text-footnote text-fg-muted">{t('bqo_mxikHint')}</span>
+          {(['package', 'hall', 'extra'] as const).map((part) => (
+            <div key={part} className="flex flex-wrap gap-3">
+              <TextField
+                label={t(part === 'package' ? 'bqo_mxikPackage' : part === 'hall' ? 'bqo_mxikHall' : 'bqo_mxikExtra')}
+                value={draft.mxik[part].mxik}
+                onChange={(mxik) => patch({ mxik: { ...draft.mxik, [part]: { ...draft.mxik[part], mxik } } })}
+                inputMode="numeric"
+                maxLength={17}
+              />
+              <TextField label={t('bqo_packageCode')} value={draft.mxik[part].package_code} onChange={(code) => patch({ mxik: { ...draft.mxik, [part]: { ...draft.mxik[part], package_code: code } } })} inputMode="numeric" maxLength={32} />
+            </div>
+          ))}
+        </Card>
+
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-headline font-extrabold text-fg">{t('bqo_contractTemplate')}</h2>
+          <Field label={t('bqo_contractTemplate')} hint={t('bqo_contractTemplateHint')}>
+            {(props) => <textarea {...props} rows={18} maxLength={20000} value={draft.template} onChange={(event) => patch({ template: event.target.value })} className={`${fieldClass} font-mono text-footnote`} />}
+          </Field>
+          <span className="text-footnote font-bold text-fg-muted">{t('bqo_placeholders')}</span>
+          <div className="flex flex-wrap gap-1">
+            {settings.contract_placeholders.map((name) => (
+              <button key={name} type="button" className="rounded-control border border-line px-2 py-0.5 font-mono text-footnote text-fg hover:bg-line" onClick={() => patch({ template: `${draft.template}{{${name}}}` })}>
+                {`{{${name}}}`}
+              </button>
+            ))}
           </div>
-        ))}
-        {unused(draft.weights.map((weight) => weight.product_id)).length > 0 && (
-          <div className="flex flex-wrap items-end gap-2">
-            <SelectField label={t('bqo_colDish')} value={weightPick} onChange={setWeightPick} options={[{ value: '', label: '—' }, ...unused(draft.weights.map((weight) => weight.product_id))]} />
-            <Button
-              variant="secondary"
-              icon={Plus}
-              disabled={weightPick === ''}
-              onClick={() => {
-                patch({ weights: [...draft.weights, { product_id: Number(weightPick), grams: '300' }] });
-                setWeightPick('');
-              }}
-            >
-              {t('bqo_addWeight')}
+          <div>
+            <Button variant="secondary" onClick={() => patch({ template: '' })}>
+              {t('bqo_resetTemplate')}
             </Button>
           </div>
-        )}
-      </Card>
+        </Card>
 
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-headline font-extrabold text-fg">{t('bqo_mxik')}</h2>
-        <span className="text-footnote text-fg-muted">{t('bqo_mxikHint')}</span>
-        {(['package', 'hall', 'extra'] as const).map((part) => (
-          <div key={part} className="flex flex-wrap gap-3">
-            <TextField
-              label={t(part === 'package' ? 'bqo_mxikPackage' : part === 'hall' ? 'bqo_mxikHall' : 'bqo_mxikExtra')}
-              value={draft.mxik[part].mxik}
-              onChange={(mxik) => patch({ mxik: { ...draft.mxik, [part]: { ...draft.mxik[part], mxik } } })}
-              inputMode="numeric"
-              maxLength={17}
-            />
-            <TextField label={t('bqo_packageCode')} value={draft.mxik[part].package_code} onChange={(code) => patch({ mxik: { ...draft.mxik, [part]: { ...draft.mxik[part], package_code: code } } })} inputMode="numeric" maxLength={32} />
-          </div>
-        ))}
-      </Card>
-
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-headline font-extrabold text-fg">{t('bqo_contractTemplate')}</h2>
-        <Field label={t('bqo_contractTemplate')} hint={t('bqo_contractTemplateHint')}>
-          {(props) => <textarea {...props} rows={18} maxLength={20000} value={draft.template} onChange={(event) => patch({ template: event.target.value })} className={`${fieldClass} font-mono text-footnote`} />}
-        </Field>
-        <span className="text-footnote font-bold text-fg-muted">{t('bqo_placeholders')}</span>
-        <div className="flex flex-wrap gap-1">
-          {settings.contract_placeholders.map((name) => (
-            <button key={name} type="button" className="rounded-control border border-line px-2 py-0.5 font-mono text-footnote text-fg hover:bg-line" onClick={() => patch({ template: `${draft.template}{{${name}}}` })}>
-              {`{{${name}}}`}
-            </button>
-          ))}
-        </div>
+      </fieldset>
+      {!readOnly && (
         <div>
-          <Button variant="secondary" onClick={() => patch({ template: '' })}>
-            {t('bqo_resetTemplate')}
+          <Button type="submit" loading={save.isPending}>
+            {t('bqo_save')}
           </Button>
         </div>
-      </Card>
-
-      <div>
-        <Button type="submit" loading={save.isPending}>
-          {t('bqo_save')}
-        </Button>
-      </div>
+      )}
     </form>
   );
 }

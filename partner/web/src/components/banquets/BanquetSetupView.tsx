@@ -27,6 +27,9 @@ export function BanquetSetupView() {
   const access = useCan();
   const [tab, setTab] = useState<Tab>('packages');
   const [notice, setNotice] = useState<string | null>(null);
+  // The packages, extras and settings are store-wide: a manager bound to one branch sees them read-only (the server
+  // answers 403 store_wide_only); a hall's rent is their branch's
+  const readOnly = access.ready && access.branchScoped;
 
   if (access.ready && !access.can('banquets.manage')) {
     return (
@@ -51,16 +54,27 @@ export function BanquetSetupView() {
       <Notice message={notice} />
       <Tabs tabs={TABS.map((id) => ({ id, label: t(`bq_tab_${id}`) }))} value={tab} onChange={setTab} label={t('bq_setupTitle')} idPrefix="bq-setup" />
       <div role="tabpanel" id={`bq-setup-panel-${tab}`} aria-labelledby={`bq-setup-tab-${tab}`}>
-        {tab === 'packages' && <PackagesTab onNotice={setNotice} />}
-        {tab === 'extras' && <ExtrasTab onNotice={setNotice} />}
+        {readOnly && tab !== 'halls' && <StoreWideNote />}
+        {tab === 'packages' && <PackagesTab onNotice={setNotice} readOnly={readOnly} />}
+        {tab === 'extras' && <ExtrasTab onNotice={setNotice} readOnly={readOnly} />}
         {tab === 'halls' && <HallsTab onNotice={setNotice} />}
-        {tab === 'settings' && <SettingsTab onNotice={setNotice} />}
+        {tab === 'settings' && <SettingsTab onNotice={setNotice} readOnly={readOnly} />}
       </div>
     </>
   );
 }
 
-function PackagesTab({ onNotice }: { onNotice: (message: string) => void }) {
+// The plain note above a store-wide setup a branch-bound manager may only read
+export function StoreWideNote() {
+  const { t } = useI18n();
+  return (
+    <p role="note" className="mb-3 text-footnote text-fg-muted">
+      {t('bq_storeWideOnly')}
+    </p>
+  );
+}
+
+function PackagesTab({ onNotice, readOnly }: { onNotice: (message: string) => void; readOnly: boolean }) {
   const { t, language } = useI18n();
   const query = useBanquetPackages();
   const [editing, setEditing] = useState<Package | 'new' | null>(null);
@@ -73,11 +87,13 @@ function PackagesTab({ onNotice }: { onNotice: (message: string) => void }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <Button icon={Plus} onClick={() => setEditing('new')}>
-          {t('bq_packageAdd')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div>
+          <Button icon={Plus} onClick={() => setEditing('new')}>
+            {t('bq_packageAdd')}
+          </Button>
+        </div>
+      )}
       {query.data.length === 0 ? (
         <EmptyState icon={CalendarHeart} title={t('bq_packagesEmpty')} text={t('bq_packagesEmptyText')} />
       ) : (
@@ -102,10 +118,12 @@ function PackagesTab({ onNotice }: { onNotice: (message: string) => void }) {
                 <Td numeric>{p.minimum_guests}</Td>
                 <Td muted>{[...p.included, ...p.items.map((item) => `${item.name} ${Number(item.quantity_per_person)} ${t(`bq_unit_${item.unit}`)}`)].join(', ') || '—'}</Td>
                 <Td>
-                  <div className="flex gap-1">
-                    <IconButton icon={Pencil} label={t('bq_editOf', { name: p.name })} onClick={() => setEditing(p)} />
-                    <IconButton icon={Trash2} label={t('bq_deleteOf', { name: p.name })} onClick={() => remove.mutate(p.id)} />
-                  </div>
+                  {!readOnly && (
+                    <div className="flex gap-1">
+                      <IconButton icon={Pencil} label={t('bq_editOf', { name: p.name })} onClick={() => setEditing(p)} />
+                      <IconButton icon={Trash2} label={t('bq_deleteOf', { name: p.name })} onClick={() => remove.mutate(p.id)} />
+                    </div>
+                  )}
                 </Td>
               </tr>
             ))}
@@ -269,7 +287,7 @@ function PackageDialog({ pkg, onClose, onSaved }: { pkg: Package | null; onClose
   );
 }
 
-function ExtrasTab({ onNotice }: { onNotice: (message: string) => void }) {
+function ExtrasTab({ onNotice, readOnly }: { onNotice: (message: string) => void; readOnly: boolean }) {
   const { t, language } = useI18n();
   const query = useBanquetExtras();
   const [editing, setEditing] = useState<Extra | 'new' | null>(null);
@@ -282,11 +300,13 @@ function ExtrasTab({ onNotice }: { onNotice: (message: string) => void }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <Button icon={Plus} onClick={() => setEditing('new')}>
-          {t('bq_extraAdd')}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div>
+          <Button icon={Plus} onClick={() => setEditing('new')}>
+            {t('bq_extraAdd')}
+          </Button>
+        </div>
+      )}
       {query.data.length === 0 ? (
         <EmptyState icon={CalendarHeart} title={t('bq_extrasEmpty')} text={t('bq_extrasEmptyText')} />
       ) : (
@@ -309,10 +329,12 @@ function ExtrasTab({ onNotice }: { onNotice: (message: string) => void }) {
                 <Td numeric>{formatMoney(extra.price, language)}</Td>
                 <Td>{extra.pricing === 'per_person' ? t('bq_perPerson') : t('bq_perEvent')}</Td>
                 <Td>
-                  <div className="flex gap-1">
-                    <IconButton icon={Pencil} label={t('bq_editOf', { name: extra.name })} onClick={() => setEditing(extra)} />
-                    <IconButton icon={Trash2} label={t('bq_deleteOf', { name: extra.name })} onClick={() => remove.mutate(extra.id)} />
-                  </div>
+                  {!readOnly && (
+                    <div className="flex gap-1">
+                      <IconButton icon={Pencil} label={t('bq_editOf', { name: extra.name })} onClick={() => setEditing(extra)} />
+                      <IconButton icon={Trash2} label={t('bq_deleteOf', { name: extra.name })} onClick={() => remove.mutate(extra.id)} />
+                    </div>
+                  )}
                 </Td>
               </tr>
             ))}
@@ -473,15 +495,15 @@ function HallRow({ hall, onNotice }: { hall: HallRates; onNotice: (message: stri
   );
 }
 
-function SettingsTab({ onNotice }: { onNotice: (message: string) => void }) {
+function SettingsTab({ onNotice, readOnly }: { onNotice: (message: string) => void; readOnly: boolean }) {
   const { t } = useI18n();
   const query = useBanquetSettings();
   if (query.isError) return <InlineError title={t('loadErrorTitle')} message={errorText(query.error, t)} retryLabel={t('retry')} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
   if (!query.data) return <CardSkeletons count={1} lines={4} label={t('loading')} />;
-  return <SettingsForm key={query.data.version} settings={query.data} onNotice={onNotice} />;
+  return <SettingsForm key={query.data.version} settings={query.data} onNotice={onNotice} readOnly={readOnly} />;
 }
 
-function SettingsForm({ settings, onNotice }: { settings: Settings; onNotice: (message: string) => void }) {
+function SettingsForm({ settings, onNotice, readOnly }: { settings: Settings; onNotice: (message: string) => void; readOnly: boolean }) {
   const { t } = useI18n();
   const [slots, setSlots] = useState(settings.slots);
   const [hold, setHold] = useState(String(settings.hold_hours));
@@ -523,23 +545,25 @@ function SettingsForm({ settings, onNotice }: { settings: Settings; onNotice: (m
   return (
     <Card>
       <form noValidate onSubmit={submit} className="flex flex-col gap-4">
-        <fieldset className="grid gap-3 sm:grid-cols-3">
-          <legend className="mb-1 text-footnote font-bold text-fg-muted">{t('bq_slotTimes')}</legend>
-          {NAMED_SLOTS.map((slot) => (
-            <div key={slot} className="flex gap-2">
-              <TimeField
-                label={t('bq_slotStart', { slot: t(`bq_slot_${slot}`) })}
-                value={slots[slot].start}
-                onChange={(value) =>
-                  setSlots({
-                    ...slots,
-                    [slot]: { ...slots[slot], start: value },
-                  })
-                }
-              />
-              <TimeField label={t('bq_slotEnd', { slot: t(`bq_slot_${slot}`) })} value={slots[slot].end} onChange={(value) => setSlots({ ...slots, [slot]: { ...slots[slot], end: value } })} />
-            </div>
-          ))}
+        {/* A branch-bound manager reads the store-wide settings: every field disabled, no save */}
+        <fieldset disabled={readOnly} className="contents">
+          <fieldset className="grid gap-3 sm:grid-cols-3">
+            <legend className="mb-1 text-footnote font-bold text-fg-muted">{t('bq_slotTimes')}</legend>
+            {NAMED_SLOTS.map((slot) => (
+              <div key={slot} className="flex gap-2">
+                <TimeField
+                  label={t('bq_slotStart', { slot: t(`bq_slot_${slot}`) })}
+                  value={slots[slot].start}
+                  onChange={(value) =>
+                    setSlots({
+                      ...slots,
+                      [slot]: { ...slots[slot], start: value },
+                    })
+                  }
+                />
+                <TimeField label={t('bq_slotEnd', { slot: t(`bq_slot_${slot}`) })} value={slots[slot].end} onChange={(value) => setSlots({ ...slots, [slot]: { ...slots[slot], end: value } })} />
+              </div>
+            ))}
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label={t('bq_holdHours')} hint={t('bq_holdHoursHint')} value={hold} onChange={setHold} inputMode="numeric" />
@@ -549,12 +573,15 @@ function SettingsForm({ settings, onNotice }: { settings: Settings; onNotice: (m
           <TextField label={t('bq_advanceMxik')} hint={t('bq_mxikHint')} value={advanceMxik} onChange={setAdvanceMxik} inputMode="numeric" maxLength={17} />
           <TextField label={t('bq_cancelMxik')} hint={t('bq_mxikHint')} value={cancelMxik} onChange={setCancelMxik} inputMode="numeric" maxLength={17} />
         </div>
+        </fieldset>
         <FormError message={local} />
-        <div>
-          <Button type="submit" loading={save.isPending}>
-            {t('mgmt_save')}
-          </Button>
-        </div>
+        {!readOnly && (
+          <div>
+            <Button type="submit" loading={save.isPending}>
+              {t('mgmt_save')}
+            </Button>
+          </div>
+        )}
       </form>
     </Card>
   );

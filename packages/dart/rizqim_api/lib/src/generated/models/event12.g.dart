@@ -11,7 +11,6 @@ Event12 _$Event12FromJson(Map<String, dynamic> json) => Event12(
   status: json['status'] as String,
   version: (json['version'] as num).toInt(),
   orderUuid: json['order_uuid'] as String?,
-  startedAt: json['started_at'] as String?,
 );
 
 Map<String, dynamic> _$Event12ToJson(Event12 instance) => <String, dynamic>{
@@ -19,5 +18,4 @@ Map<String, dynamic> _$Event12ToJson(Event12 instance) => <String, dynamic>{
   'status': instance.status,
   'version': instance.version,
   'order_uuid': instance.orderUuid,
-  'started_at': instance.startedAt,
 };

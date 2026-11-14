@@ -47,6 +47,8 @@ Kim nima qiladi (ruxsat `banquets.manage`: menejer va ega):
 | Ishlab chiqarish varag'ini ko'rish | panel va kassa | menejer, kassir, oshxona (`kitchen.manage`) |
 | Shartnoma (ism va telefon bor) | panel va kassa | faqat `banquets.manage` |
 
+Butun do'konga tegishli tadbir sozlamalarini (paketlar, qo'shimchalar, to'lov va bekor qilish qoidalari, shartnoma shabloni) faqat ega yoki filialga biriktirilmagan menejer o'zgartiradi. Filial menejeri ularni ko'radi, lekin o'zgartira olmaydi; zal ijarasi narxlari bundan mustasno, ularni filial menejeri o'z zallari uchun o'zgartiradi.
+
 ## 2. Sozlash: zallar, vaqtlar, paketlar, qo'shimchalar, ijara
 
 **Qayerda:** chap menyuda **Tadbirlar** → yuqoridagi **Paketlar va narxlar**. Sahifada to'rtta yorliq: **Paketlar**, **Qo'shimchalar**, **Zal ijarasi**, **Sozlamalar**.
@@ -125,7 +127,7 @@ Tadbir bekor qilinsa, to'langan puldan qancha **ushlab qolinishi** tadbirgacha q
 
 ## 5. Taqvim va zalni band qilish
 
-**Qayerda (panel):** **Tadbirlar**. **Qayerda (kassa):** chap menyuda **Tadbirlar** (modul yoqiq bo'lsa). Kassada **14 kunlik** ro'yxat kun bo'yicha chiqadi (**Oldingi 2 hafta** / **Keyingi 2 hafta**, **Bugun**), **Hamma zallar** filtri bilan; har tadbirda holat, muddati o'tgan nishoni va **Qoldiq**. **Telefon bo'yicha** qidirish (raqamni to'liq yozing), **Yangi tadbir** (`banquets.manage`) va **Bozorlik ro'yxati** (chek printeriga). Tadbirni bossangiz tadbir kartasi ochiladi. Kassa tadbirlarni faqat internet bilan ishlaydi.
+**Qayerda (panel):** **Tadbirlar**. **Qayerda (kassa):** chap menyuda **Tadbirlar** (modul yoqiq bo'lsa). Kassada **14 kunlik** ro'yxat kun bo'yicha chiqadi (**Oldingi 2 hafta** / **Keyingi 2 hafta**, **Bugun**), **Hamma zallar** filtri bilan; har tadbirda holat, muddati o'tgan nishoni va **Qoldiq**. **Telefon bo'yicha** qidirish (raqamni to'liq yozing), **Yangi tadbir** (`banquets.manage`) va **Bozorlik ro'yxati** (chek printeriga). Tadbirni bossangiz tadbir kartasi ochiladi. Kartada **To'langan** qaytarilgan pulni ayirib ko'rsatadi; yakunlangan yoki bekor qilingan tadbirda **Qoldiq** ko'rinmaydi. Kassa tadbirlarni faqat internet bilan ishlaydi.
 
 Taqvimda **Oy** yoki **Hafta** ko'rinishi, **Bugun**, **Oldingi/Keyingi** va **Bekor qilinganlar ham** kalitlari bor. Qatorlar — zallar, ustunlar — kunlar, har katak — **Ertalab / Kunduzi / Kechqurun**. Tadbir holati rangi va yozuvi bilan ko'rinadi; to'lov muddati o'tgan tadbirda nishon bor.
 
@@ -166,7 +168,7 @@ Shartnoma kuni tadbir kartasida **Narxlarni muzlatish** ni bosing: paket va narx
 2. Qator yonidagi **To'lash** ni bosing: oynada **To'lov summasi** (qatorning hammasi yoki **qismi**) va to'lov turi: **naqd**, **karta** yoki doimiy (statik) **QR**. Qism to'lansa, qolgani o'sha sanaga yangi qator bo'lib qoladi. Bank o'tkazmasi kassada yozilmaydi: "boshqaruv panelida yoziladi" deb ko'rsatiladi. Dinamik Click/Payme QR jadval qatori uchun hozircha yo'q.
 3. **To'lovni olish**. Pul kassaning **ochiq smenasiga** tushadi (smena yopiq bo'lsa "Smena ochilmagan: to'lov olish uchun avval smenani oching" deydi, [kassa.md](kassa.md#4-smenani-ochish)).
 4. Darhol **bo'nak (avans) cheki** chop etiladi ("To'lov qabul qilindi, bo'nak cheki chop etildi"); naqdda kassa qutisi ochiladi, qaytim ko'rsatiladi. Bu tushum emas, oldindan to'lov.
-5. Chek chiqmay qolsa yoki aloqa uzilsa: xabar chiqadi, **xuddi shu to'lovni qayta yuborish xavfsiz**, ikki marta yozilmaydi. Chekni qayta chiqarish: qatorda **Bo'nak chekini qayta chop etish** (nusxa sifatida).
+5. Chek chiqmay qolsa yoki aloqa uzilsa: xabar chiqadi, **xuddi shu to'lovni qayta yuborish xavfsiz**, ikki marta yozilmaydi. Chekni qayta chiqarish: qatorda **Bo'nak chekini qayta chop etish** (nusxa sifatida). Xato bergan avans va qaytarish cheklari har soatda o'zi qayta yuboriladi (ikkinchi chek chiqmaydi).
 
 **Zaklad** qatori to'liq to'langanda tadbir **Tasdiqlangan** bo'ladi va zal muddatsiz band qoladi.
 
@@ -181,6 +183,10 @@ Mijoz bank orqali o'tkazgan pul:
 3. **Saqlash**.
 
 Bu to'lov **smenaga tushmaydi va chek chiqmaydi** (hisob-faktura tizimdan tashqarida). U to'langan summaga kiradi va yakuniy chekda zaklad kabi oldindan to'lov sifatida ayiriladi.
+
+Har bir o'tkazma haqida egasiga Telegram xabari boradi (summa va to'lov topshirig'i). Bir to'lov topshirig'ini bitta tadbirga ikki marta yozib bo'lmaydi. Xato yozilgan o'tkazmani **Pul harakatlari** jadvalida **Bekor qilish** (sabab bilan) orqali bekor qiling: qator yana to'lanmagan bo'ladi, egasiga xabar boradi; boshqa hech narsa to'lanmagan bo'lsa, tadbir yana bron holatiga qaytadi. Kassadagi PIN sessiyasida o'tkazma yozilmaydi.
+
+**Yakuniy hisobdan keyin.** Yakuniy hisob (schyot) chiqqandan keyin to'lov jadvali yopiladi: qatorlarni o'zgartirish, qator to'lovi va bank o'tkazmasini yozish yoki bekor qilish mumkin emas. Qoldiq faqat yakuniy schyotda kassada naqd, karta yoki QR bilan to'lanadi. Mijoz qoldiqni bank orqali o'tkazmoqchi bo'lsa, o'tkazmani **yakuniy hisobdan oldin** yozing — keyin qoldiqni bank o'tkazmasi bilan to'lab bo'lmaydi.
 
 > **Buxgalter uchun.** Bank o'tkazmasi bo'yicha fiskal chek chiqmaydi: bu egasining qarori. Yakuniy chek to'liq summaga chiqadi va o'tkazmani oldindan to'lov sifatida ko'rsatadi. Bo'nak cheki va "Bekor qilish haqi" cheki MXIK kodlarini tasdiqlang.
 
@@ -247,7 +253,11 @@ Agar 210 mehmon kelsa, paket 150 000 × 210 = 31 500 000 (haqiqiy son).
 4. Qoldiq summa odatdagi **to'lov sahifasida** olinadi: naqd, karta, QR, aralash, nasiya ([kassa.md](kassa.md#12-tolov-turlari)). Zakladlar schyotni to'liq yopsa, to'lov sahifasi emas, schyot sahifasi ochiladi ("Schyot zakladlardan to'liq yopildi").
 5. Schyot yopilganda **BITTA sotuv cheki** chiqadi: **to'liq summa** (36 000 000), zakladlar to'lovning "oldindan to'lov" qismi sifatida. Buyurtma yopiladi, tadbir **Yakunlangan** bo'ladi, zal bo'shaydi.
 
-**Tadbir hisobini yopishni faqat shu yo'l bilan qiling.** Agar tadbir kuni buyurtmaning schyotini oddiy yo'l bilan alohida to'lab yopsangiz, **Qoldiqni to'lash** "buyurtma yopilgan" deydi: tadbir hisobi buzilmasin deb, hamisha **Yakuniy hisob** orqali ishlang.
+Tadbir kuni buyurtmasi kassada oddiy **Schyot** yoki **To'lov** orqali to'lanmaydi, faqat **Yakuniy hisob** orqali: buyurtma ekranida "Yakuniy hisob orqali to'lanadi" yozuvi va **Yakuniy hisob** tugmasi chiqadi.
+
+**Tadbir hisobi faqat shu yo'l bilan yopiladi.** Tadbir kuni buyurtmasida oddiy **Schyot** va **To'lov** ishlamaydi: kassa "Yakuniy hisob orqali to'lanadi" deydi va **Yakuniy hisob** tugmasini ko'rsatadi. Shunda zakladlar yo'qolmaydi va paket, zal, qo'shimchalar hisobdan tushib qolmaydi.
+
+Yakuniy chek chiqqandan keyin tadbir buyurtmasiga qo'shilgan buyurtma alohida schyot va alohida chek bo'ladi.
 
 ### Zaklad summadan ko'p bo'lsa
 
@@ -261,7 +271,7 @@ Panelda **Yakuniy hisob** sahifasi faqat ko'rsatadi: yakunlash va to'lov kassada
 ## 10. Tadbir kuni
 
 1. Tadbir kuni kassada tadbir kartasida **Tadbirni boshlash** ni bosing (tadbir **Tasdiqlangan** bo'lishi kerak: zaklad to'langan).
-2. Kassa **tadbir kuni buyurtmasini** (**Tadbir buyurtmasi**) ochadi: oddiy buyurtma ekrani, sarlavhasi **Tadbir: <tadbir nomi>**; stolsiz zal buyurtmasi. Zal ijarasi bu buyurtmada hisoblanmaydi (u paketda).
+2. Kassa **tadbir kuni buyurtmasini** (**Tadbir buyurtmasi**) ochadi: oddiy buyurtma ekrani, sarlavhasi **Tadbir: <tadbir nomi>**; stolsiz zal buyurtmasi. Zal ijarasi bu buyurtmada hisoblanmaydi (u paketda). Oshxona chekida va oshxona ekranida mijoz ismi chiqmaydi: faqat tadbir turi, zal va sana.
 3. Ichimlik va qo'shimcha taomlar shu buyurtmaga **oddiy bosqichlar** bilan qo'shiladi va **oshxonaga yuboriladi** (oshxona ekrani va printer avvalgidek). Xizmat haqi shu qatorlarga filial qoidasi bilan qo'shiladi.
 4. Mehmonlar kelganda **Kelgan mehmonlar** sonini yozing (yakuniy hisobga ta'sir qiladi, [9-bo'lim](#9-yakuniy-hisob)). Bir necha marta o'zgartirish mumkin.
 5. Tadbir tugagach — **Yakuniy hisob**.
@@ -326,7 +336,8 @@ Kassadagi X va Z hisobotda (ekranda ham, chekda ham) **Tadbirlar** bo'limi: shu 
 | Paketni almashtirib bo'lmaydi | Narxlar muzlatilgan. Avval **Muzlatishni bekor qilish** ([6-bo'lim](#6-narxlarni-muzlatish-va-shartnoma)). |
 | To'lov olinmaydi: "smena ochiq emas" | Kassada smena yo'q. Smenani oching ([kassa.md](kassa.md#4-smenani-ochish)). |
 | Jadvalni saqlab bo'lmaydi: yig'indi mos emas | To'lanmagan qatorlar yig'indisi qolgan summaga teng bo'lsin. Panel kerakli summani ko'rsatadi. |
-| **Qoldiqni to'lash**: "buyurtma yopilgan" | Tadbir kuni buyurtma schyotini alohida to'lab yopilgan. Tadbir hisobi faqat **Yakuniy hisob** orqali yopiladi; menejerga ayting. |
+| Tadbir buyurtmasi avval oddiy yo'l bilan to'lab yopilgan, tadbir esa "Boshlangan" bo'lib turibdi | Tadbir kartasidan **Yakuniy hisob**ni bosing: buyurtma qayta ochiladi, paket, zal va qo'shimchalar alohida schyot bo'ladi, zakladlar undan ayiriladi. Bu holatda ikkita sotuv cheki bo'ladi (avvalgi to'lov va tadbir hisobi). |
+| Tadbir kuni buyurtmasida **Schyot** yoki **To'lov** ishlamaydi | Bu buyurtma faqat **Yakuniy hisob** orqali to'lanadi ([9-bo'lim](#9-yakuniy-hisob)). |
 | Yakuniy chek chiqmadi: MXIK yo'q | **Ishlab chiqarish sozlamalari**da yakuniy chek MXIK kodlarini kiriting (buxgalter tasdiqlaydi). |
 | Ortiqcha zaklad qaytarilmadi | Smena ochiq emas yoki menejer tasdig'i yo'q. Smenani oching, **Ortiqcha zakladni qaytarish** ni menejer PIN'i bilan bajaring. |
 | Naqd qaytarish panelda ishlamadi | Naqd qaytarish kassaning ochiq smenasidan: bekor qilishni kassada bajaring. |

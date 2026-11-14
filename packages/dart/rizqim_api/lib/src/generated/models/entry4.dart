@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user25.dart';
+import 'user26.dart';
 import 'approved_by4.dart';
 
 part 'entry4.g.dart';
@@ -52,7 +52,7 @@ class Entry4 {
   final String? fiscalStatus;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final User25? user;
+  final User26? user;
   @JsonKey(name: 'approved_by')
   final ApprovedBy4? approvedBy;
   final String? note;

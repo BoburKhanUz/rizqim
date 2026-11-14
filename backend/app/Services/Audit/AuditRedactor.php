@@ -19,8 +19,10 @@ final class AuditRedactor
         // X-Auth, X-XSRF-TOKEN, sign / sign_string, Bearer values, session ids
         'authorization', 'cookie', 'auth', 'sign', 'signstring', 'bearer', 'session', 'sessionid', 'xsrf', 'csrf'];
 
-    // ... except these, which only name or number a record (an order's short code, a terminal staff code)
-    private const NOT_SECRET = ['short_code', 'staff_code'];
+    // ... except these, which only name or number a record (an order's short code, a terminal staff code) or are a
+    // public fiscal classifier (P6 wave 5 S5: the banquet settings' package codes — the unit-of-measure code printed on
+    // every fiscal receipt line next to the MXIK). Exact key names only: voucher_code, promo_code, ... stay redacted
+    private const NOT_SECRET = ['short_code', 'staff_code', 'package_code', 'advance_package_code', 'cancellation_package_code'];
 
     private const PHONE_PARTS = ['phone', 'mobile', 'tel', 'telephone'];
 

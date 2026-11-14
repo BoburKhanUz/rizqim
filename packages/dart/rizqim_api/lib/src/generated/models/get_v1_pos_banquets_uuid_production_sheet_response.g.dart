@@ -12,7 +12,7 @@ _$GetV1PosBanquetsUuidProductionSheetResponseFromJson(
 ) => GetV1PosBanquetsUuidProductionSheetResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data236.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data237.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosBanquetsUuidProductionSheetResponseToJson(

@@ -29,7 +29,8 @@ class IngredientController extends ManagementController
      * The store's ingredients
      *
      * Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped
-     * now: {branch_id, entry_id, reason, until}) and `stopped_here` (on `branch_id`, when given).
+     * now: {branch_id, entry_id, reason, until}; a caller bound to one branch: that branch only) and `stopped_here`
+     * (on `branch_id`, when given).
      */
     #[QueryParameter('branch_id', description: 'The branch `stopped_here` is about (a branch-bound caller: their own).', type: 'int', required: false)]
     public function index(Request $request): JsonResponse
@@ -38,10 +39,12 @@ class IngredientController extends ManagementController
         $branch = $this->branchFilter($request, $this->permissions->allows($request->user(), Permission::STOPLIST_MANAGE) ? Permission::STOPLIST_MANAGE : Permission::MENU_VIEW);
         $service = app(IngredientService::class);
         $ingredients = Ingredient::where('store_id', $this->storeId($request))->orderBy('name')->get();
+        // A caller bound to one branch sees where the ingredient is stopped on their branch only
+        $visible = $this->permissions->actingBranchId($request->user());
 
         return $this->success([
             'branch_id' => $branch?->id,
-            'ingredients' => $ingredients->map(fn (Ingredient $ingredient) => $service->present($ingredient, $branch?->id))->values()->all(),
+            'ingredients' => $ingredients->map(fn (Ingredient $ingredient) => $service->present($ingredient, $branch?->id, $visible))->values()->all(),
         ]);
     }
 
@@ -59,7 +62,7 @@ class IngredientController extends ManagementController
 
         $service = app(IngredientService::class);
 
-        return $this->success($service->present($service->create($this->storeId($request), $data)), "Ingredient qo'shildi.", 201);
+        return $this->success($service->present($service->create($this->storeId($request), $data), null, $this->permissions->actingBranchId($request->user())), "Ingredient qo'shildi.", 201);
     }
 
     /**
@@ -75,7 +78,7 @@ class IngredientController extends ManagementController
 
         $service = app(IngredientService::class);
 
-        return $this->success($service->present($service->update($ingredient, $data)), 'Ingredient saqlandi.');
+        return $this->success($service->present($service->update($ingredient, $data), null, $this->permissions->actingBranchId($request->user())), 'Ingredient saqlandi.');
     }
 
     /**
@@ -107,7 +110,7 @@ class IngredientController extends ManagementController
 
         $service = app(IngredientService::class);
 
-        return $this->success($service->present($service->setLinks($ingredient, $data['links'])), "Bog'lanishlar saqlandi.");
+        return $this->success($service->present($service->setLinks($ingredient, $data['links']), null, $this->permissions->actingBranchId($request->user())), "Bog'lanishlar saqlandi.");
     }
 
     /**
@@ -127,7 +130,7 @@ class IngredientController extends ManagementController
         $service = app(IngredientService::class);
         $added = $service->linkCategories($ingredient, array_map('intval', $data['category_ids']), (bool) ($data['is_critical'] ?? true));
 
-        return $this->success(['added' => $added] + $service->present($ingredient), "Bog'lanishlar qo'shildi.");
+        return $this->success(['added' => $added] + $service->present($ingredient, null, $this->permissions->actingBranchId($request->user())), "Bog'lanishlar qo'shildi.");
     }
 
     /**

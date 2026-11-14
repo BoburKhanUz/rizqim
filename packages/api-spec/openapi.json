@@ -46902,7 +46902,7 @@
         "/v1/owner/brands/{id}/branches": {
             "put": {
                 "operationId": "brand.branches",
-                "description": "`branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every\nchannel); a branch left out keeps its state.",
+                "description": "`branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every\nchannel); a branch left out keeps its state. Each branch sent needs menu.manage there (a caller bound to one\nbranch: their own only, another branch 403).",
                 "summary": "Switch a brand on or off on branches",
                 "tags": [
                     "Owner: brands"
@@ -57010,7 +57010,7 @@
         "/v1/owner/ingredients": {
             "get": {
                 "operationId": "ingredient.index",
-                "description": "Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped\nnow: {branch_id, entry_id, reason, until}) and `stopped_here` (on `branch_id`, when given).",
+                "description": "Each: `id`, `uuid`, `name`, `unit`, `links` ({product_id, name, is_critical}), `stopped` (where it is stopped\nnow: {branch_id, entry_id, reason, until}; a caller bound to one branch: that branch only) and `stopped_here`\n(on `branch_id`, when given).",
                 "summary": "The store's ingredients",
                 "tags": [
                     "Owner: ingredients"
@@ -62119,7 +62119,7 @@
             },
             "put": {
                 "operationId": "banquetOpsSettings.update",
-                "description": "Only the fields sent change. `reserve_percent` 0–50; `osh`: {persons_per_kg 1–20, ingredients: [{key, name,\nunit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};\n`portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent\nand extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000\ncharacters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Audited.",
+                "description": "Only the fields sent change. `reserve_percent` 0–50; `osh`: {persons_per_kg 1–20, ingredients: [{key, name,\nunit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};\n`portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent\nand extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000\ncharacters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Store-wide:\na caller bound to one branch is refused (403 `store_wide_only`). Audited.",
                 "summary": "Change the banquet operations settings",
                 "tags": [
                     "Owner: banquets"
@@ -63304,7 +63304,7 @@
             },
             "put": {
                 "operationId": "banquetPayments.updateSettings",
-                "description": "Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents\nup to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days\nbefore a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new\nschedules and cancellations from now on. Needs banquets.manage and the `banquet` module; audited.",
+                "description": "Any of: `schedule_template` (1–8 rows; the last a `final` row with `percent` null; at most one deposit; percents\nup to 100 in all), `cancellation_rules` (1–10 rows, distinct `min_days`, one of them 0), `reminder_days` (days\nbefore a due date, 0–60), `overdue_reminders`. `version` (from GET) refuses a stale save. Changes apply to new\nschedules and cancellations from now on. Needs banquets.manage and the `banquet` module; store-wide: a caller\nbound to one branch is refused (403 `store_wide_only`). Audited.",
                 "summary": "Save banquet payment rules",
                 "tags": [
                     "Owner: banquet payments"
@@ -63596,6 +63596,9 @@
                                                 "total": {
                                                     "type": "string"
                                                 },
+                                                "received": {
+                                                    "type": "string"
+                                                },
                                                 "paid": {
                                                     "type": "string"
                                                 },
@@ -63688,6 +63691,9 @@
                                                             "paid": {
                                                                 "type": "string"
                                                             },
+                                                            "received": {
+                                                                "type": "string"
+                                                            },
                                                             "refunded": {
                                                                 "type": "string"
                                                             },
@@ -63721,6 +63727,7 @@
                                                             "guests",
                                                             "total",
                                                             "paid",
+                                                            "received",
                                                             "refunded",
                                                             "retained",
                                                             "outstanding",
@@ -63739,6 +63746,7 @@
                                                 "by_status",
                                                 "guests",
                                                 "total",
+                                                "received",
                                                 "paid",
                                                 "outstanding",
                                                 "overdue",
@@ -63923,7 +63931,7 @@
             },
             "put": {
                 "operationId": "banquetSetup.updateSettings",
-                "description": "Only the fields sent change. `slots`: {morning|day|evening: {start, end}} (\"HH:MM\", an end before the start is\nthe next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window\nare warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the\naccountant confirms them). Audited.",
+                "description": "Only the fields sent change. `slots`: {morning|day|evening: {start, end}} (\"HH:MM\", an end before the start is\nthe next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window\nare warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the\naccountant confirms them). Store-wide: a caller bound to one branch is refused (403 `store_wide_only`). Audited.",
                 "summary": "Change the banquet settings",
                 "tags": [
                     "Owner: banquets"
@@ -81954,7 +81962,7 @@
         "/v1/pos/banquets": {
             "get": {
                 "operationId": "banquet.index",
-                "description": "Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4\ndigits): the customer's events across dates, newest first. Filter by `status`. At most 200.",
+                "description": "Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4\ndigits): the customer's events across dates, newest first — at most 20 searches a minute per staff member and\nper terminal (429 `search_rate_limited`). Filter by `status`. At most 200.",
                 "summary": "Banquet events (list, search by phone)",
                 "tags": [
                     "POS: banquets"
@@ -82134,6 +82142,12 @@
                                                             "paid_total": {
                                                                 "type": "string"
                                                             },
+                                                            "paid": {
+                                                                "type": "string"
+                                                            },
+                                                            "refunded": {
+                                                                "type": "string"
+                                                            },
                                                             "outstanding": {
                                                                 "type": "string"
                                                             },
@@ -82186,6 +82200,8 @@
                                                             "package_name",
                                                             "total",
                                                             "paid_total",
+                                                            "paid",
+                                                            "refunded",
                                                             "outstanding",
                                                             "hold_expires_at",
                                                             "frozen",
@@ -82541,6 +82557,12 @@
                                                 "paid_total": {
                                                     "type": "string"
                                                 },
+                                                "paid": {
+                                                    "type": "string"
+                                                },
+                                                "refunded": {
+                                                    "type": "string"
+                                                },
                                                 "outstanding": {
                                                     "type": "string"
                                                 },
@@ -82860,6 +82882,8 @@
                                                 "package_name",
                                                 "total",
                                                 "paid_total",
+                                                "paid",
+                                                "refunded",
                                                 "outstanding",
                                                 "hold_expires_at",
                                                 "frozen",
@@ -83174,6 +83198,12 @@
                                                                         "paid_total": {
                                                                             "type": "string"
                                                                         },
+                                                                        "paid": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "refunded": {
+                                                                            "type": "string"
+                                                                        },
                                                                         "outstanding": {
                                                                             "type": "string"
                                                                         },
@@ -83226,6 +83256,8 @@
                                                                         "package_name",
                                                                         "total",
                                                                         "paid_total",
+                                                                        "paid",
+                                                                        "refunded",
                                                                         "outstanding",
                                                                         "hold_expires_at",
                                                                         "frozen",
@@ -84221,6 +84253,12 @@
                                                 "paid_total": {
                                                     "type": "string"
                                                 },
+                                                "paid": {
+                                                    "type": "string"
+                                                },
+                                                "refunded": {
+                                                    "type": "string"
+                                                },
                                                 "outstanding": {
                                                     "type": "string"
                                                 },
@@ -84540,6 +84578,8 @@
                                                 "package_name",
                                                 "total",
                                                 "paid_total",
+                                                "paid",
+                                                "refunded",
                                                 "outstanding",
                                                 "hold_expires_at",
                                                 "frozen",
@@ -84903,6 +84943,12 @@
                                                 "paid_total": {
                                                     "type": "string"
                                                 },
+                                                "paid": {
+                                                    "type": "string"
+                                                },
+                                                "refunded": {
+                                                    "type": "string"
+                                                },
                                                 "outstanding": {
                                                     "type": "string"
                                                 },
@@ -85222,6 +85268,8 @@
                                                 "package_name",
                                                 "total",
                                                 "paid_total",
+                                                "paid",
+                                                "refunded",
                                                 "outstanding",
                                                 "hold_expires_at",
                                                 "frozen",
@@ -85522,6 +85570,9 @@
                                                         },
                                                         "version": {
                                                             "type": "integer"
+                                                        },
+                                                        "billed": {
+                                                            "type": "boolean"
                                                         }
                                                     },
                                                     "required": [
@@ -85531,7 +85582,8 @@
                                                         "event_date",
                                                         "total",
                                                         "paid_total",
-                                                        "version"
+                                                        "version",
+                                                        "billed"
                                                     ]
                                                 },
                                                 "summary": {
@@ -86357,6 +86409,12 @@
                                                 "paid_total": {
                                                     "type": "string"
                                                 },
+                                                "paid": {
+                                                    "type": "string"
+                                                },
+                                                "refunded": {
+                                                    "type": "string"
+                                                },
                                                 "outstanding": {
                                                     "type": "string"
                                                 },
@@ -86676,6 +86734,8 @@
                                                 "package_name",
                                                 "total",
                                                 "paid_total",
+                                                "paid",
+                                                "refunded",
                                                 "outstanding",
                                                 "hold_expires_at",
                                                 "frozen",
@@ -87045,6 +87105,38 @@
                                                                         "string",
                                                                         "null"
                                                                     ]
+                                                                },
+                                                                "extra_bills": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "uuid": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "status": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "total": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "paid_amount": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "uuid",
+                                                                            "status",
+                                                                            "total",
+                                                                            "paid_amount"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "extra_bills_notice": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -87054,7 +87146,9 @@
                                                                 "applied_amount",
                                                                 "excess_amount",
                                                                 "excess_status",
-                                                                "settled_at"
+                                                                "settled_at",
+                                                                "extra_bills",
+                                                                "extra_bills_notice"
                                                             ]
                                                         },
                                                         "warnings": {
@@ -87175,6 +87269,9 @@
                                                         },
                                                         "version": {
                                                             "type": "integer"
+                                                        },
+                                                        "billed": {
+                                                            "type": "boolean"
                                                         }
                                                     },
                                                     "required": [
@@ -87184,7 +87281,8 @@
                                                         "event_date",
                                                         "total",
                                                         "paid_total",
-                                                        "version"
+                                                        "version",
+                                                        "billed"
                                                     ]
                                                 },
                                                 "summary": {
@@ -87630,7 +87728,7 @@
             },
             "put": {
                 "operationId": "banquetPayment.update",
-                "description": "`rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or\nfinal; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with\n`expected`). Paid rows never change. `version`: the event's (409 `version_conflict`). Needs banquets.manage and\nthe `banquet` module; audited.",
+                "description": "`rows`: the unpaid rows as they should be (`uuid` of an existing unpaid row keeps it; `kind` deposit, interim or\nfinal; `due_date`; `amount`); they must add up to what is still to pay (422 `schedule_sum_mismatch` with\n`expected`; the same `uuid` twice: 422). Paid rows never change. `version`: the event's (409 `version_conflict`).\nOnce the final settlement exists (the event is billed, `event.billed`) the schedule is closed: 409\n`event_billed` (the remainder is paid on the settlement bill). Needs banquets.manage and the `banquet` module;\naudited.",
                 "summary": "Edit the unpaid rows of the schedule",
                 "tags": [
                     "POS: banquet payments"
@@ -87694,7 +87792,8 @@
                                                 "amount"
                                             ]
                                         },
-                                        "maxItems": 24
+                                        "maxItems": 24,
+                                        "uniqueItems": true
                                     },
                                     "version": {
                                         "type": [
@@ -87751,6 +87850,9 @@
                                                         },
                                                         "version": {
                                                             "type": "integer"
+                                                        },
+                                                        "billed": {
+                                                            "type": "boolean"
                                                         }
                                                     },
                                                     "required": [
@@ -87760,7 +87862,552 @@
                                                         "event_date",
                                                         "total",
                                                         "paid_total",
-                                                        "version"
+                                                        "version",
+                                                        "billed"
+                                                    ]
+                                                },
+                                                "summary": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "paid": {
+                                                            "type": "string"
+                                                        },
+                                                        "outstanding": {
+                                                            "type": "string"
+                                                        },
+                                                        "overdue": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "overdue_amount": {
+                                                            "type": "string"
+                                                        },
+                                                        "overdue_count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "next_due": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "date": {
+                                                                    "type": "string"
+                                                                },
+                                                                "amount": {
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "date",
+                                                                "amount",
+                                                                "kind"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "total",
+                                                        "paid",
+                                                        "outstanding",
+                                                        "overdue",
+                                                        "overdue_amount",
+                                                        "overdue_count",
+                                                        "next_due"
+                                                    ]
+                                                },
+                                                "rows": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "due_date": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "status": {
+                                                                "type": "string"
+                                                            },
+                                                            "status_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "overdue": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "tender": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "card_type": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "transaction_id": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reference": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "shift_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "paid_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "paid_by": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "fiscal": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "receipt_uuid": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "status": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "receipt_uuid",
+                                                                    "status"
+                                                                ]
+                                                            },
+                                                            "refunded_amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "retained_amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "settle_receipt_uuid": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "note": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "kind",
+                                                            "kind_label",
+                                                            "due_date",
+                                                            "amount",
+                                                            "status",
+                                                            "status_label",
+                                                            "overdue",
+                                                            "tender",
+                                                            "card_type",
+                                                            "transaction_id",
+                                                            "reference",
+                                                            "shift_id",
+                                                            "paid_at",
+                                                            "paid_by",
+                                                            "fiscal",
+                                                            "refunded_amount",
+                                                            "retained_amount",
+                                                            "settle_receipt_uuid",
+                                                            "note"
+                                                        ]
+                                                    }
+                                                },
+                                                "entries": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            },
+                                                            "type_label": {
+                                                                "type": "string"
+                                                            },
+                                                            "payment_uuid": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            },
+                                                            "tender": {
+                                                                "type": "string"
+                                                            },
+                                                            "card_type": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reference": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "business_date": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "shift_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "user": {
+                                                                "type": [
+                                                                    "object",
+                                                                    "null"
+                                                                ],
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name"
+                                                                ]
+                                                            },
+                                                            "approved_by": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "reason": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "transfer_pending": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "fiscal": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "receipt_uuid": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "status": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "receipt_uuid",
+                                                                    "status"
+                                                                ]
+                                                            },
+                                                            "original_receipt_uuid": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "created_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "type",
+                                                            "type_label",
+                                                            "payment_uuid",
+                                                            "amount",
+                                                            "tender",
+                                                            "card_type",
+                                                            "reference",
+                                                            "business_date",
+                                                            "shift_id",
+                                                            "user",
+                                                            "approved_by",
+                                                            "reason",
+                                                            "transfer_pending",
+                                                            "fiscal",
+                                                            "original_receipt_uuid",
+                                                            "created_at"
+                                                        ]
+                                                    }
+                                                },
+                                                "cancellation": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "days_before": {
+                                                            "type": "integer"
+                                                        },
+                                                        "rule_percent": {
+                                                            "type": "string"
+                                                        },
+                                                        "paid": {
+                                                            "type": "string"
+                                                        },
+                                                        "computed_retained": {
+                                                            "type": "string"
+                                                        },
+                                                        "retained": {
+                                                            "type": "string"
+                                                        },
+                                                        "refund": {
+                                                            "type": "string"
+                                                        },
+                                                        "override_reason": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reason": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "business_date": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "cancelled_by": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "created_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "days_before",
+                                                        "rule_percent",
+                                                        "paid",
+                                                        "computed_retained",
+                                                        "retained",
+                                                        "refund",
+                                                        "override_reason",
+                                                        "reason",
+                                                        "business_date",
+                                                        "cancelled_by",
+                                                        "created_at"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "event",
+                                                "summary",
+                                                "rows",
+                                                "entries",
+                                                "cancellation"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/pos/banquets/{uuid}/payments/transfers/{entry}": {
+            "delete": {
+                "operationId": "banquetPayment.voidTransfer",
+                "description": "`reason` (query, required). Only before the event is billed (409 `event_billed`) and while it is live (409\n`event_not_payable`); 409 `transfer_not_voidable` when its row was refunded or retained. The entry stays in the\nlist as `transfer_void` (no longer money received), its row is unpaid again and the paid total goes down; a\nconfirmed event with nothing else paid becomes a hold again with a fresh hold time, otherwise it stays\nconfirmed. Audited (`banquet.transfer_voided`); the owner gets a Telegram alert. Voiding it again changes\nnothing. Needs banquets.manage from the web panel (403 `panel_only`). Not a transfer of this event: 404.",
+                "summary": "Void a bank transfer recorded by mistake",
+                "tags": [
+                    "POS: banquet payments"
+                ],
+                "parameters": [
+                    {
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "entry",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "reason",
+                        "in": "query",
+                        "required": true,
+                        "description": "Why the transfer is voided (3–500 characters).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "description": "Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "event": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "uuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "status_label": {
+                                                            "type": "string"
+                                                        },
+                                                        "event_date": {
+                                                            "type": "string"
+                                                        },
+                                                        "total": {
+                                                            "type": "string"
+                                                        },
+                                                        "paid_total": {
+                                                            "type": "string"
+                                                        },
+                                                        "version": {
+                                                            "type": "integer"
+                                                        },
+                                                        "billed": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "uuid",
+                                                        "status",
+                                                        "status_label",
+                                                        "event_date",
+                                                        "total",
+                                                        "paid_total",
+                                                        "version",
+                                                        "billed"
                                                     ]
                                                 },
                                                 "summary": {
@@ -88211,7 +88858,7 @@
         "/v1/pos/banquets/{uuid}/payments/{row}/bank-transfer": {
             "post": {
                 "operationId": "banquetPayment.transfer",
-                "description": "The manager records money the customer sent by bank transfer: `reference` (the payment order number), `paid_on`\n(default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the\ninvoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale\nreceipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs\nbanquets.manage. The same Idempotency-Key returns the same entry.",
+                "description": "The manager records money the customer sent by bank transfer: `reference` (the payment order number), `paid_on`\n(default today, never in the future), optional `amount` (a part of the row). No shift and no receipt (the\ninvoice/ESF is issued outside the system); it counts in the event's paid total and is offset in the final sale\nreceipt as prepayment like the advances. Confirms the event like a deposit paid at the till. Needs\nbanquets.manage from the web panel (a terminal PIN session: 403 `panel_only`). The owner gets a Telegram alert\nwith the amount and the reference. The same `reference` already recorded on this event (ignoring case): 409\n`transfer_duplicate`. Only before the final settlement (409 `event_billed`: after it the remainder is paid on the\nsettlement bill by cash, card or QR). The same Idempotency-Key returns the same entry.",
                 "summary": "Record a bank transfer against a row",
                 "tags": [
                     "POS: banquet payments"
@@ -88319,6 +88966,9 @@
                                                                 },
                                                                 "version": {
                                                                     "type": "integer"
+                                                                },
+                                                                "billed": {
+                                                                    "type": "boolean"
                                                                 }
                                                             },
                                                             "required": [
@@ -88328,7 +88978,8 @@
                                                                 "event_date",
                                                                 "total",
                                                                 "paid_total",
-                                                                "version"
+                                                                "version",
+                                                                "billed"
                                                             ]
                                                         },
                                                         "summary": {
@@ -88923,7 +89574,7 @@
         "/v1/pos/banquets/{uuid}/payments/{row}/pay": {
             "post": {
                 "operationId": "banquetPayment.pay",
-                "description": "The row's amount (or a part: `amount`; the rest stays an unpaid row with the same date) by `tender` cash, card\n(`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money\nlands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under\n`banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its\ndeposit row is paid in full. 409 `payment_not_due`, `event_not_payable`; 422 `amount_exceeds_row`,\n`tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The\nsame Idempotency-Key returns the same payment.",
+                "description": "The row's amount (or a part: `amount`; the rest stays an unpaid row with the same date) by `tender` cash, card\n(`card_type` and the terminal's `transaction_id` required) or qr (a static QR; optional `reference`). The money\nlands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`) — the X/Z shows it under\n`banquets.taken` — and an ADVANCE receipt is issued at once (`fiscal`). The event becomes `confirmed` once its\ndeposit row is paid in full. 409 `payment_not_due`, `event_not_payable`, `event_billed` (the final settlement\nexists: pay the settlement bill instead); 422 `amount_exceeds_row`,\n`tender_invalid`, `card_type_required`, `transaction_id_required`, `mxik_missing`. Needs pos.take_payment. The\nsame Idempotency-Key returns the same payment.",
                 "summary": "Take a scheduled payment at the till",
                 "tags": [
                     "POS: banquet payments"
@@ -89055,6 +89706,9 @@
                                                                 },
                                                                 "version": {
                                                                     "type": "integer"
+                                                                },
+                                                                "billed": {
+                                                                    "type": "boolean"
                                                                 }
                                                             },
                                                             "required": [
@@ -89064,7 +89718,8 @@
                                                                 "event_date",
                                                                 "total",
                                                                 "paid_total",
-                                                                "version"
+                                                                "version",
+                                                                "billed"
                                                             ]
                                                         },
                                                         "summary": {
@@ -90288,7 +90943,7 @@
         "/v1/pos/banquets/{uuid}/settle": {
             "post": {
                 "operationId": "banquetOps.settle",
-                "description": "At the till: the package, hall rent and extras join the event's order as its `banquet` charge, the order is billed\nas one bill and the paid advances are offset on it (prepayment, in the open shift: `shift_uuid` or the\nterminal's). The answer carries the `bill`: pay what is left on POST /pos/bills/{uuid}/payments with any tender;\nonce it is covered ONE sale receipt is issued for the full total (the advances as its prepayment part), the order\ncloses and the event becomes `settled`. Advances over the total are refunded against their advance receipts (cash\nfrom the drawer needs pos.refund or a manager's `approval_token`; else `excess_status` stays `pending` — POST\n.../settlement/refund-excess). Retrying before money is on the bill recomputes it. 409 `invalid_transition`,\n`order_closed`, `shift_not_open`; 422 `mxik_missing`. pos.take_payment.",
+                "description": "At the till: the package, hall rent and extras join the event's order as its `banquet` charge, the order is billed\nas one bill and the paid advances are offset on it (prepayment, in the open shift: `shift_uuid` or the\nterminal's). The answer carries the `bill`: pay what is left on POST /pos/bills/{uuid}/payments with any tender;\nonce it is covered ONE sale receipt is issued for the full total (the advances as its prepayment part), the order\ncloses and the event becomes `settled`. Advances over the total are refunded against their advance receipts (cash\nfrom the drawer needs pos.refund or a manager's `approval_token`; else `excess_status` stays `pending` — POST\n.../settlement/refund-excess). Retrying before money is on the bill recomputes it; lines added after only the\nadvances were offset are billed again onto the same settlement; once its receipt exists, lines added since are\nbilled apart and `bill` is that bill (its own receipt; `settlement.settlement.extra_bills`). An order closed by\na direct payment before the settlement is opened again for it (the banquet charge on a bill of its own). 409\n`invalid_transition`, `order_closed`, `shift_not_open`, `stale_version`; 422 `mxik_missing`. pos.take_payment.",
                 "summary": "Settle the event",
                 "tags": [
                     "POS: banquet operations"
@@ -90579,6 +91234,38 @@
                                                                         "string",
                                                                         "null"
                                                                     ]
+                                                                },
+                                                                "extra_bills": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "uuid": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "status": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "total": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "paid_amount": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "uuid",
+                                                                            "status",
+                                                                            "total",
+                                                                            "paid_amount"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "extra_bills_notice": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
                                                                 }
                                                             },
                                                             "required": [
@@ -90588,7 +91275,9 @@
                                                                 "applied_amount",
                                                                 "excess_amount",
                                                                 "excess_status",
-                                                                "settled_at"
+                                                                "settled_at",
+                                                                "extra_bills",
+                                                                "extra_bills_notice"
                                                             ]
                                                         },
                                                         "warnings": {
@@ -91784,6 +92473,38 @@
                                                                 "string",
                                                                 "null"
                                                             ]
+                                                        },
+                                                        "extra_bills": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "status": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "total": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "paid_amount": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "status",
+                                                                    "total",
+                                                                    "paid_amount"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "extra_bills_notice": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -91793,7 +92514,9 @@
                                                         "applied_amount",
                                                         "excess_amount",
                                                         "excess_status",
-                                                        "settled_at"
+                                                        "settled_at",
+                                                        "extra_bills",
+                                                        "extra_bills_notice"
                                                     ]
                                                 },
                                                 "warnings": {
@@ -92124,6 +92847,38 @@
                                                                 "string",
                                                                 "null"
                                                             ]
+                                                        },
+                                                        "extra_bills": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "uuid": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "status": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "total": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "paid_amount": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "uuid",
+                                                                    "status",
+                                                                    "total",
+                                                                    "paid_amount"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "extra_bills_notice": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -92133,7 +92888,9 @@
                                                         "applied_amount",
                                                         "excess_amount",
                                                         "excess_status",
-                                                        "settled_at"
+                                                        "settled_at",
+                                                        "extra_bills",
+                                                        "extra_bills_notice"
                                                     ]
                                                 },
                                                 "warnings": {
@@ -92683,6 +93440,12 @@
                                                 "paid_total": {
                                                     "type": "string"
                                                 },
+                                                "paid": {
+                                                    "type": "string"
+                                                },
+                                                "refunded": {
+                                                    "type": "string"
+                                                },
                                                 "outstanding": {
                                                     "type": "string"
                                                 },
@@ -93002,6 +93765,8 @@
                                                 "package_name",
                                                 "total",
                                                 "paid_total",
+                                                "paid",
+                                                "refunded",
                                                 "outstanding",
                                                 "hold_expires_at",
                                                 "frozen",
@@ -96668,7 +97433,7 @@
         "/v1/pos/bills/{uuid}/payments": {
             "post": {
                 "operationId": "posBill.pay",
-                "description": "One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional\n`tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:\n`card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are\nrequired; P6-16: in \"faqat terminal\" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's\nlast four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the\nreceipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once\nper bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;\nonce per bill; P6-44: a corporate account takes `member_code` — the talon — or `member_phone`, needs the\napproval only when its `charge_approval` is on, and is refused over its limits: 422 `member_required`,\n`member_inactive`, `member_daily_limit`, `member_meals_used`, `account_monthly_limit`, `account_credit_limit`,\n404 `member_not_found`), `voucher` (P6-43: a gift certificate, `voucher_code` as printed or scanned; at most its\nbalance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,\n409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;\nonline only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).\nThe money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). When the bill is\ncovered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the\norder is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may\ncarry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,\n`tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to\n(personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip\nroles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's\n`tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is\ntaken. Tips are never on the receipt nor part of the bill (`tips_amount`\non the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,\n`tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill\n\"fiskal kutmoqda\" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422\n`mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.",
+                "description": "One or more `tenders` (a mixed payment), each with the `amount` it pays of the bill: `cash` (optional\n`tendered_amount`: what the guest gave, the change is worked out), `card` (a separate bank terminal:\n`card_type` — uzcard, humo, visa, mastercard, unionpay, mir, other — and the terminal's `transaction_id` are\nrequired; P6-16: in \"faqat terminal\" mode `transaction_id` is the terminal's RRN, and `card_last4` — the card's\nlast four digits from the slip — is optional, 422 `card_last4_invalid` when it is not four digits; both go on the\nreceipt's card payment), `qr` (optional `reference`), `prepayment` (the booking's deposit, at most what is left of it, once\nper bill), `account` (nasiya: `account_uuid`; needs customer_accounts.manage or a manager's `approval_token`;\nonce per bill; P6-44: a corporate account takes `member_code` — the talon — or `member_phone`, needs the\napproval only when its `charge_approval` is on, and is refused over its limits: 422 `member_required`,\n`member_inactive`, `member_daily_limit`, `member_meals_used`, `account_monthly_limit`, `account_credit_limit`,\n404 `member_not_found`), `voucher` (P6-43: a gift certificate, `voucher_code` as printed or scanned; at most its\nbalance; the sale receipt shows the part as prepayment: 422 `voucher_code_required`, 404 `voucher_not_found`,\n409 `voucher_insufficient`, `voucher_blocked`, `voucher_expired`, `voucher_used`, `voucher_already_on_bill`;\nonline only). Payments may come in several requests; together they never exceed the bill (422 `overpayment`).\nThe money lands in the open shift of the terminal (or `shift_uuid`; 409 `shift_not_open`). An in-progress\nbanquet event's order is paid on its settlement bill only (409 `banquet_settle_first` with `event_uuid`). When the bill is\ncovered, its sale receipt is asked for: the bill is `paid` once the receipt is issued (`fiscal.status`), and the\norder is closed (delivered, paid, table free) once all its bills are. P6-22: a cash, card or QR tender may\ncarry `tip_amount` (choy puli, on top of what it pays; cash: `tendered_amount` must cover both) or, for cash,\n`tip_from_change` (the change, or `tip_amount` of it, left as the tip); `tip_staff_id`: whom the tips go to\n(personal mode; else the order's waiter) — someone other than the order's waiter must be of the branch's tip\nroles (422 `tip_staff_not_eligible`; waiters by default) and needs tips.manage or a manager's\n`tip_approval_token` for it (403 `approval_required`, data.permission tips.manage), all before any money is\ntaken. Tips are never on the receipt nor part of the bill (`tips_amount`\non the bill); they need the `tips` module (403 module_disabled); 422 `tip_tender_invalid`, `tip_invalid`,\n`tip_from_change_invalid`, `tip_staff_not_found`. A receipt not issued yet leaves the bill\n\"fiskal kutmoqda\" (`fiscal.status` pending or failed): retry with `.../fiscal-retry`. A line without MXIK: 422\n`mxik_missing` before any money is taken. Optional `version`. Needs pos.take_payment.",
                 "summary": "Take payment for a bill",
                 "tags": [
                     "POS: billing"
@@ -121863,7 +122628,7 @@
             },
             "post": {
                 "operationId": "posBill.store",
-                "description": "Bills what is left to bill of the order (bills already being paid stay; other open or printed bills are voided\nand made again). `mode`: `single` (one bill), `equal` (`parts` bills with the same total; the remainder tiyin on\nthe first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of\n1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and\nthe charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are\nexact to the tiyin. `by_guest` (P6-24, the guest_split module, 403 `module_disabled`): one bill per guest\n(`seat_no` of the lines, lowest first, `seat_no` on the bill); a line with no seat is shared equally among those\nguests (the remainder on the first guest's bill); 422 `no_seat_lines` when no line has a guest number.\n`version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or\npos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders\n(another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409\n`nothing_to_bill`, `order_closed`,\n`not_pos_order`; 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.",
+                "description": "Bills what is left to bill of the order (bills already being paid stay; other open or printed bills are voided\nand made again). `mode`: `single` (one bill), `equal` (`parts` bills with the same total; the remainder tiyin on\nthe first), `items` (`bills`: each with its `items` — `order_item_id` and `quantity`, fractions too, e.g. 0.5 of\n1.5 kg; every line left must be given out in full; optional `guests` for the per-guest amount). The discount and\nthe charges (room fee, minimum spend top-up, service charge, place fee) are shared in proportion; all shares are\nexact to the tiyin. `by_guest` (P6-24, the guest_split module, 403 `module_disabled`): one bill per guest\n(`seat_no` of the lines, lowest first, `seat_no` on the bill); a line with no seat is shared equally among those\nguests (the remainder on the first guest's bill); 422 `no_seat_lines` when no line has a guest number.\n`version`: the order's (409 `version_conflict` when stale). One bill: orders.manage or\npos.take_payment; splitting: pos.take_payment (403 `permission_denied`). A waiter bills only their own orders\n(another waiter's: a manager's `approval_token` for orders.manage, else 403 `approval_required`). 409\n`nothing_to_bill`, `order_closed`,\n`not_pos_order`, `banquet_settle_first` (an in-progress banquet event's order: billed by POST\n/pos/banquets/{uuid}/settle only; `event_uuid`); 422 `items_not_covered`, `bill_empty`, `item_not_billable`, `parts_invalid`.",
                 "summary": "Make or split the bill",
                 "tags": [
                     "POS: billing"

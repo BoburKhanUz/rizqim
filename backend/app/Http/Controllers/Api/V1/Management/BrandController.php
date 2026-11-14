@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1\Management;
 
 use App\Domain\Pos\Brands\BrandService;
 use App\Enums\OrderChannel;
+use App\Enums\Permission;
+use App\Models\Branch;
 use App\Models\Brand;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -121,7 +123,8 @@ class BrandController extends ManagementController
      * Switch a brand on or off on branches
      *
      * `branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every
-     * channel); a branch left out keeps its state.
+     * channel); a branch left out keeps its state. Each branch sent needs menu.manage there (a caller bound to one
+     * branch: their own only, another branch 403).
      */
     public function branches(Request $request, int $id): JsonResponse
     {
@@ -131,6 +134,12 @@ class BrandController extends ManagementController
             'branches.*.branch_id' => 'required|integer|min:1',
             'branches.*.is_active' => 'required|boolean',
         ]);
+        // Each branch touched needs menu.manage there: a caller bound to one branch switches the brand on theirs only
+        // (another store's branch: BrandService's 422)
+        $touched = Branch::where('store_id', $this->storeId($request))->whereIn('id', array_map(fn (array $row) => (int) $row['branch_id'], $data['branches']))->get();
+        foreach ($touched as $branch) {
+            $this->authorizeFor($request, Permission::MENU_MANAGE, $branch);
+        }
 
         $service = app(BrandService::class);
 

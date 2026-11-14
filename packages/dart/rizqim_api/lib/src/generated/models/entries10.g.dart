@@ -21,10 +21,10 @@ Entries10 _$Entries10FromJson(Map<String, dynamic> json) => Entries10(
   branchId: (json['branch_id'] as num?)?.toInt(),
   user: json['user'] == null
       ? null
-      : User26.fromJson(json['user'] as Map<String, dynamic>),
+      : User24.fromJson(json['user'] as Map<String, dynamic>),
   approvedBy: json['approved_by'] == null
       ? null
-      : ApprovedBy5.fromJson(json['approved_by'] as Map<String, dynamic>),
+      : ApprovedBy2.fromJson(json['approved_by'] as Map<String, dynamic>),
   note: json['note'] as String?,
   createdAt: json['created_at'] as String?,
 );

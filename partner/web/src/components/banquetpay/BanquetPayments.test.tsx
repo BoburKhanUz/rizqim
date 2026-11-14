@@ -90,6 +90,43 @@ describe('Tadbir to\'lov jadvali', () => {
     expect(await post.json()).toEqual({ reason: "Mijoz ko'chirdi", retained: '500000', override_reason: 'Ega rozi' });
   });
 
+  it('once the final bill exists the schedule is read-only and says where the rest is paid', async () => {
+    section({ [`GET ${base}/payments`]: () => ok(scheduleFixture({ event: { ...scheduleFixture().event, status: 'in_progress', status_label: 'Jarayonda', billed: true } })) });
+    await screen.findByRole('table', { name: "To'lov qatorlari" });
+    expect(screen.getByText(/Yakuniy hisob chiqarilgan: to'lov jadvali yopiq/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Jadvalni tahrirlash' })).toBeNull();
+    expect(screen.queryByRole('button', { name: "Oraliq to'lov uchun bank o'tkazmasini yozish" })).toBeNull();
+  });
+
+  it('shows 409 event_billed plainly when the bill was made meanwhile', async () => {
+    const { typing } = section({
+      [`POST ${base}/payments/${INTERIM_UUID}/bank-transfer`]: () => new Response(JSON.stringify({ success: false, message: 'x', data: { reason: 'event_billed' } }), { status: 409, headers: { 'Content-Type': 'application/json' } }),
+    });
+    await typing.click(await screen.findByRole('button', { name: "Oraliq to'lov uchun bank o'tkazmasini yozish" }));
+    const dialog = await screen.findByRole('dialog');
+    await typing.type(within(dialog).getByLabelText("To'lov topshirig'i raqami"), 'PP-145');
+    await typing.click(within(dialog).getByRole('button', { name: 'Saqlash' }));
+    expect(await within(dialog).findByText(/Qolgan summa yakuniy schyotda kassada/)).toBeInTheDocument();
+  });
+
+  it('voids a mistaken bank transfer with a reason', async () => {
+    const transfer = { ...scheduleFixture().entries[0]!, uuid: '66666666-6666-4666-8666-666666666661', type: 'transfer' as const, type_label: "Bank o'tkazmasi", tender: 'bank_transfer' as const, reference: 'PP-9', shift_id: null };
+    const { calls, typing } = section({
+      [`GET ${base}/payments`]: () => ok(scheduleFixture({ entries: [...scheduleFixture().entries, transfer] })),
+      [`DELETE ${base}/payments/transfers/${transfer.uuid}`]: () => ok(scheduleFixture()),
+    });
+    await typing.click(await screen.findByRole('button', { name: "PP-9 o'tkazmasini bekor qilish" }));
+    const dialog = await screen.findByRole('dialog');
+    await typing.click(within(dialog).getByRole('button', { name: "O'tkazmani bekor qilish" }));
+    expect(await within(dialog).findByText('Sababni yozing (kamida 3 harf).')).toBeInTheDocument();
+    await typing.type(within(dialog).getByLabelText('Sabab'), 'Xato tadbir');
+    await typing.click(within(dialog).getByRole('button', { name: "O'tkazmani bekor qilish" }));
+    expect(await screen.findByText("Bank o'tkazmasi bekor qilindi.")).toBeInTheDocument();
+    const del = calls.filter((call) => call.method === 'DELETE').at(-1)!;
+    expect(new URL(del.url).searchParams.get('reason')).toBe('Xato tadbir');
+    expect(del.headers.get('Idempotency-Key')).toBeTruthy();
+  });
+
   it('a cashier (pos.take_payment) only reads it', async () => {
     section({}, ['pos.take_payment']);
     await screen.findByRole('table', { name: "To'lov qatorlari" });

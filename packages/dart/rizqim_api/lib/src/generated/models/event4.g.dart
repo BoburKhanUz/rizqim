@@ -14,6 +14,7 @@ Event4 _$Event4FromJson(Map<String, dynamic> json) => Event4(
   total: json['total'] as String,
   paidTotal: json['paid_total'] as String,
   version: (json['version'] as num).toInt(),
+  billed: json['billed'] as bool,
 );
 
 Map<String, dynamic> _$Event4ToJson(Event4 instance) => <String, dynamic>{
@@ -24,4 +25,5 @@ Map<String, dynamic> _$Event4ToJson(Event4 instance) => <String, dynamic>{
   'total': instance.total,
   'paid_total': instance.paidTotal,
   'version': instance.version,
+  'billed': instance.billed,
 };

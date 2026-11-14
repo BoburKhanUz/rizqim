@@ -2,6 +2,7 @@
 
 namespace App\Domain\Pos\Banquet\Payments;
 
+use App\Domain\Pos\Banquet\Payments\Console\RetryBanquetReceipts;
 use App\Domain\Pos\Banquet\Payments\Console\SendBanquetPaymentReminders;
 use App\Domain\Pos\Banquet\BanquetEventChanged;
 use App\Events\Broadcast\FiscalReceiptUpdatedBroadcast;
@@ -18,17 +19,19 @@ use Throwable;
  * P6-53: the payment schedule of banquet events. When an event is created or its total changes (BanquetEventChanged, after the
  * commit) its schedule is planned or re-planned under the event's lock (BanquetSchedule::sync: unpaid rows adjust, paid rows
  * never change); the daily Telegram reminders (pos:banquet-payment-reminders, 09:05 Tashkent); an advance, refund or
- * cancellation receipt the provider confirms (or fails) later is recorded on its entry (fiscal.receipt_updated).
+ * cancellation receipt the provider confirms (or fails) later is recorded on its entry (fiscal.receipt_updated); one that
+ * was not issued is sent again hourly under the same key (pos:banquet-retry-receipts, review C5).
  */
 class PosBanquetPaymentsServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([SendBanquetPaymentReminders::class]);
+            $this->commands([SendBanquetPaymentReminders::class, RetryBanquetReceipts::class]);
         }
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
             $schedule->command('pos:banquet-payment-reminders')->dailyAt('09:05')->timezone('Asia/Tashkent')->withoutOverlapping(60);
+            $schedule->command('pos:banquet-retry-receipts')->hourly()->withoutOverlapping(30);
         });
 
         // V1's BanquetEventChanged (after the commit): a new event or a changed total re-plans the unpaid rows

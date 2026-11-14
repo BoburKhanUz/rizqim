@@ -393,10 +393,10 @@ class _BanquetsPageState extends State<BanquetsPage> with RefreshingState {
                 children: <Widget>[
                   BanquetStatusPill(e.status),
                   if (e.overdue) const BanquetOverduePill(),
-                  if (e.outstanding.isPositive &&
-                      e.status != PosBanquetStatus.cancelled)
+                  // C4: no remainder on a settled or cancelled event
+                  if (e.remaining.isPositive)
                     TonePill(
-                      label: 'Qoldiq ${e.outstanding.format()}',
+                      label: 'Qoldiq ${e.remaining.format()}',
                       tone: StatusTone.neutral,
                     ),
                 ],

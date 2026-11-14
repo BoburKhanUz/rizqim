@@ -62,7 +62,8 @@ abstract class OwnerBrandsApi {
   /// Switch a brand on or off on branches.
   ///
   /// `branches`: [{branch_id, is_active}] — off: its dishes are stopped on that branch (like the stop-list, every.
-  /// channel); a branch left out keeps its state.
+  /// channel); a branch left out keeps its state. Each branch sent needs menu.manage there (a caller bound to one.
+  /// branch: their own only, another branch 403).
   @PUT('/v1/owner/brands/{id}/branches')
   Future<PutV1OwnerBrandsIdBranchesResponse> brandBranches({
     @Path('id') required int id,

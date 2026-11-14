@@ -13,7 +13,6 @@ class Event12 {
     required this.status,
     required this.version,
     required this.orderUuid,
-    required this.startedAt,
   });
 
   factory Event12.fromJson(Map<String, Object?> json) =>
@@ -24,8 +23,6 @@ class Event12 {
   final int version;
   @JsonKey(name: 'order_uuid')
   final String? orderUuid;
-  @JsonKey(name: 'started_at')
-  final String? startedAt;
 
   Map<String, Object?> toJson() => _$Event12ToJson(this);
 }

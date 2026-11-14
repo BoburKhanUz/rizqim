@@ -4,7 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user33.dart';
+import 'user27.dart';
+import 'approved_by5.dart';
 
 part 'entries11.g.dart';
 
@@ -16,13 +17,15 @@ class Entries11 {
     required this.typeLabel,
     required this.amount,
     required this.balanceAfter,
-    required this.businessDate,
     required this.billUuid,
-    required this.refundUuid,
     required this.tender,
+    required this.cardType,
+    required this.transactionId,
+    required this.fiscalReceiptUuid,
+    required this.fiscalStatus,
     required this.branchId,
-    required this.shiftId,
     required this.user,
+    required this.approvedBy,
     required this.note,
     required this.createdAt,
   });
@@ -37,18 +40,22 @@ class Entries11 {
   final String amount;
   @JsonKey(name: 'balance_after')
   final String balanceAfter;
-  @JsonKey(name: 'business_date')
-  final String? businessDate;
   @JsonKey(name: 'bill_uuid')
   final String? billUuid;
-  @JsonKey(name: 'refund_uuid')
-  final String? refundUuid;
   final String? tender;
+  @JsonKey(name: 'card_type')
+  final String? cardType;
+  @JsonKey(name: 'transaction_id')
+  final String? transactionId;
+  @JsonKey(name: 'fiscal_receipt_uuid')
+  final String? fiscalReceiptUuid;
+  @JsonKey(name: 'fiscal_status')
+  final String? fiscalStatus;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  @JsonKey(name: 'shift_id')
-  final int? shiftId;
-  final User33? user;
+  final User27? user;
+  @JsonKey(name: 'approved_by')
+  final ApprovedBy5? approvedBy;
   final String? note;
   @JsonKey(name: 'created_at')
   final String? createdAt;

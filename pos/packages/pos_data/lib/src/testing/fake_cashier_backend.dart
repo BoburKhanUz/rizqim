@@ -568,6 +568,8 @@ class FakeCashierBackend {
       r.data['approval_token'],
     );
     if (denied != null) return denied;
+    final FakeResponse? banquet = banquetBackend?.settleFirst(order);
+    if (banquet != null) return banquet;
     if (order['status'] == 'delivered' || order['status'] == 'canceled') {
       return _fail(422, 'order_closed', 'Buyurtma yopilgan.');
     }
@@ -831,6 +833,8 @@ class FakeCashierBackend {
       r.data['approval_token'],
     );
     if (denied != null) return denied;
+    final FakeResponse? banquet = banquetBackend?.settleFirst(order, bill);
+    if (banquet != null) return banquet;
     if (bill['status'] == 'void') {
       return _fail(409, 'bill_void', 'Bu schyot bekor qilingan.');
     }
@@ -975,6 +979,8 @@ class FakeCashierBackend {
       null,
     );
     if (denied != null) return denied;
+    final FakeResponse? banquet = banquetBackend?.settleFirst(order, bill);
+    if (banquet != null) return banquet;
     if (state.shift == null) {
       return _fail(
         409,
@@ -4514,6 +4520,33 @@ class FakeCashierBackend {
     order['bills_version'] = order['version'];
     _billEvent(order, bill, 'created');
     return bill;
+  }
+
+  /// Review C10: a bill of its own for the order's lines that are on no paid bill (an add-on after the settlement's
+  /// receipt); `null` — nothing left to bill.
+  Map<String, Object?>? addonBill(Map<String, Object?> order) {
+    final Map<int, int> left = _remaining(order);
+    if (left.isEmpty) return null;
+    _build(
+      order,
+      <Map<int, int>>[left],
+      <int?>[order['guests_count'] as int?],
+      'single',
+    );
+    final Map<String, Object?> bill = _billsOf(order).last;
+    order['bills_version'] = order['version'];
+    _billEvent(order, bill, 'created');
+    return bill;
+  }
+
+  /// Review C1: an order a direct payment closed while its event was in progress, opened again (ready, unpaid) for
+  /// the settlement's bill; its paid bills keep their lines.
+  void reopenOrder(Map<String, Object?> order) {
+    order
+      ..['status'] = 'ready'
+      ..['closed_at'] = null
+      ..['version'] = (order['version']! as int) + 1
+      ..['updated_at'] = _iso(state.now());
   }
 
   /// P6-54: tadbir zakladlari yakuniy schyotda `prepayment` bo'lib ayiriladi; qoplasa — sotuv cheki darhol.

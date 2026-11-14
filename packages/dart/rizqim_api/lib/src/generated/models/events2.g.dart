@@ -7,7 +7,7 @@ part of 'events2.dart';
 // **************************************************************************
 
 Events2 _$Events2FromJson(Map<String, dynamic> json) => Events2(
-  uuid: json['uuid'] as String,
+  eventType: json['event_type'] as String,
   branchId: (json['branch_id'] as num).toInt(),
   eventDate: json['event_date'] as String,
   slot: json['slot'] as String,
@@ -22,7 +22,7 @@ Events2 _$Events2FromJson(Map<String, dynamic> json) => Events2(
   halls: (json['halls'] as List<dynamic>)
       .map((e) => Halls4.fromJson(e as Map<String, dynamic>))
       .toList(),
-  eventType: json['event_type'] as String,
+  uuid: json['uuid'] as String,
   eventTypeLabel: json['event_type_label'] as String,
   status: json['status'] as String,
   statusLabel: json['status_label'] as String,
@@ -32,17 +32,19 @@ Events2 _$Events2FromJson(Map<String, dynamic> json) => Events2(
   guestsGuaranteed: (json['guests_guaranteed'] as num).toInt(),
   guestsMinimum: (json['guests_minimum'] as num).toInt(),
   guestsActual: (json['guests_actual'] as num?)?.toInt(),
-  guestsBilled: (json['guests_billed'] as num).toInt(),
+  overdue: json['overdue'] as bool,
   packageId: (json['package_id'] as num?)?.toInt(),
   packageName: json['package_name'] as String?,
   total: json['total'] as String,
   paidTotal: json['paid_total'] as String,
+  paid: json['paid'] as String,
+  refunded: json['refunded'] as String,
   outstanding: json['outstanding'] as String,
   holdExpiresAt: json['hold_expires_at'] as String?,
   frozen: json['frozen'] as bool,
   contractNo: json['contract_no'] as String?,
   version: (json['version'] as num).toInt(),
-  overdue: json['overdue'] as bool,
+  guestsBilled: (json['guests_billed'] as num).toInt(),
 );
 
 Map<String, dynamic> _$Events2ToJson(Events2 instance) => <String, dynamic>{
@@ -72,6 +74,8 @@ Map<String, dynamic> _$Events2ToJson(Events2 instance) => <String, dynamic>{
   'package_name': instance.packageName,
   'total': instance.total,
   'paid_total': instance.paidTotal,
+  'paid': instance.paid,
+  'refunded': instance.refunded,
   'outstanding': instance.outstanding,
   'hold_expires_at': instance.holdExpiresAt,
   'frozen': instance.frozen,

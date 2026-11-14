@@ -9,6 +9,7 @@ use App\Domain\Pos\Billing\PosActionException;
 use App\Domain\Pos\Shifts\BusinessDay;
 use App\Models\BanquetEvent;
 use App\Models\BanquetPayment;
+use App\Models\BanquetSettlement;
 use App\Models\Branch;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
@@ -27,7 +28,10 @@ use Illuminate\Support\Facades\DB;
  *    first (a row brought to zero goes); nothing left to pay: the unpaid rows go (an overpaid event is refunded at the
  *    final settlement, P6-54);
  *  - replace: the manager edits the unpaid rows (dates, amounts, more interims); they must add up to what is left;
- *  - split: a part of a row paid (BanquetPaymentService) leaves the rest as a new unpaid row with the same date.
+ *  - split: a part of a row paid (BanquetPaymentService) leaves the rest as a new unpaid row with the same date;
+ *  - billed (review C2): once the final settlement exists (P6-54 "Yakuniy hisob", and so for a settled event) the
+ *    schedule is closed — no re-plan, no edit (409 `event_billed`), no row payment or transfer: the remainder is paid
+ *    on the settlement bill at the till (cash, card, QR). A bank transfer is recorded only before the settle.
  *
  * Amounts are whole so'm by the template's percents (half-up); the last row takes the rest.
  */
@@ -91,7 +95,7 @@ final class BanquetSchedule
      */
     public function sync(BanquetEvent $event): void
     {
-        if (!in_array($event->status, [BanquetEventStatus::HOLD, BanquetEventStatus::CONFIRMED, BanquetEventStatus::IN_PROGRESS], true)) {
+        if (!in_array($event->status, [BanquetEventStatus::HOLD, BanquetEventStatus::CONFIRMED, BanquetEventStatus::IN_PROGRESS], true) || self::billed($event)) {
             return;
         }
         $rows = BanquetPayment::where('banquet_event_id', $event->id)->orderBy('sort_order')->orderBy('id')->lockForUpdate()->get();
@@ -153,6 +157,7 @@ final class BanquetSchedule
             if ($version !== null && $version !== (int) $event->version) {
                 throw PosActionException::conflict('version_conflict', "Tadbir boshqa joyda o'zgartirilgan: yangilab qayta urinib ko'ring.", ['version' => (int) $event->version]);
             }
+            self::refuseBilled($event);
             if (!$event->status->isEditable() && $event->status !== BanquetEventStatus::IN_PROGRESS) {
                 throw PosActionException::conflict('event_not_editable', "Tadbir \"{$event->status->label()}\" holatida: to'lov jadvalini o'zgartirib bo'lmaydi.");
             }
@@ -202,6 +207,25 @@ final class BanquetSchedule
 
             return $event;
         });
+    }
+
+    /**
+     * Review C2: the event's final settlement exists (its bill made or being made; a settled event too) — the remainder
+     * is on the settlement bill and the schedule is closed. Read under the event's lock to decide a write.
+     */
+    public static function billed(BanquetEvent $event): bool
+    {
+        return BanquetSettlement::where('banquet_event_id', $event->id)->exists();
+    }
+
+    /**
+     * @throws PosActionException 409 `event_billed`
+     */
+    public static function refuseBilled(BanquetEvent $event): void
+    {
+        if (self::billed($event)) {
+            throw PosActionException::conflict('event_billed', "Yakuniy hisob chiqarilgan: to'lov jadvali yopiq. Qolgan summa yakuniy schyotda kassada naqd, karta yoki QR bilan to'lanadi.");
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ interface Door {
   GET(path: string, init?: Init): Promise<Result>;
   POST(path: string, init?: Init): Promise<Result>;
   PUT(path: string, init?: Init): Promise<Result>;
+  DELETE(path: string, init?: Init): Promise<Result>;
 }
 
 const door = (api: StaffApi): Door => api.client as unknown as Door;
@@ -33,7 +34,8 @@ async function data<T>(promise: Promise<Result>): Promise<T> {
 export type PaymentKind = 'deposit' | 'interim' | 'final';
 export const PAYMENT_KINDS: readonly PaymentKind[] = ['deposit', 'interim', 'final'];
 export type PaymentStatus = 'due' | 'paid' | 'refunded' | 'retained';
-export type EntryType = 'payment' | 'transfer' | 'refund' | 'retain';
+// transfer_void: a bank transfer the manager voided as a mistake (kept in the list, no longer money received)
+export type EntryType = 'payment' | 'transfer' | 'refund' | 'retain' | 'transfer_void';
 export type Tender = 'cash' | 'card' | 'qr' | 'bank_transfer';
 export type EventStatus = 'hold' | 'confirmed' | 'in_progress' | 'settled' | 'cancelled';
 
@@ -107,7 +109,8 @@ export interface Cancellation {
 }
 
 export interface Schedule {
-  event: { uuid: string; status: EventStatus; status_label: string; event_date: string; total: string; paid_total: string; version: number };
+  // billed: the final settlement exists — the schedule is closed (409 event_billed), the rest is paid on the settlement bill
+  event: { uuid: string; status: EventStatus; status_label: string; event_date: string; total: string; paid_total: string; version: number; billed: boolean };
   summary: ScheduleSummary;
   rows: ScheduleRow[];
   entries: ScheduleEntry[];
@@ -218,6 +221,12 @@ export const recordTransfer = (api: StaffApi, input: { uuid: string; row: string
       body: { reference: input.reference, ...(input.paid_on ? { paid_on: input.paid_on } : {}), ...(input.amount ? { amount: input.amount } : {}) },
       headers: { 'Idempotency-Key': input.key },
     }),
+  );
+
+// DELETE …/payments/transfers/{entry}?reason=: a transfer recorded by mistake, before the event is billed
+export const voidTransfer = (api: StaffApi, input: { uuid: string; entry: string; reason: string; key: string }) =>
+  data<Schedule>(
+    door(api).DELETE(`/v1/pos/banquets/${input.uuid}/payments/transfers/${input.entry}`, { params: { query: { reason: input.reason } }, headers: { 'Idempotency-Key': input.key } }),
   );
 
 export const fetchCancellationQuote = (api: StaffApi, uuid: string, retained?: string) =>

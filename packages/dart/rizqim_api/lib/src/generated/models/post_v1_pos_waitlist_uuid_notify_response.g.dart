@@ -11,7 +11,7 @@ _$PostV1PosWaitlistUuidNotifyResponseFromJson(Map<String, dynamic> json) =>
     PostV1PosWaitlistUuidNotifyResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data356.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data357.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$PostV1PosWaitlistUuidNotifyResponseToJson(

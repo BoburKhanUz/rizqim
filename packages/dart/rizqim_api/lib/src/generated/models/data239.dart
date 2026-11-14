@@ -5,12 +5,12 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'event11.dart';
-import 'guests5.dart';
-import 'lines25.dart';
-import 'orders5.dart';
-import 'advances4.dart';
-import 'settlement6.dart';
-import 'warnings19.dart';
+import 'guests4.dart';
+import 'lines24.dart';
+import 'orders4.dart';
+import 'advances3.dart';
+import 'settlement5.dart';
+import 'warnings18.dart';
 
 part 'data239.g.dart';
 
@@ -36,21 +36,21 @@ class Data239 {
       _$Data239FromJson(json);
 
   final Event11 event;
-  final Guests5 guests;
-  final List<Lines25> lines;
+  final Guests4 guests;
+  final List<Lines24> lines;
   @JsonKey(name: 'package_total')
   final String packageTotal;
   @JsonKey(name: 'hall_total')
   final String hallTotal;
   @JsonKey(name: 'extras_total')
   final String extrasTotal;
-  final Orders5 orders;
+  final Orders4 orders;
   final String total;
-  final Advances4 advances;
+  final Advances3 advances;
   final String due;
   final String excess;
-  final Settlement6? settlement;
-  final List<Warnings19> warnings;
+  final Settlement5? settlement;
+  final List<Warnings18> warnings;
 
   Map<String, Object?> toJson() => _$Data239ToJson(this);
 }

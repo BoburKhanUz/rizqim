@@ -287,6 +287,7 @@ class PosBanquetSchedule {
     required this.rows,
     required this.entries,
     this.cancellation,
+    this.billed,
   });
 
   factory PosBanquetSchedule.fromJson(PosJson j) {
@@ -307,8 +308,13 @@ class PosBanquetSchedule {
       cancellation: cancellation == null
           ? null
           : PosBanquetCancellationRecord.fromJson(cancellation),
+      billed: event.has('billed') ? event.boolean('billed') : null,
     );
   }
+
+  /// Review C2: the event's final settlement exists — the schedule is closed (no row payment, no edit: 409
+  /// `event_billed`), the remainder is paid on the settlement bill. `null` — an older server that does not say.
+  final bool? billed;
 
   final String eventUuid;
   final PosBanquetStatus eventStatus;

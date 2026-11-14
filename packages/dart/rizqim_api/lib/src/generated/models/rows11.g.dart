@@ -24,7 +24,7 @@ Rows11 _$Rows11FromJson(Map<String, dynamic> json) => Rows11(
   paidBy: json['paid_by'] == null
       ? null
       : PaidBy5.fromJson(json['paid_by'] as Map<String, dynamic>),
-  fiscal: Fiscal17.fromJson(json['fiscal'] as Map<String, dynamic>),
+  fiscal: Fiscal16.fromJson(json['fiscal'] as Map<String, dynamic>),
   refundedAmount: json['refunded_amount'] as String,
   retainedAmount: json['retained_amount'] as String,
   settleReceiptUuid: json['settle_receipt_uuid'] as String?,

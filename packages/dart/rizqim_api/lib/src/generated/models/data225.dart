@@ -41,6 +41,8 @@ class Data225 {
     required this.packageName,
     required this.total,
     required this.paidTotal,
+    required this.paid,
+    required this.refunded,
     required this.outstanding,
     required this.holdExpiresAt,
     required this.frozen,
@@ -119,6 +121,8 @@ class Data225 {
   final String total;
   @JsonKey(name: 'paid_total')
   final String paidTotal;
+  final String paid;
+  final String refunded;
   final String outstanding;
   @JsonKey(name: 'hold_expires_at')
   final String? holdExpiresAt;

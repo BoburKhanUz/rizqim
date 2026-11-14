@@ -199,9 +199,8 @@ class BanquetSettlementTest extends TestCase
         $this->eventDayLine($event);
         app(\App\Domain\Pos\Orders\PosChargesCalculator::class)->recalculate($order->refresh());
 
-        // An event-day bill of its own does not take the advances
-        $bill = $this->bill($order->refresh())->assertCreated()->json('data.bills.0');
-        $this->pay($bill['uuid'], [['tender' => 'prepayment', 'amount' => '60000']])->assertConflict()->assertJsonPath('data.reason', 'not_settlement_bill');
+        // An event-day bill of its own is not made (review P6 wave 5 C1: billed and paid through the settlement only)
+        $this->bill($order->refresh())->assertConflict()->assertJsonPath('data.reason', 'banquet_settle_first');
 
         // Settle, then more drinks before any money is on the bill: settle again bills it again
         $first = $this->pos('POST', "/banquets/{$event->uuid}/settle")->assertOk()->json('data.bill');

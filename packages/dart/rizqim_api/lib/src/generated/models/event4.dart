@@ -16,6 +16,7 @@ class Event4 {
     required this.total,
     required this.paidTotal,
     required this.version,
+    required this.billed,
   });
 
   factory Event4.fromJson(Map<String, Object?> json) => _$Event4FromJson(json);
@@ -30,6 +31,7 @@ class Event4 {
   @JsonKey(name: 'paid_total')
   final String paidTotal;
   final int version;
+  final bool billed;
 
   Map<String, Object?> toJson() => _$Event4ToJson(this);
 }

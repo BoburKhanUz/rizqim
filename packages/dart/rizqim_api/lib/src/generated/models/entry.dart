@@ -4,8 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'user19.dart';
-import 'fiscal16.dart';
+import 'user20.dart';
+import 'fiscal18.dart';
 
 part 'entry.g.dart';
 
@@ -48,13 +48,13 @@ class Entry {
   final String? businessDate;
   @JsonKey(name: 'shift_id')
   final int? shiftId;
-  final User19? user;
+  final User20? user;
   @JsonKey(name: 'approved_by')
   final int? approvedBy;
   final String? reason;
   @JsonKey(name: 'transfer_pending')
   final bool transferPending;
-  final Fiscal16 fiscal;
+  final Fiscal18 fiscal;
   @JsonKey(name: 'original_receipt_uuid')
   final String? originalReceiptUuid;
   @JsonKey(name: 'created_at')

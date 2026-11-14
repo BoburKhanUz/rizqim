@@ -54,6 +54,8 @@ final class BillService
 
         [$order, $bills, $voided] = DB::transaction(function () use ($user, $order, $mode, $parts, $billsSpec, $version, $device, $applied, $approvalToken) {
             $order = self::lockOpenOrder($order, $version);
+            // Review P6 wave 5 (C1): an in-progress banquet event's order is billed by its settlement only
+            \App\Domain\Pos\Banquet\Ops\BanquetBillingGuard::assertBillable($order);
             app(\App\Domain\Pos\Orders\WaiterAccess::class)->guard($order, $user, $approvalToken);
             self::assertWeighed($order);
 
@@ -131,6 +133,7 @@ final class BillService
                 return [null, null]; // a split the till made
             }
 
+            \App\Domain\Pos\Banquet\Ops\BanquetBillingGuard::assertBillable($order);
             $voided = $this->voidPayable($order);
             $billable = BillableOrder::of($order);
             $plans = $this->splitter->plan($billable, 'single', 1, []);

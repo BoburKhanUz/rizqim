@@ -190,6 +190,13 @@ class FakeBanquetBackend {
     'data': <String, Object?>{'reason': reason, ...extra},
   });
 
+  static FakeResponse _billed() => _fail(
+    409,
+    'event_billed',
+    "Yakuniy hisob chiqarilgan: to'lov jadvali yopiq. Qolgan summa yakuniy schyotda kassada naqd, karta yoki QR bilan "
+        "to'lanadi.",
+  );
+
   static FakeResponse _forbidden() =>
       _fail(403, 'forbidden', 'Ruxsat etilmagan');
 
@@ -456,11 +463,43 @@ class FakeBanquetBackend {
     'other': 'Boshqa',
   };
 
+  /// Review C4 (mirrors Ops\BanquetFigures): received = the schedule's payments + what the till took on the event
+  /// order's bills (never the advances' `prepayment` offset, the same money); paid = received − refunds; nothing
+  /// outstanding once settled or cancelled.
+  ({int paid, int refunded, int outstanding}) figures(Map<String, Object?> e) {
+    final String uuid = '${e['uuid']}';
+    int sum(String type) => _entriesOf(uuid)
+        .where((Map<String, Object?> x) => x['type'] == type)
+        .fold(0, (int s, Map<String, Object?> x) => s + (x['amount']! as int));
+    int till = 0;
+    for (final Map<String, Object?> b
+        in cashier.bills['${e['order_uuid']}'] ?? <Map<String, Object?>>[]) {
+      if (b['status'] == 'void') continue;
+      for (final Map<String, Object?> p
+          in (b['payments']! as List<Object?>).cast<Map<String, Object?>>()) {
+        if (p['status'] == 'paid' && p['tender'] != 'prepayment') {
+          till += _t(p['amount']);
+        }
+      }
+    }
+    final int refunded = sum('refund');
+    final int paid = sum('payment') + till - refunded;
+    final bool closed = e['status'] == 'settled' || e['status'] == 'cancelled';
+    return (
+      paid: paid,
+      refunded: refunded,
+      outstanding: closed
+          ? 0
+          : math.max(0, _sumOf(_lines(e)) + _orderTotal(e) - paid),
+    );
+  }
+
   Map<String, Object?> summary(Map<String, Object?> e) {
     final String uuid = '${e['uuid']}';
     final List<Map<String, Object?>> lines = _lines(e);
     final int total = _sumOf(lines) + _orderTotal(e);
     final int paid = paidOf(uuid);
+    final ({int paid, int refunded, int outstanding}) net = figures(e);
     final List<int> ids = _hallIds(e);
     return <String, Object?>{
       'uuid': uuid,
@@ -487,12 +526,16 @@ class FakeBanquetBackend {
       'guests_guaranteed': e['guests_guaranteed'],
       'guests_minimum': e['guests_minimum'],
       'guests_actual': e['guests_actual'],
-      'guests_billed': billedGuests(e),
+      // Review C12: as the settlement bills them (more when more came)
+      'guests_billed': billedGuests(e, actual: true),
       'package_id': e['package_id'],
       'package_name': _package(e['package_id'])?['name'],
       'total': _m(total),
+      // The column: money received on the schedule, never reduced by refunds
       'paid_total': _m(paid),
-      'outstanding': _m(math.max(0, total - paid)),
+      'paid': _m(net.paid),
+      'refunded': _m(net.refunded),
+      'outstanding': _m(net.outstanding),
       'hold_expires_at': e['status'] == 'hold' ? e['hold_expires_at'] : null,
       'frozen': e['frozen'] == true,
       'contract_no': e['contract_no'],
@@ -619,6 +662,7 @@ class FakeBanquetBackend {
         'total': _m(total),
         'paid_total': _m(paid),
         'version': e['version'],
+        'billed': settlements.containsKey(uuid),
       },
       'summary': <String, Object?>{
         'total': _m(total),
@@ -728,6 +772,49 @@ class FakeBanquetBackend {
   /// Qatorni muddati o'tgan qiladi (sanasi kechagi kun).
   void makeOverdue(String eventUuid, {int index = 1}) {
     _rowsOf(eventUuid)[index]['due_date'] = _addDays(today, -1);
+  }
+
+  /// A due row put back in the schedule behind the server's back (the old panel editor allowed it after billing):
+  /// the till must still not offer to take it.
+  void addDueRow(String eventUuid, int som) =>
+      _rowsOf(eventUuid).add(_row('final', som * 100, today));
+
+  /// The legacy stuck state (before the `banquet_settle_first` guard): the event-day order was paid directly and
+  /// closed, the event stays in progress with its advances.
+  void closeOrderDirectly(String eventUuid) {
+    final Map<String, Object?> order =
+        state.orders['${events[eventUuid]!['order_uuid']}']!;
+    order['status'] = 'delivered';
+  }
+
+  /// C1 (mirrors BanquetBillingGuard: BillService::create, PaymentService::pay, the bill print request): a bill, a
+  /// payment or a print request on the day order of an in-progress event, except on the event's settlement bill (or
+  /// anything once that bill is paid): 409 `banquet_settle_first`.
+  FakeResponse? settleFirst(
+    Map<String, Object?> order, [
+    Map<String, Object?>? bill,
+  ]) {
+    for (final Map<String, Object?> e in events.values) {
+      if (e['status'] != 'in_progress' || e['order_uuid'] != order['uuid']) {
+        continue;
+      }
+      final Map<String, Object?>? s = settlements['${e['uuid']}'];
+      final Map<String, Object?>? own = s == null
+          ? null
+          : cashier.billByUuid('${s['bill_uuid']}');
+      // The settlement's bill paid: a later add-on is its own bill and receipt (C10)
+      if (own != null && own['status'] == 'paid') return null;
+      if (bill != null && own != null && own['uuid'] == bill['uuid']) {
+        return null;
+      }
+      return _fail(
+        409,
+        'banquet_settle_first',
+        "Tadbir buyurtmasi faqat yakuniy hisob orqali to'lanadi.",
+        <String, Object?>{'event_uuid': e['uuid']},
+      );
+    }
+    return null;
   }
 
   // --- yo'llar -------------------------------------------------------------------------------------------------------
@@ -1166,6 +1253,8 @@ class FakeBanquetBackend {
       );
     }
     if (!_can(r, 'pos.take_payment')) return _forbidden();
+    // Review C2 (BanquetSchedule::refuseBilled): once the settlement exists the remainder is on its bill
+    if (settlements.containsKey('${e['uuid']}')) return _billed();
     final Map<String, Object?>? row = _rowsOf('${e['uuid']}')
         .where((Map<String, Object?> x) => x['uuid'] == rowUuid)
         .firstOrNull;
@@ -1455,6 +1544,24 @@ class FakeBanquetBackend {
     'started_at': e['started_at'],
   };
 
+  /// Like the backend: `Tadbir: tadbir turi, zallar, dd.mm.yyyy` - never the title or the customer name
+  /// (the note reaches kitchen tickets).
+  String _eventDayNote(Map<String, Object?> e, String hallNames) {
+    final String date = '${e['event_date'] ?? ''}';
+    final List<String> ymd = date.split('-');
+    final String shown = ymd.length == 3
+        ? '${ymd[2].substring(0, ymd[2].length < 2 ? ymd[2].length : 2)}.${ymd[1]}.${ymd[0]}'
+        : date;
+    final String type =
+        '${_typeLabels['${e['event_type']}'] ?? e['event_type'] ?? ''}';
+    final String parts = <String>[
+      type,
+      hallNames,
+      shown,
+    ].where((String p) => p.isNotEmpty).join(', ');
+    return 'Tadbir: $parts';
+  }
+
   void _open(Map<String, Object?> e, FakeRequest r) {
     final String order = state.seedOrder(
       guests: billedGuests(e, actual: true),
@@ -1470,8 +1577,7 @@ class FakeBanquetBackend {
       ..['status'] = 'accepted'
       ..['hall_ref'] = names
       ..['table_ref'] = names
-      ..['notes'] =
-          'Tadbir: ${e['title'] ?? e['customer_name']}, ${e['event_date']}'
+      ..['notes'] = _eventDayNote(e, names)
       ..['banquet_event_uuid'] = e['uuid'];
     e
       ..['order_uuid'] = order
@@ -1586,8 +1692,37 @@ class FakeBanquetBackend {
               'excess_amount': _m(s['excess']! as int),
               'excess_status': s['excess_status'],
               'settled_at': null,
+              ..._extraBills(e, s),
             },
       'warnings': _warnings(e),
+    };
+  }
+
+  /// Review C10: the event order's other bills (an add-on after the settlement's receipt, or a bill paid directly on
+  /// an event stuck before the guard), each with its own receipt.
+  Map<String, Object?> _extraBills(
+    Map<String, Object?> e,
+    Map<String, Object?> s,
+  ) {
+    final List<Map<String, Object?>> extra = <Map<String, Object?>>[
+      for (final Map<String, Object?> b
+          in cashier.bills['${e['order_uuid']}'] ?? <Map<String, Object?>>[])
+        if (b['status'] != 'void' && b['uuid'] != s['bill_uuid']) b,
+    ];
+    return <String, Object?>{
+      'extra_bills': <Object?>[
+        for (final Map<String, Object?> b in extra)
+          <String, Object?>{
+            'uuid': b['uuid'],
+            'status': b['status'],
+            'total': b['total'],
+            'paid_amount': b['paid_amount'],
+          },
+      ],
+      'extra_bills_notice': extra.isEmpty
+          ? null
+          : "Yakuniy hisob bitta chek bilan yopiladi. Undan tashqari schyotlar (yakuniy hisob chekidan keyin qo'shilgan "
+                "buyurtmalar) alohida to'lanadi va alohida chek bo'ladi.",
     };
   }
 
@@ -1617,13 +1752,32 @@ class FakeBanquetBackend {
       );
     }
     final Map<String, Object?> order = state.orders['${e['order_uuid']}']!;
-    if (order['status'] == 'delivered') {
-      return _fail(
-        409,
-        'order_closed',
-        "Tadbir buyurtmasi yopilgan: yakuniy hisob faqat kassada.",
-      );
+    // Review C10 (mirrors BanquetSettlementService::settle): the settlement's bill stands once money is on it; after
+    // its receipt what the order got since is a bill (and a receipt) of its own. Not mirrored: the server's re-bill
+    // of a bill that carries only the advances' offset when the order changed before any receipt.
+    final Map<String, Object?>? current = settlements[uuid] == null
+        ? null
+        : cashier.billByUuid('${settlements[uuid]!['bill_uuid']}');
+    if (current != null && current['status'] != 'void') {
+      if (current['status'] == 'paid') {
+        final Map<String, Object?>? extra = order['status'] == 'delivered'
+            ? null
+            : cashier.addonBill(order);
+        return _ok(<String, Object?>{
+          'settlement': _settlement(e),
+          'bill': extra ?? current,
+        });
+      }
+      if (_t(current['paid_amount']) > 0) {
+        return _ok(<String, Object?>{
+          'settlement': _settlement(e),
+          'bill': current,
+        });
+      }
     }
+    // Review C1: an order a direct payment closed before the guard (the event stuck with its advances) is opened again;
+    // the settlement's bill carries only the banquet charge (this legacy path has two sale receipts)
+    if (order['status'] == 'delivered') cashier.reopenOrder(order);
     if (state.shift == null) {
       return _fail(
         409,

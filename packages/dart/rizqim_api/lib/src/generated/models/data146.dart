@@ -21,6 +21,7 @@ class Data146 {
     required this.byStatus,
     required this.guests,
     required this.total,
+    required this.received,
     required this.paid,
     required this.outstanding,
     required this.overdue,
@@ -43,6 +44,7 @@ class Data146 {
   final List<ByStatus> byStatus;
   final int guests;
   final String total;
+  final String received;
   final String paid;
   final String outstanding;
   final Overdue overdue;

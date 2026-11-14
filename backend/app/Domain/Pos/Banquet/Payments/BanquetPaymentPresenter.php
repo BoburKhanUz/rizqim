@@ -26,7 +26,7 @@ final class BanquetPaymentPresenter
 
     public const CANCELLATION = 'array{days_before: int, rule_percent: string, paid: string, computed_retained: string, retained: string, refund: string, override_reason: string|null, reason: string|null, business_date: string|null, cancelled_by: int|null, created_at: string|null}';
 
-    public const SCHEDULE = 'array{event: array{uuid: string, status: string, status_label: string, event_date: string, total: string, paid_total: string, version: int}, summary: ' . self::SUMMARY . ', rows: list<' . self::ROW . '>, entries: list<' . self::ENTRY . '>, cancellation: ' . self::CANCELLATION . '|null}';
+    public const SCHEDULE = 'array{event: array{uuid: string, status: string, status_label: string, event_date: string, total: string, paid_total: string, version: int, billed: bool}, summary: ' . self::SUMMARY . ', rows: list<' . self::ROW . '>, entries: list<' . self::ENTRY . '>, cancellation: ' . self::CANCELLATION . '|null}';
 
     /**
      * @return array<string, mixed>
@@ -48,6 +48,8 @@ final class BanquetPaymentPresenter
                 'total' => Money::of($event->total)->toString(),
                 'paid_total' => Money::of($event->paid_total)->toString(),
                 'version' => (int) $event->version,
+                // Review C2: the final settlement exists — the schedule is closed, the remainder is on the settlement bill
+                'billed' => BanquetSchedule::billed($event),
             ],
             'summary' => BanquetSchedule::summary($event, $rows, $today),
             'rows' => $rows->map(fn (BanquetPayment $row) => $this->row($row, $today, $names->all()))->values()->all(),

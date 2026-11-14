@@ -33,11 +33,13 @@ class BanquetOpsSettingsController extends ManagementController
      * unit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};
      * `portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent
      * and extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000
-     * characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Audited.
+     * characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Store-wide:
+     * a caller bound to one branch is refused (403 `store_wide_only`). Audited.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . BanquetOpsSettings::SHAPE . '}')]
     public function update(Request $request): JsonResponse
     {
+        $this->assertStoreWide($request, "Banket sozlamalari butun do'kon uchun: ularni faqat egasi yoki butun do'kon menejeri o'zgartiradi.");
         $data = $request->validate([
             'version' => 'nullable|integer|min:0',
             'reserve_percent' => 'sometimes|numeric|min:0|max:50|decimal:0,2',

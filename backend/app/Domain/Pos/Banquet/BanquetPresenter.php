@@ -29,9 +29,9 @@ class BanquetPresenter
 
     public const PAYMENT = 'array{uuid: string, kind: string, kind_label: string, due_date: string|null, amount: string, status: string, status_label: string, tender: string|null, paid_at: string|null, fiscal_receipt_uuid: string|null}';
 
-    public const SUMMARY = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool}';
+    public const SUMMARY = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, paid: string, refunded: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool}';
 
-    public const DETAIL = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool, package_snapshot: array<string, mixed>|null, package_total: string, hall_total: string, extras_total: string, orders_total: string, quote: array{currency: string, rate: string, total: string}|null, frozen_at: string|null, note: string|null, order_uuid: string|null, cancel_reason: string|null, created_by: int|null, confirmed_at: string|null, started_at: string|null, settled_at: string|null, cancelled_at: string|null, released_at: string|null, created_at: string|null, updated_at: string|null, lines: list<' . self::LINE . '>, payments: list<' . self::PAYMENT . '>, warnings: list<' . self::WARNING . '>}';
+    public const DETAIL = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, paid: string, refunded: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool, package_snapshot: array<string, mixed>|null, package_total: string, hall_total: string, extras_total: string, orders_total: string, quote: array{currency: string, rate: string, total: string}|null, frozen_at: string|null, note: string|null, order_uuid: string|null, cancel_reason: string|null, created_by: int|null, confirmed_at: string|null, started_at: string|null, settled_at: string|null, cancelled_at: string|null, released_at: string|null, created_at: string|null, updated_at: string|null, lines: list<' . self::LINE . '>, payments: list<' . self::PAYMENT . '>, warnings: list<' . self::WARNING . '>}';
 
     /** @var array<int, string> the business day per branch id (one presenter lists many events) */
     private array $today = [];
@@ -49,6 +49,7 @@ class BanquetPresenter
         $tz = StoreTimezone::of($event->store);
         $halls = $event->halls->sortBy('id')->values();
         $snapshotName = is_array($event->package_snapshot) ? ($event->package_snapshot['name'] ?? null) : null;
+        $figures = \App\Domain\Pos\Banquet\Ops\BanquetFigures::one($event);
 
         return [
             'uuid' => (string) $event->uuid,
@@ -72,12 +73,18 @@ class BanquetPresenter
             'guests_guaranteed' => (int) $event->guests_guaranteed,
             'guests_minimum' => (int) $event->guests_minimum,
             'guests_actual' => $event->guests_actual,
-            'guests_billed' => $event->billedGuests(),
+            // Review P6 wave 5 (C12): as the settlement bills them — more when more came
+            'guests_billed' => max((int) ($event->guests_actual ?? 0), $event->billedGuests()),
             'package_id' => $event->banquet_package_id !== null ? (int) $event->banquet_package_id : null,
             'package_name' => $snapshotName !== null ? (string) $snapshotName : null,
             'total' => Money::of($event->total)->toString(),
+            // The column: money received on the schedule (P6-53, never reduced by refunds)
             'paid_total' => Money::of($event->paid_total)->toString(),
-            'outstanding' => Money::max(Money::zero(), Money::of($event->total)->minus($event->paid_total))->toString(),
+            // Review P6 wave 5 (C4): as the report counts it (Ops\BanquetFigures): received less refunded, the final bill
+            // included; nothing outstanding once settled or cancelled
+            'paid' => $figures['paid']->toString(),
+            'refunded' => $figures['refunded']->toString(),
+            'outstanding' => $figures['outstanding']->toString(),
             'hold_expires_at' => $event->hold_expires_at?->toJSON(),
             'frozen' => $event->frozen_at !== null,
             'contract_no' => $event->contract_no,

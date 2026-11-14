@@ -25,6 +25,7 @@ class Rows {
     required this.guests,
     required this.total,
     required this.paid,
+    required this.received,
     required this.refunded,
     required this.retained,
     required this.outstanding,
@@ -59,6 +60,7 @@ class Rows {
   final int guests;
   final String total;
   final String paid;
+  final String received;
   final String refunded;
   final String retained;
   final String outstanding;

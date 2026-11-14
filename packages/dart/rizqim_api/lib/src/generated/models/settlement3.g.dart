@@ -14,6 +14,10 @@ Settlement3 _$Settlement3FromJson(Map<String, dynamic> json) => Settlement3(
   excessAmount: json['excess_amount'] as String,
   excessStatus: json['excess_status'] as String,
   settledAt: json['settled_at'] as String?,
+  extraBills: (json['extra_bills'] as List<dynamic>)
+      .map((e) => ExtraBills2.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  extraBillsNotice: json['extra_bills_notice'] as String?,
 );
 
 Map<String, dynamic> _$Settlement3ToJson(Settlement3 instance) =>
@@ -25,4 +29,6 @@ Map<String, dynamic> _$Settlement3ToJson(Settlement3 instance) =>
       'excess_amount': instance.excessAmount,
       'excess_status': instance.excessStatus,
       'settled_at': instance.settledAt,
+      'extra_bills': instance.extraBills,
+      'extra_bills_notice': instance.extraBillsNotice,
     };

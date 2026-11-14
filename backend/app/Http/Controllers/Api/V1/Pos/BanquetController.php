@@ -101,7 +101,8 @@ class BanquetController extends MenuStaffController
      * Banquet events (list, search by phone)
      *
      * Without `phone`: the events between `from` and `to` (default this month), by start. With `phone` (at least 4
-     * digits): the customer's events across dates, newest first. Filter by `status`. At most 200.
+     * digits): the customer's events across dates, newest first — at most 20 searches a minute per staff member and
+     * per terminal (429 `search_rate_limited`). Filter by `status`. At most 200.
      */
     #[QueryParameter('branch_id', 'One branch (default: the caller\'s; the whole store for store-wide staff).', type: 'int')]
     #[QueryParameter('phone', 'Search by the customer phone (digits, at least 4).', type: 'string')]

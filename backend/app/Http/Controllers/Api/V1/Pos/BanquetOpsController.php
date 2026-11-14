@@ -272,8 +272,11 @@ class BanquetOpsController extends MenuStaffController
      * once it is covered ONE sale receipt is issued for the full total (the advances as its prepayment part), the order
      * closes and the event becomes `settled`. Advances over the total are refunded against their advance receipts (cash
      * from the drawer needs pos.refund or a manager's `approval_token`; else `excess_status` stays `pending` — POST
-     * .../settlement/refund-excess). Retrying before money is on the bill recomputes it. 409 `invalid_transition`,
-     * `order_closed`, `shift_not_open`; 422 `mxik_missing`. pos.take_payment.
+     * .../settlement/refund-excess). Retrying before money is on the bill recomputes it; lines added after only the
+     * advances were offset are billed again onto the same settlement; once its receipt exists, lines added since are
+     * billed apart and `bill` is that bill (its own receipt; `settlement.settlement.extra_bills`). An order closed by
+     * a direct payment before the settlement is opened again for it (the banquet charge on a bill of its own). 409
+     * `invalid_transition`, `order_closed`, `shift_not_open`, `stale_version`; 422 `mxik_missing`. pos.take_payment.
      */
     #[HeaderParameter('Idempotency-Key', description: 'Required: a new UUID per settlement, the same one when retrying it (428 without).', type: 'string')]
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{settlement: ' . BanquetSettlementService::PREVIEW . ', bill: ' . BillPresenter::BILL . '}}')]

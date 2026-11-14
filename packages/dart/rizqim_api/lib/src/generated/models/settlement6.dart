@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'extra_bills4.dart';
+
 part 'settlement6.g.dart';
 
 @JsonSerializable()
@@ -16,6 +18,8 @@ class Settlement6 {
     required this.excessAmount,
     required this.excessStatus,
     required this.settledAt,
+    required this.extraBills,
+    required this.extraBillsNotice,
   });
 
   factory Settlement6.fromJson(Map<String, Object?> json) =>
@@ -33,6 +37,10 @@ class Settlement6 {
   final String excessStatus;
   @JsonKey(name: 'settled_at')
   final String? settledAt;
+  @JsonKey(name: 'extra_bills')
+  final List<ExtraBills4> extraBills;
+  @JsonKey(name: 'extra_bills_notice')
+  final String? extraBillsNotice;
 
   Map<String, Object?> toJson() => _$Settlement6ToJson(this);
 }

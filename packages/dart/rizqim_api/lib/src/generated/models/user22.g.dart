@@ -6,18 +6,10 @@ part of 'user22.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-User22 _$User22FromJson(Map<String, dynamic> json) => User22(
-  id: (json['id'] as num).toInt(),
-  name: json['name'] as String,
-  role: json['role'] as String,
-  permissions: (json['permissions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-);
+User22 _$User22FromJson(Map<String, dynamic> json) =>
+    User22(id: (json['id'] as num).toInt(), name: json['name'] as String?);
 
 Map<String, dynamic> _$User22ToJson(User22 instance) => <String, dynamic>{
   'id': instance.id,
   'name': instance.name,
-  'role': instance.role,
-  'permissions': instance.permissions,
 };

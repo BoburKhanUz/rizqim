@@ -269,6 +269,19 @@ abstract final class PosReasons {
   /// P6-11: filial formati modulni o'chirgan (403, [PosModuleDisabled]).
   static const String moduleDisabled = 'module_disabled';
 
+  /// P6-54 (C1): 409 — a bill or payment on a banquet event's day order outside its final settlement.
+  static const String banquetSettleFirst = 'banquet_settle_first';
+
+  /// P6-53 (C2): 409 — the event is billed (or settled, cancelled): its schedule is closed, the remainder is paid on
+  /// the settlement bill.
+  static const String eventBilled = 'event_billed';
+
+  /// P6-53 (C11): 409 — the same bank transfer reference twice on one event.
+  static const String transferDuplicate = 'transfer_duplicate';
+
+  /// P6-53 (S4): 403 — a bank transfer is recorded only in the web panel, never from a terminal PIN session.
+  static const String panelOnly = 'panel_only';
+
   /// Tarif / to'lanmagan hisob-faktura rad etishlari ([PosPlanRefused]).
   static const Set<String> planRefusals = <String>{
     planFeatureMissing,
@@ -291,6 +304,8 @@ abstract final class PosReasons {
     mergeBookingsConflict,
     shiftClosed,
     accountUnknown,
+    banquetSettleFirst,
+    eventBilled,
   };
 
   /// Tasdiq rad etilganini bildiruvchi sabablar ([PosApprovalRejected]).
@@ -383,6 +398,13 @@ abstract final class PosReasons {
     moduleDisabled: "Bu modul filialda o'chirilgan. Uni hamkor panelidagi \"Format\" sahifasida yoqish mumkin.",
     subscriptionLocked: "To'lanmagan hisob-faktura sababli yangi sozlamalar yopilgan. To'lov qilinishi bilan darhol ochiladi. Kassa to'lov qabul qilishda davom etadi.",
     deviceLimit: "To'lanmagan hisob-faktura sababli tarifdagidan ortiq qurilma ulab bo'lmaydi. Eskisini o'chirib, o'rniga yangisini ulashingiz mumkin.",
+    banquetSettleFirst:
+        "Bu tadbir buyurtmasi: u faqat yakuniy hisob orqali to'lanadi. Tadbir kartasida «Yakuniy hisob»ni oching: "
+        "zakladlar ayiriladi va bitta sotuv cheki chiqadi.",
+    eventBilled: "Tadbirning yakuniy schyoti tuzilgan: to'lov jadvali yopiq. Qoldiq yakuniy hisobda to'lanadi.",
+    transferDuplicate:
+        "Bu raqamli bank o'tkazmasi shu tadbirda allaqachon yozilgan.",
+    panelOnly: "Bank o'tkazmasi faqat boshqaruv panelida yoziladi: kassada naqd, karta yoki QR bilan oling.",
     noChannel:
         "Yuborib bo'lmadi: mehmon telefoni do'kon Telegram botiga ulanmagan, SMS esa filial sozlamasida o'chirilgan. "
         "Matnni nusxa olib o'zingiz yuboring yoki chop etib bering.",

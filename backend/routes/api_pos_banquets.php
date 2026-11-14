@@ -20,7 +20,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
         Route::middleware('permission:banquets.manage,pos.take_payment')->group(function () {
             Route::get('/banquets/calendar', [BanquetController::class, 'calendar']);
             Route::get('/banquets/catalog', [BanquetController::class, 'catalog']);
-            Route::get('/banquets', [BanquetController::class, 'index']);
+            Route::get('/banquets', [BanquetController::class, 'index'])->middleware('throttle:pos-banquet-search');
             Route::get('/banquets/{uuid}', [BanquetController::class, 'show'])->whereUuid('uuid');
         });
         Route::middleware('permission:banquets.manage')->group(function () {

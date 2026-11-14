@@ -88,7 +88,8 @@ abstract class OwnerBanquetsApi {
   /// unit kg|l|dona, per_kg}] (up to 30), kazans: kg sizes (up to 10), product_ids: the store's osh products};.
   /// `portion_weights`: [{product_id, grams}]; the MXIK codes (17 digits) and package codes of the package, hall rent.
   /// and extras lines of the final sale receipt (accountant to confirm); `contract_template` (up to 20 000.
-  /// characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Audited.
+  /// characters; empty: the default text). `version`: the one read (409 `version_conflict` when it moved). Store-wide:.
+  /// a caller bound to one branch is refused (403 `store_wide_only`). Audited.
   ///
   /// [idempotencyKey] - Optional: a new UUID per action, the same one when retrying it; a repeat returns the first answer.
   @PUT('/v1/owner/pos/banquets/ops-settings')
@@ -138,7 +139,7 @@ abstract class OwnerBanquetsApi {
   /// Only the fields sent change. `slots`: {morning|day|evening: {start, end}} ("HH:MM", an end before the start is.
   /// the next day); `hold_hours` (0: a hold never expires by itself); `guest_warning_thresholds` and the time window.
   /// are warnings, never refusals; the MXIK codes of the advance receipt line and of the cancellation fee (the.
-  /// accountant confirms them). Audited.
+  /// accountant confirms them). Store-wide: a caller bound to one branch is refused (403 `store_wide_only`). Audited.
   @PUT('/v1/owner/pos/banquets/settings')
   Future<PutV1OwnerPosBanquetsSettingsResponse> banquetSetupUpdateSettings({
     @Body() V1OwnerPosBanquetsSettingsRequestBody? body,
