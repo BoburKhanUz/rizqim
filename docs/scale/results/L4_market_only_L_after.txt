@@ -1,0 +1,9 @@
+L4_market_only_L_after wall=314.2s req=15703 rps=49.98 cpu php=782.35s pg=289.19s xacts=611847 conn_max=6 lockwaits=0
+GET /catalog?geo                     n= 3163 rps= 10.07 p50=305.3 p95=778.2 p99=1041.5 err%=0
+GET /catalog?store_id                n= 3090 rps=  9.84 p50=365.3 p95=945.3 p99=1144.3 err%=0
+GET /notifications                   n= 3090 rps=  9.84 p50=380 p95=982.3 p99=1113.8 err%=0
+GET /orders                          n= 3090 rps=  9.84 p50=429.9 p95=1024 p99=1182.7 err%=0
+GET /stores?geo                      n= 3225 rps= 10.27 p50=314.3 p95=855.8 p99=1094.7 err%=0
+POST /orders                         n=   45 rps=  0.14 p50=487.3 p95=1043.9 p99=1112.4 err%=0
+errors: {}
+sync: {}

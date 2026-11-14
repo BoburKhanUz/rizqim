@@ -1,0 +1,50 @@
+### 109.467 ms  select count(*) as count, coalesce(sum(order_items.total_price), 0) as amount from "order_items" inner join "orders" on "orders"."id" = "order_items"."order_id" where "orders"."branch_id" = $1 and "order_items"."voided_at" is not null and "order_items"."combo_parent_id" is null and "order_items"."vo
+    Query Parameters: $1 = '30', $2 = '2026-11-14 17:06:14', $3 = '2026-11-14 17:25:58'
+    Limit  (cost=25541.62..25541.63 rows=1 width=40) (actual time=107.198..109.459 rows=1 loops=1)
+    Buffers: shared read=18786
+    I/O Timings: shared read=50.400
+    ->  Aggregate  (cost=25541.62..25541.63 rows=1 width=40) (actual time=107.197..109.457 rows=1 loops=1)
+    Buffers: shared read=18786
+    I/O Timings: shared read=50.400
+    ->  Nested Loop  (cost=1000.42..25541.61 rows=1 width=6) (actual time=107.192..109.451 rows=0 loops=1)
+    Buffers: shared read=18786
+### 33.674 ms  select count(*) as aggregate from "notification_logs" where "user_id" = $1 and "is_read" = $2
+    Query Parameters: $1 = '103', $2 = 'f'
+    Finalize Aggregate  (cost=15722.63..15722.64 rows=1 width=8) (actual time=31.330..33.666 rows=1 loops=1)
+    Buffers: shared hit=32 read=10184
+    I/O Timings: shared read=17.812
+    ->  Gather  (cost=15722.42..15722.63 rows=2 width=8) (actual time=31.229..33.659 rows=3 loops=1)
+    Workers Planned: 2
+    Workers Launched: 2
+    Buffers: shared hit=32 read=10184
+    I/O Timings: shared read=17.812
+### 122.479 ms  select * from "notification_logs" where "user_id" = $1 order by "id" desc limit 20 offset 0
+    Query Parameters: $1 = '103'
+    Limit  (cost=0.42..895.30 rows=20 width=89) (actual time=113.627..122.445 rows=20 loops=1)
+    Buffers: shared hit=2500 read=11909 written=26
+    I/O Timings: shared read=44.934 write=0.187
+    ->  Index Scan Backward using notification_logs_pkey on notification_logs  (cost=0.42..34855.85 rows=779 width=89) (actual time=113.626..122.439 rows=20 loops=1
+    Filter: (user_id = '103'::bigint)
+    Rows Removed by Filter: 833228
+    Buffers: shared hit=2500 read=11909 written=26
+    I/O Timings: shared read=44.934 write=0.187
+### 31.881 ms  select order_items.product_name AS name, SUM(order_items.quantity) AS quantity, SUM(order_items.total_price) AS revenue, COUNT(DISTINCT orders.id) AS orders from "orders" inner join "order_items" on "order_items"."order_id" = "orders"."id" where "orders"."store_id" = $1 and "orders"."deleted_at" is 
+    Query Parameters: $1 = '30', $2 = '2026-10-15 19:00:00', $3 = '2026-11-14 19:00:00', $4 = 'delivered'
+    Limit  (cost=30367.69..30367.72 rows=10 width=79) (actual time=30.606..31.867 rows=10 loops=1)
+    Buffers: shared hit=22974 read=630
+    I/O Timings: shared read=2.658
+    ->  Sort  (cost=30367.69..30367.99 rows=119 width=79) (actual time=30.605..31.864 rows=10 loops=1)
+    Sort Key: (sum(order_items.quantity)) DESC, order_items.product_name
+    Sort Method: top-N heapsort  Memory: 26kB
+    Buffers: shared hit=22974 read=630
+    I/O Timings: shared read=2.658
+### 82.854 ms  select AVG(EXTRACT(EPOCH FROM (preparing_at - accepted_at)))
+    FILTER (WHERE accepted_at IS NOT NULL AND preparing_at > accepted_at) AS prep,
+    AVG(EXTRACT(EPOCH FROM (delivered_at - COALESCE(en_route_at, preparing_at))))
+    FILTER (WHERE status = 'delivered' AND order_type = 'delivery' AND delivered_at > COALESCE(en_route_at, preparing_at)) AS delivery from (select orders.status AS
+    orders.order_type AS order_type,
+    MAX(h.created_at) FILTER (WHERE h.status = 'accepted') AS accepted_at,
+    MAX(h.created_at) FILTER (WHERE h.status = 'preparing') AS preparing_at,
+    MIN(h.created_at) FILTER (WHERE h.status IN ('on_the_way', 'delivery')) AS en_route_at,
+    MAX(h.created_at) FILTER (WHERE h.status = 'delivered') AS delivered_at from "orders" inner join "order_status_histories" as "h" on "h"."order_id" = "orders"."i
+    Query Parameters: $1 = '30', $2 = '2026-10-15 19:00:00', $3 = '2026-11-14 19:00:00'

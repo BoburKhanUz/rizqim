@@ -1,0 +1,4 @@
+L6_hub_first_L wall=327s req=228 rps=0.7 cpu php=41.3s pg=45.54s xacts=46397 conn_max=2 lockwaits=0
+POST /pos/sync                       n=  228 rps=   0.7 p50=305.7 p95=371 p99=391.8 err%=0
+errors: {}
+sync: {"applied":912}

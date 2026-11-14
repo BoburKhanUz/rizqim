@@ -1,0 +1,17 @@
+read_miniapp: number of failed transactions: 0 (0.000%)
+read_miniapp: latency average = 311.834 ms
+read_miniapp: tps = 25.654713 (without initial connection time)
+read_pos: number of failed transactions: 0 (0.000%)
+read_pos: latency average = 0.859 ms
+read_pos: tps = 9312.958290 (without initial connection time)
+read_report: number of failed transactions: 0 (0.000%)
+read_report: latency average = 10.676 ms
+read_report: tps = 749.336458 (without initial connection time)
+write_pos: number of failed transactions: 0 (0.000%)
+write_pos: latency average = 44.295 ms
+write_pos: tps = 180.607875 (without initial connection time)
+select1 : latency average = 0.050 ms
+select1 : tps = 159261.275550 (without initial connection time)
+select1 -C: latency average = 40.896 ms
+select1 -C: average connection time = 20.431 ms
+select1 -C: tps = 195.619620 (including reconnection times)
