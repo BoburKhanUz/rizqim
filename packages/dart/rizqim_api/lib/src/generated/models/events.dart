@@ -42,6 +42,7 @@ class Events {
     required this.frozen,
     required this.contractNo,
     required this.version,
+    required this.overdue,
   });
 
   factory Events.fromJson(Map<String, Object?> json) => _$EventsFromJson(json);
@@ -99,6 +100,7 @@ class Events {
   @JsonKey(name: 'contract_no')
   final String? contractNo;
   final int version;
+  final bool overdue;
 
   Map<String, Object?> toJson() => _$EventsToJson(this);
 }

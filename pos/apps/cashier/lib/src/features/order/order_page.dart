@@ -36,10 +36,13 @@ import 'takeaway_widgets.dart';
 /// Tezlik: ochiq buyurtmaga 3 ta taomni qo'shib oshxonaga yuborish — 4 bosish (3 taom + "Yuborish"); kg taom
 /// qo'shilsa — klaviaturada tez tugma va "Qo'shish" (yana 2 bosish).
 class OrderPage extends StatefulWidget {
-  const OrderPage({super.key, this.orderUuid, this.tableId});
+  const OrderPage({super.key, this.orderUuid, this.tableId, this.placeTitle});
 
   final String? orderUuid;
   final int? tableId;
+
+  /// P6-54: sarlavhadagi joy nomi o'rniga (tadbir kuni buyurtmasi — tadbir nomi).
+  final String? placeTitle;
 
   @override
   State<OrderPage> createState() => _OrderPageState();
@@ -629,7 +632,8 @@ class _OrderPageState extends State<OrderPage> {
     final RzColors c = context.rz;
     final PosOrder? o = ctl.order;
     final DateTime now = _scope.services.now();
-    final String title = o != null ? orderPlaceLabel(o) : 'Tez kassa';
+    final String title =
+        widget.placeTitle ?? (o != null ? orderPlaceLabel(o) : 'Tez kassa');
     final List<String> facts = <String>[
       if (o?.hall != null && o?.table != null) ?o!.hall!.name,
       if (o?.shortCode != null) '#${o!.shortCode}',

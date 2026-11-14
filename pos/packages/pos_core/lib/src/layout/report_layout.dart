@@ -72,6 +72,14 @@ PrintLayout layoutShiftReport(ShiftReport r, PaperWidth paper) {
     }
   }
 
+  if (r.banquets.isNotEmpty) {
+    // P6-53: a banquet schedule payment is an advance (not a sale); the final sale receipt offsets it as prepayment
+    section('TADBIRLAR');
+    for (final ReportAmount t in r.banquets) {
+      amount(t.label, t.amount, count: t.count);
+    }
+  }
+
   if (!r.advancesReceived.isZero ||
       !r.advancesApplied.isZero ||
       !r.creditSales.isZero ||

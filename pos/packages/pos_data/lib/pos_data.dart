@@ -22,6 +22,8 @@ export 'src/accounts/account_repository.dart';
 export 'src/banquets/banquet_models.dart';
 export 'src/banquets/banquet_ops_models.dart';
 export 'src/banquets/banquet_ops_repository.dart';
+export 'src/banquets/banquet_payment_models.dart';
+export 'src/banquets/banquet_payment_repository.dart';
 export 'src/banquets/banquet_repository.dart';
 export 'src/billing/bill_print_request.dart';
 export 'src/billing/billing_models.dart';

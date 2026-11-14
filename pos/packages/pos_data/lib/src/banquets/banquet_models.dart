@@ -202,6 +202,8 @@ class PosBanquetEvent {
     this.lines = const <PosBanquetLine>[],
     this.payments = const <PosBanquetScheduleRow>[],
     this.warnings = const <PosBanquetWarning>[],
+    this.overdue = false,
+    this.orderUuid,
   });
 
   factory PosBanquetEvent.fromJson(PosJson j) {
@@ -252,6 +254,8 @@ class PosBanquetEvent {
       warnings: j.has('warnings')
           ? j.objects('warnings', PosBanquetWarning.fromJson)
           : const <PosBanquetWarning>[],
+      overdue: j.boolean('overdue'),
+      orderUuid: j.strOrNull('order_uuid'),
     );
   }
 
@@ -300,6 +304,16 @@ class PosBanquetEvent {
   final List<PosBanquetLine> lines;
   final List<PosBanquetScheduleRow> payments;
   final List<PosBanquetWarning> warnings;
+
+  /// P6-53: to'lanmagan qatorning sanasi o'tgan (taqvim belgisi; eski server — `false`).
+  final bool overdue;
+
+  /// P6-54: tadbir kuni buyurtmasi (`in_progress` dan keyin).
+  final String? orderUuid;
+
+  /// Ekrandagi nomi: sarlavha yoki mijoz.
+  String get displayName =>
+      (title?.trim().isNotEmpty ?? false) ? title!.trim() : customerName;
 
   List<int> get hallIds => <int>[for (final PosBanquetHall h in halls) h.id];
 }

@@ -6,6 +6,7 @@ import 'package:rizqim_api/rizqim_api.dart';
 
 import 'accounts/account_repository.dart';
 import 'banquets/banquet_ops_repository.dart';
+import 'banquets/banquet_payment_repository.dart';
 import 'banquets/banquet_repository.dart';
 import 'billing/billing_repository.dart';
 import 'bookings/booking_repository.dart';
@@ -94,6 +95,7 @@ class PosData {
     qr = PosQrPaymentRepository(http, offline: offline);
     banquets = PosBanquetRepository(http, offline: offline);
     banquetOps = PosBanquetOpsRepository(http, offline: offline);
+    banquetPayments = PosBanquetPaymentRepository(http, offline: offline);
     ingredients = PosIngredientRepository(http);
     final PosOffline? o = offline;
     if (o != null) {
@@ -185,6 +187,9 @@ class PosData {
 
   /// P6-54: ishlab chiqarish varag'i, osh kalkulyatori, bozorlik, shartnoma, tadbir kuni va yakuniy hisob (internet bilan).
   late final PosBanquetOpsRepository banquetOps;
+
+  /// P6-53: tadbir to'lov jadvali, kassada zaklad va oraliq to'lov (bo'nak cheki), bekor qilish (internet bilan).
+  late final PosBanquetPaymentRepository banquetPayments;
 
   /// P6-55 / B9: ingredient bo'yicha tez stop ("Tovuq tugadi"; faqat internet bilan).
   late final PosIngredientRepository ingredients;

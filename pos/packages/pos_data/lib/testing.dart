@@ -3,6 +3,7 @@
 /// ([FakePosServer]). Kassa (P3-21, P3-22) va ofitsiant (P3-25) testlari ham shularni ishlatadi.
 library;
 
+export 'src/testing/fake_banquet_backend.dart';
 export 'src/testing/fake_cashier_backend.dart';
 export 'src/testing/fake_entitlements.dart';
 export 'src/testing/fake_pos_adapter.dart';

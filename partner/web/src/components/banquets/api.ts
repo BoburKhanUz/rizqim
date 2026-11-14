@@ -81,6 +81,8 @@ export interface EventSummary {
   frozen: boolean;
   contract_no: string | null;
   version: number;
+  /** An unpaid schedule row is past its due date (the calendar badge; older servers omit it). */
+  overdue?: boolean;
 }
 
 export interface EventLine {

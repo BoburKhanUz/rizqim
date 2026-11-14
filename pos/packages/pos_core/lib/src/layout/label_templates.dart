@@ -47,9 +47,11 @@ LabelLayout layoutCupSticker(CupSticker s, LabelSize size) {
   }
   w.reserved = 0;
   final String? customer = s.customerName?.trim();
+  final String? brand = s.brandCode?.trim();
   w.footer(
     customer == null || customer.isEmpty ? s.takeawayLabel : customer,
     bold: true,
+    right: brand == null || brand.isEmpty ? null : brand.toUpperCase(),
   );
 
   return w.build(
@@ -69,7 +71,16 @@ LabelLayout layoutBagLabel(BagLabel b, LabelSize size) {
   w.text(number, scale: 2, bold: true, maxRows: 2);
   w.bar();
   w.reserved = 1;
-  w.text(b.orderLabel, bold: true, maxRows: 1);
+  // P6-55: the brands of the bag flush right on the order-type line
+  final String brands = b.brandCodes
+      .map((String c) => c.trim().toUpperCase())
+      .where((String c) => c.isNotEmpty)
+      .join(' ');
+  if (brands.isEmpty) {
+    w.text(b.orderLabel, bold: true, maxRows: 1);
+  } else {
+    w.pair(b.orderLabel, brands, bold: true);
+  }
   w.text('Mahsulot: ${b.itemCount} ta', maxRows: 1);
   final String? customer = b.customerName?.trim();
   if (customer != null && customer.isNotEmpty) w.text(customer, maxRows: 2);

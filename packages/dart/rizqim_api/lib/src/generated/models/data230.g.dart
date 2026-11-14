@@ -7,7 +7,7 @@ part of 'data230.dart';
 // **************************************************************************
 
 Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
-  customerPhone: json['customer_phone'] as String?,
+  guestsGuaranteed: (json['guests_guaranteed'] as num).toInt(),
   branchId: (json['branch_id'] as num).toInt(),
   eventDate: json['event_date'] as String,
   slot: json['slot'] as String,
@@ -28,8 +28,8 @@ Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
   statusLabel: json['status_label'] as String,
   title: json['title'] as String?,
   customerName: json['customer_name'] as String,
+  customerPhone: json['customer_phone'] as String?,
   uuid: json['uuid'] as String,
-  guestsGuaranteed: (json['guests_guaranteed'] as num).toInt(),
   guestsMinimum: (json['guests_minimum'] as num).toInt(),
   guestsActual: (json['guests_actual'] as num?)?.toInt(),
   guestsBilled: (json['guests_billed'] as num).toInt(),
@@ -42,6 +42,7 @@ Data230 _$Data230FromJson(Map<String, dynamic> json) => Data230(
   frozen: json['frozen'] as bool,
   contractNo: json['contract_no'] as String?,
   version: (json['version'] as num).toInt(),
+  overdue: json['overdue'] as bool,
   packageSnapshot: json['package_snapshot'] as Map<String, dynamic>?,
   packageTotal: json['package_total'] as String,
   warnings: (json['warnings'] as List<dynamic>)
@@ -105,6 +106,7 @@ Map<String, dynamic> _$Data230ToJson(Data230 instance) => <String, dynamic>{
   'frozen': instance.frozen,
   'contract_no': instance.contractNo,
   'version': instance.version,
+  'overdue': instance.overdue,
   'package_snapshot': instance.packageSnapshot,
   'package_total': instance.packageTotal,
   'hall_total': instance.hallTotal,

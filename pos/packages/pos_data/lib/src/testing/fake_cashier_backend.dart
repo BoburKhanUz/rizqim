@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'fake_banquet_backend.dart';
 import 'fake_pos_state.dart';
 import 'fake_qr_backend.dart';
 import 'fake_voucher_backend.dart';
@@ -1221,6 +1222,25 @@ class FakeCashierBackend {
           'vat_amount': _m((_net(i) * 12 / 112).round()),
           'no_vat': false,
         },
+      // P6-54: a banquet event's package, hall rent and extras on its final bill
+      for (final Map<String, Object?> b
+          in ((bill['banquet_lines'] as List<Object?>?) ?? const <Object?>[])
+              .cast<Map<String, Object?>>())
+        <String, Object?>{
+          'name': b['name'],
+          'mxik_code': '10202002001000005',
+          'package_code': null,
+          'unit': b['unit'] ?? 'xizmat',
+          'quantity': '${b['quantity'] ?? 1}',
+          'unit_price': _m(
+            (_t(b['amount']) / (num.tryParse('${b['quantity'] ?? 1}') ?? 1))
+                .round(),
+          ),
+          'amount': b['amount'],
+          'vat_rate': '12',
+          'vat_amount': _m((_t(b['amount']) * 12 / 112).round()),
+          'no_vat': false,
+        },
       for (final (String key, String name) in <(String, String)>[
         ('room_fee_amount', 'Xona puli'),
         ('service_charge_amount', 'Xizmat haqi'),
@@ -1960,9 +1980,25 @@ class FakeCashierBackend {
     int soldBy(String t) =>
         sumOf(sold.where((Map<String, Object?> v) => v['tender'] == t));
     final int cashVouchers = soldBy('cash');
+    // P6-53: banquet schedule payments (advances) and refunds of cancelled events on this shift
+    final List<Map<String, Object?>> banquetMoney =
+        banquetBackend?.shiftEntries(id) ?? const <Map<String, Object?>>[];
+    Iterable<Map<String, Object?>> banquetOf(String type, [String? t]) =>
+        banquetMoney.where(
+          (Map<String, Object?> x) =>
+              x['type'] == type && (t == null || x['tender'] == t),
+        );
+    int banquetSum(Iterable<Map<String, Object?>> xs) => xs.fold(
+      0,
+      (int s, Map<String, Object?> x) => s + (x['amount']! as int),
+    );
+    final int cashBanquets = banquetSum(banquetOf('payment', 'cash'));
+    final int cashBanquetRefunds = banquetSum(banquetOf('refund', 'cash'));
     final int expected =
         opening +
         cashVouchers +
+        cashBanquets -
+        cashBanquetRefunds +
         cashSales +
         moveSum('cash_in') +
         cashDeposits +
@@ -2055,6 +2091,21 @@ class FakeCashierBackend {
             'amount': _m(sumOf(tender('voucher'))),
           },
         },
+      if (banquetBackend != null)
+        'banquets': <String, Object?>{
+          'taken': <String, Object?>{
+            'count': banquetOf('payment').length,
+            'amount': _m(banquetSum(banquetOf('payment'))),
+            'cash': _m(cashBanquets),
+            'card': _m(banquetSum(banquetOf('payment', 'card'))),
+            'qr': _m(banquetSum(banquetOf('payment', 'qr'))),
+          },
+          'refunded': <String, Object?>{
+            'count': banquetOf('refund').length,
+            'amount': _m(banquetSum(banquetOf('refund'))),
+            'cash': _m(cashBanquetRefunds),
+          },
+        },
       'cards': <Object?>[
         for (final MapEntry<String, int> c in cards.entries)
           <String, Object?>{'card_type': c.key, 'amount': _m(c.value)},
@@ -2128,6 +2179,8 @@ class FakeCashierBackend {
         'deposit_refunds': _m(cashDepositRefunds),
         'repayments': _m(cashRepay),
         if (sold.isNotEmpty) 'vouchers': _m(cashVouchers),
+        if (banquetBackend != null) 'banquets': _m(cashBanquets),
+        if (banquetBackend != null) 'banquet_refunds': _m(cashBanquetRefunds),
         'expected': _m(expected),
       },
       'movements': <Object?>[
@@ -4407,6 +4460,91 @@ class FakeCashierBackend {
 
   /// P6-43: sertifikat yoqiladi: sotish (modul, smena, karta maydonlari, bo'nak cheki, smenaga pul, idempotent),
   /// kod bo'yicha qidirish, `voucher` tenderi (qoldiq kamayadi), qaytarish sertifikatga.
+  /// P6-51…P6-54: tadbirlar yo'llari ([useBanquets]).
+  FakeBanquetBackend? banquetBackend;
+
+  /// Tadbirlar yoqiladi (taqvim, jadval, to'lov, bekor qilish, tadbir kuni, yakuniy hisob); menejerga
+  /// `banquets.manage` (backend standarti: menejer va ega).
+  FakeBanquetBackend useBanquets() {
+    final FakeBanquetBackend? existing = banquetBackend;
+    if (existing != null) return existing;
+    final FakeBanquetBackend b = FakeBanquetBackend(this);
+    final List<String> manager = state.rolePermissions['manager'] ?? <String>[];
+    if (!manager.contains('banquets.manage')) {
+      state.rolePermissions['manager'] = <String>[
+        ...manager,
+        'banquets.manage',
+      ];
+    }
+    final FakeResponse? Function(FakeRequest request)? next = state.extraRoutes;
+    state.extraRoutes = (FakeRequest r) => b.handle(r) ?? next?.call(r);
+    return banquetBackend = b;
+  }
+
+  /// Schyot (uuid bo'yicha; yo'q — `null`).
+  Map<String, Object?>? billByUuid(String uuid) => _bill(uuid)?.$1;
+
+  /// P6-54: tadbirning yakuniy schyoti: buyurtmaning schyotga tushmagan qatorlari + paket, zal va qo'shimchalar
+  /// ([banquet] tiyin, [lines] — chek qatorlari). Ochiq schyotlar qayta tuziladi.
+  Map<String, Object?> banquetBill(
+    Map<String, Object?> order,
+    int banquet,
+    List<Map<String, Object?>> lines,
+  ) {
+    for (final Map<String, Object?> b in _billsOf(order)) {
+      if (!_settled(b) && b['status'] != 'void') b['status'] = 'void';
+    }
+    final int before = _t(order['banquet_amount']);
+    order
+      ..['banquet_amount'] = _m(banquet)
+      ..['banquet_lines'] = lines
+      ..['total_price'] = _m(_t(order['total_price']) - before + banquet);
+    _build(
+      order,
+      <Map<int, int>>[_remaining(order)],
+      <int?>[order['guests_count'] as int?],
+      'single',
+    );
+    final Map<String, Object?> bill = _billsOf(order).last;
+    bill
+      ..['banquet_amount'] = _m(banquet)
+      ..['banquet_lines'] = lines
+      ..['total'] = _m(_t(bill['total']) + banquet)
+      ..['due_amount'] = _m(_t(bill['due_amount']) + banquet);
+    order['bills_version'] = order['version'];
+    _billEvent(order, bill, 'created');
+    return bill;
+  }
+
+  /// P6-54: tadbir zakladlari yakuniy schyotda `prepayment` bo'lib ayiriladi; qoplasa — sotuv cheki darhol.
+  void prepayBill(
+    Map<String, Object?> bill,
+    Map<String, Object?> order,
+    int amount,
+  ) {
+    if (amount <= 0) return;
+    (bill['payments']! as List<Object?>).add(<String, Object?>{
+      'uuid': _uuid('p'),
+      'tender': 'prepayment',
+      'amount': _m(amount),
+      'tendered_amount': null,
+      'change_amount': null,
+      'card_type': null,
+      'transaction_id': null,
+      'card_last4': null,
+      'reference': 'banquet',
+      'status': 'paid',
+      'paid_at': _iso(state.now()),
+      'shift_uuid': state.shift?['uuid'],
+      'refunded_amount': '0.00',
+    });
+    final int due = _t(bill['due_amount']) - amount;
+    bill
+      ..['paid_amount'] = _m(_t(bill['paid_amount']) + amount)
+      ..['due_amount'] = _m(due);
+    if (due == 0) _issueSale(bill, order);
+  }
+
   FakeVoucherBackend useVouchers() {
     final FakeVoucherBackend? existing = voucherBackend;
     if (existing != null) return existing;

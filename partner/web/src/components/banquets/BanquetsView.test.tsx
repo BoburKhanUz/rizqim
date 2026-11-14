@@ -139,6 +139,17 @@ describe('the events calendar', () => {
     expect(screen.getByRole('button', { name: 'Oq zal, 2030-03-20, Kunduzi: zalni band qilish' })).toBeInTheDocument();
   });
 
+  it('badges an event with an overdue payment', async () => {
+    await openCalendar({ 'GET /api/v1/pos/banquets/calendar': () => ok(calendar([summary({ overdue: true })])) });
+    const rows = screen.getAllByRole('link', { name: /Karimovlar, 18:00–23:00, Vaqtincha band/ });
+    expect(rows[0]).toHaveTextContent("Muddati o'tgan");
+  });
+
+  it('shows no badge when nothing is overdue', async () => {
+    await openCalendar({ 'GET /api/v1/pos/banquets/calendar': () => ok(calendar([summary({ overdue: false })])) });
+    expect(screen.getAllByRole('link', { name: /Karimovlar/ })[0]).not.toHaveTextContent("Muddati o'tgan");
+  });
+
   it('links to the shopping list and the production settings', async () => {
     await openCalendar();
     expect(screen.getByRole('link', { name: "Bozorlik ro'yxati" })).toHaveAttribute('href', '/banquets/shopping');

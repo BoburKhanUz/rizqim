@@ -15,7 +15,7 @@ part 'data219.g.dart';
 @JsonSerializable()
 class Data219 {
   const Data219({
-    required this.customerPhone,
+    required this.guestsGuaranteed,
     required this.branchId,
     required this.eventDate,
     required this.slot,
@@ -32,8 +32,8 @@ class Data219 {
     required this.statusLabel,
     required this.title,
     required this.customerName,
+    required this.customerPhone,
     required this.uuid,
-    required this.guestsGuaranteed,
     required this.guestsMinimum,
     required this.guestsActual,
     required this.guestsBilled,
@@ -46,6 +46,7 @@ class Data219 {
     required this.frozen,
     required this.contractNo,
     required this.version,
+    required this.overdue,
     required this.packageSnapshot,
     required this.packageTotal,
     required this.warnings,
@@ -125,6 +126,7 @@ class Data219 {
   @JsonKey(name: 'contract_no')
   final String? contractNo;
   final int version;
+  final bool overdue;
   @JsonKey(name: 'package_snapshot')
   final Map<String, dynamic>? packageSnapshot;
   @JsonKey(name: 'package_total')

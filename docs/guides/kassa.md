@@ -7,6 +7,9 @@ Telefondagi ofitsiant ilovasi — [ofitsiant qo'llanmasida](ofitsiant.md). Oshxo
 qo'llanmasida](oshxona-ekrani.md). Boshlang'ich sozlash (zal xaritasi, tariflar, printerlar, MXIK) ega uchun:
 [ega-pos-sozlash.md](ega-pos-sozlash.md).
 
+To'yxona va banketda (tadbirlar: zaklad, oraliq to'lov, yakuniy hisob) — [toyxona.md](toyxona.md). Dark kitchen'da (brend chiplari,
+"Tovuq tugadi", "Ingredient tugadi" tugmasi) — [dark-kitchen.md](dark-kitchen.md#4-brend-kassada).
+
 ## Mundarija
 
 1. [Kassani ulash](#1-kassani-ulash-bir-marta)

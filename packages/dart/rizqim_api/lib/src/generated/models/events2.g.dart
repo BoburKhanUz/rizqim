@@ -42,6 +42,7 @@ Events2 _$Events2FromJson(Map<String, dynamic> json) => Events2(
   frozen: json['frozen'] as bool,
   contractNo: json['contract_no'] as String?,
   version: (json['version'] as num).toInt(),
+  overdue: json['overdue'] as bool,
 );
 
 Map<String, dynamic> _$Events2ToJson(Events2 instance) => <String, dynamic>{
@@ -76,4 +77,5 @@ Map<String, dynamic> _$Events2ToJson(Events2 instance) => <String, dynamic>{
   'frozen': instance.frozen,
   'contract_no': instance.contractNo,
   'version': instance.version,
+  'overdue': instance.overdue,
 };

@@ -73,6 +73,42 @@ void main() {
         expect(number.bold, isTrue);
       });
 
+      test('cup sticker: the brand code flush right on the last row', () {
+        final LabelLayout l = layoutCupSticker(
+          CupSticker(
+            number: '57',
+            itemName: 'Latte',
+            variantName: '0,4 l',
+            modifiers: const <String>['Sut 0%'],
+            printedAt: printedAt,
+            brandCode: 'bb',
+          ),
+          size,
+        );
+        golden('cup_sticker_brand', l);
+        final LabelText mark = l.texts.last;
+        expect(mark.text, ' BB ');
+        expect(mark.inverted, isTrue);
+        expect(mark.row, size.rows - 1);
+        expect(mark.col + mark.cells, size.cols);
+        expect(l.allText.join('\n'), contains('Olib ketish'));
+      });
+
+      test('bag label: the brands of the bag on the order-type line', () {
+        final LabelLayout l = layoutBagLabel(
+          BagLabel(
+            number: '57',
+            itemCount: 3,
+            printedAt: printedAt,
+            brandCodes: const <String>['BB', 'om'],
+          ),
+          size,
+        );
+        golden('bag_label_brands', l);
+        expect(l.allText.join('\n'), contains('BB OM'));
+        expect(l.allText.join('\n'), contains('Olib ketish'));
+      });
+
       test('cup sticker: customer name instead of take-away, cup 2 of 3', () {
         final LabelLayout l = layoutCupSticker(
           latte(customer: 'Dilnoza', index: 2, total: 3),

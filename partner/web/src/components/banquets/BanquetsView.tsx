@@ -239,6 +239,7 @@ function EventChip({ event, merged }: { event: EventSummary; merged: boolean }) 
         {t('bq_guestsShort', { n: event.guests_billed })}
         {merged ? ` · ${t('bq_merged')}` : ''}
       </span>
+      {event.overdue && <span className="mt-0.5 inline-block rounded-control bg-danger px-1 text-caption font-bold text-on-danger">{t('bqp_overdue')}</span>}
     </Link>
   );
 }

@@ -793,6 +793,7 @@ class KitchenBoardController extends ChangeNotifier {
       pickupStatus: updated.pickupStatus ?? _server[i].pickupStatus,
       // P6-25: stol tablichkasi ham yaratilgan modelda bo'lmasligi mumkin
       tableLabel: _server[i].tableLabel,
+      brands: updated.brands.isEmpty ? _server[i].brands : updated.brands,
       lines: <KitchenLine>[
         for (final KitchenLine l in updated.lines)
           if (was[l.id] case final KitchenLine old)
@@ -809,6 +810,8 @@ class KitchenBoardController extends ChangeNotifier {
                   waitMinutes: old.waitMinutes,
                   // P6-31: kombo konteksti yaratilgan modelda yo'q
                   combo: old.combo,
+                  // P6-55: the brand badge (the generated model drops it too)
+                  brand: old.brand,
                 )
           else
             l,

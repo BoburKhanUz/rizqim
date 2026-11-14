@@ -345,6 +345,7 @@ class KitchenLine {
     int? targetSeconds,
     bool? late,
     KitchenCombo? combo,
+    KitchenBrand? brand,
   }) => KitchenLine(
     id: id,
     productName: productName,
@@ -372,7 +373,7 @@ class KitchenLine {
     targetSeconds: targetSeconds ?? this.targetSeconds,
     late: late ?? this.late,
     combo: combo ?? this.combo,
-    brand: brand,
+    brand: brand ?? this.brand,
   );
 }
 
@@ -592,6 +593,7 @@ class KitchenTicket {
     KitchenAssembly? assembly,
     bool clearAssembly = false,
     KitchenPickup? pickup,
+    List<KitchenBrand>? brands,
   }) => KitchenTicket(
     uuid: uuid,
     shortCode: shortCode,
@@ -616,7 +618,7 @@ class KitchenTicket {
     pickup: pickup ?? this.pickup,
     waitingSeconds: waitingSeconds,
     receivedAt: receivedAt,
-    brands: brands,
+    brands: brands ?? this.brands,
   );
 }
 

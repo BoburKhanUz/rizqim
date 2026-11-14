@@ -73,6 +73,7 @@ final class ShiftReport {
     this.tips = const <ReportAmount>[],
     this.vouchers = const <ReportAmount>[],
     this.qrProviders = const <ReportAmount>[],
+    this.banquets = const <ReportAmount>[],
   });
 
   final ShiftReportKind kind;
@@ -144,6 +145,10 @@ final class ShiftReport {
   /// P6-43: sovg'a sertifikatlari — sotilgan (bo'nak, sotuvga kirmaydi; to'lov turi bo'yicha) va schyotlarda
   /// ishlatilgan (sotuv chekining oldindan to'langan qismi).
   final List<ReportAmount> vouchers;
+
+  /// P6-53: tadbir avanslari — olingan (bo'nak, sotuvga kirmaydi; to'lov turi bo'yicha) va bekor qilingan tadbirlar
+  /// qaytarishlari.
+  final List<ReportAmount> banquets;
 
   /// P6-41: QR to'lovlar provayder bo'yicha (Click, Payme, UzQR, qo'lda tasdiqlangan statik QR).
   final List<ReportAmount> qrProviders;

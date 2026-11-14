@@ -4,11 +4,15 @@ namespace App\Domain\Pos\Banquet\Payments;
 
 use App\Domain\Pos\Banquet\BanquetEventStatus;
 use App\Domain\Pos\Banquet\BanquetPaymentStatus;
+use App\Domain\Pos\Contracts\PosTender;
 use App\Domain\Pos\Shifts\BusinessDay;
 use App\Models\BanquetEvent;
 use App\Models\BanquetPayment;
 use App\Models\BanquetPaymentEntry;
+use App\Models\BanquetSettlement;
 use App\Models\Branch;
+use App\Models\OrderBill;
+use App\Models\Payment;
 use App\Services\Audit\AuditRedactor;
 use App\Support\Money;
 
@@ -18,6 +22,10 @@ use App\Support\Money;
  * what is overdue (unpaid rows due before the branch's business day), and for cancelled events what was retained
  * and refunded. Cancelled events count apart (their totals are not in `total`/`outstanding`). The customer's phone is
  * masked for a report-only reader. Money as decimal strings.
+ *
+ * An event billed by its final settlement (P6-54): the schedule's unpaid rows are gone, so `paid` also counts what was
+ * paid on the final bill at the till (its payments other than the advances' prepayment offset), and `outstanding` is
+ * what is still due on that bill (zero once it is paid and the event settled).
  */
 final class BanquetReport
 {
@@ -38,6 +46,10 @@ final class BanquetReport
         $ids = $events->pluck('id');
         $rows = BanquetPayment::whereIn('banquet_event_id', $ids)->get(['banquet_event_id', 'status', 'amount', 'due_date'])->groupBy('banquet_event_id');
         $entries = BanquetPaymentEntry::whereIn('banquet_event_id', $ids)->get(['banquet_event_id', 'type', 'amount', 'transfer_pending'])->groupBy('banquet_event_id');
+        // The final bills of billed events: what the till took on them beyond the advances, and what is still due
+        $finalBills = BanquetSettlement::whereIn('banquet_event_id', $ids)->whereNotNull('bill_id')->pluck('bill_id', 'banquet_event_id');
+        $billTotals = OrderBill::whereIn('id', $finalBills->values())->pluck('total', 'id');
+        $billPayments = Payment::whereIn('bill_id', $finalBills->values())->where('status', 'paid')->get(['bill_id', 'provider', 'amount'])->groupBy('bill_id');
         $todays = Branch::where('store_id', $storeId)->get()->mapWithKeys(fn (Branch $branch) => [(int) $branch->id => BusinessDay::of($branch)])->all();
 
         $out = [];
@@ -58,6 +70,12 @@ final class BanquetReport
             $retained = $sum($eventEntries->where('type', BanquetEntryType::RETAIN));
             $pending = $sum($eventEntries->where('type', BanquetEntryType::REFUND)->where('transfer_pending', true));
             $outstanding = $open ? $sum($due) : Money::zero();
+            $billId = $finalBills->get($event->id);
+            if ($billId !== null && $live) {
+                $payments = $billPayments->get($billId, collect());
+                $paid = $paid->plus($sum($payments->where('provider', '!==', PosTender::PREPAYMENT->value)));
+                $outstanding = $open ? Money::max(Money::zero(), Money::of($billTotals->get($billId, '0'))->minus($sum($payments))) : Money::zero();
+            }
             $billed = max((int) ($event->guests_actual ?? 0), $event->billedGuests());
 
             if ($live) {

@@ -247,11 +247,15 @@ wait_for_reverb
 # --- Tests -----------------------------------------------------------------------------------------------------------
 
 log "running the tests"
+# P6-59: a test runs a daily console command of the backend itself (the banquet payment reminders) with the stack's own
+# environment: one KEY=value per line, read by the test, never by a shell
+printf '%s\n' "${BACKEND_ENV[@]}" > "$RUN/backend.env"
 status=0
 (cd "$ROOT/e2e/pos" && env \
   POS_E2E_API_URL="http://127.0.0.1:$BACKEND_PORT/api" POS_E2E_REVERB_URL="ws://127.0.0.1:$REVERB_PORT" \
   POS_E2E_REVERB_KEY="$REVERB_KEY" POS_E2E_SEED_FILE="$RUN/seed.json" POS_E2E_LOG_FILE="$RUN/backend.log" \
   POS_E2E_CLICK_API_PORT="$CLICK_API_PORT" \
+  POS_E2E_BACKEND_DIR="$ROOT/backend" POS_E2E_BACKEND_ENV_FILE="$RUN/backend.env" \
   dart test ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}) || status=$?
 
 if [ "$status" -ne 0 ]; then

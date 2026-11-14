@@ -115,6 +115,31 @@ void main() {
         expect(texts(v), isNot(contains("so'm")));
       });
 
+      test('kitchen ticket: branded lines carry their brand code', () {
+        final PrintLayout l = layoutStationTicket(
+          StationTicket(
+            stationName: 'Oshxona',
+            sentAt: DateTime(2026, 10, 22, 19, 42),
+            orderLabel: 'Telegram',
+            orderCode: '#E102',
+            items: <StationTicketItem>[
+              StationTicketItem(
+                name: 'Burger',
+                quantity: pcs(2),
+                brandCode: 'bb',
+              ),
+              StationTicketItem(name: 'Osh', quantity: pcs(1), brandCode: 'OM'),
+              StationTicketItem(name: 'Non', quantity: pcs(1)),
+            ],
+          ),
+          paper,
+        );
+        golden('kitchen_ticket_brands', l);
+        expect(texts(l), contains('Brend: BB, OM'));
+        expect(texts(l), contains('[BB] 2 x Burger'));
+        expect(texts(l), contains('1 x Non'));
+      });
+
       test('X and Z reports', () {
         final PrintLayout x = layoutShiftReport(
           shiftReport(ShiftReportKind.x),

@@ -261,6 +261,14 @@ class LanKitchenBoard {
       guestsCount: (order['guests_count'] as num?)?.toInt(),
       notes: order['note'] as String? ?? previous?.notes,
       lines: lines,
+      // P6-55: the badges of the lines (the hub's order lines carry the brand they were sold under)
+      brands: <KitchenBrand>[
+        for (final KitchenBrand b in <int, KitchenBrand>{
+          for (final KitchenLine l in lines)
+            if (l.brand != null) l.brand!.id: l.brand!,
+        }.values)
+          b,
+      ],
       createdAt: previous?.createdAt ?? start,
       acceptedAt: previous?.acceptedAt ?? start,
       tableLabel: order['table_label'] as String? ?? previous?.tableLabel,

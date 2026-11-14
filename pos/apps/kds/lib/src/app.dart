@@ -8,6 +8,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import 'app_config.dart';
 import 'billing/kds_plan.dart';
 import 'board/kitchen_board_controller.dart';
+import 'ingredients/kds_ingredients.dart';
 import 'lan/kds_lan.dart';
 import 'realtime/branch_realtime.dart';
 import 'screens/kitchen_board_screen.dart';
@@ -247,6 +248,7 @@ class TerminalHome extends StatefulWidget {
 class _TerminalHomeState extends State<TerminalHome> {
   BranchRealtime? _realtime;
   KdsLan? _lan;
+  KdsIngredientsController? _ingredients;
   StreamSubscription<Object?>? _lanSub;
   LanMode? _lanMode;
   KitchenBoardController? _board;
@@ -286,6 +288,7 @@ class _TerminalHomeState extends State<TerminalHome> {
   @override
   void dispose() {
     _s.plan.stop();
+    _ingredients?.dispose();
     unawaited(_authSub.cancel());
     unawaited(_eventSub?.cancel());
     _board?.dispose();
@@ -310,6 +313,8 @@ class _TerminalHomeState extends State<TerminalHome> {
         _openBoard();
       case AuthEventKind.staffSignedOut:
         _s.plan.stop();
+        _ingredients?.dispose();
+        _ingredients = null;
         _board?.dispose();
         _board = null;
         unawaited(_lan?.setSection(null));
@@ -347,6 +352,35 @@ class _TerminalHomeState extends State<TerminalHome> {
     )..start();
     // P4-21: the plan notice (an unpaid invoice, KDS not in the plan); the board never stops for it
     _s.plan.start();
+    // P6-55: the "Ingredient tugadi" quick stop, only for a cook with the stop-list permission (the module is checked
+    // by the server: a 403 keeps the button hidden)
+    _ingredients?.dispose();
+    _ingredients = staff.can('stoplist.manage')
+        ? (KdsIngredientsController(
+            _ingredientRequest,
+            branchId:
+                widget.terminal.branch?.id ?? widget.terminal.device.branchId,
+          )..start())
+        : null;
+  }
+
+  Future<Object?> _ingredientRequest(
+    String method,
+    String path, {
+    Map<String, Object?>? query,
+    Object? body,
+  }) async {
+    final dio = _s.client.dio;
+    final response = switch (method) {
+      'POST' => await dio.post<Object?>(
+        path,
+        data: body,
+        queryParameters: query,
+      ),
+      'DELETE' => await dio.delete<Object?>(path, queryParameters: query),
+      _ => await dio.get<Object?>(path, queryParameters: query),
+    };
+    return response.data;
   }
 
   /// P6: the mode changed (onto the hub, or back on the server): the board reloads from where its data is now.
@@ -386,6 +420,7 @@ class _TerminalHomeState extends State<TerminalHome> {
         clock: _s.clock,
         plan: _s.plan,
         lan: _lan,
+        ingredients: _ingredients,
       );
     }
     return StaffSignInScreen(

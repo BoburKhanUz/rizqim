@@ -5,6 +5,7 @@ import 'package:rizqim_core/rizqim_core.dart';
 import 'package:rizqim_ui/rizqim_ui.dart';
 
 import '../board/board_view.dart';
+import 'brand_badge.dart';
 import 'kds_type.dart';
 import 'line_marks.dart';
 import 'mangal_card.dart';
@@ -169,8 +170,9 @@ class _QueuedTile extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              line.title,
+                            child: BrandedTitle(
+                              title: line.title,
+                              brand: line.brand,
                               style: KdsType.line.copyWith(color: c.fg),
                             ),
                           ),

@@ -2,9 +2,12 @@
 
 namespace App\Domain\Pos\Banquet;
 
+use App\Domain\Pos\Banquet\Payments\BanquetSchedule;
+use App\Domain\Pos\Shifts\BusinessDay;
 use App\Models\BanquetEvent;
 use App\Models\BanquetEventLine;
 use App\Models\BanquetPayment;
+use App\Models\Branch;
 use App\Models\Hall;
 use App\Models\Order;
 use App\Services\Audit\AuditRedactor;
@@ -26,9 +29,12 @@ class BanquetPresenter
 
     public const PAYMENT = 'array{uuid: string, kind: string, kind_label: string, due_date: string|null, amount: string, status: string, status_label: string, tender: string|null, paid_at: string|null, fiscal_receipt_uuid: string|null}';
 
-    public const SUMMARY = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int}';
+    public const SUMMARY = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool}';
 
-    public const DETAIL = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, package_snapshot: array<string, mixed>|null, package_total: string, hall_total: string, extras_total: string, orders_total: string, quote: array{currency: string, rate: string, total: string}|null, frozen_at: string|null, note: string|null, order_uuid: string|null, cancel_reason: string|null, created_by: int|null, confirmed_at: string|null, started_at: string|null, settled_at: string|null, cancelled_at: string|null, released_at: string|null, created_at: string|null, updated_at: string|null, lines: list<' . self::LINE . '>, payments: list<' . self::PAYMENT . '>, warnings: list<' . self::WARNING . '>}';
+    public const DETAIL = 'array{uuid: string, branch_id: int, event_date: string, slot: string, slot_label: string, start_time: string, end_time: string, starts_at: string, ends_at: string, hall_ids: list<int>, halls: list<array{id: int, name: string}>, event_type: string, event_type_label: string, status: string, status_label: string, title: string|null, customer_name: string, customer_phone: string|null, guests_guaranteed: int, guests_minimum: int, guests_actual: int|null, guests_billed: int, package_id: int|null, package_name: string|null, total: string, paid_total: string, outstanding: string, hold_expires_at: string|null, frozen: bool, contract_no: string|null, version: int, overdue: bool, package_snapshot: array<string, mixed>|null, package_total: string, hall_total: string, extras_total: string, orders_total: string, quote: array{currency: string, rate: string, total: string}|null, frozen_at: string|null, note: string|null, order_uuid: string|null, cancel_reason: string|null, created_by: int|null, confirmed_at: string|null, started_at: string|null, settled_at: string|null, cancelled_at: string|null, released_at: string|null, created_at: string|null, updated_at: string|null, lines: list<' . self::LINE . '>, payments: list<' . self::PAYMENT . '>, warnings: list<' . self::WARNING . '>}';
+
+    /** @var array<int, string> the business day per branch id (one presenter lists many events) */
+    private array $today = [];
 
     public function __construct(
         private readonly BanquetSettings $settings,
@@ -76,6 +82,8 @@ class BanquetPresenter
             'frozen' => $event->frozen_at !== null,
             'contract_no' => $event->contract_no,
             'version' => (int) $event->version,
+            // An unpaid schedule row due before the branch's business day (BanquetSchedule::summary): the badge
+            'overdue' => BanquetSchedule::summary($event, $event->relationLoaded('payments') ? $event->payments : $event->payments()->get(), $this->today[(int) $event->branch_id] ??= BusinessDay::of(Branch::findOrFail($event->branch_id)))['overdue'],
         ];
     }
 

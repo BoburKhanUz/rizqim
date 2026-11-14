@@ -36,6 +36,9 @@ abstract final class PosPermissions {
   static const String menuView = 'menu.view';
   static const String reportsView = 'reports.view';
 
+  /// P6-51: tadbirlar (band qilish, o'zgartirish, kelgan mehmonlar, bekor qilish); menejer va ega.
+  static const String banquetsManage = 'banquets.manage';
+
   /// Tasdiq bilan berilishi mumkin bo'lganlari.
   static const Set<String> approvable = <String>{
     ordersManage,

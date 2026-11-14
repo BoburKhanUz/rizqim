@@ -82154,6 +82154,9 @@
                                                             },
                                                             "version": {
                                                                 "type": "integer"
+                                                            },
+                                                            "overdue": {
+                                                                "type": "boolean"
                                                             }
                                                         },
                                                         "required": [
@@ -82187,7 +82190,8 @@
                                                             "hold_expires_at",
                                                             "frozen",
                                                             "contract_no",
-                                                            "version"
+                                                            "version",
+                                                            "overdue"
                                                         ]
                                                     }
                                                 }
@@ -82558,6 +82562,9 @@
                                                 "version": {
                                                     "type": "integer"
                                                 },
+                                                "overdue": {
+                                                    "type": "boolean"
+                                                },
                                                 "package_snapshot": {
                                                     "type": [
                                                         "object",
@@ -82858,6 +82865,7 @@
                                                 "frozen",
                                                 "contract_no",
                                                 "version",
+                                                "overdue",
                                                 "package_snapshot",
                                                 "package_total",
                                                 "hall_total",
@@ -83186,6 +83194,9 @@
                                                                         },
                                                                         "version": {
                                                                             "type": "integer"
+                                                                        },
+                                                                        "overdue": {
+                                                                            "type": "boolean"
                                                                         }
                                                                     },
                                                                     "required": [
@@ -83219,7 +83230,8 @@
                                                                         "hold_expires_at",
                                                                         "frozen",
                                                                         "contract_no",
-                                                                        "version"
+                                                                        "version",
+                                                                        "overdue"
                                                                     ]
                                                                 }
                                                             }
@@ -84230,6 +84242,9 @@
                                                 "version": {
                                                     "type": "integer"
                                                 },
+                                                "overdue": {
+                                                    "type": "boolean"
+                                                },
                                                 "package_snapshot": {
                                                     "type": [
                                                         "object",
@@ -84530,6 +84545,7 @@
                                                 "frozen",
                                                 "contract_no",
                                                 "version",
+                                                "overdue",
                                                 "package_snapshot",
                                                 "package_total",
                                                 "hall_total",
@@ -84908,6 +84924,9 @@
                                                 "version": {
                                                     "type": "integer"
                                                 },
+                                                "overdue": {
+                                                    "type": "boolean"
+                                                },
                                                 "package_snapshot": {
                                                     "type": [
                                                         "object",
@@ -85208,6 +85227,7 @@
                                                 "frozen",
                                                 "contract_no",
                                                 "version",
+                                                "overdue",
                                                 "package_snapshot",
                                                 "package_total",
                                                 "hall_total",
@@ -86358,6 +86378,9 @@
                                                 "version": {
                                                     "type": "integer"
                                                 },
+                                                "overdue": {
+                                                    "type": "boolean"
+                                                },
                                                 "package_snapshot": {
                                                     "type": [
                                                         "object",
@@ -86658,6 +86681,7 @@
                                                 "frozen",
                                                 "contract_no",
                                                 "version",
+                                                "overdue",
                                                 "package_snapshot",
                                                 "package_total",
                                                 "hall_total",
@@ -92680,6 +92704,9 @@
                                                 "version": {
                                                     "type": "integer"
                                                 },
+                                                "overdue": {
+                                                    "type": "boolean"
+                                                },
                                                 "package_snapshot": {
                                                     "type": [
                                                         "object",
@@ -92980,6 +93007,7 @@
                                                 "frozen",
                                                 "contract_no",
                                                 "version",
+                                                "overdue",
                                                 "package_snapshot",
                                                 "package_total",
                                                 "hall_total",

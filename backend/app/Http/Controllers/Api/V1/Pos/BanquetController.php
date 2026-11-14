@@ -68,7 +68,7 @@ class BanquetController extends MenuStaffController
         $events = BanquetEvent::where('branch_id', $branch->id)
             ->whereBetween('event_date', [$from->toDateString(), $to->toDateString()])
             ->when(!$request->boolean('include_cancelled'), fn ($query) => $query->where('status', '!=', BanquetEventStatus::CANCELLED->value))
-            ->with(['halls' => fn ($query) => $query->withTrashed(), 'store'])
+            ->with(['halls' => fn ($query) => $query->withTrashed(), 'store', 'payments'])
             ->orderBy('starts_at')
             ->limit(2000)
             ->get();
@@ -130,7 +130,7 @@ class BanquetController extends MenuStaffController
         $query = BanquetEvent::where('store_id', $storeId)
             ->when($branch !== null, fn ($query) => $query->where('branch_id', $branch->id))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
-            ->with(['halls' => fn ($query) => $query->withTrashed(), 'store']);
+            ->with(['halls' => fn ($query) => $query->withTrashed(), 'store', 'payments']);
 
         if ($request->filled('phone')) {
             $digits = UzPhone::searchDigits($request->string('phone')->toString());

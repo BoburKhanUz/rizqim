@@ -7,6 +7,7 @@ import 'package:rizqim_ui/rizqim_ui.dart';
 import '../board/board_view.dart';
 import '../board/line_timer.dart';
 import '../board/wait_level.dart';
+import 'brand_badge.dart';
 import 'combo_heading.dart';
 import 'kds_type.dart';
 import 'station_kinds.dart';
@@ -438,8 +439,10 @@ class _ExpoLine extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  '$quantity ${line.title}${mods.isEmpty ? '' : ' · $mods'}',
+                BrandedTitle(
+                  title:
+                      '$quantity ${line.title}${mods.isEmpty ? '' : ' · $mods'}',
+                  brand: line.brand,
                   style: KdsType.modifier.copyWith(
                     color: done ? c.fgMuted : c.fg,
                     fontWeight: FontWeight.w600,

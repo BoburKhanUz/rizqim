@@ -17,7 +17,11 @@ abstract final class CashierRoutes {
     BuildContext context, {
     String? orderUuid,
     int? tableId,
-  }) => push<T>(context, OrderPage(orderUuid: orderUuid, tableId: tableId));
+    String? placeTitle,
+  }) => push<T>(
+    context,
+    OrderPage(orderUuid: orderUuid, tableId: tableId, placeTitle: placeTitle),
+  );
 
   /// Buyurtmaning schyoti va to'lovi.
   static Future<T?> openBilling<T>(

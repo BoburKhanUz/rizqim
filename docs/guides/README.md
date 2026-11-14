@@ -17,6 +17,8 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 | [uskunalar.md](uskunalar.md) | Ega, kassir, planshetni sozlovchi | **Uskunalar va lokal tarmoq**: printerlar (Sunmi ichki, Bluetooth, USB, LAN, yorliq), printerni qidirish va sinov cheki, kassa qutisi, skaner, Sunmi D2 ikkinchi ekrani; **schyotni avtomatik chiqarish** (ofitsiant "Schyot so'rash" bosganda kassa o'zi chop etadi, "Schyotni qayta chiqarish" menejer PIN'i bilan); **lokal tarmoq**: internet uzilsa ham zal ishlaydi; muammolar. Haqiqiy uskunada sinash ro'yxati — [HARDWARE_TEST.md](../HARDWARE_TEST.md) |
 | [mijoz-ekrani.md](mijoz-ekrani.md) | Ega, kassir | **Mijoz ekrani** (bepul): kassaning ikkinchi ekrani (chek, jami, to'lov QR'i, "Rahmat") va "Tayyorlanmoqda / Tayyor" raqamlar taxtasi; kod bilan ulash, rejim tanlash, ovoz, aloqa uzilsa, muammolar |
 | [tolov-va-chek.md](tolov-va-chek.md) | Ega, menejer, kassir | **To'lov va chek**: QR to'lov (Click, Payme, UzQR: o'z merchant hisobi, webhook manzillari, kassada, qaytarish, internetsiz), sovg'a sertifikati (sotish, ishlatish, qaytarish, bloklash, hisobot), promo-kod, korxona hisobi va talon (xodimlar, limitlar, ro'yxatdan qo'shish, talon chop etish, kassada yozish, oylik hisobot va Excel) |
+| [toyxona.md](toyxona.md) | Ega, menejer, kassir | **To'yxona va banket**: zalni band qilish (taqvim, birlashtirilgan zallar), paket, qo'shimcha va zal ijarasi, to'lov shabloni va bekor qilish qoidalari, narxlarni muzlatish va shartnoma raqami, zaklad va oraliq to'lov kassada, bank o'tkazmasi panelda, eslatmalar, ishlab chiqarish varag'i, osh kalkulyatori, bozorlik ro'yxati, tadbir kuni, yakuniy hisob (bitta chek), bekor qilish va qaytarish, hisobot |
+| [dark-kitchen.md](dark-kitchen.md) | Ega, menejer, kassir, oshpaz | **Dark kitchen**: bir oshxonada bir nechta brend (qisqa kod va rang, kanal narxi va ko'rinishi), brend kassada, oshxona ekranida, stikerda va yorliqda; ingredient bo'yicha stop-list ("Tovuq tugadi"); kanal tushumi hisoboti va komissiyalar |
 | [mini-app-xodim.md](mini-app-xodim.md) | Ega, menejer, kuryer | Telegram Mini App: buyurtmalar, stop-list va qozon, xodimlar va PIN, filial ish vaqti, kuryer qadamlari |
 | [boshqaruv-markazi.md](boshqaruv-markazi.md) | RIZQIM jamoasi (superadmin, operator, yordam, moliya, savdo) | Birinchi ishga tushirish (birinchi superadmin, 2FA, jamoa), kirish va 2FA, `Ctrl+K` qidiruv; Bugun, Ko'rsatkichlar, Buyurtmalar (aralashish, pul qaytarish), Ovqatxonalar (karta, ulash jarayoni, CRM), POS va obunalar, Moliya (payout, ikki kishilik qoida, tuzatish), Mijozlar va yordam (bloklash, shikoyatlar), Marketing, Monitoring, Integratsiyalar, Tizim sozlamalari, jamoa, rollar, jurnal, Excel eksport; kundalik ishlar qadamma-qadam; qaysi amal kod va sabab so'rashi; telefonlarni kim ko'rishi |
 
@@ -33,6 +35,8 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
   telefonda ishlasangiz: [tez-kassa.md](tez-kassa.md).
 - **Fast food yoki qahvaxona egasi**: [fast-food.md](fast-food.md) (kombo, stiker, qadoq, oldindan buyurtma, sexlar), avval [tez-kassa.md](tez-kassa.md#ega-uchun-formatni-tanlash-va-sozlash).
 - **Click, Payme yoki UzQR QR to'lovni, sovg'a sertifikati yoki korxona hisobini (stolovaya) yoqadigan ega**: [tolov-va-chek.md](tolov-va-chek.md). Kassir uchun shu qo'llanmaning 3, 5, 6 va 8-bo'limlari.
+- **To'yxona yoki banket zali egasi, menejer va kassiri**: [toyxona.md](toyxona.md) (sozlash — 2–4-bo'limlar, kassirga — 5, 7, 9–11).
+- **Dark kitchen egasi** (bitta oshxonada bir nechta brend): [dark-kitchen.md](dark-kitchen.md); oshpaz uchun "Ingredient tugadi" — [5-bo'lim](dark-kitchen.md#5-brend-oshxona-ekranida).
 - **Printer, skaner yoki lokal tarmoqni sozlaydigan odam**: [uskunalar.md](uskunalar.md).
 - **Mijoz ekrani yoki raqamlar taxtasini ulaydigan odam**: [mijoz-ekrani.md](mijoz-ekrani.md).
 - **Ofitsiant**: [ofitsiant.md](ofitsiant.md). Restoran yoki kafede qo'shimcha: [restoran.md](restoran.md).
@@ -79,6 +83,8 @@ Restoran xodimlari uchun oddiy tilda yozilgan qo'llanmalar (o'zbekcha, lotin). T
 - **Dinamik QR** — kassa schyot summasiga chiqaradigan Click, Payme yoki UzQR kodi: mijoz skanerlaydi, to'lov o'zi tasdiqlanadi (kassir hech narsa bosmaydi). **Statik QR** — do'konning doimiy QR kodi, pul kelganini kassir qo'lda tasdiqlaydi.
 - **Sovg'a sertifikati** — oldindan sotilgan summa (kod `XXXX-XXXX-XXXX`): keyin shu summa bilan to'lanadi. Sotilganda tushum emas, avans. **Promo-kod** — chegirma kodi.
 - **Korxona hisobi va talon** — korxonaning xodimlari kodi (talon) bilan ovqatlanadi, summa korxona hisobiga yoziladi, oy oxirida hisob-faktura (stolovaya).
+- **Tadbir, zaklad va yakuniy hisob** — to'yxonada zalni band qilish, oldindan olinadigan pul (zaklad, bo'nak cheki) va tadbir tugagach bitta schyot bilan yopish ([toyxona.md](toyxona.md)).
+- **Brend** — dark kitchen'da bitta oshxonadan sotiladigan alohida nom (qisqa kod va rang bilan); **ingredient stop-list** — "Tovuq tugadi" bosilsa unga bog'liq hamma taom yopiladi ([dark-kitchen.md](dark-kitchen.md)).
 - **Nasiya** — pulni keyinroq to'lash sharti bilan hisobga yozish. Qarz to'langanda kredit cheki chiqadi.
 - **MXIK** — taom yoki xizmatning 17 xonali soliq tasnifi kodi. Fiskal chekda majburiy.
 - **STIR** — korxonaning 9 xonali soliq to'lovchi raqami.

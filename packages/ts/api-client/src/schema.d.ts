@@ -40238,6 +40238,7 @@ export interface operations {
                                 frozen: boolean;
                                 contract_no: string | null;
                                 version: number;
+                                overdue: boolean;
                             }[];
                         };
                     };
@@ -40332,6 +40333,7 @@ export interface operations {
                             frozen: boolean;
                             contract_no: string | null;
                             version: number;
+                            overdue: boolean;
                             package_snapshot: {
                                 [key: string]: unknown;
                             } | null;
@@ -40488,6 +40490,7 @@ export interface operations {
                                     frozen: boolean;
                                     contract_no: string | null;
                                     version: number;
+                                    overdue: boolean;
                                 }[];
                             }[];
                         };
@@ -40789,6 +40792,7 @@ export interface operations {
                             frozen: boolean;
                             contract_no: string | null;
                             version: number;
+                            overdue: boolean;
                             package_snapshot: {
                                 [key: string]: unknown;
                             } | null;
@@ -40940,6 +40944,7 @@ export interface operations {
                             frozen: boolean;
                             contract_no: string | null;
                             version: number;
+                            overdue: boolean;
                             package_snapshot: {
                                 [key: string]: unknown;
                             } | null;
@@ -41320,6 +41325,7 @@ export interface operations {
                             frozen: boolean;
                             contract_no: string | null;
                             version: number;
+                            overdue: boolean;
                             package_snapshot: {
                                 [key: string]: unknown;
                             } | null;
@@ -42835,6 +42841,7 @@ export interface operations {
                             frozen: boolean;
                             contract_no: string | null;
                             version: number;
+                            overdue: boolean;
                             package_snapshot: {
                                 [key: string]: unknown;
                             } | null;

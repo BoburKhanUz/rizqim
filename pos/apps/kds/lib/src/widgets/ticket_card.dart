@@ -8,6 +8,7 @@ import '../board/board_view.dart';
 import '../board/line_timer.dart';
 import '../board/wait_level.dart';
 import '../settings/kds_settings.dart';
+import 'brand_badge.dart';
 import 'combo_heading.dart';
 import 'grill_timer_label.dart';
 import 'kds_type.dart';
@@ -482,11 +483,17 @@ class _Header extends StatelessWidget {
                     style: meta.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
-                if (label != null)
+                for (final KitchenBrand b in ticket.brands) ...<Widget>[
+                  const SizedBox(width: 6),
+                  BrandBadge(brand: b, large: true),
+                ],
+                if (label != null) ...<Widget>[
+                  if (ticket.brands.isNotEmpty) const SizedBox(width: 8),
                   Text(
                     label,
                     style: meta.copyWith(fontWeight: FontWeight.w700),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 2),
@@ -553,7 +560,7 @@ class _LineRow extends StatelessWidget {
     return Semantics(
       button: actionable,
       label:
-          '${line.title}, $quantity, $stateLabel${line.courseNo != null ? ', ${CourseTag.label(line.courseNo!)}' : ''}${line.awaitingWeight ? ", ${WeightBadge.label}" : ''}${actionable ? (line.isReady ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
+          '${line.title}, $quantity, $stateLabel${line.brand != null ? ', brend ${line.brand!.name}' : ''}${line.courseNo != null ? ', ${CourseTag.label(line.courseNo!)}' : ''}${line.awaitingWeight ? ", ${WeightBadge.label}" : ''}${actionable ? (line.isReady ? '. Bosib qaytaring' : '. Bosib tayyor deb belgilang') : ''}',
       excludeSemantics: true,
       child: InkWell(
         onTap: tappable ? onTap : null,
@@ -579,8 +586,9 @@ class _LineRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      line.title,
+                    BrandedTitle(
+                      title: line.title,
+                      brand: line.brand,
                       style: KdsType.line.copyWith(
                         color: textColor,
                         decoration: strike,

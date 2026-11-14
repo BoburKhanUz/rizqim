@@ -162,6 +162,37 @@ void main() {
         expect(l.lines.whereType<PrintFeed>(), isNotEmpty);
         expect(l.texts.join(' '), contains('kafolatlangan 200'));
       });
+
+      test('X/Z: the banquet advances have their own section', () {
+        final ShiftReport base = shiftReport(ShiftReportKind.x);
+        final ShiftReport r = ShiftReport(
+          kind: base.kind,
+          header: base.header,
+          shiftNumber: base.shiftNumber,
+          printedAt: base.printedAt,
+          openedAt: base.openedAt,
+          sales: base.sales,
+          receiptsCount: base.receiptsCount,
+          tenders: base.tenders,
+          openingCash: base.openingCash,
+          cashSales: base.cashSales,
+          banquets: const <ReportAmount>[
+            ReportAmount("Olindi (bo'nak)", PosMoney.som(12000000), count: 2),
+            ReportAmount('  naqd', PosMoney.som(5000000)),
+            ReportAmount('Qaytarildi', PosMoney.som(8400000), count: 1),
+          ],
+        );
+        final PrintLayout l = layoutShiftReport(r, paper);
+        expectFits(l);
+        final String t = l.texts.join('\n');
+        expect(t, contains('TADBIRLAR'));
+        expect(t, contains("Olindi (bo'nak) (2):"));
+        expect(t, contains('Qaytarildi (1):'));
+        expect(
+          layoutShiftReport(base, paper).texts.join('\n'),
+          isNot(contains('TADBIRLAR')),
+        );
+      });
     });
   }
 }
