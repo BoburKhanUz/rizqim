@@ -83,5 +83,6 @@ bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallar
 
 | To'lqin | Holat |
 |---|---|
-| M1 Tez yutuqlar | Kod, ikki tekshiruv va o'lchov tugadi (PR #24, CI yashil); merge egasini kutmoqda. Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
-| M2–M5, P, L | Navbatda |
+| M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
+| M2 Jonli aloqa va kesh | Boshlandi (15.11.2026) |
+| M3–M5, P, L | Navbatda |
