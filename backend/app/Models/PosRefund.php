@@ -17,7 +17,13 @@ class PosRefund extends Model
     /** fiscal_receipts.subject_type of a refund receipt */
     public const FISCAL_SUBJECT = 'pos_refund';
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'order_id', 'bill_id', 'payment_id', 'shift_id', 'amount', 'method',
+        'reason', 'user_id', 'approved_by', 'device_id', 'fiscal_receipt_uuid', 'fiscal_status', 'fiscal_error',
+        'created_at', 'updated_at',
+    ];
 
     protected $casts = [
         'amount' => 'decimal:2',

@@ -1,0 +1,11 @@
+L5_sync_burst_L wall=314.9s req=6058 rps=19.24 cpu php=262.27s pg=153.72s xacts=320158 conn_max=5 lockwaits=1
+GET /pos/display/state               n= 1980 rps=  6.29 p50=35.8 p95=49.6 p99=180.4 err%=0
+GET /pos/floor (after sync)          n=   40 rps=  0.13 p50=58.2 p95=665.2 p99=2420.5 err%=0
+GET /pos/floor                       n= 1980 rps=  6.29 p50=53.8 p95=73 p99=519.3 err%=0
+GET /pos/orders (after sync)         n=   40 rps=  0.13 p50=43.1 p95=408.3 p99=528.2 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=   2.1 p50=100.4 p95=203.8 p99=602.7 err%=0
+GET /staff/orders                    n=  659 rps=  2.09 p50=118.6 p95=157.9 p99=238.3 err%=0
+GET /staff/orders?status=new         n=  659 rps=  2.09 p50=39.4 p95=60.1 p99=135.5 err%=0
+POST /pos/sync                       n=   40 rps=  0.13 p50=1741.6 p95=2411.9 p99=3064 err%=0
+errors: {}
+sync: {"applied":1280}

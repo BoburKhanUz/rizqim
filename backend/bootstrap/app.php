@@ -8,6 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Route;
 
+// A POST may still become PUT/PATCH/DELETE (`_method`, X-HTTP-Method-Override), never GET/HEAD: nginx picks the php-fpm
+// pool by the request method (backend/docker/nginx.conf), so a POST served as a GET route would leave the capped
+// market pool for the default one (M1 review R2-4). Symfony 8 drops GET/HEAD overrides altogether.
+Request::setAllowedHttpMethodOverride(['PUT', 'PATCH', 'DELETE']);
+
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',

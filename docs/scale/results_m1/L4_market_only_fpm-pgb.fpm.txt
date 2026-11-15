@@ -1,0 +1,12 @@
+== php-fpm access: requests by pool and status
+     74 default 201
+  16462 market 200
+== nginx access: status counts
+  16462 200
+     74 201
+    201 503
+== nginx error log: limit hits by zone
+    201 limiting connections by zone "rizqim_market_all"
+== php-fpm log warnings
+[15-Nov-2026 11:42:52] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 11:48:55] WARNING: [pool market] server reached max_children setting (4), consider raising it

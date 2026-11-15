@@ -17,6 +17,10 @@ use Laravel\Sanctum\Sanctum;
  */
 class DeviceTokenGuard extends Guard
 {
+    // Wave M1: the token's last_used_at at most once per SANCTUM_LAST_USED_AT_THROTTLE_MINUTES (the device heartbeat
+    // below stays once a minute)
+    use ThrottlesLastUsedAt;
+
     public const ABILITY = 'terminal';
 
     public function __invoke(Request $request)

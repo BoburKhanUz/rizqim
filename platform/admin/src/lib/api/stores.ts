@@ -324,6 +324,8 @@ export interface BroadcastPreview {
   recipients: number;
   without_telegram: number;
   sample: string[];
+  /** M1: how long sending takes at the server's rate (messages leave in waves) */
+  estimated_seconds?: number;
 }
 
 export interface Broadcast {

@@ -15,7 +15,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class OrderBillItem extends Model
 {
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'bill_id', 'order_item_id', 'quantity', 'amount', 'discount_amount', 'created_at', 'updated_at',
+    ];
 
     protected $casts = [
         'quantity' => 'decimal:3',

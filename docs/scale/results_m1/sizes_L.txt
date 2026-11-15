@@ -1,0 +1,70 @@
+== database size, top 15 tables
+ db_size | orders 
+---------+--------
+ 1985 MB | 284194
+(1 row)
+
+        relname         |  total  |  heap   |   idx   |  rows   
+------------------------+---------+---------+---------+---------
+ audit_logs             | 559 MB  | 309 MB  | 250 MB  | 1440981
+ fiscal_receipts        | 286 MB  | 236 MB  | 49 MB   |  158111
+ orders                 | 246 MB  | 86 MB   | 160 MB  |  284194
+ order_items            | 220 MB  | 151 MB  | 69 MB   |  943886
+ order_status_histories | 169 MB  | 98 MB   | 72 MB   |  961300
+ notification_logs      | 142 MB  | 79 MB   | 63 MB   |  854229
+ order_bill_items       | 91 MB   | 47 MB   | 43 MB   |  589403
+ payments               | 79 MB   | 43 MB   | 36 MB   |  287452
+ order_bills            | 61 MB   | 41 MB   | 20 MB   |  158119
+ idempotency_keys       | 52 MB   | 47 MB   | 5152 kB |   30129
+ pos_sync_operations    | 22 MB   | 18 MB   | 4624 kB |   31596
+ scale_orders_kind      | 20 MB   | 14 MB   | 6256 kB |  284190
+ users                  | 7144 kB | 3376 kB | 3728 kB |   17258
+ products               | 3192 kB | 2208 kB | 944 kB  |   12940
+ product_variants       | 2872 kB | 1600 kB | 1232 kB |   12941
+(15 rows)
+
+== top 15 indexes
+                  indexrelname                   |        relname         |  sz   | idx_scan 
+-------------------------------------------------+------------------------+-------+----------
+ audit_logs_action_created_at_index              | audit_logs             | 76 MB |        0
+ audit_logs_user_id_created_at_index             | audit_logs             | 55 MB |        0
+ audit_logs_store_id_created_at_index            | audit_logs             | 54 MB |        0
+ order_status_histories_order_id_status_index    | order_status_histories | 51 MB |        2
+ audit_logs_model_index                          | audit_logs             | 35 MB |        0
+ notification_logs_user_id_id_index              | notification_logs      | 34 MB |        0
+ audit_logs_pkey                                 | audit_logs             | 31 MB |        0
+ order_status_histories_pkey                     | order_status_histories | 21 MB |        0
+ order_items_pkey                                | order_items            | 20 MB |   589406
+ notification_logs_pkey                          | notification_logs      | 18 MB |        0
+ order_bill_items_bill_id_order_item_id_unique   | order_bill_items       | 18 MB |        8
+ orders_user_id_created_at_id_index              | orders                 | 17 MB |        0
+ fiscal_receipts_store_id_idempotency_key_unique | fiscal_receipts        | 17 MB |        0
+ order_items_sent_at_index                       | order_items            | 16 MB |        0
+ order_items_order_id_client_line_id_index       | order_items            | 15 MB |       11
+(15 rows)
+
+== measured bytes per order by channel (pos = POS order of a POS/hybrid store; mkt = Mini App order)
+         table          | ch  | rows_per_order | bytes_per_order 
+------------------------+-----+----------------+-----------------
+ audit_logs             | mkt |           3.00 |            1221
+ notification_logs      | mkt |           6.60 |            1150
+ orders                 | mkt |           1.00 |             907
+ order_status_histories | mkt |           3.90 |             721
+ order_items            | mkt |           2.50 |             611
+ payments               | mkt |           1.00 |             287
+ audit_logs             | pos |           6.80 |            2768
+ fiscal_receipts        | pos |           1.02 |            1934
+ order_items            | pos |           4.01 |             979
+ orders                 | pos |           1.00 |             907
+ order_bill_items       | pos |           3.81 |             613
+ order_status_histories | pos |           2.95 |             545
+ order_bills            | pos |           1.02 |             415
+ payments               | pos |           1.02 |             293
+ pos_sync_operations    | pos |           0.20 |             150
+(15 rows)
+
+                note                 |  sz   |   n   | bytes_per_key 
+-------------------------------------+-------+-------+---------------
+ idempotency_keys (24 h window only) | 52 MB | 30129 |          1815
+(1 row)
+

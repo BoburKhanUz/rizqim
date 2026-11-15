@@ -1,0 +1,21 @@
+L3_market_spike_L_after wall=436.2s req=11508 rps=26.38 cpu php=510.27s pg=254.67s xacts=650874 conn_max=6 lockwaits=0
+GET /catalog?geo                     n=  827 rps=   1.9 p50=2897 p95=3671.6 p99=3791.1 err%=0
+GET /catalog?store_id                n=  764 rps=  1.75 p50=2987.3 p95=3674.4 p99=3778.6 err%=0
+GET /notifications                   n=  764 rps=  1.75 p50=2980.9 p95=3630.1 p99=3779 err%=0
+GET /orders                          n=  764 rps=  1.75 p50=3048 p95=3708.5 p99=3864.3 err%=0
+GET /pos/display/state               n= 1980 rps=  4.54 p50=44.8 p95=3495.5 p99=3656.5 err%=0
+GET /pos/floor                       n= 1018 rps=  2.33 p50=63.7 p95=3546.6 p99=3699.1 err%=0
+GET /pos/orders/:id                  n=  962 rps=  2.21 p50=78.1 p95=3482.1 p99=3690.8 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=  1.51 p50=172.8 p95=3599.8 p99=3746.8 err%=0
+GET /staff/orders                    n=  660 rps=  1.51 p50=138 p95=3521.7 p99=3754.4 err%=0
+GET /staff/orders?status=new         n=  660 rps=  1.51 p50=45.7 p95=3387.3 p99=3674 err%=0
+GET /stores?geo                      n=  866 rps=  1.99 p50=2880.7 p95=3639.2 p99=3742.9 err%=0
+POST /orders                         n=   17 rps=  0.04 p50=2876.9 p95=3689.7 p99=3689.7 err%=0
+POST /pos/bills/:id/payments         n=  261 rps=   0.6 p50=222.6 p95=3504.6 p99=3789.9 err%=0
+POST /pos/orders                     n=  261 rps=   0.6 p50=168.5 p95=3694.9 p99=3864.4 err%=0
+POST /pos/orders/:id/bills           n=  261 rps=   0.6 p50=107.9 p95=3261.2 p99=3554.4 err%=0
+POST /pos/orders/:id/close           n=  261 rps=   0.6 p50=72 p95=3400.2 p99=3725.3 err%=0
+POST /pos/orders/:id/rounds          n=  261 rps=   0.6 p50=139.9 p95=3568.8 p99=3865.8 err%=0
+POST /pos/orders/:id/send            n=  261 rps=   0.6 p50=126.5 p95=3435.5 p99=3776.1 err%=0
+errors: {}
+sync: {}

@@ -53,6 +53,14 @@ return [
     'expiration' => (int) (env('SANCTUM_TOKEN_EXPIRATION') ?: 60 * 24 * 30),
 
     /*
+    | Wave M1: at most one personal_access_tokens.last_used_at write per token per this many minutes (the `sanctum`
+    | and `device` guards; the admin guard keeps its own one-minute idle tracking). 0 writes on every request, as
+    | Sanctum does by default.
+    */
+
+    'last_used_at_throttle_minutes' => (int) env('SANCTUM_LAST_USED_AT_THROTTLE_MINUTES', 5),
+
+    /*
     |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------

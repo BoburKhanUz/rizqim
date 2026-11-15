@@ -16,7 +16,12 @@ class CashMovement extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'shift_id', 'type', 'category', 'amount', 'note', 'payment_id', 'user_id',
+        'employee_id', 'device_id', 'approved_by', 'created_at', 'updated_at',
+    ];
 
     protected function casts(): array
     {

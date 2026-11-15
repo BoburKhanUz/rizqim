@@ -1,0 +1,25 @@
+# L3_market_spike_serve-pgb  2026-11-15T12:02:26Z  mode=serve-pgb SERVER=serve DB_POOLER=pgbouncer  load before: 0.29 1.85 2.18
+
+L3_market_spike_serve-pgb wall=437.8s req=13178 rps=30.1 cpu php=486.28s pg=86.72s pgbouncer=21.18s nginx=0s xacts=223027 conn_max=6 lockwaits=0
+GET /catalog?geo                     n= 1149 rps=  2.62 p50=444.1 p95=961.1 p99=1140.5 err%=0
+GET /catalog?store_id                n= 1089 rps=  2.49 p50=446.5 p95=976.6 p99=1205.1 err%=0
+GET /notifications                   n= 1089 rps=  2.49 p50=395.1 p95=948.5 p99=1114.9 err%=0
+GET /orders                          n= 1089 rps=  2.49 p50=444.2 p95=961.5 p99=1225.7 err%=0
+GET /pos/display/state               n= 1980 rps=  4.52 p50=22.5 p95=770.5 p99=984.2 err%=0
+GET /pos/floor                       n= 1091 rps=  2.49 p50=34.5 p95=729.8 p99=1003.8 err%=0
+GET /pos/orders/:id                  n=  889 rps=  2.03 p50=38.9 p95=787.7 p99=999.7 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=  1.51 p50=106.5 p95=845 p99=1032.3 err%=0
+GET /staff/orders                    n=  660 rps=  1.51 p50=111.7 p95=838.8 p99=1063.9 err%=0
+GET /staff/orders?status=new         n=  660 rps=  1.51 p50=24.8 p95=763.4 p99=985.4 err%=0
+GET /stores?geo                      n= 1204 rps=  2.75 p50=351.9 p95=936.3 p99=1158.2 err%=0
+POST /orders                         n=   10 rps=  0.02 p50=348.7 p95=740.5 p99=740.5 err%=0
+POST /pos/bills/:id/payments         n=  268 rps=  0.61 p50=152.8 p95=849.8 p99=1007.6 err%=0
+POST /pos/orders                     n=  268 rps=  0.61 p50=109.2 p95=853.8 p99=1078.1 err%=0
+POST /pos/orders/:id/bills           n=  268 rps=  0.61 p50=61.9 p95=808.6 p99=1099.4 err%=0
+POST /pos/orders/:id/close           n=  268 rps=  0.61 p50=42.6 p95=676.6 p99=890 err%=0
+POST /pos/orders/:id/rounds          n=  268 rps=  0.61 p50=90.9 p95=904 p99=1140.8 err%=0
+POST /pos/orders/:id/send            n=  268 rps=  0.61 p50=82.1 p95=797.9 p99=965.8 err%=0
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.33 1.76 2.14

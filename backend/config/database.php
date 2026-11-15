@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Str;
 use Pdo\Mysql;
+use Pdo\Pgsql;
 
 return [
 
@@ -84,19 +85,35 @@ return [
             ]) : [],
         ],
 
+        // DB_POOLER=pgbouncer sends this connection through PgBouncer in transaction mode (docker-compose.yml: only the
+        // php-fpm web container; migrations, queue workers, scheduler, Reverb and backups stay on DB_HOST directly).
+        // Unset or `direct` = straight to DB_HOST, as before. Under transaction pooling consecutive statements of one
+        // request may run on different server connections, so PDO must not create named prepared statements
+        // (PDO prepares `pdo_stmt_N` on one server connection and executes it on another: "prepared statement does
+        // not exist"). PGSQL_ATTR_DISABLE_PREPARES sends each query with its parameters in one PQexecParams call
+        // (unnamed statement, parameters still typed by the server exactly as with native prepares), unlike
+        // ATTR_EMULATE_PREPARES, which inlines values as SQL literals and breaks `boolean = 1`. Session-scoped
+        // features (session advisory locks, LISTEN/NOTIFY, session SET, temp tables, WITH HOLD cursors) do not survive
+        // transaction pooling: tests/Unit/TransactionPoolingSafetyTest.php fails when one appears. docs/OPERATIONS.md
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
+            'host' => env('DB_POOLER') === 'pgbouncer' ? env('DB_POOL_HOST', '127.0.0.1') : env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_POOLER') === 'pgbouncer' ? env('DB_POOL_PORT', '6432') : env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'laravel'),
             'username' => env('DB_USERNAME', 'root'),
             'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
+            // A session SET (Laravel runs it on connect): harmless under transaction pooling only because every client
+            // sets the same value, so whichever server connection a statement lands on has it
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'pooler' => env('DB_POOLER') === 'pgbouncer' ? 'pgbouncer' : 'direct',
+            'options' => extension_loaded('pdo_pgsql') ? [
+                (PHP_VERSION_ID >= 80400 ? Pgsql::ATTR_DISABLE_PREPARES : PDO::PGSQL_ATTR_DISABLE_PREPARES) => env('DB_POOLER') === 'pgbouncer' || (bool) env('DB_DISABLE_PREPARES', false),
+            ] : [],
         ],
 
         'sqlsrv' => [

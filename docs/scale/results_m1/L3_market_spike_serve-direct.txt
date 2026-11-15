@@ -1,0 +1,25 @@
+# L3_market_spike_serve-direct  2026-11-15T11:19:52Z  mode=serve-direct SERVER=serve DB_POOLER=direct  load before: 0.14 0.69 0.69
+
+L3_market_spike_serve-direct wall=427.1s req=11445 rps=26.8 cpu php=514.45s pg=243.92s pgbouncer=0s nginx=0s xacts=590098 conn_max=6 lockwaits=0
+GET /catalog?geo                     n=  803 rps=  1.88 p50=2976.6 p95=4396 p99=4675 err%=0
+GET /catalog?store_id                n=  743 rps=  1.74 p50=3095.3 p95=4512.4 p99=4658.7 err%=0
+GET /notifications                   n=  743 rps=  1.74 p50=3024.6 p95=4486.5 p99=4674.9 err%=0
+GET /orders                          n=  743 rps=  1.74 p50=3140 p95=4530.4 p99=4704.4 err%=0
+GET /pos/display/state               n= 1980 rps=  4.64 p50=44.3 p95=4296.8 p99=4593.3 err%=0
+GET /pos/floor                       n= 1017 rps=  2.38 p50=59.3 p95=4145 p99=4579.1 err%=0
+GET /pos/orders/:id                  n=  963 rps=  2.25 p50=69.9 p95=4385.5 p99=4595.4 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=  1.55 p50=88.7 p95=4326.4 p99=4566.8 err%=0
+GET /staff/orders                    n=  660 rps=  1.55 p50=153 p95=4455.3 p99=4713.1 err%=0
+GET /staff/orders?status=new         n=  660 rps=  1.55 p50=45.3 p95=4272.6 p99=4551.2 err%=0
+GET /stores?geo                      n=  858 rps=  2.01 p50=2809.8 p95=4503.6 p99=4659.3 err%=0
+POST /orders                         n=   19 rps=  0.04 p50=3294.4 p95=4559.9 p99=4559.9 err%=0
+POST /pos/bills/:id/payments         n=  266 rps=  0.62 p50=196.3 p95=4456.2 p99=4714.1 err%=0
+POST /pos/orders                     n=  266 rps=  0.62 p50=146 p95=4565.3 p99=4783.2 err%=0
+POST /pos/orders/:id/bills           n=  266 rps=  0.62 p50=95.4 p95=4362.5 p99=4546.9 err%=0
+POST /pos/orders/:id/close           n=  266 rps=  0.62 p50=70.3 p95=4294.7 p99=4603 err%=0
+POST /pos/orders/:id/rounds          n=  266 rps=  0.62 p50=133.5 p95=4288.9 p99=4661.5 err%=0
+POST /pos/orders/:id/send            n=  266 rps=  0.62 p50=120.9 p95=4369 p99=4753.3 err%=0
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.58 1.75 1.35

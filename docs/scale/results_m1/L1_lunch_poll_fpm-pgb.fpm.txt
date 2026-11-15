@@ -1,0 +1,10 @@
+== php-fpm access: requests by pool and status
+   7135 critical 200
+    548 critical 201
+     99 critical 409
+== nginx access: status counts
+   7135 200
+    548 201
+     99 409
+== nginx error log: limit hits by zone
+== php-fpm log warnings

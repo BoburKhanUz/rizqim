@@ -1,0 +1,19 @@
+# L1_lunch_poll_fpm-pgb  2026-11-15T11:33:44Z  mode=fpm-pgb SERVER=fpm DB_POOLER=pgbouncer  load before: 1.76 3.53 2.48
+
+L1_lunch_poll_fpm-pgb wall=426s req=7584 rps=17.8 cpu php=274.26s pg=65.52s pgbouncer=16.25s nginx=2.75s xacts=152683 conn_max=6 lockwaits=0
+GET /pos/display/state               n= 1980 rps=  4.65 p50=21.5 p95=32.8 p99=62.8 err%=0
+GET /pos/floor                       n= 1073 rps=  2.52 p50=33.2 p95=45.7 p99=83.3 err%=0
+GET /pos/orders/:id                  n=  907 rps=  2.13 p50=36.4 p95=52.7 p99=85.5 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=  1.55 p50=65.5 p95=102 p99=144.8 err%=0
+GET /staff/orders                    n=  660 rps=  1.55 p50=113.4 p95=140.2 p99=166.9 err%=0
+GET /staff/orders?status=new         n=  660 rps=  1.55 p50=22 p95=31.4 p99=44.3 err%=0
+POST /pos/bills/:id/payments         n=  274 rps=  0.64 p50=150.2 p95=198.7 p99=240.4 err%=0
+POST /pos/orders                     n=  274 rps=  0.64 p50=95.7 p95=132.5 p99=180.3 err%=0
+POST /pos/orders/:id/bills           n=  274 rps=  0.64 p50=59.6 p95=85.4 p99=99.8 err%=0
+POST /pos/orders/:id/close           n=  274 rps=  0.64 p50=43.2 p95=62.1 p99=112.9 err%=0
+POST /pos/orders/:id/rounds          n=  274 rps=  0.64 p50=86.6 p95=113.6 p99=144.9 err%=0
+POST /pos/orders/:id/send            n=  274 rps=  0.64 p50=77.9 p95=110.1 p99=143.4 err%=0
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.24 1.29 1.78

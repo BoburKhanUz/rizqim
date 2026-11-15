@@ -1,0 +1,25 @@
+== php-fpm access: requests by pool and status
+   7143 critical 200
+    552 critical 201
+     99 critical 409
+     17 default 201
+   5659 market 200
+== nginx access: status counts
+  12802 200
+    569 201
+     99 409
+     99 503
+== nginx error log: limit hits by zone
+     99 limiting connections by zone "rizqim_market_all"
+== market 503/429 per 30 s (nginx access, UTC)
+      7 12:30:00 503
+     17 12:30:30 503
+     22 12:31:00 503
+     53 12:31:30 503
+== php-fpm log warnings
+[15-Nov-2026 11:42:52] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 11:48:55] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 11:56:29] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 12:13:28] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 12:22:03] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 12:30:04] WARNING: [pool market] server reached max_children setting (4), consider raising it

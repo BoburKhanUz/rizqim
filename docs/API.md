@@ -3064,8 +3064,12 @@ qabul qilinganda (`accepted`) filialning o'z blokidan oladi.
 
 **Oshxona.** To'lov bilan yopilgan (avval to'lov) olib ketish buyurtmasi raqami `preparing` bo'lsa
 `GET /staff/kitchen/tickets` da qoladi (`include_ready=1` bilan `ready` ham); KDS'da oxirgi taom "tayyor" bosilganda
-raqam `ready` bo'ladi, qaytarilsa (`recall`) — yana `preparing`. Berilmay qolgan raqam bir kundan keyin ro'yxatdan
-tushadi.
+raqam `ready` bo'ladi, qaytarilsa (`recall`) — yana `preparing`. Oshxona hali pishirishi kerak bo'lgan qatori bor chipta
+(yuborilgan yoki qaytarilgan, "tayyor" bosilmagan qator; vaqti kelmagan yoki o'tgan `due_at` li ushlab turilgan qator;
+keyinga olib ketishda keyin oshxonaga tushgan qator) hech qachon tushib qolmaydi. Hamma qatori tayyor bo'lib, raqami
+berilmay qolgan chipta esa yopilgan, oshxonaga tushgan yoki oxirgi qatori tayyor bo'lgan vaqtning eng kechidan
+`ORDERS_KDS_CLOSED_COUNTER_MINUTES` (standart 240 daqiqa; M1 gacha bir kun) o'tgach ro'yxatdan tushadi. Hali yopilmagan
+(to'lanmagan) buyurtmaga bu muddat ta'sir qilmaydi.
 
 ## Mijoz ekrani (P6-14)
 

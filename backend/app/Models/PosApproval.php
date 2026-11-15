@@ -17,7 +17,12 @@ class PosApproval extends Model
 {
     use MassPrunable;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'token_hash', 'store_id', 'branch_id', 'device_id', 'permission', 'manager_id', 'requested_by', 'expires_at',
+        'used_at', 'used_by', 'created_at', 'updated_at',
+    ];
 
     protected $casts = [
         'expires_at' => 'datetime',

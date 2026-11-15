@@ -1,0 +1,15 @@
+L1_lunch_poll_L wall=428.1s req=7578 rps=17.7 cpu php=317.55s pg=194.97s xacts=445362 conn_max=5 lockwaits=0
+GET /pos/display/state               n= 1980 rps=  4.63 p50=37.7 p95=54.8 p99=98.8 err%=0
+GET /pos/floor                       n= 1069 rps=   2.5 p50=57.1 p95=75 p99=94.1 err%=0
+GET /pos/orders/:id                  n=  911 rps=  2.13 p50=59.6 p95=80.5 p99=109.6 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=  1.54 p50=60.7 p95=114.7 p99=227.2 err%=0
+GET /staff/orders                    n=  660 rps=  1.54 p50=132.1 p95=168.1 p99=197.5 err%=0
+GET /staff/orders?status=new         n=  660 rps=  1.54 p50=40.4 p95=54.5 p99=68.3 err%=0
+POST /pos/bills/:id/payments         n=  273 rps=  0.64 p50=204.3 p95=274.3 p99=311.1 err%=0
+POST /pos/orders                     n=  273 rps=  0.64 p50=149.9 p95=199.6 p99=227.3 err%=0
+POST /pos/orders/:id/bills           n=  273 rps=  0.64 p50=96.5 p95=138.6 p99=173.4 err%=0
+POST /pos/orders/:id/close           n=  273 rps=  0.64 p50=66.8 p95=99.2 p99=124.4 err%=0
+POST /pos/orders/:id/rounds          n=  273 rps=  0.64 p50=128.6 p95=172.4 p99=207.8 err%=0
+POST /pos/orders/:id/send            n=  273 rps=  0.64 p50=116.3 p95=166.2 p99=257.1 err%=0
+errors: {}
+sync: {}

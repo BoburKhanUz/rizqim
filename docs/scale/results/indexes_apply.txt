@@ -1,0 +1,25 @@
+Time: 524.577 ms
+Time: 10.143 ms
+Time: 10.955 ms
+Time: 216.272 ms
+Time: 121.631 ms
+Time: 342.231 ms
+Time: 15.796 ms
+Time: 7.616 ms
+Time: 88.370 ms
+Time: 25.441 ms
+Time: 39.537 ms
+Time: 232.116 ms
+Time: 129.573 ms
+Time: 179.581 ms
+            indexrelname             | pg_size_pretty 
+-------------------------------------+----------------
+ notification_logs_user_id_id_index  | 26 MB
+ product_variants_product_id_index   | 304 kB
+ products_store_id_status_index      | 112 kB
+ order_items_voided_at_partial_index | 8192 bytes
+ payments_order_id_index             | 6192 kB
+ notification_logs_order_id_index    | 9128 kB
+(6 rows)
+
+Time: 2.086 ms

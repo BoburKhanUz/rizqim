@@ -21,11 +21,29 @@ if [ ! -f .env ]; then
     as_app cp .env.example .env
 fi
 
-echo "Waiting for database ($DB_HOST:$DB_PORT)..."
-until nc -z "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"; do
-    sleep 1
-done
+# The web container (supervisord): check the pool sizes, the market limits and the pooler settings, and that nginx and
+# php-fpm accept the rendered config, before anything starts. A bad FPM_* / NGINX_* / PGBOUNCER_POOL_SIZE / DB_SSLMODE
+# value stops the container here with the reason, instead of supervisord running with nginx or php-fpm FATAL.
+if [ "$(basename "${1:-}")" = "supervisord" ]; then
+    if ! rizqim-pools check; then
+        echo "XATO: konteyner ishga tushirilmadi: yuqoridagi FPM_*/NGINX_*/PGBOUNCER_POOL_SIZE/DB_SSLMODE sozlamasini tuzating (docs/DEPLOY.md)." >&2
+        exit 1
+    fi
+fi
+
+# Bounded waits (STARTUP_WAIT_SECONDS, default 120): a database that never comes up stops the container with an
+# error (Docker's restart policy tries again) instead of a container that hangs here for ever.
+echo "Waiting for database (${DB_HOST:-pgsql}:${DB_PORT:-5432})..."
+rizqim-pools wait-for Postgres "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"
 echo "Database is up."
+
+# DB_POOLER=pgbouncer (docker-compose.yml, web container only): php-fpm reaches Postgres through PgBouncer in
+# transaction mode (config/database.php). Wait for it too, so the first requests do not fail while it starts.
+# PgBouncer has no TLS towards php-fpm: DB_SSLMODE=require/verify-* with the pooler is refused (rizqim-pools).
+if [ "${DB_POOLER:-direct}" = "pgbouncer" ]; then
+    echo "Waiting for the connection pooler (${DB_POOL_HOST:-127.0.0.1}:${DB_POOL_PORT:-6432})..."
+    rizqim-pools wait-for PgBouncer "${DB_POOL_HOST:-127.0.0.1}" "${DB_POOL_PORT:-6432}"
+fi
 
 # Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH,
 # TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password); runs after the DB wait because it
@@ -41,7 +59,12 @@ fi
 # and so start after the migrations. Nothing serves requests while this runs (nginx and php-fpm start after the
 # entrypoint), so there is no maintenance mode to switch on.
 if [ "$RUN_MIGRATIONS" = "true" ]; then
-    as_app php artisan migrate --force
+    # Migrations always use a direct connection (DB_POOLER=direct), never the pooler: a migration may take session
+    # state (SET lock_timeout, CREATE INDEX CONCURRENTLY outside a transaction) that must not leak into a pooled
+    # server connection. config:clear first: a restarted container still has the previous start's config cache, which
+    # would ignore the override. The cache is rebuilt (with the pooled settings) right after.
+    as_app php artisan config:clear
+    as_app env DB_POOLER=direct php artisan migrate --force
     as_app php artisan storage:link || true
     as_app php artisan config:cache
     as_app php artisan route:cache

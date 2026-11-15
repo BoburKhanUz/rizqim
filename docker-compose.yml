@@ -1,4 +1,4 @@
-# Rizqim: postgres + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx)
+# Rizqim: postgres + pgbouncer + redis + backend (nginx/php-fpm) + queue + queue-reports + scheduler + reverb (WebSocket) + frontend (nginx)
 # + partner-web (hamkor veb-panel, Next.js) + platform-admin (RIZQIM boshqaruv markazi, Next.js).
 # Ishga tushirish va yangilash: docker compose up -d --build
 # Monitoring: GET /health (JSON), loglar JSON/stderr'da, zaxira `backup` xizmatida: docs/OPERATIONS.md.
@@ -27,6 +27,12 @@ x-backend-environment: &backend-environment
   DB_DATABASE: ${DB_DATABASE:-rizqimbot}
   DB_USERNAME: ${DB_USERNAME:-rizqimbot}
   DB_PASSWORD: ${DB_PASSWORD:-secret}
+  # Bazaga ulanishlar puli (PgBouncer, tranzaksiya rejimi): faqat `backend` (php-fpm) pul orqali ishlaydi, u yerda
+  # DB_POOLER ildiz .env dan (standart pgbouncer). Migratsiyalar (entrypoint), queue, queue-reports, scheduler, reverb
+  # va backup Postgres'ga to'g'ridan-to'g'ri ulanadi. DB_POOLER=direct = pulsiz, avvalgidek. docs/OPERATIONS.md, «Bazaga ulanishlar puli»
+  DB_POOLER: direct
+  DB_POOL_HOST: pgbouncer
+  DB_POOL_PORT: 6432
   REDIS_CLIENT: phpredis
   REDIS_HOST: redis
   REDIS_PORT: 6379
@@ -79,6 +85,38 @@ services:
       timeout: 5s
       retries: 10
 
+  # Ulanishlar puli: har php-fpm so'rovi yangi Postgres ulanishi ochmaydi (~20 ms va Postgres protsessorining katta
+  # qismi), PgBouncer'ning tayyor ulanishlaridan birini bitta tranzaksiyaga oladi. Tashqariga port ochilmagan.
+  # Postgres'ga eng ko'pi PGBOUNCER_MAX_DB_CONNECTIONS ulanish (+ to'g'ridan-to'g'ri ulanadigan xizmatlar) max_connections
+  # (100) dan kam bo'lishi shart: hisob docs/OPERATIONS.md, «Bazaga ulanishlar puli». Obraz va sozlama: infra/pgbouncer/
+  pgbouncer:
+    build:
+      context: ./infra/pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      PGBOUNCER_POOL_SIZE: ${PGBOUNCER_POOL_SIZE:-20}
+      PGBOUNCER_RESERVE_POOL_SIZE: ${PGBOUNCER_RESERVE_POOL_SIZE:-5}
+      PGBOUNCER_MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
+      PGBOUNCER_MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-1000}
+      PGBOUNCER_QUERY_WAIT_TIMEOUT: ${PGBOUNCER_QUERY_WAIT_TIMEOUT:-30}
+    expose:
+      - "6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Pul orqali haqiqiy so'rov (auth + Postgres'gacha yo'l)
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=\"$$DB_PASSWORD\" psql -h 127.0.0.1 -p 6432 -U \"$$DB_USERNAME\" -d \"$$DB_DATABASE\" -Atqc 'select 1' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
   # Kesh, navbat (queue), sessiya va rate-limit shu yerda. Tashqariga port ochilmagan (faqat compose tarmog'i).
   # --appendonly: navbatdagi joblar Redis qayta ishga tushganda yo'qolmasin.
   # maxmemory-policy ni allkeys-*/volatile-* qilmang: Redis navbat va sessiya kalitlarini ham o'chirib yuboradi.
@@ -104,6 +142,13 @@ services:
     environment:
       <<: *backend-environment
       RUN_MIGRATIONS: "true"
+      # php-fpm so'rovlari PgBouncer orqali; migratsiyalar baribir to'g'ridan-to'g'ri (entrypoint). Pulni o'chirish
+      # (masalan PgBouncer nosoz bo'lsa): ildiz .env da DB_POOLER=direct, so'ng docker compose up -d backend
+      DB_POOLER: ${DB_POOLER:-pgbouncer}
+      # pgbouncer xizmatining puli bilan bir xil qiymat: backend ishga tushganda php-fpm ishchilari (FPM_*_CHILDREN
+      # yig'indisi) shu puldan oshmasligini tekshiradi, aks holda bozor puli kassalarning bazaga ulanishini olib qo'yadi
+      # (backend/docker/pools.sh; docs/OPERATIONS.md, «Bazaga ulanishlar puli»)
+      PGBOUNCER_POOL_SIZE: ${PGBOUNCER_POOL_SIZE:-20}
     # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /up (va API) ni shu xostdagi tashqi proksi oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
     # internetga ochiq bo'lsa, Docker userland proksisi orqali kelgan so'rov (masalan IPv6) ichki manzildan kelgandek
     # ko'rinib, soxta IP bilan kirish limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa BACKEND_BIND (va firewall).
@@ -115,6 +160,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # service_started (healthy emas): DB_POOLER=direct bilan PgBouncer nosoz bo'lsa ham backend ishga tushsin.
+      # Pul orqali ishlaganda entrypoint uning portini kutadi, /health esa bazaga pul orqali ulanib tekshiradi
+      pgbouncer:
+        condition: service_started
     # /health (GET, JSON): bazaga va Redis'ga haqiqatan ulanishni tekshiradi, shuning uchun /up (faqat "ilova ishga tushdi")
     # dan aniqroq. Ular ishlamasa 503 qaytaradi (wget xato kodi bilan chiqadi). Scheduler yoki navbat muammosi 200 (degraded)
     # beradi, shuning uchun u backend'ni nosog'lom qilmaydi (scheduler/queue shu healthcheck'ni kutadi). docs/OPERATIONS.md

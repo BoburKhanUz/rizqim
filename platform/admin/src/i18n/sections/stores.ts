@@ -369,6 +369,7 @@ export const stores = defineSection({
     stores_broadcastPreview: "Ko'rib chiqish",
     stores_broadcastPreviewText: '{{stores}} ta ovqatxona, {{recipients}} ta egaga boradi. Telegramsiz: {{without}}.',
     stores_broadcastSample: 'Masalan: {{names}}',
+    stores_broadcastDuration: "Xabarlar to'lqin bilan ketadi: yuborish taxminan {{minutes}} daqiqa davom etadi.",
     stores_broadcastSend: '{{count}} ta egaga yuborish',
     stores_broadcastDone: "E'lon navbatga qo'yildi: {{count}} ta egaga yuboriladi.",
     stores_broadcastChanged: "Qabul qiluvchilar soni o'zgardi — yangi sonni tekshiring.",

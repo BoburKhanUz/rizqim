@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $created_by
  * @property string $audience all | selected
  * @property list<int>|null $store_ids
+ * @property array{statuses?: list<string>|null, region_id?: int|null}|null $filters `all`: its filters (review R1-2; null before)
  * @property string $text
  * @property string $reason
  * @property int $stores
@@ -34,6 +35,7 @@ class StoreBroadcast extends Model
     {
         return [
             'store_ids' => 'array',
+            'filters' => 'array',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];

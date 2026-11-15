@@ -1,0 +1,25 @@
+# L3_market_spike_fpm-pgb  2026-11-15T11:41:12Z  mode=fpm-pgb SERVER=fpm DB_POOLER=pgbouncer  load before: 0.17 1.20 1.74
+
+L3_market_spike_fpm-pgb wall=441.5s req=13522 rps=30.63 cpu php=505.7s pg=92.12s pgbouncer=24.31s nginx=4.64s xacts=213748 conn_max=8 lockwaits=0
+GET /catalog?geo                     n= 1205 rps=  2.73 p50=269.4 p95=531.9 p99=632.2 err%=16.93
+GET /catalog?store_id                n= 1133 rps=  2.57 p50=249.9 p95=492.7 p99=593 err%=16.68
+GET /notifications                   n= 1133 rps=  2.57 p50=186.3 p95=400 p99=506.2 err%=17.65
+GET /orders                          n= 1133 rps=  2.57 p50=247.9 p95=479.4 p99=599.4 err%=17.21
+GET /pos/display/state               n= 1979 rps=  4.48 p50=22.5 p95=43.8 p99=67 err%=0
+GET /pos/floor                       n= 1044 rps=  2.36 p50=35.6 p95=64.5 p99=98.7 err%=0
+GET /pos/orders/:id                  n=  936 rps=  2.12 p50=38.6 p95=76.5 p99=145.1 err%=0
+GET /staff/kitchen/tickets           n=  660 rps=   1.5 p50=83.4 p95=166.3 p99=225.3 err%=0
+GET /staff/orders                    n=  660 rps=   1.5 p50=117.9 p95=193.9 p99=246.7 err%=0
+GET /staff/orders?status=new         n=  660 rps=   1.5 p50=23.7 p95=47.1 p99=99.6 err%=0
+GET /stores?geo                      n= 1266 rps=  2.87 p50=209.8 p95=444.4 p99=541.9 err%=14.22
+POST /orders                         n=   21 rps=  0.05 p50=112.5 p95=154.8 p99=170.7 err%=0
+POST /pos/bills/:id/payments         n=  282 rps=  0.64 p50=156.6 p95=258 p99=292.7 err%=0
+POST /pos/orders                     n=  282 rps=  0.64 p50=106.4 p95=174.1 p99=199.8 err%=0
+POST /pos/orders/:id/bills           n=  282 rps=  0.64 p50=63 p95=114.9 p99=193.7 err%=0
+POST /pos/orders/:id/close           n=  282 rps=  0.64 p50=43.9 p95=99.2 p99=152.1 err%=0
+POST /pos/orders/:id/rounds          n=  282 rps=  0.64 p50=92.9 p95=164.7 p99=210.8 err%=0
+POST /pos/orders/:id/send            n=  282 rps=  0.64 p50=84.8 p95=143 p99=182.2 err%=0
+errors: {"GET /catalog?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":204,"GET /orders 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":195,"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":200,"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":189,"GET /stores?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":180}
+retry_after: {"mkt 503 Retry-After=2":968}
+sync: {}
+load after: 0.33 1.65 1.88

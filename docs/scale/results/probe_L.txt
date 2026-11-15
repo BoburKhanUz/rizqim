@@ -1,0 +1,25 @@
+probe_L wall=35.4s req=330 rps=9.33 cpu php=17.45s pg=21.93s xacts=19513 conn_max=2 lockwaits=0
+GET /catalog?geo                     n=   15 rps=  0.42 p50=120.4 p95=148 p99=148 err%=0
+GET /catalog?store_id                n=   15 rps=  0.42 p50=100.2 p95=142.6 p99=142.6 err%=0
+GET /notifications (owner)           n=   15 rps=  0.42 p50=223.8 p95=323.4 p99=323.4 err%=0
+GET /notifications                   n=   15 rps=  0.42 p50=170 p95=210.5 p99=210.5 err%=0
+GET /orders                          n=   15 rps=  0.42 p50=87 p95=111.5 p99=111.5 err%=0
+GET /owner/analytics?period=month    n=   15 rps=  0.42 p50=36.1 p95=155.9 p99=155.9 err%=0
+GET /owner/reports/sales             n=   15 rps=  0.42 p50=62.6 p95=95.1 p99=95.1 err%=0
+GET /owner/reports/top-products      n=   15 rps=  0.42 p50=78.7 p95=109.1 p99=109.1 err%=0
+GET /pos/display/state               n=   15 rps=  0.42 p50=37.8 p95=54.1 p99=54.1 err%=0
+GET /pos/floor                       n=   15 rps=  0.42 p50=61 p95=74.3 p99=74.3 err%=0
+GET /pos/orders                      n=   15 rps=  0.42 p50=49.6 p95=58 p99=58 err%=0
+GET /pos/orders/:id                  n=   15 rps=  0.42 p50=57.1 p95=79.4 p99=79.4 err%=0
+GET /pos/sync/status                 n=   15 rps=  0.42 p50=43.4 p95=55.1 p99=55.1 err%=0
+GET /staff/kitchen/tickets           n=   15 rps=  0.42 p50=187 p95=243.1 p99=243.1 err%=0
+GET /staff/orders                    n=   15 rps=  0.42 p50=122.2 p95=143.8 p99=143.8 err%=0
+GET /staff/orders?status=new         n=   15 rps=  0.42 p50=49 p95=67.9 p99=67.9 err%=0
+GET /stores?geo                      n=   15 rps=  0.42 p50=83.8 p95=110 p99=110 err%=0
+POST /pos/bills/:id/payments         n=   15 rps=  0.42 p50=199.8 p95=267.4 p99=267.4 err%=0
+POST /pos/orders                     n=   15 rps=  0.42 p50=143 p95=160.5 p99=160.5 err%=0
+POST /pos/orders/:id/bills           n=   15 rps=  0.42 p50=91.4 p95=127.1 p99=127.1 err%=0
+POST /pos/orders/:id/close           n=   15 rps=  0.42 p50=70.8 p95=84.6 p99=84.6 err%=0
+POST /pos/orders/:id/send            n=   15 rps=  0.42 p50=102.2 p95=127.2 p99=127.2 err%=0
+errors: {}
+sync: {}

@@ -1,0 +1,25 @@
+13574 | 111.9 | set search_path to "public"
+13574 | 244.3 | select * from "personal_access_tokens" where "personal_access_tokens"."id" = $1 limit $2
+11875 | 229.5 | select * from "users" where "users"."id" = $1 limit $2
+8621 | 103.4 | select "product_variants"."id", "products"."id" as "dish_product_id", "products"."category_id" as "dish_category_id", "products"."wait_minut
+7036 | 156.0 | select * from "stores" where "stores"."id" = $1 and "stores"."deleted_at" is null limit $2
+6880 | 147.9 | select * from "orders" where "orders"."id" = $1 and "orders"."deleted_at" is null limit $2
+6503 | 71.6 | select exists(select * from "devices" where "devices"."id" = $1 and "revoked_at" is null) as "exists"
+5869 | 102.0 | select "product_variants"."id", "products"."id" as "dish_product_id", "products"."category_id" as "dish_category_id", "products"."wait_minut
+4789 | 109.7 | select * from "stores" where "stores"."id" in ($1) and "stores"."deleted_at" is null
+4046 | 59.3 | select * from "devices" where "devices"."id" = $1 limit $2
+3854 | 78.6 | select "product_variants"."id", "products"."id" as "dish_product_id", "products"."category_id" as "dish_category_id", "products"."wait_minut
+3852 | 53.7 | select * from "branches" where "branches"."id" = $1 limit $2
+3679 | 41.3 | select "product_variants"."id", "products"."id" as "dish_product_id", "products"."category_id" as "dish_category_id", "products"."kds_target
+3316 | 54.7 | select * from "branches" where "store_id" = $1 and "branches"."id" = $2 limit $3
+3091 | 77.9 | select * from "orders" where "id" = $1 limit $2
+2980 | 21.5 | select exists(select * from "combos" where "store_id" = $1 and "is_active" = $2) as "exists"
+2876 | 45.6 | select "product_variants"."id", "products"."id" as "dish_product_id", "products"."category_id" as "dish_category_id", "products"."kds_target
+2644 | 2.7 | BEGIN
+2545 | 2.7 | COMMIT
+2526 | 32.6 | select * from "product_variants" where "product_variants"."id" = $1 limit $2
+2526 | 32.2 | select "products"."id" as "product_id", "products"."category_id" from "product_variants" inner join "products" on "products"."id" = "product
+2526 | 34.4 | select * from "products" where "products"."id" = $1 limit $2
+2350 | 158.8 | select count(*) as aggregate from "orders" where "user_id" = $1 and "order_type" = $2 and "payment_method" = $3 and "status" = $4 and "cance
+2329 | 22.8 | select "id", "store_id", "pos_settings" from "branches" where "branches"."id" = $1 limit $2
+2329 | 40.6 | select "total_price" from "order_items" where "order_items"."order_id" = $1 and "order_items"."order_id" is not null and "kitchen_status" !=

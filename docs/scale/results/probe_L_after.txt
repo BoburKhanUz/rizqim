@@ -1,0 +1,25 @@
+probe_L_after wall=30.3s req=330 rps=10.89 cpu php=17.36s pg=10.02s xacts=19309 conn_max=2 lockwaits=0
+GET /catalog?geo                     n=   15 rps=   0.5 p50=90.9 p95=119.9 p99=119.9 err%=0
+GET /catalog?store_id                n=   15 rps=   0.5 p50=86.8 p95=99.8 p99=99.8 err%=0
+GET /notifications (owner)           n=   15 rps=   0.5 p50=37.4 p95=50.8 p99=50.8 err%=0
+GET /notifications                   n=   15 rps=   0.5 p50=41.5 p95=45.8 p99=45.8 err%=0
+GET /orders                          n=   15 rps=   0.5 p50=73.8 p95=95.1 p99=95.1 err%=0
+GET /owner/analytics?period=month    n=   15 rps=   0.5 p50=32.4 p95=150.8 p99=150.8 err%=0
+GET /owner/reports/sales             n=   15 rps=   0.5 p50=51.2 p95=72.3 p99=72.3 err%=0
+GET /owner/reports/top-products      n=   15 rps=   0.5 p50=65.8 p95=74.9 p99=74.9 err%=0
+GET /pos/display/state               n=   15 rps=   0.5 p50=33.3 p95=45 p99=45 err%=0
+GET /pos/floor                       n=   15 rps=   0.5 p50=52.2 p95=63.8 p99=63.8 err%=0
+GET /pos/orders                      n=   15 rps=   0.5 p50=45.3 p95=50.2 p99=50.2 err%=0
+GET /pos/orders/:id                  n=   15 rps=   0.5 p50=48.2 p95=63.3 p99=63.3 err%=0
+GET /pos/sync/status                 n=   15 rps=   0.5 p50=38.6 p95=61 p99=61 err%=0
+GET /staff/kitchen/tickets           n=   15 rps=   0.5 p50=258.5 p95=300.7 p99=300.7 err%=0
+GET /staff/orders                    n=   15 rps=   0.5 p50=102.6 p95=121.4 p99=121.4 err%=0
+GET /staff/orders?status=new         n=   15 rps=   0.5 p50=44.2 p95=51.8 p99=51.8 err%=0
+GET /stores?geo                      n=   15 rps=   0.5 p50=66 p95=88.7 p99=88.7 err%=0
+POST /pos/bills/:id/payments         n=   15 rps=   0.5 p50=169.7 p95=199.3 p99=199.3 err%=0
+POST /pos/orders                     n=   15 rps=   0.5 p50=117 p95=223.1 p99=223.1 err%=0
+POST /pos/orders/:id/bills           n=   15 rps=   0.5 p50=85.6 p95=103.1 p99=103.1 err%=0
+POST /pos/orders/:id/close           n=   15 rps=   0.5 p50=60.3 p95=79.2 p99=79.2 err%=0
+POST /pos/orders/:id/send            n=   15 rps=   0.5 p50=99.6 p95=136.6 p99=136.6 err%=0
+errors: {}
+sync: {}

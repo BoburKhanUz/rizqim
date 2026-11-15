@@ -15,7 +15,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class OrderStatusHistory extends Model
 {
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'order_id', 'user_id', 'status', 'notes', 'created_at', 'updated_at', 'from_status', 'order_status_log_id',
+    ];
 
     // Kept out of GET /orders, which embeds the history in the shape the Mini App reads
     protected $hidden = ['from_status', 'order_status_log_id'];

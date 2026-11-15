@@ -78,6 +78,8 @@ takrorlanmaydi, faqat uskuna bilan ishlaydigan qism (`pos_hardware`) farqlanadi.
 | 9 | Mijoz mobil ilovasi | Mini-app imkoniyatlari, push, kuryerni xaritada kuzatish, saqlangan kartalar, sodiqlik |
 | 10 | Python servislari | Analitika ombori, talab prognozi, kuryer taqsimoti (OR-Tools), tavsiyalar |
 
+**Ishchi versiyaga chiqish ketma-ketligi** (masshtab, ishonchlilik, pilot): [LAUNCH_PLAN.md](LAUNCH_PLAN.md).
+
 Tartib o'zgarishi mumkin: 5, 6 va 7-bosqichlarning qismlari bir-biriga xalaqit bermaydi va bozor talabiga qarab
 parallel boshlanishi mumkin (masalan, integratsiya muzokaralari hozirdan).
 

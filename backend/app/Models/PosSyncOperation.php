@@ -35,7 +35,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PosSyncOperation extends Model
 {
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'store_id', 'branch_id', 'device_id', 'op_id', 'seq', 'type', 'staff_id', 'occurred_at', 'payload', 'status',
+        'reason', 'error', 'result', 'client_ref', 'order_id', 'clock_skew_seconds', 'received_at', 'applied_at',
+        'resolved_at', 'resolved_by', 'resolution', 'resolution_note', 'created_at', 'updated_at', 'origin_device_id',
+    ];
 
     protected function casts(): array
     {

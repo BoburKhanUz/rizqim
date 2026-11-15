@@ -45,7 +45,14 @@ class PosQrPayment extends Model
     /** The account Click (`merchant_trans_id`) and Payme (`account.order_id`) carry for a POS QR. */
     public const ACCOUNT_PREFIX = 'pos_qr_';
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'order_id', 'bill_id', 'bill_uuid', 'provider', 'driver', 'amount', 'status',
+        'checkout_payload', 'gateway_reference', 'provider_transaction_id', 'provider_payload', 'expires_at',
+        'held_at', 'paid_at', 'cancelled_at', 'cancel_reason', 'refunded_amount', 'refunded_at', 'payment_id',
+        'shift_id', 'device_id', 'created_by', 'created_at', 'updated_at',
+    ];
 
     protected function casts(): array
     {
