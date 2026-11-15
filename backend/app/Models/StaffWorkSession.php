@@ -18,7 +18,12 @@ class StaffWorkSession extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'user_id', 'device_id', 'business_date', 'clock_in_at', 'clock_out_at',
+        'abandoned_at', 'source', 'note', 'edited_by', 'created_at', 'updated_at',
+    ];
 
     protected function casts(): array
     {

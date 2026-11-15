@@ -288,3 +288,151 @@ bitta joyga yig'adi va ularga ogohlantirish qoidalarini qo'shadi.
 - **Yiqilgan vazifalar** shu yerdan ham ko'riladi, qayta uriladi va o'chiriladi (`php artisan queue:failed` o'rniga); har amal
   harakatlar jurnaliga yoziladi. Maxfiy qiymatlar yashiriladi.
 - **Real-time.** Ogohlantirishlar `platform.ops` kanalida (`ops.alert.*`). Reverb ishlamasa sahifa 30 soniyada yangilanadi.
+
+## 12. Bazaga ulanishlar puli (PgBouncer)
+
+**Nima uchun.** Har PHP so'rovi Postgres'ga yangi ulanish ochardi: bitta ulanish ~20 ms va Postgres protsessorining ~90 %
+(`docs/scale/RESULTS.md`, 1-topilma). O'lchov (2026-11-15, 4 yadroli umumiy mashina, `pgbench -C`, `select 1`, 4 mijoz):
+
+| Yo'l | Ulanish ochish | tps (ulanish bilan) |
+|---|---|---|
+| To'g'ridan-to'g'ri Postgres (SCRAM) | 20,3 ms | 194 |
+| PgBouncer, mijoz SCRAM bilan | 20,3 ms | 172 |
+| **PgBouncer, mijoz md5 bilan (yetkazilgan rejim)** | **0,35 ms** | **7 627** |
+| Ochiq ulanishda so'rov: to'g'ridan-to'g'ri / PgBouncer orqali | — | 0,023 ms / 0,15 ms bir so'rov |
+
+Ya'ni 20 ms ning asosiy qismi parolni SCRAM bilan tekshirish (PBKDF2), shuning uchun php-fpm → PgBouncer qismida `md5`
+(faqat ichki compose tarmog'ida, port tashqariga ochilmagan), PgBouncer → Postgres esa SCRAM (har server ulanishi uchun
+bir marta). Pul har so'rovga ~0,13 ms qo'shadi (Mini App so'rovida 13–27 SQL: +2–4 ms), 20 ms ni olib tashlaydi.
+
+**Kim pul orqali, kim to'g'ridan-to'g'ri.**
+
+| Jarayon | Ulanish |
+|---|---|
+| `backend` konteyneridagi php-fpm (barcha HTTP so'rovlar), shu konteynerdagi `docker compose exec backend php artisan ...` | PgBouncer (`DB_POOLER=pgbouncer`) |
+| `migrate` (entrypoint, `DB_POOLER=direct`), `queue`, `queue-reports`, `scheduler`, `reverb`, `backup` (`pg_dump`) | to'g'ridan-to'g'ri `postgres:5432` |
+
+Tranzaksiya rejimida server ulanishi so'rovga faqat bitta tranzaksiya davomida beriladi. Shuning uchun:
+- PHP nomli prepared statement yaratmaydi (`PGSQL_ATTR_DISABLE_PREPARES`, `config/database.php`): har so'rov parametrlari
+  bilan bitta `PQexecParams` chaqiruvida ketadi, turlarni server odatdagidek aniqlaydi. `ATTR_EMULATE_PREPARES` tanlanmadi:
+  u qiymatlarni SQL matniga qo'yadi va Laravel'ning `where('flag', true)` (→ `boolean = 1`) xato beradi (sinab ko'rildi).
+  Nomli prepared statement'lar pul orqali `prepared statement "pdo_stmt_…" does not exist` beradi (8 jarayonda 2 400
+  so'rovdan 1 400+ xato; o'chirilgan rejimda 0).
+- Sessiya holati ishlatilmaydi: sessiya advisory qulflari (faqat `pg_advisory_xact_lock`), `LISTEN/NOTIFY`, sessiya `SET`,
+  vaqtinchalik jadvallar, `WITH HOLD` kursorlar, `PDO::ATTR_PERSISTENT`. Tekshiruv (2026-11-15): kodda yo'q; Laravel'ning
+  ulanishdagi `set search_path to public` hamma mijozda bir xil, shuning uchun zararsiz. `tests/Unit/TransactionPoolingSafetyTest.php`
+  yangi shunday kod qo'shilsa yiqiladi. Sessiya holati kerak bo'lgan ish (masalan uzoq ma'lumot tuzatish) `queue`
+  konteynerida bajariladi: `docker compose exec -u www-data queue php artisan ...`.
+
+**O'lchamlar (env, ildiz `.env`).** `PGBOUNCER_POOL_SIZE` (20) — Postgres'ga doimiy ulanishlar; `PGBOUNCER_RESERVE_POOL_SIZE`
+(5) — navbat 3 s dan uzoq kutsa qo'shimcha; `PGBOUNCER_MAX_DB_CONNECTIONS` (30) — Postgres'ga qat'iy yuqori chegara;
+`PGBOUNCER_MAX_CLIENT_CONN` (1000) — php-fpm ulanishlari; `PGBOUNCER_QUERY_WAIT_TIMEOUT` (30 s) — bo'sh ulanish kutib
+turgan so'rov shundan keyin xato oladi. Staging: 15 / 5 / 20.
+
+Hisob (production, `max_connections = 100`):
+- Postgres'ga: `PGBOUNCER_MAX_DB_CONNECTIONS` (30) + to'g'ridan-to'g'ri (~15: queue 1, queue-reports 1, scheduler va u
+  ishga tushirgan buyruqlar ≤ 6, reverb 1, backup 1, migratsiya 1, qo'lda `psql`/`artisan` 3–4) + 3 superuser zaxirasi = **48 < 100**.
+- php-fpm tomoni: har konteynerda `FPM_CRITICAL_CHILDREN + FPM_MARKET_CHILDREN + FPM_DEFAULT_CHILDREN` (standart 4+4+4 = 12)
+  ulanish; konteynerlar soni × 12 ≤ `PGBOUNCER_MAX_CLIENT_CONN` (1000). php-fpm ishchilari endi Postgres ulanishini
+  egallamaydi: ishchilarni ko'paytirish uchun `max_connections` ni oshirish shart emas, `PGBOUNCER_POOL_SIZE` ni esa
+  Postgres yadrolariga qarab (taxminan 2–4 × yadro) tanlang.
+- `PGBOUNCER_MAX_DB_CONNECTIONS` ni oshirsangiz: `PGBOUNCER_MAX_DB_CONNECTIONS + 15 + 3 < max_connections` bo'lsin.
+
+**Kuzatish.** `docker compose exec pgbouncer sh -c 'PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 6432 -U "$DB_USERNAME" pgbouncer -c "show pools" -c "show stats"'`:
+`cl_waiting` doimiy 0 dan katta yoki `maxwait` bir necha soniya bo'lsa — pul kichik yoki so'rovlar sekin (avval sekin SQL'ni
+qidiring, keyin `PGBOUNCER_POOL_SIZE`). Logda `query_wait_timeout` yoki `no more connections allowed` — xuddi shu.
+`docker compose logs pgbouncer` da har daqiqalik statistika bor. Postgres tomonida `select count(*) from pg_stat_activity`
+`PGBOUNCER_MAX_DB_CONNECTIONS + ~15` dan oshmasligi kerak.
+
+**O'chirish (orqaga qaytarish).** PgBouncer nosoz bo'lsa: ildiz `.env` da `DB_POOLER=direct`, so'ng
+`docker compose up -d backend`. php-fpm avvalgidek to'g'ridan-to'g'ri ulanadi; bunda konteynerlar × php-fpm ishchilari +
+15 < `max_connections` bo'lishi kerak. Yuk sinovi: `scripts/scale-test/pgbouncer.sh` (`DB_POOLER=pgbouncer ./server.sh start`).
+
+## 13. So'rov va baza gigiyenasi (M1)
+
+`docs/scale/RESULTS.md` dagi 2, 6, 7, 9–11-topilmalar. Hammasining standarti xavfsiz; env berilmasa ham ishlaydi.
+
+**Indekslar** (`2026_11_15_300100_add_scale_hot_path_indexes`). Qo'shildi: `notification_logs (user_id, id)` (bildirishnomalar
+lentasi va nishoni: 79 ms → 0,3 ms), `notification_logs (order_id)`, `payments (order_id)`, `product_variants (product_id)`,
+`products (store_id, status)`, `order_items (voided_at) WHERE voided_at IS NOT NULL` (smena hisoboti). O'chirildi (faqat yozishni
+sekinlatardi): `audit_logs_model_type_model_id_index` (`audit_logs_model_index` ning aynan nusxasi) va `order_items_order_id_index`
+(`(order_id, client_line_id)` indeksi shu ishni qiladi). Hammasi `CONCURRENTLY` (tranzaksiyasiz): katta jadvalda ham kassa
+yozuvlari to'xtamaydi. Yarim qolgan (INVALID) indeks qolsa, migratsiyani qayta ishga tushirish uni qayta quradi. Kuzatish:
+`pg_stat_user_indexes.idx_scan` (yangi indekslar ishlatilyaptimi), `pg_stat_statements` da `notification_logs` so'rovlari.
+
+**Token `last_used_at`.** Har so'rovda yozilmaydi: bitta token uchun ko'pi bilan `SANCTUM_LAST_USED_AT_THROTTLE_MINUTES`
+(standart 5) daqiqada bir marta (`sanctum` va `device` guard'lari). `0` = har so'rovda (avvalgidek). Admin sessiyasi o'z
+1 daqiqalik qoidasida qoladi (60 daqiqalik harakatsizlik chegarasi shu ustundan hisoblanadi). Terminal "oxirgi ko'rilgan"
+(`devices.last_seen_at`) avvalgidek daqiqada bir yangilanadi. Ta'siri: admin kartasidagi "oxirgi faollik" va ovqatxona
+sog'lig'idagi panel faolligi 5 daqiqagacha eski bo'lishi mumkin.
+
+**Jadval ustunlarini so'rash.** Issiq modellar (`Order`, `OrderItem`, `OrderBill`, `OrderBillItem`, `Payment`, `FiscalReceipt`,
+`IdempotencyKey`, `PosShift`, `OrderStatusHistory`, `PosSyncOperation`, `CashMovement`, `PosTip`, `PosRefund`,
+`OrderChargeWaiver`, `PosApproval`, `StaffWorkSession`, `PosQrPayment`) `$guarded` o'rniga `$fillable` bilan: Eloquent har
+so'rovda jadval ustunlarini so'ramaydi. Bu jadvallarga ustun qo'shgan migratsiya modelning `$fillable` ro'yxatiga ham yozilishi
+shart, aks holda `tests/Feature/ModelFillableTest.php` yiqiladi (yozilmasa ustun ommaviy yozishda jim tashlab ketiladi).
+
+**Oshxona ekrani.** To'langan, raqami berilmagan peshtaxta buyurtmasi `GET /staff/kitchen/tickets` da yopilganidan keyin
+`ORDERS_KDS_CLOSED_COUNTER_MINUTES` (standart 240) daqiqa turadi (avval bir kun). Hech kim bosmaydigan doska kun bo'yi
+o'smaydi. Ochiq buyurtmalarga ta'sir qilmaydi. Oshxona chiptani "yo'qoldi" desa, muddatni oshiring.
+
+**Ommaviy e'lon (ovqatxona egalariga).** Xabarlar birdaniga emas, to'lqin bilan ketadi: soniyasiga ko'pi bilan
+`ADMIN_BROADCAST_RATE_PER_SECOND` (standart 5; Telegram chegarasi ~30, buyurtma xabarlari ham shu bot va shu `queue`
+ishchisidan o'tadi), bir to'lqinda `ADMIN_BROADCAST_WAVE_SIZE` (20) ega. 1 000 ega ≈ 3,5 daqiqa; ko'rib chiqishda taxminiy vaqt
+chiqadi. Har ega bir marta oladi (`store_broadcast_recipients`), har xabar natijasi `notification_logs` da
+(`admin_store_broadcast`). Ishchi o'chib qolsa, navbatdagi to'lqin navbatda saqlanadi va davom etadi. Vazifa butunlay yiqilsa
+(holati `failed`): `docker compose exec -u www-data queue php artisan admin:store-broadcast-resume <uuid>` — faqat hali
+olmaganlarga yuboradi.
+
+**PIN bilan kirish chegarasi (faqat kuzatish).** `throttle:staff-session`: bir terminaldan daqiqasiga 10, bir IP'dan 60.
+Bitta NAT ortidagi katta oziq-ovqat markazida smena boshida 60 dan ko'p kirish bo'lsa 429 qaytadi (bir necha soniyada qayta
+urinish o'tadi). Hozircha o'zgartirilmadi; shikoyat bo'lsa IP chegarasini ovqatxona bo'yicha qilish kerak.
+
+## 14. PHP-FPM pullari: kassa bozor yukidan ajratilgan (M1)
+
+**Nima uchun.** Avval kassa ham, Mini App ham bitta php-fpm pulida edi: 250 mijozlik bozor to'lqini kassa so'rovlarining
+p95 ini 0,16 s dan 9 s ga chiqardi (`docs/scale/RESULTS.md`, 3-topilma). Endi `backend` konteynerida uchta pul bor va nginx
+(`backend/docker/nginx.conf`) so'rovni yo'liga qarab yuboradi:
+
+| Pul | Yo'llar (`/api/v1/...`) | Ishchilar | Cheklov |
+|---|---|---|---|
+| `critical` | `pos/*`, `staff/*` (buyurtmalar doskasi, oshxona chiptalari), `terminal*`, `devices/pair`, `devices/{uuid}/staff-session` (PIN), `auth/refresh`, `payments/click/webhook`, `payments/payme/webhook`, `health`; `/health`, `/up`; kassaning menyusi `catalog?channel=pos_hall` / `pos_takeaway` va `catalog/availability?branch_id=...` | `FPM_CRITICAL_CHILDREN` (4), `static`: doim tayyor | hech qanday nginx cheklovi yo'q |
+| `market` | Mini App mijoz ekranlarining **o'qish** (GET) so'rovlari: `stores*` (zonalar, olib ketish vaqtlari), `catalog` (mijoz), `catalog/availability` (`branch_id` siz), `orders` (o'z buyurtmalari), `notifications`, `delivery/quote`, `addresses`, `locations`, `geocode/*`, `complaints` | `FPM_MARKET_CHILDREN` (4), `ondemand`, `nice` 10 | ha (pastda) |
+| `default` | qolgan hammasi: `owner/*` (hamkor panel), `admin/*`, `auth/*` (Mini App kirishi `auth/telegram` ham), `user`, `me/*`, `features`, `devices`, `couriers`, `reports/*`, `promo/validate`, `store-applications`, `telegram/webhook`, `/api/broadcasting/auth`, yuqoridagi mijoz yo'llarining **yozuvlari** (POST/PUT/DELETE: buyurtma berish `POST /orders`, bekor qilish, baho, manzil, shikoyat) | `FPM_DEFAULT_CHILDREN` (4), `ondemand`, `nice` 5 | yo'q |
+
+Fiskal callback yo'q (cheklar tashqariga yuboriladi), shuning uchun alohida qator yo'q. Ro'yxatdagi hech bir yo'lga mos kelmagan
+so'rov `default` ga tushadi; `tests/Feature/FpmPoolRoutingTest.php` esa har bir ro'yxatga olingan marshrutni nginx'dagi
+xaritaga solib ko'radi: yangi yo'l prefiksi qo'shilsa, u `nginx.conf` dagi `map $rizqim_uri $rizqim_path_class` ga yozilmaguncha
+test yiqiladi (kassa yo'li `critical` dan, yozuv `market` dan chiqib ketsa ham).
+
+**Mijozning buyurtma berishi qayerda va nega.** `POST /orders` (va boshqa mijoz yozuvlari) `default` pulida, `market` da emas:
+ular trafikning bir necha foizi, pulga tegadi va `Idempotency-Key` bilan qayta yuborilsa ikkinchi buyurtma yaratmaydi. `market`
+pul cheklangan, ya'ni to'lqin paytida rad etishi mumkin; buyurtma berish hech qachon rad etilmasin va o'qish navbati ortida
+kutmasin. `critical` ga ham qo'yilmadi: aksiya paytidagi buyurtmalar oqimi kassalarni sekinlatmasin. Mini App kirishi
+(`auth/telegram`) ham shu sababli `default` da.
+
+**Bozor cheklovlari** (faqat `market` puliga; `critical` va `default` ga hech qachon):
+- butun pul: bir vaqtda PHP'dagi bozor so'rovlari `NGINX_MARKET_MAX_INFLIGHT` dan (standart ishchilar × 2 = 8) oshsa, nginx darhol
+  **503** + `Retry-After: 2` qaytaradi (soniyalab navbatda kutmaydi);
+- bir mijoz (Bearer token, token bo'lmasa haqiqiy IP: `X-Forwarded-For` ishonchli ichki proksilardan, Laravel'dagi kabi):
+  soniyasiga `NGINX_MARKET_RATE` (5) so'rov + `NGINX_MARKET_BURST` (20) birdaniga — oshsa **429** + `Retry-After`; bir vaqtda
+  `NGINX_MARKET_CONN_PER_CLIENT` (10) dan ko'p — 503.
+- javob JSON: `{"success":false,"message":"...","error":"server_busy"}` (429 da `too_many_requests`). Mini App `message` ni ko'rsatadi,
+  o'qishni o'zi qayta uradi (react-query 3 marta, so'rov bilan yangilanadigan ekranlar oraliqni ikki baravar oshiradi).
+  Kassa, oshxona ekrani va hamkor panel `market` yo'llariga murojaat qilmaydi (hamkor panel `GET /user` ni `default` dan oladi).
+- `FPM_MARKET_BACKLOG` (32) — market pulining `listen.backlog` i; `FPM_MARKET_PRIORITY` (10) va `FPM_DEFAULT_PRIORITY` (5) —
+  ishchilarning `nice` qiymati: protsessor yetmaganda kassa ishchilari oldin oladi.
+
+**O'lchamlarni tanlash.** Har ishchi ~30–50 MB xotira (opcache umumiy). Standart 4+4+4 = 12 ishchi (avval 5): ~0,5 GB.
+`critical` ni filialdagi bir vaqtda ishlaydigan kassa+oshxona ekranlari soniga qarab (har 10–15 qurilmaga ~1 ishchi; ular
+ko'pincha 50–150 ms li qisqa so'rovlar), `market` ni protsessor yadrolariga qarab (yadro × 1–2) tanlang. Bazaga ulanishlar
+hisobi (konteynerlar × 12 ishchi): 12-bo'lim.
+
+**Kuzatish.** `docker compose logs backend`:
+- php-fpm kirish logi har so'rovni pul nomi bilan yozadi: `market 172.18.0.5 - ... "GET /api/v1/stores" 200 85.2 ms`;
+- `[pool critical] server reached pm.max_children setting` (yoki `market`, `default`) — o'sha pul to'lgan: `critical` uchun bu ogohlantirish, ishchi
+  qo'shing; `market` uchun to'lqin paytida normal;
+- nginx'da `limiting connections by zone "rizqim_market_all"` — bozor 503 berdi; `limiting requests ... "rizqim_market_rate"` — bir
+  mijoz 429 oldi. Bular ko'p va doimiy bo'lsa, `FPM_MARKET_CHILDREN`/`NGINX_MARKET_MAX_INFLIGHT` ni (protsessor yetsa) oshiring.
+O'zgartirish: `backend/.env` da qiymat, so'ng `docker compose up -d backend`. Qaytarish: qatorni o'chiring (standart qaytadi).
+Yuk sinovi haqiqiy konfiguratsiya bilan: `SERVER=fpm scripts/scale-test/server.sh start` (`scripts/scale-test/README.md`).

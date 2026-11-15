@@ -58,4 +58,12 @@ return [
         'max_rows' => (int) env('ADMIN_EXPORT_MAX_ROWS', 50000),
         'per_minute' => 10,
     ],
+
+    // Wave M1: an ommaviy e'lon (StoreBroadcastService) goes out in waves: `wave_size` owners at a time, at most
+    // `rate_per_second` Telegram messages a second (Telegram allows ~30 a second per bot; the order alerts share the
+    // bot and the queue worker, so the default stays well under). 1000 owners at the default take about 3.5 minutes.
+    'store_broadcasts' => [
+        'rate_per_second' => (int) env('ADMIN_BROADCAST_RATE_PER_SECOND', 5),
+        'wave_size' => (int) env('ADMIN_BROADCAST_WAVE_SIZE', 20),
+    ],
 ];

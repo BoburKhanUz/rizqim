@@ -44,7 +44,15 @@ class OrderBill extends Model
         'banquet' => 'banquet_amount',
     ];
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'order_id', 'number', 'status', 'split_mode', 'subtotal', 'discount',
+        'room_fee_amount', 'min_spend_topup_amount', 'service_charge_amount', 'place_fee_amount', 'total',
+        'guests_share', 'basis', 'printed_count', 'printed_at', 'paid_at', 'shift_id', 'fiscal_receipt_uuid',
+        'fiscal_status', 'fiscal_error', 'created_by', 'voided_at', 'created_at', 'updated_at', 'seat_no',
+        'waiter_id', 'packaging_amount', 'banquet_amount',
+    ];
 
     protected function casts(): array
     {

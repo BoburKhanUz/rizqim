@@ -89,7 +89,24 @@ class Order extends Model
     use SoftDeletes;
     use \App\Traits\HasPublicUuid;
     
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'short_code', 'store_id', 'user_id', 'status', 'payment_status', 'order_type', 'subtotal',
+        'delivery_price', 'total_price', 'currency', 'notes', 'shipping_address', 'created_at', 'updated_at',
+        'deleted_at', 'payment_method', 'courier_id', 'commission_amount', 'branch_id', 'address_id', 'manager_id',
+        'payment_owner', 'discount', 'promo_code_id', 'settlement_failed_at', 'settlement_error',
+        'settlement_attempts', 'cancel_reason', 'cancel_note', 'cancelled_by', 'channel', 'external_id',
+        'service_charge_amount', 'place_fee_amount', 'guests_count', 'hall_ref', 'table_ref', 'delivery_zone_id',
+        'delivery_zone_name', 'delivery_zone_price', 'delivery_min_order_amount', 'hall_id', 'table_id', 'waiter_id',
+        'device_id', 'version', 'room_fee_amount', 'min_spend_topup_amount', 'booking_id', 'due_at', 'shift_id',
+        'business_date', 'queue_number', 'bill_locked_at', 'closed_at', 'long_open_alerted_at', 'bill_requested_at',
+        'bill_requested_by', 'local_number', 'offline_created_at', 'synced_at', 'sync_flags', 'discount_kind',
+        'discount_value', 'discount_reason', 'discount_by', 'commission_channel', 'commission_rate', 'fiscalized_by',
+        'pickup_status', 'pickup_ready_at', 'pickup_called_at', 'pickup_call_count', 'pickup_handed_at',
+        'table_label', 'assembled_at', 'assembled_by', 'packaging_amount', 'packaging_lines', 'pickup_at',
+        'kitchen_fire_at', 'kitchen_fired_at', 'promo_note', 'banquet_amount', 'banquet_lines',
+    ];
     
     protected static function boot()
     {

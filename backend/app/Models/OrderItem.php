@@ -48,7 +48,16 @@ class OrderItem extends Model
 {
     use SoftDeletes;
     
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'order_id', 'product_variant_id', 'product_name', 'variant_name', 'quantity', 'unit_price', 'total_price',
+        'created_at', 'updated_at', 'deleted_at', 'unit', 'modifiers', 'modifiers_total', 'batch_id',
+        'batch_quantity', 'kitchen_status', 'ready_at', 'round_no', 'fire_mode', 'station_id', 'sent_at', 'due_at',
+        'added_by', 'voided_at', 'voided_by', 'void_reason', 'seat_no', 'note', 'client_line_id', 'price_source',
+        'set_parts', 'course_no', 'weight_status', 'weight_basis', 'weighed_by', 'weighed_at', 'combo_parts',
+        'combo_parent_id', 'brand_id', 'brand',
+    ];
 
     protected $casts = [
         'unit' => \App\Enums\MenuUnit::class,

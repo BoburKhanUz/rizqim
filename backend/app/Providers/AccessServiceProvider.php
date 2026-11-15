@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Auth\AdminTokenGuard;
 use App\Auth\DeviceTokenGuard;
+use App\Auth\SanctumTokenGuard;
 use App\Enums\Permission;
 use App\Models\Device;
 use App\Models\ProductVariant;
@@ -50,6 +51,21 @@ class AccessServiceProvider extends ServiceProvider
 
     protected function configureGuards(): void
     {
+        // Wave M1: auth:sanctum — Sanctum's own guard, with the last_used_at write throttled (SanctumTokenGuard).
+        // Registered after SanctumServiceProvider (package providers boot first), so this driver replaces Sanctum's.
+        Auth::resolved(function ($auth) {
+            $auth->extend('sanctum', function ($app, $name, array $config) use ($auth) {
+                $guard = new RequestGuard(
+                    new SanctumTokenGuard($auth, config('sanctum.expiration'), $config['provider'] ?? null, (bool) config('sanctum.last_used_at', true)),
+                    $app['request'],
+                    $auth->createUserProvider($config['provider'] ?? null),
+                );
+                $app->refresh('request', $guard, 'setRequest');
+
+                return $guard;
+            });
+        });
+
         // auth:device — a terminal's own token; never the global SANCTUM_TOKEN_EXPIRATION, never a session user
         Auth::resolved(function ($auth) {
             $auth->extend('device-token', function ($app, $name, array $config) use ($auth) {

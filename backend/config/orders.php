@@ -28,6 +28,13 @@ return [
     // included; then it is left for a superadmin, with a louder alert.
     'settlement_retry_max_attempts' => (int) env('ORDERS_SETTLEMENT_RETRY_MAX_ATTEMPTS', 12),
 
+    // Wave M1: the kitchen display (GET /staff/kitchen/tickets) keeps a paid counter order whose queue number was never
+    // handed over (an un-bumped ticket) this many minutes after it was closed or, a pickup for later, fired; it was a
+    // whole day, so a board nobody bumps grew with the day's orders. Orders still open are never dropped.
+    'kitchen_board' => [
+        'closed_counter_minutes' => (int) env('ORDERS_KDS_CLOSED_COUNTER_MINUTES', 240),
+    ],
+
     'reports' => [
         // Queue the CSV report exports (App\Jobs\SendOrderReport) go to, served by a worker of their own so a long
         // report never holds up Telegram alerts on the default queue

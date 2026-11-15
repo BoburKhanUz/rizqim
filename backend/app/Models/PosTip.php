@@ -38,7 +38,13 @@ class PosTip extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'order_id', 'bill_id', 'payment_id', 'shift_id', 'business_date', 'kind',
+        'method', 'source', 'mode', 'amount', 'staff_id', 'corrects_id', 'reason', 'recorded_by', 'approved_by',
+        'device_id', 'created_at', 'updated_at',
+    ];
 
     protected function casts(): array
     {

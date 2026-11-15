@@ -59,7 +59,15 @@ class FiscalReceipt extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'device_id', 'type', 'payment_form', 'status', 'driver', 'provider',
+        'idempotency_key', 'subject_type', 'subject_id', 'tax_regime', 'total', 'vat_total', 'lines', 'payments',
+        'original_receipt_id', 'non_fiscal', 'fiscal_sign', 'receipt_number', 'qr_url', 'terminal_id',
+        'provider_payload', 'error', 'attempts', 'next_attempt_at', 'issued_at', 'created_at', 'updated_at',
+        'sold_at', 'lease_token', 'leased_until',
+    ];
 
     protected $hidden = ['provider_payload', 'lease_token'];
 

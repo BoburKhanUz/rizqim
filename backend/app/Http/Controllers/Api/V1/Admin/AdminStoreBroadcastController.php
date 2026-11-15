@@ -26,7 +26,7 @@ class AdminStoreBroadcastController extends AdminController
 {
     private const ROW = 'array{uuid: string, audience: string, text: string, reason: string, stores: int, recipients: int, queued: int, status: string, created_by: array{id: int, name: string}|null, created_at: string|null, finished_at: string|null}';
 
-    private const PREVIEW = 'array{stores: int, recipients: int, without_telegram: int, sample: list<string>}';
+    private const PREVIEW = 'array{stores: int, recipients: int, without_telegram: int, sample: list<string>, estimated_seconds: int}';
 
     public function __construct(
         private readonly StoreBroadcastService $broadcasts,
@@ -67,7 +67,8 @@ class AdminStoreBroadcastController extends AdminController
      *
      * `audience`: `all` (optionally `statuses[]` and `region_id`) or `selected` (`store_ids[]`, up to 500). Answers how
      * many stores, how many owners get it (`recipients`, owners who joined the bot, each once), how many stores have
-     * no owner on Telegram, and up to 5 store names. Nothing is recorded.
+     * no owner on Telegram, up to 5 store names, and `estimated_seconds`: how long sending takes (the messages leave at
+     * ADMIN_BROADCAST_RATE_PER_SECOND, default 5 a second). Nothing is recorded.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . self::PREVIEW . '}')]
     public function preview(Request $request): JsonResponse
@@ -84,9 +85,10 @@ class AdminStoreBroadcastController extends AdminController
      * The audience fields, `text` (1–2000 characters, plain text, sent as "📣 RIZQIM e'loni"), `recipients` (the
      * preview's count: a different count now is 409 `count_changed` with the new `preview`) and `reason`. Step-up;
      * 429 when over 5 attempts an hour per member or the daily limit (`daily_limit`); 422 `no_recipient`; 503
-     * `telegram_not_configured`. 201 with the broadcast; the messages are queued.
+     * `telegram_not_configured`. 201 with the broadcast; the messages are queued and leave in waves at the configured
+     * rate (`estimated_seconds`).
      */
-    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{uuid: string, recipients: int, stores: int, status: string}}')]
+    #[ApiDocResponse(201, type: 'array{success: true, message: string, data: array{uuid: string, recipients: int, stores: int, status: string, estimated_seconds: int}}')]
     #[ApiDocResponse(409, 'The audience changed since the preview (count_changed)', type: 'array{success: false, message: string, code: string, data: array{reason: string, preview: ' . self::PREVIEW . '}}')]
     public function store(Request $request): JsonResponse
     {
@@ -117,6 +119,7 @@ class AdminStoreBroadcastController extends AdminController
             'recipients' => (int) $broadcast->recipients,
             'stores' => (int) $broadcast->stores,
             'status' => $broadcast->status,
+            'estimated_seconds' => StoreBroadcastService::estimatedSeconds((int) $broadcast->recipients),
         ], "E'lon navbatga qo'yildi: {$broadcast->recipients} ta egaga yuboriladi.", 201);
     }
 

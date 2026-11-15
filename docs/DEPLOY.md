@@ -49,6 +49,32 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 
 **Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `BACKEND_BIND` (standart `127.0.0.1`: backend portiga faqat shu serverdagi tashqi proksi ulanadi), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, `VITE_PARTNER_WEB_URL` (Mini App xodim ekranlaridagi "Web panelda tahrirlash" havolasi — hamkor paneli manzili, `https://panel.<domen>`; bo'sh = havolasiz; build vaqtida, o'zgartirgach `docker compose up -d --build frontend`), real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
+**Bazaga ulanishlar puli (`pgbouncer` xizmati).** `backend` konteyneridagi php-fpm Postgres'ga PgBouncer orqali (tranzaksiya
+rejimi) ulanadi: har so'rov yangi ulanish ochmaydi (~20 ms tejaladi). Migratsiyalar, `queue`, `queue-reports`, `scheduler`,
+`reverb` va `backup` to'g'ridan-to'g'ri ulanadi. Hech narsa sozlash shart emas; ildiz `.env` dagi ixtiyoriy qiymatlar
+(standartlari qavsda): `DB_POOLER` (`pgbouncer`; `direct` = pulsiz, avvalgidek), `PGBOUNCER_POOL_SIZE` (20),
+`PGBOUNCER_RESERVE_POOL_SIZE` (5), `PGBOUNCER_MAX_DB_CONNECTIONS` (30), `PGBOUNCER_MAX_CLIENT_CONN` (1000),
+`PGBOUNCER_QUERY_WAIT_TIMEOUT` (30). `backend/.env` dagi `DB_POOLER`, `DB_POOL_HOST`, `DB_POOL_PORT` ni compose o'zi
+beradi (Docker'siz o'rnatishda `DB_POOLER` bo'sh = to'g'ridan-to'g'ri). O'lchamlar hisobi, kuzatish va o'chirish:
+[OPERATIONS.md](OPERATIONS.md), 12-bo'lim. Sessiya holati kerak bo'lgan qo'lda `artisan` ishini
+(`migrate:rollback` ham) `queue` konteynerida bajaring: `docker compose exec -u www-data queue php artisan ...` (u to'g'ridan-to'g'ri ulanadi).
+
+**So'rov va baza gigiyenasi (M1, ixtiyoriy, `backend/.env`).** Standartlari qavsda; sozlamasangiz shular ishlaydi:
+`SANCTUM_LAST_USED_AT_THROTTLE_MINUTES` (5; token `last_used_at` ko'pi bilan shuncha daqiqada bir yoziladi, `0` = har so'rovda),
+`ORDERS_KDS_CLOSED_COUNTER_MINUTES` (240; to'langan, raqami berilmagan chipta oshxona ekranida shuncha turadi),
+`ADMIN_BROADCAST_RATE_PER_SECOND` (5) va `ADMIN_BROADCAST_WAVE_SIZE` (20; ommaviy e'lon tezligi). Yangi migratsiyalar indekslarni
+`CONCURRENTLY` quradi (yozuvlar to'xtamaydi). Batafsil: [OPERATIONS.md](OPERATIONS.md), 13-bo'lim.
+
+**PHP-FPM pullari (M1, ixtiyoriy, `backend/.env`).** `backend` konteynerida uchta php-fpm puli: `critical` (kassa, oshxona
+ekrani, terminal, to'lov webhook'lari, salomatlik tekshiruvi), `market` (Mini App mijozining o'qish so'rovlari: cheklangan),
+`default` (panel, admin, mijozning buyurtma berishi va boshqa yozuvlari). nginx so'rovni yo'liga qarab yo'naltiradi. Standartlari
+qavsda; sozlamasangiz shular ishlaydi: `FPM_CRITICAL_CHILDREN` (4), `FPM_MARKET_CHILDREN` (4), `FPM_DEFAULT_CHILDREN` (4),
+`FPM_MAX_REQUESTS` (500), `FPM_MARKET_BACKLOG` (32), `FPM_MARKET_PRIORITY` (10), `FPM_DEFAULT_PRIORITY` (5),
+`NGINX_MARKET_MAX_INFLIGHT` (`FPM_MARKET_CHILDREN` × 2), `NGINX_MARKET_RATE` (5 so'rov/s bir mijozga), `NGINX_MARKET_BURST` (20),
+`NGINX_MARKET_CONN_PER_CLIENT` (10), `NGINX_RETRY_AFTER` (2 s). Noto'g'ri qiymat (son emas, chegaradan tashqari) bilan php-fpm/nginx
+ishga tushmaydi va logda sababi yoziladi. Avval bitta pul (5 ishchi) edi, endi standart 12 ishchi: konteynerga ~0,5 GB
+xotira yetadi. Batafsil: [OPERATIONS.md](OPERATIONS.md), 14-bo'lim.
+
 ## 3. Ishga tushirish
 
 Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim), `platform-admin` (RIZQIM boshqaruv markazi, Next.js, 4-bo'lim, «RIZQIM boshqaruv markazi»). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend`, `partner-web` va `platform-admin` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.

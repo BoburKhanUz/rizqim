@@ -66,6 +66,15 @@ WORKDIR /var/www/html
 COPY --from=vendor /app ./
 
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+# PHP-FPM pools critical / market / default (docker/php-fpm.conf) replace the base image's single www pool (www.conf,
+# docker.conf and zz-docker.conf all configure it). pools.sh sets their sizes and nginx's market limits from the
+# environment at start (supervisord.conf); the includes rendered here with the defaults keep `nginx -t` valid.
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/rizqim.conf
+COPY docker/pools.sh /usr/local/bin/rizqim-pools
+RUN rm -f /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/www.conf.default \
+        /usr/local/etc/php-fpm.d/docker.conf /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && chmod +x /usr/local/bin/rizqim-pools \
+    && rizqim-pools render /etc/nginx
 COPY docker/php.ini $PHP_INI_DIR/conf.d/zz-rizqim.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

@@ -30,7 +30,14 @@ class Payment extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'order_id', 'provider', 'provider_transaction_id', 'amount', 'status', 'payload', 'paid_at',
+        'cancelled_at', 'expired_at', 'created_at', 'updated_at', 'bill_id', 'shift_id', 'device_id', 'received_by',
+        'tendered_amount', 'change_amount', 'card_type', 'transaction_id', 'reference', 'offline_paid_at',
+        'synced_at', 'card_last4',
+    ];
 
     protected function casts(): array
     {

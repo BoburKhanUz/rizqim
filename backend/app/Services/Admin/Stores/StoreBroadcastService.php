@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Jobs\SendStoreBroadcastJob;
 use App\Models\Store;
 use App\Models\StoreBroadcast;
+use App\Models\StoreBroadcastRecipient;
 use App\Models\User;
 use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\DB;
  *  - send: the member confirms the preview's `recipients` count (a different count now — the audience changed — is
  *    409 count_changed with the new preview), then a SendStoreBroadcastJob queues one message per owner. At most
  *    LIMIT_PER_DAY broadcasts a day platform-wide; the route also limits each member (throttle:admin-store-broadcast).
+ *  - Wave M1: the messages leave in waves at ADMIN_BROADCAST_RATE_PER_SECOND (deliver), so a broadcast never floods
+ *    the queue worker and the bot that also carry the order alerts; the preview says how long sending takes.
  */
 class StoreBroadcastService
 {
@@ -35,7 +38,7 @@ class StoreBroadcastService
 
     /**
      * @param  array{audience: string, store_ids?: list<int>|null, statuses?: list<string>|null, region_id?: int|null}  $audience
-     * @return array{stores: int, recipients: int, without_telegram: int, sample: list<string>}
+     * @return array{stores: int, recipients: int, without_telegram: int, sample: list<string>, estimated_seconds: int}
      */
     public function preview(array $audience): array
     {
@@ -51,6 +54,8 @@ class StoreBroadcastService
             'recipients' => $recipients,
             'without_telegram' => max(0, $storeCount - $storesReached),
             'sample' => (clone $stores)->orderBy('name')->limit(5)->pluck('name')->map(fn ($name) => (string) $name)->all(),
+            // Wave M1: how long sending takes at the configured rate
+            'estimated_seconds' => self::estimatedSeconds($recipients),
         ];
     }
 
@@ -101,35 +106,117 @@ class StoreBroadcastService
     }
 
     /**
-     * Queue the messages of a broadcast (the job). Idempotent: a broadcast already sent is left alone.
+     * Start or continue a broadcast (the job). The first run claims it (queued -> sending) and lists its recipients
+     * once (one row per chat); every run then hands one wave to the Telegram queue and schedules the next one, so the
+     * messages leave at most `admin.store_broadcasts.rate_per_second` a second instead of all at once. Idempotent per
+     * recipient (a chat is queued once, under the broadcast's row lock) and resumable: a run that stopped half way
+     * continues with the chats not queued yet. A broadcast already sent (or failed) is left alone.
      *
      * @param  array{audience: string, store_ids?: list<int>|null, statuses?: list<string>|null, region_id?: int|null}  $audience
      */
     public function deliver(StoreBroadcast $broadcast, array $audience): void
     {
-        $claimed = StoreBroadcast::query()->whereKey($broadcast->id)->where('status', 'queued')
-            ->update(['status' => 'sending', 'started_at' => now()]);
-        if ($claimed === 0) {
-            return;
+        // Claimed and listed together: a run that fails while listing leaves the broadcast queued for the retry
+        DB::transaction(function () use ($broadcast, $audience) {
+            $claimed = StoreBroadcast::query()->whereKey($broadcast->id)->where('status', 'queued')
+                ->update(['status' => 'sending', 'started_at' => now()]);
+            if ($claimed === 1) {
+                $this->listRecipients($broadcast, $audience);
+            }
+        });
+
+        $next = $this->sendWave($broadcast->id);
+        if ($next !== null) {
+            SendStoreBroadcastJob::dispatch($broadcast->id, $audience)->delay($next);
+        }
+    }
+
+    /**
+     * Continue a broadcast that failed half way (its job gave up): the chats not queued yet get it, the others not
+     * again. False when there is nothing to resume (not failed, or it never listed its recipients).
+     */
+    public function resume(StoreBroadcast $broadcast): bool
+    {
+        $listed = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcast->id)->exists();
+        $resumed = $listed && StoreBroadcast::query()->whereKey($broadcast->id)->where('status', 'failed')
+            ->update(['status' => 'sending', 'finished_at' => null]) === 1;
+        if ($resumed) {
+            SendStoreBroadcastJob::dispatch($broadcast->id, ['audience' => $broadcast->audience, 'store_ids' => $broadcast->store_ids]);
         }
 
-        $chats = $this->owners($this->stores($audience))
+        return $resumed;
+    }
+
+    /**
+     * Seconds a broadcast to this many chats takes at the configured rate.
+     */
+    public static function estimatedSeconds(int $recipients): int
+    {
+        return $recipients <= 0 ? 0 : (int) ceil($recipients / self::rate());
+    }
+
+    /**
+     * @param  array{audience: string, store_ids?: list<int>|null, statuses?: list<string>|null, region_id?: int|null}  $audience
+     */
+    private function listRecipients(StoreBroadcast $broadcast, array $audience): void
+    {
+        $this->owners($this->stores($audience))
             ->whereNotNull('telegram_id')->where('telegram_id', '!=', '')->where('telegram_id', 'not like', 'temp\_%')
-            ->orderBy('id')
-            ->get(['id', 'telegram_id'])
-            ->unique('telegram_id');
+            ->select(['id', 'telegram_id'])
+            ->chunkById(500, function ($owners) use ($broadcast) {
+                $now = now();
+                // An owner of several stores is one chat; a chat listed by an earlier run stays as it was
+                StoreBroadcastRecipient::query()->insertOrIgnore($owners->unique('telegram_id')->map(fn (User $owner) => [
+                    'store_broadcast_id' => $broadcast->id,
+                    'user_id' => $owner->id,
+                    'telegram_id' => (string) $owner->telegram_id,
+                    'created_at' => $now,
+                ])->values()->all());
+            });
+    }
 
-        $queued = 0;
-        foreach ($chats as $owner) {
-            // Plain text (no parse mode): the announcement reaches the chat as the member typed it
-            $this->telegram->sendMessage((string) $owner->telegram_id, "📣 RIZQIM e'loni\n\n" . $broadcast->text, [], [
-                'user_id' => $owner->id,
-                'type' => 'admin_store_broadcast',
-            ]);
-            $queued++;
-        }
+    /**
+     * Hands the next wave to the Telegram queue, each message delayed so that at most `rate` leave in a second.
+     * Returns the seconds until the next wave, or null when the broadcast is finished (or not sending).
+     */
+    private function sendWave(int $broadcastId): ?int
+    {
+        $rate = self::rate();
+        $size = max(1, (int) config('admin.store_broadcasts.wave_size', 20));
 
-        $broadcast->forceFill(['status' => 'sent', 'queued' => $queued, 'finished_at' => now()])->save();
+        return DB::transaction(function () use ($broadcastId, $rate, $size) {
+            $broadcast = StoreBroadcast::query()->whereKey($broadcastId)->lockForUpdate()->first();
+            if ($broadcast === null || $broadcast->status !== 'sending') {
+                return null;
+            }
+
+            $wave = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNull('queued_at')
+                ->orderBy('id')->limit($size)->get();
+            foreach ($wave->values() as $i => $recipient) {
+                // Plain text (no parse mode): the announcement reaches the chat as the member typed it. Queued once
+                // this transaction commits (SendTelegramRequest), so a wave rolled back sends nothing.
+                $this->telegram->sendMessageLater(intdiv($i, $rate), $recipient->telegram_id, "📣 RIZQIM e'loni\n\n" . $broadcast->text, [], [
+                    'user_id' => $recipient->user_id,
+                    'type' => 'admin_store_broadcast',
+                ]);
+            }
+            if ($wave->isNotEmpty()) {
+                StoreBroadcastRecipient::query()->whereKey($wave->modelKeys())->update(['queued_at' => now()]);
+            }
+
+            $remaining = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNull('queued_at')->exists();
+            $broadcast->forceFill([
+                'queued' => StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNotNull('queued_at')->count(),
+                ...($remaining ? [] : ['status' => 'sent', 'finished_at' => now()]),
+            ])->save();
+
+            return $remaining ? max(1, (int) ceil($wave->count() / $rate)) : null;
+        });
+    }
+
+    private static function rate(): int
+    {
+        return max(1, (int) config('admin.store_broadcasts.rate_per_second', 5));
     }
 
     /**

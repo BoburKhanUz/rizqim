@@ -402,7 +402,7 @@ jobs:
 
       - name: Shellcheck
         run: |
-          shellcheck scripts/*.sh backend/docker/entrypoint.sh infra/staging/*.sh
+          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh scripts/scale-test/pgbouncer.sh
 
       # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
       - name: pos-e2e.sh guards
@@ -448,6 +448,25 @@ jobs:
           docker build -t rizqim-backend:ci backend
           docker run --rm --entrypoint php rizqim-backend:ci -m | grep -qx uv
           test "$(docker run --rm --entrypoint php rizqim-backend:ci -r 'require "vendor/autoload.php"; echo get_class(React\EventLoop\Loop::get());')" = 'React\EventLoop\ExtUvLoop'
+
+      # Wave M1: the three php-fpm pools and nginx's routing/limits load in the real image (defaults and an override)
+      - name: Backend image php-fpm pools and nginx config are valid
+        run: |
+          docker run --rm --entrypoint sh rizqim-backend:ci -c 'eval "$(rizqim-pools env)" && php-fpm -t && rizqim-pools render /etc/nginx && nginx -t'
+          docker run --rm --entrypoint sh -e FPM_MARKET_CHILDREN=2 rizqim-backend:ci -c 'eval "$(rizqim-pools env)" && php-fpm -t && rizqim-pools render /etc/nginx && nginx -t && grep -q "rizqim_market_all 4;" /etc/nginx/rizqim-pools-limits.conf'
+          if docker run --rm --entrypoint rizqim-pools -e FPM_MARKET_CHILDREN=x rizqim-backend:ci env; then exit 1; fi
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/pgbouncer/Dockerfile
+          failure-threshold: error
+
+      # Wave M1: the pooler php-fpm connects through (transaction mode); the entrypoint writes a config PgBouncer accepts
+      - name: PgBouncer image builds and its generated config loads
+        run: |
+          docker build -t rizqim-pgbouncer:ci infra/pgbouncer
+          docker run --rm --entrypoint sh -e DB_DATABASE=ci -e DB_USERNAME=ci -e DB_PASSWORD='p"w' rizqim-pgbouncer:ci -c \
+            'sed "s/^exec pgbouncer /exit 0 #/" /usr/local/bin/pgbouncer-entrypoint.sh > /tmp/e.sh && sh /tmp/e.sh && grep -qx "pool_mode = transaction" /tmp/pgbouncer/pgbouncer.ini && grep -qx "\"ci\" \"p\"\"w\"" /tmp/pgbouncer/userlist.txt && { pgbouncer /tmp/pgbouncer/pgbouncer.ini & p=$!; sleep 2; kill -0 $p && kill $p; }'
 
       - name: Backup image has pg_dump 17 and rclone
         run: |

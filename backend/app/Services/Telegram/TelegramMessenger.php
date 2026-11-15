@@ -32,6 +32,21 @@ class TelegramMessenger
     }
 
     /**
+     * Wave M1: sendMessage, made by a worker no sooner than $delaySeconds from now (a mass send spread over time).
+     *
+     * @param array|null $notification NotificationLog fields (user_id, order_id, type) recorded with the outcome
+     */
+    public function sendMessageLater(int $delaySeconds, int|string $chatId, string $text, array $options = [], ?array $notification = null): void
+    {
+        $job = new SendTelegramRequest('sendMessage', $this->message($chatId, $text, $options), $notification);
+        if ($delaySeconds > 0) {
+            $job->delay($delaySeconds);
+        }
+
+        $this->queue($job);
+    }
+
+    /**
      * Messages to one chat that must arrive in this order: a worker sends each only after the previous one.
      *
      * @param list<array{0: string, 1?: array}> $messages text and sendMessage options of each message

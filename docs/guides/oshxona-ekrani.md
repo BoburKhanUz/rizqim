@@ -348,6 +348,10 @@ kassada yopilgan bo'lsa ham oshxona ekranida **oddiy chipta** bo'lib turadi, raq
   hammasini bir bosishda tayyor qilmoqchi bo'lsa. U qolgan pishayotgan qatorlarni ham tayyor qiladi va raqamni e'lon qiladi.
 - Ko'rish huquqi bor xodimda (masalan, faqat ko'ra oladigan kassir) tugma yo'q: u faqat ko'radi.
 - Xato bosilgan bo'lsa, qatorni **Qaytarish** bilan qaytaring: raqam yana "Tayyorlanmoqda" bo'ladi.
+- Hech kim bosmay qolgan to'langan chipta to'lovdan **4 soat** o'tgach doskadan o'zi ketadi (mijoz taomni allaqachon olgan
+  bo'ladi). Shunda unutilgan eski chiptalar yangi buyurtmalarni doskadan siqib chiqarmaydi. Hali to'lanmagan buyurtma chiptasi
+  bu qoidaga kirmaydi: u avvalgidek tayyor bo'lguncha turadi. Muddatni server sozlamasi o'zgartiradi
+  (`ORDERS_KDS_CLOSED_COUNTER_MINUTES`).
 
 [Mijoz ekrani qo'llanmasi](mijoz-ekrani.md): raqamlar taxtasini qanday ulash va sozlash.
 

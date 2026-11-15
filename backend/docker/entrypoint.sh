@@ -27,6 +27,15 @@ until nc -z "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"; do
 done
 echo "Database is up."
 
+# DB_POOLER=pgbouncer (docker-compose.yml, web container only): php-fpm reaches Postgres through PgBouncer in
+# transaction mode (config/database.php). Wait for it too, so the first requests do not fail while it starts.
+if [ "${DB_POOLER:-direct}" = "pgbouncer" ]; then
+    echo "Waiting for the connection pooler (${DB_POOL_HOST:-127.0.0.1}:${DB_POOL_PORT:-6432})..."
+    until nc -z "${DB_POOL_HOST:-127.0.0.1}" "${DB_POOL_PORT:-6432}"; do
+        sleep 1
+    done
+fi
+
 # Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH,
 # TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password); runs after the DB wait because it
 # checks accounts. APP_KEY is never generated here: web, queue and scheduler each run this script in their own
@@ -41,7 +50,12 @@ fi
 # and so start after the migrations. Nothing serves requests while this runs (nginx and php-fpm start after the
 # entrypoint), so there is no maintenance mode to switch on.
 if [ "$RUN_MIGRATIONS" = "true" ]; then
-    as_app php artisan migrate --force
+    # Migrations always use a direct connection (DB_POOLER=direct), never the pooler: a migration may take session
+    # state (SET lock_timeout, CREATE INDEX CONCURRENTLY outside a transaction) that must not leak into a pooled
+    # server connection. config:clear first: a restarted container still has the previous start's config cache, which
+    # would ignore the override. The cache is rebuilt (with the pooled settings) right after.
+    as_app php artisan config:clear
+    as_app env DB_POOLER=direct php artisan migrate --force
     as_app php artisan storage:link || true
     as_app php artisan config:cache
     as_app php artisan route:cache

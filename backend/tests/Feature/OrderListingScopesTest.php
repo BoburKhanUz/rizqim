@@ -293,7 +293,8 @@ class OrderListingScopesTest extends TestCase
             'orders_courier_id_status_index',
             'orders_store_id_created_at_id_index',
             'orders_user_id_created_at_id_index',
-            'order_items_order_id_index',
+            // Wave M1: order_items_order_id_index was a prefix duplicate of this one (dropped by 2026_11_15_300100)
+            'order_items_order_id_client_line_id_index',
             // History of a courier and of a branch manager
             'orders_courier_id_created_at_id_index',
             'orders_branch_id_created_at_id_index',

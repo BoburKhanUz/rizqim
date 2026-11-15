@@ -177,6 +177,9 @@ function Composer({ onSent }: { onSent: (count: number) => void }) {
           {changed && <p className="text-footnote font-bold text-warning-soft-fg">{t('stores_broadcastChanged')}</p>}
           <p className="text-footnote text-fg">{t('stores_broadcastPreviewText', { stores: shown.stores, recipients: shown.recipients, without: shown.without_telegram })}</p>
           {shown.sample.length > 0 && <p className="text-caption text-fg-muted">{t('stores_broadcastSample', { names: shown.sample.join(', ') })}</p>}
+          {(shown.estimated_seconds ?? 0) >= 60 && (
+            <p className="text-caption text-fg-muted">{t('stores_broadcastDuration', { minutes: Math.ceil((shown.estimated_seconds ?? 0) / 60) })}</p>
+          )}
           <div>
             <Button
               icon={Send}

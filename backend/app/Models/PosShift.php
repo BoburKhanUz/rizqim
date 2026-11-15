@@ -26,7 +26,13 @@ class PosShift extends Model
 {
     use \App\Traits\HasPublicUuid;
 
-    protected $guarded = ['id'];
+    // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
+    // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
+    protected $fillable = [
+        'uuid', 'store_id', 'branch_id', 'device_id', 'business_date', 'status', 'opened_by', 'opened_at',
+        'opening_cash', 'closed_by', 'closed_at', 'expected_cash', 'counted_cash', 'counted_breakdown', 'difference',
+        'z_number', 'force_closed', 'close_note', 'forced_by', 'summary', 'created_at', 'updated_at',
+    ];
 
     protected function casts(): array
     {

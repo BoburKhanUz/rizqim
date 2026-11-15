@@ -12,7 +12,8 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * P4-22: hands an announcement to the Telegram queue, one SendTelegramRequest per store owner
- * (StoreBroadcastService::deliver). Runs once per broadcast: a broadcast already being sent or sent is skipped.
+ * (StoreBroadcastService::deliver). Wave M1: one run per wave; each run queues the next wave with a delay, so the
+ * messages leave at the configured rate. A chat already queued is never queued again, so a retried run is safe.
  */
 class SendStoreBroadcastJob implements ShouldQueue
 {
@@ -21,7 +22,15 @@ class SendStoreBroadcastJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 1;
+    public int $tries = 3;
+
+    /**
+     * @return list<int>
+     */
+    public function backoff(): array
+    {
+        return [10, 60];
+    }
 
     /**
      * @param  array{audience: string, store_ids?: list<int>|null, statuses?: list<string>|null, region_id?: int|null}  $audience
