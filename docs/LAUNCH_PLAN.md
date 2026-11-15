@@ -28,7 +28,7 @@ Har to'lqin bitta PR: kod, testlar, ikki mustaqil tekshiruv, yashil CI. Merge fa
 | M4 | **Do'konlar orasidagi himoya** | Har jadvalda do'kon belgisi; avtomatik filtr; baza darajasidagi himoya (RLS); ilova bazaga superfoydalanuvchi sifatida ulanmaydi | Maxsus testlar: bir do'kon boshqasining ma'lumotini ko'ra olmaydi |
 | M5 | **Internetsiz rejim va yangilanish** | 24 soatlik qattiq to'xtashni qayta ko'rish; chegirmani internetsiz ruxsat qilish; navbatdagi amallarni imzolash; kassada mahalliy zaxira; ilovalar uchun minimal versiya va yangilanish xabari | Internetsiz ssenariy testlari |
 | P | **Pilotga tayyorlash** | Staging serverga o'rnatish va tekshirish; ilova qismini bir nechta serverda ishlatish tartibi; haqiqiy fiskal drayver; Click/Payme haqiqiy kalitlari; qurilmalarda tekshiruv ro'yxati ([HARDWARE_TEST.md](HARDWARE_TEST.md)); staging'da yuk sinovi | Tekshiruv ro'yxati to'liq yopiladi |
-| L | **Ochiq ishga tushirish** | Pilot xulosalari bo'yicha tuzatishlar; navbatchilik tartibi; hamkorlar uchun qo'llanmalar yangilanadi | Pilot do'konlarda 2 hafta jiddiy nosozliksiz |
+| L | **Ochiq ishga tushirish** | **1 000 do'konlik yuk sinovi staging serverda** (sinov skriptlari bilan, tushlik va market to'lqini birga); pilot xulosalari bo'yicha tuzatishlar; navbatchilik tartibi; hamkorlar uchun qo'llanmalar yangilanadi | Pilot do'konlarda 2 hafta jiddiy nosozliksiz |
 
 M1–M5 tashqi narsalarga bog'liq emas, ketma-ket qilinadi. P bosqichi egasidan keladigan narsalarga bog'liq va ular
 tayyor bo'lishi bilan M to'lqinlari orasida boshlanishi mumkin.
@@ -63,6 +63,8 @@ qarab.
 ## Maqsadli hajm
 
 Egasi qarori (15.11.2026): POS taxminan **1 000 ta oshxonaga** o'rnatiladi va ularning hammasi marketda ham ishlaydi.
+Bu ixtiyoriy maqsad emas, biznes sharti: 1 000 ga yaqin oshxona ulanmasa loyiha o'zini oqlamaydi. Shuning uchun ochiq
+ishga tushirishdan oldin tizim shu hajmda sinab ko'rilgan bo'lishi shart.
 Sig'im shu hajmga hisoblanadi. Taxmin (har do'kon kuniga 150 POS va 20 market buyurtma, M1 dan keyingi o'lchangan
 xarajatlar asosida; haqiqiy serverda o'lchanmagan):
 
