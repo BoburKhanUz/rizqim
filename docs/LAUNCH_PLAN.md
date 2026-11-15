@@ -27,7 +27,7 @@ Har to'lqin bitta PR: kod, testlar, ikki mustaqil tekshiruv, yashil CI. Merge fa
 | M3 | **Ishonchlilik** | Jurnallar (audit, fiskal, bildirishnoma) oylar bo'yicha bo'linadi; uzluksiz zaxira (istalgan daqiqaga qaytarish); zaxiradan tiklash soat bilan sinaladi; ogohlantirishlar (baza, navbat, Reverb, disk) | Tiklash vaqti; ma'lumot yo'qotish oynasi (maqsad: 5 daqiqadan kam) |
 | M4 | **Do'konlar orasidagi himoya** | Har jadvalda do'kon belgisi; avtomatik filtr; baza darajasidagi himoya (RLS); ilova bazaga superfoydalanuvchi sifatida ulanmaydi | Maxsus testlar: bir do'kon boshqasining ma'lumotini ko'ra olmaydi |
 | M5 | **Internetsiz rejim va yangilanish** | 24 soatlik qattiq to'xtashni qayta ko'rish; chegirmani internetsiz ruxsat qilish; navbatdagi amallarni imzolash; kassada mahalliy zaxira; ilovalar uchun minimal versiya va yangilanish xabari | Internetsiz ssenariy testlari |
-| P | **Pilotga tayyorlash** | Staging serverga o'rnatish va tekshirish; haqiqiy fiskal drayver; Click/Payme haqiqiy kalitlari; qurilmalarda tekshiruv ro'yxati ([HARDWARE_TEST.md](HARDWARE_TEST.md)); staging'da yuk sinovi | Tekshiruv ro'yxati to'liq yopiladi |
+| P | **Pilotga tayyorlash** | Staging serverga o'rnatish va tekshirish; ilova qismini bir nechta serverda ishlatish tartibi; haqiqiy fiskal drayver; Click/Payme haqiqiy kalitlari; qurilmalarda tekshiruv ro'yxati ([HARDWARE_TEST.md](HARDWARE_TEST.md)); staging'da yuk sinovi | Tekshiruv ro'yxati to'liq yopiladi |
 | L | **Ochiq ishga tushirish** | Pilot xulosalari bo'yicha tuzatishlar; navbatchilik tartibi; hamkorlar uchun qo'llanmalar yangilanadi | Pilot do'konlarda 2 hafta jiddiy nosozliksiz |
 
 M1–M5 tashqi narsalarga bog'liq emas, ketma-ket qilinadi. P bosqichi egasidan keladigan narsalarga bog'liq va ular
@@ -58,7 +58,24 @@ qarab.
 | Pilot do'kon(lar) | Pilot | — |
 | Server qayerda joylashishi (shaxsiy ma'lumotlar qonuni bo'yicha yurist fikri) | Ochiq ishga tushirish | Huquqiy xavf |
 | Do'konlar internetsiz butun kun ishlashi shartmi | M5 hajmi | M5 tor doirada qilinadi |
-| Kutilayotgan do'konlar soni (market, POS, aralash) | M3 sig'im hisobi | Taxmin bilan hisoblanadi: 2 000 market + 300 POS |
+| Har do'konning o'rtacha kunlik buyurtmasi (POS va market alohida) | M3 sig'im hisobi | Taxmin bilan hisoblanadi: 150 POS + 20 market buyurtma |
+
+## Maqsadli hajm
+
+Egasi qarori (15.11.2026): POS taxminan **1 000 ta oshxonaga** o'rnatiladi va ularning hammasi marketda ham ishlaydi.
+Sig'im shu hajmga hisoblanadi. Taxmin (har do'kon kuniga 150 POS va 20 market buyurtma, M1 dan keyingi o'lchangan
+xarajatlar asosida; haqiqiy serverda o'lchanmagan):
+
+| Do'konlar | Eng band paytda so'rov/s | PHP yadrolari | Baza yadrolari | Baza o'sishi, yiliga |
+|---|---|---|---|---|
+| 100 | ~105 | 4-5 | 1-2 | ~75 GB |
+| 300 | ~315 | 12-13 | 3-4 | ~225 GB |
+| 1 000 | ~1 050 | ~40 | ~11 | ~750 GB |
+
+Bundan chiqadigan xulosalar: (1) 1 000 do'kon bitta serverga sig'maydi, ilova qismi bir nechta serverda ishlashi kerak
+(P bosqichiga qo'shiladi); (2) M2 so'rovlar sonini kamaytiradi, shuning uchun yadrolar soni shu jadvaldagidan kam
+bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallarsiz o'sish yiliga taxminan 315 GB;
+(4) bazani bo'lish savoli 1 000 do'konda ikkinchi yilda qayta ko'riladi.
 
 ## Holat
 
