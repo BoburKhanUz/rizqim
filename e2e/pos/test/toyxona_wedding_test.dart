@@ -222,6 +222,8 @@ void main() {
 
   // The events of the drill
   late String wedding; // A: 200 guests, the white hall tonight
+  // Whoever wins the concurrent hold owns wedding A, so later checks use the winner's customer name.
+  late String weddingCustomer;
   late String second; // C: the blue hall in 3 days, more guests than guaranteed
   late String cancelled; // B: the white hall in 20 days, cancelled
   late String
@@ -415,9 +417,11 @@ void main() {
       expect(web.statusCode, 409);
       expect(asMap(asMap(web.data)['data'])['reason'], 'slot_taken');
       wedding = fromTill['uuid']! as String;
+      weddingCustomer = 'Karimovlar oilasi';
     } else {
       expect((fromTill as PosException).reason, 'slot_taken');
       wedding = asMap(asMap(web.data)['data'])['uuid']! as String;
+      weddingCustomer = 'Rahimovlar oilasi';
     }
 
     final Map<String, Object?> event = await manager.get(
@@ -482,7 +486,7 @@ void main() {
     expect(numbered['contract_no'], '${today.substring(0, 4)}-0001');
     final String text = numbered['text']! as String;
     expect(text, startsWith("RIZQIM TO'YXONA"));
-    expect(text, contains('Karimovlar oilasi'));
+    expect(text, contains(weddingCustomer));
     expect(text, contains('${today.substring(0, 4)}-0001'));
     // Numbered once: asking again keeps the number
     expect(
@@ -1151,7 +1155,7 @@ void main() {
     expect(x.headers.value('content-type'), contains('spreadsheetml'));
     final XlsxFile file = XlsxFile.parse(x.data! as List<int>);
     expect(file.sheetNames, <String>['Tadbirlar', 'Jami']);
-    expect(file.allText, contains('Karimovlar oilasi'));
+    expect(file.allText, contains(weddingCustomer));
     expect(file.allText, contains('Tursunovlar'));
   });
 
