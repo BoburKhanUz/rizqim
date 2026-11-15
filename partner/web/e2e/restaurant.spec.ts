@@ -23,7 +23,7 @@ test("a kabobxona's dish gets its skewer buttons, grill time and weight rule", a
 test('a choyxona does not see the section', async ({ page, api, signIn, reverb }) => {
   void reverb
   await openSignedIn(page, signIn, '/menu/501')
-  await expect(page.getByRole('heading', { name: 'Modifikator guruhlari' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Modifikator guruhlari', exact: true })).toBeVisible()
   // The format was read, and it has neither module
   await expect.poll(() => api.callsTo('GET', '/v1/owner/pos/format').length).toBeGreaterThan(0)
   await expect(page.getByRole('heading', { name: "Kassada sotish (six, og'irlik)" })).toHaveCount(0)

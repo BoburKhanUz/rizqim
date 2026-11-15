@@ -64,7 +64,7 @@ test('a dish sold by weight is created and offers a modifier group', async ({ pa
   expect(created.variants[0]).toMatchObject({ unit: 'kg', price: '185000.00', quantity_step: '0.500', min_quantity: '0.500' })
 
   // --- The dish offers the group
-  await expect(page.getByRole('heading', { name: 'Modifikator guruhlari' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Modifikator guruhlari', exact: true })).toBeVisible()
   await page.getByRole('switch', { name: 'Taomda taklif qilinadi: Sous tanlang' }).click()
   await page.getByRole('button', { name: 'Guruhlarni saqlash' }).click()
   // (The "Saqlandi." note of this part vanishes at once: the refetch that follows the save remounts it. Reported, not asserted.)
