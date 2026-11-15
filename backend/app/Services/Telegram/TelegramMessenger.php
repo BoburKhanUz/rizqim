@@ -34,16 +34,25 @@ class TelegramMessenger
     /**
      * Wave M1: sendMessage, made by a worker no sooner than $delaySeconds from now (a mass send spread over time).
      *
+     * Review R1-3: unlike the other calls, a failure to hand the message to the queue (or a bot no longer configured)
+     * is thrown, not logged: the caller (an ommaviy e'lon) marks the chat as queued only once this returned.
+     *
      * @param array|null $notification NotificationLog fields (user_id, order_id, type) recorded with the outcome
+     *
+     * @throws \RuntimeException when the bot is not configured
      */
     public function sendMessageLater(int $delaySeconds, int|string $chatId, string $text, array $options = [], ?array $notification = null): void
     {
+        if (!$this->isConfigured()) {
+            throw new \RuntimeException('Telegram bot is not configured');
+        }
+
         $job = new SendTelegramRequest('sendMessage', $this->message($chatId, $text, $options), $notification);
         if ($delaySeconds > 0) {
             $job->delay($delaySeconds);
         }
 
-        $this->queue($job);
+        Bus::dispatch($job);
     }
 
     /**

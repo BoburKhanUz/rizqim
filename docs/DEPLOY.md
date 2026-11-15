@@ -56,7 +56,10 @@ rejimi) ulanadi: har so'rov yangi ulanish ochmaydi (~20 ms tejaladi). Migratsiya
 `PGBOUNCER_RESERVE_POOL_SIZE` (5), `PGBOUNCER_MAX_DB_CONNECTIONS` (30), `PGBOUNCER_MAX_CLIENT_CONN` (1000),
 `PGBOUNCER_QUERY_WAIT_TIMEOUT` (30). `backend/.env` dagi `DB_POOLER`, `DB_POOL_HOST`, `DB_POOL_PORT` ni compose o'zi
 beradi (Docker'siz o'rnatishda `DB_POOLER` bo'sh = to'g'ridan-to'g'ri). O'lchamlar hisobi, kuzatish va o'chirish:
-[OPERATIONS.md](OPERATIONS.md), 12-bo'lim. Sessiya holati kerak bo'lgan qo'lda `artisan` ishini
+[OPERATIONS.md](OPERATIONS.md), 12-bo'lim. Shart: backend'ning php-fpm ishchilari yig'indisi (standart 12) ≤ `PGBOUNCER_POOL_SIZE`
+(backend ishga tushganda tekshiradi; aks holda bozor yuki kassalarning bazaga ulanishini olib qo'yardi). Pul bilan
+`DB_SSLMODE=require`/`verify-*` ishlamaydi (PgBouncer'da php-fpm tomonga TLS yo'q): backend darhol xato beradi. Postgres yoki
+PgBouncer `STARTUP_WAIT_SECONDS` (120) ichida javob bermasa, konteyner xato bilan to'xtaydi (osilib qolmaydi). Sessiya holati kerak bo'lgan qo'lda `artisan` ishini
 (`migrate:rollback` ham) `queue` konteynerida bajaring: `docker compose exec -u www-data queue php artisan ...` (u to'g'ridan-to'g'ri ulanadi).
 
 **So'rov va baza gigiyenasi (M1, ixtiyoriy, `backend/.env`).** Standartlari qavsda; sozlamasangiz shular ishlaydi:
@@ -70,9 +73,12 @@ ekrani, terminal, to'lov webhook'lari, salomatlik tekshiruvi), `market` (Mini Ap
 `default` (panel, admin, mijozning buyurtma berishi va boshqa yozuvlari). nginx so'rovni yo'liga qarab yo'naltiradi. Standartlari
 qavsda; sozlamasangiz shular ishlaydi: `FPM_CRITICAL_CHILDREN` (4), `FPM_MARKET_CHILDREN` (4), `FPM_DEFAULT_CHILDREN` (4),
 `FPM_MAX_REQUESTS` (500), `FPM_MARKET_BACKLOG` (32), `FPM_MARKET_PRIORITY` (10), `FPM_DEFAULT_PRIORITY` (5),
-`NGINX_MARKET_MAX_INFLIGHT` (`FPM_MARKET_CHILDREN` × 2), `NGINX_MARKET_RATE` (5 so'rov/s bir mijozga), `NGINX_MARKET_BURST` (20),
-`NGINX_MARKET_CONN_PER_CLIENT` (10), `NGINX_RETRY_AFTER` (2 s). Noto'g'ri qiymat (son emas, chegaradan tashqari) bilan php-fpm/nginx
-ishga tushmaydi va logda sababi yoziladi. Avval bitta pul (5 ishchi) edi, endi standart 12 ishchi: konteynerga ~0,5 GB
+`NGINX_MARKET_MAX_INFLIGHT` (`FPM_MARKET_CHILDREN` × 4), `NGINX_MARKET_RATE` (5 so'rov/s bir mijozga), `NGINX_MARKET_BURST` (20),
+`NGINX_MARKET_CONN_PER_CLIENT` (in-flight / 4), `NGINX_MARKET_IP_RATE` (50 so'rov/s bir IP ga), `NGINX_MARKET_IP_BURST` (100),
+`NGINX_MARKET_CONN_PER_IP` (in-flight / 2), `NGINX_RETRY_AFTER` (2 s). Noto'g'ri qiymat (son emas, chegaradan tashqari) yoki
+izolyatsiyani buzadigan juftlik (bitta mijoz bozor pulining yarmidan ko'pini, bitta IP hammasini egallay oladi; ishchilar
+`PGBOUNCER_POOL_SIZE` dan ko'p) bilan konteyner ishga tushmaydi (entrypoint supervisord'dan oldin `rizqim-pools check` qiladi)
+va logda sababi yoziladi. Avval bitta pul (5 ishchi) edi, endi standart 12 ishchi: konteynerga ~0,5 GB
 xotira yetadi. Batafsil: [OPERATIONS.md](OPERATIONS.md), 14-bo'lim.
 
 ## 3. Ishga tushirish

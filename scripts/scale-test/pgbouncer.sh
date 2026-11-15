@@ -21,7 +21,7 @@ start)
     PGBOUNCER_POOL_SIZE="${PGBOUNCER_POOL_SIZE:-20}" PGBOUNCER_RESERVE_POOL_SIZE="${PGBOUNCER_RESERVE_POOL_SIZE:-5}" \
     PGBOUNCER_MAX_DB_CONNECTIONS="${PGBOUNCER_MAX_DB_CONNECTIONS:-30}" PGBOUNCER_MAX_CLIENT_CONN="${PGBOUNCER_MAX_CLIENT_CONN:-1000}" \
     PGBOUNCER_QUERY_WAIT_TIMEOUT="${PGBOUNCER_QUERY_WAIT_TIMEOUT:-30}" \
-    sh "$SC/../../infra/pgbouncer/entrypoint.sh" > "$SC/logs/pgbouncer.log" 2>&1 < /dev/null &
+    sh "$SC/../../infra/pgbouncer/entrypoint.sh" > "$SCALE_WORK/logs/pgbouncer.log" 2>&1 < /dev/null &
   for _ in $(seq 1 20); do (echo > "/dev/tcp/127.0.0.1/$DB_POOL_PORT") 2>/dev/null && break; sleep 0.25; done
   echo "pgbouncer (transaction mode) on 127.0.0.1:$DB_POOL_PORT -> $DB_DATABASE";;
 stop)

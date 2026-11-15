@@ -6,9 +6,10 @@
 #     pool sizes and limits are the FPM_* / NGINX_* variables of backend/docker/pools.sh (its defaults when unset).
 #     Needs nginx (with the realip module) and php8.3-fpm (`apt-get install nginx php8.3-fpm`); the generated
 #     configs live in cache/fpm, the logs in logs/. FPM_PORT_BASE (19000) moves the three pool ports (+0 +1 +2).
+# shellcheck source=scripts/scale-test/env.sh
 source "$(dirname "$0")/env.sh"
 SERVER=${SERVER:-serve}
-FPM_DIR=$SC/cache/fpm
+FPM_DIR=$SCALE_WORK/cache/fpm
 FPM_BIN=${FPM_BIN:-$(command -v php-fpm8.3 || command -v php-fpm || true)}
 
 start_fpm() {
@@ -27,11 +28,11 @@ start_fpm() {
 daemon on;
 worker_processes 2;
 pid $FPM_DIR/nginx.pid;
-error_log $SC/logs/nginx-error.log warn;
+error_log $SCALE_WORK/logs/nginx-error.log warn;
 events { worker_connections 4096; }
 http {
   include /etc/nginx/mime.types;
-  access_log $SC/logs/nginx-access.log;
+  access_log $SCALE_WORK/logs/nginx-access.log;
   client_body_temp_path $FPM_DIR/tmp/body; fastcgi_temp_path $FPM_DIR/tmp/fastcgi; proxy_temp_path $FPM_DIR/tmp/proxy;
   uwsgi_temp_path $FPM_DIR/tmp/uwsgi; scgi_temp_path $FPM_DIR/tmp/scgi;
   include $FPM_DIR/default.conf;
@@ -40,11 +41,11 @@ EOF
   # The repo's pools; this process's user instead of www-data, logs into logs/
   { echo "[global]"; echo "pid = $FPM_DIR/php-fpm.pid"
     sed -e "$ports" -e '/^user = /d' -e '/^group = /d' -e '/^\[global\]/d' -e '/^daemonize = /d' \
-        -e "s#^error_log = .*#error_log = $SC/logs/php-fpm.log#" -e "s#^access.log = .*#access.log = $SC/logs/php-fpm-access.log#" \
+        -e "s#^error_log = .*#error_log = $SCALE_WORK/logs/php-fpm.log#" -e "s#^access.log = .*#access.log = $SCALE_WORK/logs/php-fpm-access.log#" \
         "$BACKEND/docker/php-fpm.conf"; } > "$FPM_DIR/php-fpm.conf"
   # backend/docker/php.ini too (upload limits), as the image's conf.d/zz-rizqim.ini
-  PHP_INI_SCAN_DIR="$PHP_INI_SCAN_DIR:$BACKEND/docker" "$FPM_BIN" -t -y "$FPM_DIR/php-fpm.conf" -R 2> "$SC/logs/php-fpm-test.log" \
-    || { cat "$SC/logs/php-fpm-test.log" >&2; exit 1; }
+  PHP_INI_SCAN_DIR="$PHP_INI_SCAN_DIR:$BACKEND/docker" "$FPM_BIN" -t -y "$FPM_DIR/php-fpm.conf" -R 2> "$SCALE_WORK/logs/php-fpm-test.log" \
+    || { cat "$SCALE_WORK/logs/php-fpm-test.log" >&2; exit 1; }
   nginx -t -q -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf" || exit 1
   PHP_INI_SCAN_DIR="$PHP_INI_SCAN_DIR:$BACKEND/docker" "$FPM_BIN" -D -y "$FPM_DIR/php-fpm.conf" -R
   nginx -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf"
@@ -61,15 +62,17 @@ stop_fpm() {
 case "$1" in
 start)
   W=${2:-4}
-  mkdir -p $SC/cache && chmod 700 $SC/cache && (cd $BACKEND && php artisan config:cache -q && php artisan route:cache -q && php artisan event:cache -q)
-  pgrep -f "redis-server 127.0.0.1:16379" >/dev/null || (cd $SC/logs && redis-server --port 16379 --bind 127.0.0.1 --save '' --appendonly no --daemonize yes --logfile $SC/logs/redis.log)
-  redis-cli -p 16379 flushall >/dev/null
+  mkdir -p "$SCALE_WORK/cache" && chmod 700 "$SCALE_WORK/cache" && (cd "$BACKEND" && php artisan config:cache -q && php artisan route:cache -q && php artisan event:cache -q)
+  # The kit's own Redis on $REDIS_PORT (env.sh: SCALE_REDIS_PORT): flushed for a clean run, so never point it at a
+  # Redis another run or service uses
+  pgrep -f "redis-server 127.0.0.1:$REDIS_PORT( |\$)" >/dev/null || (cd "$SCALE_WORK/logs" && redis-server --port "$REDIS_PORT" --bind 127.0.0.1 --save '' --appendonly no --daemonize yes --logfile "$SCALE_WORK/logs/redis.log")
+  redis-cli -p "$REDIS_PORT" flushall >/dev/null
   if [ "$SERVER" = fpm ]; then
     stop_fpm; start_fpm
   else
-    (cd $BACKEND && PHP_CLI_SERVER_WORKERS=$W exec php artisan serve --host=127.0.0.1 --port=$APP_PORT --no-reload) > $SC/logs/server.log 2>&1 < /dev/null &
+    (cd "$BACKEND" && PHP_CLI_SERVER_WORKERS=$W exec php artisan serve --host=127.0.0.1 --port="$APP_PORT" --no-reload) > "$SCALE_WORK/logs/server.log" 2>&1 < /dev/null &
   fi
-  for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:$APP_PORT/up && break; sleep 0.25; done
+  for _ in $(seq 1 40); do curl -s -o /dev/null "http://127.0.0.1:$APP_PORT/up" && break; sleep 0.25; done
   if [ "$SERVER" = fpm ]; then echo "server (nginx + php-fpm) up on $APP_PORT"; else echo "server up on $APP_PORT with $W workers"; fi;;
 stop)
   stop_fpm

@@ -105,6 +105,156 @@ class AdminStoreBroadcastWavesTest extends TestCase
         $this->assertSame(1, Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]));
     }
 
+    /**
+     * Review R1-2: the job failed every try while listing its recipients (no recipient rows): nobody was messaged, so
+     * resume starts the listing again, with the audience's filters as sent (an `all` broadcast narrowed by status).
+     */
+    public function test_a_broadcast_that_failed_while_listing_resumes_from_the_listing(): void
+    {
+        \App\Models\Store::query()->whereIn('id', \App\Models\User::query()->whereIn('telegram_id', ['5006', '5007'])->select('store_id'))
+            ->update(['status' => \App\Enums\StoreStatus::SUSPENDED->value]);
+        Queue::fake([SendTelegramRequest::class, SendStoreBroadcastJob::class]);
+        $broadcast = app(StoreBroadcastService::class)->send(['audience' => 'all', 'statuses' => ['active']], 'Texnik ishlar', 5, $this->makeMember(\App\Enums\PlatformRole::SALES), 'Server');
+        (new SendStoreBroadcastJob($broadcast->id, ['audience' => 'all', 'statuses' => ['active']]))->failed(new \RuntimeException('database went away'));
+        $this->assertSame('failed', $broadcast->refresh()->status);
+        $this->assertSame(0, StoreBroadcastRecipient::where('store_broadcast_id', $broadcast->id)->count());
+
+        Queue::fake([SendTelegramRequest::class]);
+        $this->assertSame(0, Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]));
+        $this->assertSame('sent', $broadcast->refresh()->status);
+        $this->assertSame(5, $broadcast->queued);
+        // The suspended stores' owners are still left out
+        $this->assertSame(array_slice($this->chats, 0, 5), $this->sentChats());
+    }
+
+    /**
+     * Review R1-2: a broadcast from before the audience filters were kept, failed while listing: its filters are
+     * unknown, so it is not resumed (it would message a wider audience).
+     */
+    public function test_a_broadcast_with_unknown_filters_is_not_relisted(): void
+    {
+        Queue::fake([SendTelegramRequest::class, SendStoreBroadcastJob::class]);
+        $broadcast = $this->broadcast();
+        $broadcast->forceFill(['status' => 'failed'])->save();
+
+        $this->assertSame(1, Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]));
+        $this->assertSame('failed', $broadcast->refresh()->status);
+        Queue::assertNothingPushed();
+    }
+
+    /**
+     * Review R1-3: the Telegram queue went down while a wave was handed over (the push after commit failed). The chats
+     * whose message never reached the queue are not left marked as queued: the retried wave (or a resume) sends them,
+     * and the chat that did reach the queue is not sent twice.
+     */
+    public function test_chats_not_handed_to_a_queue_that_went_down_are_sent_later_and_none_twice(): void
+    {
+        $queue = $this->flakyQueue();
+        Queue::fake([SendStoreBroadcastJob::class]);
+        $broadcast = $this->broadcast();
+        $service = app(StoreBroadcastService::class);
+
+        // Wave 1: the first message reaches the queue, then the queue is down
+        $queue->acceptOnly = 1;
+        try {
+            $service->deliver($broadcast, ['audience' => 'all']);
+            $this->fail('the push failure must surface (the job retries)');
+        } catch (\RuntimeException $e) {
+            $this->assertNotInstanceOf(\PHPUnit\Framework\AssertionFailedError::class, $e, $e->getMessage());
+            $this->assertSame('queue down', $e->getMessage());
+        }
+        $this->assertSame([$this->chats[0]], $queue->chats);
+        $this->assertSame(1, StoreBroadcastRecipient::where('store_broadcast_id', $broadcast->id)->whereNotNull('queued_at')->count());
+        $this->assertSame(1, $broadcast->refresh()->queued);
+
+        // The job gives up; the queue is back; the member resumes it
+        (new SendStoreBroadcastJob($broadcast->id, ['audience' => 'all']))->failed($e);
+        $queue->acceptOnly = null;
+        Queue::fake([SendStoreBroadcastJob::class]);
+        $this->assertSame(0, Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]));
+        while ($broadcast->refresh()->status === 'sending') {
+            $service->deliver($broadcast, ['audience' => 'all']);
+        }
+
+        $this->assertSame('sent', $broadcast->status);
+        $this->assertSame(7, $broadcast->queued);
+        $this->assertSame($this->chats, $queue->chats);
+    }
+
+    /**
+     * Review R1-4: resuming from the console is audited, with no member (the console acted).
+     */
+    public function test_a_resume_is_audited_as_the_console(): void
+    {
+        Queue::fake([SendTelegramRequest::class, SendStoreBroadcastJob::class]);
+        $broadcast = $this->broadcast();
+        app(StoreBroadcastService::class)->deliver($broadcast, ['audience' => 'all']);
+        (new SendStoreBroadcastJob($broadcast->id, ['audience' => 'all']))->failed(new \RuntimeException('worker died'));
+
+        $this->assertSame(0, Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]));
+        $log = \App\Models\AuditLog::query()->where('action', 'admin.cli.store_broadcast_resumed')->sole();
+        $this->assertSame($broadcast->id, (int) $log->model_id);
+        $this->assertNull($log->user_id);
+        $this->assertNull($log->ip);
+        $this->assertSame(['status' => 'failed'], $log->before);
+        $this->assertSame(['status' => 'sending'], $log->after);
+        $this->assertSame(3, $log->payload_json['queued'] ?? null);
+
+        // Nothing to resume: nothing audited
+        Artisan::call('admin:store-broadcast-resume', ['uuid' => $broadcast->uuid]);
+        $this->assertSame(1, \App\Models\AuditLog::query()->where('action', 'admin.cli.store_broadcast_resumed')->count());
+    }
+
+    /**
+     * A queue connection (the default one) that takes `acceptOnly` pushes and then fails like a Redis that went away;
+     * `chats` are the chats whose Telegram message reached it.
+     */
+    private function flakyQueue(): object
+    {
+        $queue = new class extends \Illuminate\Queue\NullQueue
+        {
+            public ?int $acceptOnly = null;
+
+            /** @var list<string> */
+            public array $chats = [];
+
+            public function push($job, $data = '', $queue = null)
+            {
+                return $this->enqueueUsing($job, $this->createPayload($job, (string) $queue, $data), $queue, null, fn () => $this->take($job));
+            }
+
+            public function later($delay, $job, $data = '', $queue = null)
+            {
+                return $this->enqueueUsing($job, $this->createPayload($job, (string) $queue, $data, $delay), $queue, $delay, fn () => $this->take($job));
+            }
+
+            private function take(mixed $job): string
+            {
+                if ($this->acceptOnly !== null && $this->acceptOnly-- <= 0) {
+                    throw new \RuntimeException('queue down');
+                }
+                if ($job instanceof SendTelegramRequest) {
+                    $this->chats[] = (string) $job->params['chat_id'];
+                }
+
+                return 'id';
+            }
+        };
+        $queue->setContainer($this->app);
+        app('queue')->extend('flaky', fn () => new class($queue) implements \Illuminate\Queue\Connectors\ConnectorInterface
+        {
+            public function __construct(private readonly \Illuminate\Contracts\Queue\Queue $queue) {}
+
+            public function connect(array $config)
+            {
+                return $this->queue;
+            }
+        });
+        config(['queue.connections.flaky' => ['driver' => 'flaky'], 'queue.default' => 'flaky']);
+
+        return $queue;
+    }
+
     public function test_the_preview_and_the_send_say_how_long_it_takes(): void
     {
         Queue::fake([SendTelegramRequest::class]);

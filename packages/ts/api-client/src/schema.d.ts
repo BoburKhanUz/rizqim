@@ -11648,8 +11648,10 @@ export interface paths {
          *     display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
          *
          *     P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
-         *     listed (with `include_ready=1` also while `ready`) until the number is handed over, for at most
-         *     ORDERS_KDS_CLOSED_COUNTER_MINUTES (default 240) after it was closed or, a pickup for later, fired.
+         *     listed (with `include_ready=1` also while `ready`) until the number is handed over. While a line the kitchen sees
+         *     is still to cook (sent or recalled, a held pre-order line with its due time) it is never dropped; once every
+         *     such line is done, a number nobody handed over stays at most ORDERS_KDS_CLOSED_COUNTER_MINUTES (default 240)
+         *     after the latest of: closed, fired (a pickup for later), its last line ready.
          *
          *     P6-33 (KDS v2): each line carries its time target (`target_seconds`: the dish's own, else its station's; null:
          *     none) and `late` (now − when it reached the kitchen > target; a done line: its ready time). With the module

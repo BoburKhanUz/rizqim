@@ -145,6 +145,10 @@ services:
       # php-fpm so'rovlari PgBouncer orqali; migratsiyalar baribir to'g'ridan-to'g'ri (entrypoint). Pulni o'chirish
       # (masalan PgBouncer nosoz bo'lsa): ildiz .env da DB_POOLER=direct, so'ng docker compose up -d backend
       DB_POOLER: ${DB_POOLER:-pgbouncer}
+      # pgbouncer xizmatining puli bilan bir xil qiymat: backend ishga tushganda php-fpm ishchilari (FPM_*_CHILDREN
+      # yig'indisi) shu puldan oshmasligini tekshiradi, aks holda bozor puli kassalarning bazaga ulanishini olib qo'yadi
+      # (backend/docker/pools.sh; docs/OPERATIONS.md, «Bazaga ulanishlar puli»)
+      PGBOUNCER_POOL_SIZE: ${PGBOUNCER_POOL_SIZE:-20}
     # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /up (va API) ni shu xostdagi tashqi proksi oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
     # internetga ochiq bo'lsa, Docker userland proksisi orqali kelgan so'rov (masalan IPv6) ichki manzildan kelgandek
     # ko'rinib, soxta IP bilan kirish limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa BACKEND_BIND (va firewall).

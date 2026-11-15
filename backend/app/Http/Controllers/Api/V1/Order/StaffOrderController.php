@@ -290,8 +290,10 @@ class StaffOrderController extends Controller
      * display strikes them through instead of losing them; `canceled_at` is null on a live ticket.
      *
      * P6-13: a counter order paid first is closed (delivered) while its queue number is still `preparing`: it stays
-     * listed (with `include_ready=1` also while `ready`) until the number is handed over, for at most
-     * ORDERS_KDS_CLOSED_COUNTER_MINUTES (default 240) after it was closed or, a pickup for later, fired.
+     * listed (with `include_ready=1` also while `ready`) until the number is handed over. While a line the kitchen sees
+     * is still to cook (sent or recalled, a held pre-order line with its due time) it is never dropped; once every
+     * such line is done, a number nobody handed over stays at most ORDERS_KDS_CLOSED_COUNTER_MINUTES (default 240)
+     * after the latest of: closed, fired (a pickup for later), its last line ready.
      *
      * P6-33 (KDS v2): each line carries its time target (`target_seconds`: the dish's own, else its station's; null:
      * none) and `late` (now − when it reached the kitchen > target; a done line: its ready time). With the module
@@ -332,12 +334,28 @@ class StaffOrderController extends Controller
         $query = $this->scope->query($user)->where(function ($query) use ($statuses, $includeReady, $counterSince) {
             $query->whereIn('orders.status', $statuses);
             // P6-13: a counter order paid first is closed (delivered) while the kitchen still cooks its queue number
-            // (a number never handed over drops off after orders.kitchen_board.closed_counter_minutes)
+            // (a finished number never handed over drops off after orders.kitchen_board.closed_counter_minutes)
             $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::DELIVERED->value)
                 ->whereIn('orders.channel', [OrderChannel::POS_HALL->value, OrderChannel::POS_TAKEAWAY->value])
                 ->whereIn('orders.pickup_status', $includeReady ? ['preparing', 'ready'] : ['preparing'])
-                // P6-34: or a pickup for later paid first that fired since
-                ->where(fn ($query) => $query->where('orders.closed_at', '>=', $counterSince)->orWhere('orders.kitchen_fired_at', '>=', $counterSince)));
+                // Review R1-1: the window only bounds a FINISHED number nobody handed over. A line the kitchen still has
+                // to cook (sent or recalled and not ready, a held pre-order line before or after its due time, a line
+                // fired later) keeps the ticket however long ago the order was closed; once every such line is done
+                // the window counts from the latest of: closed, fired (P6-34, a pickup for later), its last line ready
+                ->where(fn ($query) => $query->where('orders.closed_at', '>=', $counterSince)
+                    ->orWhere('orders.kitchen_fired_at', '>=', $counterSince)
+                    ->orWhereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')
+                        ->whereColumn('order_items.order_id', 'orders.id')
+                        ->whereNull('order_items.deleted_at')
+                        ->where(fn ($line) => $line
+                            // Still to cook, and on the board (StaffOrderPresenter::kitchenSees)
+                            ->where(fn ($line) => $line->whereIn('order_items.kitchen_status', \App\Enums\KitchenItemStatus::cookingValues())
+                                ->where(fn ($line) => $line->whereNotNull('order_items.sent_at')
+                                    ->orWhereNull('order_items.fire_mode')
+                                    ->orWhere(fn ($line) => $line->where('order_items.fire_mode', \App\Enums\FireMode::HOLD->value)->whereNotNull('order_items.due_at'))))
+                            // Or done within the window
+                            ->orWhere(fn ($line) => $line->whereIn('order_items.kitchen_status', \App\Enums\KitchenItemStatus::doneValues())
+                                ->where('order_items.ready_at', '>=', $counterSince))))));
             if (!$includeReady) {
                 $query->orWhere(fn ($query) => $query->where('orders.status', OrderStatus::COURIER_ASSIGNED->value)
                     ->whereExists(fn ($lines) => $lines->selectRaw('1')->from('order_items')

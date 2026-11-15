@@ -30,6 +30,34 @@ type QuoteResult =
 // A change of the cart is asked after it settled: tapping "+" five times is one request, not five (the quote is rate limited).
 const SETTLE_MS = 400;
 
+// A busy backend (503) or a rate limit (429) says when to come back (Retry-After, seconds): the quote is asked again
+// then, at most BUSY_RETRIES times and never later than MAX_RETRY_AFTER_MS. Any other failure is retried once.
+const BUSY_RETRIES = 3;
+const MAX_RETRY_AFTER_MS = 10_000;
+const RETRY_MS = 1500;
+
+function busyStatus(error: unknown): boolean {
+  const status = isAxiosError(error) ? error.response?.status : undefined;
+  return status === 503 || status === 429;
+}
+
+function retryAfterMs(error: unknown): number | null {
+  const header: unknown = isAxiosError(error) ? error.response?.headers?.['retry-after'] : undefined;
+  const seconds = Number(header);
+  if (header === undefined || header === null || header === '' || !Number.isFinite(seconds) || seconds < 0) return null;
+  return Math.min(Math.max(seconds * 1000, 1000), MAX_RETRY_AFTER_MS);
+}
+
+export function shouldRetryQuote(failures: number, error: unknown): boolean {
+  if (busyStatus(error)) return failures < BUSY_RETRIES;
+  // A refusal (or any other 4xx) is an answer, not a failure; only a request that did not get one is retried (once)
+  return failures < 1 && !(isAxiosError(error) && error.response !== undefined && error.response.status < 500);
+}
+
+export function quoteRetryDelay(_failures: number, error: unknown): number {
+  return (busyStatus(error) ? retryAfterMs(error) : null) ?? RETRY_MS;
+}
+
 export async function fetchDeliveryQuote(store: string, point: LatLng, subtotal: number): Promise<QuoteResult> {
   try {
     const { data } = await api.get<ApiResponse<DeliveryQuote>>('/delivery/quote', {
@@ -65,9 +93,8 @@ export function useDeliveryQuote({ storeId, point, subtotal, enabled }: Options)
     queryFn: () => fetchDeliveryQuote(storeId as string, point as LatLng, settled),
     enabled: active,
     staleTime: 30_000,
-    // A refusal is an answer, not a failure; only a request that did not get one is retried (once)
-    retry: (count, error) => count < 1 && !(isAxiosError(error) && error.response !== undefined && error.response.status < 500),
-    retryDelay: 1500,
+    retry: shouldRetryQuote,
+    retryDelay: quoteRetryDelay,
   });
 
   const retry = () => void query.refetch();

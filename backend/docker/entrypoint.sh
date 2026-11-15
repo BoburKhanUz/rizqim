@@ -21,19 +21,28 @@ if [ ! -f .env ]; then
     as_app cp .env.example .env
 fi
 
-echo "Waiting for database ($DB_HOST:$DB_PORT)..."
-until nc -z "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"; do
-    sleep 1
-done
+# The web container (supervisord): check the pool sizes, the market limits and the pooler settings, and that nginx and
+# php-fpm accept the rendered config, before anything starts. A bad FPM_* / NGINX_* / PGBOUNCER_POOL_SIZE / DB_SSLMODE
+# value stops the container here with the reason, instead of supervisord running with nginx or php-fpm FATAL.
+if [ "$(basename "${1:-}")" = "supervisord" ]; then
+    if ! rizqim-pools check; then
+        echo "XATO: konteyner ishga tushirilmadi: yuqoridagi FPM_*/NGINX_*/PGBOUNCER_POOL_SIZE/DB_SSLMODE sozlamasini tuzating (docs/DEPLOY.md)." >&2
+        exit 1
+    fi
+fi
+
+# Bounded waits (STARTUP_WAIT_SECONDS, default 120): a database that never comes up stops the container with an
+# error (Docker's restart policy tries again) instead of a container that hangs here for ever.
+echo "Waiting for database (${DB_HOST:-pgsql}:${DB_PORT:-5432})..."
+rizqim-pools wait-for Postgres "${DB_HOST:-pgsql}" "${DB_PORT:-5432}"
 echo "Database is up."
 
 # DB_POOLER=pgbouncer (docker-compose.yml, web container only): php-fpm reaches Postgres through PgBouncer in
 # transaction mode (config/database.php). Wait for it too, so the first requests do not fail while it starts.
+# PgBouncer has no TLS towards php-fpm: DB_SSLMODE=require/verify-* with the pooler is refused (rizqim-pools).
 if [ "${DB_POOLER:-direct}" = "pgbouncer" ]; then
     echo "Waiting for the connection pooler (${DB_POOL_HOST:-127.0.0.1}:${DB_POOL_PORT:-6432})..."
-    until nc -z "${DB_POOL_HOST:-127.0.0.1}" "${DB_POOL_PORT:-6432}"; do
-        sleep 1
-    done
+    rizqim-pools wait-for PgBouncer "${DB_POOL_HOST:-127.0.0.1}" "${DB_POOL_PORT:-6432}"
 fi
 
 # Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH,

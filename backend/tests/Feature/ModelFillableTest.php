@@ -29,9 +29,12 @@ use Tests\TestCase;
 /**
  * Wave M1: the hot models went from `$guarded = ['id']` to an explicit `$fillable`, so Eloquent no longer reads the
  * table's column list once per model class per request. With `$guarded = ['id']` every column but id was mass
- * assignable (and nothing else: a key that is not a column, a set mutator or a class cast was dropped). A column
- * missing from `$fillable` would now be dropped silently, which on these models is a money bug, so:
+ * assignable, and so was any key with a set mutator (`setFooAttribute`, an Attribute with a setter) or a class cast
+ * (an enum or a caster class), even when it is not a column; any other key was dropped. A column missing from
+ * `$fillable` would now be dropped silently, which on these models is a money bug, so:
  * - `$fillable` must be exactly the table's columns minus the deny-list (the old `$guarded`);
+ * - none of these models has a set-mutator or class-cast key that is not a column (one would have passed `$guarded`
+ *   and is not in `$fillable`), so the two lists allow the same keys;
  * - filling every one of them must keep every one (nothing dropped on the way);
  * - mass assignment must not read the schema any more.
  * A migration that adds a column to one of these tables fails here until the column is added to the model.
@@ -73,6 +76,36 @@ class ModelFillableTest extends TestCase
         $extra = array_diff($model->getFillable(), $expected);
         $this->assertSame([], array_values($missing), "{$class}: columns missing from \$fillable (mass assignment would drop them)");
         $this->assertSame([], array_values($extra), "{$class}: \$fillable lists what is not a column of {$model->getTable()}");
+    }
+
+    /**
+     * Under `$guarded` a set-mutator or class-cast key passed mass assignment even when it is not a column; under
+     * `$fillable` it does not. No such key, so `$fillable` = the columns allows what `$guarded` allowed.
+     *
+     * @param  class-string<Model>  $class
+     */
+    #[DataProvider('models')]
+    public function test_no_set_mutator_or_class_cast_key_outside_the_columns(string $class): void
+    {
+        $model = new $class();
+        $columns = Schema::getColumnListing($model->getTable());
+
+        $keys = array_keys($model->getCasts());
+        foreach ((new \ReflectionClass($model))->getMethods() as $method) {
+            // The framework's own helpers (setClassCastableAttribute, ...) are no mutators
+            if (str_starts_with($method->getDeclaringClass()->getName(), 'Illuminate\\')) {
+                continue;
+            }
+            if (preg_match('/^set(.+)Attribute$/', $method->getName(), $match) === 1) {
+                $keys[] = \Illuminate\Support\Str::snake($match[1]);
+            } elseif ((string) $method->getReturnType() === \Illuminate\Database\Eloquent\Casts\Attribute::class) {
+                $keys[] = \Illuminate\Support\Str::snake($method->getName());
+            }
+        }
+
+        $isClassCastable = \Closure::bind(fn (string $key) => $this->isClassCastable($key), $model, $model);
+        $passedGuarded = array_filter(array_unique($keys), fn (string $key) => $model->hasSetMutator($key) || $model->hasAttributeSetMutator($key) || $isClassCastable($key));
+        $this->assertSame([], array_values(array_diff($passedGuarded, $columns)), "{$class}: a set-mutator or class-cast key that is not a column passed \$guarded but is not in \$fillable");
     }
 
     /**

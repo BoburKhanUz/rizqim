@@ -333,9 +333,18 @@ Hisob (production, `max_connections = 100`):
 - Postgres'ga: `PGBOUNCER_MAX_DB_CONNECTIONS` (30) + to'g'ridan-to'g'ri (~15: queue 1, queue-reports 1, scheduler va u
   ishga tushirgan buyruqlar ≤ 6, reverb 1, backup 1, migratsiya 1, qo'lda `psql`/`artisan` 3–4) + 3 superuser zaxirasi = **48 < 100**.
 - php-fpm tomoni: har konteynerda `FPM_CRITICAL_CHILDREN + FPM_MARKET_CHILDREN + FPM_DEFAULT_CHILDREN` (standart 4+4+4 = 12)
-  ulanish; konteynerlar soni × 12 ≤ `PGBOUNCER_MAX_CLIENT_CONN` (1000). php-fpm ishchilari endi Postgres ulanishini
-  egallamaydi: ishchilarni ko'paytirish uchun `max_connections` ni oshirish shart emas, `PGBOUNCER_POOL_SIZE` ni esa
-  Postgres yadrolariga qarab (taxminan 2–4 × yadro) tanlang.
+  ulanish; konteynerlar soni × 12 ≤ `PGBOUNCER_MAX_CLIENT_CONN` (1000). Ishchilarni ko'paytirish uchun `max_connections` ni
+  oshirish shart emas, lekin **ishchilarni erkin qo'shib bo'lmaydi**: uchala php-fpm puli PgBouncer'ning bitta pulini
+  (`PGBOUNCER_POOL_SIZE` ta server ulanishi) bo'lishadi. Har ishchiga bir vaqtda ko'pi bilan bitta ulanish kerak, shuning
+  uchun **konteynerlar soni × (uchala pul ishchilari yig'indisi) ≤ `PGBOUNCER_POOL_SIZE`** bo'lishi shart: aks holda bazada
+  sekinlashgan bozor so'rovlari barcha ulanishlarni olib, kassa so'rovi bo'sh ulanish kutib qoladi (sinovda pul 4, ishchilar
+  12: kassaning `/health` i 9 s kutdi; pul 12: 0,05 s). Backend konteyneri ishga tushganda buni o'zi tekshiradi
+  (`backend/docker/pools.sh`; compose `PGBOUNCER_POOL_SIZE` ni backend'ga ham beradi) va shart buzilsa ishga tushmaydi. Bir
+  nechta backend konteyneri bo'lsa, ko'paytmani o'zingiz hisoblang. `PGBOUNCER_POOL_SIZE` ni Postgres yadrolariga qarab
+  (taxminan 2–4 × yadro) tanlang; u `PGBOUNCER_MAX_DB_CONNECTIONS` dan oshmasin (pgbouncer konteyneri ham tekshiradi).
+- TLS: PgBouncer'da php-fpm tomonga TLS yo'q (xususiy compose tarmog'i), shuning uchun `DB_POOLER=pgbouncer` bilan
+  `DB_SSLMODE=require`/`verify-ca`/`verify-full` ishlamaydi: backend bunday sozlama bilan darhol xato beradi. Bazaga TLS kerak
+  bo'lsa (masalan boshqarilgan Postgres): `DB_SSLMODE=prefer` (PgBouncer → Postgres ulanishi alohida) yoki `DB_POOLER=direct`.
 - `PGBOUNCER_MAX_DB_CONNECTIONS` ni oshirsangiz: `PGBOUNCER_MAX_DB_CONNECTIONS + 15 + 3 < max_connections` bo'lsin.
 
 **Kuzatish.** `docker compose exec pgbouncer sh -c 'PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -p 6432 -U "$DB_USERNAME" pgbouncer -c "show pools" -c "show stats"'`:
@@ -372,9 +381,11 @@ sog'lig'idagi panel faolligi 5 daqiqagacha eski bo'lishi mumkin.
 so'rovda jadval ustunlarini so'ramaydi. Bu jadvallarga ustun qo'shgan migratsiya modelning `$fillable` ro'yxatiga ham yozilishi
 shart, aks holda `tests/Feature/ModelFillableTest.php` yiqiladi (yozilmasa ustun ommaviy yozishda jim tashlab ketiladi).
 
-**Oshxona ekrani.** To'langan, raqami berilmagan peshtaxta buyurtmasi `GET /staff/kitchen/tickets` da yopilganidan keyin
-`ORDERS_KDS_CLOSED_COUNTER_MINUTES` (standart 240) daqiqa turadi (avval bir kun). Hech kim bosmaydigan doska kun bo'yi
-o'smaydi. Ochiq buyurtmalarga ta'sir qilmaydi. Oshxona chiptani "yo'qoldi" desa, muddatni oshiring.
+**Oshxona ekrani.** To'langan peshtaxta buyurtmasining **hamma taomi tayyor bo'lib**, raqami mijozga berilmay qolgan
+bo'lsa, u `GET /staff/kitchen/tickets` da oxirgi taom tayyor bo'lganidan keyin `ORDERS_KDS_CLOSED_COUNTER_MINUTES`
+(standart 240) daqiqa turadi (avval bir kun). Oshpaz hali tayyorlashi kerak bo'lgan taomi bor chipta (yuborilgan va
+bosilmagan, qaytarilgan, keyinroqqa qoldirilgan) muddatdan qat'i nazar doskada qoladi. Ochiq buyurtmalarga ta'sir
+qilmaydi. Oshxona umuman bosmasa, doska avvalgidek o'sadi (200 ta chegara, `meta.truncated`).
 
 **Ommaviy e'lon (ovqatxona egalariga).** Xabarlar birdaniga emas, to'lqin bilan ketadi: soniyasiga ko'pi bilan
 `ADMIN_BROADCAST_RATE_PER_SECOND` (standart 5; Telegram chegarasi ~30, buyurtma xabarlari ham shu bot va shu `queue`
@@ -396,9 +407,9 @@ p95 ini 0,16 s dan 9 s ga chiqardi (`docs/scale/RESULTS.md`, 3-topilma). Endi `b
 
 | Pul | Yo'llar (`/api/v1/...`) | Ishchilar | Cheklov |
 |---|---|---|---|
-| `critical` | `pos/*`, `staff/*` (buyurtmalar doskasi, oshxona chiptalari), `terminal*`, `devices/pair`, `devices/{uuid}/staff-session` (PIN), `auth/refresh`, `payments/click/webhook`, `payments/payme/webhook`, `health`; `/health`, `/up`; kassaning menyusi `catalog?channel=pos_hall` / `pos_takeaway` va `catalog/availability?branch_id=...` | `FPM_CRITICAL_CHILDREN` (4), `static`: doim tayyor | hech qanday nginx cheklovi yo'q |
-| `market` | Mini App mijoz ekranlarining **o'qish** (GET) so'rovlari: `stores*` (zonalar, olib ketish vaqtlari), `catalog` (mijoz), `catalog/availability` (`branch_id` siz), `orders` (o'z buyurtmalari), `notifications`, `delivery/quote`, `addresses`, `locations`, `geocode/*`, `complaints` | `FPM_MARKET_CHILDREN` (4), `ondemand`, `nice` 10 | ha (pastda) |
-| `default` | qolgan hammasi: `owner/*` (hamkor panel), `admin/*`, `auth/*` (Mini App kirishi `auth/telegram` ham), `user`, `me/*`, `features`, `devices`, `couriers`, `reports/*`, `promo/validate`, `store-applications`, `telegram/webhook`, `/api/broadcasting/auth`, yuqoridagi mijoz yo'llarining **yozuvlari** (POST/PUT/DELETE: buyurtma berish `POST /orders`, bekor qilish, baho, manzil, shikoyat) | `FPM_DEFAULT_CHILDREN` (4), `ondemand`, `nice` 5 | yo'q |
+| `critical` | `pos/*`, `staff/*` (buyurtmalar doskasi, oshxona chiptalari), `terminal*`, `devices/pair`, `devices/{uuid}/staff-session` (PIN), `auth/refresh`, `payments/click/webhook`, `payments/payme/webhook`, `health`; `/health`, `/up`; POS ilovasining (`X-Rizqim-App` + Sanctum token) aynan kassa shaklidagi so'rovlari: `catalog?channel=pos_hall` / `pos_takeaway` (+ `branch_id`, `store_id`) va `catalog/availability?store_id=...&branch_id=...` | `FPM_CRITICAL_CHILDREN` (4), `static`: doim tayyor | hech qanday nginx cheklovi yo'q |
+| `market` | Mini App mijoz ekranlarining **o'qish** (GET) so'rovlari: `stores` (ro'yxat), `stores/{id}/zones`, `catalog` (mijoz), `catalog/availability` (`branch_id` siz), `orders` (o'z buyurtmalari), `notifications`, `addresses`, `locations`, `geocode/*`, `complaints` | `FPM_MARKET_CHILDREN` (4), `ondemand`, `nice` 10 | ha (pastda) |
+| `default` | qolgan hammasi: `owner/*` (hamkor panel), `admin/*`, `auth/*` (Mini App kirishi `auth/telegram` ham), `user`, `me/*`, `features`, `devices`, `couriers`, `reports/*`, `promo/validate`, `store-applications`, `telegram/webhook`, `/api/broadcasting/auth`, yuqoridagi mijoz yo'llarining **yozuvlari** (POST/PUT/DELETE: buyurtma berish `POST /orders`, bekor qilish, baho, manzil, shikoyat); buyurtma berish kutadigan o'qishlar: `delivery/quote`, `stores/{id}/branches/{id}/pickup-slots`, savatning do'koni `stores?for=checkout`; `pos_*` kanal yoki `branch_id` aytilgan, lekin kassa shaklida bo'lmagan `catalog*` so'rovlari | `FPM_DEFAULT_CHILDREN` (4), `ondemand`, `nice` 5 | yo'q |
 
 Fiskal callback yo'q (cheklar tashqariga yuboriladi), shuning uchun alohida qator yo'q. Ro'yxatdagi hech bir yo'lga mos kelmagan
 so'rov `default` ga tushadi; `tests/Feature/FpmPoolRoutingTest.php` esa har bir ro'yxatga olingan marshrutni nginx'dagi
@@ -408,15 +419,39 @@ test yiqiladi (kassa yo'li `critical` dan, yozuv `market` dan chiqib ketsa ham).
 **Mijozning buyurtma berishi qayerda va nega.** `POST /orders` (va boshqa mijoz yozuvlari) `default` pulida, `market` da emas:
 ular trafikning bir necha foizi, pulga tegadi va `Idempotency-Key` bilan qayta yuborilsa ikkinchi buyurtma yaratmaydi. `market`
 pul cheklangan, ya'ni to'lqin paytida rad etishi mumkin; buyurtma berish hech qachon rad etilmasin va o'qish navbati ortida
-kutmasin. `critical` ga ham qo'yilmadi: aksiya paytidagi buyurtmalar oqimi kassalarni sekinlatmasin. Mini App kirishi
-(`auth/telegram`) ham shu sababli `default` da.
+kutmasin. Savat (`customer/miniapp/src/pages/Cart.tsx`) buyurtma tugmasini quyidagilarsiz ishlata olmaydi, shuning uchun ular
+ham `default` da: yetkazib berish narxi va minimal summa (`GET /delivery/quote`; xato bo'lsa tugma yopiq), olib ketish vaqtlari
+(`.../pickup-slots`), savatning do'koni — olib ketish filiallari, to'lov usullari, buyurtma qulfi (`GET /stores?for=checkout`),
+promo-kod (`POST /promo/validate`), keshbek balansi (`GET /user`). Menyu narxlari/qoldiq (`catalog`, `catalog/availability`)
+va geokodlash `market` da qoladi: ularsiz ham buyurtma beriladi (server narx va qoldiqni baribir qayta tekshiradi, manzilni
+qo'lda yozish mumkin). `useDeliveryQuote` 503/429 da `Retry-After` ni kutib 3 martagacha qayta so'raydi (ko'pi bilan 10 s).
+Shunday qilib bozor cheklovi buyurtma berishni hech qachon to'xtatmaydi. `critical` ga ham qo'yilmadi: aksiya paytidagi
+buyurtmalar oqimi kassalarni sekinlatmasin. Mini App kirishi (`auth/telegram`) ham shu sababli `default` da.
+
+**Pulni so'rovchi tanlay olmaydi.** Kassa va Mini App bo'lishadigan `catalog`/`catalog/availability` faqat POS ilovasining
+so'rovi (`X-Rizqim-App: cashier|waiter|kds|customer_display` + `Bearer <id>|...`) aynan kassa shaklida bo'lsa (`channel` bitta
+marta, faqat `branch_id`/`store_id` raqam bilan) `critical` ga boradi; nginx ham, PHP ham so'rov satrining aynan bir xil
+baytlarini o'qiydi, shuning uchun takrorlangan `channel`, `CHANNEL` yoki kodlangan nom ularni har xil tushunishga olib kelmaydi.
+POS kanali yoki filial aytilgan boshqa har qanday shakl `default` ga boradi (hech qanday cheklov yo'q, kassa yangi parametr
+qo'shsa ham rad etilmaydi). Usulni almashtirish (`X-HTTP-Method-Override`, `_method`) GET/HEAD ga ruxsat etilmaydi
+(`bootstrap/app.php`), shuning uchun POST hech qachon GET marshruti sifatida xizmat qilmaydi.
 
 **Bozor cheklovlari** (faqat `market` puliga; `critical` va `default` ga hech qachon):
-- butun pul: bir vaqtda PHP'dagi bozor so'rovlari `NGINX_MARKET_MAX_INFLIGHT` dan (standart ishchilar × 2 = 8) oshsa, nginx darhol
+- butun pul: bir vaqtda PHP'dagi bozor so'rovlari `NGINX_MARKET_MAX_INFLIGHT` dan (standart ishchilar × 4 = 16) oshsa, nginx darhol
   **503** + `Retry-After: 2` qaytaradi (soniyalab navbatda kutmaydi);
-- bir mijoz (Bearer token, token bo'lmasa haqiqiy IP: `X-Forwarded-For` ishonchli ichki proksilardan, Laravel'dagi kabi):
-  soniyasiga `NGINX_MARKET_RATE` (5) so'rov + `NGINX_MARKET_BURST` (20) birdaniga — oshsa **429** + `Retry-After`; bir vaqtda
-  `NGINX_MARKET_CONN_PER_CLIENT` (10) dan ko'p — 503.
+- bir mijoz (haqiqiy IP + Sanctum token raqami, ya'ni `|` dan oldingi raqamlar; token siri nginx xotirasiga yozilmaydi; IP
+  `X-Forwarded-For` dan, ishonchli ichki proksilardan, Laravel'dagi kabi): soniyasiga `NGINX_MARKET_RATE` (5) so'rov +
+  `NGINX_MARKET_BURST` (20) birdaniga — oshsa **429** + `Retry-After`; bir vaqtda `NGINX_MARKET_CONN_PER_CLIENT` (standart
+  in-flight / 4 = 4) dan ko'p — 503;
+- bir IP (bitta NAT ortidagi ko'p mijoz): soniyasiga `NGINX_MARKET_IP_RATE` (50) + `NGINX_MARKET_IP_BURST` (100) — 429; bir
+  vaqtda `NGINX_MARKET_CONN_PER_IP` (in-flight / 2 = 8) — 503. Token raqamini almashtirib turgan mijoz shu chegarada qoladi.
+- bitta mijoz pulni to'ldira olmaydi: `pools.sh` `NGINX_MARKET_CONN_PER_CLIENT × 2 > NGINX_MARKET_MAX_INFLIGHT`,
+  `NGINX_MARKET_CONN_PER_IP ≥ NGINX_MARKET_MAX_INFLIGHT` (yoki mijoz ulushidan kam), `NGINX_MARKET_MAX_INFLIGHT >
+  FPM_MARKET_CHILDREN + FPM_MARKET_BACKLOG` bo'lgan sozlamani rad etadi (konteyner ishga tushmaydi);
+- sekin mijoz slotni ushlab turolmaydi: tanali (`Content-Length` > 0 yoki `Transfer-Encoding`) bozor GET so'rovi hech qanday
+  limit hisoblanmasdan **400** oladi; bozor location'ida `client_body_timeout 5s`, `send_timeout 10s`,
+  `fastcgi_read_timeout 60s`. Sarlavhalar slot olinishidan oldin o'qiladi, shuning uchun `client_header_timeout` standartda
+  (60 s) qoldi: uni kamaytirish faqat sekin tarmoqdagi kassalarga tegardi.
 - javob JSON: `{"success":false,"message":"...","error":"server_busy"}` (429 da `too_many_requests`). Mini App `message` ni ko'rsatadi,
   o'qishni o'zi qayta uradi (react-query 3 marta, so'rov bilan yangilanadigan ekranlar oraliqni ikki baravar oshiradi).
   Kassa, oshxona ekrani va hamkor panel `market` yo'llariga murojaat qilmaydi (hamkor panel `GET /user` ni `default` dan oladi).
@@ -432,7 +467,8 @@ hisobi (konteynerlar × 12 ishchi): 12-bo'lim.
 - php-fpm kirish logi har so'rovni pul nomi bilan yozadi: `market 172.18.0.5 - ... "GET /api/v1/stores" 200 85.2 ms`;
 - `[pool critical] server reached pm.max_children setting` (yoki `market`, `default`) — o'sha pul to'lgan: `critical` uchun bu ogohlantirish, ishchi
   qo'shing; `market` uchun to'lqin paytida normal;
-- nginx'da `limiting connections by zone "rizqim_market_all"` — bozor 503 berdi; `limiting requests ... "rizqim_market_rate"` — bir
-  mijoz 429 oldi. Bular ko'p va doimiy bo'lsa, `FPM_MARKET_CHILDREN`/`NGINX_MARKET_MAX_INFLIGHT` ni (protsessor yetsa) oshiring.
+- nginx'da `limiting connections by zone "rizqim_market_all"` — bozor 503 berdi; `"rizqim_market_client"` / `"rizqim_market_ip"` —
+  bitta mijoz / IP o'z ulushidan oshdi; `limiting requests ... "rizqim_market_rate"` (`"rizqim_market_ip_rate"`) — bir mijoz (IP)
+  429 oldi. Bular ko'p va doimiy bo'lsa, `FPM_MARKET_CHILDREN`/`NGINX_MARKET_MAX_INFLIGHT` ni (protsessor yetsa) oshiring.
 O'zgartirish: `backend/.env` da qiymat, so'ng `docker compose up -d backend`. Qaytarish: qatorni o'chiring (standart qaytadi).
 Yuk sinovi haqiqiy konfiguratsiya bilan: `SERVER=fpm scripts/scale-test/server.sh start` (`scripts/scale-test/README.md`).

@@ -91,6 +91,11 @@ class StoreBroadcastService
                 'created_by' => $member->id,
                 'audience' => $audience['audience'],
                 'store_ids' => $audience['audience'] === 'selected' ? array_map('intval', $audience['store_ids'] ?? []) : null,
+                // Review R1-2: an `all` broadcast keeps its filters, so a resume lists the same audience
+                'filters' => $audience['audience'] === 'selected' ? null : [
+                    'statuses' => array_map('strval', $audience['statuses'] ?? []) ?: null,
+                    'region_id' => !empty($audience['region_id']) ? (int) $audience['region_id'] : null,
+                ],
                 'text' => trim($text),
                 'reason' => mb_substr(trim($reason), 0, 500),
                 'stores' => $preview['stores'],
@@ -133,18 +138,43 @@ class StoreBroadcastService
 
     /**
      * Continue a broadcast that failed half way (its job gave up): the chats not queued yet get it, the others not
-     * again. False when there is nothing to resume (not failed, or it never listed its recipients).
+     * again. Review R1-2: a broadcast that failed before it listed its recipients (nobody was messaged) starts again
+     * from the listing, with its audience as sent; one sent before the filters were kept (`filters` null) is not
+     * re-listed, as its audience is unknown. False when there is nothing to resume (not failed, or unknown audience).
      */
     public function resume(StoreBroadcast $broadcast): bool
     {
+        $audience = self::audienceOf($broadcast);
         $listed = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcast->id)->exists();
-        $resumed = $listed && StoreBroadcast::query()->whereKey($broadcast->id)->where('status', 'failed')
-            ->update(['status' => 'sending', 'finished_at' => null]) === 1;
+        if (!$listed && $audience === null) {
+            return false;
+        }
+
+        // Not listed: back to queued, so the job claims it and lists the recipients (deliver)
+        $resumed = StoreBroadcast::query()->whereKey($broadcast->id)->where('status', 'failed')
+            ->update($listed ? ['status' => 'sending', 'finished_at' => null] : ['status' => 'queued', 'started_at' => null, 'finished_at' => null]) === 1;
         if ($resumed) {
-            SendStoreBroadcastJob::dispatch($broadcast->id, ['audience' => $broadcast->audience, 'store_ids' => $broadcast->store_ids]);
+            SendStoreBroadcastJob::dispatch($broadcast->id, $audience ?? ['audience' => $broadcast->audience, 'store_ids' => $broadcast->store_ids]);
         }
 
         return $resumed;
+    }
+
+    /**
+     * The audience a broadcast was sent to, or null when it is not known (an `all` broadcast from before `filters`).
+     *
+     * @return array{audience: string, store_ids?: list<int>|null, statuses?: list<string>|null, region_id?: int|null}|null
+     */
+    private static function audienceOf(StoreBroadcast $broadcast): ?array
+    {
+        if ($broadcast->audience === 'selected') {
+            return ['audience' => 'selected', 'store_ids' => array_map('intval', $broadcast->store_ids ?? [])];
+        }
+        if (!is_array($broadcast->filters)) {
+            return null;
+        }
+
+        return ['audience' => 'all', 'statuses' => $broadcast->filters['statuses'] ?? null, 'region_id' => $broadcast->filters['region_id'] ?? null];
     }
 
     /**
@@ -178,13 +208,18 @@ class StoreBroadcastService
     /**
      * Hands the next wave to the Telegram queue, each message delayed so that at most `rate` leave in a second.
      * Returns the seconds until the next wave, or null when the broadcast is finished (or not sending).
+     *
+     * Review R1-3: the wave's chats are claimed (`queued_at`) under the broadcast's row lock, so two runs never take the
+     * same chat; their messages are then pushed one by one after that commit. When a push fails (the queue is down) the
+     * chats not pushed yet lose their claim again and the error surfaces (the job retries, or fails and can be
+     * resumed): a chat is marked queued only once its message reached the queue, and never pushed twice.
      */
     private function sendWave(int $broadcastId): ?int
     {
         $rate = self::rate();
         $size = max(1, (int) config('admin.store_broadcasts.wave_size', 20));
 
-        return DB::transaction(function () use ($broadcastId, $rate, $size) {
+        $claimed = DB::transaction(function () use ($broadcastId, $size) {
             $broadcast = StoreBroadcast::query()->whereKey($broadcastId)->lockForUpdate()->first();
             if ($broadcast === null || $broadcast->status !== 'sending') {
                 return null;
@@ -192,25 +227,55 @@ class StoreBroadcastService
 
             $wave = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNull('queued_at')
                 ->orderBy('id')->limit($size)->get();
-            foreach ($wave->values() as $i => $recipient) {
-                // Plain text (no parse mode): the announcement reaches the chat as the member typed it. Queued once
-                // this transaction commits (SendTelegramRequest), so a wave rolled back sends nothing.
-                $this->telegram->sendMessageLater(intdiv($i, $rate), $recipient->telegram_id, "📣 RIZQIM e'loni\n\n" . $broadcast->text, [], [
+            if ($wave->isNotEmpty()) {
+                StoreBroadcastRecipient::query()->whereKey($wave->modelKeys())->update(['queued_at' => now()]);
+            }
+
+            return ['text' => $broadcast->text, 'wave' => $wave->values()];
+        });
+        if ($claimed === null) {
+            return null;
+        }
+
+        $pushed = 0;
+        try {
+            foreach ($claimed['wave'] as $i => $recipient) {
+                // Plain text (no parse mode): the announcement reaches the chat as the member typed it
+                $this->telegram->sendMessageLater(intdiv($i, $rate), $recipient->telegram_id, "📣 RIZQIM e'loni\n\n" . $claimed['text'], [], [
                     'user_id' => $recipient->user_id,
                     'type' => 'admin_store_broadcast',
                 ]);
+                $pushed++;
             }
-            if ($wave->isNotEmpty()) {
-                StoreBroadcastRecipient::query()->whereKey($wave->modelKeys())->update(['queued_at' => now()]);
+        } catch (\Throwable $e) {
+            $unsent = $claimed['wave']->slice($pushed)->modelKeys();
+            StoreBroadcastRecipient::query()->whereKey($unsent)->update(['queued_at' => null]);
+            $this->finishWave($broadcastId);
+
+            throw $e;
+        }
+
+        return $this->finishWave($broadcastId) ? max(1, (int) ceil($claimed['wave']->count() / $rate)) : null;
+    }
+
+    /**
+     * Counts the chats queued and finishes the broadcast when none is left. True while chats are left to queue.
+     */
+    private function finishWave(int $broadcastId): bool
+    {
+        return DB::transaction(function () use ($broadcastId) {
+            $broadcast = StoreBroadcast::query()->whereKey($broadcastId)->lockForUpdate()->first();
+            if ($broadcast === null) {
+                return false;
             }
 
             $remaining = StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNull('queued_at')->exists();
             $broadcast->forceFill([
                 'queued' => StoreBroadcastRecipient::query()->where('store_broadcast_id', $broadcastId)->whereNotNull('queued_at')->count(),
-                ...($remaining ? [] : ['status' => 'sent', 'finished_at' => now()]),
+                ...($remaining || $broadcast->status !== 'sending' ? [] : ['status' => 'sent', 'finished_at' => now()]),
             ])->save();
 
-            return $remaining ? max(1, (int) ceil($wave->count() / $rate)) : null;
+            return $remaining && $broadcast->status === 'sending';
         });
     }
 

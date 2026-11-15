@@ -402,7 +402,7 @@ jobs:
 
       - name: Shellcheck
         run: |
-          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh scripts/scale-test/pgbouncer.sh
+          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh scripts/scale-test/pgbouncer.sh scripts/scale-test/server.sh scripts/scale-test/env.sh
 
       # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
       - name: pos-e2e.sh guards
@@ -452,9 +452,18 @@ jobs:
       # Wave M1: the three php-fpm pools and nginx's routing/limits load in the real image (defaults and an override)
       - name: Backend image php-fpm pools and nginx config are valid
         run: |
-          docker run --rm --entrypoint sh rizqim-backend:ci -c 'eval "$(rizqim-pools env)" && php-fpm -t && rizqim-pools render /etc/nginx && nginx -t'
-          docker run --rm --entrypoint sh -e FPM_MARKET_CHILDREN=2 rizqim-backend:ci -c 'eval "$(rizqim-pools env)" && php-fpm -t && rizqim-pools render /etc/nginx && nginx -t && grep -q "rizqim_market_all 4;" /etc/nginx/rizqim-pools-limits.conf'
-          if docker run --rm --entrypoint rizqim-pools -e FPM_MARKET_CHILDREN=x rizqim-backend:ci env; then exit 1; fi
+          docker run --rm --entrypoint rizqim-pools rizqim-backend:ci check
+          docker run --rm --entrypoint sh -e FPM_MARKET_CHILDREN=2 rizqim-backend:ci -c 'rizqim-pools check && grep -q "rizqim_market_all 8;" /etc/nginx/rizqim-pools-limits.conf && grep -q "rizqim_market_client 2;" /etc/nginx/rizqim-pools-limits.conf'
+          docker run --rm --entrypoint rizqim-pools -e DB_POOLER=pgbouncer -e PGBOUNCER_POOL_SIZE=12 rizqim-backend:ci check
+          # Fail closed (M1 review R2-6): a bad value, one client able to fill the market pool, more workers than
+          # PgBouncer connections, TLS to the pooler: the entrypoint stops before supervisord starts anything
+          for bad in FPM_MARKET_CHILDREN=x NGINX_MARKET_CONN_PER_CLIENT=10 NGINX_MARKET_BURST=0 DB_SSLMODE=require PGBOUNCER_POOL_SIZE=11; do
+            rc=0; timeout 60 docker run --rm -e "$bad" -e DB_POOLER=pgbouncer rizqim-backend:ci supervisord -c /etc/supervisor/conf.d/supervisord.conf 2> /tmp/err.txt || rc=$?
+            if [ "$rc" != 1 ] || ! grep -q '^pools.sh: ' /tmp/err.txt; then echo "not refused at start: $bad (exit $rc)" >&2; cat /tmp/err.txt >&2; exit 1; fi
+          done
+          # Bounded wait for the database: exits 1 with the reason instead of hanging
+          rc=0; timeout 60 docker run --rm -e DB_HOST=127.0.0.1 -e DB_PORT=1 -e STARTUP_WAIT_SECONDS=3 rizqim-backend:ci php -v 2> /tmp/err.txt || rc=$?
+          test "$rc" = 1 && grep -q 'Postgres (127.0.0.1:1)' /tmp/err.txt
 
       - uses: hadolint/hadolint-action@v3.1.0
         with:

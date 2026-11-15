@@ -171,7 +171,9 @@ export default function Cart() {
   useEffect(() => {
     if (cartStoreId !== undefined) {
       const storeId = cartStoreId;
-      api.get<ApiResponse<StoreListItem[]>>('/stores').then(res => {
+      // for=checkout: the backend's nginx serves this read from the pool the order is placed in, not the capped
+      // marketplace one (the branches for pickup and the payment methods come from here; docs/OPERATIONS.md §14)
+      api.get<ApiResponse<StoreListItem[]>>('/stores', { params: { for: 'checkout' } }).then(res => {
         if (res.data?.success) {
           const stores = res.data.data;
           setBranchPoints(stores.flatMap(s => (s.branches ?? []).flatMap(b => toLatLng(b.latitude, b.longitude) ?? [])));

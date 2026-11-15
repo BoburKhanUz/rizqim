@@ -121,4 +121,58 @@ describe('useDeliveryQuote', () => {
     expect(get).toHaveBeenCalledWith('/delivery/quote', { params: expect.objectContaining({ subtotal: 125000 }) });
     expect(result.current.status).toBe('ready');
   });
+
+  // The backend's nginx answers a busy or rate-limited read with 503/429 and Retry-After (docs/OPERATIONS.md §14)
+  const busy = (status: number, retryAfter?: string) => {
+    const error = failedRequest(status, { success: false, error: status === 429 ? 'too_many_requests' : 'server_busy' }, '/delivery/quote');
+    if (error.response && retryAfter !== undefined) error.response.headers = { 'retry-after': retryAfter };
+    return error;
+  };
+
+  it('waits Retry-After on a 503 and then gets the quote', async () => {
+    get.mockRejectedValueOnce(busy(503, '3'));
+    const { result } = render();
+    await advance(0);
+    expect(get).toHaveBeenCalledTimes(1);
+
+    await advance(2900);
+    expect(get).toHaveBeenCalledTimes(1); // not before the server said
+    await advance(200);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('ready');
+  });
+
+  it('retries a 429 too, after its Retry-After', async () => {
+    get.mockRejectedValueOnce(busy(429, '2'));
+    const { result } = render();
+    await advance(0);
+    await advance(2100);
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe('ready');
+  });
+
+  it('gives up after three retries and caps a long Retry-After', async () => {
+    get.mockRejectedValue(busy(503, '600'));
+    const { result } = render();
+    await advance(0);
+    for (let i = 0; i < 3; i++) await advance(10_000);
+    await advance(10);
+    await advance(10);
+
+    expect(get).toHaveBeenCalledTimes(4);
+    expect(result.current.status).toBe('error');
+    await advance(60_000);
+    expect(get).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not retry an answer that is not a busy server', async () => {
+    get.mockRejectedValue(busy(403));
+    const { result } = render();
+    await advance(0);
+    await advance(30_000);
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('error');
+  });
 });

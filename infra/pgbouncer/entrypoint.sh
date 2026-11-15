@@ -24,6 +24,11 @@ for name in PGBOUNCER_PORT PGBOUNCER_POOL_SIZE PGBOUNCER_RESERVE_POOL_SIZE PGBOU
         '' | *[!0-9]*) echo "XATO: $name butun son bo'lishi kerak (hozir: '$value')." >&2; exit 1 ;;
     esac
 done
+# The backend checks its php-fpm workers against PGBOUNCER_POOL_SIZE (backend/docker/pools.sh): that only holds while
+# max_db_connections does not cut the pool below it
+if [ "$PGBOUNCER_POOL_SIZE" -gt "$PGBOUNCER_MAX_DB_CONNECTIONS" ]; then
+    echo "XATO: PGBOUNCER_POOL_SIZE ($PGBOUNCER_POOL_SIZE) PGBOUNCER_MAX_DB_CONNECTIONS ($PGBOUNCER_MAX_DB_CONNECTIONS) dan oshmasin." >&2; exit 1
+fi
 case "$DB_DATABASE$DB_USERNAME$DB_HOST" in
     *[!A-Za-z0-9_.-]*) echo "XATO: DB_DATABASE, DB_USERNAME va DB_HOST faqat harf, raqam, '_', '.', '-' dan iborat bo'lsin." >&2; exit 1 ;;
 esac
