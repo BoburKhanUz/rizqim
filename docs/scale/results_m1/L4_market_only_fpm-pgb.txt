@@ -1,0 +1,13 @@
+# L4_market_only_fpm-pgb  2026-11-15T11:48:55Z  mode=fpm-pgb SERVER=fpm DB_POOLER=pgbouncer  load before: 0.23 1.54 1.84
+
+L4_market_only_fpm-pgb wall=314.2s req=16737 rps=53.27 cpu php=743.35s pg=84.29s pgbouncer=20.4s nginx=6.49s xacts=194950 conn_max=6 lockwaits=0
+GET /catalog?geo                     n= 3355 rps= 10.68 p50=109.3 p95=247.9 p99=304.8 err%=0.92
+GET /catalog?store_id                n= 3295 rps= 10.49 p50=95.8 p95=231.7 p99=277.9 err%=1.15
+GET /notifications                   n= 3295 rps= 10.49 p50=51.1 p95=183.1 p99=227.4 err%=1.43
+GET /orders                          n= 3295 rps= 10.49 p50=100.1 p95=239.9 p99=287.9 err%=1.27
+GET /stores?geo                      n= 3423 rps= 10.89 p50=69.3 p95=203.7 p99=278.4 err%=1.26
+POST /orders                         n=   74 rps=  0.24 p50=74.5 p95=105.9 p99=166.6 err%=0
+errors: {"GET /stores?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":43,"GET /catalog?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":31,"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":38,"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":47,"GET /orders 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":42}
+retry_after: {"mkt 503 Retry-After=2":201}
+sync: {}
+load after: 3.26 2.86 2.36

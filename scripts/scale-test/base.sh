@@ -6,6 +6,8 @@ source "$(dirname "$0")/env.sh"
 $SC/server.sh stop >/dev/null 2>&1 || true
 $PSQL -c "DROP DATABASE IF EXISTS \"$DB_DATABASE\"" -c "DROP DATABASE IF EXISTS \"${DB_DATABASE}_tmp\"" -c "CREATE DATABASE \"$DB_DATABASE\" OWNER rizqim"
 $PSQL -d "$DB_DATABASE" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"
+# the seeder's orders read the cache (CACHE_STORE=redis): the kit's own Redis must be up before seeding
+pgrep -f "redis-server 127.0.0.1:$REDIS_PORT( |\$)" >/dev/null || (cd "$SCALE_WORK/logs" && redis-server --port "$REDIS_PORT" --bind 127.0.0.1 --save '' --appendonly no --daemonize yes --logfile "$SCALE_WORK/logs/redis.log")
 cd $BACKEND && php artisan migrate --force -q && php artisan db:seed --class=PosStackSeeder --force -q
 $SC/server.sh start 2
 V=$($PSQL -d "$DB_DATABASE" -Atc "select string_agg(v.uuid::text, ',') from product_variants v join products p on p.id=v.product_id left join product_modifier_groups g on g.product_id=p.id where p.store_id=1 and not p.batch_tracked and g.id is null and coalesce(v.unit,'')<>'kg' and p.weight_mode is null")

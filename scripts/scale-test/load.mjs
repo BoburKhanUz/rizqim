@@ -32,16 +32,18 @@ const psql = (sql) => sh(`sudo -n -u postgres psql -X -At -d ${DB} -c "${sql.rep
 // ---------------------------------------------------------------- stats
 const samples = []; // [t_ms, label, ms, status, group]
 const errors = {};
-async function call(group, label, method, path, token, body) {
+const retryAfter = {}; // "status Retry-After" -> count (503/429 answers, e.g. the fpm market limits)
+async function call(group, label, method, path, token, body, xff) {
   const s = performance.now();
   let status = 0, json = null;
   try {
     const res = await fetch(BASE + path, {
       method, signal: AbortSignal.timeout(60000),
-      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), 'X-Rizqim-App': 'scale-test' },
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), 'X-Rizqim-App': 'scale-test', ...(xff ? { 'X-Forwarded-For': xff } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
     status = res.status;
+    if (status === 429 || status === 503) { const k = `${group} ${status} Retry-After=${res.headers.get('retry-after')}`; retryAfter[k] = (retryAfter[k] || 0) + 1; }
     const text = await res.text();
     try { json = JSON.parse(text); } catch { json = null; }
     if (status >= 400) {
@@ -70,14 +72,14 @@ function summarize(list, seconds) {
   return out;
 }
 async function cpuSnap() {
-  const out = { php: 0, postgres: 0 };
+  const out = { php: 0, postgres: 0, pgbouncer: 0, nginx: 0 };
   for (const pid of fs.readdirSync('/proc').filter((p) => /^\d+$/.test(p))) {
     try {
       const st = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
       const comm = st.slice(st.indexOf('(') + 1, st.lastIndexOf(')'));
       const f = st.slice(st.lastIndexOf(')') + 2).split(' ');
       const ticks = +f[11] + +f[12] + +f[13] + +f[14]; // utime stime cutime cstime
-      if (comm.startsWith('php')) out.php += ticks; else if (comm.startsWith('postgres')) out.postgres += ticks;
+      if (comm.startsWith('php')) out.php += ticks; else if (comm.startsWith('postgres')) out.postgres += ticks; else if (comm === 'pgbouncer') out.pgbouncer += ticks; else if (comm === 'nginx') out.nginx += ticks;
     } catch {}
   }
   return out;
@@ -173,18 +175,23 @@ async function customer(token, i, c) {
   const end = (c.end_s ? c.end_s * 1000 : DURATION);
   while (rel() < start) await sleep(200);
   const think = () => sleep(rnd(...(c.think_s || [3, 8])) * 1000);
+  // Each customer its own client address (X-Forwarded-For from 127.0.0.1, a trusted proxy for nginx real_ip and Laravel), as
+  // real customers arrive from many addresses; without it all 250 share 127.0.0.1 and nginx's per-address market limit
+  // (NGINX_MARKET_CONN_PER_IP / IP_RATE) would shed what in production is spread over hundreds of addresses. XFF=0 disables.
+  const xff = process.env.XFF === '0' ? undefined : `100.64.${(i >> 8) & 255}.${(i & 255) + 1}`;
+  const get = (label, path) => call('mkt', label, 'GET', path, token, undefined, xff);
   while (running() && rel() < end) {
     const s = pick(mktStores), lat = (+s.lat + rnd(-0.02, 0.02)).toFixed(5), lng = (+s.lng + rnd(-0.02, 0.02)).toFixed(5);
-    await call('mkt', 'GET /stores?geo', 'GET', `/stores?lat=${lat}&lng=${lng}`, token); await think();
+    await get('GET /stores?geo', `/stores?lat=${lat}&lng=${lng}`); await think();
     if (!running() || rel() >= end) break;
-    await call('mkt', 'GET /catalog?geo', 'GET', `/catalog?lat=${lat}&lng=${lng}`, token); await think();
+    await get('GET /catalog?geo', `/catalog?lat=${lat}&lng=${lng}`); await think();
     if (!running() || rel() >= end) break;
-    await call('mkt', 'GET /catalog?store_id', 'GET', `/catalog?store_id=${s.store_id}`, token); await think();
+    await get('GET /catalog?store_id', `/catalog?store_id=${s.store_id}`); await think();
     if (Math.random() * 100 < (c.order_pct ?? 2)) {
-      await call('mkt', 'POST /orders', 'POST', '/orders', token, { store_id: s.store_id, type: 'pickup', branch_id: s.branch_id, payment_method: 'cash', items: clean(items(s, 2)) });
+      await call('mkt', 'POST /orders', 'POST', '/orders', token, { store_id: s.store_id, type: 'pickup', branch_id: s.branch_id, payment_method: 'cash', items: clean(items(s, 2)) }, xff);
     }
-    await call('mkt', 'GET /orders', 'GET', '/orders', token);
-    await call('mkt', 'GET /notifications', 'GET', '/notifications', token); await think();
+    await get('GET /orders', '/orders');
+    await get('GET /notifications', '/notifications'); await think();
   }
 }
 
@@ -298,9 +305,9 @@ const res = {
   requests: scen.length, rps: +(scen.length / wall).toFixed(2),
   endpoints: summarize(scen, wall),
   by_group: Object.fromEntries(['pos', 'poll', 'report', 'mkt', 'sync', 'hub'].map((g) => [g, scen.filter((x) => x[4] === g).length]).filter(([, n]) => n)),
-  errors, sync_outcomes: syncOutcome,
+  errors, retry_after: retryAfter, sync_outcomes: syncOutcome,
   sync_drain_ms: drain.length ? { n: drain.length, p50: pct(drain.sort((a, b) => a - b), 50), p95: pct(drain, 95), max: drain[drain.length - 1] } : undefined,
-  cpu_s: { php: (cpu1.php - cpu0.php) / hz, postgres: (cpu1.postgres - cpu0.postgres) / hz },
+  cpu_s: { php: (cpu1.php - cpu0.php) / hz, postgres: (cpu1.postgres - cpu0.postgres) / hz, pgbouncer: (cpu1.pgbouncer - cpu0.pgbouncer) / hz, nginx: (cpu1.nginx - cpu0.nginx) / hz },
   db: Object.fromEntries(['xacts', 'tup_ins', 'tup_upd', 'tup_del', 'tup_returned', 'tup_fetched', 'blks_hit', 'blks_read'].map((k, i) => [k, db1[i] - db0[i]])),
   activity: activity.length ? { samples: activity.length, max_conn: Math.max(...activity.map((a) => a[1])), max_active: Math.max(...activity.map((a) => a[2])), lock_wait_samples: activity.filter((a) => a[3] > 0).length, max_idle_in_tx: Math.max(...activity.map((a) => a[4])) } : undefined,
 };
@@ -313,7 +320,11 @@ if (cfg.market?.start_s !== undefined) {
     const secs = Math.max(1, ((k === 'before' ? a - shift0 : k === 'during' ? b - a : shift0 + wall * 1000 - b)) / 1000);
     const pos = list.filter((x) => x[4] === 'pos' || x[4] === 'poll');
     const lat = pos.map((x) => x[2]).sort((p, q) => p - q);
-    res.phases[k] = { secs: +secs.toFixed(0), total_rps: +(list.length / secs).toFixed(1), till_n: lat.length, till_p50: pct(lat, 50), till_p95: pct(lat, 95), till_p99: pct(lat, 99), endpoints: summarize(pos, secs) };
+    const mkt = list.filter((x) => x[4] === 'mkt'), mst = {};
+    for (const x of mkt) mst[x[3]] = (mst[x[3]] || 0) + 1;
+    const mlat = mkt.filter((x) => x[3] >= 200 && x[3] < 300).map((x) => x[2]).sort((p, q) => p - q);
+    res.phases[k] = { secs: +secs.toFixed(0), total_rps: +(list.length / secs).toFixed(1), till_n: lat.length, till_p50: pct(lat, 50), till_p95: pct(lat, 95), till_p99: pct(lat, 99), endpoints: summarize(pos, secs),
+      mkt_status: mst, mkt_ok_p50: pct(mlat, 50), mkt_ok_p95: pct(mlat, 95) };
   }
 }
 if (args.pgss) {
@@ -324,5 +335,5 @@ if (args.pgss) {
 }
 fs.writeFileSync(args.out, JSON.stringify(res, null, 1));
 const brief = Object.entries(res.endpoints).map(([k, v]) => `${k.padEnd(36)} n=${String(v.n).padStart(5)} rps=${String(v.rps).padStart(6)} p50=${v.p50} p95=${v.p95} p99=${v.p99} err%=${v.err_pct}`).join('\n');
-console.log(`${res.label} wall=${res.wall_s}s req=${res.requests} rps=${res.rps} cpu php=${res.cpu_s.php}s pg=${res.cpu_s.postgres}s xacts=${res.db.xacts} conn_max=${res.activity?.max_conn} lockwaits=${res.activity?.lock_wait_samples}\n${brief}\nerrors: ${JSON.stringify(errors).slice(0, 1500)}\nsync: ${JSON.stringify(syncOutcome)}`);
+console.log(`${res.label} wall=${res.wall_s}s req=${res.requests} rps=${res.rps} cpu php=${res.cpu_s.php}s pg=${res.cpu_s.postgres}s pgbouncer=${res.cpu_s.pgbouncer}s nginx=${res.cpu_s.nginx}s xacts=${res.db.xacts} conn_max=${res.activity?.max_conn} lockwaits=${res.activity?.lock_wait_samples}\n${brief}\nerrors: ${JSON.stringify(errors).slice(0, 1500)}\nretry_after: ${JSON.stringify(retryAfter)}\nsync: ${JSON.stringify(syncOutcome)}`);
 process.exit(0);

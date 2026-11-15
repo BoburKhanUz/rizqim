@@ -1,0 +1,13 @@
+# L4_market_only_serve-direct  2026-11-15T11:27:21Z  mode=serve-direct SERVER=serve DB_POOLER=direct  load before: 0.45 1.66 1.32
+
+L4_market_only_serve-direct wall=312.5s req=15453 rps=49.45 cpu php=811.2s pg=282.94s pgbouncer=0s nginx=0s xacts=561487 conn_max=6 lockwaits=0
+GET /catalog?geo                     n= 3100 rps=  9.92 p50=375.7 p95=1077.7 p99=1314.1 err%=0
+GET /catalog?store_id                n= 3041 rps=  9.73 p50=389.7 p95=1106.8 p99=1271 err%=0
+GET /notifications                   n= 3041 rps=  9.73 p50=386 p95=1051.5 p99=1202.8 err%=0
+GET /orders                          n= 3041 rps=  9.73 p50=434.9 p95=1113.3 p99=1287.7 err%=0
+GET /stores?geo                      n= 3169 rps= 10.14 p50=326.1 p95=1085 p99=1274.7 err%=0
+POST /orders                         n=   61 rps=   0.2 p50=578.1 p95=1217.2 p99=1413.1 err%=0
+errors: {}
+retry_after: {}
+sync: {}
+load after: 4.86 4.36 2.64

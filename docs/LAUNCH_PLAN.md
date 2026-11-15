@@ -64,5 +64,5 @@ qarab.
 
 | To'lqin | Holat |
 |---|---|
-| M1 Tez yutuqlar | Boshlandi (15.11.2026) |
+| M1 Tez yutuqlar | Kod, ikki tekshiruv va o'lchov tugadi (PR #24, CI yashil); merge egasini kutmoqda. Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
 | M2–M5, P, L | Navbatda |

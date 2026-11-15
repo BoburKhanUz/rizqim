@@ -1,0 +1,16 @@
+== php-fpm access: requests by pool and status
+    169 critical 200
+     30 critical 201
+      4 critical 409
+     45 default 200
+     90 market 200
+== nginx access: status counts
+    304 200
+     30 201
+      4 409
+== nginx error log: limit hits by zone
+== market 503/429 per 30 s (nginx access, UTC)
+== php-fpm log warnings
+[15-Nov-2026 11:42:52] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 11:48:55] WARNING: [pool market] server reached max_children setting (4), consider raising it
+[15-Nov-2026 11:56:29] WARNING: [pool market] server reached max_children setting (4), consider raising it
