@@ -4039,6 +4039,10 @@ export interface paths {
          *     `unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and
          *     `modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with
          *     `price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.
+         *
+         *     Wave M2: the customer forms are answered from the marketplace read model (App\Domain\Marketplace\MarketplaceBrowse,
+         *     docs/API.md "Market o'qish modeli"; the store carries `accepting_orders`); this method is its fallback and serves
+         *     the POS channels. Orders are always priced and checked against the live tables.
          */
         get: operations["catalog.index"];
         put?: never;
@@ -4062,6 +4066,9 @@ export interface paths {
          *     ids (stop-list and branch switches, `stop_list` has reasons and `until`), `sold_out.variants` (batch stock:
          *     "tugadi") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public
          *     channel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.
+         *
+         *     Wave M2: without `branch_id` (the Mini App) it comes from the read model's availability overlay, at most 15 s
+         *     old (App\Domain\Marketplace\MarketplaceBrowse); with a branch (tills, staff screens) from the tables.
          */
         get: operations["menuAvailability.index"];
         put?: never;
@@ -11605,6 +11612,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/realtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Real-time status and connection settings
+         * @description Public, no database. `live` false (Reverb off, the heartbeat stale or the broadcasts queue backed up): clients
+         *     poll at `poll_seconds.fallback`; live: they listen and poll at `poll_seconds.live` as a safety net, and treat
+         *     `silence_seconds` without any event or `realtime.heartbeat` on a channel as "not live". `reverb` is what a client
+         *     connects with (the public app key; null host = the API's own host); null when real-time is off. Read it on start
+         *     and on every reconnect, not on every poll. Kept for 5 seconds.
+         */
+        get: operations["realtime.status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/export": {
         parameters: {
             query?: never;
@@ -11851,6 +11882,11 @@ export interface paths {
          * @description Active stores with a branch that delivers to the point (nearest first, `min_distance` in km), or with a branch
          *     in the region/district. Without parameters the user's default address is used. Cash is shown as disabled when
          *     the customer may not pay cash.
+         *
+         *     Wave M2: answered from the marketplace read model (App\Domain\Marketplace\MarketplaceBrowse, docs/API.md "Market
+         *          * o'qish modeli"): the same cards plus `accepting_orders` (open now, not order-locked, reachable). With `page` or
+         *     `per_page` one page is answered, with `meta` {page, per_page, total, last_page}; without them every store, as
+         *     before. `for=checkout` (the cart) reads the database, as before. This method is the read model's fallback.
          */
         get: operations["store.index"];
         put?: never;
@@ -25770,10 +25806,17 @@ export interface operations {
                 category_id?: number;
                 /** @description P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404). */
                 brand?: string;
+                /** @description Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, needs_options, variant, store}) instead of full products; docs/API.md. */
+                view?: string;
+                /** @description Wave M2, global feed with view=cards: how many cards (default 20, at most 50). */
+                limit?: number;
                 /** @description P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi). */
                 channel?: "telegram" | "mobile" | "pos_hall" | "pos_takeaway";
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -25787,6 +25830,15 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
         };
     };
@@ -25798,7 +25850,10 @@ export interface operations {
                 /** @description Only this branch. */
                 branch_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -25869,6 +25924,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             404: {
@@ -26852,7 +26916,10 @@ export interface operations {
                 /** @description Page number (Laravel pagination). */
                 page?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -26889,6 +26956,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
         };
@@ -26927,7 +27003,10 @@ export interface operations {
                 /** @description Only with `scope=history`: `meta.next_cursor` of the previous page. */
                 cursor?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -26959,6 +27038,15 @@ export interface operations {
                         data: components["schemas"]["Order"][];
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             422: {
@@ -32438,7 +32526,10 @@ export interface operations {
                 /** @description The branch `stopped_here` is about (a branch-bound caller: their own). */
                 branch_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -32458,6 +32549,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
@@ -48272,7 +48372,10 @@ export interface operations {
     "posDisplay.queue": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -48318,6 +48421,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
             422: {
                 headers: {
@@ -48332,7 +48444,10 @@ export interface operations {
     "posDisplay.state": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -48399,6 +48514,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             422: {
@@ -48495,7 +48619,10 @@ export interface operations {
                 /** @description The branch; defaults to the caller's or the terminal's branch. */
                 branch_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -48592,6 +48719,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
@@ -48659,7 +48795,10 @@ export interface operations {
                 /** @description The branch; default: the caller's (or their terminal's). */
                 branch_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -48813,6 +48952,15 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
@@ -49083,7 +49231,10 @@ export interface operations {
     "posOrder.show": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path: {
                 uuid: string;
             };
@@ -49276,6 +49427,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
         };
     };
@@ -49466,7 +49626,10 @@ export interface operations {
                 /** @description Include voided bills. */
                 all?: boolean;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path: {
                 uuid: string;
             };
@@ -49741,6 +49904,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
         };
@@ -55747,7 +55919,10 @@ export interface operations {
                 /** @description The branch; default: the caller's (or their terminal's). */
                 branch_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -55792,6 +55967,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
@@ -58957,6 +59141,44 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "realtime.status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            status: string;
+                            live: boolean;
+                            heartbeat_seconds: number;
+                            silence_seconds: number;
+                            poll_seconds: {
+                                live: number;
+                                fallback: number;
+                            };
+                            reverb: {
+                                key: string;
+                                host: string | null;
+                                port: number | null;
+                                scheme: string | null;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
     "order.exportReport": {
         parameters: {
             query?: never;
@@ -59027,7 +59249,10 @@ export interface operations {
                 /** @description Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at. */
                 canceled_within?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -59126,6 +59351,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
@@ -59156,7 +59390,10 @@ export interface operations {
                 /** @description `meta.next_cursor` of the previous page. */
                 cursor?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -59261,6 +59498,15 @@ export interface operations {
                     };
                 };
             };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
@@ -59268,7 +59514,10 @@ export interface operations {
     "staffOrder.show": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path: {
                 uuid: string;
             };
@@ -59375,6 +59624,15 @@ export interface operations {
                         };
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
         };
@@ -59899,6 +60157,10 @@ export interface operations {
     "store.index": {
         parameters: {
             query?: {
+                /** @description Wave M2: the page (from 1); with it or `per_page` the answer is one page and carries `meta`. */
+                page?: number;
+                /** @description Wave M2: stores per page (default 20, at most 50). */
+                per_page?: number;
                 /** @description Latitude of the delivery point (with `lng`). */
                 lat?: number;
                 /** @description Longitude of the delivery point (with `lat`). */
@@ -59908,7 +60170,10 @@ export interface operations {
                 /** @description Without coordinates: stores with a branch in this district. */
                 district_id?: number;
             };
-            header?: never;
+            header?: {
+                /** @description Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received. */
+                "If-None-Match"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -59924,6 +60189,15 @@ export interface operations {
                         data: components["schemas"]["Store"][];
                     };
                 };
+            };
+            /** @description Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match. */
+            304: {
+                headers: {
+                    /** @description The same ETag: the last body is still current. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["AuthenticationException"];
         };

@@ -28,6 +28,10 @@ class CatalogController extends Controller
      * `unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and
      * `modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with
      * `price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.
+     *
+     * Wave M2: the customer forms are answered from the marketplace read model (App\Domain\Marketplace\MarketplaceBrowse,
+     * docs/API.md "Market o'qish modeli"; the store carries `accepting_orders`); this method is its fallback and serves
+     * the POS channels. Orders are always priced and checked against the live tables.
      */
     #[QueryParameter('store_id', description: "The store's uuid (or numeric id): store menu instead of the global feed.", type: 'string')]
     #[QueryParameter('lat', description: 'Global feed: latitude of the delivery point (with `lng`).', type: 'float')]
@@ -37,6 +41,8 @@ class CatalogController extends Controller
     #[QueryParameter('branch_id', description: 'P3-13, POS channels only: the branch (an owner or a store-wide terminal; a branch-bound staff member always gets their own).', type: 'int', required: false)]
     #[QueryParameter('category_id', description: 'Global feed: only this category and its subcategories.', type: 'int')]
     #[QueryParameter('brand', description: "P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404).", type: 'string', required: false)]
+    #[QueryParameter('view', description: "Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, needs_options, variant, store}) instead of full products; docs/API.md.", type: 'string', required: false)]
+    #[QueryParameter('limit', description: 'Wave M2, global feed with view=cards: how many cards (default 20, at most 50).', type: 'int', required: false)]
     #[QueryParameter('channel', description: "P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).", type: "'telegram'|'mobile'|'pos_hall'|'pos_takeaway'")]
     public function index(Request $request): JsonResponse
     {

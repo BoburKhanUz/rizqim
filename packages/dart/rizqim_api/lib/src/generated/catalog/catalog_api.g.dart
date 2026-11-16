@@ -30,7 +30,10 @@ class _CatalogApi implements CatalogApi {
     int? branchId,
     int? categoryId,
     String? brand,
+    String? view,
+    int? limit,
     Channel? channel,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -42,10 +45,13 @@ class _CatalogApi implements CatalogApi {
       r'branch_id': branchId,
       r'category_id': categoryId,
       r'brand': brand,
+      r'view': view,
+      r'limit': limit,
       r'channel': channel?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<dynamic>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -66,6 +72,7 @@ class _CatalogApi implements CatalogApi {
   Future<GetV1CatalogAvailabilityResponse> menuAvailabilityIndex({
     required String storeId,
     int? branchId,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -73,7 +80,8 @@ class _CatalogApi implements CatalogApi {
       r'branch_id': branchId,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1CatalogAvailabilityResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

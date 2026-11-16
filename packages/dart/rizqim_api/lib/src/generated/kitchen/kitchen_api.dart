@@ -46,11 +46,14 @@ abstract class KitchenApi {
   /// [includeReady] - 1 (or true) to also list orders that are ready but not handed over yet.
   ///
   /// [canceledWithin] - Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/staff/kitchen/tickets')
   Future<GetV1StaffKitchenTicketsResponse> staffOrderTickets({
     @Query('branch_id') int? branchId,
     @Query('include_ready') bool? includeReady,
     @Query('canceled_within') int? canceledWithin,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Assemble an order (expo bump).

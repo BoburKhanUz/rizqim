@@ -4,11 +4,11 @@ namespace App\Domain\Pos\Hall;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * TableReservations from P3-17's tables (bookings and booking_tables: a banquet holds several rooms), read as rows so
- * this code does not depend on that task's models. Before those tables exist: no reservations.
+ * this code does not depend on that task's models. Both tables exist since migration 2026_10_25_700100; the
+ * Schema::hasTable() probes this once had cost two catalogue queries on every GET /pos/floor (M2-4) and are gone.
  */
 class BookingTableReservations implements TableReservations
 {
@@ -17,24 +17,23 @@ class BookingTableReservations implements TableReservations
 
     public function upcoming(int $branchId, array $tableIds, CarbonInterface $from, CarbonInterface $until): array
     {
-        if ($tableIds === [] || !Schema::hasTable('bookings')) {
+        if ($tableIds === []) {
             return [];
         }
 
-        $hasLinks = Schema::hasTable('booking_tables');
         $rows = DB::table('bookings')
             ->where('bookings.branch_id', $branchId)
             ->whereIn('bookings.status', self::EXPECTED)
             ->where('bookings.starts_at', '>=', $from)
             ->where('bookings.starts_at', '<=', $until)
-            ->when($hasLinks, fn ($query) => $query->leftJoin('booking_tables', 'booking_tables.booking_id', '=', 'bookings.id'))
+            ->leftJoin('booking_tables', 'booking_tables.booking_id', '=', 'bookings.id')
             ->where(fn ($query) => $query->whereIn('bookings.dining_table_id', $tableIds)
-                ->when($hasLinks, fn ($query) => $query->orWhereIn('booking_tables.dining_table_id', $tableIds)))
+                ->orWhereIn('booking_tables.dining_table_id', $tableIds))
             ->orderBy('bookings.starts_at')
-            ->get(array_merge(
-                ['bookings.uuid', 'bookings.starts_at', 'bookings.guests_planned', 'bookings.dining_table_id', 'bookings.contact_name', 'bookings.contact_phone'],
-                $hasLinks ? ['booking_tables.dining_table_id as linked_table_id'] : [],
-            ));
+            ->get([
+                'bookings.uuid', 'bookings.starts_at', 'bookings.guests_planned', 'bookings.dining_table_id', 'bookings.contact_name',
+                'bookings.contact_phone', 'booking_tables.dining_table_id as linked_table_id',
+            ]);
 
         $result = [];
         foreach ($rows as $row) {

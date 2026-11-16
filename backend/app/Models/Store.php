@@ -56,6 +56,7 @@ class Store extends Model
         'legal_name', 'tax_number', 'bank_account', 'moderation_note', 'telegram_admin_chat_id',
         'fiscal_settings', // P3-11: shown through GET /owner/settings and /owner/fiscal/settings only
         'subscription_debt', 'commission_overrides', 'delivery_courier', // P4-21
+        'marketplace_offline_minutes', // wave M2: the reachability rule's limit (App\Domain\Marketplace\StoreReachability)
     ];
 
     /**

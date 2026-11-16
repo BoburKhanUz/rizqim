@@ -284,11 +284,13 @@ class _PosBillingApi implements PosBillingApi {
   Future<GetV1PosOrdersUuidBillsResponse> posBillIndex({
     required String uuid,
     bool? all,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{r'all': all};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosOrdersUuidBillsResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

@@ -92,6 +92,9 @@ class CreateOrderAction
                 throw new Exception("Uzr, ushbu restoran hozir yopiq yoki ish vaqtidan tashqari.");
             }
 
+            // Wave M2 (OFF by default): a store whose paired terminals are all silent takes no marketplace orders
+            app(\App\Domain\Marketplace\StoreReachability::class)->assertAcceptsOrders($store);
+
             // Payment Method Toggles
             $paymentMethod = $payload['payment_method'] ?? 'cash';
             $settings = $store->payment_settings ?? [];

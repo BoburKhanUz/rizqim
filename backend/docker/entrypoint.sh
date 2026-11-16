@@ -45,6 +45,34 @@ if [ "${DB_POOLER:-direct}" = "pgbouncer" ]; then
     rizqim-pools wait-for PgBouncer "${DB_POOL_HOST:-127.0.0.1}" "${DB_POOL_PORT:-6432}"
 fi
 
+# M2: real-time is on by default (docker-compose.yml: BROADCAST_CONNECTION=reverb). With no REVERB_APP_ID/KEY/SECRET
+# set anywhere, the web container (the first to start; queue, scheduler and reverb wait for its healthcheck) generates
+# them once into the shared storage volume, readable by root only, and every container exports them from there. The
+# values are never printed. Keys set in the root .env always win and are never overwritten. A container that finds no
+# keys runs with BROADCAST_CONNECTION=null (clients poll) instead of signing channels with empty keys.
+# Rollback: BROADCAST_CONNECTION=null in the root .env. docs/DEPLOY.md, 9-bo'lim
+REVERB_KEYS_FILE="${REVERB_KEYS_FILE:-$APP_DIR/storage/app/.realtime/reverb.env}"
+if [ "${BROADCAST_CONNECTION:-}" = "reverb" ] && [ -z "${REVERB_APP_ID:-}${REVERB_APP_KEY:-}${REVERB_APP_SECRET:-}" ]; then
+    if [ ! -s "$REVERB_KEYS_FILE" ] && [ "$RUN_MIGRATIONS" = "true" ]; then
+        (
+            umask 077
+            mkdir -p "$(dirname "$REVERB_KEYS_FILE")"
+            php -r 'printf("REVERB_APP_ID=%d\nREVERB_APP_KEY=%s\nREVERB_APP_SECRET=%s\n", random_int(100000, 999999), bin2hex(random_bytes(16)), bin2hex(random_bytes(32)));' > "$REVERB_KEYS_FILE.tmp"
+            mv "$REVERB_KEYS_FILE.tmp" "$REVERB_KEYS_FILE"
+        )
+        echo "Reverb kalitlari yaratildi va saqlandi (qiymatlari chiqarilmaydi): $REVERB_KEYS_FILE"
+    fi
+    if [ -s "$REVERB_KEYS_FILE" ]; then
+        set -a
+        # shellcheck source=/dev/null
+        . "$REVERB_KEYS_FILE"
+        set +a
+    else
+        echo "OGOHLANTIRISH: Reverb kalitlari topilmadi ($REVERB_KEYS_FILE): bu konteynerda real-time o'chiq (BROADCAST_CONNECTION=null), ilovalar so'rov bilan yangilanadi." >&2
+        export BROADCAST_CONNECTION=null
+    fi
+fi
+
 # Refuse to start with production-unsafe settings (APP_ENV, APP_DEBUG, APP_KEY, TELEGRAM_ALLOW_MOCK_AUTH,
 # TELEGRAM_WEBHOOK_SECRET, TELEGRAM_WEBAPP_URL, default super admin password); runs after the DB wait because it
 # checks accounts. APP_KEY is never generated here: web, queue and scheduler each run this script in their own
@@ -68,6 +96,8 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     as_app php artisan storage:link || true
     as_app php artisan config:cache
     as_app php artisan route:cache
+    # M2-4: without it every request discovers the listeners in app/Listeners again (~0.6 ms CPU, 19 files)
+    as_app php artisan event:cache
     as_app php artisan view:cache
     # The webhook route requires secret_token, so (re)register it on every deploy
     as_app php artisan telegram:set-webhook --if-configured \

@@ -192,10 +192,13 @@ abstract class PosBillingApi {
   /// orders.view in the order's branch.
   ///
   /// [all] - Include voided bills.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/orders/{uuid}/bills')
   Future<GetV1PosOrdersUuidBillsResponse> posBillIndex({
     @Path('uuid') required String uuid,
     @Query('all') bool? all,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Make or split the bill.

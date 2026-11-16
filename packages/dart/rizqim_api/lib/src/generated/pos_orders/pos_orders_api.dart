@@ -79,9 +79,12 @@ abstract class PosOrdersApi {
   /// caller's (a terminal's) branch.
   ///
   /// [branchId] - The branch; defaults to the caller's or the terminal's branch.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/floor')
   Future<GetV1PosFloorResponse> posFloorShow({
     @Query('branch_id') int? branchId,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Orders of the branch for the till.
@@ -105,11 +108,14 @@ abstract class PosOrdersApi {
   /// [businessDate] - scope=closed: the business day (YYYY-MM-DD); default: the branch's business day now.
   ///
   /// [branchId] - The branch; default: the caller's (or their terminal's).
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/orders')
   Future<GetV1PosOrdersResponse> posOrderIndex({
     @Query('scope') Scope2? scope,
     @Query('business_date') String? businessDate,
     @Query('branch_id') int? branchId,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Open a POS order.
@@ -142,9 +148,12 @@ abstract class PosOrdersApi {
   /// The order as the till shows it: place, guests, waiter, `version` (send it back with the next change), the.
   /// charge lines (`charges`: service charge %, room fee by day type, minimum spend and its top-up, waived lines) and.
   /// every line with its round, firing and kitchen state. Needs orders.view in the order's branch.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/orders/{uuid}')
   Future<GetV1PosOrdersUuidResponse> posOrderShow({
     @Path('uuid') required String uuid,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Accept an online order.

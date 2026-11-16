@@ -79,11 +79,15 @@ class _NotificationsApi implements NotificationsApi {
   }
 
   @override
-  Future<GetV1NotificationsResponse> orderNotifications({int? page = 1}) async {
+  Future<GetV1NotificationsResponse> orderNotifications({
+    String? ifNoneMatch,
+    int? page = 1,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{r'page': page};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1NotificationsResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

@@ -1,5 +1,6 @@
 #!/bin/bash
 # server.sh start [workers] | stop  -- redis (cache, rate limiter, locks) + the app on $APP_PORT
+#   EVENT_CACHE=0 skips `event:cache` (listener discovery on every request, as an image whose entrypoint does not cache events)
 #   SERVER=serve (default): php artisan serve with PHP_CLI_SERVER_WORKERS=[workers] (one pool, as the first run)
 #   SERVER=fpm: nginx + php-fpm with the repo's real config (backend/docker/nginx.conf, php-fpm.conf, pools.sh):
 #     the critical / market / default pools, nginx's routing map and the market limits. [workers] is ignored: the
@@ -43,11 +44,19 @@ EOF
     sed -e "$ports" -e '/^user = /d' -e '/^group = /d' -e '/^\[global\]/d' -e '/^daemonize = /d' \
         -e "s#^error_log = .*#error_log = $SCALE_WORK/logs/php-fpm.log#" -e "s#^access.log = .*#access.log = $SCALE_WORK/logs/php-fpm-access.log#" \
         "$BACKEND/docker/php-fpm.conf"; } > "$FPM_DIR/php-fpm.conf"
-  # backend/docker/php.ini too (upload limits), as the image's conf.d/zz-rizqim.ini
-  PHP_INI_SCAN_DIR="$PHP_INI_SCAN_DIR:$BACKEND/docker" "$FPM_BIN" -t -y "$FPM_DIR/php-fpm.conf" -R 2> "$SCALE_WORK/logs/php-fpm-test.log" \
+  # backend/docker/php.ini too (upload limits, opcache), as the image's conf.d/zz-rizqim.ini; PROF=1|cpu adds the
+  # profiler (php/prof/front.php: per-request CPU, phases, providers, SQL into $PROF_LOG; summary: php/prof/report.php)
+  # FPM_KIT_INI=0: php-fpm without the kit's own opcache ini (php/zz-scale-opcache.ini), i.e. only the image's php.ini
+  local kit=$PHP_INI_SCAN_DIR; [ "${FPM_KIT_INI:-1}" = 0 ] && kit=""
+  # FPM_EXTRA_INI_DIR: one more scan dir after the image's php.ini (try a setting, e.g. JIT or preload, without editing it)
+  # docker/php.ini preloads docker/preload.php from the image path as www-data: here from the repo, as this user
+  export PHP_OPCACHE_PRELOAD=${PHP_OPCACHE_PRELOAD:-$BACKEND/docker/preload.php} PHP_OPCACHE_PRELOAD_USER=${PHP_OPCACHE_PRELOAD_USER:-$(id -un)}
+  local scan="$kit:$BACKEND/docker${FPM_EXTRA_INI_DIR:+:$FPM_EXTRA_INI_DIR}${PROF:+:$SC/php/prof}"
+  export PROF_LOG=${PROF_LOG:-$SCALE_WORK/logs/prof.jsonl}
+  PHP_INI_SCAN_DIR="$scan" "$FPM_BIN" -t -y "$FPM_DIR/php-fpm.conf" -R 2> "$SCALE_WORK/logs/php-fpm-test.log" \
     || { cat "$SCALE_WORK/logs/php-fpm-test.log" >&2; exit 1; }
   nginx -t -q -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf" || exit 1
-  PHP_INI_SCAN_DIR="$PHP_INI_SCAN_DIR:$BACKEND/docker" "$FPM_BIN" -D -y "$FPM_DIR/php-fpm.conf" -R
+  PHP_INI_SCAN_DIR="$scan" "$FPM_BIN" -D -y "$FPM_DIR/php-fpm.conf" -R
   nginx -p "$FPM_DIR" -c "$FPM_DIR/nginx.conf"
   echo "fpm pools: critical=$FPM_CRITICAL_CHILDREN market=$FPM_MARKET_CHILDREN default=$FPM_DEFAULT_CHILDREN;" \
     "market inflight=$NGINX_MARKET_MAX_INFLIGHT rate=${NGINX_MARKET_RATE}r/s burst=$NGINX_MARKET_BURST per client"
@@ -62,7 +71,7 @@ stop_fpm() {
 case "$1" in
 start)
   W=${2:-4}
-  mkdir -p "$SCALE_WORK/cache" && chmod 700 "$SCALE_WORK/cache" && (cd "$BACKEND" && php artisan config:cache -q && php artisan route:cache -q && php artisan event:cache -q)
+  mkdir -p "$SCALE_WORK/cache" && chmod 700 "$SCALE_WORK/cache" && (cd "$BACKEND" && php artisan config:cache -q && php artisan route:cache -q && if [ "${EVENT_CACHE:-1}" = 1 ]; then php artisan event:cache -q; else rm -f "$APP_EVENTS_CACHE"; fi)
   # The kit's own Redis on $REDIS_PORT (env.sh: SCALE_REDIS_PORT): flushed for a clean run, so never point it at a
   # Redis another run or service uses
   pgrep -f "redis-server 127.0.0.1:$REDIS_PORT( |\$)" >/dev/null || (cd "$SCALE_WORK/logs" && redis-server --port "$REDIS_PORT" --bind 127.0.0.1 --save '' --appendonly no --daemonize yes --logfile "$SCALE_WORK/logs/redis.log")

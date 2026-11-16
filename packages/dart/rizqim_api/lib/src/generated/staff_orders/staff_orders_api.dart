@@ -49,6 +49,8 @@ abstract class StaffOrdersApi {
   /// [perPage] - Page size, 1-100 (larger values are capped).
   ///
   /// [cursor] - `meta.next_cursor` of the previous page.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/staff/orders')
   Future<GetV1StaffOrdersResponse> staffOrderIndex({
     @Query('per_page') int? perPage = 30,
@@ -62,15 +64,19 @@ abstract class StaffOrdersApi {
     @Query('to') String? to,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// One order for staff (detail).
   ///
   /// Items with modifiers, weights and kitchen state, notes, every timestamp and the status history. 404 for an order.
   /// of another store or of a branch the caller does not work in.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/staff/orders/{uuid}')
   Future<GetV1StaffOrdersUuidResponse> staffOrderShow({
     @Path('uuid') required String uuid,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Change an order's status (staff).

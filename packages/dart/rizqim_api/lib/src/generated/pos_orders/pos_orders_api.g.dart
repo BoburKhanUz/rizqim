@@ -21,11 +21,15 @@ class _PosOrdersApi implements PosOrdersApi {
   final ParseErrorLogger? errorLogger;
 
   @override
-  Future<GetV1PosFloorResponse> posFloorShow({int? branchId}) async {
+  Future<GetV1PosFloorResponse> posFloorShow({
+    int? branchId,
+    String? ifNoneMatch,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{r'branch_id': branchId};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosFloorResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -53,6 +57,7 @@ class _PosOrdersApi implements PosOrdersApi {
     Scope2? scope,
     String? businessDate,
     int? branchId,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -61,7 +66,8 @@ class _PosOrdersApi implements PosOrdersApi {
       r'branch_id': branchId,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosOrdersResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -119,10 +125,13 @@ class _PosOrdersApi implements PosOrdersApi {
   @override
   Future<GetV1PosOrdersUuidResponse> posOrderShow({
     required String uuid,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosOrdersUuidResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

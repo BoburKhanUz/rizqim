@@ -22,7 +22,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
     Route::post('/approvals', [PosApprovalController::class, 'store'])->middleware(['throttle:pos-approvals', $idempotent('pos.approvals') . ',optional']);
 
     // Bills: making and splitting, printing ("NUSXA" on a copy), payments, receipts, closing
-    Route::get('/orders/{uuid}/bills', [PosBillController::class, 'index'])->whereUuid('uuid')->middleware('permission:orders.view');
+    Route::get('/orders/{uuid}/bills', [PosBillController::class, 'index'])->whereUuid('uuid')->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('order', 120)]);
     Route::post('/orders/{uuid}/bills', [PosBillController::class, 'store'])->whereUuid('uuid')->middleware(['permission:orders.manage,pos.take_payment', $idempotent('pos.bills.create')]);
     Route::post('/bills/{uuid}/print', [PosBillController::class, 'print'])->whereUuid('uuid')->middleware(['permission:orders.manage,pos.take_payment', $idempotent('pos.bills.print')]);
     // P6 stage A: the waiter app asks the till to print a bill again (pos.reprint_bill or a manager's approval token, checked in the service)

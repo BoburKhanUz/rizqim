@@ -36,11 +36,14 @@ abstract class OrdersApi {
   /// [perPage] - Only with `scope=history`: page size, 1-50 (larger values are capped at 50).
   ///
   /// [cursor] - Only with `scope=history`: `meta.next_cursor` of the previous page.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/orders')
   Future<dynamic> orderIndex({
     @Query('per_page') int? perPage = 20,
     @Query('scope') Scope? scope,
     @Query('cursor') String? cursor,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Place an order (checkout).

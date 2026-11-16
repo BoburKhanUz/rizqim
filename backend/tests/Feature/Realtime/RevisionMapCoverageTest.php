@@ -1,0 +1,143 @@
+<?php
+
+namespace Tests\Feature\Realtime;
+
+use App\Domain\Realtime\RevisionHooks;
+use App\Domain\Realtime\RevisionMap;
+use App\Domain\Realtime\RevisionPostgresConnection;
+use App\Domain\Realtime\RevisionQueryBuilder;
+use App\Models\Order;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use ReflectionClass;
+use Tests\TestCase;
+
+/**
+ * Wave M2 guard: a table cannot exist without a decision in RevisionMap (which change token its writes move), every
+ * Eloquent model's table is classified, every write goes through the hooked query builder, and no raw SQL write can
+ * slip past it. A failure here is fixed by classifying the table in app/Domain/Realtime/RevisionMap.php, never by
+ * loosening the test: a missing touch is a stale till or kitchen board.
+ */
+class RevisionMapCoverageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_every_table_of_the_schema_is_classified_and_no_entry_is_stale(): void
+    {
+        $tables = collect(Schema::getTables())->pluck('name')->all();
+
+        $missing = array_values(array_diff($tables, array_keys(RevisionMap::TABLES)));
+        $this->assertSame([], $missing, 'Tables without a RevisionMap rule (classify them: which token does a write move, or NONE with a reason): ' . implode(', ', $missing));
+
+        $stale = array_values(array_diff(array_keys(RevisionMap::TABLES), $tables));
+        $this->assertSame([], $stale, 'RevisionMap lists tables that do not exist: ' . implode(', ', $stale));
+    }
+
+    public function test_every_rule_names_real_columns_and_tracked_parents(): void
+    {
+        $hooks = app(RevisionHooks::class);
+        foreach (RevisionMap::TABLES as $table => $rules) {
+            $this->assertNotSame([], $rules, "{$table}: no rule");
+            foreach ($rules as $rule) {
+                $this->assertContains($rule[0], [RevisionMap::BRANCH, RevisionMap::STORE, RevisionMap::STORE_BRANCHES, RevisionMap::USER, RevisionMap::VIA, RevisionMap::ALL_STORES, RevisionMap::FEATURE_SCOPE, RevisionMap::NONE], "{$table}: unknown rule");
+                if ($rule[0] === RevisionMap::NONE) {
+                    $this->assertCount(1, $rules, "{$table}: NONE cannot be combined with other rules");
+                    $this->assertGreaterThan(3, strlen($rule[1]), "{$table}: NONE needs a reason");
+                }
+                if ($rule[0] === RevisionMap::VIA) {
+                    $this->assertTrue(RevisionMap::tracks($rule[2]), "{$table}: VIA parent {$rule[2]} must be tracked");
+                    $this->assertTrue(Schema::hasColumn($rule[2], 'id'), "{$table}: VIA parent {$rule[2]} has no id");
+                }
+            }
+            foreach ($hooks->columnsFor($table) ?? [] as $column) {
+                $this->assertTrue(Schema::hasColumn($table, $column), "{$table}: the rule column {$column} does not exist");
+            }
+        }
+
+        foreach (RevisionMap::QUIET_COLUMNS as $table => $columns) {
+            foreach ($columns as $column) {
+                $this->assertTrue(Schema::hasColumn($table, $column), "quiet column {$table}.{$column} does not exist");
+            }
+        }
+    }
+
+    public function test_a_table_with_a_branch_or_store_column_is_not_silently_untracked(): void
+    {
+        // A NONE table that carries a branch or store is one a screen of that branch could show: it must say why not
+        $reviewed = [
+            'alerts', 'audit_logs', 'device_pairing_codes', 'finance_adjustments', 'payout_requests', 'store_applications',
+            'store_crm_profiles', 'store_health_scores', 'store_notes', 'store_status_logs', 'store_tasks',
+            'store_topup_requests', 'subscription_dunning_events', 'menu_price_history',
+        ];
+        foreach (RevisionMap::TABLES as $table => $rules) {
+            if ($rules[0][0] !== RevisionMap::NONE) {
+                continue;
+            }
+            if (Schema::hasColumn($table, 'branch_id') || Schema::hasColumn($table, 'store_id')) {
+                $this->assertContains($table, $reviewed, "{$table} has a branch/store column but is NONE: add it to the reviewed list only after checking no polled or live screen shows it");
+            }
+        }
+    }
+
+    public function test_every_eloquent_model_table_is_classified(): void
+    {
+        $models = 0;
+        $root = app_path();
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $class = 'App\\' . str_replace(['/', '.php'], ['\\', ''], substr($file->getPathname(), strlen($root) + 1));
+            if (!class_exists($class)) {
+                continue;
+            }
+            $reflection = new ReflectionClass($class);
+            if ($reflection->isAbstract() || !$reflection->isSubclassOf(Model::class)) {
+                continue;
+            }
+            $models++;
+            /** @var Model $model */
+            $model = new $class;
+            $table = $model->getTable();
+            $this->assertArrayHasKey($table, RevisionMap::TABLES, "{$class} writes {$table}, which RevisionMap does not classify");
+        }
+
+        $this->assertGreaterThan(100, $models, 'the model scan found too few models');
+    }
+
+    public function test_every_query_goes_through_the_hooked_connection_and_builder(): void
+    {
+        $this->assertInstanceOf(RevisionPostgresConnection::class, DB::connection());
+        $this->assertInstanceOf(RevisionQueryBuilder::class, DB::table('orders'));
+        $this->assertInstanceOf(RevisionQueryBuilder::class, Order::query()->getQuery());
+        $this->assertInstanceOf(RevisionQueryBuilder::class, (new Order)->newQuery()->toBase());
+    }
+
+    public function test_no_raw_sql_write_bypasses_the_query_builder(): void
+    {
+        // Raw statements are not seen by RevisionQueryBuilder: a write must use the query builder (or Eloquent)
+        $allowed = ['Support/ConcurrentIndex.php']; // index DDL in migrations only
+        $offenders = [];
+        $root = app_path();
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $relative = substr($file->getPathname(), strlen($root) + 1);
+            if (in_array($relative, $allowed, true)) {
+                continue;
+            }
+            $source = (string) file_get_contents($file->getPathname());
+            if (preg_match('/DB::(insert|update|delete|unprepared|affectingStatement)\s*\(|->getPdo\(\)|DB::statement\s*\(\s*[\'"]\s*(insert|update|delete|merge|copy)/i', $source) === 1
+                || preg_match('/->(statement|affectingStatement|unprepared)\s*\(\s*[\'"]\s*(insert|update|delete|merge)/i', $source) === 1) {
+                $offenders[] = $relative;
+            }
+        }
+
+        $this->assertSame([], $offenders, 'Raw SQL writes bypass the change-revision hooks (use the query builder): ' . implode(', ', $offenders));
+    }
+}

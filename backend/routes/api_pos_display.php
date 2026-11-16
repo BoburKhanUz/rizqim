@@ -12,8 +12,8 @@ use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:device'])->prefix('pos/display')->group(function () {
-    Route::get('/state', [PosDisplayController::class, 'state'])->middleware('throttle:90,1');
-    Route::get('/queue', [PosDisplayController::class, 'queue'])->middleware('throttle:90,1');
+    Route::get('/state', [PosDisplayController::class, 'state'])->middleware(['throttle:90,1', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
+    Route::get('/queue', [PosDisplayController::class, 'queue'])->middleware(['throttle:90,1', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
     // The cart changes with every tap of the cashier: a debounced app stays well below this
     Route::post('/cart', [PosDisplayController::class, 'publish'])->middleware(['throttle:300,1', EnsureIdempotency::class . ':pos.display.cart,optional']);
 });

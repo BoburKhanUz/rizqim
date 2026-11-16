@@ -25,6 +25,7 @@ class _OrdersApi implements OrdersApi {
     int? perPage = 20,
     Scope? scope,
     String? cursor,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -33,7 +34,8 @@ class _OrdersApi implements OrdersApi {
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<dynamic>(
       Options(method: 'GET', headers: _headers, extra: _extra)

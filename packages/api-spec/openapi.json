@@ -36191,7 +36191,7 @@
         "/v1/catalog": {
             "get": {
                 "operationId": "catalog.index",
-                "description": "Without `store_id`: the global feed (up to 50 random active products of open stores near the location, the\ncategories, the promo banners and a highlighted product). With `store_id`: that store (branches, ratings) with\nits active products and their categories; 404 for an unknown store, 403 when the store is unavailable.\nWithout a location the user's default address is used.\n\nP1-21 (docs/MENU.md), additive: variant `price` is the channel's price (`base_price` the variant's own), with\n`unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and\n`modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with\n`price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.",
+                "description": "Without `store_id`: the global feed (up to 50 random active products of open stores near the location, the\ncategories, the promo banners and a highlighted product). With `store_id`: that store (branches, ratings) with\nits active products and their categories; 404 for an unknown store, 403 when the store is unavailable.\nWithout a location the user's default address is used.\n\nP1-21 (docs/MENU.md), additive: variant `price` is the channel's price (`base_price` the variant's own), with\n`unit` (piece|kg|l), `quantity_step` and `min_quantity`; products carry `batch_tracked`, `image_thumb_urls` and\n`modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with\n`price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.\n\nWave M2: the customer forms are answered from the marketplace read model (App\\Domain\\Marketplace\\MarketplaceBrowse,\ndocs/API.md \"Market o'qish modeli\"; the store carries `accepting_orders`); this method is its fallback and serves\nthe POS channels. Orders are always priced and checked against the live tables.",
                 "summary": "Menu: global feed or one store",
                 "tags": [
                     "Catalog"
@@ -36262,6 +36262,22 @@
                         }
                     },
                     {
+                        "name": "view",
+                        "in": "query",
+                        "description": "Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, needs_options, variant, store}) instead of full products; docs/API.md.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Wave M2, global feed with view=cards: how many cards (default 20, at most 50).",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
                         "name": "channel",
                         "in": "query",
                         "description": "P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).",
@@ -36273,6 +36289,14 @@
                                 "pos_hall",
                                 "pos_takeaway"
                             ]
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -36289,6 +36313,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -36296,7 +36331,7 @@
         "/v1/catalog/availability": {
             "get": {
                 "operationId": "menuAvailability.index",
-                "description": "What cannot be ordered right now on each active branch of the store (P1-21): `stopped` product/variant/modifier\nids (stop-list and branch switches, `stop_list` has reasons and `until`), `sold_out.variants` (batch stock:\n\"tugadi\") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public\nchannel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.",
+                "description": "What cannot be ordered right now on each active branch of the store (P1-21): `stopped` product/variant/modifier\nids (stop-list and branch switches, `stop_list` has reasons and `until`), `sold_out.variants` (batch stock:\n\"tugadi\") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public\nchannel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.\n\nWave M2: without `branch_id` (the Mini App) it comes from the read model's availability overlay, at most 15 s\nold (App\\Domain\\Marketplace\\MarketplaceBrowse); with a branch (tills, staff screens) from the tables.",
                 "summary": "Menu availability per branch",
                 "tags": [
                     "Catalog"
@@ -36317,6 +36352,14 @@
                         "description": "Only this branch.",
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -36614,6 +36657,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -39100,6 +39154,14 @@
                             "type": "integer",
                             "default": 1
                         }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -39212,6 +39274,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -39290,6 +39363,14 @@
                         "name": "cursor",
                         "in": "query",
                         "description": "Only with `scope=history`: `meta.next_cursor` of the previous page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
                         "schema": {
                             "type": "string"
                         }
@@ -39414,6 +39495,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -57031,6 +57123,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -57083,6 +57183,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -115964,6 +116075,16 @@
                 "tags": [
                     "POS: customer display"
                 ],
+                "parameters": [
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "",
@@ -116165,6 +116286,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": []
@@ -116177,6 +116309,16 @@
                 "summary": "The display's state",
                 "tags": [
                     "POS: customer display"
+                ],
+                "parameters": [
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -116465,6 +116607,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": []
@@ -116779,6 +116932,14 @@
                         "description": "The branch; defaults to the caller's or the terminal's branch.",
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -117211,6 +117372,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -117411,6 +117583,14 @@
                         "description": "The branch; default: the caller's (or their terminal's).",
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -118187,6 +118367,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -119433,6 +119624,14 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -120401,6 +120600,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -121257,6 +121467,14 @@
                         "description": "Include voided bills.",
                         "schema": {
                             "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -122631,6 +122849,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -150574,6 +150803,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -150770,6 +151007,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -163433,6 +163681,117 @@
                 }
             }
         },
+        "/v1/realtime": {
+            "get": {
+                "operationId": "realtime.status",
+                "description": "Public, no database. `live` false (Reverb off, the heartbeat stale or the broadcasts queue backed up): clients\npoll at `poll_seconds.fallback`; live: they listen and poll at `poll_seconds.live` as a safety net, and treat\n`silence_seconds` without any event or `realtime.heartbeat` on a channel as \"not live\". `reverb` is what a client\nconnects with (the public app key; null host = the API's own host); null when real-time is off. Read it on start\nand on every reconnect, not on every poll. Kept for 5 seconds.",
+                "summary": "Real-time status and connection settings",
+                "tags": [
+                    "Health"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "live": {
+                                                    "type": "boolean"
+                                                },
+                                                "heartbeat_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "silence_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "poll_seconds": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "live": {
+                                                            "type": "integer"
+                                                        },
+                                                        "fallback": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "live",
+                                                        "fallback"
+                                                    ]
+                                                },
+                                                "reverb": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "key": {
+                                                            "type": "string"
+                                                        },
+                                                        "host": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "port": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "scheme": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "key",
+                                                        "host",
+                                                        "port",
+                                                        "scheme"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "live",
+                                                "heartbeat_seconds",
+                                                "silence_seconds",
+                                                "poll_seconds",
+                                                "reverb"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/reports/export": {
             "post": {
                 "operationId": "order.exportReport",
@@ -163577,6 +163936,14 @@
                         "description": "Minutes (1-60): also list the orders cancelled or rejected that long ago at most, with canceled_at.",
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -164042,6 +164409,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -164149,6 +164527,14 @@
                         "name": "cursor",
                         "in": "query",
                         "description": "`meta.next_cursor` of the previous page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
                         "schema": {
                             "type": "string"
                         }
@@ -164651,6 +165037,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -164668,6 +165065,14 @@
                         "name": "uuid",
                         "in": "path",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
                         "schema": {
                             "type": "string"
                         }
@@ -165174,6 +165579,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -167347,12 +167763,28 @@
         "/v1/stores": {
             "get": {
                 "operationId": "store.index",
-                "description": "Active stores with a branch that delivers to the point (nearest first, `min_distance` in km), or with a branch\nin the region/district. Without parameters the user's default address is used. Cash is shown as disabled when\nthe customer may not pay cash.",
+                "description": "Active stores with a branch that delivers to the point (nearest first, `min_distance` in km), or with a branch\nin the region/district. Without parameters the user's default address is used. Cash is shown as disabled when\nthe customer may not pay cash.\n\nWave M2: answered from the marketplace read model (App\\Domain\\Marketplace\\MarketplaceBrowse, docs/API.md \"Market\n     * o'qish modeli\"): the same cards plus `accepting_orders` (open now, not order-locked, reachable). With `page` or\n`per_page` one page is answered, with `meta` {page, per_page, total, last_page}; without them every store, as\nbefore. `for=checkout` (the cart) reads the database, as before. This method is the read model's fallback.",
                 "summary": "Stores near the customer",
                 "tags": [
                     "Stores"
                 ],
                 "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Wave M2: the page (from 1); with it or `per_page` the answer is one page and carries `meta`.",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Wave M2: stores per page (default 20, at most 50).",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
                     {
                         "name": "lat",
                         "in": "query",
@@ -167384,6 +167816,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "name": "If-None-Match",
+                        "in": "header",
+                        "description": "Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -167414,6 +167854,17 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "304": {
+                        "description": "Not Modified: nothing the body depends on changed since the ETag sent in If-None-Match.",
+                        "headers": {
+                            "ETag": {
+                                "description": "The same ETag: the last body is still current.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }

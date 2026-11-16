@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\ConditionalGet;
 use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -379,6 +380,17 @@ class StaffOrderController extends Controller
                         ->where('order_items.kitchen_status', '!=', \App\Enums\KitchenItemStatus::VOID->value)))));
         // P6-34: an online pickup for later reaches the kitchen at its kitchen time (ScheduledPickup)
         $query->where(fn ($query) => $query->whereNull('orders.kitchen_fire_at')->orWhereNotNull('orders.kitchen_fired_at')->orWhere('orders.kitchen_fire_at', '<=', now()));
+
+        // Wave M2: a pickup for later appears on the board at its kitchen time with no write, so this answer's ETag
+        // stops validating then (ConditionalGet), not only after the route's max-age
+        $nextFire = $this->scope->query($user)
+            ->when($request->query('branch_id') !== null, fn ($q) => $q->where('orders.branch_id', RowId::parse($request->query('branch_id'))))
+            ->whereNull('orders.kitchen_fired_at')
+            ->where('orders.kitchen_fire_at', '>', now())
+            ->min('orders.kitchen_fire_at');
+        if ($nextFire !== null) {
+            ConditionalGet::validUntil($request, Carbon::parse($nextFire));
+        }
 
         $rows = $query->with(StaffOrderPresenter::RELATIONS)
             ->orderBy('orders.created_at')

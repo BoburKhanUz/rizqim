@@ -54,10 +54,14 @@ class _PosCustomerDisplayApi implements PosCustomerDisplayApi {
   }
 
   @override
-  Future<GetV1PosDisplayQueueResponse> posDisplayQueue() async {
+  Future<GetV1PosDisplayQueueResponse> posDisplayQueue({
+    String? ifNoneMatch,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosDisplayQueueResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -81,10 +85,14 @@ class _PosCustomerDisplayApi implements PosCustomerDisplayApi {
   }
 
   @override
-  Future<GetV1PosDisplayStateResponse> posDisplayState() async {
+  Future<GetV1PosDisplayStateResponse> posDisplayState({
+    String? ifNoneMatch,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1PosDisplayStateResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

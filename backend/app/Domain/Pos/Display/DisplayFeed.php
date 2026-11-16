@@ -41,6 +41,8 @@ class DisplayFeed
         $ttl = now()->addMinutes(self::TTL_MINUTES);
         Cache::put($key, $cart, $ttl);
         Cache::put(self::latestKey((int) $till->branch_id), (int) $till->id, $ttl);
+        // M2: the cart lives in the cache, not in a table the revision hooks see, so its branch token moves here
+        app(\App\Domain\Realtime\ChangeRevision::class)->touchBranch((int) $till->branch_id);
 
         event(new DisplayCartBroadcast((int) $till->branch_id, (int) $till->store_id, (string) $till->uuid, $seq, (string) $cart['state']));
 
