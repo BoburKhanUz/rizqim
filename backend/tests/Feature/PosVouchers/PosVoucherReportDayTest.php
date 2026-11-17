@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\PosVouchers;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use OpenSpout\Reader\XLSX\Reader;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
  * Wave M3: the owner's certificate report, its export and the list's status filter default to the BUSINESS day the
