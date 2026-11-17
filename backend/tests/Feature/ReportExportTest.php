@@ -124,4 +124,28 @@ class ReportExportTest extends TestCase
         $this->assertStringContainsString("Muvaffaqiyatli:* {$delivered->count()} ta", $sent);
         $this->assertStringContainsString('Bekor qilingan:* 150 ta', $sent);
     }
+
+    public function test_today_and_a_custom_period_are_the_stores_local_days(): void
+    {
+        $reports = app(\App\Services\Order\OrderReportService::class);
+        $at = function (string $local): Order {
+            $order = $this->makeOrder(OrderStatus::DELIVERED);
+            DB::table('orders')->where('id', $order->id)->update(['updated_at' => \Illuminate\Support\Carbon::parse($local, 'Asia/Tashkent')->utc()]);
+
+            return $order;
+        };
+        $late = $at('2026-11-17 23:30');   // 18:30 UTC
+        $night = $at('2026-11-18 00:30');  // 19:30 UTC the 17th
+        $morning = $at('2026-11-18 10:00');
+        $ids = fn (string $timeframe, ?string $from, ?string $to, string $now) => $reports
+            ->query($this->store->id, null, $timeframe, $from, $to, \Carbon\CarbonImmutable::parse($now, 'Asia/Tashkent'))
+            ->orderBy('id')->pluck('id')->all();
+
+        // 00:45 local (19:45 UTC, still the 17th in UTC): today is the 18th from local midnight, not the UTC 17th
+        $this->assertSame([$night->id, $morning->id], $ids('today', null, null, '2026-11-18 00:45'));
+        // 12:00 UTC: the same local day
+        $this->assertSame([$night->id, $morning->id], $ids('today', null, null, '2026-11-18 17:00'));
+        $this->assertSame([$late->id], $ids('custom', '2026-11-17', '2026-11-17', '2026-11-18 17:00'));
+        $this->assertSame([$night->id, $morning->id], $ids('custom', '2026-11-18', '2026-11-18', '2026-11-18 17:00'));
+    }
 }

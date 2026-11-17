@@ -317,6 +317,24 @@ class PosCorporateAccountTest extends TestCase
         $this->assertSame('account_not_found', $this->refused(fn () => $this->charge((string) $foreign->uuid, '1000', 'SAME-1'))->reason);
     }
 
+    public function test_the_statements_default_month_is_the_business_days_month(): void
+    {
+        $uuid = $this->company(['talon_mode' => 'none']);
+
+        // 02:00 on 1 December, Tashkent (21:00 UTC on the 30th): the meal is November's, so is the default month
+        $this->at('2026-11-30 21:00:00');
+        $this->charge($uuid, '40000');
+        $statement = $this->api($this->manager, 'GET', "/api/v1/pos/customer-accounts/{$uuid}/corporate-statement")->assertOk()->json('data');
+        $this->assertSame(['2026-11', '40000.00'], [$statement['month'], $statement['total']]);
+
+        // 05:00 on the 1st: December's business day, a new month
+        $this->at('2026-12-01 00:00:00');
+        $this->assertSame('2026-12', $this->api($this->manager, 'GET', "/api/v1/pos/customer-accounts/{$uuid}/corporate-statement")->assertOk()->json('data.month'));
+        // Midday on the 15th
+        $this->at('2026-12-15 07:00:00');
+        $this->assertSame('2026-12', $this->api($this->manager, 'GET', "/api/v1/pos/customer-accounts/{$uuid}/corporate-statement")->assertOk()->json('data.month'));
+    }
+
     public function test_the_monthly_statement_and_its_excel_file(): void
     {
         $uuid = $this->company(['talon_mode' => 'daily_limit']);

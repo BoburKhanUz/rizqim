@@ -196,7 +196,10 @@ class VouchersController extends ManagementController
             'to' => 'nullable|date_format:Y-m-d',
         ]);
         $branch = $this->branchFilter($request, $this->readPermission($request));
-        $today = now()->setTimezone(\App\Support\StoreTimezone::of($this->currentStore($request)))->toDateString();
+        // Wave M3: expired as the till sees it (VoucherState): the business day of the branch it was sold in, not the
+        // store's calendar date (00:00-05:00 is still the day before, the certificate still pays)
+        [$days, $storeToday] = \App\Domain\Pos\Vouchers\VoucherState::todays($this->storeId($request), $branch?->id);
+        $pastDue = \App\Domain\Pos\Vouchers\VoucherState::pastDue($days, $storeToday, $branch?->id);
 
         $query = Voucher::where('store_id', $this->storeId($request))
             ->when($branch !== null, fn (Builder $query) => $query->where('branch_id', $branch?->id))
@@ -206,9 +209,9 @@ class VouchersController extends ManagementController
         $status = VoucherStatus::tryFrom((string) $request->input('status'));
         if ($status === VoucherStatus::EXPIRED) {
             $query->where(fn (Builder $query) => $query->where('status', VoucherStatus::EXPIRED->value)
-                ->orWhere(fn (Builder $query) => $query->where('status', VoucherStatus::ACTIVE->value)->where('valid_until', '<', $today)));
+                ->orWhere(fn (Builder $query) => $query->where('status', VoucherStatus::ACTIVE->value)->whereNotNull('valid_until')->where($pastDue)));
         } elseif ($status === VoucherStatus::ACTIVE) {
-            $query->where('status', VoucherStatus::ACTIVE->value)->where(fn (Builder $query) => $query->whereNull('valid_until')->orWhere('valid_until', '>=', $today));
+            $query->where('status', VoucherStatus::ACTIVE->value)->where(fn (Builder $query) => $query->whereNull('valid_until')->orWhereNot($pastDue));
         } elseif ($status !== null) {
             $query->where('status', $status->value);
         }
@@ -262,8 +265,11 @@ class VouchersController extends ManagementController
             'from' => 'nullable|date_format:Y-m-d',
             'to' => 'nullable|date_format:Y-m-d',
         ]);
-        $today = $branch !== null ? \App\Domain\Pos\Shifts\BusinessDay::of($branch)
-            : now()->setTimezone(\App\Support\StoreTimezone::of($this->currentStore($request)))->toDateString();
+        // Wave M3: the entries are booked by business day (VoucherEntry.business_date), so is the default: the branch's,
+        // store-wide the earliest of the branches' (the report's `as_of`), not the store's calendar date, which runs
+        // ahead from local midnight to the day start and showed an empty "today" all night
+        [$days, $storeToday] = \App\Domain\Pos\Vouchers\VoucherState::todays($this->storeId($request), $branch?->id);
+        $today = $days !== [] ? min($days) : $storeToday;
         $from = (string) ($request->input('from') ?: $request->input('to') ?: $today);
         $to = (string) ($request->input('to') ?: max($from, $today));
         if ($to < $from) {
