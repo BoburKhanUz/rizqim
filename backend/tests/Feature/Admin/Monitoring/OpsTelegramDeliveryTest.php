@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin\Monitoring;
 
-use App\Jobs\SendTelegramRequest;
+use App\Services\Admin\Monitoring\QueuedOpsMessage;
 use App\Models\Alert;
 use App\Models\AlertRule;
 use App\Services\Admin\Monitoring\AlertEvaluator;
@@ -40,6 +40,8 @@ class OpsTelegramDeliveryTest extends TestCase
         config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => '-100777']);
         // No queue worker: whatever is queued is never run
         Queue::fake();
+        // One message per alert here (grouping has its own tests: NotifierRoundFourTest)
+        config(['monitoring.telegram.group_size' => 100]);
         $this->onlyRule(AlertKind::SCHEDULER_STALE);
         $this->app->bind(SchedulerStaleCheck::class, fn () => new class($this) extends SchedulerStaleCheck
         {
@@ -85,7 +87,7 @@ class OpsTelegramDeliveryTest extends TestCase
         $this->assertCount(1, $this->telegramTexts());
         $this->assertStringStartsWith('[KRITIK] Muammo 1', $this->telegramTexts()[0]);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.telegram.org/bot1:token/sendMessage' && $request['chat_id'] === '-100777');
-        Queue::assertNotPushed(SendTelegramRequest::class);
+        Queue::assertNotPushed(QueuedOpsMessage::class);
         $this->assertNotNull(Alert::query()->sole()->telegram_opened_at);
 
         // The resolve notice goes the same way
@@ -93,7 +95,7 @@ class OpsTelegramDeliveryTest extends TestCase
         $this->run_();
         $this->assertCount(2, $this->telegramTexts());
         $this->assertStringStartsWith('[HAL QILINDI] Muammo 1', $this->telegramTexts()[1]);
-        Queue::assertNotPushed(SendTelegramRequest::class);
+        Queue::assertNotPushed(QueuedOpsMessage::class);
     }
 
     public function test_an_unreachable_telegram_is_tried_once_per_breaker_window_and_the_rest_is_queued(): void
@@ -109,14 +111,14 @@ class OpsTelegramDeliveryTest extends TestCase
 
         $this->assertSame(1, $attempts, 'after the first failure the breaker skips Telegram');
         // Nothing is lost: every announcement is handed to the queue (sent once a worker runs again)
-        Queue::assertPushed(SendTelegramRequest::class, 4);
+        Queue::assertPushed(QueuedOpsMessage::class, 4);
         $this->assertSame(4, Alert::query()->whereNotNull('telegram_opened_at')->count());
 
         // Within the breaker window Telegram is not tried again
         $this->problems(5);
         $this->run_();
         $this->assertSame(1, $attempts);
-        Queue::assertPushed(SendTelegramRequest::class, 5);
+        Queue::assertPushed(QueuedOpsMessage::class, 5);
 
         // After it, the next message is tried at once again
         $this->travel((int) config('monitoring.telegram.breaker_seconds') + 1)->seconds();
@@ -142,7 +144,7 @@ class OpsTelegramDeliveryTest extends TestCase
 
         // 4 s + 4 s + 2 s left: the third request may wait only what is left, then the budget is spent
         $this->assertSame([5, 5, 2], array_map(fn ($t) => (int) ceil((float) $t), $timeouts));
-        Queue::assertPushed(SendTelegramRequest::class, 2);
+        Queue::assertPushed(QueuedOpsMessage::class, 2);
         $this->assertSame(5, Alert::query()->whereNotNull('telegram_opened_at')->count());
     }
 
@@ -155,7 +157,7 @@ class OpsTelegramDeliveryTest extends TestCase
 
         // A refusal is final (the queued job would not retry it either) and does not trip the breaker
         $this->assertCount(2, $this->telegramTexts());
-        Queue::assertNotPushed(SendTelegramRequest::class);
+        Queue::assertNotPushed(QueuedOpsMessage::class);
     }
 
     public function test_cooldown_and_hourly_limit_still_apply(): void

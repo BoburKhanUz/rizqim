@@ -10,6 +10,7 @@ use App\Services\Admin\Monitoring\AlertEvaluator;
 use App\Services\Admin\Monitoring\AlertFinding;
 use App\Services\Admin\Monitoring\AlertKind;
 use App\Services\Admin\Monitoring\AlertNotifier;
+use App\Services\Admin\Monitoring\DatabaseDownNotice;
 use App\Services\Admin\Monitoring\Checks\SchedulerStaleCheck;
 use App\Services\Admin\Monitoring\Checks\WalArchiveCheck;
 use App\Services\Admin\Monitoring\FailedJobs;
@@ -89,7 +90,7 @@ class NotifierDeliveryRulesTest extends TestCase
 
     public function test_a_critical_is_sent_even_after_the_warnings_used_the_hourly_limit_and_the_rest_get_a_digest(): void
     {
-        config(['monitoring.telegram.hourly_limit' => 20]);
+        config(['monitoring.telegram.hourly_limit' => 20, 'monitoring.telegram.group_size' => 100]);
         $warnings = array_map(fn ($i) => new AlertFinding("till{$i}", "Kassa {$i} oflayn", [], null, 'warning'), range(1, 25));
         self::$findings = [...$warnings, new AlertFinding('db', 'DISK 95% CRITICAL', [], null, 'critical')];
 
@@ -115,7 +116,7 @@ class NotifierDeliveryRulesTest extends TestCase
 
     public function test_criticals_have_their_own_cap_per_rule(): void
     {
-        config(['monitoring.telegram.critical_hourly_limit_per_rule' => 3]);
+        config(['monitoring.telegram.critical_hourly_limit_per_rule' => 3, 'monitoring.telegram.group_size' => 100]);
         self::$findings = array_map(fn ($i) => new AlertFinding("c{$i}", "Kritik {$i}", [], null, 'critical'), range(1, 5));
 
         $this->run_();
@@ -222,10 +223,12 @@ class NotifierDeliveryRulesTest extends TestCase
         File::put(storage_path('framework/monitoring-db-down.json'), json_encode(['since' => now()->subMinutes(20)->getTimestamp(), 'last_sent' => now()->subMinutes(5)->getTimestamp()]));
 
         (new EvaluateAlertsJob)->handle(app(AlertEvaluator::class));
+        $this->assertSame(0, $this->sentContaining("Ma'lumotlar bazasi yana javob bermoqda"), 'only once it has stayed up');
+        $this->travel(DatabaseDownNotice::UP_MINUTES)->minutes();
+        (new EvaluateAlertsJob)->handle(app(AlertEvaluator::class));
         (new EvaluateAlertsJob)->handle(app(AlertEvaluator::class));
 
         $this->assertSame(1, $this->sentContaining("Ma'lumotlar bazasi yana javob bermoqda"));
-        $this->assertFileDoesNotExist(storage_path('framework/monitoring-db-down.json'));
     }
 
     public function test_the_page_and_the_production_check_say_when_nobody_would_be_told(): void

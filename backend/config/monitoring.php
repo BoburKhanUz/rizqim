@@ -20,6 +20,8 @@ return [
         'hourly_limit' => (int) env('MONITORING_TELEGRAM_HOURLY_LIMIT', 20),
         // Criticals do not count against hourly_limit; this cap per rule and hour only stops a runaway loop
         'critical_hourly_limit_per_rule' => 10,
+        // More alerts than this of one rule in one run go out as one message (also their resolve notices)
+        'group_size' => 3,
         // M3: ops messages are sent at once by the process that raises them (the scheduler), not through the queue a
         // dead worker would hold them in. One request waits at most `timeout` seconds; one evaluation spends at most
         // `run_budget_seconds` on Telegram in all; after a failed request Telegram is skipped for `breaker_seconds`.
@@ -43,6 +45,10 @@ return [
     // The dead-man switch (healthchecks.io or alike): pinged after every successful alert evaluation. Unset = no call.
     'healthchecks_ping_url' => (string) env('HEALTHCHECKS_PING_URL', ''),
     'healthchecks_timeout' => 3,
+
+    // Where DatabaseDownNotice remembers a database outage (the first path that can be written; /dev/shm is memory,
+    // so a full disk does not stop it)
+    'db_down_state_paths' => [storage_path('framework/monitoring-db-down.json'), '/dev/shm/rizqim-monitoring-db-down.json'],
 
     'postgres' => [
         // PgBouncer's max_db_connections (docker-compose.yml): one client address holding this share is reported too

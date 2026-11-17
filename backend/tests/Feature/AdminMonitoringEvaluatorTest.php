@@ -418,7 +418,24 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
         $this->assertNotNull($event);
         $this->assertSame('* * * * *', $event->expression);
-        $this->assertTrue($event->withoutOverlapping);
+        // M3 RR-8: not the cache mutex (Redis down = the evaluator would never run); the job takes a file lock
+        $this->assertFalse($event->withoutOverlapping);
+    }
+
+    public function test_a_second_evaluation_while_one_runs_is_skipped_by_the_file_lock(): void
+    {
+        $this->onlyRule(AlertKind::SCHEDULER_STALE);
+        $lock = fopen(storage_path('framework/monitoring-evaluate.lock'), 'c');
+        flock($lock, LOCK_EX);
+        try {
+            EvaluateAlertsJob::dispatchSync();
+            $this->assertSame(0, Alert::count());
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        EvaluateAlertsJob::dispatchSync();
+        $this->assertSame(1, Alert::count());
     }
 
     // --- realtime ---------------------------------------------------------------------------------------------------
@@ -562,7 +579,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
     public function test_at_most_the_hourly_limit_goes_out_and_one_notice_says_the_rest_were_held_back(): void
     {
         $this->telegramOn();
-        config(['monitoring.telegram.hourly_limit' => 3]);
+        config(['monitoring.telegram.hourly_limit' => 3, 'monitoring.telegram.group_size' => 100]);
         $this->onlyRule(AlertKind::POS_DEVICE_OFFLINE, ['threshold' => 15]);
         $store = $this->makeStore('Ko\'p kassa');
         $this->hours($store, '00:00:00', '00:00:00');

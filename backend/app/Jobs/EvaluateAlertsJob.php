@@ -27,6 +27,27 @@ class EvaluateAlertsJob
 
     public function handle(AlertEvaluator $evaluator): void
     {
+        // Overlap protection without Redis (the scheduler's own mutex lives in the cache): a file lock; a run that
+        // cannot open the lock file still runs (two evaluations at once are harmless: alerts are unique per subject)
+        $lock = @fopen(storage_path('framework/monitoring-evaluate.lock'), 'c');
+        if ($lock !== false && !flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+
+            return;
+        }
+
+        try {
+            $this->evaluate($evaluator);
+        } finally {
+            if ($lock !== false) {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
+        }
+    }
+
+    private function evaluate(AlertEvaluator $evaluator): void
+    {
         $notice = app(DatabaseDownNotice::class);
         try {
             $evaluator->run();

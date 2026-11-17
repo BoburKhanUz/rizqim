@@ -8,8 +8,8 @@ use App\Services\Admin\Monitoring\RedisStats;
 
 /**
  * M3: Redis uses at least `threshold` % (warning) or `threshold_secondary` % (critical) of its maxmemory. Without a
- * maxmemory there is no cap to reach (nothing reported); Redis not used or not readable: unknown (its own outage
- * is the health report's "fail").
+ * maxmemory there is no cap to reach (nothing reported). Redis used but not answering a PING: critical `down` (one
+ * clear message: the queue and scheduler checks then say "unknown" instead of blaming the worker). Not used: nothing.
  */
 class RedisMemoryCheck implements AlertCheck
 {
@@ -21,6 +21,11 @@ class RedisMemoryCheck implements AlertCheck
     {
         $memory = $this->redis->memory();
         if ($memory === null) {
+            // Used but not answering is an outage, not "unknown": the queue, the cache and real-time stop (RR-8)
+            if ($this->redis->used() && !$this->redis->reachable()) {
+                return [new AlertFinding('down', "Redis javob bermayapti: navbat (Telegram xabarlari, fon vazifalari), kesh va real vaqt ishlamayapti", [], null, 'critical')];
+            }
+
             return null;
         }
         if ($memory['percent'] === null || $memory['percent'] < $rule->threshold) {

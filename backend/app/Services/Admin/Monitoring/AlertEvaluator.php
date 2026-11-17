@@ -63,8 +63,10 @@ class AlertEvaluator
             Log::warning('Monitoring: the checks took too long, rules skipped this run', ['cap_seconds' => $cap, 'skipped' => $skipped]);
         }
 
-        // Every unresolved alert not announced yet (new ones, raised ones, ones a limit or an outage held back)
+        // This run's resolve notices (grouped per rule), then every unresolved alert not announced yet (new ones, raised
+        // ones, ones a limit or an outage held back)
         try {
+            $this->notifier->flushResolved();
             $this->notifier->announcePending();
         } catch (Throwable $e) {
             Log::error('Monitoring: alert announcements failed', ['exception' => $e::class, 'message' => $e->getMessage()]);
@@ -80,7 +82,10 @@ class AlertEvaluator
      */
     public function resolveByMember(Alert $alert, User $member, ?string $note): bool
     {
-        return $this->resolve($alert, 'manual', $member, $note);
+        $resolved = $this->resolve($alert, 'manual', $member, $note);
+        $this->notifier->flushResolved();
+
+        return $resolved;
     }
 
     /**
@@ -146,8 +151,9 @@ class AlertEvaluator
                 ]);
                 $result['updated'] += $touched;
                 if ($touched === 1 && $escalated) {
-                    // Announced again as what it is now (AlertNotifier::announcePending, at the end of the run)
-                    Alert::query()->whereKey($existing->getKey())->update(['telegram_opened_at' => null]);
+                    // Announced again as what it is now (AlertNotifier::announcePending, at the end of the run); its first
+                    // announcement stays, so its resolve notice still goes out
+                    $this->notifier->markEscalated($existing);
                 }
 
                 continue;

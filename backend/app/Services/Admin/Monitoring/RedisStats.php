@@ -50,7 +50,24 @@ class RedisStats
         ];
     }
 
-    private function used(): bool
+    /**
+     * Whether Redis answers a PING (only meaningful when used()).
+     */
+    public function reachable(): bool
+    {
+        try {
+            Redis::connection('default')->ping();
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Monitoring: Redis does not answer', ['exception' => $e::class]);
+
+            return false;
+        }
+    }
+
+    /** Whether this deployment uses Redis (cache, queue, sessions or the revision counters). */
+    public function used(): bool
     {
         $store = (string) config('cache.default');
 

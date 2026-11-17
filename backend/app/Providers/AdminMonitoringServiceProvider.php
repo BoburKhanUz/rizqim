@@ -24,7 +24,9 @@ class AdminMonitoringServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
-            $schedule->job(new EvaluateAlertsJob)->everyMinute()->withoutOverlapping(5)->name('monitoring-evaluate-alerts');
+            // No withoutOverlapping: its mutex is in the cache (Redis), and with Redis down the evaluator would never run;
+            // EvaluateAlertsJob takes a file lock instead (RR-8)
+            $schedule->job(new EvaluateAlertsJob)->everyMinute()->name('monitoring-evaluate-alerts');
             // A closure, so each minute's job carries the minute it was dispatched in (how long it waited is shown). A
             // block body: a returned PendingDispatch would be kept by the event and dispatched only when it is freed
             $schedule->call(function (): void {

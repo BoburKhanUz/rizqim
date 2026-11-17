@@ -7,58 +7,166 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * M3 (review R3-4): the alert engine keeps its rules and alerts in Postgres, so when the database does not answer it
- * cannot tell anyone. EvaluateAlertsJob then calls down(): one Telegram message straight to the ops chat (config only,
- * no database, no Redis, no queue), at most one per `REPEAT_MINUTES`, remembered in a file under storage/ (flock); and
- * up() once the database answers again: one "tiklandi" message, the file removed. Without a bot token or chat it logs
- * an error instead (once per `REPEAT_MINUTES`).
+ * M3 (review R3-4, RR-3, RR-6): the alert engine keeps its rules and alerts in Postgres, so when the database does not
+ * answer it cannot tell anyone. EvaluateAlertsJob then calls down(); once the database answers again, up().
+ *
+ * - One Telegram message straight to the ops chat (config only: no database, no Redis, no queue), at most one per
+ *   REPEAT_MINUTES, also across recoveries: a flapping database (connection limit, crash loop) is one message, and
+ *   the recovery is announced only after the database has stayed up UP_MINUTES, with the number of flaps.
+ * - The decision is recorded FIRST (written and flushed) and the message is sent only if that worked, so a full disk
+ *   (the usual reason Postgres stops) can never turn this into a message every minute. The state goes to the first
+ *   writable path of monitoring.db_down_state_paths (storage/, then /dev/shm, which is memory); when none can be
+ *   written, a message goes out only in the first minute of a clock hour and says so.
+ * - Nothing here throws: a failure is logged.
  */
 class DatabaseDownNotice
 {
     public const REPEAT_MINUTES = 15;
 
+    public const UP_MINUTES = 3;
+
     public function __construct(
         private readonly TelegramBotApi $api,
     ) {}
 
-    public static function path(): string
+    /** @return list<string> */
+    public static function paths(): array
     {
-        return storage_path('framework/monitoring-db-down.json');
+        $paths = config('monitoring.db_down_state_paths');
+
+        return is_array($paths) && $paths !== [] ? array_values(array_map('strval', $paths)) : [storage_path('framework/monitoring-db-down.json'), '/dev/shm/rizqim-monitoring-db-down.json'];
     }
 
     public function down(Throwable $cause): void
     {
-        $this->locked(function (array $state) use ($cause): array {
+        try {
             $now = now()->getTimestamp();
+            $state = $this->read() ?? [];
             $since = (int) ($state['since'] ?? $now);
+            $flaps = (int) ($state['flaps'] ?? 0) + (isset($state['up_since']) ? 1 : 0);
             $last = isset($state['last_sent']) ? (int) $state['last_sent'] : null;
-            if ($last !== null && $now - $last < self::REPEAT_MINUTES * 60) {
-                return ['since' => $since, 'last_sent' => $last];
+            $due = $last === null || $now - $last >= self::REPEAT_MINUTES * 60;
+            $next = ['since' => $since, 'flaps' => $flaps, 'last_sent' => $due ? $now : $last];
+
+            if (!$this->write($next)) {
+                // Nowhere to remember it: at most once an hour, on the clock
+                if ((int) now()->format('i') === 0) {
+                    $this->send($this->downText($since, $flaps) . "\n(Holatni diskka yozib bo'lmadi: bu xabar soatda bir marta takrorlanadi.)");
+                }
+
+                return;
             }
-
-            $minutes = intdiv($now - $since, 60);
-            Log::critical('Monitoring: the database does not answer', ['exception' => $cause::class, 'since_minutes' => $minutes]);
-            $this->send("[KRITIK] Ma'lumotlar bazasi javob bermayapti" . ($minutes > 0 ? " ({$minutes} daqiqadan beri)" : '')
-                . ": ilova va ogohlantirishlar ishlamayapti, kassalar oflayn rejimda.\nNima qilish kerak: serverda docker compose ps postgres va docker compose logs --tail=50 postgres; disk to'lmaganini tekshiring (df -h).");
-
-            return ['since' => $since, 'last_sent' => $now];
-        });
+            if ($due) {
+                Log::critical('Monitoring: the database does not answer', ['exception' => $cause::class, 'since_minutes' => intdiv($now - $since, 60), 'flaps' => $flaps]);
+                $this->send($this->downText($since, $flaps));
+            }
+        } catch (Throwable $e) {
+            Log::error('Monitoring: the database-down notice failed', ['exception' => $e::class]);
+        }
     }
 
     public function up(): void
     {
-        if (!is_file(self::path())) {
-            return;
-        }
-        $this->locked(function (array $state): ?array {
-            if ($state === []) {
-                return null;
+        try {
+            $state = $this->read();
+            if ($state === null || !isset($state['since'])) {
+                return;
             }
-            $minutes = intdiv(now()->getTimestamp() - (int) ($state['since'] ?? now()->getTimestamp()), 60);
-            $this->send("[HAL QILINDI] Ma'lumotlar bazasi yana javob bermoqda (taxminan {$minutes} daqiqa ishlamadi).");
+            $now = now()->getTimestamp();
+            $upSince = (int) ($state['up_since'] ?? $now);
+            if ($now - $upSince < self::UP_MINUTES * 60) {
+                $this->write(['up_since' => $upSince] + $state);
 
-            return null;
-        });
+                return;
+            }
+
+            // Stayed up: announced once; last_sent is kept so a new outage soon after obeys the same limit
+            if (!$this->write(['last_sent' => $state['last_sent'] ?? null])) {
+                return;
+            }
+            $minutes = intdiv($upSince - (int) $state['since'], 60);
+            $flaps = (int) ($state['flaps'] ?? 0);
+            $this->send("[HAL QILINDI] Ma'lumotlar bazasi yana javob bermoqda (taxminan {$minutes} daqiqa ishlamadi"
+                . ($flaps > 0 ? ", shu vaqtda {$flaps} marta uzilib-ulandi" : '') . ').');
+        } catch (Throwable $e) {
+            Log::error('Monitoring: the database-up notice failed', ['exception' => $e::class]);
+        }
+    }
+
+    private function downText(int $since, int $flaps): string
+    {
+        $minutes = intdiv(now()->getTimestamp() - $since, 60);
+
+        return "[KRITIK] Ma'lumotlar bazasi javob bermayapti" . ($minutes > 0 ? " ({$minutes} daqiqadan beri" . ($flaps > 0 ? ", {$flaps} marta uzilib-ulandi" : '') . ')' : '')
+            . ": ilova va ogohlantirishlar ishlamayapti, kassalar oflayn rejimda.\nNima qilish kerak: serverda docker compose ps postgres va docker compose logs --tail=50 postgres; disk to'lmaganini tekshiring (df -h).";
+    }
+
+    /**
+     * The state of the first path that holds one.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function read(): ?array
+    {
+        foreach (self::paths() as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
+            $raw = @file_get_contents($path);
+            $state = is_string($raw) ? json_decode($raw, true) : null;
+            if (is_array($state)) {
+                return $state;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Writes the state to the first path that takes it whole (and removes it from the others, so read() never finds
+     * an older copy first). False when no path could be written.
+     *
+     * @param  array<string, mixed>  $state
+     */
+    private function write(array $state): bool
+    {
+        $body = (string) json_encode($state);
+        $written = false;
+        foreach (self::paths() as $path) {
+            if ($written) {
+                if (is_file($path)) {
+                    @unlink($path);
+                }
+
+                continue;
+            }
+            $written = $this->writeFile($path, $body);
+        }
+
+        return $written;
+    }
+
+    private function writeFile(string $path, string $body): bool
+    {
+        try {
+            $handle = @fopen($path, 'c+');
+            if ($handle === false) {
+                return false;
+            }
+            try {
+                if (!@flock($handle, LOCK_EX)) {
+                    return false;
+                }
+                $ok = @ftruncate($handle, 0) && @rewind($handle) && @fwrite($handle, $body) === strlen($body) && @fflush($handle);
+                @flock($handle, LOCK_UN);
+
+                return $ok && is_file($path);
+            } finally {
+                @fclose($handle);
+            }
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function send(string $text): void
@@ -80,44 +188,6 @@ class DatabaseDownNotice
             $this->api->call('sendMessage', ['chat_id' => $chat, 'text' => $text], null, (float) config('monitoring.telegram.timeout', 5));
         } catch (Throwable $e) {
             Log::error('Monitoring: the database-down message could not be sent', ['exception' => $e::class]);
-        }
-    }
-
-    /**
-     * @param  callable(array<string, mixed>): (array<string, mixed>|null)  $change  null removes the file
-     */
-    private function locked(callable $change): void
-    {
-        $path = self::path();
-        $handle = @fopen($path, 'c+');
-        if ($handle === false) {
-            Log::error('Monitoring: the database-down state file cannot be opened', ['path' => $path]);
-            $change([]);
-
-            return;
-        }
-
-        try {
-            flock($handle, LOCK_EX);
-            $state = json_decode((string) stream_get_contents($handle), true);
-            $next = $change(is_array($state) ? $state : []);
-            if ($next === null) {
-                ftruncate($handle, 0);
-                flock($handle, LOCK_UN);
-                fclose($handle);
-                @unlink($path);
-
-                return;
-            }
-            ftruncate($handle, 0);
-            rewind($handle);
-            fwrite($handle, (string) json_encode($next));
-            fflush($handle);
-            flock($handle, LOCK_UN);
-        } finally {
-            if (is_resource($handle)) {
-                fclose($handle);
-            }
         }
     }
 }

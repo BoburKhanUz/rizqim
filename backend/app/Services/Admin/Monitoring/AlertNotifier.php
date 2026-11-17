@@ -6,7 +6,6 @@ use App\Models\Alert;
 use App\Models\AlertRule;
 use App\Models\MonitoringMarker;
 use App\Services\Telegram\TelegramBotApi;
-use App\Services\Telegram\TelegramMessenger;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -17,28 +16,31 @@ use Throwable;
  * P4-15: tells the ops Telegram group (TELEGRAM_OPS_CHAT_ID, else the superadmin chat) when an alert opens and when it
  * is resolved. Plain text, numbers and names only.
  *
- * Delivery rules (M3, review round 3):
- * - An unresolved alert whose announcement has not gone out (`telegram_opened_at` NULL) is offered again on EVERY
- *   evaluation (announcePending) until it is sent or resolved: a limit, a cooldown, a cache outage or an unreachable
- *   Telegram only delays it. Criticals are offered first, then the oldest.
- * - Warnings: at most `hourly_limit` (20) announcements per rolling hour in all. Criticals never count against that
- *   limit; they have their own cap of `critical_hourly_limit_per_rule` (10) per rule and hour, only to stop a runaway
- *   loop. What a limit holds back is not silenced: ONE digest per hour ("Yana N ta ogohlantirish ochiq: ...") and, as
- *   the hour frees room, the held alerts that are still open go out one by one.
+ * Delivery rules (M3, review rounds 3 and 4):
+ * - An unresolved alert whose announcement has not gone out (`telegram_opened_at` NULL, or raised to critical: an
+ *   `ops:escalated:<id>` marker) is offered again on EVERY evaluation (announcePending) until it is sent or resolved: a
+ *   limit, a cooldown, a cache outage or an unreachable Telegram only delays it. Criticals first.
+ * - Grouping: when one rule has more than GROUP_SIZE (3) alerts to announce in a run, they go out as ONE message
+ *   ("<rule>: 100 ta: A; B; C va yana 97 ta"); the same for resolve notices ("<rule>: 30 tasi tiklandi"). Between
+ *   rules the turns are round-robin, so one noisy rule (offline tills after an internet outage) never starves another.
+ * - Warnings: at most `hourly_limit` (20) messages per rolling hour (a grouped message counts once). Criticals never
+ *   count against it; they have their own cap of `critical_hourly_limit_per_rule` (10) messages per rule and hour, only
+ *   to stop a runaway loop. What a limit holds back gets ONE digest per hour ("Yana N ta ogohlantirish ochiq: ...")
+ *   and goes out as the hour frees room.
  * - Cooldown (`cooldown_minutes`, 15): an alert is held while another alert of the same rule and subject was announced
- *   within the cooldown and its resolve notice did NOT go out. A problem that comes back after the group read
- *   "[HAL QILINDI]" is announced again at once (the last word must not be "resolved").
- * - A resolve notice is sent for every announced alert, never limited. An alert that grows critical (a warning that
- *   became critical) is announced again (the evaluator clears its `telegram_opened_at`).
- * - Limits and cooldowns are counted from the alerts table, not the cache: a cache/Redis failure cannot lose a
- *   message. The cache is used only for the Telegram breaker below and fails open (logged once per process).
- * - Sent AT ONCE by the calling process (the scheduler's evaluator), not through the queue: a dead queue worker is one
- *   of the things the alerts are about. Each request waits at most `timeout` (5 s); the run's Telegram budget
- *   (`run_budget_seconds`, 10 s) starts at the first message, not before the checks; after a connection failure or
- *   a Telegram outage (5xx/429) Telegram is skipped for `breaker_seconds`. A message not sent at once is handed to the
- *   queue (TelegramMessenger) and counts as announced. A refusal (unknown chat, blocked bot) is final.
- * So at most 20 warning messages + 10 per rule of criticals + resolve notices + 1 digest per hour; never suppressed:
- * the first announcement of a critical (within its cap), resolve notices, a reopen after a resolve notice.
+ *   within the cooldown and its resolve notice did NOT go out. A reopen after "[HAL QILINDI]" is announced at once.
+ * - A resolve notice goes out for every announced alert (also one raised to critical but held by the cap), never
+ *   limited, grouped per rule.
+ * - Limits, cooldown, digest time and queued messages are kept in the database (alerts, monitoring_markers), not the
+ *   cache; the cache only holds the Telegram breaker and fails open (logged once per process).
+ * - Sent AT ONCE by the calling process (the scheduler), not through the queue: each request waits at most `timeout`
+ *   (5 s); the run's Telegram budget (`run_budget_seconds`, 10 s) starts at its first message; after a connection
+ *   failure or a 5xx/429 Telegram is skipped for `breaker_seconds`. Otherwise the message is pushed to the queue
+ *   (QueuedOpsMessage) and counts as announced only if the push succeeded; if the worker has not sent it within
+ *   QUEUED_RESEND_MINUTES (10) it is sent directly. A refusal (unknown chat, blocked bot) is final.
+ * At most per hour: 20 warning messages + 10 critical messages per rule + one resolve message per rule and run (one per
+ * alert when 3 or fewer resolve together) + 1 digest + direct resends of queued messages. Never suppressed: the first
+ * announcement of a critical (within its cap), resolve notices, a reopen after a resolve notice.
  */
 class AlertNotifier
 {
@@ -49,12 +51,24 @@ class AlertNotifier
     /** monitoring_markers key: when the last digest went out (in the database, like the limits). */
     public const DIGEST_MARKER = 'telegram_digest';
 
+    /** monitoring_markers key prefixes: an alert raised to critical to announce again; a message waiting in the queue. */
+    public const ESCALATED_PREFIX = 'ops:escalated:';
+
+    public const QUEUED_PREFIX = 'ops:queued:';
+
+    /** Default of monitoring.telegram.group_size: more alerts than this of one rule in a run are one message. */
+    public const GROUP_SIZE = 3;
+
+    public const QUEUED_RESEND_MINUTES = 10;
+
+    /** @var array<int, list<array{alert: Alert, by: string|null}>> resolve notices of this run, per rule */
+    private array $resolvedBuffer = [];
+
     private ?Carbon $deadline = null;
 
     private static bool $cacheFailureLogged = false;
 
     public function __construct(
-        private readonly TelegramMessenger $telegram,
         private readonly TelegramBotApi $api,
     ) {}
 
@@ -87,15 +101,20 @@ class AlertNotifier
 
     /**
      * Offers every unresolved alert whose announcement has not gone out, under the rules above. Returns how many
-     * were announced.
+     * alerts were announced.
      */
     public function announcePending(): int
     {
+        $this->resendStaleQueued();
+
+        $escalated = $this->markedIds(self::ESCALATED_PREFIX);
         $rules = AlertRule::query()->where('enabled', true)->where('telegram', true)->pluck('id');
-        $pending = Alert::query()->unresolved()->whereNull('telegram_opened_at')->whereIn('alert_rule_id', $rules)
+        $pending = Alert::query()->unresolved()->whereIn('alert_rule_id', $rules)
+            ->where(fn ($q) => $q->whereNull('telegram_opened_at')->when($escalated !== [], fn ($q) => $q->orWhereIn('id', $escalated)))
             ->orderByRaw("CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END")
             ->orderBy('first_seen_at')->orderBy('id')
-            ->get();
+            ->get()
+            ->reject(fn (Alert $alert) => $this->coolingDown($alert));
         if ($pending->isEmpty()) {
             return 0;
         }
@@ -107,44 +126,112 @@ class AlertNotifier
             return 0;
         }
 
-        $hourAgo = now()->subHour();
-        $warningsSent = Alert::query()->where('telegram_opened_at', '>=', $hourAgo)->where('severity', '<>', 'critical')->count();
-        $criticalsSent = Alert::query()->where('telegram_opened_at', '>=', $hourAgo)->where('severity', 'critical')
-            ->selectRaw('alert_rule_id, count(*) AS n')->groupBy('alert_rule_id')->pluck('n', 'alert_rule_id')->map(fn ($n) => (int) $n)->all();
+        // Messages of the last hour (a grouped message counts once): timestamps kept in monitoring_markers
+        $log = $this->sentLog();
+        $warningsSent = count($log['w']);
+        $criticalsSent = array_map('count', $log['c']);
         $warningLimit = max(1, (int) config('monitoring.telegram.hourly_limit', 20));
         $criticalLimit = max(1, (int) config('monitoring.telegram.critical_hourly_limit_per_rule', 10));
 
-        $sent = 0;
+        $announced = 0;
         $held = [];
-        foreach ($pending as $alert) {
-            if ($this->coolingDown($alert)) {
-                continue;
-            }
-            if ($alert->severity === 'critical') {
-                if (($criticalsSent[$alert->alert_rule_id] ?? 0) >= $criticalLimit) {
-                    $held[] = $alert;
-
-                    continue;
+        foreach (['critical', 'other'] as $class) {
+            $ofClass = $pending->filter(fn (Alert $a) => ($a->severity === 'critical') === ($class === 'critical'));
+            // One turn per rule at a time: a grouped message for a rule with many, else its oldest alert
+            $queues = $ofClass->groupBy('alert_rule_id')->map(fn ($alerts) => $alerts->values()->all())->all();
+            while ($queues !== []) {
+                foreach (array_keys($queues) as $ruleId) {
+                    $batch = count($queues[$ruleId]) > $this->groupSize() ? $queues[$ruleId] : [array_shift($queues[$ruleId])];
+                    if (count($batch) > 1) {
+                        $queues[$ruleId] = [];
+                    }
+                    $room = $class === 'critical'
+                        ? ($criticalsSent[$ruleId] ?? 0) < $criticalLimit
+                        : $warningsSent < $warningLimit;
+                    if (!$room) {
+                        array_push($held, ...$batch);
+                    } elseif ($this->announce($batch, $chatId)) {
+                        $announced += count($batch);
+                        if ($class === 'critical') {
+                            $criticalsSent[$ruleId] = ($criticalsSent[$ruleId] ?? 0) + 1;
+                            $log['c'][$ruleId][] = now()->getTimestamp();
+                        } else {
+                            $warningsSent++;
+                            $log['w'][] = now()->getTimestamp();
+                        }
+                    }
+                    if ($queues[$ruleId] === []) {
+                        unset($queues[$ruleId]);
+                    }
                 }
-                $criticalsSent[$alert->alert_rule_id] = ($criticalsSent[$alert->alert_rule_id] ?? 0) + 1;
-            } else {
-                if ($warningsSent >= $warningLimit) {
-                    $held[] = $alert;
-
-                    continue;
-                }
-                $warningsSent++;
             }
-
-            $this->announce($alert, $chatId);
-            $sent++;
         }
 
+        $this->saveSentLog($log);
         if ($held !== []) {
             $this->digest($held, $chatId);
         }
 
-        return $sent;
+        return $announced;
+    }
+
+    /** monitoring_markers key: timestamps of the last hour's announcement messages (warnings, criticals per rule). */
+    public const SENT_LOG_MARKER = 'telegram_sent_log';
+
+    /**
+     * @return array{w: list<int>, c: array<int, list<int>>}
+     */
+    private function sentLog(): array
+    {
+        $since = now()->subHour()->getTimestamp();
+        $meta = (array) (MonitoringMarker::query()->find(self::SENT_LOG_MARKER)->meta ?? []);
+        $recent = fn ($list) => array_values(array_filter(array_map('intval', (array) $list), fn ($t) => $t >= $since));
+        $critical = [];
+        foreach ((array) ($meta['c'] ?? []) as $rule => $list) {
+            $critical[(int) $rule] = $recent($list);
+        }
+
+        return ['w' => $recent($meta['w'] ?? []), 'c' => $critical];
+    }
+
+    /**
+     * @param  array{w: list<int>, c: array<int, list<int>>}  $log
+     */
+    private function saveSentLog(array $log): void
+    {
+        MonitoringMarker::query()->updateOrCreate(['key' => self::SENT_LOG_MARKER], ['recorded_at' => now(), 'meta' => $log]);
+    }
+
+    /**
+     * Ids of alerts that carry a marker with this prefix.
+     *
+     * @return list<int>
+     */
+    private function markedIds(string $prefix): array
+    {
+        return MonitoringMarker::query()->where('key', 'like', $prefix . '%')->pluck('key')
+            ->map(fn ($key) => (int) substr((string) $key, strlen($prefix)))->filter()->values()->all();
+    }
+
+    /** The evaluator raised this alert to critical: announce it again (its first announcement stays, for the resolve). */
+    public function markEscalated(Alert $alert): void
+    {
+        MonitoringMarker::query()->updateOrCreate(['key' => self::ESCALATED_PREFIX . $alert->getKey()], ['recorded_at' => now(), 'meta' => null]);
+    }
+
+    /**
+     * Queued messages the worker has not sent within QUEUED_RESEND_MINUTES: sent directly now (removed on success).
+     */
+    private function resendStaleQueued(): void
+    {
+        $stale = MonitoringMarker::query()->where('key', 'like', self::QUEUED_PREFIX . '%')
+            ->where('recorded_at', '<', now()->subMinutes(self::QUEUED_RESEND_MINUTES))->orderBy('recorded_at')->limit(10)->get();
+        foreach ($stale as $marker) {
+            $meta = (array) $marker->meta;
+            if (!isset($meta['chat_id'], $meta['text']) || $this->direct((string) $meta['chat_id'], (string) $meta['text']) !== false) {
+                $marker->delete();
+            }
+        }
     }
 
     /**
@@ -156,9 +243,8 @@ class AlertNotifier
         if (!$rule->telegram || $chatId === null) {
             return false;
         }
-        $this->announce($alert, $chatId);
 
-        return true;
+        return $this->announce([$alert], $chatId);
     }
 
     public function resolved(Alert $alert, ?string $by = null): bool
@@ -174,25 +260,89 @@ class AlertNotifier
             return false;
         }
 
-        $minutes = max(0, (int) floor($alert->first_seen_at->diffInMinutes($alert->resolved_at ?? now(), true)));
-        $this->send($chatId, implode("\n", array_filter([
-            '[HAL QILINDI] ' . $alert->title,
-            "Davomiyligi: {$minutes} daqiqa",
-            $by !== null ? "Hal qildi: {$by}" : 'Muammo o\'z-o\'zidan tugadi',
-            $this->link(),
-        ])));
         $alert->forceFill(['telegram_resolved_at' => now()])->syncOriginal();
+        MonitoringMarker::query()->whereKey(self::ESCALATED_PREFIX . $alert->getKey())->delete();
+        // Sent by flushResolved() (grouped per rule when many resolve together)
+        $this->resolvedBuffer[(int) $alert->alert_rule_id][] = ['alert' => $alert, 'by' => $by];
 
         return true;
     }
 
+    /**
+     * Sends this run's resolve notices: one per alert, or one per rule when more than GROUP_SIZE resolved together.
+     */
+    public function flushResolved(): void
+    {
+        $chatId = $this->chatId();
+        $buffer = $this->resolvedBuffer;
+        $this->resolvedBuffer = [];
+        if ($chatId === null) {
+            return;
+        }
+
+        foreach ($buffer as $entries) {
+            if (count($entries) > $this->groupSize()) {
+                $titles = array_map(fn ($e) => mb_substr($e['alert']->title, 0, 80), array_slice($entries, 0, self::GROUP_SIZE));
+                $label = AlertKind::from($entries[0]['alert']->kind)->label();
+                $this->send($chatId, "[HAL QILINDI] {$label}: " . count($entries) . ' tasi tiklandi: ' . implode('; ', $titles)
+                    . (count($entries) > self::GROUP_SIZE ? ' va yana ' . (count($entries) - self::GROUP_SIZE) . ' ta' : '') . "\n" . $this->link());
+
+                continue;
+            }
+            foreach ($entries as ['alert' => $alert, 'by' => $by]) {
+                $minutes = max(0, (int) floor($alert->first_seen_at->diffInMinutes($alert->resolved_at ?? now(), true)));
+                $this->send($chatId, implode("\n", array_filter([
+                    '[HAL QILINDI] ' . $alert->title,
+                    "Davomiyligi: {$minutes} daqiqa",
+                    $by !== null ? "Hal qildi: {$by}" : 'Muammo o\'z-o\'zidan tugadi',
+                    $this->link(),
+                ])));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------------------------------------------------
 
-    private function announce(Alert $alert, string $chatId): void
+    /**
+     * One message for the batch (one alert, or a rule's group); the alerts count as announced only when the message
+     * was sent or handed to the queue.
+     *
+     * @param  list<Alert>  $batch
+     */
+    private function announce(array $batch, string $chatId): bool
     {
-        $this->send($chatId, $this->openText($alert));
-        Alert::query()->whereKey($alert->getKey())->update(['telegram_opened_at' => now()]);
-        $alert->forceFill(['telegram_opened_at' => now()])->syncOriginal();
+        $text = count($batch) === 1 ? $this->openText($batch[0]) : $this->groupText($batch);
+        if (!$this->send($chatId, $text)) {
+            return false;
+        }
+        $at = now();
+        $ids = array_map(fn (Alert $a) => $a->getKey(), $batch);
+        Alert::query()->whereKey($ids)->whereNull('telegram_opened_at')->update(['telegram_opened_at' => $at]);
+        MonitoringMarker::query()->whereIn('key', array_map(fn ($id) => self::ESCALATED_PREFIX . $id, $ids))->delete();
+        foreach ($batch as $alert) {
+            if ($alert->telegram_opened_at === null) {
+                $alert->forceFill(['telegram_opened_at' => $at])->syncOriginal();
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<Alert>  $batch  alerts of one rule
+     */
+    private function groupText(array $batch): string
+    {
+        $kind = AlertKind::from($batch[0]->kind);
+        $critical = collect($batch)->contains(fn (Alert $a) => $a->severity === 'critical');
+        $titles = array_map(fn (Alert $a) => mb_substr($a->title, 0, 80), array_slice($batch, 0, self::GROUP_SIZE));
+
+        return implode("\n", [
+            '[' . $this->severityLabel($critical ? 'critical' : 'warning') . '] ' . $kind->label() . ': ' . count($batch) . ' ta: ' . implode('; ', $titles)
+                . (count($batch) > self::GROUP_SIZE ? ' va yana ' . (count($batch) - self::GROUP_SIZE) . ' ta' : ''),
+            'Nima qilish kerak: ' . $kind->action(),
+            $this->link(),
+        ]);
     }
 
     /**
@@ -229,6 +379,11 @@ class AlertNotifier
             . ". Boshqaruv markazida ko'ring: " . $this->link() . "\nChegara bo'shagach, hali ochiq turganlari alohida yuboriladi.");
     }
 
+    private function groupSize(): int
+    {
+        return max(1, (int) config('monitoring.telegram.group_size', self::GROUP_SIZE));
+    }
+
     private function noChat(int $pending): void
     {
         if (!$this->cacheAdd(self::NO_CHAT_KEY, 3600)) {
@@ -251,54 +406,82 @@ class AlertNotifier
     }
 
     /**
-     * At once when Telegram is reachable and the run's budget allows, else through the queue.
+     * At once when Telegram is reachable and the run's budget allows, else through the queue. False only when the
+     * message was neither sent nor queued (it is then offered again next run).
      */
-    private function send(string $chatId, string $text): void
+    private function send(string $chatId, string $text): bool
     {
         $this->deadline ??= now()->addMilliseconds((int) round(1000 * max(1, (float) config('monitoring.telegram.run_budget_seconds', 10))));
         $left = (float) now()->diffInMilliseconds($this->deadline, false) / 1000;
         $timeout = min(max(1, (float) config('monitoring.telegram.timeout', 5)), $left);
 
-        if (!$this->api->isConfigured() || $timeout < 0.5 || $this->breakerOpen()) {
-            $this->queue($chatId, $text);
-
-            return;
+        if (!$this->api->isConfigured()) {
+            return true; // nothing configured to send with: like before, counted as told (the page says it is off)
+        }
+        if ($timeout < 0.5 || $this->breakerOpen()) {
+            return $this->queue($chatId, $text);
         }
 
+        return $this->direct($chatId, $text, $timeout) ?? $this->queue($chatId, $text);
+    }
+
+    /**
+     * One direct request: true sent, false refused for good (logged), null not reachable (try the queue).
+     */
+    private function direct(string $chatId, string $text, ?float $timeout = null): ?bool
+    {
+        if ($this->breakerOpen()) {
+            return null;
+        }
         try {
-            $response = $this->api->call('sendMessage', ['chat_id' => $chatId, 'text' => $text], null, $timeout);
+            $response = $this->api->call('sendMessage', ['chat_id' => $chatId, 'text' => $text], null, $timeout ?? (float) config('monitoring.telegram.timeout', 5));
         } catch (ConnectionException $e) {
             $this->trip($this->api->redact($e->getMessage()));
-            $this->queue($chatId, $text);
 
-            return;
+            return null;
         } catch (Throwable $e) {
             Log::warning('Monitoring: Telegram alert could not be sent at once', ['exception' => $e::class]);
-            $this->queue($chatId, $text);
 
-            return;
+            return null;
         }
 
         if ($response->successful()) {
-            return;
+            return true;
         }
         if ($this->api->isRetryable($response)) {
             $this->trip('HTTP ' . $response->status());
-            $this->queue($chatId, $text);
 
-            return;
+            return null;
         }
 
-        // Unknown chat, blocked bot, bad text: the queue would not retry it either
+        // Unknown chat, blocked bot, bad text: the queue would not retry it either; final
         Log::warning('Monitoring: Telegram refused an alert message', ['chat_id' => $chatId, 'status' => $response->status(), 'error' => mb_substr($response->body(), 0, 300)]);
+
+        return true;
     }
 
-    private function queue(string $chatId, string $text): void
+    /** Pushes the message to the queue with its resend marker; false when the push failed. */
+    private function queue(string $chatId, string $text): bool
     {
+        $key = self::QUEUED_PREFIX . (string) \Illuminate\Support\Str::uuid();
         try {
-            $this->telegram->sendMessage($chatId, $text);
+            MonitoringMarker::query()->create(['key' => $key, 'recorded_at' => now(), 'meta' => ['chat_id' => $chatId, 'text' => $text]]);
+        } catch (Throwable $e) {
+            Log::warning('Monitoring: queued alert message marker could not be written', ['exception' => $e::class]);
+        }
+        try {
+            \Illuminate\Support\Facades\Bus::dispatch(new QueuedOpsMessage($chatId, $text, $key));
+
+            return true;
         } catch (Throwable $e) {
             Log::error('Monitoring: alert message could not be queued either', ['exception' => $e::class]);
+            try {
+                MonitoringMarker::query()->whereKey($key)->delete();
+            } catch (Throwable) {
+                // nothing more to do
+            }
+
+            return false;
         }
     }
 

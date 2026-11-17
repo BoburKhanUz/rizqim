@@ -16,7 +16,7 @@ class QueueWorkerStaleCheck implements AlertCheck
 {
     public function findings(AlertRule $rule): ?array
     {
-        if (!HealthReport::schedulerIsFresh()) {
+        if (!\App\Services\Admin\Monitoring\CacheProbe::readable() || !HealthReport::schedulerIsFresh()) {
             return null;
         }
 
