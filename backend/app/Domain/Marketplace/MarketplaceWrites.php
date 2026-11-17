@@ -10,7 +10,9 @@ namespace App\Domain\Marketplace;
  * - directory: stores and branches. An UPDATE that only sets columns no store card shows (balances, counters of
  *   other screens, timestamps) does not touch it: the ledger writes stores.debt_balance on every settled order, and
  *   rebuilding every area on each one would defeat the cache. A card's `is_order_locked` (which the debt decides)
- *   therefore follows within `ttl.area` (60 s); checkout reads the debt live.
+ *   follows the store's own revision instead (StoreDirectory::snapshot re-reads a store whose token moved; the debt
+ *   lock flipping moves it, RevisionMap); the raw balances on a card follow within `ttl.area` (120 s); checkout
+ *   reads the debt live.
  * - global: categories, promos, payment_providers, settings (rare writes by the RIZQIM team).
  */
 final class MarketplaceWrites

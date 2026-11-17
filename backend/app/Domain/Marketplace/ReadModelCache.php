@@ -31,7 +31,7 @@ final class ReadModelCache
     private const DOWN_BACKOFF_SECONDS = 5;
 
     /** Bump when the shape of a document changes (a deploy's config:cache does the same by itself) */
-    private const SCHEMA = 'm2.1';
+    private const SCHEMA = 'm2.2';
 
     private float $downUntil = 0.0;
 
@@ -78,6 +78,73 @@ final class ReadModelCache
         }
 
         return self::decode($blob);
+    }
+
+    /**
+     * Overwrite a document in place with a corrected copy (a few entries re-read), keeping its age: it is still
+     * refreshed when its fresh time runs out and is gone when its stale time does, as if it had not been patched.
+     */
+    public function replace(string $family, string $version, string $kind, mixed $value): void
+    {
+        $store = $this->store();
+        if ($store === null) {
+            return;
+        }
+
+        $key = $family.':'.$this->deploy().':'.$version;
+        try {
+            $created = $store->get('illuminate:cache:flexible:created:'.$key);
+            $left = is_numeric($created) ? (int) $created + $this->ttl($kind)[1] - now()->getTimestamp() : 0;
+            if ($left > 0) {
+                $store->put($key, self::encode($value), $left);
+            }
+        } catch (Throwable $e) {
+            $this->markDown($e);
+        }
+    }
+
+    /**
+     * remember(), then: when $current says the document is out of date, rebuild it once (one builder under a lock;
+     * the others wait for it and take its copy when that one is current) and store it as a new document.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $build
+     * @param  Closure(T): bool  $current
+     * @return T
+     */
+    public function rememberCurrent(string $family, string $version, string $kind, Closure $build, Closure $current): mixed
+    {
+        $value = $this->remember($family, $version, $kind, $build);
+        if ($current($value)) {
+            return $value;
+        }
+
+        $store = $this->store();
+        if ($store === null) {
+            return $build();
+        }
+
+        $key = $family.':'.$this->deploy().':'.$version;
+        $built = null;
+        try {
+            $blob = $this->buildLocked($store, $key, function () use ($build, &$built) {
+                $built = $build();
+
+                return self::encode($built);
+            }, fn (string $existing) => $current(self::decode($existing)));
+            if ($built === null) {
+                return self::decode($blob); // another request rebuilt it meanwhile
+            }
+            $ttl = $this->ttl($kind);
+            $store->putMany([$key => $blob, 'illuminate:cache:flexible:created:'.$key => now()->getTimestamp()], $ttl[1]);
+        } catch (Throwable $e) {
+            $this->markDown($e);
+
+            return $built ?? $build();
+        }
+
+        return $built;
     }
 
     /**
@@ -149,8 +216,9 @@ final class ReadModelCache
 
     /**
      * @param  Closure(): string  $build
+     * @param  (Closure(string): bool)|null  $usable  whether a copy found under the key may be returned (default: any)
      */
-    private function buildLocked(Repository $store, string $key, Closure $build): string
+    private function buildLocked(Repository $store, string $key, Closure $build, ?Closure $usable = null): string
     {
         $locks = $store->getStore();
         if (!$locks instanceof LockProvider) {
@@ -160,11 +228,11 @@ final class ReadModelCache
         try {
             return $locks->lock('mkt:lock:'.$key, $this->lockSeconds())->block(
                 max(0, (int) config('marketplace.lock_wait_seconds', 3)),
-                function () use ($store, $key, $build) {
+                function () use ($store, $key, $build, $usable) {
                     // Someone else may have built it while this request waited for the lock
                     $existing = $store->get($key);
 
-                    return is_string($existing) ? $existing : $build();
+                    return is_string($existing) && ($usable === null || $usable($existing)) ? $existing : $build();
                 },
             );
         } catch (LockTimeoutException) {

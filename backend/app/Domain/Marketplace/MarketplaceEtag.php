@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
  *
  * - GET /catalog?store_id=: the store's revision (menu, stop-list, store card, reviews; categories and payment switches
  *   touch every store) and the customer's (default address, cash rule). Read before the documents.
- * - GET /stores, GET /catalog (feed): the revisions of the stores shown and the customer's. Which stores an area has
+ * - GET /stores, GET /catalog (feed): the revisions of the stores shown, as the documents recorded them (read before
+ *   the data they cover, never after: review M2 R1-4), and the customer's. Which stores an area has
  *   (a new store, a moved branch) is not a store revision of the answer, so these ETags live AREA_MAX_AGE seconds at
  *   most; an answer showing more than MAX_STORES stores gets no ETag (the old full list of a large area).
  * - The clock (opening hours, a stop-list entry's `until`, the daily menu) is bounded by the max ages.
@@ -41,21 +42,33 @@ final class MarketplaceEtag
     }
 
     /**
-     * @param  list<int>  $storeIds
+     * The customer's scope (default address, cash rule): declare it before reading them.
      */
-    public static function forStores(Request $request, array $storeIds, ?User $user): void
+    public static function forUser(Request $request, ?User $user): void
+    {
+        if (self::enabled() && $user !== null) {
+            ConditionalGet::depends($request, 'user', (int) $user->getKey());
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $tokens  store id => the store revision the shown data was read under (read before
+     *                                      it; '' when unknown: the answer gets no ETag)
+     */
+    public static function forStores(Request $request, array $tokens, ?User $user): void
     {
         if (!self::enabled()) {
             return;
         }
-        $storeIds = array_values(array_unique(array_filter($storeIds, fn (int $id) => $id > 0)));
-        if (count($storeIds) > self::MAX_STORES) {
+        $tokens = array_filter($tokens, fn ($token, $id) => (int) $id > 0, ARRAY_FILTER_USE_BOTH);
+        if (count($tokens) > self::MAX_STORES || in_array('', $tokens, true)) {
             ConditionalGet::skip($request);
 
             return;
         }
-        foreach ($storeIds as $storeId) {
-            ConditionalGet::depends($request, 'store', $storeId);
+        $storeIds = array_keys($tokens);
+        foreach ($tokens as $storeId => $token) {
+            ConditionalGet::dependsAt($request, 'store', (int) $storeId, $token);
         }
         if ($user !== null) {
             ConditionalGet::depends($request, 'user', (int) $user->getKey());

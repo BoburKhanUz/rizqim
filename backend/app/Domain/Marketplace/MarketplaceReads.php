@@ -52,8 +52,11 @@ final class MarketplaceReads
      */
     public function stores(Request $request, ?User $user): array
     {
+        MarketplaceEtag::forUser($request, $user); // before the default address and the cash rule are read
         $area = $this->areaOf($request, $user);
-        $entries = $this->directory->stores($area);
+        // R1-4: the entries with the store revisions they were read under (before their rows): the ETag names those
+        $snapshot = $this->directory->snapshot($area);
+        $entries = $this->directory->stores($area, $snapshot);
         $cashBanned = StoreCards::cashBanned($user);
 
         $paged = $request->has('page') || $request->has('per_page');
@@ -68,7 +71,11 @@ final class MarketplaceReads
             $meta = ['page' => $page, 'per_page' => $perPage, 'total' => $total, 'last_page' => max(1, (int) ceil($total / $perPage))];
         }
 
-        MarketplaceEtag::forStores($request, array_map(fn (array $entry) => $entry['id'], $entries), $user);
+        $shown = [];
+        foreach ($entries as $entry) {
+            $shown[$entry['id']] = $snapshot['tokens'][$entry['id']] ?? '';
+        }
+        MarketplaceEtag::forStores($request, $shown, $user);
 
         $data = [];
         foreach ($entries as $entry) {
@@ -89,6 +96,7 @@ final class MarketplaceReads
      */
     public function feed(Request $request, ?User $user, OrderChannel $channel): array
     {
+        MarketplaceEtag::forUser($request, $user);
         $area = $this->areaOf($request, $user);
         $category = $request->query('category_id');
         $categoryId = is_string($category) && $category !== '' && ctype_digit($category) ? (RowId::parse($category) ?? 0) : ($category ? 0 : null);
@@ -98,8 +106,10 @@ final class MarketplaceReads
             ? min((int) config('marketplace.feed_limit', 50), max(1, (int) $request->query('limit', '20')))
             : (int) config('marketplace.feed_limit', 50);
 
-        $products = $categoryId === 0 ? [] : $this->feed->products($area, $categoryId, $channel, $limit, $cards);
-        MarketplaceEtag::forStores($request, array_map(fn (array $product) => (int) $product['store_id'], $products), $user);
+        $feed = $categoryId === 0 ? ['products' => [], 'tokens' => []] : $this->feed->products($area, $categoryId, $channel, $limit, $cards);
+        $products = $feed['products'];
+        // R1-4: the revisions the pool was built under (read before it), not the ones current after the read
+        MarketplaceEtag::forStores($request, $feed['tokens'], $user);
         if ($cards) {
             $products = array_map(fn (array $product) => CatalogFeed::card($product), $products);
         }

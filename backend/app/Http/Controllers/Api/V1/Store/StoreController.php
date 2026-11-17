@@ -98,6 +98,10 @@ class StoreController extends Controller
             }
         }
 
+        // A deterministic order (heap order changes with every update): id, after the distance when there is one; the
+        // read model (App\Domain\Marketplace\StoreDirectory) answers in the same order
+        $query->orderBy('id');
+
         $stores = $query->get();
 
         $user = $request->user('sanctum') ?: $request->user();

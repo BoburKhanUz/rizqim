@@ -58,6 +58,18 @@ class RevisionMapCoverageTest extends TestCase
             }
         }
 
+        // Narrow writes (M2 review R3-1): real columns, tracked tables, never a rule column (a write that moves a row to
+        // another branch or store must apply the rules), and the inputs the decision reads exist
+        foreach (RevisionMap::NARROW_COLUMNS as $table => $columns) {
+            $this->assertTrue(RevisionMap::tracks($table), "narrow table {$table} is not tracked");
+            $this->assertArrayHasKey($table, RevisionMap::NARROW_INPUTS, "narrow table {$table} has no inputs");
+            $this->assertSame('id', RevisionMap::NARROW_INPUTS[$table][0], "{$table}: the narrow inputs start with id");
+            foreach (array_merge($columns, RevisionMap::NARROW_INPUTS[$table]) as $column) {
+                $this->assertTrue(Schema::hasColumn($table, $column), "narrow column {$table}.{$column} does not exist");
+            }
+            $this->assertSame([], array_intersect($columns, $hooks->columnsFor($table) ?? []), "{$table}: a rule column cannot be narrow");
+        }
+
         foreach (RevisionMap::QUIET_COLUMNS as $table => $columns) {
             foreach ($columns as $column) {
                 $this->assertTrue(Schema::hasColumn($table, $column), "quiet column {$table}.{$column} does not exist");
@@ -72,6 +84,9 @@ class RevisionMapCoverageTest extends TestCase
             'alerts', 'audit_logs', 'device_pairing_codes', 'finance_adjustments', 'payout_requests', 'store_applications',
             'store_crm_profiles', 'store_health_scores', 'store_notes', 'store_status_logs', 'store_tasks',
             'store_topup_requests', 'subscription_dunning_events', 'menu_price_history',
+            // M2 review R3-1: ledger rows, one per settled order; only the owner finance pages (read live, not
+            // revision-gated) show them, and the debt lock they lead to is decided on the stores row (NARROW_COLUMNS)
+            'store_transactions', 'store_wallet_transactions',
         ];
         foreach (RevisionMap::TABLES as $table => $rules) {
             if ($rules[0][0] !== RevisionMap::NONE) {

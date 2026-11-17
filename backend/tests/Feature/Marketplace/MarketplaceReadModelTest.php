@@ -57,6 +57,9 @@ class MarketplaceReadModelTest extends TestCase
     {
         $branch = Branch::where('store_id', $this->north->id)->firstOrFail();
         $branch->forceFill(['region_id' => null, 'district_id' => null])->save();
+        // Review M2 R1-3: an updated row moves to the end of the heap (as earlier tests' writes do in a full run); the
+        // old list without location must still come in id order, the read model's order
+        Store::query()->whereKey($this->near->id)->update(['description' => 'yangilangan']);
 
         foreach (['/api/v1/stores?lat=41.3120&lng=69.2450', '/api/v1/stores?lat=41.3490&lng=69.2990', '/api/v1/stores?lat=40.0&lng=60.0', '/api/v1/stores'] as $uri) {
             $this->withReadModel(false);

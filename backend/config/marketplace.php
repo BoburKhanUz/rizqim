@@ -26,14 +26,15 @@ return [
     // store with a branch that may reach some point of it; the exact radius check runs per request.
     'cell_degrees' => (float) env('MARKETPLACE_CELL_DEGREES', 0.05),
 
-    // [fresh, stale] seconds. A document is rebuilt at once when its revision changes (a hook after commit); the time
-    // limits only bound how long a change that no hook saw can stay on screen. Inside "fresh" a document is served as
-    // is; between fresh and stale it is served once more and rebuilt after the response (one request rebuilds, under
-    // a lock); after "stale" it is gone.
+    // [fresh, stale] seconds. A document is rebuilt at once when its revision changes (a hook after commit), and the
+    // area and feed documents also when the revision of one of their stores moves (each entry records the store token
+    // it was read under; review M2 R1-1). The time limits only bound how long a change that moved no revision can stay
+    // on screen, and "stale" is that bound: inside "fresh" a document is served as is; between fresh and stale it is
+    // served once more and rebuilt after the response (one request rebuilds, under a lock); after "stale" it is gone.
     'ttl' => [
-        'area' => [60, 600],      // store cards of an area (GET /stores, the feed's store filter)
+        'area' => [60, 120],      // store cards of an area (GET /stores, the feed's store filter)
         'menu' => [300, 3600],    // one store's menu on one channel, and its store card with branches and reviews
-        'feed' => [60, 300],      // the product pool of an area (GET /catalog without store_id)
+        'feed' => [60, 120],      // the product pool of an area (GET /catalog without store_id)
         'global' => [60, 600],    // categories and promo banners
         'availability' => [5, 15], // stop-list, sold out, batches (GET /catalog?store_id, /catalog/availability)
     ],

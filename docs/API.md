@@ -232,12 +232,20 @@ sxemasi o'zgarmagan; `If-None-Match` yubormagan klient avvalgidek har safar `200
   Boshqa foydalanuvchi, boshqa filtr yoki eski deploy bilan doim `200`.
 - Autentifikatsiya, rate limit, ruxsat va modul tekshiruvi `304` dan oldin ham ishlaydi: bekor qilingan token `401`,
   olib qo'yilgan ruxsat `403` oladi, `304` emas. `304` rate limitda oddiy so'rov kabi bitta hisoblanadi.
-- `ETag` filial / do'kon / mijozning o'zgarish tokeniga (`ChangeRevision`) bog'langan: shu doiradagi har qanday yozuv
-  tokenni almashtiradi, keyingi so'rov `200`. Vaqt bilan o'zgaradigan maydonlar uchun `ETag` ning yashash muddati bor
+- `ETag` filial / do'kon / mijozning o'zgarish tokeniga (`ChangeRevision`) bog'langan: shu doiradagi ekran ko'rsatadigan
+  har qanday yozuv tokenni almashtiradi, keyingi so'rov `200`. Oddiy sotuv faqat sotgan filialni (va mijozni) o'zgartiradi:
+  boshqa filiallar o'zgarmaydi, do'kon tokeni (menyu) faqat qoldiq yoki qozon 20 va undan kam bo'lganda (tugash ham) yoki
+  qarz qulfi almashganda o'zgaradi ([OPERATIONS.md](OPERATIONS.md), 6-bo'lim). Vaqt bilan o'zgaradigan maydonlar uchun `ETag` ning yashash muddati bor
   (pastdagi jadval): undan keyin `200`.
-- Zaif `W/"..."` (nginx gzip) va bir nechta tegli `If-None-Match` qabul qilinadi.
+- Zaif `W/"..."` (nginx gzip) qabul qilinadi; `If-None-Match` dagi faqat **birinchi ikki** teg ko'riladi (klient bittasini
+  yuborsin), 1 500 baytdan uzun teg e'tiborsiz. `ETag` klient uchun shaffof emas (ichini o'qimang): uning ikki imzosi bor,
+  birinchisi (so'rov, aktor, muddat va doiralar nomi) Redis'ga murojaatdan oldin tekshiriladi, shuning uchun soxta yoki
+  boshqa so'rovning tegi Redis'ga yetmaydi va hech qanday kalit yaratmaydi; mavjud bo'lmagan token "o'zgargan" degani.
 - Bitta doirali javob (masalan filial) `X-Revision: <token>` va `X-Revision-Scope: branch:12` (`store:N`, `user:N`) ham beradi:
   bu token real-time hodisalarining `rev` maydoni bilan bir xil. Do'kon bo'ylab ro'yxatda (bir nechta filial) bu sarlavhalar yo'q.
+  Sarlavha faqat shu doirani kuzatishga haqli aktorga beriladi: filial tokeni o'sha filial qurilmasiga va do'kon
+  xodimiga, do'kon tokeni o'sha do'kon xodimi/qurilmasiga, `user:N` faqat N ning o'ziga. Mijoz hech qachon do'kon tokenini
+  olmaydi (`/catalog/availability`, `/catalog?store_id`, `/stores`, lenta: `ETag` bor, `X-Revision` yo'q).
 - Boshqa domendagi klient (partner web) uchun `ETag`, `X-Revision`, `X-Revision-Scope` CORS `Access-Control-Expose-Headers`
   da ochiq (`Content-Disposition`, `Retry-After` bilan birga); preflight (`OPTIONS`) javobi brauzerda 2 soat saqlanadi
   (`Access-Control-Max-Age: 7200`), har polldan oldin qayta so'ralmaydi.
@@ -4626,8 +4634,18 @@ o'zgaradigan narsalar: ish soati, stop-list `until`, bugungi menyu). Do'kon toke
 filial, sharh, kategoriya, to'lov tizimi) darhol `200`. 60 tadan ko'p do'kon ko'rsatgan javob (`/stores` sahifasiz
 katta hudud) `ETag` siz.
 
-**Eskirish (eng ko'pi).** Menyu, narx, do'kon kartasi, filiallar: keyingi so'rovda (commit'dan keyin token
-o'zgaradi); hook ko'rmagan yozuv bo'lsa 5 daqiqa. Mavjudlik (stop-list, tugadi, partiya): darhol, soat bilan
-o'zgarganlari 15 s. Hudud ro'yxati (`/stores`, lenta qaysi do'konlardan): do'kon/filial yozuvi bilan darhol;
-`is_order_locked` (faqat qarz o'zgarsa) 60 s. Lenta mahsulotlar puli 60 s. Kategoriyalar, bannerlar: darhol
-(yozuvda), banner jadvali har so'rovda tekshiriladi.
+**Eskirish (eng ko'pi).** "Darhol" = commit'dan keyingi birinchi so'rovda (do'kon tokeni o'zgaradi, eski `ETag` `200`
+oladi); qolgan vaqt klientning so'rash oralig'i.
+- Do'kon menyusi (`/catalog?store_id`): narx, variant, kanal narxi, taom holati, do'kon kartasi, filiallar — darhol;
+  hech qanday token o'zgartirmagan yozuv bo'lsa 1 soat (`ttl.menu`).
+- Lenta kartasi (`/catalog` `view=cards` va eski lenta): narx, kanal narxi, variant, o'chirilgan/yashirilgan taom — darhol
+  (pul har o'qishda undagi do'konlarning tokenlari bilan solishtiriladi, birortasi o'zgargan bo'lsa qayta quriladi).
+  Pulga yangi taom tushishi (tasodifiy tanlov) va token o'zgartirmagan yozuv — ko'pi bilan 120 s (`ttl.feed`).
+- Hudud ro'yxati (`/stores`) va lentadagi `store.accepting_orders`: do'kon kartasi, `is_order_locked` (qarz chegarasidan
+  o'tishi do'kon tokenini o'zgartiradi) — darhol; kartadagi xom `debt_balance`/`subscription_debt` raqamlari (har
+  buyurtmada o'zgaradi, token o'zgartirmaydi) — ko'pi bilan 120 s (`ttl.area`). Hududga yangi do'kon/filial: darhol
+  hujjatda; eski `ETag` bilan `304` ko'pi bilan 60 s (`/stores` muddati).
+- Mavjudlik (stop-list, tugadi, partiya): darhol, soat bilan o'zgarganlari 15 s.
+- Kategoriyalar, bannerlar: darhol (yozuvda), token o'zgartirmagan yozuv 600 s; banner jadvali har so'rovda tekshiriladi.
+- `ETag` dagi do'kon tokenlari hujjat o'qilgan tokenlar (ma'lumotdan OLDIN o'qilgan): yangi token eski tanaga hech qachon
+  yopishmaydi.

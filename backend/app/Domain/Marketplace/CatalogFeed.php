@@ -13,7 +13,9 @@ use App\Services\Catalog\CatalogPresenter;
  * GET /catalog without store_id (the Mini App's home feed and category page) from cached documents:
  *
  * - a product pool per area, category and channel (up to `feed_pool` random products of the area's open stores, with
- *   the old feed's prices, modifiers and combos), rebuilt after `ttl.feed` seconds or when the directory changes;
+ *   the old feed's prices, modifiers and combos), rebuilt after `ttl.feed` seconds or when the directory changes,
+ *   and at once when the revision of a store with products in it moves (review M2 R1-1: a price, variant, status or
+ *   channel-price change is on the next feed; the pool records each store's revision as read before it was built);
  *   each request keeps the products of stores that serve its exact point and are open now, shuffles them and shows
  *   `feed_limit` (the old answer was 50 random products per request);
  * - the active categories and the promo banners (global documents; a banner's schedule is checked per request).
@@ -71,17 +73,19 @@ final class CatalogFeed
     }
 
     /**
-     * The products to show: of open stores serving the point, shuffled, at most $limit.
+     * The products to show: of open stores serving the point, shuffled, at most $limit, and the revision of each
+     * shown store the products are valid for (read before they were: for the answer's ETag).
      *
      * $accepting (view=cards): each `store` also gets `accepting_orders`, from the same directory entry, rule and
      * moment as the store list's (StoreCards::acceptingOrders), computed here per request, never stored in the pool.
      *
-     * @return list<array<string, mixed>> full products (the old shape, `store` attached)
+     * @return array{products: list<array<string, mixed>>, tokens: array<int, string>} full products (the old shape, `store` attached)
      */
     public function products(Area $area, ?int $categoryId, OrderChannel $channel, int $limit, bool $accepting = false): array
     {
-        $pool = $this->pool($area, $categoryId, $channel);
-        $served = $this->servedStores($area);
+        $snapshot = $this->directory->snapshot($area);
+        $pool = $this->pool($area, $categoryId, $channel, $snapshot);
+        $served = $this->servedStores($area, $snapshot);
 
         $products = [];
         $accepts = [];
@@ -105,8 +109,15 @@ final class CatalogFeed
         }
 
         shuffle($products);
+        $products = array_slice($products, 0, max(0, $limit));
 
-        return array_slice($products, 0, max(0, $limit));
+        $tokens = [];
+        foreach ($products as $product) {
+            $storeId = (int) $product['store_id'];
+            $tokens[$storeId] = $pool['stores'][$storeId]['token'];
+        }
+
+        return ['products' => $products, 'tokens' => $tokens];
     }
 
     /**
@@ -161,12 +172,13 @@ final class CatalogFeed
     }
 
     /**
+     * @param  array{entries: list<array<string, mixed>>, tokens: array<int, string>}  $snapshot
      * @return array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, offline_minutes: int|null}> the directory entries of the stores that serve the request's point (or area), by id
      */
-    private function servedStores(Area $area): array
+    private function servedStores(Area $area, array $snapshot): array
     {
         $served = [];
-        foreach ($this->directory->stores($area) as $entry) {
+        foreach ($this->directory->stores($area, $snapshot) as $entry) {
             $served[$entry['id']] = $entry;
         }
 
@@ -174,23 +186,44 @@ final class CatalogFeed
     }
 
     /**
-     * @return array{products: list<array<string, mixed>>, stores: array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}}>}
+     * The pool, current for every listed store it has products of: a store whose revision moved since the pool was
+     * built (its recorded token differs from the snapshot's, which was read this request) makes it rebuild now.
+     *
+     * @param  array{entries: list<array<string, mixed>>, tokens: array<int, string>}  $snapshot
+     * @return array{products: list<array<string, mixed>>, stores: array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, token: string}>}
      */
-    private function pool(Area $area, ?int $categoryId, OrderChannel $channel): array
+    private function pool(Area $area, ?int $categoryId, OrderChannel $channel, array $snapshot): array
     {
         $family = 'mkt:feed:'.$area->key.':'.($categoryId ?? 'all').':'.$channel->value;
+        $tokens = $snapshot['tokens'];
 
-        return $this->cache->remember($family, $this->revisions->directory().':'.$this->revisions->global(), 'feed', fn () => $this->buildPool($area, $categoryId, $channel));
+        return $this->cache->rememberCurrent(
+            $family,
+            $this->revisions->directory().':'.$this->revisions->global(),
+            'feed',
+            fn () => $this->buildPool($area, $categoryId, $channel, $snapshot),
+            function (array $pool) use ($tokens): bool {
+                foreach ($pool['stores'] as $storeId => $store) {
+                    if (isset($tokens[$storeId]) && $tokens[$storeId] !== $store['token']) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+        );
     }
 
     /**
-     * The old feed query on the area's candidate stores, without the clock (open now is checked per request).
+     * The old feed query on the area's candidate stores, without the clock (open now is checked per request). Each
+     * store of the pool records the revision $snapshot read for it, before this query ran.
      *
-     * @return array{products: list<array<string, mixed>>, stores: array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}}>}
+     * @param  array{entries: list<array<string, mixed>>, tokens: array<int, string>}  $snapshot
+     * @return array{products: list<array<string, mixed>>, stores: array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, token: string}>}
      */
-    private function buildPool(Area $area, ?int $categoryId, OrderChannel $channel): array
+    private function buildPool(Area $area, ?int $categoryId, OrderChannel $channel, array $snapshot): array
     {
-        $storeIds = $this->directory->candidateIds($area);
+        $storeIds = $this->directory->candidateIds($area, $snapshot);
         if ($storeIds === []) {
             return ['products' => [], 'stores' => []];
         }
@@ -212,7 +245,7 @@ final class CatalogFeed
 
         $stores = [];
         foreach (Store::query()->whereIn('id', $products->pluck('store_id')->unique()->values()->all())->get() as $store) {
-            $stores[(int) $store->id] = ['card' => $store->toArray(), 'schedule' => StoreSchedule::of($store)];
+            $stores[(int) $store->id] = ['card' => $store->toArray(), 'schedule' => StoreSchedule::of($store), 'token' => (string) ($snapshot['tokens'][(int) $store->id] ?? '')];
         }
 
         return ['products' => array_values($products->toArray()), 'stores' => $stores];

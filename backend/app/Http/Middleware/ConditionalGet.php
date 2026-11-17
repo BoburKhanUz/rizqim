@@ -23,13 +23,19 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * A 200 answer carries `ETag` and `Cache-Control: private, no-cache`. The ETag is stateless and signed (HMAC with the
  * app key): it names the change scopes the body depends on (branch / store / customer, App\Domain\Realtime\
- * ChangeRevision) and an expiry, and its MAC covers the request (path, query, locale, deploy salt), the actor (who
- * asks, their role, store, branch, acting branch, token; a device's branch, type, name and
- * the till it follows) and the tokens of those scopes as they were BEFORE the body was read. A repeat request whose
- * If-None-Match holds that ETag is answered `304 Not Modified` while the expiry has not passed and every token is
- * unchanged: the controller does not run, so a 304 costs the route's own middleware (authentication, rate limit,
- * permission/module gates) plus one revision lookup per scope, and no main-table query. Anything else runs the
- * controller as before. Bodies are never changed.
+ * ChangeRevision) and an expiry, and carries two MACs. Both cover the request (path, query, locale, deploy salt), the
+ * actor (who asks, their role, store, branch, acting branch, token; a device's branch, type, name and the till it
+ * follows), the expiry and the scope names; the second also covers the tokens of those scopes as they were BEFORE the
+ * body was read. A repeat request whose If-None-Match holds that ETag is answered `304 Not Modified` while the expiry
+ * has not passed and every token is unchanged: the controller does not run, so a 304 costs the route's own middleware
+ * (authentication, rate limit, permission/module gates) plus one revision round trip per scope kind, and no
+ * main-table query. Anything else runs the controller as before. Bodies are never changed.
+ *
+ * Review M2 R2-1: nothing in If-None-Match reaches the revision store (Redis) unauthenticated. A candidate is looked
+ * at only if it is one of the first two, at most MAX_TAG bytes, not expired, and its first MAC (no token in it) is
+ * this request's: so it names exactly the scopes the server issued for this actor and URL. Its scopes must also be
+ * ones this route can issue to this actor (admissible()). Only then are the tokens read, with the non-creating
+ * peek reads in one round trip per kind: a token that does not exist is "no match", never a new key.
  *
  * Usage (always the LAST middleware of the route, after auth and every permission gate, so a revoked token or a lost
  * permission is still refused on what would have been a 304):
@@ -48,7 +54,9 @@ use Symfony\Component\HttpFoundation\Response;
  *   validUntil(), or opt a particular answer out with skip(). M2-3's customer GETs: ConditionalGet::using('none', N)
  *   on the route and ConditionalGet::depends($request, 'store', $storeId) in the controller.
  * - A 200 whose body has exactly one scope also carries `X-Revision: <token>` and `X-Revision-Scope: branch:12`
- *   (store:N, user:N); a store-wide list carries neither (its revision is many tokens: re-read on any event).
+ *   (store:N, user:N); a store-wide list carries neither (its revision is many tokens: re-read on any event). Only to
+ *   an actor entitled to follow that scope (review M2 R2-2): a branch to a device of that branch or a staff member of
+ *   its store, a store to its staff and devices, a user scope to that user. A customer never gets a store token.
  * - Clients: send the last ETag in If-None-Match; on 304 keep the last body AND the moment it was received (timers in
  *   a body, such as `waiting_seconds` or `open_minutes`, count from that moment).
  * - A token that cannot be read (Redis down) is a fresh random value (ChangeRevision): the ETag never matches, every
@@ -56,10 +64,21 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class ConditionalGet
 {
-    private const VERSION = 'c1';
+    private const VERSION = 'c2';
 
     /** More scopes than this (a very large store-wide list): no ETag, a plain 200 as before. */
     private const MAX_SCOPES = 64;
+
+    /** If-None-Match candidates looked at (a client sends one; nginx or a proxy may add a weak copy) */
+    private const MAX_CANDIDATES = 2;
+
+    /** Longest tag looked at: MAX_SCOPES names of 20 digits, the expiry and both MACs fit */
+    private const MAX_TAG = 1500;
+
+    /** Characters of the names MAC (96 bits) and of the token MAC (132 bits) */
+    private const NAMES_MAC = 16;
+
+    private const TOKENS_MAC = 22;
 
     private const ATTR_SCOPES = 'conditional_get.scopes';
 
@@ -104,6 +123,23 @@ final class ConditionalGet
     }
 
     /**
+     * depends() with a token the caller already read (before the data it covers), for example many store tokens read
+     * in one round trip (ChangeRevision::stores). The first token declared for a scope wins.
+     */
+    public static function dependsAt(Request $request, string $scope, int $id, string $token): void
+    {
+        $letter = self::SCOPES[$scope] ?? null;
+        if ($letter === null || $id <= 0 || $token === '') {
+            throw new \InvalidArgumentException("Unknown change scope {$scope}:{$id}");
+        }
+
+        /** @var array<string, string> $scopes */
+        $scopes = $request->attributes->get(self::ATTR_SCOPES, []);
+        $scopes[$letter . $id] ??= $token;
+        $request->attributes->set(self::ATTR_SCOPES, $scopes);
+    }
+
+    /**
      * The body changes by itself at this moment (with no write): its ETag stops validating then.
      */
     public static function validUntil(Request $request, DateTimeInterface $at): void
@@ -135,7 +171,7 @@ final class ConditionalGet
         $life = max(1, (int) $maxAge);
         $context = $this->context($request, $resolver, $life);
 
-        $matched = $this->matching($request, $context);
+        $matched = $this->matching($request, $context, $resolver);
         if ($matched !== null) {
             return $this->notModified($matched);
         }
@@ -171,11 +207,14 @@ final class ConditionalGet
         $response->headers->set('ETag', $this->tag($context, $expires, $scopes));
         $response->headers->set('Cache-Control', 'private, no-cache');
         // A single-scope body also names its token (read before the body), so a client holding revision N can tell
-        // the next broadcast `rev` (N+1) from a missed one. A multi-scope body (a store-wide list) carries none.
+        // the next broadcast `rev` (N+1) from a missed one. A multi-scope body (a store-wide list) carries none, and
+        // nobody learns the token of a scope they are not entitled to follow (R2-2: never a store's to a customer).
         if (count($scopes) === 1) {
             $key = (string) array_key_first($scopes);
-            $response->headers->set('X-Revision', $scopes[$key]);
-            $response->headers->set('X-Revision-Scope', ['b' => 'branch', 's' => 'store', 'u' => 'user'][$key[0]] . ':' . substr($key, 1));
+            if ($this->entitled($request, $key[0], (int) substr($key, 1))) {
+                $response->headers->set('X-Revision', $scopes[$key]);
+                $response->headers->set('X-Revision-Scope', ['b' => 'branch', 's' => 'store', 'u' => 'user'][$key[0]] . ':' . substr($key, 1));
+            }
         }
 
         return $response;
@@ -186,20 +225,21 @@ final class ConditionalGet
     /**
      * The If-None-Match tag that is still current for this request, or null.
      */
-    private function matching(Request $request, string $context): ?string
+    private function matching(Request $request, string $context, string $resolver): ?string
     {
         $header = $request->headers->get('If-None-Match');
         if ($header === null || $header === '' || strlen($header) > 4096) {
             return null;
         }
 
-        foreach (explode(',', $header) as $candidate) {
+        // The first two candidates only: the rest of the header is never even split
+        foreach (array_slice(explode(',', $header, self::MAX_CANDIDATES + 1), 0, self::MAX_CANDIDATES) as $candidate) {
             // nginx turns a strong ETag weak when it compresses the body: W/"..." is the same tag
             $tag = trim($candidate);
             if (str_starts_with($tag, 'W/')) {
                 $tag = substr($tag, 2);
             }
-            if ($this->stillCurrent($tag, $context)) {
+            if (strlen($tag) <= self::MAX_TAG && $this->stillCurrent($request, $resolver, $tag, $context)) {
                 return $tag;
             }
         }
@@ -207,9 +247,9 @@ final class ConditionalGet
         return null;
     }
 
-    private function stillCurrent(string $tag, string $context): bool
+    private function stillCurrent(Request $request, string $resolver, string $tag, string $context): bool
     {
-        if (!preg_match('/^"' . self::VERSION . '\.([0-9a-z]{1,13})\.([bsu][0-9]{1,19}(?:-[bsu][0-9]{1,19})*)\.([A-Za-z0-9_-]{22})"$/', $tag, $m)) {
+        if (!preg_match('/^"' . self::VERSION . '\.([0-9a-z]{1,13})\.([bsu][0-9]{1,19}(?:-[bsu][0-9]{1,19})*)\.([A-Za-z0-9_-]{' . self::NAMES_MAC . '})\.([A-Za-z0-9_-]{' . self::TOKENS_MAC . '})"$/', $tag, $m)) {
             return false;
         }
 
@@ -218,22 +258,138 @@ final class ConditionalGet
             return false;
         }
 
-        $keys = explode('-', $m[2]);
-        if (count($keys) > self::MAX_SCOPES) {
+        // 1. Without the revision store: the names are the ones this server issued for this request and actor
+        if (!hash_equals($this->namesMac($context, $m[1], $m[2]), $m[3])) {
             return false;
         }
 
-        $readers = array_flip(self::SCOPES);
-        $scopes = [];
+        $keys = explode('-', $m[2]);
+        if (count($keys) > self::MAX_SCOPES || count($keys) !== count(array_unique($keys))) {
+            return false;
+        }
+
         foreach ($keys as $key) {
             $id = (int) substr($key, 1);
-            if ($id <= 0) {
+            if ($id <= 0 || (string) $id !== substr($key, 1)) {
                 return false;
             }
-            $scopes[$key] = $this->revisions->{$readers[$key[0]]}($id);
+        }
+        $of = fn (string $letter): array => array_values(array_map(
+            fn (string $key) => (int) substr($key, 1),
+            array_filter($keys, fn (string $key) => $key[0] === $letter),
+        ));
+        $ids = ['b' => $of('b'), 's' => $of('s'), 'u' => $of('u')];
+
+        // 2. And ones this route can issue to this actor at all
+        if (!$this->admissible($request, $resolver, $ids)) {
+            return false;
+        }
+
+        // 3. The tokens, never creating one: a scope without a token is "changed"
+        $tokens = [
+            'b' => $ids['b'] === [] ? [] : $this->revisions->peekBranches($ids['b']),
+            's' => $ids['s'] === [] ? [] : $this->revisions->peekStores($ids['s']),
+            'u' => array_combine($ids['u'], array_map(fn (int $id) => $this->revisions->peekUser($id), $ids['u'])),
+        ];
+        $scopes = [];
+        foreach ($keys as $key) {
+            $token = $tokens[$key[0]][(int) substr($key, 1)] ?? null;
+            if ($token === null) {
+                return false;
+            }
+            $scopes[$key] = $token;
         }
 
         return hash_equals($this->tag($context, $expires, $scopes), $tag);
+    }
+
+    /**
+     * Whether the scopes of a tag are ones this route issues to this actor (a cheap check on top of the names MAC):
+     * a user scope is the caller's own; a device's branch and store are its own; a staff member's store is their own,
+     * and on a single-branch read the branch is the one this request resolves to; a customer has no branch scope.
+     *
+     * @param  array{b: list<int>, s: list<int>, u: list<int>}  $ids
+     */
+    private function admissible(Request $request, string $resolver, array $ids): bool
+    {
+        $actor = $request->user();
+
+        if ($actor instanceof Device) {
+            return $ids['u'] === []
+                && array_diff($ids['b'], [(int) $actor->branch_id]) === []
+                && array_diff($ids['s'], [(int) $actor->store_id]) === [];
+        }
+        if (!$actor instanceof User) {
+            return $ids['u'] === [] && $ids['b'] === [];
+        }
+        if (array_diff($ids['u'], [(int) $actor->getKey()]) !== []) {
+            return false;
+        }
+        if ($resolver === 'user') {
+            return $ids['b'] === [] && $ids['s'] === [];
+        }
+        if ($actor->store_id === null) {
+            return $ids['b'] === []; // a customer: stores of the marketplace, their own scope
+        }
+        if ($resolver !== 'none' && array_diff($ids['s'], [(int) $actor->store_id]) !== []) {
+            return false;
+        }
+        if ($resolver === 'branch' && $ids['s'] === []) {
+            // A single-branch read: the branch this request resolves to (no query: the parameter or the acting branch)
+            return array_diff($ids['b'], array_map(fn (array $scope) => $scope[1], $this->branchScopesWithoutStoreWide($request))) === [];
+        }
+
+        return true;
+    }
+
+    /**
+     * The branch a `branch` read resolves to, without the store-wide expansion (which needs the store token).
+     *
+     * @return list<array{0: string, 1: int}>
+     */
+    private function branchScopesWithoutStoreWide(Request $request): array
+    {
+        $actor = $request->user();
+        if (!$actor instanceof User || $actor->store_id === null) {
+            return [];
+        }
+        $id = RowId::parse($request->query('branch_id'));
+        if ($id === null) {
+            $acting = $this->permissions->actingBranchId($actor);
+            $id = $acting === PermissionService::NO_BRANCH ? null : $acting;
+        }
+
+        return $id !== null ? [['branch', (int) $id]] : [];
+    }
+
+    /**
+     * Whether the actor may learn the raw token of a scope (X-Revision): R2-2.
+     */
+    private function entitled(Request $request, string $letter, int $id): bool
+    {
+        $actor = $request->user();
+
+        if ($actor instanceof Device) {
+            return match ($letter) {
+                'b' => (int) $actor->branch_id === $id,
+                's' => (int) $actor->store_id === $id,
+                default => false,
+            };
+        }
+        if (!$actor instanceof User) {
+            return false;
+        }
+
+        return match ($letter) {
+            'u' => (int) $actor->getKey() === $id,
+            // Staff of the store; the branch resolver only issues a branch of the caller's store (or the route's own
+            // permission gate refused the request before)
+            'b' => $actor->store_id !== null && ((int) $actor->branch_id === $id
+                || $this->permissions->actingBranchId($actor) === $id
+                || Branch::query()->whereKey($id)->where('store_id', $actor->store_id)->exists()),
+            's' => $actor->store_id !== null && (int) $actor->store_id === $id,
+            default => false,
+        };
     }
 
     private function notModified(string $tag): Response
@@ -254,10 +410,22 @@ final class ConditionalGet
     {
         $exp = base_convert((string) $expires, 10, 36);
         $names = implode('-', array_keys($scopes));
-        $payload = $context . "\n" . $exp . "\n" . $names . "\n" . implode("\n", $scopes);
-        $mac = substr(rtrim(strtr(base64_encode(hash_hmac('sha256', $payload, $this->secret(), true)), '+/', '-_'), '='), 0, 22);
+        $mac = $this->mac('tokens', $context . "\n" . $exp . "\n" . $names . "\n" . implode("\n", $scopes), self::TOKENS_MAC);
 
-        return '"' . self::VERSION . '.' . $exp . '.' . $names . '.' . $mac . '"';
+        return '"' . self::VERSION . '.' . $exp . '.' . $names . '.' . $this->namesMac($context, $exp, $names) . '.' . $mac . '"';
+    }
+
+    /**
+     * The MAC of what a tag names (no token): checked before the revision store is asked anything.
+     */
+    private function namesMac(string $context, string $exp, string $names): string
+    {
+        return $this->mac('names', $context . "\n" . $exp . "\n" . $names, self::NAMES_MAC);
+    }
+
+    private function mac(string $purpose, string $payload, int $length): string
+    {
+        return substr(rtrim(strtr(base64_encode(hash_hmac('sha256', $purpose . "\n" . $payload, $this->secret(), true)), '+/', '-_'), '='), 0, $length);
     }
 
     /**

@@ -268,6 +268,27 @@ class RevisionHooksTest extends TestCase
         $this->assertMoved($before, ['branch'], 'the next write');
     }
 
+    public function test_one_flush_per_transaction_survives_a_rolled_back_savepoint(): void
+    {
+        // M2 review R2-3: one after-commit callback per transaction. A savepoint that rolls back drops the callback it
+        // was registered in; the touches around it must still be applied at the outer commit, by exactly 1.
+        $before = $this->tokens();
+        DB::transaction(function () {
+            try {
+                DB::transaction(function () {
+                    $this->hall(); // registers the flush inside the savepoint
+                    throw new RuntimeException('rollback the savepoint');
+                });
+            } catch (RuntimeException) {
+            }
+            $this->makeOrder(OrderStatus::NEW); // the outer transaction goes on
+        });
+        $after = $this->tokens();
+        $this->assertSame((string) ((int) $before['branch'] + 1), $after['branch'], 'outer commit: +1');
+        $this->assertSame((string) ((int) $before['customer'] + 1), $after['customer']);
+        $this->assertSame($before['store'], $after['store']);
+    }
+
     public function test_a_lost_token_comes_back_as_an_unrelated_value_never_an_old_one(): void
     {
         $old = $this->revisions->branch($this->branch->id);

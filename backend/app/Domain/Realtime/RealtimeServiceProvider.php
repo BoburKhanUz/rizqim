@@ -9,6 +9,7 @@ use App\Domain\Realtime\Heartbeat\SendRealtimeHeartbeat;
 use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Psr\Log\LoggerInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
@@ -44,6 +45,9 @@ class RealtimeServiceProvider extends ServiceProvider
 
         Event::listen('eloquent.updating: *', $announce);
         Event::listen('eloquent.deleting: *', $announce);
+
+        // One after-commit flush per transaction (ChangeRevision::schedule): a rollback drops it, the next touch re-registers
+        Event::listen(TransactionRolledBack::class, static fn () => app(ChangeRevision::class)->transactionRolledBack());
 
         // Every broadcast payload carries `rev` (Broadcasting\RevisionStamp): the reverb and log drivers, built lazily
         $this->callAfterResolving(BroadcastManager::class, function (BroadcastManager $manager): void {

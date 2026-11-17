@@ -73,6 +73,78 @@ final class RevisionHooks
         return true;
     }
 
+    /** True when the update writes only RevisionMap::NARROW_COLUMNS of the table (decided by touchNarrow()) */
+    public function isNarrow(string $table, array $values): bool
+    {
+        $narrow = RevisionMap::NARROW_COLUMNS[$table] ?? null;
+        if ($narrow === null || $values === []) {
+            return false;
+        }
+
+        foreach (array_keys($values) as $column) {
+            if (!in_array(Str::afterLast((string) $column, '.'), $narrow, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * A narrow write (RevisionMap::NARROW_COLUMNS): only the tokens of the screens that show a difference between the
+     * rows before and after it. A row whose after-state is unknown is decided as if everything changed.
+     *
+     * @param  list<array<string, mixed>>  $before  RevisionMap::NARROW_INPUTS of each written row
+     * @param  array<int, array<string, mixed>>  $after  the same, by id, read after the write
+     */
+    public function touchNarrow(string $table, array $before, array $after): void
+    {
+        $set = new RevisionTouchSet;
+        $band = (float) config('realtime.exact_stock_below', 20);
+        $inBand = static fn (mixed $quantity): bool => !is_numeric($quantity) || (float) $quantity <= $band;
+
+        foreach ($before as $row) {
+            $id = self::id($row['id'] ?? null);
+            $new = $id !== null ? ($after[$id] ?? null) : null;
+            switch ($table) {
+                case 'stores':
+                    if ($id !== null && ($new === null || self::orderLocked($row) !== self::orderLocked($new))) {
+                        $set->stores[$id] = true; // the debt lock flipped: the store document shows it
+                    }
+                    break;
+                case 'product_variants':
+                    if ($new === null || $inBand($row['stock'] ?? null) || $inBand($new['stock'] ?? null)) {
+                        foreach ($this->parentRows('products', array_filter([self::id($row['product_id'] ?? null)])) as $product) {
+                            if (($storeId = self::id($product['store_id'] ?? null)) !== null) {
+                                $set->storesAlone[$storeId] = true;
+                            }
+                        }
+                    }
+                    break;
+                case 'menu_batches':
+                    if (($branchId = self::id($row['branch_id'] ?? null)) !== null) {
+                        $set->branches[$branchId] = true;
+                    }
+                    if (($storeId = self::id($row['store_id'] ?? null)) !== null
+                        && ($new === null || $inBand($row['quantity_left'] ?? null) || $inBand($new['quantity_left'] ?? null))) {
+                        $set->storesAlone[$storeId] = true;
+                    }
+                    break;
+            }
+        }
+
+        $this->apply($set);
+    }
+
+    /** Store::is_order_locked of a stores row (status and the debt columns): the one rule CreateOrderAction applies */
+    private static function orderLocked(array $row): bool
+    {
+        $store = new \App\Models\Store;
+        $store->setRawAttributes(array_intersect_key($row, array_flip(['status', 'debt_balance', 'subscription_debt', 'credit_limit'])));
+
+        return (bool) $store->is_order_locked;
+    }
+
     /**
      * The model events of an Eloquent update/delete announce the row (original and new attributes), so the query that
      * follows (`where <key> = ?`) is resolved without a pre-select. Skipped when an attribute the rules need was not
@@ -256,21 +328,20 @@ final class RevisionHooks
         $revisions = app(ChangeRevision::class);
 
         if ($set->allStores) {
-            foreach (DB::table('stores')->pluck('id') as $storeId) {
-                $revisions->touchStore((int) $storeId); // reaches every branch of the store
-            }
+            $revisions->touchAllStores(); // every store and branch, resolved once at the flush
 
             return;
         }
 
         foreach (array_keys($set->stores) as $storeId) {
-            $revisions->touchStore($storeId);
-            unset($set->storeBranches[$storeId]);
+            $revisions->touchStore($storeId); // reaches every branch of the store (resolved at the flush)
+            unset($set->storeBranches[$storeId], $set->storesAlone[$storeId]);
         }
-        if ($set->storeBranches !== []) {
-            foreach (DB::table('branches')->whereIn('store_id', array_keys($set->storeBranches))->pluck('id') as $branchId) {
-                $set->branches[(int) $branchId] = true;
-            }
+        foreach (array_keys($set->storesAlone) as $storeId) {
+            $revisions->touchStoreAlone($storeId);
+        }
+        foreach (array_keys($set->storeBranches) as $storeId) {
+            $revisions->touchStoreBranches($storeId);
         }
         foreach (array_keys($set->branches) as $branchId) {
             $revisions->touchBranch($branchId);

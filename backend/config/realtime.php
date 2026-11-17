@@ -21,6 +21,12 @@ return [
     // A token that nobody touched for this long expires; the next read issues a new one (one extra full read).
     'revision_ttl_seconds' => (int) env('REALTIME_REVISION_TTL', 7 * 24 * 3600),
 
+    // A sale that leaves a variant's stock (or a kazan's portions) at or below this, or starts from at or below it, moves
+    // the store token, so the marketplace menu shows every stock number up to it exactly (and "sold out" at once). Above
+    // it a sale moves no store token: the menu may show a higher stock than is left (checkout reads the live row).
+    // App\Domain\Realtime\RevisionMap::NARROW_COLUMNS. 0 = only the sale that sells out (or restocks from 0).
+    'exact_stock_below' => (float) env('REALTIME_EXACT_STOCK_BELOW', 20),
+
     // Heartbeat: every N seconds (10, 15, 20, 30 or 60) the scheduler queues SendRealtimeHeartbeat on the broadcasts
     // queue, which sends `realtime.heartbeat` with the channel's current token to every occupied pos-branch/branch/store
     // channel. A client that hears nothing for 3 x N seconds treats real-time as down and polls fast. 0 turns it off

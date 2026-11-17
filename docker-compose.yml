@@ -126,7 +126,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    # Xotira chegarasi (noeviction): chegaraga yetganda Redis yozishni rad etadi, lekin butun serverni xotirasiz
+    # qoldirmaydi. used_memory 80 % dan oshsa ogohlantiring (docs/OPERATIONS.md, 15-bo'lim).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}", "--maxmemory", "${REDIS_MAXMEMORY:-1gb}"]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:

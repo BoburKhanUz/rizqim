@@ -11,8 +11,11 @@ final class RevisionTouchSet
     /** @var array<int, true> stores whose every branch is touched (not the store token) */
     public array $storeBranches = [];
 
-    /** @var array<int, true> */
+    /** @var array<int, true> store token and every branch of the store */
     public array $stores = [];
+
+    /** @var array<int, true> store token only (marketplace-only data, RevisionMap::NARROW_COLUMNS) */
+    public array $storesAlone = [];
 
     /** @var array<int, true> */
     public array $users = [];

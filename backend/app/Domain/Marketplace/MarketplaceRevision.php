@@ -34,6 +34,17 @@ final class MarketplaceRevision
         return app(ChangeRevision::class)->store($storeId);
     }
 
+    /**
+     * The revisions of many stores in one round trip (ChangeRevision::stores).
+     *
+     * @param  list<int>  $storeIds
+     * @return array<int, string>
+     */
+    public function stores(array $storeIds): array
+    {
+        return $storeIds === [] ? [] : app(ChangeRevision::class)->stores($storeIds);
+    }
+
     public function directory(): string
     {
         return $this->read('dir');

@@ -51,6 +51,52 @@ final class RevisionMap
         'users' => ['platform_last_login_at', 'remember_token', 'two_factor_last_timestep', 'updated_at'],
     ];
 
+    /**
+     * Columns written on every sale or settlement whose change alone does NOT apply the table's rules: the written row is
+     * read before and after the write (NARROW_INPUTS) and RevisionHooks::touchNarrow() moves only the tokens of the
+     * screens that show something different. A write that sets any other column applies the table's rules as usual.
+     *
+     * Per screen (wave M2 review R3-1; who reads what, and through which token):
+     * - stores.debt_balance / wallet_balance / subscription_debt (the ledger, on every settled order) and updated_at:
+     *   no POS, KDS, waiter or customer-display body shows a balance (Store::INTERNAL_ATTRIBUTES; the owner's finance
+     *   pages read live and are not revision-gated). The one customer-visible derivation is the debt lock
+     *   (Store::is_order_locked, in the marketplace store document keyed by the store token): when it flips, the store
+     *   is touched as usual (store and every branch). A status change (PAYMENT_REQUIRED, FINANCE_HOLD) is not narrow and
+     *   always touches. Nothing moves otherwise.
+     * - product_variants.stock (decremented by every sold line) and updated_at: the POS catalogue leaves stock out
+     *   (MenuVersion), no polled branch body shows it (PolledEndpointTablesTest: product_variants is read for line names
+     *   only), so no branch token moves. The marketplace menu document (keyed by the store token) shows `stock`, which
+     *   the Mini App uses as the cart limit and as "sold out" at 0. The store token alone (touchStoreAlone) moves when the
+     *   stock before or after the write is at or below `realtime.exact_stock_below` (20): every number at or below it is
+     *   exact (so is "sold out" and "back in stock"); above it the document may show a higher stock than is left, which
+     *   only matters to a cart of more than that many of one variant, and checkout decides on the live row anyway.
+     * - menu_batches.quantity_left (a kazan portion sold) and updated_at: the till and waiter read batches through
+     *   GET /catalog/availability?branch_id (unconditional, refreshed on menu.availability_changed and on open), the KDS
+     *   kazan panel and the staff batches panel poll GET /owner/batches unconditionally: none is revision-gated. The
+     *   selling branch is touched (its order moves it in the same commit anyway). The marketplace availability overlay
+     *   (store token, never older than `ttl.availability`, 15 s) shows only `sold_out` to customers: the store token
+     *   alone moves when quantity_left before or after is at or below the same band, so a variant that can no longer
+     *   be sold (or can again) shows within seconds, not within 15-30 s. Setting sold_out_at is not narrow (it touches).
+     *
+     * @var array<string, list<string>>
+     */
+    public const NARROW_COLUMNS = [
+        'stores' => ['debt_balance', 'wallet_balance', 'subscription_debt', 'updated_at'],
+        'product_variants' => ['stock', 'updated_at'],
+        'menu_batches' => ['quantity_left', 'updated_at'],
+    ];
+
+    /**
+     * The columns RevisionHooks::touchNarrow() compares before and after a narrow write (id first)
+     *
+     * @var array<string, list<string>>
+     */
+    public const NARROW_INPUTS = [
+        'stores' => ['id', 'status', 'debt_balance', 'subscription_debt', 'credit_limit'],
+        'product_variants' => ['id', 'product_id', 'stock'],
+        'menu_batches' => ['id', 'store_id', 'branch_id', 'quantity_left'],
+    ];
+
     /** @var array<string, list<list<string>>> */
     public const TABLES = [
         // Orders and everything hung on them: the till, KDS, waiter, display, LiveOrders, the customer's orders
@@ -182,8 +228,8 @@ final class RevisionMap
         'role_permission_overrides' => [[self::STORE_BRANCHES]],
         'channel_commissions' => [[self::STORE_BRANCHES]],
         'users' => [[self::STORE_BRANCHES], [self::USER, 'id']],
-        'store_transactions' => [[self::STORE_BRANCHES]],
-        'store_wallet_transactions' => [[self::STORE_BRANCHES]],
+        'store_transactions' => [[self::NONE, 'ledger rows (one per settled order): only the owner finance pages show them, read live; the stores row they update decides the debt lock (NARROW_COLUMNS)']],
+        'store_wallet_transactions' => [[self::NONE, 'wallet ledger rows (one per settled order): only the owner finance pages show them, read live']],
         'subscription_invoices' => [[self::STORE_BRANCHES]],
 
         // Platform-wide reference data the stores' screens show (rare writes by the RIZQIM team)

@@ -19,6 +19,7 @@ class RevisionQueryBuilder extends Builder
 {
     public function insert(array $values)
     {
+        $this->forgetInsertedGrants($values);
         $result = parent::insert($values);
         $this->touchInserted($values);
 
@@ -27,6 +28,7 @@ class RevisionQueryBuilder extends Builder
 
     public function insertOrIgnore(array $values)
     {
+        $this->forgetInsertedGrants($values);
         $result = parent::insertOrIgnore($values);
         $this->touchInserted($values);
 
@@ -35,6 +37,7 @@ class RevisionQueryBuilder extends Builder
 
     public function insertGetId(array $values, $sequence = null)
     {
+        $this->forgetInsertedGrants($values);
         $id = parent::insertGetId($values, $sequence);
         $this->touchInserted($values); // a rule column left out of an insert takes its default: null
 
@@ -63,6 +66,7 @@ class RevisionQueryBuilder extends Builder
             return parent::upsert($values, $uniqueBy, $update); // a plain insert(), resolved there
         }
 
+        $this->forgetInsertedGrants($values);
         $result = parent::upsert($values, $uniqueBy, $update);
         $this->touchInserted($values, (array) $uniqueBy);
 
@@ -72,11 +76,91 @@ class RevisionQueryBuilder extends Builder
     public function update(array $values)
     {
         $this->forgetChannelGrants($values);
-        $rows = $this->rowsBeforeWrite($values);
+        $narrow = $this->narrowBeforeWrite($values);
+        $rows = $narrow === null ? $this->rowsBeforeWrite($values) : null;
         $result = parent::update($values);
-        $this->touchWritten($rows, $values);
+        if ($narrow !== null) {
+            $this->touchNarrow($narrow);
+        } else {
+            $this->touchWritten($rows, $values);
+        }
 
         return $result;
+    }
+
+    /**
+     * A write of RevisionMap::NARROW_COLUMNS only (a stock decrement, a ledger balance): the rows' NARROW_INPUTS before
+     * it, and after it when the values already say so (an Eloquent save of plain values). Null for any other write.
+     *
+     * @return array{table: string, before: list<array<string, mixed>>, after: array<int, array<string, mixed>>|null}|null
+     */
+    private function narrowBeforeWrite(array $values): ?array
+    {
+        $table = $this->revisionTable();
+        $hooks = app(RevisionHooks::class);
+        if ($table === null || !$hooks->isNarrow($table, $values) || ($this->joins !== null && $this->joins !== [])) {
+            return null;
+        }
+        $inputs = RevisionMap::NARROW_INPUTS[$table];
+
+        // An Eloquent save of one row: its model event announced the row before and after
+        if (count($this->wheres) === 1 && ($this->wheres[0]['type'] ?? null) === 'Basic'
+            && ($this->wheres[0]['operator'] ?? null) === '=' && is_string($this->wheres[0]['column'] ?? null)) {
+            $column = (string) $this->wheres[0]['column'];
+            $column = substr($column, (int) strrpos('.'.$column, '.'));
+            $expected = $hooks->takeExpected($table, $column, $this->wheres[0]['value'] ?? null);
+            if ($expected !== null) {
+                [$original, $merged] = $expected;
+                $keys = array_flip($inputs);
+                if (array_diff_key($keys, $original) === []) {
+                    $after = null;
+                    $plain = array_filter(array_intersect_key($merged, $keys), fn ($v) => $v === null || is_scalar($v));
+                    if (count($plain) === count($keys) && ($id = (int) ($original['id'] ?? 0)) > 0) {
+                        $after = [$id => $plain];
+                    }
+
+                    return ['table' => $table, 'before' => [array_intersect_key($original, $keys)], 'after' => $after];
+                }
+            }
+        }
+
+        $alias = $this->revisionAlias($table);
+        $select = clone $this;
+        $select->orders = null;
+        $select->limit = null;
+        $select->offset = null;
+        $select->unions = null;
+        $select->lock = null;
+        $select->aggregate = null;
+        $select->bindings['order'] = [];
+        $select->bindings['union'] = [];
+        $select->bindings['unionOrder'] = [];
+        $select->columns = null;
+        $select->select(array_map(fn (string $c) => new Expression(
+            $this->grammar->wrap($alias.'.'.$c).' as '.$this->grammar->wrap($c)
+        ), $inputs));
+
+        return ['table' => $table, 'before' => array_map(fn ($row) => (array) $row, $select->get()->all()), 'after' => null];
+    }
+
+    /** @param array{table: string, before: list<array<string, mixed>>, after: array<int, array<string, mixed>>|null} $narrow */
+    private function touchNarrow(array $narrow): void
+    {
+        if ($narrow['before'] === []) {
+            return; // matched no row
+        }
+        $after = $narrow['after'];
+        if ($after === null) {
+            $after = [];
+            $ids = array_values(array_filter(array_map(fn (array $row) => (int) ($row['id'] ?? 0), $narrow['before'])));
+            foreach (array_chunk($ids, 500) as $chunk) {
+                foreach ($this->newQuery()->from($narrow['table'])->whereIn('id', $chunk)->get(RevisionMap::NARROW_INPUTS[$narrow['table']]) as $row) {
+                    $after[(int) $row->id] = (array) $row;
+                }
+            }
+        }
+
+        app(RevisionHooks::class)->touchNarrow($narrow['table'], $narrow['before'], $after);
     }
 
     public function updateFrom(array $values)
@@ -110,7 +194,11 @@ class RevisionQueryBuilder extends Builder
         $this->touchUnknown();
     }
 
-    /** A change to an access row (token, terminal, user, permission) drops the remembered channel grants */
+    /**
+     * A change to an access row (token, terminal, user, permission) drops the remembered channel grants that depended
+     * on those rows (CachedChannelAuth): the rows are listed first (one small select); a write whose rows cannot be
+     * listed, or a branch moved to another store, drops every grant.
+     */
     private function forgetChannelGrants(?array $values): void
     {
         $table = $this->revisionTable();
@@ -128,7 +216,66 @@ class RevisionQueryBuilder extends Builder
                 return;
             }
         }
-        CachedChannelAuth::forgetGrants();
+
+        $subject = CachedChannelAuth::SUBJECTS[$table] ?? null;
+        if ($subject === null) {
+            CachedChannelAuth::forgetGrants();
+
+            return;
+        }
+        [$prefix, $column] = $subject;
+
+        try {
+            $alias = $this->revisionAlias($table);
+            $select = clone $this;
+            $select->orders = null;
+            $select->limit = null;
+            $select->offset = null;
+            $select->unions = null;
+            $select->lock = null;
+            $select->aggregate = null;
+            $select->bindings['order'] = [];
+            $select->bindings['union'] = [];
+            $select->bindings['unionOrder'] = [];
+            $select->columns = null;
+            $ids = $select->select(new Expression($this->grammar->wrap($alias.'.'.$column).' as '.$this->grammar->wrap('subject')))
+                ->distinct()->limit(CachedChannelAuth::MAX_SUBJECTS + 1)->pluck('subject')->all();
+        } catch (\Throwable) {
+            CachedChannelAuth::forgetGrants();
+
+            return;
+        }
+
+        $subjects = [];
+        foreach ($ids as $id) {
+            if ($id !== null) {
+                $subjects[] = $prefix.(int) $id;
+            }
+        }
+        if (count($ids) > CachedChannelAuth::MAX_SUBJECTS) {
+            CachedChannelAuth::forgetGrants();
+        } else {
+            CachedChannelAuth::forgetGrantsOf($subjects);
+        }
+    }
+
+    /** An inserted permission override can take a channel away too: that store's grants */
+    private function forgetInsertedGrants(array $values): void
+    {
+        if ($this->revisionTable() !== 'role_permission_overrides' || $values === []) {
+            return;
+        }
+        $rows = is_array(reset($values)) ? array_values($values) : [$values];
+        $subjects = [];
+        foreach ($rows as $row) {
+            if (!isset($row['store_id'])) {
+                CachedChannelAuth::forgetGrants();
+
+                return;
+            }
+            $subjects[] = 's:'.(int) $row['store_id'];
+        }
+        CachedChannelAuth::forgetGrantsOf($subjects);
     }
 
     /** The table written, without alias or quoting (null for a sub-query or an expression) */

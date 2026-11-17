@@ -14,6 +14,11 @@ use Illuminate\Database\Eloquent\Builder;
  * what the read needs: the raw schedule (for "open now"), the branch circles (for the exact radius check and the
  * distance) and the reachability limit. It is keyed by the directory and global revisions, so a store, branch or
  * payment-switch change is seen by the next request; without a hook it is rebuilt after `ttl.area` seconds.
+ *
+ * Review M2 R1-1/R1-4: each entry also records its store's revision (ChangeRevision::store) as read BEFORE the entry
+ * was queried. Every read (snapshot()) compares them with the current tokens (one MGET) and re-queries the entries
+ * whose store moved, so what only moves a store token (the debt lock flipping, a review) is on the next list, not
+ * after `ttl.area`; and the answer's ETag names exactly those recorded tokens, never ones newer than its body.
  */
 final class StoreDirectory
 {
@@ -57,14 +62,65 @@ final class StoreDirectory
     }
 
     /**
+     * The area's entries, each checked against its store's current revision (stale ones re-queried), with the
+     * revision each entry is valid for: id => token, read before the entry's data.
+     *
+     * @return array{entries: list<array{id: int, card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, circles: list<array{0: float, 1: float, 2: float|null}>, offline_minutes: int|null}>, tokens: array<int, string>}
+     */
+    public function snapshot(Area $area): array
+    {
+        $version = $this->version();
+        $doc = $this->cache->remember(self::family($area), $version, 'area', fn () => $this->build($area));
+
+        $ids = array_map(fn (array $entry) => $entry['id'], $doc['entries']);
+        $current = $this->revisions->stores($ids);
+        $stale = [];
+        foreach ($ids as $id) {
+            if (($doc['tokens'][$id] ?? '') !== ($current[$id] ?? null)) {
+                $stale[] = $id;
+            }
+        }
+        if ($stale === []) {
+            return $doc;
+        }
+
+        // Re-query the moved stores ($current was read before this query), keep the rest, and store the result so the
+        // next request does not repeat it (a newer patch may overwrite it: each entry still names its own token)
+        $fresh = [];
+        foreach ($this->query($area)->whereIn('id', $stale)->get() as $store) {
+            $fresh[(int) $store->id] = self::entry($store);
+        }
+        $entries = [];
+        $tokens = [];
+        foreach ($doc['entries'] as $entry) {
+            $id = $entry['id'];
+            if (in_array($id, $stale, true)) {
+                if (!isset($fresh[$id])) {
+                    continue; // no longer listed (inactive, payment required, moved away)
+                }
+                $entry = $fresh[$id];
+                $tokens[$id] = (string) $current[$id];
+            } else {
+                $tokens[$id] = $doc['tokens'][$id];
+            }
+            $entries[] = $entry;
+        }
+        $doc = ['entries' => $entries, 'tokens' => $tokens];
+        $this->cache->replace(self::family($area), $version, 'area', $doc);
+
+        return $doc;
+    }
+
+    /**
      * The area's stores that serve the point (with coordinates: a branch within its radius), nearest first with
      * `min_distance`; otherwise in id order. Each entry: card (the old JSON), schedule, circles, offline_minutes.
      *
+     * @param  array{entries: list<array<string, mixed>>, tokens: array<int, string>}|null  $snapshot  snapshot() of this request
      * @return list<array{id: int, card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, circles: list<array{0: float, 1: float, 2: float|null}>, offline_minutes: int|null, min_distance?: float}>
      */
-    public function stores(Area $area): array
+    public function stores(Area $area, ?array $snapshot = null): array
     {
-        $entries = $this->document($area);
+        $entries = ($snapshot ?? $this->snapshot($area))['entries'];
 
         if (!$area->hasPoint()) {
             return $entries;
@@ -95,25 +151,52 @@ final class StoreDirectory
     /**
      * The ids of the stores the area document lists (with coordinates: every store that may reach the cell).
      *
+     * @param  array{entries: list<array<string, mixed>>, tokens: array<int, string>}|null  $snapshot  snapshot() of this request
      * @return list<int>
      */
-    public function candidateIds(Area $area): array
+    public function candidateIds(Area $area, ?array $snapshot = null): array
     {
-        return array_map(fn (array $entry) => $entry['id'], $this->document($area));
+        return array_map(fn (array $entry) => $entry['id'], ($snapshot ?? $this->snapshot($area))['entries']);
+    }
+
+    private static function family(Area $area): string
+    {
+        return 'mkt:area:'.$area->key;
+    }
+
+    private function version(): string
+    {
+        return $this->revisions->directory().':'.$this->revisions->global();
     }
 
     /**
-     * @return list<array{id: int, card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, circles: list<array{0: float, 1: float, 2: float|null}>, offline_minutes: int|null}>
-     */
-    private function document(Area $area): array
-    {
-        return $this->cache->remember('mkt:area:'.$area->key, $this->revisions->directory().':'.$this->revisions->global(), 'area', fn () => $this->build($area));
-    }
-
-    /**
-     * @return list<array{id: int, card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, circles: list<array{0: float, 1: float, 2: float|null}>, offline_minutes: int|null}>
+     * The listed stores, each with its store revision read before its row (a store that appeared between the two
+     * reads gets no token: the next read re-queries it).
+     *
+     * @return array{entries: list<array{id: int, card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, circles: list<array{0: float, 1: float, 2: float|null}>, offline_minutes: int|null}>, tokens: array<int, string>}
      */
     private function build(Area $area): array
+    {
+        $ids = array_map('intval', $this->query($area)->reorder()->pluck('id')->all());
+        $before = $this->revisions->stores($ids);
+
+        $entries = [];
+        $tokens = [];
+        foreach ($this->query($area)->get() as $store) {
+            $entry = self::entry($store);
+            $entries[] = $entry;
+            $tokens[$entry['id']] = (string) ($before[$entry['id']] ?? '');
+        }
+
+        return ['entries' => $entries, 'tokens' => $tokens];
+    }
+
+    /**
+     * The old StoreController::index query of the area's listed stores.
+     *
+     * @return Builder<Store>
+     */
+    private function query(Area $area): Builder
     {
         $query = Store::query()
             ->select([...self::CARD_COLUMNS, 'marketplace_offline_minutes'])
@@ -124,12 +207,7 @@ final class StoreDirectory
 
         $this->whereArea($query, $area);
 
-        $entries = [];
-        foreach ($query->get() as $store) {
-            $entries[] = self::entry($store);
-        }
-
-        return $entries;
+        return $query;
     }
 
     /**

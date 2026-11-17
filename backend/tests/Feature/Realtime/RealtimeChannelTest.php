@@ -296,4 +296,65 @@ class RealtimeChannelTest extends TestCase
         PersonalAccessToken::query()->delete();
         $this->subscribe($token, $channel, '111.333')->assertUnauthorized();
     }
+
+    /** A repeat that is signed from the cache runs no SQL */
+    private function assertCached(string $token, string $channel, string $socket, string $what): void
+    {
+        DB::enableQueryLog();
+        $this->subscribe($token, $channel, $socket)->assertOk();
+        $this->assertSame([], DB::getQueryLog(), $what);
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
+
+    private function assertChecked(string $token, string $channel, string $socket, string $what): \Illuminate\Testing\TestResponse
+    {
+        DB::enableQueryLog();
+        $response = $this->subscribe($token, $channel, $socket);
+        $this->assertNotSame([], DB::getQueryLog(), $what);
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+
+        return $response;
+    }
+
+    public function test_one_clients_token_refresh_or_role_change_keeps_everyone_elses_grants(): void
+    {
+        // M2 review R2-4: before, every deleted token (each 15-minute refresh) dropped every grant platform-wide
+        $owner = $this->owner->createToken('owner')->plainTextToken;
+        $manager = $this->manager->createToken('manager')->plainTextToken;
+        $refreshing = $this->manager->createToken('phone')->plainTextToken;
+        $storeChannel = "private-store.{$this->store->id}";
+        $branchChannel = "private-branch.{$this->branch->id}";
+        $this->subscribe($owner, $storeChannel, '1.1')->assertOk();
+        $this->subscribe($manager, $branchChannel, '1.1')->assertOk();
+        $this->subscribe($refreshing, $branchChannel, '1.1')->assertOk();
+
+        // The phone refreshes: its old token is deleted. Only that token loses its grant
+        PersonalAccessToken::findToken($refreshing)?->delete();
+        $this->assertCached($owner, $storeChannel, '1.2', 'another user keeps the grant');
+        $this->assertCached($manager, $branchChannel, '1.2', "the same user's other token keeps the grant");
+        $this->assertChecked($refreshing, $branchChannel, '1.2', 'the deleted token is checked in full')->assertUnauthorized();
+
+        // The manager moves to another branch: only the manager's grants go
+        $this->manager->update(['branch_id' => $this->otherBranch->id]);
+        $this->assertCached($owner, $storeChannel, '1.3', "the owner keeps the grant after a manager's move");
+        $this->assertChecked($manager, $branchChannel, '1.3', "the manager's grant is dropped")->assertForbidden();
+
+        // A permission override of the store (inserted): that store's grants
+        DB::table('role_permission_overrides')->insert(['store_id' => $this->store->id, 'role' => 'manager', 'permission' => 'orders.view', 'allowed' => false, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertChecked($owner, $storeChannel, '1.4', 'an override drops the store\'s grants')->assertOk();
+    }
+
+    public function test_an_expired_token_is_never_signed_from_the_cache(): void
+    {
+        // M2 review R2-5: the cached path re-checks the token's expiry
+        $issued = $this->owner->createToken('short', ['*'], now()->addSeconds(30));
+        $channel = "private-store.{$this->store->id}";
+        $this->subscribe($issued->plainTextToken, $channel, '1.1')->assertOk();
+        $this->assertCached($issued->plainTextToken, $channel, '1.2', 'remembered while valid');
+
+        $this->travel(31)->seconds();
+        $this->assertChecked($issued->plainTextToken, $channel, '1.3', 'checked in full once expired')->assertUnauthorized();
+    }
 }
