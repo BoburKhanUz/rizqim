@@ -69,7 +69,8 @@ class RealtimeChannelTest extends TestCase
                 return (object) [];
             }
 
-            public function getChannels(array $params = []): object
+            /** Reverb's GET /channels, decoded (the heartbeat asks for arrays) */
+            public function get(string $path, array $params = [], $associative = false)
             {
                 if ($this->calls->fail) {
                     throw new RuntimeException('Reverb is down');
@@ -78,11 +79,11 @@ class RealtimeChannelTest extends TestCase
                 $channels = [];
                 foreach ($this->calls->channels as $name) {
                     if (str_starts_with($name, $prefix)) {
-                        $channels[$name] = (object) [];
+                        $channels[$name] = [];
                     }
                 }
 
-                return (object) ['channels' => $channels];
+                return ['channels' => $channels];
             }
         };
 
@@ -147,6 +148,57 @@ class RealtimeChannelTest extends TestCase
         $this->travel(3)->minutes();
         (new SendRealtimeHeartbeat)->handle();
         $this->assertSame('degraded', app(RealtimeHealth::class)->status()['status']);
+    }
+
+    /**
+     * The real pusher-php client against Reverb's HTTP answers: a prefix with no subscriber is `{"channels": []}` (a
+     * JSON list, not an object), another prefix may answer garbage or an error; the remaining prefixes still get their
+     * heartbeat, and each event's `data` is encoded once (the client reads an object, like every other event).
+     */
+    public function test_the_heartbeat_survives_an_empty_or_broken_prefix_and_encodes_its_data_once(): void
+    {
+        $branch = "private-pos-branch.{$this->branch->id}";
+        $store = "private-store.{$this->store->id}";
+        $posted = [];
+        $answers = [
+            'private-pos-branch.' => [200, json_encode(['channels' => [$branch => (object) []]])],
+            'private-branch.' => [200, '{"channels":[]}'], // Reverb: no subscriber
+            'private-store.' => [200, json_encode(['channels' => [$store => (object) []]])],
+        ];
+        $handler = function (\Psr\Http\Message\RequestInterface $request) use (&$answers, &$posted) {
+            if ($request->getMethod() === 'POST') {
+                $posted[] = json_decode((string) $request->getBody(), true);
+
+                return new \GuzzleHttp\Promise\FulfilledPromise(new \GuzzleHttp\Psr7\Response(200, [], '{}'));
+            }
+            parse_str($request->getUri()->getQuery(), $query);
+            [$status, $body] = $answers[$query['filter_by_prefix']];
+
+            return new \GuzzleHttp\Promise\FulfilledPromise(new \GuzzleHttp\Psr7\Response($status, [], $body));
+        };
+        $client = new \GuzzleHttp\Client(['handler' => \GuzzleHttp\HandlerStack::create($handler)]);
+        $pusher = new Pusher(self::KEY, self::SECRET, '1001', ['host' => 'reverb.test', 'scheme' => 'http', 'port' => 8080], $client);
+        $manager = app(BroadcastManager::class);
+        $manager->purge('reverb');
+        $manager->extend('reverb', fn () => new RevisionPusherBroadcaster($pusher));
+
+        (new SendRealtimeHeartbeat)->handle();
+
+        $events = array_merge(...array_column($posted, 'batch'));
+        $this->assertSame([$branch, $store], array_column($events, 'channel'), 'an empty prefix does not stop the others');
+        $this->assertIsString($events[0]['data'], 'the Pusher protocol carries data as JSON text');
+        $data = json_decode($events[0]['data'], true);
+        $this->assertIsArray($data, 'encoded once: the client parses it into an object');
+        $this->assertSame(30, $data['interval']);
+        $this->assertSame(["pos-branch.{$this->branch->id}" => app(ChangeRevision::class)->branch($this->branch->id)], $data['rev']);
+        $this->assertTrue(app(RealtimeHealth::class)->status()['live']);
+
+        // A malformed answer and an error answer count as "no channels" for that prefix only
+        $answers['private-branch.'] = [200, 'not json'];
+        $answers['private-store.'] = [500, 'boom'];
+        $posted = [];
+        (new SendRealtimeHeartbeat)->handle();
+        $this->assertSame([$branch], array_column(array_merge(...array_column($posted, 'batch')), 'channel'));
     }
 
     public function test_the_status_endpoint_is_public_has_no_database_and_says_when_not_to_rely_on_real_time(): void

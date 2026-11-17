@@ -1,6 +1,9 @@
 import { defineConfig } from '@playwright/test'
 
 const PORT = Number(process.env.E2E_PORT) || 4173
+// Wave M2: e2e/conditional.spec.ts serves the fake API over real HTTP here (the preview server proxies /api to it), so
+// the browser's HTTP cache takes part; every other spec answers the API inside the page (page.route) and never gets here
+export const E2E_API_PORT = Number(process.env.E2E_API_PORT) || PORT + 1000
 const BASE_URL = `http://127.0.0.1:${PORT}`
 const isCI = Boolean(process.env.CI)
 
@@ -44,6 +47,7 @@ export default defineConfig({
       VITE_REVERB_APP_KEY: '',
       VITE_SENTRY_DSN: '',
       VITE_APP_DEBUG: '',
+      API_PROXY_TARGET: `http://127.0.0.1:${E2E_API_PORT}`,
     },
   },
 })

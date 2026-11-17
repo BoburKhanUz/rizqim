@@ -144,6 +144,7 @@ describe('openOrderChannels', () => {
       '.order.assigned',
       '.order.created',
       '.order.status_changed',
+      '.realtime.heartbeat',
     ]);
   });
 
@@ -163,8 +164,8 @@ describe('openOrderChannels', () => {
     echo.emit('.kitchen.item_status_changed', { order, item: { id: 812, kitchen_status: 'ready', ready_at: 't' }, items_total: 3, items_ready: 2 });
     echo.emit('.menu.availability_changed', { store_id: 3, branch_id: 5, reason: 'stop_list', items: [], changed_at: 't' });
 
-    expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'kitchen.item_status_changed', order });
-    expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'menu.availability_changed', order: null });
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'kitchen.item_status_changed', order, channel: 'pos-branch.5', rev: null });
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'menu.availability_changed', order: null, channel: 'pos-branch.5', rev: null });
   });
 
   it('passes events on, with the order when the payload has one', async () => {
@@ -174,8 +175,23 @@ describe('openOrderChannels', () => {
     echo.emit('.order.status_changed', { order });
     echo.emit('.order.created', { unexpected: true });
 
-    expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'order.status_changed', order });
-    expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'order.created', order: null });
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'order.status_changed', order, channel: 'store.3', rev: null });
+    expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'order.created', order: null, channel: 'store.3', rev: null });
+  });
+
+  it("wave M2: passes the channel's change token on, and the heartbeats of a staff channel", async () => {
+    const onHeartbeat = vi.fn();
+    handlers.onHeartbeat = onHeartbeat;
+    const { echo } = await open();
+    const order = { uuid: 'u1', status: 'accepted', store_id: 3, branch_id: null, courier_id: null, updated_at: 't' };
+
+    echo.emit('.order.status_changed', { order, rev: { 'store.3': '9007199254740993', 'branch.5': '1' } });
+    echo.emit('.realtime.heartbeat', { at: 't', interval: 30, rev: { 'store.3': '9007199254740993' } });
+    echo.emit('.realtime.heartbeat', { at: 't', interval: 30 });
+
+    expect(handlers.onEvent).toHaveBeenCalledWith({ name: 'order.status_changed', order, channel: 'store.3', rev: '9007199254740993' });
+    expect(onHeartbeat).toHaveBeenNthCalledWith(1, 'store.3', '9007199254740993');
+    expect(onHeartbeat).toHaveBeenNthCalledWith(2, 'store.3', null);
   });
 
   it('is connected only once the socket is up and the channel accepted', async () => {
@@ -238,7 +254,7 @@ describe('openOrderChannels', () => {
     echo.acceptSubscription();
     expect(handlers.onConnectionChange).toHaveBeenLastCalledWith(true);
     expect(handlers.onResync).toHaveBeenCalledOnce(); // events were missed meanwhile
-    expect([...echo.firstChannel.listeners.keys()]).toHaveLength(5);
+    expect([...echo.firstChannel.listeners.keys()]).toHaveLength(6);
   });
 
   it('leaves, disconnects and goes quiet when closed', async () => {
@@ -291,8 +307,8 @@ describe('openOrderChannels', () => {
       echo.emit('.order.assigned', { order }, 'courier.7');
       echo.emit('.order.status_changed', { order }, 'store.3');
 
-      expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'order.assigned', order });
-      expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'order.status_changed', order });
+      expect(handlers.onEvent).toHaveBeenNthCalledWith(1, { name: 'order.assigned', order, channel: 'courier.7', rev: null });
+      expect(handlers.onEvent).toHaveBeenNthCalledWith(2, { name: 'order.status_changed', order, channel: 'store.3', rev: null });
     });
 
     it('is connected once the first channel is accepted, whether or not the others are', async () => {

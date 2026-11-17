@@ -7,6 +7,8 @@ use App\Domain\Marketplace\MarketplaceRevision;
 use App\Domain\Marketplace\StoreDirectory;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\Device;
+use App\Models\ProductVariant;
 use App\Models\StopListEntry;
 use App\Models\Store;
 use App\Models\User;
@@ -159,10 +161,12 @@ class MarketplaceReadModelTest extends TestCase
         $cards = $this->getData('/api/v1/catalog?lat=41.3120&lng=69.2450&view=cards&limit=2')['data'];
         $this->assertCount(2, $cards['products']);
         $card = collect($cards['products'])->firstWhere('name', 'Osh') ?? $cards['products'][0];
-        $this->assertSame(['id', 'uuid', 'store_id', 'category_id', 'name', 'description', 'image_url', 'image_thumb_urls', 'batch_tracked', 'price', 'needs_options', 'variant', 'store'], array_keys($card));
+        $this->assertSame(['id', 'uuid', 'store_id', 'category_id', 'name', 'description', 'image_url', 'image_thumb_urls', 'batch_tracked', 'price', 'unit', 'needs_options', 'variant', 'store'], array_keys($card));
         $this->assertFalse($card['needs_options']);
         $this->assertSame(['id', 'uuid', 'name', 'price', 'unit', 'stock'], array_keys($card['variant']));
-        $this->assertSame(['id', 'uuid', 'name', 'address', 'logo_url'], array_keys($card['store']));
+        $this->assertSame('piece', $card['unit']);
+        $this->assertSame(['id', 'uuid', 'name', 'address', 'logo_url', 'accepting_orders'], array_keys($card['store']));
+        $this->assertTrue($card['store']['accepting_orders']);
 
         $page = $this->getData('/api/v1/stores?lat=41.3120&lng=69.2450&per_page=1');
         $this->assertCount(1, $page['data']);
@@ -171,6 +175,53 @@ class MarketplaceReadModelTest extends TestCase
         $second = $this->getData('/api/v1/stores?lat=41.3120&lng=69.2450&per_page=1&page=2');
         $this->assertSame($this->north->id, $second['data'][0]['id']);
         $this->assertArrayNotHasKey('meta', $this->getData('/api/v1/stores?lat=41.3120&lng=69.2450'));
+    }
+
+    public function test_a_card_store_accepts_orders_exactly_when_the_store_list_says_so(): void
+    {
+        // North is over its credit limit (order-locked) but open: it is in the feed, not accepting orders
+        DB::table('stores')->where('id', $this->north->id)->update(['debt_balance' => 500000, 'credit_limit' => 0]);
+        $point = 'lat=41.3300&lng=69.2700';
+        $listed = collect($this->getData("/api/v1/stores?{$point}")['data'])->pluck('accepting_orders', 'id')->all();
+        $this->assertSame([$this->near->id => true, $this->north->id => false], $listed);
+
+        $cards = $this->getData("/api/v1/catalog?{$point}&view=cards&limit=10")['data']['products'];
+        $this->assertNotEmpty($cards);
+        $this->assertEqualsCanonicalizing([$this->near->id, $this->north->id], array_values(array_unique(array_column($cards, 'store_id'))));
+        foreach ($cards as $card) {
+            $this->assertSame($listed[$card['store_id']], $card['store']['accepting_orders'], $card['name']);
+        }
+
+        // Per request, not baked into the cached feed: the terminal rule turns it off without a feed rebuild
+        config(['marketplace.reachability.enabled' => true]);
+        DB::table('stores')->where('id', $this->near->id)->update(['marketplace_offline_minutes' => 5]);
+        Device::create([
+            'store_id' => $this->near->id, 'branch_id' => Branch::where('store_id', $this->near->id)->value('id'),
+            'type' => 'pos', 'name' => 'Kassa', 'last_seen_at' => now()->subHour(),
+        ]);
+        $listed = collect($this->getData("/api/v1/stores?{$point}")['data'])->pluck('accepting_orders', 'id')->all();
+        $this->assertFalse($listed[$this->near->id]);
+        foreach ($this->getData("/api/v1/catalog?{$point}&view=cards&limit=10")['data']['products'] as $card) {
+            $this->assertSame($listed[$card['store_id']], $card['store']['accepting_orders'], $card['name']);
+        }
+    }
+
+    public function test_a_card_that_needs_options_still_names_the_unit_of_its_price(): void
+    {
+        $kg = $this->marketProduct($this->near, 'Qazi', '120000');
+        $kg->update(['unit' => 'kg']);
+        $two = $this->marketProduct($this->near, 'Lag\'mon', '28000');
+        ProductVariant::create(['product_id' => $two->product_id, 'name' => 'Yarim', 'price' => '21000', 'stock' => 100, 'is_active' => true]);
+
+        $cards = collect($this->getData('/api/v1/catalog?lat=41.3120&lng=69.2450&view=cards&limit=10')['data']['products'])->keyBy('name');
+        $this->assertTrue($cards['Qazi']['needs_options']);
+        $this->assertNull($cards['Qazi']['variant']);
+        $this->assertSame('120000.00', $cards['Qazi']['price']);
+        $this->assertSame('kg', $cards['Qazi']['unit']);
+        $this->assertTrue($cards["Lag'mon"]['needs_options']);
+        $this->assertSame('21000.00', $cards["Lag'mon"]['price']);
+        $this->assertSame('piece', $cards["Lag'mon"]['unit']);
+        $this->assertSame($cards['Osh']['variant']['unit'], $cards['Osh']['unit']);
     }
 
     public function test_a_warm_browse_reads_no_store_or_menu_table(): void

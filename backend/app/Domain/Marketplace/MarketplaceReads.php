@@ -98,7 +98,7 @@ final class MarketplaceReads
             ? min((int) config('marketplace.feed_limit', 50), max(1, (int) $request->query('limit', '20')))
             : (int) config('marketplace.feed_limit', 50);
 
-        $products = $categoryId === 0 ? [] : $this->feed->products($area, $categoryId, $channel, $limit);
+        $products = $categoryId === 0 ? [] : $this->feed->products($area, $categoryId, $channel, $limit, $cards);
         MarketplaceEtag::forStores($request, array_map(fn (array $product) => (int) $product['store_id'], $products), $user);
         if ($cards) {
             $products = array_map(fn (array $product) => CatalogFeed::card($product), $products);

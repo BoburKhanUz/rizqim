@@ -8,6 +8,7 @@ import 'bool_query_interceptor.dart';
 import 'generated/rizqim_api.dart';
 import 'kitchen/kitchen_service.dart';
 import 'realtime/channel_auth.dart';
+import 'sync/conditional_get.dart';
 
 /// Ilova uchun tayyor to'plam: sozlangan [Dio] (token qo'yish va 401 da yangilash bilan), kirish holati ([auth]) va
 /// OpenAPI'dan yaratilgan klient ([api]).
@@ -46,17 +47,27 @@ class RizqimClient {
       clock: clock,
       refreshSkew: refreshSkew,
     );
+    final EtagStore etags = EtagStore();
     http.interceptors
       ..add(const BoolQueryInterceptor())
-      ..add(AuthInterceptor(http, auth));
-    return RizqimClient._(http, auth, clock);
+      ..add(AuthInterceptor(http, auth))
+      // M2: after the token is set (the store key includes the actor)
+      ..add(ConditionalGetInterceptor(etags, clock: clock));
+    return RizqimClient._(http, auth, etags, clock);
   }
 
-  RizqimClient._(this.dio, this.auth, DateTime Function()? clock)
+  RizqimClient._(this.dio, this.auth, this.etags, DateTime Function()? clock)
     : api = RizqimApi(dio),
       channelAuth = ChannelAuth(dio) {
     kitchen = KitchenService(api, dio, clock: clock);
+    // Another person, another terminal, another session: nothing kept is theirs (the key holds the token anyway)
+    auth.events.listen((AuthEvent e) {
+      if (e.kind != AuthEventKind.tokensRefreshed) etags.clear();
+    });
   }
+
+  /// M2: the last `200` of each polled GET (`If-None-Match` / `304`), cleared on every sign-in change.
+  final EtagStore etags;
 
   /// Ilova o'zini aytadigan sarlavha (backend `DeviceApp::HEADER`).
   static const String appHeader = 'X-Rizqim-App';

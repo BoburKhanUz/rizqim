@@ -36,8 +36,9 @@ describe('board channels', () => {
   });
 
   it('reads an event and tolerates a bad payload', () => {
-    expect(parseBoardEvent('order.created', { order: { uuid: 'u', status: 'new', branch_id: 5 } })).toEqual({ name: 'order.created', uuid: 'u', status: 'new', branchId: 5 });
-    expect(parseBoardEvent('order.assigned', 'nonsense')).toEqual({ name: 'order.assigned', uuid: null, status: null, branchId: null });
+    const payload = { order: { uuid: 'u', status: 'new', branch_id: 5 }, rev: { 'pos-branch.5': '12' } };
+    expect(parseBoardEvent('order.created', payload, 'pos-branch.5')).toEqual({ name: 'order.created', uuid: 'u', status: 'new', branchId: 5, channel: 'pos-branch.5', payload });
+    expect(parseBoardEvent('order.assigned', 'nonsense')).toEqual({ name: 'order.assigned', uuid: null, status: null, branchId: null, channel: '', payload: 'nonsense' });
   });
 });
 
@@ -48,12 +49,12 @@ describe('openBoardChannels', () => {
     const onConnectionChange = vi.fn();
     openBoardChannels(echo, ['pos-branch.5'], { onEvent, onConnectionChange, onResync: vi.fn() });
     const channel = echo.channel('pos-branch.5');
-    expect([...channel.listeners.keys()]).toEqual(['.order.created', '.order.status_changed', '.order.assigned', '.kitchen.item_status_changed']);
+    expect([...channel.listeners.keys()]).toEqual(['.order.created', '.order.status_changed', '.order.assigned', '.kitchen.item_status_changed', '.realtime.heartbeat']);
 
     echo.connectAll();
     expect(onConnectionChange).toHaveBeenLastCalledWith(true);
     channel.emit('kitchen.item_status_changed', { order: { uuid: 'u1', status: 'preparing', branch_id: 5 }, item: { id: 1 } });
-    expect(onEvent).toHaveBeenCalledWith({ name: 'kitchen.item_status_changed', uuid: 'u1', status: 'preparing', branchId: 5 });
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ name: 'kitchen.item_status_changed', uuid: 'u1', status: 'preparing', branchId: 5, channel: 'pos-branch.5' }));
   });
 
   it('says when the socket drops and asks for a full refetch after it is back', () => {

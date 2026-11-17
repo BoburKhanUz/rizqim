@@ -129,6 +129,8 @@ class TerminalHome extends StatefulWidget {
 }
 
 class _TerminalHomeState extends State<TerminalHome> {
+  late final AppLifecycleListener _lifecycle;
+
   PosRealtime? _realtime;
   late final StreamSubscription<AuthEvent> _authSub;
   late final StreamSubscription<PosSessionPhase> _phaseSub;
@@ -149,6 +151,8 @@ class _TerminalHomeState extends State<TerminalHome> {
   @override
   void initState() {
     super.initState();
+    // M2: back in the foreground (Android resume, a Windows window focused again): every screen re-reads at once
+    _lifecycle = AppLifecycleListener(onResume: AppResume.notify);
     _realtime = _s.realtimeFactory?.call(_s.client, widget.terminal)?..start();
     _authSub = _s.auth.events.listen(_onAuth);
     _phaseSub = _session.changes.listen((_) {
@@ -212,6 +216,7 @@ class _TerminalHomeState extends State<TerminalHome> {
     unawaited(_authSub.cancel());
     unawaited(_phaseSub.cancel());
     unawaited(_realtime?.dispose());
+    _lifecycle.dispose();
     super.dispose();
   }
 

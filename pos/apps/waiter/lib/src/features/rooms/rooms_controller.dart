@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:rizqim_api/rizqim_api.dart' show CapturedRead, ReadTracking;
 
 /// "Mening xonalarim" ro'yxati filtri.
 enum RoomsFilter {
@@ -114,9 +115,12 @@ class RoomsController extends ChangeNotifier {
     loading = true;
     _notify();
     try {
-      final PosFloor next = await data.floor.load();
-      floor = next;
-      loadedAt = _clock();
+      // M2: a 304 answered from the kept body counts from its original 200 (open times must not restart)
+      final CapturedRead<PosFloor> read = await ReadTracking.capture(
+        () => data.floor.load(),
+      );
+      floor = read.value;
+      loadedAt = read.reads.receivedAt(_clock());
       error = null;
       _retry?.cancel();
       _retry = null;

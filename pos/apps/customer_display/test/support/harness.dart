@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +38,57 @@ class FakeDisplayBackend {
   int stateCalls = 0;
   int queueCalls = 0;
 
+  /// M2: the branch's change token: +1 per event; events carry it in `rev`, the reads in `X-Revision`.
+  int revision = 4000000000000;
+
+  /// M2: the reads answer with an ETag (the token and the body without `server_time`, which moves with the clock as
+  /// on the server, where the ETag is the token alone) and `304` to a matching `If-None-Match`.
+  bool etags = true;
+  int notModified = 0;
+
+  Map<String, Object?> get revMap => <String, Object?>{
+    'pos-branch.1': '$revision',
+  };
+
+  void _emit(String event, Map<String, Object?> data) {
+    revision++;
+    hub.broadcast(event, <String, Object?>{...data, 'rev': revMap});
+  }
+
+  /// A heartbeat with the current token.
+  void heartbeat() => hub.heartbeat(<String, Object?>{'rev': revMap});
+
   FakeResponse? handle(RequestOptions o) {
+    final FakeResponse? r = _handle(o);
+    if (r == null || r.status != 200 || !etags) return r;
+    final Object? body = r.body;
+    final Object? data = body is Map ? body['data'] : null;
+    final String stable = jsonEncode(
+      data is Map
+          ? <String, Object?>{
+              for (final MapEntry<Object?, Object?> e in data.entries)
+                if (e.key != 'server_time') '${e.key}': e.value,
+            }
+          : data,
+    );
+    final String tag = '"d.${o.uri.path}.$revision.${stable.hashCode}"';
+    if (o.headers['If-None-Match'] == tag) {
+      notModified++;
+      return FakeResponse(304, null, headers: <String, String>{'ETag': tag});
+    }
+    return FakeResponse(
+      200,
+      body,
+      headers: <String, String>{
+        ...r.headers,
+        'ETag': tag,
+        'X-Revision': '$revision',
+        'X-Revision-Scope': 'branch:1',
+      },
+    );
+  }
+
+  FakeResponse? _handle(RequestOptions o) {
     final String path = o.uri.path;
     if (path != '/api/v1/pos/display/state' &&
         path != '/api/v1/pos/display/queue') {
@@ -141,7 +193,7 @@ class FakeDisplayBackend {
       'payment': payment,
       'updated_at': cartUpdatedAt!.toUtc().toIso8601String(),
     };
-    hub.broadcast('display.cart', <String, Object?>{
+    _emit('display.cart', <String, Object?>{
       'terminal': terminal,
       'seq': _seq,
       'state': state,
@@ -199,7 +251,7 @@ class FakeDisplayBackend {
   /// Yangi raqam oshxonaga tushdi.
   void addPreparing(int number) {
     preparing.add(entry(number, 'preparing'));
-    hub.broadcast('queue.preparing', _queueEvent(number, 'preparing'));
+    _emit('queue.preparing', _queueEvent(number, 'preparing'));
   }
 
   /// Raqam tayyor bo'ldi (oshxona yoki kassa): server taxtani yangilaydi, hodisa yuboradi.
@@ -207,7 +259,7 @@ class FakeDisplayBackend {
     preparing.removeWhere((Map<String, Object?> e) => e['number'] == number);
     ready.removeWhere((Map<String, Object?> e) => e['number'] == number);
     ready.add(entry(number, 'ready', readyAt: now()));
-    hub.broadcast('queue.ready', _queueEvent(number, 'ready'));
+    _emit('queue.ready', _queueEvent(number, 'ready'));
   }
 
   /// Kassa raqamni qayta chaqirdi.
@@ -217,7 +269,7 @@ class FakeDisplayBackend {
     );
     final int calls = (e['call_count']! as int) + 1;
     e['call_count'] = calls;
-    hub.broadcast(
+    _emit(
       'queue.ready',
       _queueEvent(number, 'ready', called: true, calls: calls),
     );
@@ -227,7 +279,7 @@ class FakeDisplayBackend {
   void hand(int number) {
     ready.removeWhere((Map<String, Object?> e) => e['number'] == number);
     preparing.removeWhere((Map<String, Object?> e) => e['number'] == number);
-    hub.broadcast('queue.handed', _queueEvent(number, 'handed'));
+    _emit('queue.handed', _queueEvent(number, 'handed'));
   }
 }
 
@@ -271,6 +323,8 @@ class DisplayHarness {
               appKey: FakePosState.realtimeKey,
               clientName: 'rizqim-display',
               connector: hub.connect,
+              // The tests time the old 1-2-4 s backoff; the 0-10 s first spread is tested in rizqim_api and pos_data
+              backoff: const Backoff(),
             )
           : null,
     );

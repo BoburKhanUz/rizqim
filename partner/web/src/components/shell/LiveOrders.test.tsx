@@ -6,6 +6,8 @@ import { AuthProvider } from '../AuthProvider';
 import { I18nProvider } from '../I18nProvider';
 import { ApiConfigContext, RealtimeConfigContext } from '@/lib/apiConfig';
 import type { RealtimeConfig } from '@/lib/realtime';
+import { revisions } from '@/lib/revisions';
+import type { RealtimeStatus } from '@rizqim/staff';
 import { getStaffApi, setSession } from '@/lib/session/client';
 import type { Chime } from '@/lib/sound';
 import { FakeEcho } from '@/test/fakeEcho';
@@ -21,7 +23,19 @@ beforeEach(() => {
   window.localStorage.clear();
   document.title = 'Rizqim Hamkor';
 });
-afterEach(() => setSession(null));
+afterEach(() => {
+  setSession(null);
+  revisions.clear();
+});
+
+const STATUS: RealtimeStatus = {
+  live: true,
+  heartbeatSeconds: 30,
+  silenceSeconds: 90,
+  pollLiveSeconds: 60,
+  pollFallbackSeconds: 15,
+  reverb: { key: 'server-key', host: null, port: null, scheme: null },
+};
 
 const ok = (data: unknown, extra: Record<string, unknown> = {}) => json({ success: true, message: 'ok', data, ...extra });
 
@@ -38,15 +52,29 @@ function fakeChime(): Chime & { play: ReturnType<typeof vi.fn> } {
   return { ready: true, unlock: vi.fn(async () => true), play: vi.fn(() => true), close: vi.fn() };
 }
 
-function setup({ role = 'owner', branch = { id: null as number | null, scoped: false }, config = CONFIG as RealtimeConfig | null } = {}) {
-  const state = { orders: [] as { uuid: string; status: string }[] };
+function setup({
+  role = 'owner',
+  branch = { id: null as number | null, scoped: false },
+  config = CONFIG as RealtimeConfig | null,
+  status = null as RealtimeStatus | null,
+} = {}) {
+  const state = { orders: [] as { uuid: string; status: string }[], revision: null as string | null };
   const { calls } = mockFetch({
     'POST /api/session/refresh': () => json({ access_token: 'a', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'A', role } }),
     'GET /api/v1/me/permissions': () =>
       ok({ role, store_id: 3, branch_id: branch.id, branch_scoped: branch.scoped, permissions: ['orders.view', 'orders.manage'], device_uuid: null }),
     'GET /api/v1/owner/branches': () => ok([{ id: 5, name: 'Chilonzor', working_hours: { timezone: 'Asia/Tashkent' } }]),
-    'GET /api/v1/staff/orders': () => ok(state.orders, { meta: { next_cursor: null, per_page: 100 } }),
+    'GET /api/v1/staff/orders': () => {
+      const response = ok(state.orders, { meta: { next_cursor: null, per_page: 100 } });
+      // Wave M2: a single-branch read names its change token (when the backend exposes the header)
+      if (state.revision !== null && branch.id !== null) {
+        response.headers.set('X-Revision', state.revision);
+        response.headers.set('X-Revision-Scope', `branch:${branch.id}`);
+      }
+      return response;
+    },
   });
+  const loadStatus = vi.fn(async () => status);
   const echo = new FakeEcho();
   const connect = vi.fn(async () => echo);
   const chime = fakeChime();
@@ -59,7 +87,7 @@ function setup({ role = 'owner', branch = { id: null as number | null, scoped: f
             <QueryClientProvider client={queryClient}>
               <AuthProvider apiBaseUrl={API}>
                 <BranchScopeProvider>
-                  <LiveOrdersProvider connect={connect} chime={chime}>
+                  <LiveOrdersProvider connect={connect} chime={chime} loadStatus={loadStatus}>
                     <Probe />
                   </LiveOrdersProvider>
                 </BranchScopeProvider>
@@ -71,7 +99,7 @@ function setup({ role = 'owner', branch = { id: null as number | null, scoped: f
     </I18nProvider>,
   );
   const ordersCalls = () => calls.filter((call) => new URL(call.url).pathname === '/api/v1/staff/orders').length;
-  return { state, echo, connect, chime, ordersCalls, unmount };
+  return { state, echo, connect, chime, ordersCalls, unmount, loadStatus };
 }
 
 describe('LiveOrdersProvider', () => {
@@ -152,5 +180,96 @@ describe('LiveOrdersProvider', () => {
     const { connect } = setup({ config: null });
     await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(`off ${POLL_MS}`));
     expect(connect).not.toHaveBeenCalled();
+  });
+
+  describe('wave M2', () => {
+    it("connects with the backend's settings when the panel's server has no key", async () => {
+      const { connect } = setup({ config: null, status: STATUS });
+      await waitFor(() => expect(connect).toHaveBeenCalledWith({ key: 'server-key', host: 'api.test', port: 80, forceTLS: false, authEndpoint: `${API}/broadcasting/auth` }));
+    });
+
+    it('polls at the normal pace while the server says real-time is not live', async () => {
+      const { echo } = setup({ status: { ...STATUS, live: false } });
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(`offline ${POLL_MS}`));
+    });
+
+    it('reads GET /realtime again after a reconnect', async () => {
+      const { echo, loadStatus } = setup({ status: STATUS });
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(loadStatus).toHaveBeenCalledTimes(1));
+      echo.setConnection('disconnected');
+      echo.connectAll();
+      await waitFor(() => expect(loadStatus).toHaveBeenCalledTimes(2));
+    });
+
+    it('the next token refetches, one already read fetches nothing, a gap reads everything', async () => {
+      const { state, echo, ordersCalls } = setup({ role: 'cook', branch: { id: 5, scoped: true }, status: STATUS });
+      state.revision = '700';
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(ordersCalls()).toBeGreaterThanOrEqual(1));
+      await waitFor(() => expect(revisions.heldToken('pos-branch.5')).toBe('700'));
+
+      // The start settles first (the shell may read once more while the session and the branch scope arrive)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const settled = ordersCalls();
+
+      // already read: nothing
+      echo.channel('pos-branch.5').emit('order.status_changed', { order: { uuid: 'a', status: 'accepted' }, rev: { 'pos-branch.5': '700' } });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(ordersCalls()).toBe(settled);
+
+      // the next one: the usual refetch
+      state.revision = '701';
+      echo.channel('pos-branch.5').emit('order.status_changed', { order: { uuid: 'a', status: 'preparing' }, rev: { 'pos-branch.5': '701' } });
+      await waitFor(() => expect(ordersCalls()).toBe(settled + 1));
+
+      // a gap: everything again
+      state.revision = '709';
+      echo.channel('pos-branch.5').emit('order.status_changed', { order: { uuid: 'a', status: 'ready' }, rev: { 'pos-branch.5': '709' } });
+      await waitFor(() => expect(ordersCalls()).toBe(settled + 2));
+    });
+
+    it('a heartbeat ahead of what the board read reads everything again', async () => {
+      const { state, echo, ordersCalls } = setup({ role: 'cook', branch: { id: 5, scoped: true }, status: STATUS });
+      state.revision = '40';
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(revisions.heldToken('pos-branch.5')).toBe('40'));
+      const before = ordersCalls();
+
+      echo.channel('pos-branch.5').emit('realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.5': '40' } });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(ordersCalls()).toBe(before);
+
+      echo.channel('pos-branch.5').emit('realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.5': '41' } });
+      await waitFor(() => expect(ordersCalls()).toBe(before + 1));
+    });
+
+    it('silence: no heartbeat for silence_seconds is "offline" (fast polling) until one comes', async () => {
+      const { echo } = setup({ status: { ...STATUS, silenceSeconds: 0.3 } });
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(`live ${LIVE_POLL_MS}`));
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(`offline ${POLL_MS}`), { timeout: 2000 });
+      echo.channel('store.3').emit('realtime.heartbeat', { at: 't', interval: 30, rev: { 'store.3': '1' } });
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(`live ${LIVE_POLL_MS}`));
+    });
+
+    it('the tab coming back reads everything again', async () => {
+      const { echo, ordersCalls } = setup();
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(ordersCalls()).toBe(1));
+      let visibility: DocumentVisibilityState = 'hidden';
+      vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+      document.dispatchEvent(new Event('visibilitychange'));
+      visibility = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+      await waitFor(() => expect(ordersCalls()).toBe(2));
+    });
   });
 });

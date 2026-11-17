@@ -12,7 +12,7 @@ function buildInitData(): string {
   return `query_id=E2E&user=${encodeURIComponent(JSON.stringify(user))}&auth_date=1790000000&hash=e2e`
 }
 
-async function installTelegram(page: Page): Promise<void> {
+export async function installTelegram(page: Page): Promise<void> {
   // The app bundles Telegram's own web-app script (@twa-dev/sdk), which builds window.Telegram.WebApp from the launch
   // parameters it finds in sessionStorage. Seeding them there is what opening the Mini App from Telegram amounts to.
   await page.addInitScript((initData) => {

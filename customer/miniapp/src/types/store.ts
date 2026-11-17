@@ -115,6 +115,7 @@ export interface StoreBase {
   is_order_locked: boolean;
   review_count: number;
   rating: Decimal;
+  accepting_orders?: boolean; // wave M2 (GET /catalog?store_id=): open now, not order-locked, reachable
   delivery_time?: string; // not sent by the API: screens show a placeholder
   created_at: string;
   updated_at: string;
@@ -151,6 +152,7 @@ export interface StoreListItem {
   is_order_locked: boolean;
   branches: BranchSummary[];
   min_distance?: number; // km to the nearest branch, only when the request carried coordinates
+  accepting_orders?: boolean; // wave M2: open now, not order-locked, reachable (missing on an older backend: unknown)
   rating?: Decimal; // not sent by this endpoint
   delivery_time?: string; // not sent by this endpoint
 }

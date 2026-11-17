@@ -3,6 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_lan/pos_lan.dart';
+import 'package:rizqim_api/rizqim_api.dart'
+    show
+        AppResume,
+        CapturedRead,
+        ChannelRevision,
+        ReadTracking,
+        RevisionVerdict;
 
 import '../app_config.dart';
 import '../lan/display_lan.dart';
@@ -122,7 +129,28 @@ class DisplayController extends ChangeNotifier {
   StreamSubscription<PosEvent>? _eventSub;
   StreamSubscription<PosLiveState>? _liveSub;
   StreamSubscription<void>? _resubSub;
+  StreamSubscription<PosHeartbeat>? _heartbeatSub;
+  StreamSubscription<void>? _resumeSub;
   StreamSubscription<LanEvent>? _lanSub;
+
+  /// M2: the screen's revision on the branch channel (`null` without realtime).
+  ChannelRevision? _revision;
+
+  /// M2: poll time since the last read without `If-None-Match` (counted by the poll timer).
+  Duration _sinceUnconditional = Duration.zero;
+  bool _unconditionalNext = false;
+
+  /// M2: a read without `If-None-Match` at least this often while polling.
+  static const Duration unconditionalEvery = Duration(seconds: 110);
+
+  /// M2: events not re-read because their `rev` was already on the screen (tests).
+  int skippedEvents = 0;
+
+  /// M2: reads sent without `If-None-Match` (tests).
+  int unconditionalReads = 0;
+
+  /// M2: the revision state (tests).
+  ChannelRevision? get revision => _revision;
   bool _viaHub = false;
 
   // The till's last cart over the LAN (its run and number): an older one that arrives late is dropped
@@ -175,7 +203,8 @@ class DisplayController extends ChangeNotifier {
     final PosRealtime? rt = realtime;
     if (rt == null) return DisplayLink.polling;
     return switch (rt.state) {
-      PosLiveState.live => DisplayLink.live,
+      // M2: subscribed, but real-time not live (server) or silent: the screen polls fast, say so
+      PosLiveState.live => rt.isLive ? DisplayLink.live : DisplayLink.polling,
       PosLiveState.connecting => DisplayLink.connecting,
       _ => DisplayLink.polling,
     };
@@ -238,7 +267,12 @@ class DisplayController extends ChangeNotifier {
     settings.addListener(_notify);
     final PosRealtime? rt = realtime;
     if (rt != null) {
+      _revision = ChannelRevision(rt.channel);
       _eventSub = rt.events.listen(_onEvent);
+      // A heartbeat whose `rev` differs from what the screen read: an event was missed
+      _heartbeatSub = rt.heartbeats.listen((PosHeartbeat h) {
+        if (_revision?.heartbeat(h.data) ?? false) unawaited(refresh());
+      });
       _liveSub = rt.states.listen((_) {
         _armPoll();
         _notify();
@@ -251,6 +285,8 @@ class DisplayController extends ChangeNotifier {
       _lanSub = l.events.listen(_onLanEvent);
       l.addListener(_onLanChanged);
     }
+    // M2: back in the foreground: re-read at once
+    _resumeSub = AppResume.resumed.listen((_) => unawaited(refresh()));
     _armPoll();
     unawaited(refresh());
   }
@@ -290,34 +326,26 @@ class DisplayController extends ChangeNotifier {
   Future<void> _load() async {
     // Over the LAN the hub is the source; the bridge itself asks the server
     if (lan?.viaHub ?? false) return;
+    final bool unconditional = _unconditionalNext;
+    _unconditionalNext = false;
+    if (unconditional) unconditionalReads++;
     try {
-      final PosDisplayState s = await repository.state();
-      if (_disposed) return;
-      lan?.reportCloud(true);
-      // The server answered while the bridge kept the LAN mode (the hub's queue not on the server yet): the hub's
-      // picture stays until the bridge says it is over
-      if (lan?.viaHub ?? false) return;
-      _state = s;
-      _fetchedAt = _clock();
-      _trackPaid(s.cart);
-      _error = null;
-      _offline = false;
-      if (s.modules.queueCalling) {
-        try {
-          final PosQueueBoard b = await repository.queue();
-          if (_disposed) return;
-          _applyBoard(b);
-        } on PosModuleDisabled {
-          _board = null;
-        }
-      } else {
-        _board = null;
-      }
-      _lastUpdate = _clock();
+      // M2: conditional reads; the capture proves the revision the screen shows and keeps the receive time of a body
+      // answered after a 304 (the cart's age counts from its original 200)
+      final CapturedRead<bool> all = await ReadTracking.capture(
+        () => _read(),
+        unconditional: unconditional,
+      );
+      if (_disposed || !all.value) return;
+      final ChannelRevision? revision = _revision;
+      final String? scope = revision?.scope;
+      revision?.read(scope == null ? null : all.reads.revisionFor(scope));
     } on PosNetworkException {
+      _revision?.forget();
       _offline = true;
       lan?.reportCloud(false);
     } on PosException catch (e) {
+      _revision?.forget();
       // Server javob berdi, lekin rad etdi: tarmoq muammosi emas
       if (e.isNetworkError) {
         _offline = true;
@@ -327,11 +355,43 @@ class DisplayController extends ChangeNotifier {
         _error = e.message;
       }
     } on Object catch (e) {
+      _revision?.forget();
       _offline = true;
       if (kDebugMode) debugPrint('display refresh failed: $e');
     }
     _schedulePaidTick();
     _notify();
+  }
+
+  /// The two reads of a refresh; `false` when the screen is gone or the hub took over meanwhile.
+  Future<bool> _read() async {
+    final CapturedRead<PosDisplayState> read = await ReadTracking.capture(
+      () => repository.state(),
+    );
+    final PosDisplayState s = read.value;
+    if (_disposed) return false;
+    lan?.reportCloud(true);
+    // The server answered while the bridge kept the LAN mode (the hub's queue not on the server yet): the hub's
+    // picture stays until the bridge says it is over
+    if (lan?.viaHub ?? false) return false;
+    _state = s;
+    _fetchedAt = read.reads.receivedAt(_clock());
+    _trackPaid(s.cart);
+    _error = null;
+    _offline = false;
+    if (s.modules.queueCalling) {
+      try {
+        final PosQueueBoard b = await repository.queue();
+        if (_disposed) return false;
+        _applyBoard(b);
+      } on PosModuleDisabled {
+        _board = null;
+      }
+    } else {
+      _board = null;
+    }
+    _lastUpdate = _clock();
+    return true;
   }
 
   // --- hodisalar -----------------------------------------------------------------------------------------------
@@ -342,6 +402,7 @@ class DisplayController extends ChangeNotifier {
       case PosDisplayCartChanged():
         final String? till = _state?.tillUuid;
         if (till != null && e.terminal != null && e.terminal != till) return;
+        if (_alreadyShown(e)) return;
         unawaited(refresh());
       case PosQueueEvent():
         final int? number = e.number;
@@ -349,10 +410,20 @@ class DisplayController extends ChangeNotifier {
           // Ovoz va yirik raqam hodisaning o'zidan: so'rov javobini kutmaymiz
           _announce(number, callCount: e.callCount, again: e.called);
         }
+        if (_alreadyShown(e)) return;
         unawaited(refresh());
       default:
         break;
     }
+  }
+
+  /// M2: the event's `rev` is the token the screen last read: nothing new to read (the announcement above still
+  /// plays). The next token (N+1) or anything doubtful re-reads.
+  bool _alreadyShown(PosEvent e) {
+    final ChannelRevision? r = _revision;
+    if (r == null || r.event(e.data) != RevisionVerdict.same) return false;
+    skippedEvents++;
+    return true;
   }
 
   // --- P6: markaz kassa hodisalari ----------------------------------------------------------------------------
@@ -646,7 +717,14 @@ class DisplayController extends ChangeNotifier {
     final bool live = realtime?.isLive ?? false;
     final Duration every = live ? livePollInterval : pollInterval;
     if (every <= Duration.zero) return;
-    _poll = Timer.periodic(every, (_) => unawaited(refresh()));
+    _poll = Timer.periodic(every, (_) {
+      _sinceUnconditional += every;
+      if (_sinceUnconditional >= unconditionalEvery) {
+        _sinceUnconditional = Duration.zero;
+        _unconditionalNext = true;
+      }
+      unawaited(refresh());
+    });
   }
 
   void _notify() {
@@ -665,6 +743,8 @@ class DisplayController extends ChangeNotifier {
     unawaited(_eventSub?.cancel());
     unawaited(_liveSub?.cancel());
     unawaited(_resubSub?.cancel());
+    unawaited(_heartbeatSub?.cancel());
+    unawaited(_resumeSub?.cancel());
     unawaited(_lanSub?.cancel());
     lan?.removeListener(_onLanChanged);
     unawaited(_announcements.close());

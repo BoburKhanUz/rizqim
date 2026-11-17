@@ -65,6 +65,8 @@ export function boardChannelNames(access: ChannelAccess, selectedBranchId: numbe
 // --- The events --------------------------------------------------------------------------------------------------
 
 export const BOARD_EVENTS = ['order.created', 'order.status_changed', 'order.assigned', 'kitchen.item_status_changed'] as const;
+// Wave M2: every 30 s on the staff channels, with the channel's token
+export const HEARTBEAT_EVENT = 'realtime.heartbeat';
 export type BoardEventName = (typeof BOARD_EVENTS)[number];
 
 export interface BoardEvent {
@@ -73,17 +75,22 @@ export interface BoardEvent {
   uuid: string | null;
   status: string | null;
   branchId: number | null;
+  // Wave M2: the channel it came on (no private- prefix) and the whole payload (its `rev`, read by the board)
+  channel: string;
+  payload: unknown;
 }
 
-export function parseBoardEvent(name: BoardEventName, payload: unknown): BoardEvent {
+export function parseBoardEvent(name: BoardEventName, payload: unknown, channel = ''): BoardEvent {
   const order = typeof payload === 'object' && payload !== null ? (payload as { order?: unknown }).order : undefined;
-  if (typeof order !== 'object' || order === null) return { name, uuid: null, status: null, branchId: null };
+  if (typeof order !== 'object' || order === null) return { name, uuid: null, status: null, branchId: null, channel, payload };
   const { uuid, status, branch_id: branchId } = order as { uuid?: unknown; status?: unknown; branch_id?: unknown };
   return {
     name,
     uuid: typeof uuid === 'string' ? uuid : null,
     status: typeof status === 'string' ? status : null,
     branchId: typeof branchId === 'number' ? branchId : null,
+    channel,
+    payload,
   };
 }
 
@@ -100,11 +107,14 @@ export interface EchoLike {
   private(channel: string): EchoChannelLike;
   leave(channel: string): void;
   disconnect(): void;
-  connector: { onConnectionChange(callback: (status: string) => void): () => void };
+  // pusher: the pusher-js client of laravel-echo (the first reconnect after a drop is spread, wave M2); fakes have none
+  connector: { onConnectionChange(callback: (status: string) => void): () => void; pusher?: unknown };
 }
 
 export interface BoardChannelHandlers {
   onEvent: (event: BoardEvent) => void;
+  // realtime.heartbeat (wave M2): the channel and the payload (its `rev`)
+  onHeartbeat?: (channel: string, payload: unknown) => void;
   // true once the socket is up and every channel subscribed; false whenever one is lost
   onConnectionChange: (connected: boolean) => void;
   // a channel is subscribed again after having been lost: events may have been missed, refetch everything
@@ -154,9 +164,12 @@ export function openBoardChannels(echo: EchoLike, channelNames: readonly string[
     const channel = echo.private(state.name);
     for (const name of BOARD_EVENTS) {
       channel.listen(`.${name}`, (payload: unknown) => {
-        if (!closed) handlers.onEvent(parseBoardEvent(name, payload));
+        if (!closed) handlers.onEvent(parseBoardEvent(name, payload, state.name));
       });
     }
+    channel.listen(`.${HEARTBEAT_EVENT}`, (payload: unknown) => {
+      if (!closed) handlers.onHeartbeat?.(state.name, payload);
+    });
     channel.subscribed(() => {
       if (closed) return;
       state.failures = 0;

@@ -238,6 +238,9 @@ sxemasi o'zgarmagan; `If-None-Match` yubormagan klient avvalgidek har safar `200
 - Zaif `W/"..."` (nginx gzip) va bir nechta tegli `If-None-Match` qabul qilinadi.
 - Bitta doirali javob (masalan filial) `X-Revision: <token>` va `X-Revision-Scope: branch:12` (`store:N`, `user:N`) ham beradi:
   bu token real-time hodisalarining `rev` maydoni bilan bir xil. Do'kon bo'ylab ro'yxatda (bir nechta filial) bu sarlavhalar yo'q.
+- Boshqa domendagi klient (partner web) uchun `ETag`, `X-Revision`, `X-Revision-Scope` CORS `Access-Control-Expose-Headers`
+  da ochiq (`Content-Disposition`, `Retry-After` bilan birga); preflight (`OPTIONS`) javobi brauzerda 2 soat saqlanadi
+  (`Access-Control-Max-Age: 7200`), har polldan oldin qayta so'ralmaydi.
 - `304` kelganda klient oxirgi tanani VA uni olgan vaqtini saqlaydi: `waiting_seconds`, `open_minutes`, `server_time`
   kabi taymerlar o'sha vaqtdan sanaladi (vaqtni qayta boshlamang).
 - Brauzer `fetch` (standart `cache` rejimi) `If-None-Match` ni o'zi yuboradi va `304` ni eski tana bilan `200` qilib
@@ -345,7 +348,8 @@ Qoidalar:
   biror narsa o'tkazib yuborilgan: ekranni to'liq qayta o'qiydi. Tokenlarni faqat tenglik va "+1" bilan solishtiring
   (boshlang'ich qiymat tasodifiy, Redis tozalansa boshqa qiymatga sakraydi).
 - `realtime.heartbeat` (`pos-branch`, `branch`, `store` kanallariga, har 30 s): `{"at": "...", "interval": 30,
-  "rev": {"pos-branch.5": "4711"}}`. `rev` saqlangan tokendan farq qilsa — qayta o'qish. `silence_seconds` (90) davomida
+  "rev": {"pos-branch.5": "4711"}}` (boshqa hodisalar kabi obyekt; M2 tuzatishigacha ikki marta kodlangan satr edi, ikkalasini
+  ham qabul qilish zarar qilmaydi). `rev` saqlangan tokendan farq qilsa — qayta o'qish. `silence_seconds` (90) davomida
   kanalda hech qanday hodisa yoki heartbeat bo'lmasa real-time ishlamayapti deb hisoblang va tez so'rovga o'ting.
 - `GET /api/v1/realtime` (ochiq, tokensiz, bazasiz, 5 s kesh): `{"status": "ok|degraded|off", "live": true,
   "heartbeat_seconds": 30, "silence_seconds": 90, "poll_seconds": {"live": 60, "fallback": 15},
@@ -4606,9 +4610,12 @@ ochiq/pauza/qarz holati jonli jadvallardan tekshiriladi (`MarketplaceCheckoutTes
   yaqini birinchi) va `meta: {page, per_page, total, last_page}`. Ularsiz — avvalgidek hamma do'kon, `meta` siz.
   `for=checkout` (savat) avvalgidek jonli bazadan.
 - `GET /catalog?lat&lng&view=cards&limit=20`: to'liq mahsulot o'rniga kichik kartalar (standart 20, ko'pi bilan 50):
-  `{id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price,
-  needs_options, variant, store: {id, uuid, name, address, logo_url}}`. `price` — eng arzon variant narxi (kanal
-  narxi, decimal satr). `needs_options=true`: variant tanlash, modifikator, og'irlik yoki kombo kerak — to'liq
+  `{id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, unit,
+  needs_options, variant, store: {id, uuid, name, address, logo_url, accepting_orders}}`. `price` — eng arzon variant narxi (kanal
+  narxi, decimal satr); `unit` — shu narx qaysi birlikda (`piece`, `kg`, `l`; o'sha variantniki, `price` null bo'lsa null):
+  `needs_options=true` (variant null) kartada ham "/ kg" ko'rsatish uchun. `store.accepting_orders` — do'kon ro'yxatidagi
+  bilan bir xil qoida va yangilik (har so'rovda hisoblanadi, keshlangan lentaga yozilmaydi): ikkinchi so'rovsiz "buyurtma
+  qabul qilmayapti" ko'rsatish mumkin. `needs_options=true`: variant tanlash, modifikator, og'irlik yoki kombo kerak — to'liq
   mahsulotni `GET /catalog?store_id={store.uuid}` dan oling. `false` bo'lsa `variant` = `{id, uuid, name, price, unit,
   stock}`, savatga to'g'ridan qo'shsa bo'ladi. `categories`, `promos` avvalgidek; `highlight_product` ham karta.
   `view` siz eski javob (50 ta to'liq mahsulot) bir reliz davomida ishlaydi.

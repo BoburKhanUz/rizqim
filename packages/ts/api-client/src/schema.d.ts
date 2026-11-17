@@ -25806,7 +25806,7 @@ export interface operations {
                 category_id?: number;
                 /** @description P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404). */
                 brand?: string;
-                /** @description Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, needs_options, variant, store}) instead of full products; docs/API.md. */
+                /** @description Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, unit, needs_options, variant, store: {id, uuid, name, address, logo_url, accepting_orders}}) instead of full products; docs/API.md. */
                 view?: string;
                 /** @description Wave M2, global feed with view=cards: how many cards (default 20, at most 50). */
                 limit?: number;

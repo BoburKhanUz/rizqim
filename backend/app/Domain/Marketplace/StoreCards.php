@@ -36,12 +36,23 @@ final class StoreCards
         }
 
         if ($acceptingField) {
-            $card['accepting_orders'] = $open
-                && !($card['is_order_locked'] ?? false)
-                && $this->reachability->isReachableCached((int) $card['id'], $offlineMinutes);
+            $card['accepting_orders'] = $this->acceptingOrders($card, $open, $offlineMinutes);
         }
 
         return $card;
+    }
+
+    /**
+     * `accepting_orders` of a cached store card: open now, not order-locked, reachable (read per request, never cached
+     * in a document). The store list, a store's menu and the feed's product cards all use this one rule.
+     *
+     * @param  array<string, mixed>  $card  a store's toArray() (the directory's or the menu's cached card)
+     */
+    public function acceptingOrders(array $card, bool $open, ?int $offlineMinutes): bool
+    {
+        return $open
+            && !($card['is_order_locked'] ?? false)
+            && $this->reachability->isReachableCached((int) $card['id'], $offlineMinutes);
     }
 
     /**

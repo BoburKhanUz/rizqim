@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:pos_core/pos_core.dart' show divideHalfUp, percentHundredths;
+import 'package:rizqim_api/rizqim_api.dart' show isConditionalGetPath;
 
 /// Soxta javob.
 class FakeResponse {
@@ -628,13 +629,133 @@ class FakePosState {
     };
   }
 
-  void emit(String event, Map<String, Object?> data) =>
-      onEvent?.call(event, data);
+  /// M2: the branch's change token, as the server's `ChangeRevision` (a base far above 2^32): +1 per mutating request
+  /// (whatever it emits carries that value) and +1 per event sent outside a request.
+  int revision = 4000000000000;
+
+  /// M2: events carry `rev`, polled GETs `X-Revision` (single scope `branch:1`). `false`: a server before wave M2.
+  bool revisions = true;
+
+  /// M2: polled GETs ([isConditionalGetPath]) answer with an `ETag` (a hash of the actor, URL and body) and `304` to a
+  /// matching `If-None-Match`. Content-based, so a `304` is never stale here whatever a test changes directly.
+  bool etags = true;
+
+  /// `304` answers given (tests).
+  int notModified = 0;
+
+  /// `GET /v1/realtime` data (`null`: 404, a server before wave M2). By default the server sends no heartbeat
+  /// (`silence_seconds: 0`) and names no Reverb key, so tests that do not care see the old behaviour.
+  Map<String, Object?>? realtimeConfig = <String, Object?>{
+    'status': 'ok',
+    'live': true,
+    'heartbeat_seconds': 0,
+    'silence_seconds': 0,
+    'poll_seconds': <String, Object?>{'live': 60, 'fallback': 15},
+    'reverb': null,
+  };
+
+  bool _inRequest = false;
+
+  /// The `rev` map events and heartbeats carry.
+  Map<String, Object?> get revMap => <String, Object?>{
+    'pos-branch.$branchId': '$revision',
+    'branch.$branchId': '$revision',
+  };
+
+  void emit(String event, Map<String, Object?> data) {
+    if (!_inRequest) revision++;
+    onEvent?.call(
+      event,
+      revisions ? <String, Object?>{...data, 'rev': revMap} : data,
+    );
+  }
+
+  /// A `realtime.heartbeat` body with the current token.
+  Map<String, Object?> heartbeatBody() => <String, Object?>{
+    'at': _iso(now()),
+    'interval': 30,
+    if (revisions) 'rev': revMap,
+  };
 
   // --- so'rov ---------------------------------------------------------------------------------------------------------
 
   /// Bitta so'rovga javob. [token] — `Authorization: Bearer` qiymati.
   FakeResponse handle(
+    String method,
+    String path,
+    Map<String, String> query,
+    Object? body,
+    String? token, {
+    String? idempotencyKey,
+    String? ifNoneMatch,
+  }) {
+    if (method != 'GET') revision++;
+    final bool outer = !_inRequest;
+    _inRequest = true;
+    try {
+      final FakeResponse r = _handle(
+        method,
+        path,
+        query,
+        body,
+        token,
+        idempotencyKey: idempotencyKey,
+      );
+      return method == 'GET'
+          ? _conditional(path, query, token, r, ifNoneMatch)
+          : r;
+    } finally {
+      if (outer) _inRequest = false;
+    }
+  }
+
+  FakeResponse _conditional(
+    String path,
+    Map<String, String> query,
+    String? token,
+    FakeResponse r,
+    String? ifNoneMatch,
+  ) {
+    if (r.status != 200 || !isConditionalGetPath(path)) return r;
+    final Map<String, String> headers = <String, String>{...r.headers};
+    if (revisions) {
+      headers['X-Revision'] = '$revision';
+      headers['X-Revision-Scope'] = 'branch:$branchId';
+    }
+    if (etags) {
+      final List<String> keys = query.keys.toList()..sort();
+      // As the server's: bound to the change token too (a 304 means the token is unchanged, so the kept body's
+      // X-Revision is still current), and to the body (whatever a test changes directly is never answered 304)
+      final String tag =
+          '"f.${_fnv('$token|$path|${keys.map((String k) => '$k=${query[k]}').join('&')}|$revision|${_canonical(r.body)}')}"';
+      headers['ETag'] = tag;
+      headers['Cache-Control'] = 'private, no-cache';
+      if (ifNoneMatch != null &&
+          ifNoneMatch.split(',').any((String t) => t.trim() == tag)) {
+        notModified++;
+        return FakeResponse(
+          304,
+          null,
+          headers: <String, String>{
+            'ETag': tag,
+            'Cache-Control': 'private, no-cache',
+          },
+        );
+      }
+    }
+    return FakeResponse(r.status, r.body, headers: headers);
+  }
+
+  static String _fnv(String s) {
+    var h = 0xcbf29ce484222325;
+    for (final int c in utf8.encode(s)) {
+      h ^= c;
+      h = (h * 0x100000001b3) & 0x7fffffffffffffff;
+    }
+    return h.toRadixString(36);
+  }
+
+  FakeResponse _handle(
     String method,
     String path,
     Map<String, String> query,
@@ -727,6 +848,11 @@ class FakePosState {
     final Map<String, Object?> data = _decode(body);
     final String p = path.replaceFirst(RegExp(r'^/api'), '');
 
+    // M2: public, no token
+    if (method == 'GET' && p == '/v1/realtime') {
+      final Map<String, Object?>? cfg = realtimeConfig;
+      return cfg == null ? _notFound() : _ok(cfg);
+    }
     // Ulash va terminal
     if (method == 'POST' && p == '/v1/devices/pair') return _pair(data);
     if (p == '/broadcasting/auth') return _channelAuth(token, data);

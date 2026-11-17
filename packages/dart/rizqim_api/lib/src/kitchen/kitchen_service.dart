@@ -8,6 +8,7 @@ import '../generated/models/get_v1_staff_kitchen_tickets_response.dart';
 import '../generated/models/status6.dart';
 import '../generated/models/v1_staff_orders_uuid_status_request_body.dart';
 import '../generated/rizqim_api.dart';
+import '../sync/conditional_get.dart';
 import 'kitchen_models.dart';
 
 /// Oshxona ekrani endpointlari (docs/API.md 9.1) yaratilgan klient (`api.kitchen`, `api.staffOrders`) ustida.
@@ -61,7 +62,8 @@ class KitchenService {
       throw _unexpected(response.statusCode, body);
     }
     final Object? meta = body['meta'];
-    final DateTime now = _clock();
+    // M2: a 304 answered from the kept body counts from the original 200 (waiting_seconds must not restart)
+    final DateTime now = receivedAtOf(response, _clock());
     final List<KitchenTicket> tickets = <KitchenTicket>[];
     final List<KitchenTicketSkip> skipped = <KitchenTicketSkip>[];
     for (var i = 0; i < data.length; i++) {

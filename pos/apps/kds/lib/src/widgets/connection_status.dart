@@ -44,6 +44,16 @@ class ConnectionStatus extends StatelessWidget {
                 "Real-time kanaliga ulanib bo'lmadi (qayta urinilmoqda): chiptalar har $pollSeconds soniyada yangilanadi",
           );
         }
+        if (rt.subscribed && !rt.isLive) {
+          // M2: subscribed, but the server says real-time is not live or the channel went silent
+          return _chip(
+            context,
+            rt.status.value,
+            polling: true,
+            tooltip:
+                "Real-time javob bermayapti: chiptalar har $pollSeconds soniyada yangilanadi",
+          );
+        }
         return _chip(context, rt.status.value, live: rt.isLive);
       },
     );

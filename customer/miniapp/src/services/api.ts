@@ -1,6 +1,8 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { getInitData, tg } from '../lib/telegram';
+import { noteResponseRevision } from '@rizqim/staff';
+import { revisions } from '../lib/revisions';
 import type { ApiResponse, LoginPayload } from '../types';
 
 
@@ -97,9 +99,26 @@ export function recoverToken(sentWith: string | null): Promise<string | null> {
   return reauthenticate();
 }
 
+// Wave M2: the change token of a single-scope read (GET /orders, GET /notifications of a customer). A poll the browser
+// revalidated (304) arrives here as the stored 200 with its stored headers: the token it names is still current.
+// The HTTP cache does the conditional request itself (the server sends ETag and `Cache-Control: private, no-cache`;
+// e2e/conditional.spec.ts proves it on the wire), so this client keeps no ETag store of its own.
+function noteRevision(response: AxiosResponse): void {
+  if ((response.config.method ?? 'get').toLowerCase() !== 'get') return;
+  const headers = response.headers as { get?: (name: string) => unknown } & Record<string, unknown>;
+  const read = (name: string): string | null => {
+    const value = typeof headers.get === 'function' ? headers.get(name) : headers[name];
+    return typeof value === 'string' ? value : null;
+  };
+  noteResponseRevision(revisions, `GET ${api.getUri(response.config)}`, read);
+}
+
 // Response Interceptor for generic error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    noteRevision(response);
+    return response;
+  },
   async (error: AxiosError) => {
     const config = error.config as AuthAwareRequestConfig | undefined;
     if (error.response?.status !== 401 || !config) {

@@ -11,6 +11,9 @@ import type { Order } from '../types';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import { ordersKeys, useOrderHistory, useOrders } from './useOrders';
 import { useRealtimeOrders } from './useRealtimeOrders';
+import { loadRealtimeStatus } from '../lib/realtimeStatus';
+import { revisions } from '../lib/revisions';
+import type { RealtimeStatus } from '@rizqim/staff';
 
 // The hook that turns the server's order events into refetches, on a fake socket
 
@@ -18,6 +21,8 @@ vi.mock('laravel-echo', async () => ({ default: (await import('../test/fakeEcho'
 vi.mock('pusher-js', async () => ({ default: (await import('../test/fakeEcho')).FakePusher }));
 vi.mock('../lib/telegram', () => ({ hapticFeedback: vi.fn(), tg: { initDataUnsafe: {} } }));
 vi.mock('../services/api', () => ({ default: { get: vi.fn() } }));
+// GET /realtime: not answered (an older backend) unless a test says otherwise
+vi.mock('../lib/realtimeStatus', () => ({ loadRealtimeStatus: vi.fn(async () => null) }));
 
 const get = vi.mocked(api.get);
 const callsWith = (scope: string) => get.mock.calls.filter(([url, config]) => url === '/orders' && (config?.params as { scope?: string })?.scope === scope);
@@ -47,6 +52,8 @@ beforeEach(() => {
   client = new QueryClient();
   get.mockImplementation(serveOrdersApi([makeOrder({ id: 1, status: 'new' })]));
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.mocked(loadRealtimeStatus).mockResolvedValue(null);
+  revisions.clear();
 });
 
 afterEach(() => {
@@ -578,5 +585,148 @@ describe('polling next to the socket', () => {
     expect(activeCalls()).toBe(afterDrop + 1);
     await settle(10_000);
     expect(activeCalls()).toBe(afterDrop + 2);
+  });
+});
+
+const STATUS: RealtimeStatus = {
+  live: true,
+  heartbeatSeconds: 30,
+  silenceSeconds: 90,
+  pollLiveSeconds: 60,
+  pollFallbackSeconds: 15,
+  reverb: { key: 'server-key', host: null, port: null, scheme: null },
+};
+
+describe('useRealtimeOrders: wave M2 settings (GET /realtime)', () => {
+  it("connects with the server's key when the build has none, on the page's host", async () => {
+    vi.stubEnv('VITE_REVERB_APP_KEY', '');
+    vi.mocked(loadRealtimeStatus).mockResolvedValue(STATUS);
+    signIn();
+
+    renderHook(() => useRealtimeOrders(), { wrapper });
+    await settle();
+
+    expect(echoInstances).toHaveLength(1);
+    expect(latestEcho().options).toMatchObject({ key: 'server-key', wsHost: window.location.hostname });
+  });
+
+  it('stays polling at the normal pace while the server says real-time is not live', async () => {
+    vi.mocked(loadRealtimeStatus).mockResolvedValue({ ...STATUS, live: false });
+    signIn();
+    renderHook(() => useRealtimeOrders(), { wrapper });
+    await settle();
+
+    act(() => latestEcho().connectAndSubscribe());
+
+    expect(useRealtimeStore.getState().connected).toBe(false);
+  });
+});
+
+describe('useRealtimeOrders: wave M2 revisions', () => {
+  async function mount(user: Parameters<typeof makeUser>[0] = {}) {
+    vi.mocked(loadRealtimeStatus).mockResolvedValue(STATUS);
+    signIn(user);
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        return { orders: useOrders(), history: useOrderHistory('customer') };
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+  }
+
+  it('the next token: the usual refetch of the open orders', async () => {
+    await mount();
+    revisions.noteRead('user:42', '100', 'GET /orders?scope=active');
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'user.42': '101' } }));
+    await settle(400);
+
+    expect(activeCalls()).toBe(active + 1);
+    expect(historyCalls()).toBe(history);
+  });
+
+  it('a token the screen already read: nothing is fetched', async () => {
+    await mount();
+    revisions.noteRead('user:42', '100', 'GET /orders?scope=active');
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'user.42': '100' } }));
+    await settle(400);
+
+    expect(activeCalls()).toBe(active);
+    expect(historyCalls()).toBe(history);
+  });
+
+  it('a gap (a lost event): everything is read again, the history too', async () => {
+    await mount();
+    revisions.noteRead('user:42', '100', 'GET /orders?scope=active');
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'user.42': '105' } }));
+    await settle(400);
+
+    expect(activeCalls()).toBe(active + 1);
+    expect(historyCalls()).toBe(history + 1);
+  });
+
+  it('a heartbeat ahead of what the staff screen read: everything is read again', async () => {
+    await mount({ role: 'manager', store_id: 5, branch_id: 8 });
+    revisions.noteRead('branch:8', '40', 'GET /staff/orders?branch_id=8');
+    const history = historyCalls();
+
+    act(() => latestEcho().emit('.realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.8': '40' } }));
+    await settle(400);
+    expect(historyCalls()).toBe(history);
+
+    act(() => latestEcho().emit('.realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.8': '41' } }));
+    await settle(400);
+    expect(historyCalls()).toBe(history + 1);
+  });
+
+  it('a staff channel silent for silence_seconds is not live (fast polling) until a heartbeat comes back', async () => {
+    await mount({ role: 'manager', store_id: 5, branch_id: 8 });
+    expect(useRealtimeStore.getState().connected).toBe(true);
+    const history = historyCalls();
+
+    await settle(60_000);
+    act(() => latestEcho().emit('.realtime.heartbeat', { at: 't', interval: 30 }));
+    await settle(60_000);
+    expect(useRealtimeStore.getState().connected).toBe(true);
+
+    await settle(30_000);
+    expect(useRealtimeStore.getState().connected).toBe(false);
+    // going silent is a reason to read everything again
+    await settle(400);
+    expect(historyCalls()).toBeGreaterThan(history);
+
+    act(() => latestEcho().emit('.realtime.heartbeat', { at: 't', interval: 30 }));
+    expect(useRealtimeStore.getState().connected).toBe(true);
+  });
+
+  it("the customer's channel has no heartbeat: no silence", async () => {
+    await mount();
+    await settle(200_000);
+    expect(useRealtimeStore.getState().connected).toBe(true);
+  });
+
+  it('the page coming back reads everything again', async () => {
+    await mount();
+    let state: DocumentVisibilityState = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => state);
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    state = 'hidden';
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    state = 'visible';
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    await settle(400);
+
+    expect(activeCalls()).toBeGreaterThan(active);
+    expect(historyCalls()).toBe(history + 1);
   });
 });

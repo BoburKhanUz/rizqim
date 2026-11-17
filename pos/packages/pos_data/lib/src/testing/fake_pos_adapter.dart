@@ -54,9 +54,10 @@ class FakePosAdapter implements HttpClientAdapter {
       options.data,
       auth?.replaceFirst('Bearer ', ''),
       idempotencyKey: options.headers['Idempotency-Key'] as String?,
+      ifNoneMatch: options.headers['If-None-Match'] as String?,
     );
     return ResponseBody.fromString(
-      jsonEncode(response.body),
+      response.status == 304 ? '' : jsonEncode(response.body),
       response.status,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>[Headers.jsonContentType],

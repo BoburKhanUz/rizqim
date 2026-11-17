@@ -293,7 +293,27 @@ export class FakeBackend {
     return reply
   }
 
+  /** What GET /api/v1/realtime says (wave M2): live, the panel's own Reverb settings apply (REVERB_APP_KEY is set). */
+  realtimeStatus: Record<string, unknown> = {
+    status: 'ok',
+    live: true,
+    heartbeat_seconds: 30,
+    silence_seconds: 90,
+    poll_seconds: { live: 60, fallback: 15 },
+    reverb: null,
+  }
+
+  /** Wave M2: the change token of each branch (X-Revision of a single-branch board read, `rev` of an event). */
+  branchRevisions = new Map<number, number>()
+
+  revisionOf(branchId: number): string {
+    return String(this.branchRevisions.get(branchId) ?? 1000)
+  }
+
   private route(req: FakeRequest, json: Record<string, unknown> | null): Reply {
+    // Public, no token (the real one answers from the API, without the database)
+    if (req.method === 'GET' && req.path === '/v1/realtime') return ok(this.realtimeStatus)
+
     const open = this.auth(req, json ?? {})
     if (open) return open
 
@@ -330,6 +350,16 @@ export class FakeBackend {
       const allowed = account.branchId === null ? [`private-store.${account.storeId}`] : [`private-pos-branch.${account.branchId}`]
       if (!allowed.includes(channel) && !/^private-pos-branch\.\d+$/.test(channel)) return fail(403, 'Forbidden')
       return { status: 200, body: { auth: 'e2e-key:fake-signature' } }
+    }
+
+    // Wave M2: a board read of one branch names its change token, as ConditionalGet does for a single-scope body
+    if (req.method === 'GET' && /^\/v1\/staff\/orders(\/[^/]+)?$/.test(req.path)) {
+      const branchId = req.query.branch_id ? Number(req.query.branch_id) : record.account.branchId
+      const reply = this.orders.handle(req, json)
+      if (reply && reply.status === 200 && branchId !== null && Number.isInteger(branchId)) {
+        return { ...reply, headers: { ...reply.headers, 'X-Revision': this.revisionOf(branchId), 'X-Revision-Scope': `branch:${branchId}` } }
+      }
+      if (reply) return reply
     }
 
     for (const area of [this.combos, this.billing, this.orders, this.menu, this.team, this.zones, this.reports, this.fiscal, this.floor, this.shifts, this.bookings, this.permissions, this.format, this.hostess, this.terminal, this.staffPay, this.tips, this.kds, this.takeaway, this.lan, this.vouchers, this.corporate, this.banquetPay, this.banquetOps, this.banquets, this.darkKitchen]) {

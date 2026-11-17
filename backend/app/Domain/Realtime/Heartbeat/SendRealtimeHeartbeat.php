@@ -11,6 +11,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
+use Pusher\ApiErrorException;
+use Pusher\Pusher;
+use Pusher\PusherException;
 use Throwable;
 
 /**
@@ -55,15 +58,22 @@ class SendRealtimeHeartbeat implements ShouldQueue
         $pusher = $broadcaster->getPusher();
         $interval = (int) config('realtime.heartbeat_seconds', 30);
 
-        try {
-            $channels = [];
-            foreach (self::PREFIXES as $prefix) {
-                $result = $pusher->getChannels(['filter_by_prefix' => $prefix]);
-                foreach (array_keys((array) ($result->channels ?? [])) as $name) {
-                    $channels[] = (string) $name;
-                }
+        // Each prefix on its own: one that fails (or answers nothing usable) costs only its own channels
+        $channels = [];
+        $answered = false;
+        foreach (self::PREFIXES as $prefix) {
+            $names = $this->occupied($pusher, $prefix);
+            if ($names !== null) {
+                $answered = true;
+                array_push($channels, ...$names);
             }
+        }
+        if (!$answered) {
+            // Not recorded: RealtimeHealth turns degraded once the last good heartbeat is older than the stale limit
+            return;
+        }
 
+        try {
             $at = now()->toJSON();
             foreach (array_chunk($channels, 10) as $chunk) {
                 $batch = [];
@@ -71,13 +81,52 @@ class SendRealtimeHeartbeat implements ShouldQueue
                     $payload = RevisionStamp::apply([$channel], ['at' => $at, 'interval' => $interval]);
                     $batch[] = ['channel' => $channel, 'name' => self::EVENT, 'data' => json_encode($payload, JSON_THROW_ON_ERROR)];
                 }
-                $pusher->triggerBatch($batch);
+                // already_encoded: `data` is the JSON text itself (encoded once), so clients read an object
+                $pusher->triggerBatch($batch, true);
             }
 
             RealtimeHealth::recordHeartbeat(count($channels));
         } catch (Throwable $e) {
-            // Not recorded: RealtimeHealth turns degraded once the last good heartbeat is older than the stale limit
             Log::warning('Realtime: heartbeat not delivered', ['exception' => $e::class, 'message' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * The occupied channels of one prefix (Reverb's GET /channels), or null when Reverb could not be asked. An answer
+     * without a usable channel map (Reverb's `{"channels": []}` for no subscriber, which pusher-php's getChannels()
+     * cannot read, or a body that is not JSON) is no channels.
+     *
+     * @return list<string>|null
+     */
+    private function occupied(Pusher $pusher, string $prefix): ?array
+    {
+        try {
+            $result = $pusher->get('/channels', ['filter_by_prefix' => $prefix], true);
+        } catch (PusherException $e) {
+            if (!$e instanceof ApiErrorException) {
+                return []; // the body was not JSON
+            }
+            Log::warning('Realtime: heartbeat channel list failed', ['prefix' => $prefix, 'message' => $e->getMessage()]);
+
+            return null;
+        } catch (Throwable $e) {
+            Log::warning('Realtime: heartbeat channel list failed', ['prefix' => $prefix, 'exception' => $e::class, 'message' => $e->getMessage()]);
+
+            return null;
+        }
+
+        $map = is_array($result) ? ($result['channels'] ?? null) : null;
+        if (!is_array($map)) {
+            return [];
+        }
+
+        $names = [];
+        foreach (array_keys($map) as $name) {
+            if (is_string($name) && str_starts_with($name, $prefix)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 }

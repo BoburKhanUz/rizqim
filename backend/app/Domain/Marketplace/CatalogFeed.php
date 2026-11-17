@@ -26,6 +26,7 @@ final class CatalogFeed
         private readonly ReadModelCache $cache,
         private readonly MarketplaceRevision $revisions,
         private readonly StoreDirectory $directory,
+        private readonly StoreCards $cards,
     ) {}
 
     /**
@@ -72,14 +73,18 @@ final class CatalogFeed
     /**
      * The products to show: of open stores serving the point, shuffled, at most $limit.
      *
+     * $accepting (view=cards): each `store` also gets `accepting_orders`, from the same directory entry, rule and
+     * moment as the store list's (StoreCards::acceptingOrders), computed here per request, never stored in the pool.
+     *
      * @return list<array<string, mixed>> full products (the old shape, `store` attached)
      */
-    public function products(Area $area, ?int $categoryId, OrderChannel $channel, int $limit): array
+    public function products(Area $area, ?int $categoryId, OrderChannel $channel, int $limit, bool $accepting = false): array
     {
         $pool = $this->pool($area, $categoryId, $channel);
         $served = $this->servedStores($area);
 
         $products = [];
+        $accepts = [];
         foreach ($pool['products'] as $product) {
             $storeId = (int) $product['store_id'];
             if (!isset($served[$storeId], $pool['stores'][$storeId])) {
@@ -91,6 +96,10 @@ final class CatalogFeed
             }
             $card = $store['card'];
             $card['is_open'] = true;
+            if ($accepting) {
+                $accepts[$storeId] ??= $this->cards->acceptingOrders($served[$storeId]['card'], StoreSchedule::isOpen($served[$storeId]['schedule']), $served[$storeId]['offline_minutes']);
+                $card['accepting_orders'] = $accepts[$storeId];
+            }
             $product['store'] = $card;
             $products[] = $product;
         }
@@ -111,8 +120,10 @@ final class CatalogFeed
         $variants = is_array($product['variants'] ?? null) ? $product['variants'] : [];
         $groups = array_filter(is_array($product['modifier_groups'] ?? null) ? $product['modifier_groups'] : [], fn ($group) => is_array($group) && !empty($group['modifiers']));
         $measured = array_filter($variants, fn ($variant) => in_array($variant['unit'] ?? 'piece', ['kg', 'l'], true));
-        $prices = array_values(array_filter(array_map(fn ($variant) => (string) ($variant['price'] ?? ''), $variants), fn (string $price) => is_numeric($price) && (float) $price > 0));
-        usort($prices, fn (string $a, string $b) => (float) $a <=> (float) $b);
+        // `price` is the cheapest priced variant's, `unit` the unit it is quoted in (piece, kg, l): a card that needs
+        // options (variant null) still shows "/ kg"
+        $priced = array_values(array_filter($variants, fn ($variant) => is_numeric((string) ($variant['price'] ?? '')) && (float) $variant['price'] > 0));
+        usort($priced, fn (array $a, array $b) => (float) $a['price'] <=> (float) $b['price']);
         $needsOptions = count($variants) > 1 || $groups !== [] || $measured !== [] || !empty($product['combo']);
         $store = is_array($product['store'] ?? null) ? $product['store'] : [];
         $variant = !$needsOptions && count($variants) === 1 ? $variants[array_key_first($variants)] : null;
@@ -127,7 +138,8 @@ final class CatalogFeed
             'image_url' => $product['image_url'] ?? null,
             'image_thumb_urls' => $product['image_thumb_urls'] ?? null,
             'batch_tracked' => (bool) ($product['batch_tracked'] ?? false),
-            'price' => $prices[0] ?? null,
+            'price' => $priced === [] ? null : (string) $priced[0]['price'],
+            'unit' => $priced === [] ? null : (string) ($priced[0]['unit'] ?? 'piece'),
             'needs_options' => $needsOptions,
             'variant' => $variant === null ? null : [
                 'id' => $variant['id'] ?? null,
@@ -143,18 +155,19 @@ final class CatalogFeed
                 'name' => $store['name'] ?? null,
                 'address' => $store['address'] ?? null,
                 'logo_url' => $store['logo_url'] ?? null,
+                'accepting_orders' => (bool) ($store['accepting_orders'] ?? false),
             ],
         ];
     }
 
     /**
-     * @return array<int, true> ids of the stores that serve the request's point (or area)
+     * @return array<int, array{card: array<string, mixed>, schedule: array{flag: bool, open: string|null, close: string|null, tz: string}, offline_minutes: int|null}> the directory entries of the stores that serve the request's point (or area), by id
      */
     private function servedStores(Area $area): array
     {
         $served = [];
         foreach ($this->directory->stores($area) as $entry) {
-            $served[$entry['id']] = true;
+            $served[$entry['id']] = $entry;
         }
 
         return $served;

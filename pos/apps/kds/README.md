@@ -147,10 +147,15 @@ bor xodimda tugma yo'q.
   (ulangan **va** kanal obunasi tasdiqlangan — `pusher_internal:subscription_succeeded`), **Ulanmoqda** (ulanish yoki obuna
   kutilmoqda), **Qayta ulanmoqda** yoki **Har 15 soniyada** (real-time sozlanmagan, yoki ulanish bor, lekin kanal imzosi
   rad etildi — `/broadcasting/auth` 403/429 — va fonda qayta so'ralmoqda).
-* Ulanish uzilsa ilova o'zi qayta ulanadi (1, 2, 4 ... 30 soniya oralig'ida) va obuna qayta tasdiqlanganda ro'yxatni to'liq
-  yangilaydi (handshake'da emas: obuna tasdiqlanguncha kelgan hodisalar yo'qolardi). Jonli bo'lmagan har qanday holatda
-  chiptalar har 15 soniyada, jonli bo'lsa ham ehtiyot uchun har 60 soniyada so'raladi. Belgilangan muddatda ochilmagan ulanish
-  tashlanadi va kech ochilsa darhol yopiladi (osilgan TCP ulanishlar to'planmaydi).
+* Ulanish uzilsa ilova o'zi qayta ulanadi (M2: birinchi urinish 0-10 soniya ichida tasodifiy, keyin 2, 4 ... 30 soniya) va
+  obuna qayta tasdiqlanganda ro'yxatni to'liq yangilaydi (handshake'da emas: obuna tasdiqlanguncha kelgan hodisalar
+  yo'qolardi). Chiptalar har 15 soniyada so'raladi, jonli bo'lsa ham (M2: so'rov shartli — `If-None-Match`, o'zgarmagan doska
+  `304`; har 2 daqiqada kamida bir marta shartsiz). `304` da chiptaning kutish vaqti asl javob kelgan paytdan sanaladi.
+  Belgilangan muddatda ochilmagan ulanish tashlanadi va kech ochilsa darhol yopiladi (osilgan TCP ulanishlar to'planmaydi).
+* M2: hodisadagi `rev` doska o'qigan token bilan bir xil bo'lsa qayta so'ralmaydi; keyingisi (N+1) yoki boshqa har qanday
+  qiymat — qayta o'qish. `realtime.heartbeat` tokeni boshqacha bo'lsa (hodisa yo'qolgan) darhol qayta o'qiladi; 90 soniya
+  hodisa ham, heartbeat ham bo'lmasa yoki server `GET /v1/realtime` da `live: false` desa — "Har 15 soniyada". Ilovaga
+  Reverb kaliti yozilmagan bo'lsa kalit serverdan olinadi. Ekran uyqudan qaytsa (resume) darhol qayta o'qiydi.
 * Server javob berib, uni o'qib bo'lmasa (ilova versiyasi eski) bu "Aloqa yo'q" emas: "Server javobini o'qib bo'lmadi"
   xabari chiqadi. Ro'yxatdagi bitta chipta o'qilmasa, faqat o'sha tushiriladi (log'ga yoziladi) va doskada
   "1 ta chiptani o'qib bo'lmadi" ogohlantirishi turadi; qolgan chiptalar ko'rsatiladi.

@@ -1,10 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAddressStore } from '../store/useAddressStore';
 import { hapticFeedback } from '../lib/telegram';
-import { useAddToCart } from '../hooks/useAddToCart';
 import { Button, EmptyState, InlineError, PageHeader, ProductImage, Section, buttonClasses } from '../components/ui';
-import api from '../services/api';
 import { MapPin, Search } from 'lucide-react';
 import HeroPromoSlider from '../components/HeroPromoSlider';
 import { Link, useNavigate } from 'react-router-dom';
@@ -16,62 +14,43 @@ import { SearchField } from '../components/catalog/SearchField';
 import { StoreCard } from '../components/catalog/StoreCard';
 import { useLanguageStore } from '../store/languageStore';
 import { formatMoney } from '../lib/format';
-import { getProductBasePrice, getStoreInfo } from '../lib/catalog';
+import { getProductBasePrice } from '../lib/catalog';
 import { getLocationParams } from '../lib/location';
-import type { ApiResponse, Category, FeedCatalog, Product, Promo, StoreListItem } from '../types';
+import { cardToProduct, HOME_STORES_PER_PAGE, isAcceptingOrders, NOT_ACCEPTING_TEXT, searchCards, searchStores } from '../lib/marketplace';
+import { useCardToCart, useFeedCards, useStorePages } from '../hooks/useMarketplace';
+import type { Category, ProductCardItem } from '../types';
 
+const NO_CATEGORIES: Category[] = [];
+const NO_CARDS: ProductCardItem[] = [];
+
+// The home screen. Wave M2: the dishes are light cards (GET /catalog?view=cards: the "+" of a dish without options adds
+// it at once, the others load their store's menu for the product sheet) and the stores come a page at a time (the
+// carousel shows the nearest ones). The search looks at the feed's cards (dish, description, restaurant) and at every
+// store serving the address: while it is in use the remaining store pages are loaded.
 export default function Home() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const uz = language === 'uz';
   const { addresses, selectedAddressId } = useAddressStore();
   const activeAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
+  const location = useMemo(() => getLocationParams(activeAddress), [activeAddress]);
 
   const cartItems = useCartStore((state) => state.items);
-  const cart = useAddToCart({ storeInfoOf: (product) => getStoreInfo(product.store) });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [promos, setPromos] = useState<Promo[]>([]);
-  const [highlightProduct, setHighlightProduct] = useState<Product | null>(null);
-  const [stores, setStores] = useState<StoreListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<unknown>(null);
-  const [reloadKey, setReloadKey] = useState(0); // bumped by "Qayta urinish" after a failed load
+  const query = searchQuery.trim().toLowerCase();
+  const searching = query !== '';
+
+  const feed = useFeedCards(location);
+  const storePages = useStorePages(location, HOME_STORES_PER_PAGE, searching);
+  const stores = storePages.stores;
+
+  // Each card's store says whether it takes orders now (`store.accepting_orders`, the store list's rule)
+  const accepting = (card: ProductCardItem) => isAcceptingOrders(card.store);
+  const cart = useCardToCart();
 
   // Favourite restaurants of this visit (not stored anywhere yet)
   const [favoriteStores, setFavoriteStores] = useState<string[]>([]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const params = getLocationParams(activeAddress);
-
-        const [catalogRes, storesRes] = await Promise.all([
-          api.get<ApiResponse<FeedCatalog>>('/catalog', { params }),
-          api.get<ApiResponse<StoreListItem[]>>('/stores', { params })
-        ]);
-
-        if (catalogRes.data.success) {
-          setCategories(catalogRes.data.data.categories);
-          setProducts(catalogRes.data.data.products);
-          setPromos(catalogRes.data.data.promos || []);
-          setHighlightProduct(catalogRes.data.data.highlight_product || null);
-        }
-        if (storesRes.data.success) {
-          setStores(storesRes.data.data);
-        }
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [activeAddress, reloadKey]);
 
   const toggleFavoriteStore = (uuid: string) => {
     hapticFeedback('light');
@@ -80,32 +59,27 @@ export default function Home() {
     );
   };
 
-  const parentCategories = useMemo(() => {
-    return categories.filter(c => !c.parent_id);
-  }, [categories]);
+  const categories = feed.data?.categories ?? NO_CATEGORIES;
+  const cards = feed.data?.products ?? NO_CARDS;
+  const promos = feed.data?.promos ?? [];
+  const parentCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
+  const searchedProducts = useMemo(() => searchCards(cards, searchQuery), [cards, searchQuery]);
+  const shownStores = searching ? searchStores(stores, query) : stores;
 
-  const searchedProducts = useMemo(() => {
-    let filtered = products;
-    if (searchQuery) {
-      filtered = filtered.filter(product => {
-        const matchStore = stores.find(s => s.id === product.store_id);
-        return product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               (matchStore && matchStore.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-               (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      });
-    }
-    return filtered;
-  }, [searchQuery, products, stores]);
-
-  const query = searchQuery.trim().toLowerCase();
-  const searching = query !== '';
-  const shownStores = searching ? stores.filter((store) => store.name.toLowerCase().includes(query)) : stores;
+  // A later store page that failed (a search loading the rest) keeps what is there
+  const error = feed.error ?? (storePages.data ? null : storePages.error);
+  const loading = feed.isPending || storePages.isPending;
 
   if (error) {
     return (
       <div className="flex flex-col gap-4 px-4 pb-4 pt-2">
         <PageHeader title="Rizqim" />
-        <InlineError onRetry={() => setReloadKey((key) => key + 1)} />
+        <InlineError
+          onRetry={() => {
+            if (feed.error) void feed.refetch();
+            if (storePages.error) void storePages.refetch();
+          }}
+        />
       </div>
     );
   }
@@ -143,7 +117,7 @@ export default function Home() {
   }
 
   // The highlighted dish of the day (from the API)
-  const featuredProduct = highlightProduct;
+  const featuredProduct = feed.data?.highlight_product ?? null;
 
   const displayAddress = activeAddress ? activeAddress.address : "Manzilni qo'shish";
 
@@ -195,10 +169,14 @@ export default function Home() {
             <p className="text-caption font-bold text-brand-soft-fg">Bugungi tavsiya</p>
             <h2 className="line-clamp-2 text-headline font-bold text-fg">{featuredProduct.name}</h2>
             {featuredProduct.description && <p className="line-clamp-1 text-footnote text-fg-muted">{featuredProduct.description}</p>}
-            <p className="text-body font-bold text-fg">{formatMoney(getProductBasePrice(featuredProduct))}</p>
-            <Button className="mt-1" onClick={() => cart.start(featuredProduct)}>
-              Buyurtma qilish
-            </Button>
+            <p className="text-body font-bold text-fg">{formatMoney(getProductBasePrice(cardToProduct(featuredProduct)))}</p>
+            {accepting(featuredProduct) ? (
+              <Button className="mt-1" onClick={() => void cart.start(featuredProduct)} disabled={cart.loadingId === featuredProduct.id}>
+                Buyurtma qilish
+              </Button>
+            ) : (
+              <p className="text-footnote font-medium text-fg-muted">{NOT_ACCEPTING_TEXT}</p>
+            )}
           </div>
           <ProductImage src={featuredProduct.image_url} className="size-24 rounded-card" />
         </section>
@@ -241,18 +219,22 @@ export default function Home() {
           <EmptyState icon={Search} title="Hech narsa topilmadi" text="Boshqa so'z bilan qidirib ko'ring" />
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {searchedProducts.map((product) => {
+            {searchedProducts.map((card) => {
               const cartQty = cartItems
-                .filter(item => item.productId === product.id)
+                .filter(item => item.productId === card.id)
                 .reduce((sum, item) => sum + item.quantity, 0);
 
               return (
                 <ProductCard
-                  key={product.id}
-                  product={product}
+                  key={card.id}
+                  product={cardToProduct(card)}
+                  storeName={card.store?.name}
+                  priceUnit={card.unit}
                   cartQty={cartQty}
-                  onOpen={product.store?.uuid ? () => navigate(`/store/${product.store?.uuid}`) : undefined}
-                  onAdd={() => cart.start(product)}
+                  onOpen={card.store?.uuid ? () => navigate(`/store/${card.store.uuid}`) : undefined}
+                  onAdd={() => void cart.start(card)}
+                  busy={cart.loadingId === card.id}
+                  blockedText={accepting(card) ? undefined : NOT_ACCEPTING_TEXT}
                 />
               );
             })}
@@ -262,14 +244,13 @@ export default function Home() {
 
       <ReplaceCartDialog pending={cart.pending} onClose={cart.clearPending} />
 
-      {/* The product sheet: variant, modifiers, weight */}
+      {/* The product sheet of a dish with options: variant, modifiers, weight (from its store's menu) */}
       <ProductSheet
         isOpen={!!cart.sheetProduct}
         onClose={cart.closeSheet}
         product={cart.sheetProduct}
-        onAdd={(choice) => {
-          if (cart.sheetProduct) cart.addVariant(cart.sheetProduct, choice.variant, choice);
-        }}
+        availability={cart.availability}
+        onAdd={cart.addFromSheet}
       />
     </div>
   );

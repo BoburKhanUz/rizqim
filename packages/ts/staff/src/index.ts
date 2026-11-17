@@ -168,3 +168,34 @@ export * from './hooks/permissions';
 // notice and the server's plan refusals
 export * from './api/entitlements';
 export * from './hooks/entitlements';
+
+// Wave M2: change tokens (`rev`, X-Revision), the heartbeat silence, GET /realtime and the reconnect spread of the
+// real-time screens (partner web board, the Mini App's staff screens and order tracking)
+export {
+  channelsOfScope,
+  DEFAULT_READ_TTL_MS,
+  isNextToken,
+  isToken,
+  noteResponseRevision,
+  revOf,
+  RevisionTracker,
+  withRevisionCapture,
+  type HeartbeatVerdict,
+  type RevisionTrackerOptions,
+  type RevisionVerdict,
+} from './realtime/revision';
+export {
+  createSilenceWatch,
+  fetchRealtimeStatus,
+  onPageReturn,
+  parseRealtimeStatus,
+  RECONNECT_SPREAD_MS,
+  REALTIME_STATUS_PATH,
+  reverbConnectionOf,
+  spreadFirstReconnect,
+  type PusherLike,
+  type RealtimeStatus,
+  type ReverbConnection,
+  type ReverbSettings,
+  type SilenceWatch,
+} from './realtime/liveness';

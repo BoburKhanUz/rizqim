@@ -2,6 +2,7 @@ import { Clock, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { StoreListItem } from '../../types';
 import { formatMoney } from '../../lib/format';
+import { isAcceptingOrders, NOT_ACCEPTING_TEXT } from '../../lib/marketplace';
 import { useLanguageStore } from '../../store/languageStore';
 import { cx } from '../ui';
 import { FavoriteButton } from './FavoriteButton';
@@ -31,8 +32,14 @@ export function StoreCard({ store, isFavorite, onToggleFavorite, variant }: Stor
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-body font-bold text-fg">{store.name}</h3>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-caption text-fg-muted">
-              {!store.is_open && (
+              {!store.is_open ? (
                 <span className="rounded-control bg-surface-2 px-1.5 py-0.5 font-bold text-fg-muted">{uz ? 'Yopiq' : 'Закрыто'}</span>
+              ) : (
+                !isAcceptingOrders(store) && (
+                  <span className="rounded-control bg-warning-soft px-1.5 py-0.5 font-bold text-warning-soft-fg">
+                    {uz ? NOT_ACCEPTING_TEXT : 'Сейчас не принимает заказы'}
+                  </span>
+                )
               )}
               {hasRating && (
                 <span className="flex items-center gap-1 text-fg">

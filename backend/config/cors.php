@@ -50,10 +50,15 @@ return [
     'allowed_headers' => ['*'],
 
     // P2-33: a cross-origin page (the partner web on its own domain) must be able to read the CSV export's file
-    // name and the rate limiter's wait time
-    'exposed_headers' => ['Content-Disposition', 'Retry-After'],
+    // name and the rate limiter's wait time. Wave M2: and the change token of a conditional GET (App\Http\Middleware\
+    // ConditionalGet: ETag, X-Revision, X-Revision-Scope), which its revision tracking reads (docs/API.md 7.1)
+    'exposed_headers' => ['Content-Disposition', 'Retry-After', 'ETag', 'X-Revision', 'X-Revision-Scope'],
 
-    'max_age' => 0,
+    // Wave M2: the browser keeps a preflight answer (per origin, URL, method and request headers) for this long instead
+    // of sending OPTIONS before every cross-origin poll. Safe to cache: the origins above are fixed at boot (env,
+    // config cache) and change only with a deploy, and the real response is checked against them on every request
+    // anyway, so a removed origin loses access at once. 7200 s is Chromium's cap (Firefox allows more).
+    'max_age' => 7200,
 
     'supports_credentials' => false,
 
