@@ -20,6 +20,8 @@ use App\Services\Catalog\MenuAvailability;
  *   their categories; the store's brands), keyed the same way: built once, shared by every customer;
  * - the availability overlay (stop-list, sold out, batches): keyed by the store revision and never older than
  *   `ttl.availability` (5 s fresh, 15 s at most), so a stop-list change shows within seconds without a menu rebuild.
+ *   Its 15 s clock bucket is shifted per store (availabilityOffset), so different stores' rebuilds do not all land in
+ *   the same second after :00/:15/:30/:45.
  *
  * A store id is resolved from its uuid through a small key (uuids never change).
  */
@@ -102,14 +104,35 @@ final class StoreMenu
     /**
      * The clock decides part of the availability (a stop-list entry's `until`, the daily menu, planned batches): the
      * key also changes every `stale` seconds, so no copy is ever older than that, whatever flexible's refresh does.
+     * The bucket is shifted by the store's own offset: with edges on the wall clock every store's cold rebuild (and
+     * its deferred refresh 5 s later) would land in the same second; shifted, they spread over the bucket, and each
+     * bucket is still exactly `stale` seconds long.
      *
      * @return array{0: string, 1: string}
      */
     public function availabilityKey(int $storeId): array
     {
-        $stale = max(1, (int) (config('marketplace.ttl.availability')[1] ?? 15));
+        $stale = self::availabilityStale();
+        $bucket = intdiv(now()->getTimestamp() + $this->availabilityOffset($storeId), $stale);
 
-        return ['mkt:avail:'.$storeId, $this->revisions->store($storeId).':'.intdiv(now()->getTimestamp(), $stale)];
+        return ['mkt:avail:'.$storeId, $this->revisions->store($storeId).':'.$bucket];
+    }
+
+    /**
+     * Seconds the store's availability bucket is shifted by (0 <= offset < stale). Store ids are sequential, so this
+     * spreads stores evenly over the bucket; ids that differ by a multiple of `stale` share an offset. The store's
+     * next bucket edge after $t is (intdiv($t + offset, stale) + 1) * stale - offset.
+     */
+    public function availabilityOffset(int $storeId): int
+    {
+        $stale = self::availabilityStale();
+
+        return (($storeId % $stale) + $stale) % $stale;
+    }
+
+    private static function availabilityStale(): int
+    {
+        return max(1, (int) (config('marketplace.ttl.availability')[1] ?? 15));
     }
 
     /**

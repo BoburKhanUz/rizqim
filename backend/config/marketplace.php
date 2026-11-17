@@ -36,7 +36,9 @@ return [
         'menu' => [300, 3600],    // one store's menu on one channel, and its store card with branches and reviews
         'feed' => [60, 120],      // the product pool of an area (GET /catalog without store_id)
         'global' => [60, 600],    // categories and promo banners
-        'availability' => [5, 15], // stop-list, sold out, batches (GET /catalog?store_id, /catalog/availability)
+        // stop-list, sold out, batches (GET /catalog?store_id, /catalog/availability); the 15 s key bucket is shifted per
+        // store (StoreMenu::availabilityOffset), so different stores' rebuilds do not land in the same second
+        'availability' => [5, 15],
     ],
 
     // Products kept in an area's feed pool; each request shuffles the pool and shows `feed_limit` of them.

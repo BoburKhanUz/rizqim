@@ -496,8 +496,10 @@ beriladi (`backend/app/Domain/Marketplace`, `config/marketplace.php`); iliq kesh
 
 - **Hujjatlar.** Hudud (geo katak 0,05° ≈ 5,6 × 4,2 km, tuman, viloyat yoki "hammasi") — do'kon kartalari va filial
   doiralari; aniq radius tekshiruvi har so'rovda. Do'kon menyusi (kanal bo'yicha) va do'kon kartasi —
-  `ChangeRevision::store` tokeni bilan. Mavjudlik qatlami — 5 s yangi, eng ko'pi 15 s. Lenta puli (hudud × kategoriya,
-  120 mahsulot) — 60 s yangi, eng ko'pi 120 s. Kategoriyalar, bannerlar — umumiy token. Hudud hujjatining har do'koni va
+  `ChangeRevision::store` tokeni bilan. Mavjudlik qatlami — 5 s yangi, eng ko'pi 15 s; uning 15 s lik kalit oralig'i
+  har do'kon uchun o'z siljishi bilan boshlanadi (`StoreMenu::availabilityOffset`, do'kon id % 15), shuning uchun
+  do'konlarning qayta qurilishi :00/:15/:30/:45 da bir soniyaga to'planmaydi, 15 s ga taqsimlanadi. Lenta puli (hudud ×
+  kategoriya, 120 mahsulot) — 60 s yangi, eng ko'pi 120 s. Kategoriyalar, bannerlar — umumiy token. Hudud hujjatining har do'koni va
   lenta pulining har do'koni o'zi qurilgan do'kon tokenini yozib qo'yadi (ma'lumotdan oldin o'qilgan); har o'qishda
   joriy tokenlar bitta `MGET` bilan solishtiriladi: hududda faqat o'zgargan do'konlar qayta o'qiladi, pul to'liq
   qayta quriladi (bitta quruvchi, lock ostida). Eskirish jadvali: `docs/API.md` "Market o'qish modeli".
