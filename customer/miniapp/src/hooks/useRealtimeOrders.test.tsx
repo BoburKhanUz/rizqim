@@ -787,7 +787,7 @@ describe('useRealtimeOrders: fix round 2 (relevance and pacing)', () => {
     expect(historyCalls()).toBe(history);
   });
 
-  it('a staff phone: a gap inside the window is read at its end, not at once', async () => {
+  it('a staff phone: a gap inside the 3 s window is read at its end, not at once', async () => {
     await mount({ role: 'manager', store_id: 5, branch_id: 8 });
     revisions.noteRead('branch:8', '10', 'GET /staff/orders?branch_id=8');
     await settle(6_000);
@@ -796,9 +796,9 @@ describe('useRealtimeOrders: fix round 2 (relevance and pacing)', () => {
     act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'pos-branch.8': '11' } }, 'pos-branch.8'));
     await settle(100);
     act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'pos-branch.8': '19' } }, 'pos-branch.8'));
-    await settle(1_000);
+    await settle(2_800);
     expect(historyCalls()).toBe(history);
-    await settle(4_000);
+    await settle(300); // the window ends 3 s after the first read
     expect(historyCalls()).toBe(history + 1);
   });
 

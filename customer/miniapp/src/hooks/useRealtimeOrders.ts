@@ -14,11 +14,11 @@ import { applyFinishedOrderChange, ordersKeys, refetchOrders } from './useOrders
 // Wave M2 fix round 2 (docs/scale/RESULTS_M2.md: with real-time on, every write of a busy branch made every screen of
 // it re-read within ~300 ms): the reads events ask for are paced, a leading + trailing throttle (@rizqim/staff
 // createRefreshThrottle). An event after quiet reads after a random 0..spread; events during the window after a read
-// collapse into ONE read at its end (plus a new spread). Staff phones (store, branch, courier channels): window 5 s,
-// spread 0-1.5 s; a customer (user.N): one refetch of the orders and the notifications per burst, window 5 s, spread
+// collapse into ONE read at its end (plus a new spread). Staff phones (store, branch, courier channels; the manager
+// accepts new orders here): window 3 s, spread 0-1 s, so an order change shows within ~4 s; a customer (user.N): one refetch of the orders and the notifications per burst, window 5 s, spread
 // 0-1 s. A gap or a heartbeat ahead is a full re-read through the same throttle; a reconnect, the silence watch and
 // the page coming back read everything at once. The safety polls of the screens are their own and are never paced.
-export const STAFF_PACING: RefreshPacing = { windowMs: 5_000, spreadMs: 1_500 };
+export const STAFF_PACING: RefreshPacing = { windowMs: 3_000, spreadMs: 1_000 };
 export const CUSTOMER_PACING: RefreshPacing = { windowMs: 5_000, spreadMs: 1_000 };
 // The spread's random source (the tests set a fixed one)
 export const realtimePacing: { random: () => number } = { random: Math.random };

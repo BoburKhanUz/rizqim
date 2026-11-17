@@ -25,7 +25,7 @@ test.describe('a new order arrives', () => {
     expect(reverb.subscribed).toContain('private-store.1')
     expect(api.callsTo('POST', '/broadcasting/auth')[0].body).toMatchObject({ channel_name: 'private-store.1' })
 
-    // Fix round 2: the event reads only that order (paced: within the 0-5 s spread) and patches it in, no list read
+    // Fix round 2: the event reads only that order (paced: within the 0-1 s spread) and patches it in, no list read
     await page.waitForTimeout(500)
     const listReads = () => api.callsTo('GET', '/v1/staff/orders').length
     const listsBefore = listReads()

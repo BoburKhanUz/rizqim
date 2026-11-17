@@ -41,8 +41,9 @@ import { useBranchScope } from './BranchScope';
 //    the board hears every event (each one feeds the change tokens) but reads only for the ones that change what it
 //    shows (lib/realtime.ts isBoardRelevant, with the table). Such an event reads THAT order once
 //    (GET /staff/orders/{uuid}) and patches it into the lists, the badge, today's finished pages and the drawer
-//    (@rizqim/staff applyBoardOrder); never a whole list on an event. Order reads are paced: window 15 s, spread 0-5 s
-//    (an event after quiet reads within 5 s; a busy branch at most every ~20 s), each distinct uuid of a batch once,
+//    (@rizqim/staff applyBoardOrder); never a whole list on an event. Order reads are paced: window 3 s, spread 0-1 s
+//    (a single-order read is cheap and the owner accepts new orders here: a change shows within ~4 s, also right
+//    after another one), each distinct uuid of a batch once,
 //    more than 5 uuids one open-list read instead. A kitchen line event is applied from its payload, no read. A gap,
 //    a heartbeat ahead or a failed order read: one open-list read, at most every 30 s, spread 0-5 s. A 404/403 on the
 //    order read takes the order off the board. Reconnect, silence, the tab coming back and the person's own actions
@@ -64,7 +65,7 @@ export type RealtimeStatus = 'off' | 'connecting' | 'live' | 'offline';
 export const POLL_MS = 15_000;
 export const LIVE_POLL_MS = 60_000;
 // Fix round 2: pacing of the reads events ask for (see above). The safety polls are not paced.
-export const ORDER_READ_PACING: RefreshPacing = { windowMs: 15_000, spreadMs: 5_000 };
+export const ORDER_READ_PACING: RefreshPacing = { windowMs: 3_000, spreadMs: 1_000 };
 export const LIST_READ_PACING: RefreshPacing = { windowMs: 30_000, spreadMs: 5_000 };
 // More distinct orders than this in one batch: one open-list read instead
 export const MAX_ORDER_READS = 5;

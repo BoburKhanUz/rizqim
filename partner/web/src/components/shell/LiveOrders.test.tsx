@@ -13,7 +13,7 @@ import type { Chime } from '@/lib/sound';
 import { FakeEcho } from '@/test/fakeEcho';
 import { API, json, mockFetch } from '@/test/helpers';
 import { BranchScopeProvider } from './BranchScope';
-import { LiveOrdersProvider, LIVE_POLL_MS, POLL_MS, useLiveOrders, type BoardPacing } from './LiveOrders';
+import { LIST_READ_PACING, LiveOrdersProvider, LIVE_POLL_MS, ORDER_READ_PACING, POLL_MS, useLiveOrders, type BoardPacing } from './LiveOrders';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }), usePathname: () => '/orders' }));
 
@@ -52,7 +52,7 @@ function fakeChime(): Chime & { play: ReturnType<typeof vi.fn> } {
   return { ready: true, unlock: vi.fn(async () => true), play: vi.fn(() => true), close: vi.fn() };
 }
 
-// The tests' pacing: no spread, short windows (the real ones: 15 s / 30 s windows, 0-5 s spread)
+// The tests' pacing: no spread, short windows (the real ones: order reads 3 s window, 0-1 s spread; list reads 30 s, 0-5 s)
 const FAST: BoardPacing = { order: { windowMs: 300, spreadMs: 0 }, list: { windowMs: 300, spreadMs: 0 } };
 
 type TestOrder = { uuid: string; status: string; branch_id?: number | null; created_at?: string; items?: { id: number; kitchen_status: string; ready_at: string | null }[] };
@@ -341,6 +341,11 @@ describe('LiveOrdersProvider', () => {
     });
   });
   describe('fix round 2: pacing and relevance', () => {
+    it('an order change shows within ~4 s even right after another one; list reads stay rare', () => {
+      expect(ORDER_READ_PACING).toEqual({ windowMs: 3_000, spreadMs: 1_000 });
+      expect(LIST_READ_PACING).toEqual({ windowMs: 30_000, spreadMs: 5_000 });
+    });
+
     it('an event the board does not read for feeds the token: the next relevant one is no gap', async () => {
       const { state, echo, ordersCalls, orderCalls } = setup({ role: 'cook', branch: { id: 5, scoped: true }, status: STATUS });
       state.revision = '800';
