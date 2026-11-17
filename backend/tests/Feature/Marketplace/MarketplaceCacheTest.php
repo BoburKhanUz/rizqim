@@ -78,15 +78,29 @@ class MarketplaceCacheTest extends TestCase
 
     public function test_a_burst_on_a_cold_store_menu_builds_it_once(): void
     {
+        // The availability overlay (it reads `products` too) is keyed by the 15 s bucket of the clock and refreshed after
+        // its 5 s fresh time: on the real clock a burst that crossed a bucket edge rebuilt it, legitimately. The clock
+        // is pinned to the start of a bucket, so only the cache decides what is read.
+        $stale = (int) config('marketplace.ttl.availability')[1];
+        $this->travelTo(\Illuminate\Support\Carbon::createFromTimestamp((intdiv(now()->getTimestamp(), $stale) + 1) * $stale));
+
         // Sequential stand-in for a burst: the first request builds, the next 20 read its copy (no products query)
         $uri = "/api/v1/catalog?store_id={$this->store->uuid}";
         $this->actingAs($this->customer, 'sanctum')->getJson($uri)->assertOk();
-        $read = $this->tablesRead(function () use ($uri) {
+        $burst = function () use ($uri) {
             for ($i = 0; $i < 20; $i++) {
                 $this->actingAs($this->customer, 'sanctum')->getJson($uri)->assertOk();
             }
-        });
-        $this->assertNotContains('products', $read);
+        };
+        $this->assertNotContains('products', $this->tablesRead($burst));
+
+        // At the next bucket edge the overlay is rebuilt once, by the first request after it (the menu is not: its
+        // own query never runs); the rest of the burst reads that copy again
+        $this->travel($stale)->seconds();
+        $first = $this->tablesRead(fn () => $this->actingAs($this->customer, 'sanctum')->getJson($uri)->assertOk());
+        $this->assertContains('stop_list_entries', $first, 'the availability overlay is rebuilt at its bucket edge');
+        $this->assertNotContains('categories', $first, 'the menu document is not rebuilt with it');
+        $this->assertNotContains('products', $this->tablesRead($burst));
     }
 
     public function test_a_broken_cache_store_serves_from_the_database(): void

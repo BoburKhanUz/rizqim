@@ -41,6 +41,9 @@ class MarketplaceCheckoutTest extends TestCase
      */
     private function forge(callable $menu, ?callable $store = null, ?callable $availability = null): void
     {
+        // A stopped clock: the availability document's key changes with the 15 s bucket of the clock, so on the real
+        // clock a bucket edge between the warm-up, the overwrite and the next read lost the forged copy
+        $this->freezeTime();
         $this->actingAs($this->customer, 'sanctum')->getJson("/api/v1/catalog?store_id={$this->store->uuid}")->assertOk();
         $menus = app(StoreMenu::class);
         $cache = app(ReadModelCache::class)->store();

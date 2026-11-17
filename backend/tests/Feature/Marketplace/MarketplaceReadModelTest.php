@@ -229,6 +229,9 @@ class MarketplaceReadModelTest extends TestCase
 
     public function test_a_warm_browse_reads_no_store_or_menu_table(): void
     {
+        // A stopped clock: the availability overlay is keyed by the 15 s bucket of the clock and refreshed after 5 s, so
+        // on the real clock a run that crossed a bucket edge legitimately read the stop-list and batch tables again
+        $this->freezeTime();
         $uris = [
             '/api/v1/stores?lat=41.3120&lng=69.2450',
             '/api/v1/stores?lat=41.3120&lng=69.2450&page=1',
