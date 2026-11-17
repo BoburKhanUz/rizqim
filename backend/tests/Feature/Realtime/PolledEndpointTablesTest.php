@@ -54,7 +54,7 @@ class PolledEndpointTablesTest extends TestCase
         'GET /orders' => ['orders', 'order_items', 'stores', 'branches', 'store_ratings', 'complaints', 'order_refund_requests'],
         'GET /notifications' => ['notification_logs', 'orders', 'stores'],
         // M2-2: the KDS ingredient stop panel (polled every 60 s)
-        'GET /owner/ingredients' => ['ingredients', 'branches', 'stores', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
+        'GET /owner/ingredients' => ['ingredients', 'stop_list_entries', 'branches', 'stores', 'store_subscriptions', 'tariff_plans', 'features', 'settings'],
     ];
 
     private Order $order;
