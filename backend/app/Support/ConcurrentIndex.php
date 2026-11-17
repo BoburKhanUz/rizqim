@@ -52,7 +52,14 @@ final class ConcurrentIndex
         }
 
         $definition = '(' . implode(', ', $columns) . ')' . ($where === null ? '' : " WHERE {$where}");
-        DB::statement(sprintf('CREATE INDEX IF NOT EXISTS %s ON ONLY %s %s', $name, $table, $definition));
+        // ON ONLY builds nothing but takes SHARE on the parent (inserts wait): bounded, so it never queues a till's
+        // insert for longer than partitions.lock_timeout (the migration fails with a lock timeout and is run again)
+        DB::transaction(function () use ($name, $table, $definition) {
+            $timeout = preg_replace('/[^0-9a-z]/i', '', (string) config('partitions.lock_timeout', '2s'));
+            DB::statement("SET LOCAL lock_timeout = '{$timeout}'");
+            DB::statement("SET LOCAL statement_timeout = '{$timeout}'");
+            DB::statement(sprintf('CREATE INDEX IF NOT EXISTS %s ON ONLY %s %s', $name, $table, $definition));
+        });
 
         $partitions = DB::select(<<<'SQL'
             SELECT c.relname AS name FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
@@ -71,6 +78,7 @@ final class ConcurrentIndex
                 DB::statement("DROP INDEX CONCURRENTLY IF EXISTS {$child}");
             }
             DB::statement(sprintf('CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s %s', $child, $partition->name, $definition));
+            // SHARE UPDATE EXCLUSIVE on the partition: writes go on
             DB::statement(sprintf('ALTER INDEX %s ATTACH PARTITION %s', $name, $child));
         }
     }

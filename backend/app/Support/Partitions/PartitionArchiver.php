@@ -2,6 +2,7 @@
 
 namespace App\Support\Partitions;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,15 +25,15 @@ final class PartitionArchiver
 
     /**
      * Phase 3 (drops) first, then phase 1 (detaches). Each step is idempotent; a run killed half-way is finished by the
-     * next one.
+     * next one. A month whose locks cannot be had within the bound is left for the next run ('failed', with the reason).
      *
-     * @return array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, skipped: list<string>}
+     * @return array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, skipped: list<string>, failed: array<string, string>}
      */
     public function run(): array
     {
         [$dropped, $kept] = $this->dropArchived();
-        $report = ['dropped' => $dropped, 'detached' => [], 'deleted' => [], 'kept' => $kept, 'skipped' => []];
-        $this->fillCounts();
+        $report = ['dropped' => $dropped, 'detached' => [], 'deleted' => [], 'kept' => $kept, 'skipped' => [], 'failed' => []];
+        $this->finishDetached($report);
         foreach (PartitionManager::tables() as $table => $config) {
             if ($this->manager->conversionState($table) !== 'none') {
                 // The online conversion keeps an old or a new copy of the table: no month leaves before it is settled
@@ -41,65 +42,104 @@ final class PartitionArchiver
                 continue;
             }
             foreach ($this->manager->dueForArchive($table) as $partition) {
-                if ($config['archive']) {
-                    $this->detach($table, $partition);
-                    $report['detached'][] = $partition['name'];
-                } else {
-                    $this->detachAndDrop($table, $partition);
-                    $report['deleted'][] = $partition['name'];
+                try {
+                    if ($config['archive']) {
+                        $this->detach($table, $partition);
+                        $report['detached'][] = $partition['name'];
+                    } else {
+                        $this->detachAndDrop($table, $partition);
+                        $report['deleted'][] = $partition['name'];
+                    }
+                } catch (QueryException $e) {
+                    $report['failed'][$partition['name']] = (string) ($e->getPrevious()?->getMessage() ?? $e->getMessage());
                 }
             }
         }
-        $this->fillCounts();
+        $this->finishDetached($report);
 
         return $report;
     }
 
     /**
+     * One month out of the live table. The transaction that holds the parent's lock does no waiting of its own: the
+     * referenced tables (SHARE ROW EXCLUSIVE, which a till's foreign key check does not wait for) are taken first, then
+     * the parent, the month and DEFAULT (ACCESS EXCLUSIVE, which a till's insert does wait for), each LOCK bounded as
+     * a whole; then DETACH, the triggers put back, the catalogue row. A till's insert waits at most about one
+     * detach_lock_timeout, then the step gives up (retried, then left for the next run). The month's foreign keys
+     * are dropped afterwards, one per short transaction (PartitionManager::dropForeignKeys).
+     *
      * @param  array{name: string, from: \Carbon\CarbonImmutable, to: \Carbon\CarbonImmutable}  $partition
      */
     public function detach(string $table, array $partition): void
     {
-        $name = $partition['name'];
-        $this->manager->withLockRetry(function () use ($table, $name, $partition) {
-            $triggers = $this->manager->userTriggers($table, [$table . '_m3_capture']);
-            // Not CONCURRENTLY: refused while a DEFAULT partition exists. AccessExclusive on the parent for milliseconds
-            DB::statement(sprintf('ALTER TABLE %s DETACH PARTITION %s', $table, $name));
-            foreach (DB::select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'f'", [$name]) as $fk) {
-                DB::statement(sprintf('ALTER TABLE %s DROP CONSTRAINT %s', $name, $fk->conname));
-            }
-            // DETACH removes the cloned triggers: the parent's are put back on the month (append-only audit, the fiscal
-            // key guards) until it is dropped (DROP fires none)
-            $this->manager->copyTriggers($triggers, $name);
-            $now = now();
-            DB::table('partition_archives')->updateOrInsert(['partition_name' => $name], [
-                'table_name' => $table,
-                'range_from' => $partition['from'],
-                'range_to' => $partition['to'],
-                'status' => 'detached',
-                'detached_at' => $now,
-                'error' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }, (string) config('partitions.detach_lock_timeout', '3s'));
+        $this->detachOnly($table, $partition, catalogue: true);
+        $this->manager->dropForeignKeys($partition['name']);
+        $this->fillCounts();
+    }
+
+    /**
+     * archive => false (notifications): detached the same way, its foreign keys dropped, then dropped, recorded as
+     * `dropped` (no archive copy).
+     *
+     * @param  array{name: string, from: \Carbon\CarbonImmutable, to: \Carbon\CarbonImmutable}  $partition
+     */
+    public function detachAndDrop(string $table, array $partition): void
+    {
+        $this->detachOnly($table, $partition, catalogue: false);
+        $this->dropDetachedMonth($table, $partition['name'], $partition['from'], $partition['to']);
     }
 
     /**
      * @param  array{name: string, from: \Carbon\CarbonImmutable, to: \Carbon\CarbonImmutable}  $partition
      */
-    public function detachAndDrop(string $table, array $partition): void
+    private function detachOnly(string $table, array $partition, bool $catalogue): void
     {
         $name = $partition['name'];
-        $this->manager->withLockRetry(function () use ($table, $name, $partition) {
+        $default = PartitionManager::defaultName($table);
+        $this->manager->withLockRetry(function () use ($table, $name, $partition, $catalogue, $default) {
+            $referenced = $this->manager->referencedTables($table);
+            if ($referenced !== []) {
+                $this->manager->boundedLock('LOCK TABLE ' . implode(', ', $referenced) . ' IN SHARE ROW EXCLUSIVE MODE', $this->timeout());
+            }
+            $this->manager->boundedLock(sprintf('LOCK TABLE ONLY %s, %s%s IN ACCESS EXCLUSIVE MODE', $table, $name, $this->manager->exists($default) ? ", {$default}" : ''), $this->timeout());
+            $triggers = $this->manager->userTriggers($table, [$table . '_m3_capture']);
+            // Not CONCURRENTLY: refused while a DEFAULT partition exists
             DB::statement(sprintf('ALTER TABLE %s DETACH PARTITION %s', $table, $name));
+            // DETACH removes the cloned triggers: the parent's are put back on the month (append-only audit, the fiscal
+            // key guards) until it is dropped (DROP fires none)
+            $this->manager->copyTriggers($triggers, $name);
+            if (!$catalogue) {
+                return;
+            }
+            $now = now();
+            // A month detached again (it was `held`) starts a fresh archive record: the earlier dump, checksum and
+            // verification do not cover rows added while it was attached
+            DB::table('partition_archives')->updateOrInsert(['partition_name' => $name], [
+                'table_name' => $table,
+                'range_from' => $partition['from'],
+                'range_to' => $partition['to'],
+                'status' => 'detached',
+                'rows' => null, 'min_id' => null, 'max_id' => null, 'bytes' => null, 'sha256' => null, 'storage_uri' => null,
+                'detached_at' => $now, 'uploaded_at' => null, 'verified_at' => null, 'dropped_at' => null,
+                'error' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }, $this->timeout());
+    }
+
+    private function dropDetachedMonth(string $table, string $name, \DateTimeInterface $from, \DateTimeInterface $to): void
+    {
+        $this->manager->dropForeignKeys($name);
+        $this->manager->withLockRetry(function () use ($table, $name, $from, $to) {
+            $this->manager->boundedLock("LOCK TABLE {$name} IN ACCESS EXCLUSIVE MODE", $this->timeout());
             $stats = DB::selectOne(sprintf('SELECT count(*) AS n, min(id) AS min_id, max(id) AS max_id FROM %s', $name));
             DB::statement(sprintf('DROP TABLE %s', $name));
             $now = now();
             DB::table('partition_archives')->updateOrInsert(['partition_name' => $name], [
                 'table_name' => $table,
-                'range_from' => $partition['from'],
-                'range_to' => $partition['to'],
+                'range_from' => $from,
+                'range_to' => $to,
                 'status' => 'dropped',
                 'rows' => (int) $stats->n,
                 'min_id' => $stats->min_id,
@@ -109,7 +149,54 @@ final class PartitionArchiver
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-        }, (string) config('partitions.detach_lock_timeout', '3s'));
+        }, $this->timeout());
+    }
+
+    /**
+     * Steps a killed run left: detached months with foreign keys or no counts, and notification months detached but
+     * not dropped (a standalone month table of an archive => false table that the catalogue does not know).
+     *
+     * @param  array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, skipped: list<string>, failed: array<string, string>}  $report
+     */
+    private function finishDetached(array &$report): void
+    {
+        foreach (DB::table('partition_archives')->where('status', 'detached')->pluck('partition_name') as $name) {
+            if ($this->manager->exists((string) $name)) {
+                try {
+                    $this->manager->dropForeignKeys((string) $name);
+                } catch (QueryException $e) {
+                    $report['failed'][(string) $name] = (string) ($e->getPrevious()?->getMessage() ?? $e->getMessage());
+                }
+            }
+        }
+        $this->fillCounts();
+        foreach (PartitionManager::tables() as $table => $config) {
+            if ($config['archive']) {
+                continue;
+            }
+            $known = DB::table('partition_archives')->where('table_name', $table)->pluck('partition_name')->all();
+            foreach (DB::select(
+                "SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname = current_schema() AND c.relkind = 'r' AND c.relname ~ ? AND NOT c.relispartition",
+                ['^' . $table . '_[0-9]{4}_[0-9]{2}$'],
+            ) as $orphan) {
+                if (in_array($orphan->name, $known, true)) {
+                    continue;
+                }
+                $month = \Carbon\CarbonImmutable::createFromFormat('!Y_m', substr((string) $orphan->name, strlen($table) + 1), 'UTC');
+                try {
+                    $this->dropDetachedMonth($table, (string) $orphan->name, $month, $month->addMonth());
+                    $report['deleted'][] = (string) $orphan->name;
+                } catch (QueryException $e) {
+                    $report['failed'][(string) $orphan->name] = (string) ($e->getPrevious()?->getMessage() ?? $e->getMessage());
+                }
+            }
+        }
+    }
+
+    private function timeout(): string
+    {
+        return (string) config('partitions.detach_lock_timeout', '3s');
     }
 
     /**
@@ -151,6 +238,7 @@ final class PartitionArchiver
                 continue;
             }
             $this->manager->withLockRetry(function () use ($row) {
+                // A detached month has no foreign key left (finishDetached): dropping it locks nothing but itself
                 DB::statement(sprintf('DROP TABLE IF EXISTS %s', $row->partition_name));
                 DB::table('partition_archives')->where('id', $row->id)->update(['status' => 'dropped', 'dropped_at' => now(), 'updated_at' => now()]);
             }, (string) config('partitions.detach_lock_timeout', '3s'));

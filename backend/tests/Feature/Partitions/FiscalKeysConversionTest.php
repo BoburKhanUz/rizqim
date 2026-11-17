@@ -95,6 +95,28 @@ class FiscalKeysConversionTest extends TestCase
         $this->assertDuplicateRefused();
     }
 
+    public function test_after_a_rollback_the_plain_table_has_the_same_created_at_as_the_partitioned_one(): void
+    {
+        // A pilot database before M3: plain table, no key triggers yet, receipts without created_at
+        (require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php'))->down();
+        app(PartitionConverter::class)->revertInline('fiscal_receipts');
+        DB::statement("UPDATE fiscal_receipts SET created_at = NULL, sold_at = '2026-10-03 08:00:00' WHERE id IN (SELECT id FROM fiscal_receipts ORDER BY id LIMIT 5)");
+        DB::statement('UPDATE fiscal_receipts SET created_at = NULL, sold_at = NULL, issued_at = NULL WHERE id = (SELECT max(id) FROM fiscal_receipts)');
+
+        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts'])->assertSuccessful();
+        // A receipt written without created_at while the copy waits for --finish
+        $late = $this->receipt(['created_at' => null, 'sold_at' => '2026-11-14 09:00:00']);
+        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--finish' => true])->assertSuccessful();
+
+        $this->assertSame(0, DB::table('fiscal_receipts_m3_old')->whereNull('created_at')->count(), 'the old table got the same backfill');
+        $this->assertSame(0, (int) DB::selectOne('SELECT count(*) AS n FROM fiscal_receipts n JOIN fiscal_receipts_m3_old o USING (id) WHERE n.created_at IS DISTINCT FROM o.created_at')->n);
+        $this->assertSame('2026-11-14 09:00:00', DB::table('fiscal_receipts')->where('id', $late)->value('created_at'));
+
+        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--rollback' => true])->assertSuccessful();
+        $this->assertSame(0, DB::table('fiscal_receipts')->whereNull('created_at')->count(), 'a live receipt is found by id and created_at after the rollback');
+        $this->assertSame('2026-10-03 08:00:00', DB::table('fiscal_receipts')->orderBy('id')->value('created_at'));
+    }
+
     public function test_a_missing_key_trigger_is_reported_and_ensure_repairs_it(): void
     {
         DB::statement('DROP TRIGGER fiscal_receipt_keys_insert ON fiscal_receipts');
@@ -168,8 +190,8 @@ class FiscalKeysConversionTest extends TestCase
             app(PartitionConverter::class)->convertInline('fiscal_receipts');
         }
         DB::statement('TRUNCATE fiscal_receipts');
-        DB::statement('TRUNCATE fiscal_receipt_keys');
         (require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php'))->up();
+        DB::statement('TRUNCATE fiscal_receipt_keys');
         DB::table('stores')->where('name', 'like', 'Keys %')->delete();
     }
 }

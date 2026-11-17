@@ -123,6 +123,27 @@ class PartitionArchiverTest extends TestCase
         $this->assertTrue(app(PartitionManager::class)->exists('fiscal_receipts_2026_02'));
     }
 
+    public function test_a_held_month_detached_again_starts_a_fresh_archive_record(): void
+    {
+        $this->travelTo('2026-11-17 22:40:00');
+        $this->artisan('db:partitions:archive')->assertSuccessful();
+        // The script archived and verified it; then an expert attached it again (archive-restore --attach) and rows came
+        $this->catalogue('audit_logs_2026_02', ['status' => 'verified', 'sha256' => str_repeat('f', 64), 'storage_uri' => 's3://b/archive/audit_logs/2026-02.dump', 'bytes' => 99, 'uploaded_at' => now(), 'verified_at' => now()]);
+        // (the triggers kept on the detached month go first: ATTACH clones the parent's under the same names)
+        foreach (array_keys(app(PartitionManager::class)->userTriggers('audit_logs_2026_02')) as $trigger) {
+            DB::statement("DROP TRIGGER {$trigger} ON audit_logs_2026_02");
+        }
+        DB::statement("ALTER TABLE audit_logs ATTACH PARTITION audit_logs_2026_02 FOR VALUES FROM ('2026-02-01') TO ('2026-03-01')");
+        $this->catalogue('audit_logs_2026_02', ['status' => 'held']);
+
+        $this->artisan('db:partitions:archive')->assertSuccessful();
+        $row = DB::table('partition_archives')->where('partition_name', 'audit_logs_2026_02')->first();
+        $this->assertSame('detached', $row->status);
+        foreach (['sha256', 'storage_uri', 'bytes', 'uploaded_at', 'verified_at', 'dropped_at'] as $column) {
+            $this->assertNull($row->{$column}, "{$column} of the earlier archive is cleared");
+        }
+    }
+
     public function test_nothing_is_detached_while_an_online_conversion_keeps_a_copy(): void
     {
         DB::statement('CREATE TABLE audit_logs_m3_old (id bigint)');

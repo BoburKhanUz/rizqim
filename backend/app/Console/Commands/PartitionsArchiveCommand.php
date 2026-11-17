@@ -35,10 +35,13 @@ class PartitionsArchiveCommand extends Command
         foreach ($report['skipped'] as $table) {
             $this->warn("{$table}: onlayn konversiya tugallanmagan, arxivlash o'tkazib yuborildi");
         }
-        if (array_merge(...array_values($report)) === []) {
+        foreach ($report['failed'] as $name => $reason) {
+            $this->warn("{$name}: hozir bajarilmadi (jadval band: {$reason}). Kassalarni kuttirmaslik uchun keyingi ishga tushishda qayta uriniladi.");
+        }
+        if (array_merge($report['dropped'], $report['kept'], $report['detached'], $report['deleted'], $report['skipped'], array_keys($report['failed'])) === []) {
             $this->info('Arxivlanadigan oy yo\'q.');
         }
 
-        return self::SUCCESS;
+        return $report['failed'] === [] ? self::SUCCESS : self::FAILURE;
     }
 }

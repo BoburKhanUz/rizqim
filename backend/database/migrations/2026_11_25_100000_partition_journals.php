@@ -43,7 +43,24 @@ return new class extends Migration
             return;
         }
 
-        $converter = new PartitionConverter(new PartitionManager());
+        // Months detached from these tables (waiting for the archive, or held) would be left behind as orphan tables
+        // and their rows missing from the plain tables: refused until they are archived and dropped, or attached again
+        $manager = new PartitionManager();
+        $open = [];
+        if ($manager->exists('partition_archives')) {
+            $open = DB::table('partition_archives')->where('status', '!=', 'dropped')->orderBy('partition_name')->pluck('partition_name')->all();
+        }
+        foreach (array_keys(PartitionManager::tables()) as $table) {
+            foreach (DB::select("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relkind = 'r' AND NOT c.relispartition AND c.relname ~ ?", ['^' . $table . '_[0-9]{4}_[0-9]{2}$']) as $row) {
+                $open[] = $row->relname;
+            }
+        }
+        $open = array_values(array_unique($open));
+        if ($open !== []) {
+            throw new \RuntimeException("Orqaga qaytarish rad etildi: jadvaldan ajratilgan oylar bor (" . implode(', ', $open) . "). Ularning qatorlari oddiy jadvalga qaytmaydi: avval arxivlab o'chiring yoki qayta ulang.");
+        }
+
+        $converter = new PartitionConverter($manager);
         foreach (['fiscal_receipts', 'audit_logs', 'notification_logs'] as $table) {
             $converter->revertInline($table);
         }

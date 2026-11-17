@@ -117,7 +117,8 @@ class PartitionsConvertCommand extends Command
         $result = $converter->rollback($table, $batch);
         $this->info("{$table}: oddiy jadvalga qaytarildi ({$result['rows_plain']} qator).");
         if (!$result['dropped_partitioned']) {
-            $this->warn("Bo'lingan nusxa ({$table}_m3_new, {$result['rows_partitioned']} qator) soni mos kelmagani uchun o'chirilmadi: texnik mutaxassisga ko'rsating.");
+            $ids = $result['differing_ids'] === [] ? '' : ' Farq qiluvchi id: ' . implode(', ', $result['differing_ids']) . '.';
+            $this->warn("Bo'lingan nusxa ({$table}_m3_new, {$result['rows_partitioned']} qator) mazmuni mos kelmagani uchun o'chirilmadi.{$ids} Texnik mutaxassisga ko'rsating.");
         }
 
         return self::SUCCESS;
@@ -132,11 +133,12 @@ class PartitionsConvertCommand extends Command
             return self::FAILURE;
         }
         if (!$result['dropped']) {
-            $this->error("{$table}: eski jadvalda {$result['rows_old']} qator, yangisida {$result['rows_new']}: mos emas, hech narsa o'chirilmadi. Texnik mutaxassisga ko'rsating.");
+            $ids = $result['differing_ids'] === [] ? '' : ' Mazmuni farq qiluvchi id: ' . implode(', ', $result['differing_ids']) . '.';
+            $this->error("{$table}: eski jadvalda {$result['rows_old']} qator, yangisida {$result['rows_new']}: mos emas, hech narsa o'chirilmadi.{$ids} Texnik mutaxassisga ko'rsating.");
 
             return self::FAILURE;
         }
-        $this->info("{$table}_m3_old o'chirildi ({$result['rows_old']} qator yangi jadvalda borligi tekshirildi).");
+        $this->info("{$table}_m3_old o'chirildi ({$result['rows_old']} qatorning mazmuni yangi jadvaldagi bilan bir xilligi tekshirildi).");
 
         return self::SUCCESS;
     }

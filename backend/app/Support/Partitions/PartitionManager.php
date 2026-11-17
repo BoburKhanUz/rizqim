@@ -21,7 +21,8 @@ use RuntimeException;
 final class PartitionManager
 {
     // SQLSTATE of lock_timeout (lock_not_available) and of a deadlock: the DDL is retried
-    private const RETRY_STATES = ['55P03', '40P01'];
+    // SQLSTATE of lock_timeout (lock_not_available), of a deadlock and of statement_timeout (boundedLock): retried
+    private const RETRY_STATES = ['55P03', '40P01', '57014'];
 
     /**
      * @return array<string, array{column: string, online_months: int, archive: bool}>
@@ -170,7 +171,10 @@ final class PartitionManager
         $attached = $this->partitions($relation);
         $default = self::defaultName($base);
         if (!in_array($default, array_column($attached, 'name'), true)) {
-            $this->withLockRetry(fn () => DB::statement(sprintf('CREATE TABLE %s PARTITION OF %s DEFAULT', $default, $relation)));
+            $this->withLockRetry(function () use ($default, $relation) {
+                $this->boundedLock("LOCK TABLE ONLY {$relation} IN ACCESS EXCLUSIVE MODE");
+                DB::statement(sprintf('CREATE TABLE %s PARTITION OF %s DEFAULT', $default, $relation));
+            });
             $report['created'][] = $default;
         }
 
@@ -181,24 +185,20 @@ final class PartitionManager
             }
         }
 
-        $first = null;
-        foreach ($attached as $partition) {
-            if (!$partition['default']) {
-                $first = $partition['from'];
-
-                break;
-            }
-        }
+        // From first_month (archived months are skipped below); months before it only when DEFAULT holds their rows:
+        // never a run of empty months back to one old row
         $current = self::monthStart(now());
-        $start = $first ?? min(self::firstMonth(), $current);
+        $start = min(self::firstMonth(), $current);
         $end = $current->addMonths((int) config('partitions.months_ahead', 3));
 
         $wanted = [];
         for ($month = $start; $month <= $end; $month = $month->addMonth()) {
             $wanted[$month->format('Y-m')] = $month;
         }
+        $withRows = [];
         foreach ($this->defaultMonths($default, $column) as $month) {
             $wanted[$month->format('Y-m')] = $month;
+            $withRows[$month->format('Y-m')] = true;
         }
         ksort($wanted);
 
@@ -209,8 +209,11 @@ final class PartitionManager
             }
             $name = self::monthName($base, $month);
             if (in_array($name, $archived, true) || $this->exists($name)) {
-                // Archived, or a detached / restored table of that name exists: never attached automatically
-                $report['skipped'][] = $name;
+                // Archived, or a detached / restored table of that name exists: never attached automatically (named
+                // when it matters: rows of it wait in DEFAULT, or a table of that name is there)
+                if (isset($withRows[$key]) || $this->exists($name)) {
+                    $report['skipped'][] = $name;
+                }
 
                 continue;
             }
@@ -247,6 +250,17 @@ final class PartitionManager
         $to = $month->addMonth()->format('Y-m-d H:i:s');
 
         return $this->withLockRetry(function () use ($relation, $name, $default, $from, $to, $column): int {
+            // Every lock ATTACH needs, up front, bounded, in a fixed order: the referenced tables (SHARE ROW EXCLUSIVE,
+            // which a till's foreign key check does not wait for), the parent (SHARE UPDATE EXCLUSIVE, inserts go on),
+            // DEFAULT last (ACCESS EXCLUSIVE: an insert landing in DEFAULT, or a read of every month, waits for it)
+            $referenced = $this->referencedTables($relation);
+            if ($referenced !== []) {
+                $this->boundedLock('LOCK TABLE ' . implode(', ', $referenced) . ' IN SHARE ROW EXCLUSIVE MODE');
+            }
+            $this->boundedLock("LOCK TABLE ONLY {$relation} IN SHARE UPDATE EXCLUSIVE MODE");
+            if ($this->exists($default)) {
+                $this->boundedLock("LOCK TABLE {$default} IN ACCESS EXCLUSIVE MODE");
+            }
             DB::statement(sprintf('CREATE TABLE %s (LIKE %s INCLUDING DEFAULTS INCLUDING CONSTRAINTS)', $name, $relation));
 
             $moved = 0;
@@ -323,19 +337,33 @@ final class PartitionManager
     /**
      * Triggers the schema relies on, with what repairs them when missing (`db:partitions:ensure`, status code
      * trigger_missing). 'migration' is the migration that created them: a missing trigger is a problem only once it
-     * has run; its up() is idempotent and is re-run as the repair (the keys migration also backfills missing key rows).
-     * 'sql' repairs by one statement instead.
+     * has run. The repair creates it by 'sql' under a bounded lock (CREATE TRIGGER on a partitioned parent locks every
+     * partition against writes), then runs 'backfill' in committed batches; if its 'function' is gone, the migration's
+     * idempotent up() is run instead.
      */
     public const REQUIRED_TRIGGERS = [
         'audit_logs' => [
             'audit_logs_append_only' => [
                 'migration' => '2026_11_01_100600_make_audit_logs_append_only',
+                'function' => 'audit_logs_append_only',
                 'sql' => 'CREATE TRIGGER audit_logs_append_only BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW EXECUTE FUNCTION audit_logs_append_only()',
+                'backfill' => null,
             ],
         ],
         'fiscal_receipts' => [
-            'fiscal_receipt_keys_insert' => ['migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table', 'sql' => null],
-            'fiscal_receipt_keys_update' => ['migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table', 'sql' => null],
+            'fiscal_receipt_keys_insert' => [
+                'migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table',
+                'function' => 'fiscal_receipt_keys_insert',
+                'sql' => 'CREATE TRIGGER fiscal_receipt_keys_insert BEFORE INSERT ON fiscal_receipts FOR EACH ROW EXECUTE FUNCTION fiscal_receipt_keys_insert()',
+                // Receipts written while the trigger was missing get their key row (the migration's own backfill, set-based)
+                'backfill' => 'INSERT INTO fiscal_receipt_keys (store_id, idempotency_key, uuid, receipt_id, receipt_created_at) SELECT store_id, idempotency_key, uuid, id, created_at FROM fiscal_receipts WHERE id > %d AND id <= %d ORDER BY id ON CONFLICT DO NOTHING',
+            ],
+            'fiscal_receipt_keys_update' => [
+                'migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table',
+                'function' => 'fiscal_receipt_keys_update',
+                'sql' => 'CREATE TRIGGER fiscal_receipt_keys_update BEFORE UPDATE OF id, store_id, idempotency_key, uuid, created_at ON fiscal_receipts FOR EACH ROW EXECUTE FUNCTION fiscal_receipt_keys_update()',
+                'backfill' => null,
+            ],
         ],
     ];
 
@@ -448,12 +476,27 @@ final class PartitionManager
     {
         $missing = $this->missingTriggers($base);
         $migrations = [];
+        $backfills = [];
         foreach ($missing as $name) {
             $spec = self::REQUIRED_TRIGGERS[$base][$name];
-            if ($spec['sql'] !== null) {
-                $this->withLockRetry(fn () => DB::statement($spec['sql']));
-            } else {
+            if (!(bool) DB::selectOne('SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = ?) AS e', [$spec['function']])->e) {
                 $migrations[$spec['migration']] = true;
+
+                continue;
+            }
+            $this->withLockRetry(function () use ($base, $name, $spec) {
+                $this->boundedLock("LOCK TABLE {$base} IN SHARE ROW EXCLUSIVE MODE");
+                $disabled = (bool) DB::selectOne("SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = ?::regclass AND tgname = ? AND tgparentid = 0) AS e", [$base, $name])->e;
+                DB::statement($disabled ? sprintf('ALTER TABLE %s ENABLE TRIGGER %s', $base, $name) : $spec['sql']);
+            });
+            if ($spec['backfill'] !== null) {
+                $backfills[] = $spec['backfill'];
+            }
+        }
+        foreach ($backfills as $backfill) {
+            $max = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$base}")->m;
+            for ($from = 0; $from < $max; $from += 20000) {
+                DB::transaction(fn () => DB::statement(sprintf($backfill, $from, $from + 20000)));
             }
         }
         foreach (array_keys($migrations) as $migration) {
@@ -465,6 +508,54 @@ final class PartitionManager
         }
 
         return $missing;
+    }
+
+    /**
+     * A LOCK TABLE statement whose whole wait is bounded: lock_timeout applies to each lock separately (a statement
+     * locking several tables, or a parent and its partitions, can otherwise wait that long for each), so the statement
+     * also gets statement_timeout = the same bound. Maintenance takes its strong locks this way, up front and in a
+     * fixed order (referenced tables first, the parent and DEFAULT last), so nothing waits again while they are held:
+     * a till's insert queues behind it for at most about one timeout, then the step gives up and is retried later.
+     */
+    public function boundedLock(string $lockStatement, ?string $timeout = null): void
+    {
+        $timeout = preg_replace('/[^0-9a-z]/i', '', $timeout ?? (string) config('partitions.lock_timeout', '2s'));
+        DB::statement("SET LOCAL lock_timeout = '{$timeout}'");
+        DB::statement("SET LOCAL statement_timeout = '{$timeout}'");
+        DB::statement($lockStatement);
+        DB::statement('SET LOCAL statement_timeout TO DEFAULT');
+    }
+
+    /**
+     * The tables the foreign keys of $relation reference, sorted (the fixed lock order).
+     *
+     * @return list<string>
+     */
+    public function referencedTables(string $relation): array
+    {
+        $tables = array_map(fn (object $row) => (string) $row->t, DB::select(
+            "SELECT DISTINCT confrelid::regclass::text AS t FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'f' AND confrelid <> conrelid",
+            [$relation],
+        ));
+        sort($tables);
+
+        return $tables;
+    }
+
+    /**
+     * Drops the foreign keys of a table that is no longer live (a detached month, the old plain table), one per
+     * transaction: dropping a foreign key takes ACCESS EXCLUSIVE on the referenced table (users, stores...) for an
+     * instant; each takes it bounded and retried, never while another strong lock is held.
+     */
+    public function dropForeignKeys(string $relation, ?string $timeout = null): void
+    {
+        $timeout ??= (string) config('partitions.detach_lock_timeout', '3s');
+        foreach (DB::select("SELECT conname, confrelid::regclass::text AS ref FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'f' ORDER BY conname", [$relation]) as $fk) {
+            $this->withLockRetry(function () use ($relation, $fk, $timeout) {
+                $this->boundedLock(sprintf('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE', $fk->ref === $relation ? $relation : "{$fk->ref}, {$relation}"), $timeout);
+                DB::statement(sprintf('ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s', $relation, $fk->conname));
+            }, $timeout);
+        }
     }
 
     /**

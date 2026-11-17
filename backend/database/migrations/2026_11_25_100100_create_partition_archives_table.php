@@ -50,6 +50,13 @@ return new class extends Migration
 
     public function down(): void
     {
+        // The catalogue is the only record of which months are out of the database and where their archive is
+        if (Schema::hasTable('partition_archives')) {
+            $open = DB::table('partition_archives')->where('status', '!=', 'dropped')->orderBy('partition_name')->pluck('partition_name')->all();
+            if ($open !== []) {
+                throw new \RuntimeException("Orqaga qaytarish rad etildi: arxivlanmagan yoki qayta ulangan oylar bor (" . implode(', ', $open) . "). Avval ularni arxivlab o'chiring yoki qayta ulang.");
+            }
+        }
         Schema::dropIfExists('partition_archives');
     }
 };

@@ -81,6 +81,40 @@ class PartitionMigrationTest extends TestCase
         $this->migration()->up();
     }
 
+    public function test_rows_older_than_first_month_get_only_their_own_months(): void
+    {
+        (require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php'))->down();
+        $this->migration()->down();
+        $this->travelTo('2019-03-01 10:00:00');
+        AuditLog::create(['action' => 'partitions.ancient']);
+        $this->travelBack();
+        $this->migration()->up();
+
+        $months = array_column(array_filter(app(PartitionManager::class)->partitions('audit_logs'), fn (array $p) => !$p['default']), 'name');
+        $this->assertSame('audit_logs_2019_03', $months[0]);
+        $this->assertSame('audit_logs_2026_01', $months[1], 'no empty month between the old row and first_month');
+        $report = app(PartitionManager::class)->ensure('audit_logs');
+        $this->assertSame([], $report['created'], 'ensure does not fill the gap either');
+    }
+
+    public function test_down_is_refused_while_a_month_is_detached_and_not_dropped(): void
+    {
+        $this->travelTo('2026-11-17 22:40:00');
+        $this->artisan('db:partitions:archive')->assertSuccessful();
+        $this->assertGreaterThan(0, DB::table('partition_archives')->where('status', 'detached')->count());
+
+        foreach ([$this->migration(), require database_path('migrations/2026_11_25_100100_create_partition_archives_table.php')] as $migration) {
+            try {
+                $migration->down();
+                $this->fail('down() must refuse while archived months are not dropped');
+            } catch (RuntimeException $e) {
+                $this->assertStringContainsString('audit_logs_2026_01', $e->getMessage());
+            }
+        }
+        $this->assertTrue(app(PartitionManager::class)->isPartitioned('audit_logs'));
+        $this->assertTrue(app(PartitionManager::class)->exists('partition_archives'));
+    }
+
     public function test_up_refuses_a_table_above_the_inline_threshold_with_a_message_the_operator_can_act_on(): void
     {
         $this->migration()->down();

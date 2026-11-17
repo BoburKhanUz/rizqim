@@ -147,6 +147,15 @@ final class PartitionConverter
 
     private const CAPTURE = '_m3_capture';
 
+    // Ids per range of the content comparison (finish, rollback, drop-old)
+    private const BUCKET = 10000;
+
+    // The unlocked catch-up stops when this few changes are left (copied under the lock of --finish) or after so many
+    // passes
+    private const CATCH_UP_LEFT = 1000;
+
+    private const CATCH_UP_PASSES = 50;
+
     public function __construct(private readonly PartitionManager $manager) {}
 
     /**
@@ -198,7 +207,7 @@ final class PartitionConverter
             // Every user trigger of the plain table follows it (read now, created after the copy: a BEFORE INSERT
             // trigger such as fiscal_receipt_keys_insert must not fire for the rows being moved)
             $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
-            $this->createPartitionedTable($table, $this->startMonth($table, exact: true));
+            $this->createPartitionedTable($table, $this->monthsToCreate($table));
             $this->copyAll($table, $table . self::NEW);
             $this->buildPartitionedIndexes($table, perPartitionForeignKeys: false);
             $this->swapIn($table, $triggers);
@@ -288,22 +297,29 @@ final class PartitionConverter
     /**
      * Step 1 (idempotent): the change-capture trigger on the live table, then `<t>_m3_new` with its months, DEFAULT and
      * primary key. The trigger is installed first (CREATE TRIGGER waits for open writers), so every write from then on
-     * is recorded and a row committed late with a lower id is never missed.
+     * is recorded and a row committed late with a lower id is never missed. Then the NOT NULL backfill (fiscal
+     * created_at) is written into the live table itself, in batches, so the old and the new table agree on it (a
+     * rollback brings back receipts FiscalService finds by id and created_at).
      */
     public function prepare(string $table): void
     {
         if ($this->state($table) !== 'plain') {
             return;
         }
-        $this->manager->withLockRetry(function () use ($table) {
+        $months = $this->monthsToCreate($table);
+        $this->manager->withLockRetry(function () use ($table, $months) {
+            $this->manager->boundedLock("LOCK TABLE {$table} IN SHARE ROW EXCLUSIVE MODE");
             $this->installCapture($table);
-            $this->createPartitionedTable($table, $this->startMonth($table, exact: false));
+            $this->createPartitionedTable($table, $months);
         }, (string) config('partitions.lock_timeout', '2s'));
+        $this->backfillNotNull($table);
     }
 
     /**
-     * Step 2: batches of `WHERE id > max(id) copied ORDER BY id LIMIT batch`, one commit each. Killed at any point, the
-     * next run continues from the last committed batch. $onBatch(copied, maxId) is called after each commit.
+     * Step 2: batches of `WHERE id > max(id) copied ORDER BY id LIMIT batch`, one commit each, up to the live table's
+     * last id when the step started (rows written later reach the new table through the change log: a busy table
+     * never keeps this loop running). Killed at any point, the next run continues from the last committed batch.
+     * $onBatch(copied, maxId) is called after each commit.
      *
      * @param  (callable(int, int): void)|null  $onBatch
      */
@@ -311,11 +327,12 @@ final class PartitionConverter
     {
         $new = $table . self::NEW;
         [$columns, $select] = $this->columnLists($table);
+        $until = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$table}")->m;
         $total = 0;
         while (true) {
             $copied = DB::transaction(fn () => DB::affectingStatement(sprintf(
-                'INSERT INTO %1$s (%2$s) SELECT %3$s FROM %4$s WHERE id > (SELECT coalesce(max(id), 0) FROM %1$s) ORDER BY id LIMIT %5$d',
-                $new, $columns, $select, $table, max(1, $batch),
+                'INSERT INTO %1$s (%2$s) SELECT %3$s FROM %4$s WHERE id > (SELECT coalesce(max(id), 0) FROM %1$s) AND id <= %6$d ORDER BY id LIMIT %5$d',
+                $new, $columns, $select, $table, max(1, $batch), $until,
             )));
             if ($copied === 0) {
                 return $total;
@@ -338,44 +355,68 @@ final class PartitionConverter
     }
 
     /**
-     * Rows changed since they were copied, re-copied in batches without a lock (shrinks the locked delta of --finish).
+     * Rows changed since they were copied, re-copied in batches without a lock, until the change log is short (at most
+     * CATCH_UP_LEFT entries, or after CATCH_UP_PASSES passes): what is left is copied under the lock of --finish. A
+     * table written all the time never keeps this loop running.
      */
-    public function catchUp(string $table, int $batch = 20000): int
+    public function catchUp(string $table, int $batch = 20000, string $target = ''): int
     {
+        $target = $target === '' ? $table . self::NEW : $target;
         $total = 0;
-        do {
-            $done = DB::transaction(fn () => $this->applyChanges($table, $table, $table . self::NEW, $batch));
+        for ($pass = 0; $pass < self::CATCH_UP_PASSES; $pass++) {
+            $done = DB::transaction(fn () => $this->applyChanges($table, $table, $target, $batch));
             $total += $done;
-        } while ($done > 0);
+            if ($done === 0 || $this->pendingChanges($table) <= self::CATCH_UP_LEFT) {
+                break;
+            }
+        }
 
         return $total;
     }
 
     /**
-     * Step 4: under `LOCK TABLE <t> IN EXCLUSIVE MODE` (reads go on, writers wait seconds) with lock_timeout 3 s and
-     * retries: the last changes and rows above the copy mark, a max(id) check, then the swap. `<t>_m3_old` is kept;
-     * from now on the changes of the new table are recorded for --rollback.
+     * Step 4. Unlocked: the last batches, indexes, months, the catch-up and a content comparison of both tables per
+     * range of ids. Then, under `LOCK TABLE <t> IN EXCLUSIVE MODE` (reads go on; it waits until every writer of the
+     * table has committed, so the change log is complete): the rest of the log, rows above the copy mark, the ranges
+     * that differed or were touched compared again (any difference refuses the swap and names the ids), then ACCESS
+     * EXCLUSIVE for the renames. Every lock wait is bounded (lock_timeout and statement_timeout), retried, given up.
+     * `<t>_m3_old` is kept; from now on the changes of the new table are recorded for --rollback.
      */
     public function finish(string $table, int $batch = 20000): void
     {
         if ($this->state($table) !== 'copying') {
             throw new RuntimeException("{$table}: tugatiladigan ko'chirish yo'q (holat: {$this->state($table)})");
         }
+        $new = $table . self::NEW;
         $this->copy($table, $batch);
         $this->build($table);
-        $this->manager->ensure($table, $table . self::NEW);
+        $this->manager->ensure($table, $new);
+        $this->backfillNotNull($table);
         $this->catchUp($table, $batch);
+        $mark = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$new}")->m;
+        $differing = $this->differingBuckets($table, $new, $mark);
 
-        $this->manager->withLockRetry(function () use ($table) {
-            DB::statement("LOCK TABLE {$table} IN EXCLUSIVE MODE");
-            $new = $table . self::NEW;
-            while ($this->applyChanges($table, $table, $new, 100000) > 0) {
-                // drain
+        $this->manager->withLockRetry(function () use ($table, $new, $mark, $differing) {
+            $this->manager->boundedLock("LOCK TABLE {$table} IN EXCLUSIVE MODE");
+            $touched = [];
+            while ($this->applyChanges($table, $table, $new, 100000, $touched) > 0) {
+                // drain: the log is complete (no writer of the table is in flight)
             }
             [$columns, $select] = $this->columnLists($table);
             DB::statement(sprintf('INSERT INTO %1$s (%2$s) SELECT %3$s FROM %4$s WHERE id > (SELECT coalesce(max(id), 0) FROM %1$s)', $new, $columns, $select, $table));
             $this->assertSameMaxId($table, $new);
+            $max = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$table}")->m;
+            $recheck = array_unique(array_merge(
+                $differing,
+                array_map(fn (int $id) => intdiv($id, self::BUCKET), $touched),
+                range(intdiv($mark, self::BUCKET), intdiv($max, self::BUCKET)),
+            ));
+            $still = $this->differingBuckets($table, $new, $max, $recheck);
+            if ($still !== []) {
+                throw new RuntimeException("{$table}: yangi jadval eskisi bilan mos emas (id: " . implode(', ', $this->differingIds($table, $new, $still, $max)) . "): almashtirish bekor qilindi, hech narsa o'zgarmadi");
+            }
 
+            $this->manager->boundedLock("LOCK TABLE {$table}, {$new} IN ACCESS EXCLUSIVE MODE");
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
             $this->swapIn($table, $this->manager->userTriggers($table, [$table . self::CAPTURE]));
             DB::statement(sprintf("COMMENT ON TABLE %s IS 'M3 swapped_at=%s'", $table . self::OLD, now()->utc()->toIso8601ZuluString()));
@@ -386,9 +427,10 @@ final class PartitionConverter
 
     /**
      * Within keep_old_days of --finish: the rows written to the partitioned table since the swap are copied into the
-     * kept plain table, which takes the name back. The partitioned copy is dropped only after an exact count matches.
+     * kept plain table, which takes the name back (same locking as --finish). The partitioned copy is dropped only when
+     * the content of both tables is the same.
      *
-     * @return array{rows_plain: int, rows_partitioned: int, dropped_partitioned: bool}
+     * @return array{rows_plain: int, rows_partitioned: int, dropped_partitioned: bool, differing_ids: list<int>}
      */
     public function rollback(string $table, int $batch = 20000): array
     {
@@ -397,34 +439,26 @@ final class PartitionConverter
         }
         $old = $table . self::OLD;
         $definition = self::definition($table);
-        // The unlocked part first: rows changed since the swap
-        do {
-            $done = DB::transaction(function () use ($table, $old, $batch) {
-                DB::statement(sprintf('ALTER TABLE %s DISABLE TRIGGER USER', $old));
-                $n = $this->applyChanges($table, $table, $old, $batch);
-                DB::statement(sprintf('ALTER TABLE %s ENABLE TRIGGER USER', $old));
-
-                return $n;
-            });
-        } while ($done > 0);
+        // The unlocked part first: rows changed since the swap (the old table's own triggers are dropped: it is not
+        // live, it gets exactly the live table's triggers at the swap)
+        foreach (array_keys($this->manager->userTriggers($old)) as $stale) {
+            $this->manager->withLockRetry(fn () => DB::statement(sprintf('DROP TRIGGER %s ON %s', $stale, $old)));
+        }
+        $this->catchUp($table, $batch, $old);
 
         $this->manager->withLockRetry(function () use ($table, $old, $definition) {
-            DB::statement("LOCK TABLE {$table} IN EXCLUSIVE MODE");
-            DB::statement(sprintf('ALTER TABLE %s DISABLE TRIGGER USER', $old));
+            $this->manager->boundedLock("LOCK TABLE {$table} IN EXCLUSIVE MODE");
             while ($this->applyChanges($table, $table, $old, 100000) > 0) {
                 // drain
             }
-            DB::statement(sprintf('ALTER TABLE %s ENABLE TRIGGER USER', $old));
             $this->assertSameMaxId($table, $old);
 
+            $this->manager->boundedLock("LOCK TABLE {$table}, {$old} IN ACCESS EXCLUSIVE MODE");
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
             // The live table's triggers are the truth (e.g. fiscal_receipt_keys_* added after --finish): the plain
             // table gets exactly them, after its rows are in step (with them on, the keys insert trigger would refuse
             // every re-copied row, whose key row already exists)
             $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
-            foreach (array_keys($this->manager->userTriggers($old)) as $stale) {
-                DB::statement(sprintf('DROP TRIGGER %s ON %s', $stale, $old));
-            }
             $this->renameConstraints($table, $definition, '', '_m3new');
             DB::statement(sprintf('ALTER SEQUENCE %s_id_seq OWNED BY %s.id', $table, $old));
             DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $table, $table . self::NEW));
@@ -434,25 +468,29 @@ final class PartitionConverter
             DB::statement(sprintf('COMMENT ON TABLE %s IS NULL', $table));
         }, (string) config('partitions.detach_lock_timeout', '3s'));
 
+        $new = $table . self::NEW;
         $plain = (int) DB::selectOne("SELECT count(*) AS n FROM {$table}")->n;
-        $partitioned = (int) DB::selectOne(sprintf('SELECT count(*) AS n FROM %s', $table . self::NEW))->n;
+        $partitioned = (int) DB::selectOne("SELECT count(*) AS n FROM {$new}")->n;
+        $max = max((int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$table}")->m, (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$new}")->m);
+        $differing = $this->differingBuckets($table, $new, $max);
+        $ids = $differing === [] ? [] : $this->differingIds($table, $new, $differing, $max);
         $dropped = false;
-        if ($plain === $partitioned) {
-            $this->manager->withLockRetry(function () use ($table) {
-                DB::statement(sprintf('DROP TABLE %s', $table . self::NEW));
+        if ($plain === $partitioned && $ids === []) {
+            $this->manager->withLockRetry(function () use ($new, $table) {
+                DB::statement(sprintf('DROP TABLE %s', $new));
                 DB::statement(sprintf('DROP TABLE IF EXISTS %s', $table . self::CHANGES));
             });
             $dropped = true;
         }
 
-        return ['rows_plain' => $plain, 'rows_partitioned' => $partitioned, 'dropped_partitioned' => $dropped];
+        return ['rows_plain' => $plain, 'rows_partitioned' => $partitioned, 'dropped_partitioned' => $dropped, 'differing_ids' => $ids];
     }
 
     /**
-     * After keep_old_days: the kept plain table is dropped once it holds no row the partitioned table lacks (an exact
-     * count of both up to the old table's last id).
+     * After keep_old_days: the kept plain table is dropped once its content equals the partitioned table's up to its
+     * last id (a checksum of every column per range of ids; on a difference nothing is dropped and the ids are named).
      *
-     * @return array{rows_old: int, rows_new: int, days_left: int, dropped: bool}
+     * @return array{rows_old: int, rows_new: int, days_left: int, dropped: bool, differing_ids: list<int>}
      */
     public function dropOld(string $table): array
     {
@@ -464,7 +502,7 @@ final class PartitionConverter
         $swappedAt = preg_match('/swapped_at=(\S+)/', $comment, $m) === 1 ? CarbonImmutable::parse($m[1]) : null;
         $keep = (int) config('partitions.keep_old_days', 7);
         $daysLeft = $swappedAt === null ? 0 : (int) max(0, ceil(now()->diffInSeconds($swappedAt->addDays($keep), false) / 86400));
-        $result = ['rows_old' => 0, 'rows_new' => 0, 'days_left' => $daysLeft, 'dropped' => false];
+        $result = ['rows_old' => 0, 'rows_new' => 0, 'days_left' => $daysLeft, 'dropped' => false, 'differing_ids' => []];
         if ($daysLeft > 0) {
             return $result;
         }
@@ -472,15 +510,26 @@ final class PartitionConverter
         $maxOld = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$old}")->m;
         $result['rows_old'] = (int) DB::selectOne("SELECT count(*) AS n FROM {$old}")->n;
         $result['rows_new'] = (int) DB::selectOne("SELECT count(*) AS n FROM {$table} WHERE id <= ?", [$maxOld])->n;
-        if ($result['rows_old'] !== $result['rows_new']) {
+        $differing = $this->differingBuckets($old, $table, $maxOld);
+        if ($differing !== []) {
+            $result['differing_ids'] = $this->differingIds($old, $table, $differing, $maxOld);
+        }
+        if ($result['rows_old'] !== $result['rows_new'] || $result['differing_ids'] !== []) {
             return $result;
         }
 
         $this->manager->withLockRetry(function () use ($table, $old) {
+            $this->manager->boundedLock("LOCK TABLE {$table}, {$old} IN ACCESS EXCLUSIVE MODE");
             $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
-            DB::statement(sprintf('DROP TABLE %s', $old));
             $this->manager->assertTriggers($triggers, $table);
+        }, (string) config('partitions.detach_lock_timeout', '3s'));
+        // The old table's foreign keys go one by one (each takes ACCESS EXCLUSIVE on the referenced table for an
+        // instant, bounded), then the table itself, which no longer references anything
+        $this->manager->dropForeignKeys($old);
+        $this->manager->withLockRetry(function () use ($table, $old) {
+            $this->manager->boundedLock("LOCK TABLE {$old} IN ACCESS EXCLUSIVE MODE");
+            DB::statement(sprintf('DROP TABLE %s', $old));
             DB::statement(sprintf('DROP TABLE IF EXISTS %s', $table . self::CHANGES));
         }, (string) config('partitions.detach_lock_timeout', '3s'));
         $result['dropped'] = true;
@@ -488,31 +537,132 @@ final class PartitionConverter
         return $result;
     }
 
+    /**
+     * Ranges of BUCKET ids (id / BUCKET) whose content differs between $a and $b, up to id $max: per range the row
+     * count and an md5 over the md5 of every row (all columns, as JSON) in id order. $only limits it to some ranges.
+     *
+     * @param  list<int>|null  $only
+     * @return list<int>
+     */
+    public function differingBuckets(string $a, string $b, int $max, ?array $only = null): array
+    {
+        if ($only === []) {
+            return [];
+        }
+        $filter = $only === null ? '' : ' AND id / ' . self::BUCKET . ' = ANY(\'{' . implode(',', array_map('intval', $only)) . '}\'::bigint[])';
+        $hashes = function (string $relation) use ($max, $filter): array {
+            $rows = DB::select(sprintf(
+                "SELECT id / %d AS b, count(*) AS n, md5(string_agg(md5(row_to_json(x)::text), '' ORDER BY id)) AS h FROM %s x WHERE id <= %d%s GROUP BY 1",
+                self::BUCKET, $relation, $max, $filter,
+            ));
+            $map = [];
+            foreach ($rows as $row) {
+                $map[(int) $row->b] = $row->n . ':' . $row->h;
+            }
+
+            return $map;
+        };
+        $left = $hashes($a);
+        $right = $hashes($b);
+        $differing = [];
+        foreach (array_unique(array_merge(array_keys($left), array_keys($right))) as $bucket) {
+            if (($left[$bucket] ?? null) !== ($right[$bucket] ?? null)) {
+                $differing[] = (int) $bucket;
+            }
+        }
+        sort($differing);
+
+        return $differing;
+    }
+
+    /**
+     * The first 20 ids whose row differs (or exists on one side only) in the given ranges.
+     *
+     * @param  list<int>  $buckets
+     * @return list<int>
+     */
+    public function differingIds(string $a, string $b, array $buckets, int $max): array
+    {
+        $filter = 'id <= ' . $max . ' AND id / ' . self::BUCKET . ' = ANY(\'{' . implode(',', array_map('intval', $buckets)) . '}\'::bigint[])';
+
+        return array_map(fn (object $row) => (int) $row->id, DB::select(sprintf(
+            'SELECT coalesce(l.id, r.id) AS id FROM (SELECT id, md5(row_to_json(x)::text) AS h FROM %1$s x WHERE %3$s) l
+             FULL JOIN (SELECT id, md5(row_to_json(y)::text) AS h FROM %2$s y WHERE %3$s) r ON r.id = l.id
+             WHERE l.h IS DISTINCT FROM r.h ORDER BY 1 LIMIT 20',
+            $a, $b, $filter,
+        )));
+    }
+
+    /**
+     * The NOT NULL backfill (fiscal created_at) written into the plain live table, in committed batches, or only for
+     * the given ids. The change capture sees these updates: the new table gets the same values.
+     *
+     * @param  list<int>|null  $ids
+     */
+    private function backfillNotNull(string $table, ?array $ids = null): void
+    {
+        $notNull = self::definition($table)['not_null'];
+        if ($notNull === [] || $this->manager->relkind($table) !== 'r') {
+            return;
+        }
+        foreach ($notNull as $column => $expression) {
+            if ($ids !== null) {
+                if ($ids !== []) {
+                    DB::affectingStatement(sprintf('UPDATE %s SET %s = %s WHERE id = ANY(?::bigint[]) AND %s IS NULL', $table, $column, $expression, $column), ['{' . implode(',', $ids) . '}']);
+                }
+
+                continue;
+            }
+            $max = (int) DB::selectOne("SELECT coalesce(max(id), 0) AS m FROM {$table}")->m;
+            for ($from = 0; $from < $max; $from += 20000) {
+                DB::transaction(fn () => DB::affectingStatement(sprintf(
+                    'UPDATE %s SET %s = %s WHERE %s IS NULL AND id > %d AND id <= %d',
+                    $table, $column, $expression, $column, $from, $from + 20000,
+                )));
+            }
+        }
+    }
+
+    private function pendingChanges(string $table): int
+    {
+        return (int) DB::selectOne(sprintf('SELECT count(*) AS n FROM (SELECT 1 FROM %s LIMIT %d) c', $table . self::CHANGES, self::CATCH_UP_LEFT + 1))->n;
+    }
+
     // ---------------------------------------------------------------------------------------------------------------
     // Shared steps
     // ---------------------------------------------------------------------------------------------------------------
 
     /**
-     * The first month to create: config first_month, or earlier when the table holds older rows (exact: min of the
-     * column, for the inline path; otherwise the row with the lowest id, cheap on a big table: older stragglers land in
-     * DEFAULT and ensure() gives them their month).
+     * The months to create: config first_month .. now + months_ahead, plus, before first_month, only the months that
+     * hold rows (one row from 2019 makes one month, not 90 empty ones). Those old months are archived like any other
+     * once older than online_months.
+     *
+     * @return list<CarbonImmutable>
      */
-    private function startMonth(string $table, bool $exact): CarbonImmutable
+    private function monthsToCreate(string $table): array
     {
         $column = PartitionManager::table($table)['column'];
-        $oldest = $exact
-            ? DB::selectOne("SELECT min({$column}) AS m FROM {$table}")->m
-            : DB::selectOne("SELECT {$column} AS m FROM {$table} WHERE {$column} IS NOT NULL ORDER BY id LIMIT 1")?->m;
         $first = PartitionManager::firstMonth();
+        $months = array_map(
+            fn (object $row) => CarbonImmutable::parse($row->m, 'UTC'),
+            DB::select(sprintf("SELECT DISTINCT to_char(date_trunc('month', %s), 'YYYY-MM-DD') AS m FROM %s WHERE %s < ? ORDER BY 1", $column, $table, $column), [$first->format('Y-m-d H:i:s')]),
+        );
+        $end = PartitionManager::monthStart(now())->addMonths((int) config('partitions.months_ahead', 3));
+        for ($month = $first; $month <= $end; $month = $month->addMonth()) {
+            $months[] = $month;
+        }
 
-        return $oldest === null ? $first : min($first, PartitionManager::monthStart(CarbonImmutable::parse($oldest, 'UTC')));
+        return $months;
     }
 
     /**
      * `<t>_m3_new` PARTITION BY RANGE with the months start .. now + months_ahead, DEFAULT and the primary key (under a
      * temporary name until the swap). Nobody else knows the table yet: PARTITION OF is fine here.
      */
-    private function createPartitionedTable(string $table, CarbonImmutable $start): void
+    /**
+     * @param  list<CarbonImmutable>  $months
+     */
+    private function createPartitionedTable(string $table, array $months): void
     {
         $new = $table . self::NEW;
         $definition = self::definition($table);
@@ -521,8 +671,7 @@ final class PartitionConverter
         foreach (array_keys($definition['not_null']) as $notNull) {
             DB::statement(sprintf('ALTER TABLE %s ALTER COLUMN %s SET DEFAULT CURRENT_TIMESTAMP, ALTER COLUMN %s SET NOT NULL', $new, $notNull, $notNull));
         }
-        $end = PartitionManager::monthStart(now())->addMonths((int) config('partitions.months_ahead', 3));
-        for ($month = $start; $month <= $end; $month = $month->addMonth()) {
+        foreach ($months as $month) {
             DB::statement(sprintf(
                 "CREATE TABLE %s PARTITION OF %s FOR VALUES FROM ('%s') TO ('%s')",
                 PartitionManager::monthName($table, $month), $new, $month->format('Y-m-d H:i:s'), $month->addMonth()->format('Y-m-d H:i:s'),
@@ -646,40 +795,44 @@ final class PartitionConverter
     }
 
     /**
-     * Takes up to $limit ids out of the changes table and brings those rows of $target up to date with $source: an
-     * upsert on the primary key (never delete + insert: on the old fiscal table a delete would null the
-     * original_receipt_id of its refunds through the self foreign key), and a delete of the ids $source no longer has.
-     * Returns how many ids were taken. A row changed again meanwhile is recorded again by the trigger.
+     * Takes up to $limit entries of the change log (append-only, one entry per write, by its own sequence) and brings
+     * those rows of $target up to date with $source. Only the entries read are deleted: a write still in flight has
+     * its own entry, invisible now, which stays and is applied by a later pass or under the lock of --finish (LOCK
+     * waits for every writer to commit). Into the new partitioned table: delete + insert (no trigger there yet, no
+     * foreign key points at it); into the plain table (rollback): an upsert on id (a delete would null the
+     * original_receipt_id of refunds through its self foreign key) and a delete of ids $source no longer has.
+     * Returns how many entries were taken; $touched collects the ids.
+     *
+     * @param  list<int>  $touched
      */
-    private function applyChanges(string $table, string $source, string $target, int $limit): int
+    private function applyChanges(string $table, string $source, string $target, int $limit, array &$touched = []): int
     {
         $changes = $table . self::CHANGES;
-        $ids = array_map(fn (object $row) => (int) $row->id, DB::select(sprintf(
-            'DELETE FROM %1$s WHERE id IN (SELECT id FROM %1$s ORDER BY id LIMIT %2$d) RETURNING id',
-            $changes, max(1, $limit),
-        )));
-        if ($ids === []) {
+        $entries = DB::select(sprintf('SELECT seq, id FROM %s ORDER BY seq LIMIT %d', $changes, max(1, $limit)));
+        if ($entries === []) {
             return 0;
         }
+        $ids = array_values(array_unique(array_map(fn (object $row) => (int) $row->id, $entries)));
+        $seqs = '{' . implode(',', array_map(fn (object $row) => (int) $row->seq, $entries)) . '}';
         $array = '{' . implode(',', $ids) . '}';
         [$columns, $select, $list] = $this->columnLists($table);
         if ($this->manager->relkind($target) === 'p') {
-            // The new partitioned table (before the swap): no trigger, no foreign key points at it; a row whose
-            // backfilled created_at would differ cannot end up twice
+            // A row written without the NOT NULL value meanwhile gets it in the live table first (both agree)
+            $this->backfillNotNull($source, $ids);
             DB::affectingStatement(sprintf('DELETE FROM %s WHERE id = ANY(?::bigint[])', $target), [$array]);
             DB::affectingStatement(sprintf('INSERT INTO %s (%s) SELECT %s FROM %s WHERE id = ANY(?::bigint[])', $target, $columns, $select, $source), [$array]);
-
-            return count($ids);
+        } else {
+            $set = implode(', ', array_map(fn (string $column) => "{$column} = EXCLUDED.{$column}", array_values(array_filter($list, fn (string $column) => $column !== 'id'))));
+            DB::affectingStatement(sprintf('DELETE FROM %1$s t WHERE t.id = ANY(?::bigint[]) AND NOT EXISTS (SELECT 1 FROM %2$s s WHERE s.id = t.id)', $target, $source), [$array]);
+            DB::affectingStatement(sprintf(
+                'INSERT INTO %s (%s) SELECT %s FROM %s WHERE id = ANY(?::bigint[]) ON CONFLICT (id) DO UPDATE SET %s',
+                $target, $columns, $columns, $source, $set,
+            ), [$array]);
         }
+        DB::affectingStatement(sprintf('DELETE FROM %s WHERE seq = ANY(?::bigint[])', $changes), [$seqs]);
+        array_push($touched, ...$ids);
 
-        $set = implode(', ', array_map(fn (string $column) => "{$column} = EXCLUDED.{$column}", array_values(array_filter($list, fn (string $column) => $column !== 'id'))));
-        DB::affectingStatement(sprintf('DELETE FROM %1$s t WHERE t.id = ANY(?::bigint[]) AND NOT EXISTS (SELECT 1 FROM %2$s s WHERE s.id = t.id)', $target, $source), [$array]);
-        DB::affectingStatement(sprintf(
-            'INSERT INTO %s (%s) SELECT %s FROM %s WHERE id = ANY(?::bigint[]) ON CONFLICT (id) DO UPDATE SET %s',
-            $target, $columns, $columns, $source, $set,
-        ), [$array]);
-
-        return count($ids);
+        return count($entries);
     }
 
     private function assertSameMaxId(string $a, string $b): void
@@ -694,7 +847,12 @@ final class PartitionConverter
     private function installCapture(string $table): void
     {
         $changes = $table . self::CHANGES;
-        DB::statement(sprintf('CREATE TABLE IF NOT EXISTS %s (id bigint PRIMARY KEY)', $changes));
+        // Append-only: every write adds an entry (no ON CONFLICT: an entry already there must never swallow a later
+        // change of the same row)
+        DB::statement(sprintf('CREATE TABLE IF NOT EXISTS %s (seq bigserial PRIMARY KEY, id bigint NOT NULL)', $changes));
+        if (!(bool) DB::selectOne("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = 'seq') AS e", [$changes])->e) {
+            throw new RuntimeException("{$changes}: eski ko'rinishdagi o'zgarishlar jadvali: avval `php artisan db:partitions:convert {$table} --rollback` yoki ko'chirishni boshidan boshlang");
+        }
         $this->createCaptureTrigger($table, $changes);
     }
 
@@ -704,9 +862,9 @@ final class PartitionConverter
             CREATE OR REPLACE FUNCTION partition_capture_changes() RETURNS trigger AS $$
             BEGIN
                 IF TG_OP = 'DELETE' THEN
-                    EXECUTE format('INSERT INTO %I (id) VALUES ($1) ON CONFLICT DO NOTHING', TG_ARGV[0]) USING OLD.id;
+                    EXECUTE format('INSERT INTO %I (id) VALUES ($1)', TG_ARGV[0]) USING OLD.id;
                 ELSE
-                    EXECUTE format('INSERT INTO %I (id) VALUES ($1) ON CONFLICT DO NOTHING', TG_ARGV[0]) USING NEW.id;
+                    EXECUTE format('INSERT INTO %I (id) VALUES ($1)', TG_ARGV[0]) USING NEW.id;
                 END IF;
                 RETURN NULL;
             END;
