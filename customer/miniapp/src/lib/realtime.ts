@@ -129,6 +129,10 @@ export function parseOrderPayload(payload: unknown): OrderEventOrder | null {
 
 export interface OrderChannelHandlers {
   onEvent: (event: OrderEvent) => void;
+  // Fix round 2: any other event of the channel (bills, fiscal, shift, queue...): the app does not read for it, but its
+  // `rev` moved the channel's token, so it is counted (otherwise the next relevant event looks like a gap and every
+  // heartbeat like a missed change)
+  onOtherEvent?: (channel: string, name: string, rev: string | null) => void;
   // realtime.heartbeat on a staff channel: its token (null when none)
   onHeartbeat?: (channel: string, rev: string | null) => void;
   // true once the socket is connected and the channel subscribed; false whenever either is lost
@@ -235,6 +239,14 @@ export async function openOrderChannels(
         if (!closed) handlers.onHeartbeat?.(state.name, revOf(payload, state.name));
       });
     }
+    // Every event reaches the global listener too: the ones listened for above are handled there
+    const handled = new Set<string>([...events, HEARTBEAT_EVENT]);
+    channel.listenToAll((event: string, payload: unknown) => {
+      if (closed) return;
+      const name = event.replace(/^\./, '');
+      if (name === '' || handled.has(name) || name.startsWith('pusher:') || name.startsWith('pusher_internal:')) return;
+      handlers.onOtherEvent?.(state.name, name, revOf(payload, state.name));
+    });
     channel.subscribed(() => {
       if (closed) return;
       state.failures = 0;

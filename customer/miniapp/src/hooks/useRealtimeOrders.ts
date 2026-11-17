@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createSilenceWatch, onPageReturn, type SilenceWatch } from '@rizqim/staff';
+import { createRefreshThrottle, createSilenceWatch, onPageReturn, type RefreshPacing, type SilenceWatch } from '@rizqim/staff';
 import { getOrderChannelNames, isStaffChannel, openOrderChannels, resolveRealtimeConfig } from '../lib/realtime';
 import { loadRealtimeStatus } from '../lib/realtimeStatus';
 import { revisions } from '../lib/revisions';
@@ -11,9 +11,17 @@ import { useRealtimeStore } from '../store/realtimeStore';
 import { boardKeys, staffKeys } from '@rizqim/staff';
 import { applyFinishedOrderChange, ordersKeys, refetchOrders } from './useOrders';
 
-// Events of one burst (a status change usually comes with an assignment) cause one refetch: the first one waits this
-// long for the others. Not reset by each event, so a steady stream of them still refetches every REFETCH_DELAY_MS.
-const REFETCH_DELAY_MS = 300;
+// Wave M2 fix round 2 (docs/scale/RESULTS_M2.md: with real-time on, every write of a busy branch made every screen of
+// it re-read within ~300 ms): the reads events ask for are paced, a leading + trailing throttle (@rizqim/staff
+// createRefreshThrottle). An event after quiet reads after a random 0..spread; events during the window after a read
+// collapse into ONE read at its end (plus a new spread). Staff phones (store, branch, courier channels): window 5 s,
+// spread 0-1.5 s; a customer (user.N): one refetch of the orders and the notifications per burst, window 5 s, spread
+// 0-1 s. A gap or a heartbeat ahead is a full re-read through the same throttle; a reconnect, the silence watch and
+// the page coming back read everything at once. The safety polls of the screens are their own and are never paced.
+export const STAFF_PACING: RefreshPacing = { windowMs: 5_000, spreadMs: 1_500 };
+export const CUSTOMER_PACING: RefreshPacing = { windowMs: 5_000, spreadMs: 1_000 };
+// The spread's random source (the tests set a fixed one)
+export const realtimePacing: { random: () => number } = { random: Math.random };
 
 // The caches the staff screens keep besides the order lists: the board's lists and order details (GET /staff/orders*), and
 // what the stop-list and the batches show.
@@ -56,8 +64,9 @@ function onTelegramActivated(listener: () => void): () => void {
 //    refunded) is patched in place in those lists, without any request (applyFinishedOrderChange);
 //  - "live" (useRealtimeStore.connected: the screens poll slowly) means the socket is up, the server says real-time
 //    works (GET /realtime `live`) and, on a staff channel, a heartbeat or an event arrived within `silence_seconds`.
-//    Otherwise the screens poll at their own pace. Going silent, a heartbeat ahead of what the screen read, a
-//    reconnect, the page coming back (tab, phone screen, Telegram `activated`): everything is read again.
+//    Otherwise the screens poll at their own pace. Going silent, a reconnect, the page coming back (tab, phone screen,
+//    Telegram `activated`): everything is read again at once; a gap or a heartbeat ahead of what the screen read:
+//    everything again, paced (fix round 2, above). Every other event of the channels only feeds the token.
 // Without any Reverb key, or when the connection cannot be made, nothing changes: the screens just poll.
 export function useRealtimeOrders(): void {
   const queryClient = useQueryClient();
@@ -82,44 +91,60 @@ export function useRealtimeOrders(): void {
     const { setConnected } = useRealtimeStore.getState();
     let disposed = false;
     let session: { close: () => void } | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    // What the next paced read covers besides the open orders
     let withHistory = false;
-    let menuTimer: ReturnType<typeof setTimeout> | undefined;
+    let withMenu = false;
     let silence: SilenceWatch | null = null;
     let socketUp = false;
     let serverLive = true;
     let silent = false;
+    const pacing = customer ? CUSTOMER_PACING : STAFF_PACING;
 
     const publish = () => {
       if (!disposed) setConnected(socketUp && serverLive && !silent);
     };
 
+    const runOrders = () => {
+      void refetchOrders(queryClient, ordersKeys.allActive);
+      for (const key of STAFF_ORDER_KEYS) void refetchOrders(queryClient, key);
+      if (customer) void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+      if (withHistory) void refetchOrders(queryClient, ordersKeys.allHistory);
+      withHistory = false;
+      if (withMenu) runMenu();
+    };
+    const runMenu = () => {
+      withMenu = false;
+      for (const key of STAFF_MENU_KEYS) void queryClient.invalidateQueries({ queryKey: key });
+    };
+    const orderThrottle = createRefreshThrottle(runOrders, { ...pacing, random: () => realtimePacing.random() });
+    const menuThrottle = createRefreshThrottle(runMenu, { ...pacing, random: () => realtimePacing.random() });
+
     const refetch = (history: boolean) => {
       withHistory ||= history;
-      if (timer !== undefined) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        void refetchOrders(queryClient, ordersKeys.allActive);
-        for (const key of STAFF_ORDER_KEYS) void refetchOrders(queryClient, key);
-        if (customer) void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
-        if (withHistory) void refetchOrders(queryClient, ordersKeys.allHistory);
-        withHistory = false;
-      }, REFETCH_DELAY_MS);
+      orderThrottle.request();
     };
 
     const refetchMenu = () => {
-      if (menuTimer !== undefined) return;
-      menuTimer = setTimeout(() => {
-        menuTimer = undefined;
-        for (const key of STAFF_MENU_KEYS) void queryClient.invalidateQueries({ queryKey: key });
-      }, REFETCH_DELAY_MS);
+      menuThrottle.request();
     };
 
-    // Missed something (or cannot tell): every screen the channels feed reads again
+    // Missed something (a gap, a heartbeat ahead): every screen the channels feed reads again, paced
+    const rereadPaced = () => {
+      revisions.resetEvents();
+      withHistory = true;
+      if (!customer) withMenu = true;
+      orderThrottle.request();
+    };
+
+    // A reconnect, the silence watch, the page coming back: everything at once, never paced
     const rereadAll = () => {
       revisions.resetEvents();
-      refetch(true);
-      if (!customer) refetchMenu();
+      withHistory = true;
+      if (!customer) {
+        withMenu = true;
+        menuThrottle.cancel();
+      }
+      orderThrottle.flush();
     };
 
     // The screens already read past this change: nothing to fetch (what is on screen was read after it); a list kept in
@@ -162,18 +187,23 @@ export function useRealtimeOrders(): void {
           touch(event.channel);
           const verdict = revisions.onEvent(event.channel, event.rev);
           if (event.name === 'menu.availability_changed') {
-            if (verdict === 'missed') rereadAll();
+            if (verdict === 'missed') rereadPaced();
             else if (verdict !== 'same') refetchMenu();
             return;
           }
           if (event.order && event.name === 'order.status_changed') applyFinishedOrderChange(queryClient, event.order);
           if (verdict === 'same') markStale();
-          else if (verdict === 'missed') rereadAll();
+          else if (verdict === 'missed') rereadPaced();
           else refetch(false);
+        },
+        // Fix round 2: an event the screens do not read for only feeds the token (a gap it shows is still a gap)
+        onOtherEvent: (channel, _name, rev) => {
+          touch(channel);
+          if (revisions.onEvent(channel, rev) === 'missed') rereadPaced();
         },
         onHeartbeat: (channel, rev) => {
           touch(channel);
-          if (revisions.onHeartbeat(channel, rev) === 'reread') rereadAll();
+          if (revisions.onHeartbeat(channel, rev) === 'reread') rereadPaced();
         },
         onConnectionChange: (connected) => {
           socketUp = connected;
@@ -201,8 +231,8 @@ export function useRealtimeOrders(): void {
 
     return () => {
       disposed = true;
-      clearTimeout(timer);
-      clearTimeout(menuTimer);
+      orderThrottle.cancel();
+      menuThrottle.cancel();
       silence?.stop();
       stopReturn();
       stopActivated();

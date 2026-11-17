@@ -2,25 +2,33 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { hashKey, useQueryClient } from '@tanstack/react-query';
 import {
+  applyBoardOrder,
+  applyKitchenEvent,
   boardKeys,
+  createRefreshThrottle,
   createSilenceWatch,
+  fetchStaffOrder,
+  getApiErrorStatus,
+  removeBoardOrder,
   fetchRealtimeStatus,
   onPageReturn,
   reverbConnectionOf,
   revOf,
   spreadFirstReconnect,
-  staffKeys,
+  useStaffApi,
   useStaffOrders,
   type PusherLike,
+  type RefreshPacing,
+  type StaffOrdersList,
   type RealtimeStatus as ServerRealtimeStatus,
   type StaffOrdersQuery,
 } from '@rizqim/staff';
 import { ApiConfigContext, useRealtimeConfig } from '@/lib/apiConfig';
 import { revisions } from '@/lib/revisions';
 import { hasAny } from '@/lib/permissions';
-import { boardChannelNames, createEcho, openBoardChannels, type BoardEvent, type EchoLike, type RealtimeConfig } from '@/lib/realtime';
+import { boardChannelNames, createEcho, isBoardRelevant, KITCHEN_ITEM_EVENT, openBoardChannels, type BoardEvent, type EchoLike, type RealtimeConfig } from '@/lib/realtime';
 import { authFetch } from '@/lib/session/client';
 import { createChime, SOUND_STORAGE_KEY, type Chime } from '@/lib/sound';
 import { readStored, writeStored } from '@/lib/storage';
@@ -28,7 +36,17 @@ import { useAccess } from '../AuthProvider';
 import { useBranchScope } from './BranchScope';
 
 // The live side of the panel, for everyone who sees orders (orders.view), on every page:
-//  - the Reverb connection for the chosen branch scope; an event refetches the board's lists and that order;
+//  - the Reverb connection for the chosen branch scope. Fix round 2 (docs/scale/RESULTS_M2.md: at lunch every write of
+//    a branch made the board read its two lists, 67 ms PHP and ~96 KB each, in a burst with every other screen):
+//    the board hears every event (each one feeds the change tokens) but reads only for the ones that change what it
+//    shows (lib/realtime.ts isBoardRelevant, with the table). Such an event reads THAT order once
+//    (GET /staff/orders/{uuid}) and patches it into the lists, the badge, today's finished pages and the drawer
+//    (@rizqim/staff applyBoardOrder); never a whole list on an event. Order reads are paced: window 15 s, spread 0-5 s
+//    (an event after quiet reads within 5 s; a busy branch at most every ~20 s), each distinct uuid of a batch once,
+//    more than 5 uuids one open-list read instead. A kitchen line event is applied from its payload, no read. A gap,
+//    a heartbeat ahead or a failed order read: one open-list read, at most every 30 s, spread 0-5 s. A 404/403 on the
+//    order read takes the order off the board. Reconnect, silence, the tab coming back and the person's own actions
+//    (useBoardAction) read everything at once, unpaced;
 //  - wave M2: GET /api/v1/realtime on start and after every reconnect: its Reverb settings when the panel's server has no
 //    REVERB_APP_KEY, and whether the server's real-time path is live. Each event carries the channel's change token
 //    (`rev`) and the board's single-branch reads name theirs (X-Revision, lib/revisions.ts): the next token refetches as
@@ -45,8 +63,21 @@ export type RealtimeStatus = 'off' | 'connecting' | 'live' | 'offline';
 // Polling of the board while real-time is off or down, and the slow safety net while it is up
 export const POLL_MS = 15_000;
 export const LIVE_POLL_MS = 60_000;
-// Events come in bursts (status, then kitchen lines): one refetch for a burst
-const EVENT_DEBOUNCE_MS = 250;
+// Fix round 2: pacing of the reads events ask for (see above). The safety polls are not paced.
+export const ORDER_READ_PACING: RefreshPacing = { windowMs: 15_000, spreadMs: 5_000 };
+export const LIST_READ_PACING: RefreshPacing = { windowMs: 30_000, spreadMs: 5_000 };
+// More distinct orders than this in one batch: one open-list read instead
+export const MAX_ORDER_READS = 5;
+// The pending uuids are bounded: beyond this the batch is an open-list read anyway
+const MAX_PENDING_UUIDS = 50;
+
+export interface BoardPacing {
+  order: RefreshPacing;
+  list: RefreshPacing;
+  random?: () => number;
+}
+const DEFAULT_PACING: BoardPacing = { order: ORDER_READ_PACING, list: LIST_READ_PACING };
+const DEFAULT_TIME_ZONE = 'Asia/Tashkent';
 
 export interface LiveOrdersValue {
   realtime: RealtimeStatus;
@@ -88,16 +119,20 @@ export function LiveOrdersProvider({
   connect = defaultConnect,
   loadStatus = defaultLoadStatus,
   chime: givenChime,
+  pacing = DEFAULT_PACING,
 }: {
   children: ReactNode;
   connect?: ConnectEcho;
   loadStatus?: LoadRealtimeStatus;
   chime?: Chime;
+  // The tests' pacing (short windows, no spread)
+  pacing?: BoardPacing;
 }) {
   const access = useAccess();
   const ownConfig = useRealtimeConfig();
   const apiBaseUrl = useContext(ApiConfigContext)?.apiBaseUrl ?? '';
   const queryClient = useQueryClient();
+  const api = useStaffApi();
   const pathname = usePathname();
   const { branchId, branches } = useBranchScope();
   const enabled = access !== null && hasAny(access.permissions, ['orders.view']);
@@ -135,17 +170,24 @@ export function LiveOrdersProvider({
   }, [silenceLimit]);
   const serverLive = serverStatus?.live ?? true;
   const listeners = useRef(new Set<(event: BoardEvent) => void>());
-  const pending = useRef<{ timer: ReturnType<typeof setTimeout> | undefined; uuids: Set<string> }>({ timer: undefined, uuids: new Set() });
+  const timeZone = useRef(DEFAULT_TIME_ZONE);
+  const storeTimeZone = access?.timezone ?? DEFAULT_TIME_ZONE;
+  useEffect(() => {
+    timeZone.current = storeTimeZone;
+  }, [storeTimeZone]);
+  // While the complete open list of the branch scope is on screen (board, dashboard), the badge is derived from it
+  const badgeDerived = useRef(false);
+  const badgeHash = hashKey(boardKeys.list(newOrdersQuery(branchId)));
 
-  const refetchBoard = useCallback(
-    (uuids: Iterable<string>) => {
-      void queryClient.invalidateQueries({ queryKey: boardKeys.lists });
-      void queryClient.invalidateQueries({ queryKey: [...boardKeys.all, 'pages'] });
-      void queryClient.invalidateQueries({ queryKey: staffKeys.orders });
-      for (const uuid of uuids) void queryClient.invalidateQueries({ queryKey: boardKeys.detail(uuid) });
-    },
-    [queryClient],
-  );
+  // One open-list read (a gap, a heartbeat ahead, a failed order read, a batch of many orders): the lists on screen
+  // read again, the badge too unless it is derived from the open list; what is not on screen is marked stale
+  const readOpenLists = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: boardKeys.lists,
+      predicate: (query) => !(badgeDerived.current && query.queryHash === badgeHash),
+    });
+    void queryClient.invalidateQueries({ queryKey: [...boardKeys.all, 'pages'], refetchType: 'none' });
+  }, [queryClient, badgeHash]);
 
   // Missed something (or cannot tell): everything the board shows is read again
   const rereadAll = useCallback(() => {
@@ -159,19 +201,61 @@ export function LiveOrdersProvider({
     void queryClient.invalidateQueries({ queryKey: boardKeys.all, refetchType: 'none', predicate: (query) => !query.isActive() });
   }, [queryClient]);
 
+  // Reads one order and patches it in; false when the read failed for another reason than "not yours any more"
+  const readOrder = useCallback(
+    async (uuid: string): Promise<boolean> => {
+      try {
+        const order = await queryClient.fetchQuery({ queryKey: boardKeys.detail(uuid), queryFn: () => fetchStaffOrder(api, uuid), staleTime: 0, retry: false });
+        applyBoardOrder(queryClient, order, { timeZone: timeZone.current });
+        return true;
+      } catch (error) {
+        const status = getApiErrorStatus(error);
+        if (status === 404 || status === 403) {
+          removeBoardOrder(queryClient, uuid);
+          return true;
+        }
+        return false;
+      }
+    },
+    [queryClient, api],
+  );
+
   useEffect(() => {
     if (!config || channelKey === '') return;
     let closed = false;
     let session: { close: () => void } | null = null;
     let stopSpread = () => {};
-    const current = pending.current;
+    const pendingUuids = new Set<string>();
+    const listThrottle = createRefreshThrottle(readOpenLists, { ...pacing.list, random: pacing.random });
+    const orderThrottle = createRefreshThrottle(
+      () => {
+        const uuids = [...pendingUuids];
+        pendingUuids.clear();
+        if (uuids.length === 0) return;
+        if (uuids.length > MAX_ORDER_READS) {
+          readOpenLists();
+          return;
+        }
+        void Promise.all(uuids.map(readOrder)).then((results) => {
+          if (!closed && results.includes(false)) listThrottle.request();
+        });
+      },
+      { ...pacing.order, random: pacing.random },
+    );
+    // Everything is read now: nothing paced is still owed
+    const rereadEverything = () => {
+      pendingUuids.clear();
+      orderThrottle.cancel();
+      listThrottle.cancel();
+      rereadAll();
+    };
     const setStatus = (status: RealtimeStatus) => {
       if (!closed) setConnection({ key: channelKey, status });
     };
     const silence = createSilenceWatch(() => silenceMs.current, (isSilent) => {
       if (closed) return;
       setSilent(isSilent);
-      if (isSilent) rereadAll();
+      if (isSilent) rereadEverything();
     });
     setStatus('connecting');
     connect(config)
@@ -184,23 +268,24 @@ export function LiveOrdersProvider({
         session = openBoardChannels(echo, channelKey.split(' '), {
           onEvent: (event) => {
             silence.touch();
+            // Every event feeds the tokens, also the ones the board does not read for
             const verdict = revisions.onEvent(event.channel, revOf(event.payload, event.channel));
-            if (verdict === 'same') markStale();
-            else if (verdict === 'missed') rereadAll();
-            else {
-              if (event.uuid) current.uuids.add(event.uuid);
-              clearTimeout(current.timer);
-              current.timer = setTimeout(() => {
-                const uuids = [...current.uuids];
-                current.uuids.clear();
-                refetchBoard(uuids);
-              }, EVENT_DEBOUNCE_MS);
+            const relevant = isBoardRelevant(event.name, event.payload);
+            if (verdict === 'missed') listThrottle.request();
+            else if (event.name === KITCHEN_ITEM_EVENT) applyKitchenEvent(queryClient, event.payload);
+            else if (relevant && verdict === 'same') markStale();
+            else if (relevant) {
+              if (event.uuid === null) listThrottle.request();
+              else {
+                if (pendingUuids.size < MAX_PENDING_UUIDS) pendingUuids.add(event.uuid);
+                orderThrottle.request();
+              }
             }
-            listeners.current.forEach((listener) => listener(event));
+            if (relevant || event.name === KITCHEN_ITEM_EVENT) listeners.current.forEach((listener) => listener(event));
           },
           onHeartbeat: (channel, payload) => {
             silence.touch();
-            if (revisions.onHeartbeat(channel, revOf(payload, channel)) === 'reread') rereadAll();
+            if (revisions.onHeartbeat(channel, revOf(payload, channel)) === 'reread') listThrottle.request();
           },
           onConnectionChange: (connected) => {
             if (connected) silence.start();
@@ -209,7 +294,7 @@ export function LiveOrdersProvider({
           },
           // Events may have been missed while the channel was down: everything again, and the server's state anew
           onResync: () => {
-            rereadAll();
+            rereadEverything();
             refreshStatus();
           },
         });
@@ -217,13 +302,15 @@ export function LiveOrdersProvider({
       .catch(() => setStatus('offline'));
     return () => {
       closed = true;
-      clearTimeout(current.timer);
+      orderThrottle.cancel();
+      listThrottle.cancel();
+      pendingUuids.clear();
       silence.stop();
       stopSpread();
       session?.close();
       setSilent(false);
     };
-  }, [config, channelKey, connect, queryClient, refetchBoard, rereadAll, markStale, refreshStatus]);
+  }, [config, channelKey, connect, queryClient, rereadAll, markStale, refreshStatus, readOpenLists, readOrder, pacing]);
 
   // The tab coming back (another tab, a laptop waking up): whatever happened meanwhile is read again
   useEffect(() => {
@@ -239,7 +326,42 @@ export function LiveOrdersProvider({
 
   // --- New orders: count, badge, title, chime -----------------------------------------------------------------
   const query = newOrdersQuery(branchId);
-  const newOrders = useStaffOrders(query, { enabled, refetchInterval: pollInterval, refetchIntervalInBackground: true, staleTime: 5_000 });
+  // Fix round 2: while the complete open list of the same branch scope is on screen (the board or the dashboard: it
+  // polls and is patched by the events itself), the badge is derived from it and has no poll of its own: one list per
+  // safety poll instead of two
+  const [openOnScreen, setOpenOnScreen] = useState(false);
+  useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    const openKey = boardKeys.list({ scope: 'active', ...(branchId === null ? {} : { branch_id: branchId }) });
+    const openHash = hashKey(openKey);
+    const badgeKey = boardKeys.list(newOrdersQuery(branchId));
+    const sync = () => {
+      const open = cache.find<StaffOrdersList>({ queryKey: openKey, exact: true });
+      const data = open?.state.data;
+      const complete = open !== undefined && open.getObserversCount() > 0 && data !== undefined && !data.truncated;
+      badgeDerived.current = complete;
+      setOpenOnScreen(complete);
+      if (!complete) return;
+      const derived = data.orders.filter((order) => order.status === 'new');
+      const held = queryClient.getQueryData<StaffOrdersList>(badgeKey);
+      const same = held !== undefined && !held.truncated && held.orders.length === derived.length && held.orders.every((order, i) => order === derived[i]);
+      if (!same) queryClient.setQueryData<StaffOrdersList>(badgeKey, { orders: derived, truncated: false });
+    };
+    sync();
+    const stop = cache.subscribe((event) => {
+      if (event.query.queryHash === openHash) sync();
+    });
+    return () => {
+      stop();
+      badgeDerived.current = false;
+    };
+  }, [queryClient, branchId]);
+  const newOrders = useStaffOrders(query, {
+    enabled,
+    refetchInterval: openOnScreen ? false : pollInterval,
+    refetchIntervalInBackground: true,
+    staleTime: 5_000,
+  });
   const newCount = enabled ? (newOrders.data?.orders.length ?? 0) : 0;
 
   const [muted, setMuted] = useState(() => readStored(SOUND_STORAGE_KEY) === 'off');

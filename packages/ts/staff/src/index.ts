@@ -184,6 +184,18 @@ export {
   type RevisionTrackerOptions,
   type RevisionVerdict,
 } from './realtime/revision';
+// Wave M2 fix round 2: pacing of event-driven re-reads, and the owner board patching an order in instead of re-reading
+export { createRefreshThrottle, spreadDelay, type RefreshPacing, type RefreshThrottle, type RefreshThrottleOptions, type ThrottleTimers } from './realtime/throttle';
+export {
+  applyBoardOrder,
+  applyKitchenEvent,
+  matchesBoardQuery,
+  parseKitchenEvent,
+  removeBoardOrder,
+  type ApplyResult,
+  type BoardCacheOptions,
+  type KitchenEventPayload,
+} from './realtime/boardCache';
 export {
   createSilenceWatch,
   fetchRealtimeStatus,

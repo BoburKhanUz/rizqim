@@ -6,6 +6,8 @@ export type FakeStatus = 'connected' | 'connecting' | 'disconnected' | 'failed';
 
 export class FakeChannel {
   listeners = new Map<string, Callback[]>();
+  // listenToAll: every event, named as laravel-echo names it (".order.created")
+  globalListeners: ((event: string, payload: unknown) => void)[] = [];
   subscribedCallbacks: Callback[] = [];
   errorCallbacks: Callback[] = [];
 
@@ -17,6 +19,11 @@ export class FakeChannel {
 
   listen(event: string, callback: Callback) {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), callback]);
+    return this;
+  }
+
+  listenToAll(callback: (event: string, payload: unknown) => void) {
+    this.globalListeners.push(callback);
     return this;
   }
 
@@ -108,7 +115,9 @@ export class FakeEcho {
   }
 
   emit(event: string, payload: unknown, name?: string) {
-    for (const callback of this.channelNamed(name).listeners.get(event) ?? []) (callback as (payload: unknown) => void)(payload);
+    const channel = this.channelNamed(name);
+    for (const callback of channel.listeners.get(event) ?? []) (callback as (payload: unknown) => void)(payload);
+    for (const listener of channel.globalListeners) listener(event, payload);
   }
 
   // The usual start: the socket connects, then every channel is accepted.

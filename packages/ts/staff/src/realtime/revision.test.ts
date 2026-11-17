@@ -155,6 +155,53 @@ describe('RevisionTracker: heartbeats', () => {
   });
 });
 
+describe('RevisionTracker: fix round 2 (every event fed, the newest token)', () => {
+  it('a heartbeat equal to the newest read is fine although an older read under another URL is still held', () => {
+    const { revisions } = tracker();
+    revisions.noteRead('branch:5', '100', 'GET /staff/orders?scope=history&branch_id=5');
+    revisions.noteRead('branch:5', '104', 'GET /staff/orders/abc');
+    revisions.resetEvents();
+    expect(revisions.onHeartbeat('pos-branch.5', '104')).toBe('fine');
+    expect(revisions.onHeartbeat('pos-branch.5', '105')).toBe('reread');
+  });
+
+  it('a heartbeat equal to the newest event stays fine after a re-read reset the events', () => {
+    const { revisions } = tracker();
+    revisions.noteRead('branch:5', '100', 'GET /staff/orders?scope=active&branch_id=5');
+    expect(revisions.onEvent('pos-branch.5', '107')).toBe('missed');
+    revisions.resetEvents();
+    // the re-read the gap asked for is under way: the heartbeat names what it will read
+    expect(revisions.onHeartbeat('pos-branch.5', '107')).toBe('fine');
+  });
+
+  it('ignored events still move the token: the next relevant one is next, not a gap', () => {
+    const { revisions } = tracker();
+    revisions.noteRead('branch:5', '200', 'GET /pos/floor');
+    // fiscal, payment and shift events the screen does not read for
+    expect(revisions.onEvent('pos-branch.5', '201')).toBe('next');
+    expect(revisions.onEvent('pos-branch.5', '202')).toBe('next');
+    expect(revisions.onEvent('pos-branch.5', '203')).toBe('next');
+    expect(revisions.onHeartbeat('pos-branch.5', '203')).toBe('fine');
+    expect(revisions.onEvent('pos-branch.5', '204')).toBe('next');
+  });
+
+  it('a heartbeat ahead of the newest token re-reads, also on a store-wide channel fed by every event', () => {
+    const { revisions } = tracker();
+    revisions.onEvent('store.3', '10');
+    revisions.onEvent('store.3', '11');
+    expect(revisions.onHeartbeat('store.3', '11')).toBe('fine');
+    expect(revisions.onHeartbeat('store.3', '12')).toBe('reread');
+  });
+
+  it('clear() forgets the newest token too', () => {
+    const { revisions } = tracker();
+    revisions.noteRead('branch:5', '300', 'GET /staff/orders/abc');
+    revisions.clear();
+    revisions.noteRead('branch:5', '290', 'GET /staff/orders?branch_id=5');
+    expect(revisions.onHeartbeat('pos-branch.5', '300')).toBe('reread');
+  });
+});
+
 describe('withRevisionCapture', () => {
   it('records X-Revision of a successful GET, by method and URL', async () => {
     const { revisions } = tracker();

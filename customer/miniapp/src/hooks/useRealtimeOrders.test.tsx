@@ -10,7 +10,7 @@ import { makeOrder, makeStore, makeUser } from '../test/factories';
 import type { Order } from '../types';
 import { ordersResponse, serveOrdersApi } from '../test/ordersApi';
 import { ordersKeys, useOrderHistory, useOrders } from './useOrders';
-import { useRealtimeOrders } from './useRealtimeOrders';
+import { realtimePacing, useRealtimeOrders } from './useRealtimeOrders';
 import { loadRealtimeStatus } from '../lib/realtimeStatus';
 import { revisions } from '../lib/revisions';
 import type { RealtimeStatus } from '@rizqim/staff';
@@ -54,9 +54,12 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.mocked(loadRealtimeStatus).mockResolvedValue(null);
   revisions.clear();
+  // Fix round 2: no spread in the tests (the reads still keep their windows)
+  realtimePacing.random = () => 0;
 });
 
 afterEach(() => {
+  realtimePacing.random = Math.random;
   client.clear();
   useAuthStore.getState().logout();
   vi.useRealTimers();
@@ -285,16 +288,32 @@ describe('useRealtimeOrders: events', () => {
     expect(historyCalls()).toBe(history + 1);
   });
 
-  it('does not let a steady stream of events put the refetch off', async () => {
+  it('does not let a steady stream of events put the refetch off: one read at once, then one per 5 s window', async () => {
     await mountWithOrders();
     const before = activeCalls();
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 120; i++) {
       act(() => latestEcho().emit('.order.status_changed', { order }));
       await settle(100);
     }
+    // reads at 0, 5 s and 10 s; the events after 10 s are owed one more at the end of that window
+    expect(activeCalls()).toBe(before + 3);
+    await settle(3_500);
+    expect(activeCalls()).toBe(before + 4);
+    await settle(10_000);
+    expect(activeCalls()).toBe(before + 4);
+  });
 
-    expect(activeCalls()).toBeGreaterThanOrEqual(before + 6); // about one per 300 ms
+  it('fix round 2: an event after quiet waits for a random spread of up to a second (customer)', async () => {
+    realtimePacing.random = () => 0.999;
+    await mountWithOrders();
+    const before = activeCalls();
+
+    act(() => latestEcho().emit('.order.status_changed', { order }));
+    await settle(900);
+    expect(activeCalls()).toBe(before);
+    await settle(200);
+    expect(activeCalls()).toBe(before + 1);
   });
 
   it('refetches the open orders and the histories after the socket came back, since events may have been missed', async () => {
@@ -728,5 +747,87 @@ describe('useRealtimeOrders: wave M2 revisions', () => {
 
     expect(activeCalls()).toBeGreaterThan(active);
     expect(historyCalls()).toBe(history + 1);
+  });
+});
+
+describe('useRealtimeOrders: fix round 2 (relevance and pacing)', () => {
+  async function mount(user: Parameters<typeof makeUser>[0] = {}) {
+    vi.mocked(loadRealtimeStatus).mockResolvedValue(STATUS);
+    signIn(user);
+    renderHook(
+      () => {
+        useRealtimeOrders();
+        return { orders: useOrders(), history: useOrderHistory('customer') };
+      },
+      { wrapper },
+    );
+    await settle();
+    act(() => latestEcho().connectAndSubscribe());
+    await settle();
+  }
+
+  it('an event the screens do not read for only feeds the token: the next relevant one is no gap', async () => {
+    await mount({ role: 'manager', store_id: 5, branch_id: 8 });
+    revisions.noteRead('branch:8', '500', 'GET /staff/orders?branch_id=8');
+    await settle(6_000);
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    act(() => {
+      latestEcho().emit('.order.bill_changed', { order, change: 'fiscal', rev: { 'pos-branch.8': '501' } }, 'pos-branch.8');
+      latestEcho().emit('.fiscal.receipt_updated', { rev: { 'pos-branch.8': '502' } }, 'pos-branch.8');
+      latestEcho().emit('.realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.8': '502' } }, 'pos-branch.8');
+    });
+    await settle(6_000);
+    expect(activeCalls()).toBe(active);
+    expect(historyCalls()).toBe(history);
+
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'pos-branch.8': '503' } }, 'pos-branch.8'));
+    await settle(400);
+    expect(activeCalls()).toBe(active + 1);
+    expect(historyCalls()).toBe(history);
+  });
+
+  it('a staff phone: a gap inside the window is read at its end, not at once', async () => {
+    await mount({ role: 'manager', store_id: 5, branch_id: 8 });
+    revisions.noteRead('branch:8', '10', 'GET /staff/orders?branch_id=8');
+    await settle(6_000);
+    const history = historyCalls();
+
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'pos-branch.8': '11' } }, 'pos-branch.8'));
+    await settle(100);
+    act(() => latestEcho().emit('.order.status_changed', { order, rev: { 'pos-branch.8': '19' } }, 'pos-branch.8'));
+    await settle(1_000);
+    expect(historyCalls()).toBe(history);
+    await settle(4_000);
+    expect(historyCalls()).toBe(history + 1);
+  });
+
+  it('a reconnect reads everything at once, even inside a window', async () => {
+    await mount();
+    act(() => latestEcho().emit('.order.status_changed', { order }));
+    await settle(100);
+    const [active, history] = [activeCalls(), historyCalls()];
+
+    act(() => latestEcho().setConnection('disconnected'));
+    act(() => latestEcho().connectAndSubscribe());
+    await settle(50);
+    expect(activeCalls()).toBe(active + 1);
+    expect(historyCalls()).toBe(history + 1);
+  });
+
+  it('a customer: one refetch of the orders and the notifications for a burst', async () => {
+    await mount();
+    await settle(6_000);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const before = activeCalls();
+
+    act(() => {
+      latestEcho().emit('.order.status_changed', { order });
+      latestEcho().emit('.order.assigned', { order });
+      latestEcho().emit('.order.status_changed', { order: { ...order, status: 'on_the_way' } });
+    });
+    await settle(1_000);
+    expect(activeCalls()).toBe(before + 1);
+    expect(invalidate.mock.calls.filter(([filters]) => (filters as { queryKey?: string[] }).queryKey?.[0] === 'notifications')).toHaveLength(1);
   });
 });

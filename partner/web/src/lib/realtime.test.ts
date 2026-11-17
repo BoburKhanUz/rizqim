@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FakeEcho } from '@/test/fakeEcho';
-import { boardChannelNames, channelAuthorizer, openBoardChannels, parseBoardEvent, realtimeConfigFromEnv, RESUBSCRIBE_BASE_MS } from './realtime';
+import { boardChannelNames, channelAuthorizer, isBoardRelevant, openBoardChannels, parseBoardEvent, realtimeConfigFromEnv, RESUBSCRIBE_BASE_MS } from './realtime';
 
 afterEach(() => vi.useRealTimers());
 
@@ -43,18 +43,38 @@ describe('board channels', () => {
 });
 
 describe('openBoardChannels', () => {
-  it('subscribes, reports the connection, and passes the four order events on', () => {
+  it('subscribes, reports the connection, and passes every event of the channel on (fix round 2)', () => {
     const echo = new FakeEcho();
     const onEvent = vi.fn();
+    const onHeartbeat = vi.fn();
     const onConnectionChange = vi.fn();
-    openBoardChannels(echo, ['pos-branch.5'], { onEvent, onConnectionChange, onResync: vi.fn() });
+    openBoardChannels(echo, ['pos-branch.5'], { onEvent, onHeartbeat, onConnectionChange, onResync: vi.fn() });
     const channel = echo.channel('pos-branch.5');
-    expect([...channel.listeners.keys()]).toEqual(['.order.created', '.order.status_changed', '.order.assigned', '.kitchen.item_status_changed', '.realtime.heartbeat']);
+    expect(channel.globalListeners).toHaveLength(1);
 
     echo.connectAll();
     expect(onConnectionChange).toHaveBeenLastCalledWith(true);
     channel.emit('kitchen.item_status_changed', { order: { uuid: 'u1', status: 'preparing', branch_id: 5 }, item: { id: 1 } });
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ name: 'kitchen.item_status_changed', uuid: 'u1', status: 'preparing', branchId: 5, channel: 'pos-branch.5' }));
+    // an event the board does not read for still reaches it (its rev counts), the heartbeat goes its own way, pusher's
+    // own events not at all
+    channel.emit('fiscal.receipt_updated', { rev: { 'pos-branch.5': '9' } });
+    expect(onEvent).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'fiscal.receipt_updated', uuid: null }));
+    channel.emit('realtime.heartbeat', { rev: { 'pos-branch.5': '9' } });
+    expect(onHeartbeat).toHaveBeenCalledWith('pos-branch.5', { rev: { 'pos-branch.5': '9' } });
+    for (const listener of channel.globalListeners) listener('pusher:subscription_succeeded', {});
+    expect(onEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('isBoardRelevant: order changes the board shows, bill changes only for a payment or a void', () => {
+    for (const name of ['order.created', 'order.status_changed', 'order.assigned', 'order.items_changed']) expect(isBoardRelevant(name, {})).toBe(true);
+    expect(isBoardRelevant('order.bill_changed', { change: 'payment' })).toBe(true);
+    expect(isBoardRelevant('order.bill_changed', { change: 'voided' })).toBe(true);
+    expect(isBoardRelevant('order.bill_changed', {})).toBe(true);
+    for (const change of ['created', 'rebilled', 'printed', 'fiscal']) expect(isBoardRelevant('order.bill_changed', { change })).toBe(false);
+    for (const name of ['kitchen.item_status_changed', 'kitchen.order_assembled', 'fiscal.receipt_updated', 'shift.changed', 'queue.ready', 'display.cart', 'order.bill_requested', 'menu.availability_changed']) {
+      expect(isBoardRelevant(name, {})).toBe(false);
+    }
   });
 
   it('says when the socket drops and asks for a full refetch after it is back', () => {

@@ -194,6 +194,36 @@ describe('openOrderChannels', () => {
     expect(onHeartbeat).toHaveBeenNthCalledWith(2, 'store.3', null);
   });
 
+  it('fix round 2: passes every other event of a channel on with its token only, not the ones it listens for', async () => {
+    channels = ['pos-branch.5'];
+    const onOtherEvent = vi.fn();
+    handlers.onOtherEvent = onOtherEvent;
+    const { echo } = await open();
+    echo.emit('.fiscal.receipt_updated', { rev: { 'pos-branch.5': '12' } });
+    echo.emit('.order.bill_changed', { change: 'payment', rev: { 'pos-branch.5': '13' } });
+    echo.emit('.order.created', { order: { uuid: 'u', status: 'new' }, rev: { 'pos-branch.5': '14' } });
+    echo.emit('.realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.5': '14' } });
+    for (const listener of echo.firstChannel.globalListeners) listener('pusher:subscription_succeeded', {});
+    expect(onOtherEvent.mock.calls).toEqual([
+      ['pos-branch.5', 'fiscal.receipt_updated', '12'],
+      ['pos-branch.5', 'order.bill_changed', '13'],
+    ]);
+    expect(handlers.onEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("fix round 2: the customer's channel counts the events it does not listen for too", async () => {
+    channels = ['user.9'];
+    const onOtherEvent = vi.fn();
+    handlers.onOtherEvent = onOtherEvent;
+    const { echo } = await open();
+    echo.emit('.order.transferred', { rev: { 'user.9': '3' } });
+    echo.emit('.kitchen.item_status_changed', { rev: { 'user.9': '4' } });
+    expect(onOtherEvent.mock.calls).toEqual([
+      ['user.9', 'order.transferred', '3'],
+      ['user.9', 'kitchen.item_status_changed', '4'],
+    ]);
+  });
+
   it('is connected only once the socket is up and the channel accepted', async () => {
     const { echo } = await open();
     expect(handlers.onConnectionChange).not.toHaveBeenCalled();

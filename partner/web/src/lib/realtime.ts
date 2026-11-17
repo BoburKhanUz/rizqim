@@ -64,13 +64,51 @@ export function boardChannelNames(access: ChannelAccess, selectedBranchId: numbe
 
 // --- The events --------------------------------------------------------------------------------------------------
 
-export const BOARD_EVENTS = ['order.created', 'order.status_changed', 'order.assigned', 'kitchen.item_status_changed'] as const;
 // Wave M2: every 30 s on the staff channels, with the channel's token
 export const HEARTBEAT_EVENT = 'realtime.heartbeat';
-export type BoardEventName = (typeof BOARD_EVENTS)[number];
+export const KITCHEN_ITEM_EVENT = 'kitchen.item_status_changed';
+
+// Wave M2 fix round 2: the board hears EVERY event of its channels (laravel-echo listenToAll), so each one feeds the
+// change tokens (lib/revisions.ts: an ignored event that moved `rev` unseen made the next relevant one look like a gap
+// and every heartbeat like a missed change), but only the events below can change what it shows (GET /staff/orders*:
+// status, courier, lines, totals, payment status, table; the presenter is StaffOrderPresenter). Dispatch sites are
+// backend/app/Events/Broadcast and backend/app/Domain/Pos/**; all go to the order's staff channels (store, branch,
+// pos-branch) unless said.
+//
+//   event                          board                    dispatched by / why an omission is safe
+//   order.created                  read that order          OrderCreatedBroadcast (new order: open list, badge)
+//   order.status_changed           read that order          OrderStatusChangedBroadcast (column, badge, finished)
+//   order.assigned                 read that order          OrderAssignedBroadcast (courier on the card)
+//   order.items_changed            read that order          OrderItemsChangedBroadcast (lines, guests, table, charges
+//                                                           and so the totals; a POS cancel)
+//   order.bill_changed  payment    read that order          PaymentService (payment_status on the card)
+//                       voided/none read that order          a bill voided, or an older backend without `change`
+//                       created, rebilled, printed, fiscal   BillService, BillFiscalizer: bills, print and receipt are
+//                                                           not on the board; a total changes with items_changed
+//   kitchen.item_status_changed    patched from payload     KitchenItemStatusChangedBroadcast (line state, progress;
+//                                                           no read: the payload carries all of it)
+//   kitchen.order_assembled        nothing                  assembly is the KDS's, not on the board
+//   order.course_ready             nothing                  its lines come with kitchen.item_status_changed
+//   order.bill_requested           nothing                  bill_requested_at is not on the board
+//   order.transferred              nothing                  the waiter is not on the board (also user.{id})
+//   fiscal.receipt_updated         nothing                  receipts are not on the board (store, pos-branch)
+//   shift.changed, booking.changed, table.state_changed, waitlist.changed, queue.*, qr.*, display.cart,
+//   bill.print_requested, pos.lan_changed, menu.availability_changed: nothing (pos-branch / branch only, or the menu:
+//                                                           no order field of the board)
+// Whatever an omission misses, the 60 s safety poll and every reconnect still read the lists.
+const ORDER_READ_EVENTS = new Set(['order.created', 'order.status_changed', 'order.assigned', 'order.items_changed']);
+const BILL_READ_CHANGES = new Set(['payment', 'voided']);
+
+export function isBoardRelevant(name: string, payload: unknown): boolean {
+  if (ORDER_READ_EVENTS.has(name)) return true;
+  if (name !== 'order.bill_changed') return false;
+  const change = typeof payload === 'object' && payload !== null ? (payload as { change?: unknown }).change : undefined;
+  return typeof change !== 'string' || change === '' || BILL_READ_CHANGES.has(change);
+}
 
 export interface BoardEvent {
-  name: BoardEventName;
+  // The event name without laravel-echo's leading dot (any event of the channel, see isBoardRelevant)
+  name: string;
   // null when the payload is not what the contract says (the event still means "refetch")
   uuid: string | null;
   status: string | null;
@@ -80,7 +118,7 @@ export interface BoardEvent {
   payload: unknown;
 }
 
-export function parseBoardEvent(name: BoardEventName, payload: unknown, channel = ''): BoardEvent {
+export function parseBoardEvent(name: string, payload: unknown, channel = ''): BoardEvent {
   const order = typeof payload === 'object' && payload !== null ? (payload as { order?: unknown }).order : undefined;
   if (typeof order !== 'object' || order === null) return { name, uuid: null, status: null, branchId: null, channel, payload };
   const { uuid, status, branch_id: branchId } = order as { uuid?: unknown; status?: unknown; branch_id?: unknown };
@@ -99,6 +137,8 @@ export function parseBoardEvent(name: BoardEventName, payload: unknown, channel 
 // The slice of laravel-echo the board uses (a fake one in the tests)
 export interface EchoChannelLike {
   listen(event: string, callback: (payload: unknown) => void): EchoChannelLike;
+  // Every event of the channel: laravel-echo names a broadcastAs event with a leading dot (".order.created")
+  listenToAll(callback: (event: string, payload: unknown) => void): EchoChannelLike;
   subscribed(callback: () => void): EchoChannelLike;
   error(callback: (error: unknown) => void): EchoChannelLike;
 }
@@ -136,7 +176,7 @@ interface ChannelState {
   retryTimer: ReturnType<typeof setTimeout> | undefined;
 }
 
-// Listens for the board events on `channelNames` over one socket. pusher-js reconnects by itself and re-subscribes
+// Listens for every event of `channelNames` over one socket (the board decides which it reads for). pusher-js reconnects by itself and re-subscribes
 // (reported through onConnectionChange and onResync); a refused subscription (expired token, 403, 5xx) is retried with a
 // growing delay until the session is closed.
 export function openBoardChannels(echo: EchoLike, channelNames: readonly string[], handlers: BoardChannelHandlers): ChannelSession {
@@ -162,13 +202,13 @@ export function openBoardChannels(echo: EchoLike, channelNames: readonly string[
 
   const subscribe = (state: ChannelState) => {
     const channel = echo.private(state.name);
-    for (const name of BOARD_EVENTS) {
-      channel.listen(`.${name}`, (payload: unknown) => {
-        if (!closed) handlers.onEvent(parseBoardEvent(name, payload, state.name));
-      });
-    }
-    channel.listen(`.${HEARTBEAT_EVENT}`, (payload: unknown) => {
-      if (!closed) handlers.onHeartbeat?.(state.name, payload);
+    channel.listenToAll((event: string, payload: unknown) => {
+      if (closed) return;
+      const name = event.replace(/^\./, '');
+      // pusher's own (subscription) and internal events are not the server's
+      if (name === '' || name.startsWith('pusher:') || name.startsWith('pusher_internal:')) return;
+      if (name === HEARTBEAT_EVENT) handlers.onHeartbeat?.(state.name, payload);
+      else handlers.onEvent(parseBoardEvent(name, payload, state.name));
     });
     channel.subscribed(() => {
       if (closed) return;

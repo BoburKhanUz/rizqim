@@ -6,6 +6,9 @@
 // grow by one per committed change; they are compared only for equality and "+1" (the base is random and jumps after a
 // Redis flush), as big integers, never through a 32-bit or float parse.
 //
+// Every event of a channel is fed to `onEvent`, also the ones the screen does not re-read for (fix round 2): otherwise
+// an ignored event moves `rev` unseen, the next relevant one looks like a gap and every heartbeat like a missed change.
+//
 // The tracker decides what an event or a heartbeat means for a screen:
 //  - next:      the change right after what the screen holds (or one more event of the burst already being handled):
 //               do what the app always did (its debounced refetch);
@@ -68,6 +71,10 @@ interface ChannelState {
   everRead: boolean;
   lastEvent: string | undefined;
   lastHeard: string | undefined;
+  // The newest token the screen learnt of, from an event (any event of the channel, relevant to it or not) or a read:
+  // a heartbeat equal to it says nothing new happened since (fix round 2: before, an older read held under another URL,
+  // say a list page not read again, made every heartbeat a re-read for up to readTtlMs)
+  latest: string | undefined;
 }
 
 export const DEFAULT_READ_TTL_MS = 150_000;
@@ -85,7 +92,7 @@ export class RevisionTracker {
   private state(channel: string): ChannelState {
     let state = this.channels.get(channel);
     if (!state) {
-      state = { reads: new Map(), everRead: false, lastEvent: undefined, lastHeard: undefined };
+      state = { reads: new Map(), everRead: false, lastEvent: undefined, lastHeard: undefined, latest: undefined };
       this.channels.set(channel, state);
     }
     return state;
@@ -109,6 +116,7 @@ export class RevisionTracker {
       const state = this.state(channel);
       state.everRead = true;
       state.reads.set(key, { token, at: this.now() });
+      state.latest = token;
     }
   }
 
@@ -126,6 +134,7 @@ export class RevisionTracker {
     if (rev !== null) {
       state.lastEvent = rev;
       state.lastHeard = rev;
+      state.latest = rev;
     }
     return verdict;
   }
@@ -152,7 +161,7 @@ export class RevisionTracker {
     }
     const reads = this.freshReads(state);
     if (reads.length > 0 && reads.every((token) => token === rev)) return 'fine';
-    if (state.lastEvent === rev) return 'fine';
+    if (state.lastEvent === rev || state.latest === rev) return 'fine';
     if (reads.length === 0 && state.lastEvent === undefined) return heard !== undefined && heard !== rev ? 'reread' : 'fine';
     return 'reread';
   }

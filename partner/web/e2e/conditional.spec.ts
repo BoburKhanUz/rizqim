@@ -58,30 +58,52 @@ test.describe('change tokens of the real-time events', () => {
   const manager: Account = { ...OWNER, id: 9, name: 'Dilshod', role: 'manager', branchId: 1, branchName: 'Chilonzor', permissions: ['orders.view', 'orders.manage'] }
   const liveStatus = (page: Page) => page.locator('span[data-status]').first()
 
-  test('a token the board read fetches nothing; a gap and a heartbeat ahead read the board again', async ({ page, api, signIn, reverb }) => {
+  // Fix round 2: the reads a gap or a heartbeat ahead ask for are paced (one open-list read, at most every 30 s, after
+  // a 0-5 s spread), so a heartbeat right after a gap's read would wait for the window: two tests
+  const orderEvent = (rev: string) => ({ order: { uuid: 'x', status: 'accepted', store_id: 1, branch_id: 1, courier_id: null, updated_at: 't' }, rev: { 'pos-branch.1': rev } })
+
+  test('a token the board read fetches nothing; a gap reads the open list again', async ({ page, api, signIn, reverb }) => {
     api.orders.add({ short_code: 'T1', branch_id: 1 })
     await openSignedIn(page, signIn, '/orders', manager)
     await expect(liveStatus(page)).toHaveAttribute('data-status', 'live')
     await expect(boardCard(page, 'T1')).toBeVisible()
     expect(reverb.subscribed).toContain('private-pos-branch.1')
     const reads = () => api.callsTo('GET', /^\/v1\/staff\/orders/).length
+    const listReads = () => api.callsTo('GET', '/v1/staff/orders').length
     const held = api.revisionOf(1)
 
     // An event of a change the board already read (its token is the one the read named): no request
+    await page.waitForTimeout(500)
     const settled = reads()
-    reverb.emit('private-pos-branch.1', 'order.status_changed', { order: { uuid: 'x', status: 'accepted', store_id: 1, branch_id: 1, courier_id: null, updated_at: 't' }, rev: { 'pos-branch.1': held } })
+    reverb.emit('private-pos-branch.1', 'order.status_changed', orderEvent(held))
     await page.waitForTimeout(1_000)
     expect(reads()).toBe(settled)
 
-    // An event two changes ahead: one was lost, the board reads again
+    // An event two changes ahead: one was lost, the board reads its open list again
+    const listsBefore = listReads()
     api.branchRevisions.set(1, Number(held) + 2)
-    reverb.emit('private-pos-branch.1', 'order.status_changed', { order: { uuid: 'x', status: 'accepted', store_id: 1, branch_id: 1, courier_id: null, updated_at: 't' }, rev: { 'pos-branch.1': String(Number(held) + 2) } })
-    await expect.poll(reads).toBeGreaterThan(settled)
+    reverb.emit('private-pos-branch.1', 'order.status_changed', orderEvent(String(Number(held) + 2)))
+    await expect.poll(listReads).toBeGreaterThan(listsBefore)
+  })
 
-    // A heartbeat ahead of the last read (a change without an event): read again
+  test('a heartbeat ahead of the last read reads the open list again', async ({ page, api, signIn, reverb }) => {
+    api.orders.add({ short_code: 'T2', branch_id: 1 })
+    await openSignedIn(page, signIn, '/orders', manager)
+    await expect(liveStatus(page)).toHaveAttribute('data-status', 'live')
+    await expect(boardCard(page, 'T2')).toBeVisible()
+    const listReads = () => api.callsTo('GET', '/v1/staff/orders').length
+    const held = api.revisionOf(1)
+
+    // A heartbeat naming the token the board read: nothing
     await page.waitForTimeout(500)
-    const afterGap = reads()
-    reverb.emit('private-pos-branch.1', 'realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.1': String(Number(held) + 3) } })
-    await expect.poll(reads).toBeGreaterThan(afterGap)
+    const settled = listReads()
+    reverb.emit('private-pos-branch.1', 'realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.1': held } })
+    await page.waitForTimeout(1_000)
+    expect(listReads()).toBe(settled)
+
+    // A change without an event: read again
+    api.branchRevisions.set(1, Number(held) + 1)
+    reverb.emit('private-pos-branch.1', 'realtime.heartbeat', { at: 't', interval: 30, rev: { 'pos-branch.1': String(Number(held) + 1) } })
+    await expect.poll(listReads).toBeGreaterThan(settled)
   })
 })
