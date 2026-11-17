@@ -53,7 +53,9 @@ class BackupState
     /**
      * The newest drill and the newest successful one; null when the table is not there (migration not run).
      *
-     * @return array{last: object|null, last_ok: object|null}|null
+     * last_app_ok: the newest passed drill whose app check (db:restore-smoke) passed too (checks.app_smoke = ok).
+     *
+     * @return array{last: object|null, last_ok: object|null, last_app_ok: object|null}|null
      */
     public function drills(): ?array
     {
@@ -65,12 +67,28 @@ class BackupState
             return [
                 'last' => DB::table('restore_drills')->orderByDesc('started_at')->orderByDesc('id')->first(),
                 'last_ok' => DB::table('restore_drills')->where('status', 'ok')->orderByDesc('started_at')->orderByDesc('id')->first(),
+                'last_app_ok' => DB::table('restore_drills')->where('status', 'ok')->whereRaw("checks->>'app_smoke' = 'ok'")->orderByDesc('started_at')->orderByDesc('id')->first(),
             ];
         } catch (Throwable $e) {
             Log::warning('Monitoring: restore drills could not be read', ['exception' => $e::class]);
 
             return null;
         }
+    }
+
+    /**
+     * The drill's `checks` json as an array (null, a string from psql, or already decoded).
+     *
+     * @return array<string, mixed>
+     */
+    public static function checks(?object $drill): array
+    {
+        $checks = $drill->checks ?? null;
+        if (is_string($checks)) {
+            $checks = json_decode($checks, true);
+        }
+
+        return is_array($checks) ? $checks : [];
     }
 
     public static function parseTime(mixed $value): ?Carbon

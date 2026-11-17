@@ -3,7 +3,9 @@
 namespace App\Services\Admin\Monitoring\Checks;
 
 use App\Models\AlertRule;
+use App\Models\MonitoringMarker;
 use App\Services\Admin\Monitoring\AlertFinding;
+use App\Services\Admin\Monitoring\BackupState;
 use App\Services\Admin\Monitoring\PostgresStats;
 use App\Support\Partitions\PartitionManager;
 
@@ -24,6 +26,7 @@ class PartitionsCheck implements AlertCheck
 
     public function __construct(
         private readonly PartitionManager $partitions,
+        private readonly ?BackupState $backups = null,
     ) {}
 
     public function findings(AlertRule $rule): ?array
@@ -57,6 +60,38 @@ class PartitionsCheck implements AlertCheck
                 'table' => $problem['table'],
                 'code' => $problem['code'],
             ], null, (self::CRITICAL_CODES[$problem['code']] ?? false) ? 'critical' : 'warning');
+        }
+
+        return array_merge($findings, $this->archiveStorage($status));
+    }
+
+    /**
+     * The journal archive's storage, from the `archive` marker (scripts/archive-partitions.sh, nightly): a storage
+     * key that can delete objects (`archive_delete_allowed`), and months archived only on this server while there is
+     * no off-site copy (`archive_local_only`: such rows stay `uploaded` with a file:// copy, no partition problem code
+     * says so). Both warnings.
+     *
+     * @param  array<string, mixed>  $status
+     * @return list<AlertFinding>
+     */
+    private function archiveStorage(array $status): array
+    {
+        $marker = ($this->backups ?? app(BackupState::class))->marker(MonitoringMarker::ARCHIVE);
+        if ($marker === null) {
+            return [];
+        }
+        $meta = (array) $marker->meta;
+        $findings = [];
+        if (($meta['delete_allowed'] ?? null) === true) {
+            $findings[] = new AlertFinding('archive_delete_allowed', "Jurnallar arxivi kaliti S3 dan fayl o'chira oladi: arxiv himoyasiz. O'chirish huquqi yo'q alohida kalit bering (ARCHIVE_S3_ACCESS_KEY, ARCHIVE_S3_SECRET; OPERATIONS.md, 20-bo'lim)", [
+                'target' => isset($meta['target']) ? mb_substr((string) $meta['target'], 0, 200) : null,
+            ], null, 'warning');
+        }
+        $uploaded = (int) ($status['archives']['uploaded'] ?? 0);
+        if (($meta['offsite'] ?? null) === false && $uploaded > 0) {
+            $findings[] = new AlertFinding('archive_local_only', "{$uploaded} ta jurnal oyi faqat shu serverda arxivlangan: tashqi nusxa (S3) yo'q, bazadan o'chirilmaydi va server diski buzilsa yo'qoladi. S3 kalitlarini yozing (OPERATIONS.md, 20-bo'lim)", [
+                'uploaded' => $uploaded,
+            ], null, 'warning');
         }
 
         return $findings;

@@ -277,13 +277,14 @@ class MonitoringStatus
      * off (PITR off and no drill ever) | never (on, no drill yet) | failed (the newest drill failed) | stale (the last
      * good one is older than the rule's days) | ok | unknown (the table cannot be read).
      *
-     * @return array{status: string, last_at: string|null, last_status: string|null, restore_seconds: int|null, data_loss_seconds: int|null, reached_time: string|null, backup_label: string|null, error: string|null, last_ok_at: string|null, max_age_days: int}
+     * @return array{status: string, last_at: string|null, last_status: string|null, restore_seconds: int|null, data_loss_seconds: int|null, reached_time: string|null, backup_label: string|null, error: string|null, last_ok_at: string|null, max_age_days: int, trigger: string|null, app_check: string|null, last_app_check_ok_at: string|null, app_check_max_age_days: int}
      */
     public function drill(): array
     {
         $maxDays = $this->threshold(AlertKind::RESTORE_DRILL_STALE);
         $drills = $this->backups->drills();
-        $empty = ['last_at' => null, 'last_status' => null, 'restore_seconds' => null, 'data_loss_seconds' => null, 'reached_time' => null, 'backup_label' => null, 'error' => null, 'last_ok_at' => null, 'max_age_days' => $maxDays];
+        $appDays = max(1, (int) config('monitoring.drill_app_check_days', 100));
+        $empty = ['last_at' => null, 'last_status' => null, 'restore_seconds' => null, 'data_loss_seconds' => null, 'reached_time' => null, 'backup_label' => null, 'error' => null, 'last_ok_at' => null, 'max_age_days' => $maxDays, 'trigger' => null, 'app_check' => null, 'last_app_check_ok_at' => null, 'app_check_max_age_days' => $appDays];
         if ($drills === null) {
             return ['status' => 'unknown'] + $empty;
         }
@@ -309,6 +310,12 @@ class MonitoringStatus
             'error' => isset($last->error) ? mb_substr((string) $last->error, 0, 300) : null,
             'last_ok_at' => $okAt?->toIso8601String(),
             'max_age_days' => $maxDays,
+            // auto (the monthly drill of the backup service) | manual (scripts/restore-drill.sh) | null (older rows)
+            'trigger' => isset(BackupState::checks($last)['trigger']) ? (string) BackupState::checks($last)['trigger'] : null,
+            // ok | failed | skipped: the app check (db:restore-smoke) of the last drill; skipped = passed, not fully verified
+            'app_check' => isset(BackupState::checks($last)['app_smoke']) ? (string) BackupState::checks($last)['app_smoke'] : null,
+            'last_app_check_ok_at' => $drills['last_app_ok'] !== null ? Carbon::parse($drills['last_app_ok']->started_at, 'UTC')->toIso8601String() : null,
+            'app_check_max_age_days' => $appDays,
         ];
     }
 

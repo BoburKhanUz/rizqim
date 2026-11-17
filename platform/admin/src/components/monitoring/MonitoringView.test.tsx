@@ -251,6 +251,7 @@ describe('Monitoring: Holat', () => {
     expect(drill.getByText(/^Oxirgi mashq: .* \(3 kun oldin\)$/)).toBeInTheDocument();
     expect(drill.getByText('Tiklash vaqti: 4 daqiqa 12 soniya')).toBeInTheDocument();
     expect(drill.getByText("Ma'lumot yo'qotish oynasi: 38 soniya")).toBeInTheDocument();
+    expect(drill.queryByText(/Ilova tekshiruvi o'tkazilmagan/)).toBeNull();
 
     const disk = await tile('Disk');
     expect(disk.getByText("Band: 43 %, bo'sh joy 57 GB (100 GB dan)")).toBeInTheDocument();
@@ -265,6 +266,15 @@ describe('Monitoring: Holat', () => {
     expect(redis.getByText("E'tibor kerak")).toBeInTheDocument();
     expect(redis.getByText('Xotira: 850 MB / 1.0 GB band (83 %)')).toBeInTheDocument();
     expect((await tile("Ma'lumotlar bazasi")).getByText('Ulanishlar: 23 / 100 (23 %)')).toBeInTheDocument();
+  });
+
+  it('shows an automatic drill without the app check as passed, with a note and the last fully verified one', async () => {
+    const drill = { status: 'ok', last_at: minutesAgo(60), last_status: 'ok', restore_seconds: 200, data_loss_seconds: 30, reached_time: null, backup_label: null, error: null, last_ok_at: minutesAgo(60), max_age_days: 35, trigger: 'auto', app_check: 'skipped', last_app_check_ok_at: minutesAgo(40 * 24 * 60), app_check_max_age_days: 100 };
+    setup({ 'GET /monitoring/health': () => ok(health({ drill })) }, VIEW);
+    const tile = within((await screen.findByRole('heading', { name: 'Tiklash mashqi' })).closest('li') as HTMLElement);
+    expect(tile.getByText('Ishlayapti')).toBeInTheDocument();
+    expect(tile.getByText(/^Ilova tekshiruvi o'tkazilmagan \(oylik avtomatik mashq\)/)).toBeInTheDocument();
+    expect(tile.getByText("Ilova tekshiruvi bilan oxirgi to'liq mashq: 40 kun oldin")).toBeInTheDocument();
   });
 
   it('says "off" on a fresh install and names what to do when the backup service is silent or a drill failed', async () => {

@@ -71,6 +71,12 @@ export interface DrillHealth {
   error: string | null;
   last_ok_at: string | null;
   max_age_days: number;
+  // auto (the monthly drill) | manual (scripts/restore-drill.sh) | null (older rows)
+  trigger?: string | null;
+  // ok | failed | skipped: the app check of the last drill; skipped = passed, not fully verified
+  app_check?: string | null;
+  last_app_check_ok_at?: string | null;
+  app_check_max_age_days?: number;
 }
 
 export interface PartitionsHealth {

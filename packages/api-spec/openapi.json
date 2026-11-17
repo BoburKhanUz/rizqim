@@ -18659,7 +18659,7 @@
         "/v1/admin/monitoring/health": {
             "get": {
                 "operationId": "admin.monitoring.health",
-                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).\n\nM3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open\ntransaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched\non), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working\noff-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,\n`partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,\nwith its restore time and data loss window in seconds. `partitions`: the journals' months (`ok`, `warning`,\n`fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and\n`redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the\nage of the queue worker's last heartbeat.",
+                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).\n\nM3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open\ntransaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched\non), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working\noff-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,\n`partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,\nwith its restore time and data loss window in seconds, `trigger` (`auto` monthly or `manual`) and `app_check`\n(`ok`, `failed`, `skipped`: a drill with the app check skipped passed but is not fully verified). `partitions`: the journals' months (`ok`, `warning`,\n`fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and\n`redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the\nage of the queue worker's last heartbeat.",
                 "summary": "System health",
                 "tags": [
                     "Admin"
@@ -19174,6 +19174,27 @@
                                                         },
                                                         "max_age_days": {
                                                             "type": "integer"
+                                                        },
+                                                        "trigger": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "app_check": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_app_check_ok_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "app_check_max_age_days": {
+                                                            "type": "integer"
                                                         }
                                                     },
                                                     "required": [
@@ -19186,7 +19207,11 @@
                                                         "backup_label",
                                                         "error",
                                                         "last_ok_at",
-                                                        "max_age_days"
+                                                        "max_age_days",
+                                                        "trigger",
+                                                        "app_check",
+                                                        "last_app_check_ok_at",
+                                                        "app_check_max_age_days"
                                                     ]
                                                 },
                                                 "partitions": {

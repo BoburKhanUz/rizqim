@@ -88,12 +88,21 @@ class FiscalRetryWindowAlertsTest extends TestCase
         $this->assertSame(['global'], $open->keys()->all());
         $this->assertSame('Oxirgi 60 daqiqada 1 ta fiskal chek yiqildi', $open['global']->title);
 
-        $this->failedReceipt($store, ['created_at' => now()->subDays(40)]);
+        $old = $this->failedReceipt($store, ['created_at' => now()->subDays(40)]);
         $this->run_();
         $this->assertEqualsCanonicalizing(['global', 'expired'], $this->open(AlertKind::FISCAL_FAILURES)->keys()->all());
+        $this->assertStringContainsString('(eng eskisi ' . now()->subDays(40)->setTimezone('Asia/Tashkent')->format('d.m.Y') . ')', $this->open(AlertKind::FISCAL_FAILURES)['expired']->title);
 
-        // Out of the rule's window: both resolve
+        // Out of the rule's window: the ordinary failure alert closes, the sale without a receipt does not
         $this->travel(2)->hours();
+        $this->run_();
+        $this->assertSame(['expired'], $this->open(AlertKind::FISCAL_FAILURES)->keys()->all());
+        $this->travel(5)->days();
+        $this->run_();
+        $this->assertSame(['expired'], $this->open(AlertKind::FISCAL_FAILURES)->keys()->all());
+
+        // Registered by a manual retry (it leaves `failed`): resolved
+        DB::table('fiscal_receipts')->where('id', $old->id)->update(['status' => FiscalReceiptStatus::ISSUED->value]);
         $this->run_();
         $this->assertSame([], $this->open(AlertKind::FISCAL_FAILURES)->keys()->all());
     }

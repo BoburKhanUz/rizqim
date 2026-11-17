@@ -10,7 +10,10 @@ use Illuminate\Support\Carbon;
 /**
  * M3: with PITR on, a restore drill (scripts/restore-drill.sh, monthly) must have passed within `threshold` days
  * (subject `overdue`, warning) and the newest one must not have failed (subject `failed`, critical). A new install
- * gets `threshold` days from the rule's creation for its first drill. With PITR off: quiet.
+ * gets `threshold` days from the rule's creation for its first drill. The automatic monthly drill satisfies that even
+ * though it skips the app check (checks.app_smoke = skipped); a separate mild subject `app_check` (warning) asks for a
+ * drill whose app check passed (the manual scripts/restore-drill.sh) within monitoring.drill_app_check_days. With PITR
+ * off: quiet.
  */
 class RestoreDrillStaleCheck implements AlertCheck
 {
@@ -54,6 +57,20 @@ class RestoreDrillStaleCheck implements AlertCheck
                 'last_ok_at' => $at->toIso8601String(),
                 'threshold_days' => $rule->threshold,
             ], null, 'warning');
+        }
+
+        // The monthly automatic drill skips the app check; a fully verified one (manual) is wanted about once a quarter
+        $appDays = max(1, (int) config('monitoring.drill_app_check_days', 100));
+        $appOk = $drills['last_app_ok'];
+        $appLimit = now()->subDays($appDays);
+        $graceOver = $rule->created_at === null || $rule->created_at->lt($appLimit);
+        if (($appOk === null && $graceOver) || ($appOk !== null && Carbon::parse($appOk->started_at, 'UTC')->lt($appLimit))) {
+            $findings[] = new AlertFinding('app_check', $appOk === null
+                ? "Ilova tekshiruvi bilan to'liq tiklash mashqi hali o'tkazilmagan: serverda scripts/restore-drill.sh ni ishga tushiring"
+                : "Ilova tekshiruvi bilan to'liq tiklash mashqi {$appDays} kundan beri o'tkazilmagan: serverda scripts/restore-drill.sh ni ishga tushiring", [
+                    'last_app_ok_at' => $appOk !== null ? Carbon::parse($appOk->started_at, 'UTC')->toIso8601String() : null,
+                    'threshold_days' => $appDays,
+                ], null, 'warning');
         }
 
         return $findings;

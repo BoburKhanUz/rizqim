@@ -332,7 +332,7 @@ class ServerAlertChecksTest extends TestCase
         DB::table('restore_drills')->insert(array_merge([
             'started_at' => $at, 'finished_at' => $at->copy()->addMinutes(4), 'status' => $status, 'repo' => '1',
             'target_time' => $at, 'reached_time' => $at, 'restore_seconds' => 252, 'data_loss_seconds' => 38,
-            'backup_label' => '20261101-213000F', 'checks' => json_encode(['probe' => 'ok']), 'error' => $status === 'failed' ? 'manifest: orders 10 != 9' : null,
+            'backup_label' => '20261101-213000F', 'checks' => json_encode(['probe' => 'ok', 'app_smoke' => 'ok', 'trigger' => 'manual']), 'error' => $status === 'failed' ? 'manifest: orders 10 != 9' : null,
             'created_at' => $at,
         ], $extra));
     }
@@ -346,7 +346,8 @@ class ServerAlertChecksTest extends TestCase
 
         config(['monitoring.pitr.enabled' => true]);
         $this->run_();
-        $overdue = $this->unresolved(AlertKind::RESTORE_DRILL_STALE)->sole();
+        $this->assertSame(['app_check', 'overdue'], $this->subjects(AlertKind::RESTORE_DRILL_STALE));
+        $overdue = $this->unresolved(AlertKind::RESTORE_DRILL_STALE)->firstWhere('subject_key', 'overdue');
         $this->assertSame('overdue', $overdue->subject_key);
         $this->assertSame('warning', $overdue->severity);
 

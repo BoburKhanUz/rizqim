@@ -246,6 +246,12 @@ function DrillTile({ drill }: { drill: NonNullable<MonitoringHealth['drill']> })
           {drill.status === 'stale' && <p className="font-bold text-fg">{t('monitoring_drill_stale', { days: drill.max_age_days })}</p>}
           {drill.restore_seconds !== null && <p>{t('monitoring_drill_restore', { span: exact(drill.restore_seconds, t) })}</p>}
           {drill.data_loss_seconds !== null && <p>{t('monitoring_drill_loss', { span: exact(drill.data_loss_seconds, t) })}</p>}
+          {drill.status !== 'failed' && drill.app_check === 'skipped' && (
+            <>
+              <p className="font-bold text-fg">{t('monitoring_drill_appSkipped')}</p>
+              <p>{drill.last_app_check_ok_at ? t('monitoring_drill_appLast', { age: elapsed(drill.last_app_check_ok_at, t) }) : t('monitoring_drill_appNever')}</p>
+            </>
+          )}
         </>
       )}
     </Tile>

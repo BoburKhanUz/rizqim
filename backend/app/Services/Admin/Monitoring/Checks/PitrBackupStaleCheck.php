@@ -10,8 +10,9 @@ use App\Services\Admin\Monitoring\BackupState;
 /**
  * M3: with PITR on, the backup service's `pitr` marker (every 5 minutes) must be fresh (`window_minutes`), the last
  * backup of any type younger than `threshold` hours and the last full one younger than `threshold_secondary` days;
- * pgBackRest itself must say ok, and an off-site copy that was configured must work. An off-site copy that is simply
- * not set up is shown on the page, not paged. With PITR off: quiet.
+ * pgBackRest itself must say ok, and an off-site copy that was configured must work. No off-site copy at all (the
+ * marker's `offsite: false`) is a standing warning (`offsite_missing`): it stays open until S3 is set up. With PITR
+ * off: quiet.
  */
 class PitrBackupStaleCheck implements AlertCheck
 {
@@ -86,6 +87,14 @@ class PitrBackupStaleCheck implements AlertCheck
                 default => "Tashqi nusxa (S3) manzili noto'g'ri: PITR_S3_ENDPOINT ni tekshiring",
             }, ['repo2' => $offsite, 'note' => isset($meta['repo2_note']) ? mb_substr((string) $meta['repo2_note'], 0, 200) : null]);
         }
+        // Working, but the only copy is on the database's own disk: a standing reminder (not paged as critical)
+        if (($meta['offsite'] ?? null) === false && !in_array($offsite, ['no_cipher', 'partial', 'bad_endpoint'], true)) {
+            $findings[] = new AlertFinding('offsite_missing', "Zaxira faqat shu serverda: server diski buzilsa, baza ham, barcha zaxiralar ham yo'qoladi. S3 kalitlarini (PITR_S3_*) yozing (OPERATIONS.md, 17-bo'lim)", [
+                'repo2' => $offsite,
+                'note' => isset($meta['repo2_note']) ? mb_substr((string) $meta['repo2_note'], 0, 200) : null,
+            ], null, 'warning');
+        }
+
         foreach ((array) ($meta['repos'] ?? []) as $repo) {
             if (is_array($repo) && ($repo['status'] ?? 'ok') !== 'ok') {
                 $key = (int) ($repo['key'] ?? 0);

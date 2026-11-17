@@ -62,6 +62,10 @@ return [
         'cache_minutes' => 60,
     ],
 
+    // restore_drill_stale: the monthly automatic drill cannot run the app check (db:restore-smoke, app_smoke skipped);
+    // a drill whose app check passed (the manual scripts/restore-drill.sh) is wanted at least this often
+    'drill_app_check_days' => 100,
+
     // queue_worker_stale: QueueHeartbeatJob goes to this queue every minute
     'queue_heartbeat_queue' => 'default',
 

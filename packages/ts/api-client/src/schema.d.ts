@@ -1931,7 +1931,8 @@ export interface paths {
          *     on), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working
          *     off-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,
          *     `partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,
-         *     with its restore time and data loss window in seconds. `partitions`: the journals' months (`ok`, `warning`,
+         *     with its restore time and data loss window in seconds, `trigger` (`auto` monthly or `manual`) and `app_check`
+         *     (`ok`, `failed`, `skipped`: a drill with the app check skipped passed but is not fully verified). `partitions`: the journals' months (`ok`, `warning`,
          *     `fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and
          *     `redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the
          *     age of the queue worker's last heartbeat.
@@ -19830,6 +19831,10 @@ export interface operations {
                                 error: string | null;
                                 last_ok_at: string | null;
                                 max_age_days: number;
+                                trigger: string | null;
+                                app_check: string | null;
+                                last_app_check_ok_at: string | null;
+                                app_check_max_age_days: number;
                             };
                             partitions: {
                                 status: string;
