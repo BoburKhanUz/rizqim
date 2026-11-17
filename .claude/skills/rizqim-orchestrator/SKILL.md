@@ -95,7 +95,7 @@ The container can be REPLACED at any time (not just restarted): the working tree
 ## 10. Failure handling
 - Rate limit (429) or worker restart: resume the SAME agent with SendMessage ("continue from where you stopped", plus what changed meanwhile).
 - An agent stopped by the owner cannot be resumed: ask the owner, then spawn a fresh agent with a RESUME brief (section 4).
-- Container restart: restart Postgres, check `git status`, resume or re-create agents. If `backend/vendor` and `/opt/flutter` are gone, the container was replaced: rebuild (apt: nginx php8.3-fpm php8.3-bcmath pgbouncer shellcheck; Postgres role `rizqim`/`rizqim` with CREATEDB and database `testing`; Flutter SDK of the CI version into /opt/flutter; `composer install` (slow: GitHub archives are refused, it clones); `npm ci` in packages/ts/{api-client,ui,staff}, customer/miniapp, partner/web, platform/admin, e2e/stack; `flutter pub get`), then re-create the lost agents from their reports.
+- Container restart: restart Postgres, check `git status`, resume or re-create agents. If `backend/vendor` and `/opt/flutter` are gone, the container was replaced: run `bash scripts/dev-setup.sh` (about 25 minutes: system packages, Postgres role `rizqim`/`rizqim` and database `testing`, Flutter SDK, `composer install` by cloning because GitHub archives are refused, `npm ci`, `flutter pub get`; never while an agent is using `node_modules`), then re-create the lost agents from their reports.
 - A suite red while agents edit: rerun the failing file alone before judging.
 - A flaky pre-existing test: prove it (5 solo reruns), say so in the report. Never skip or disable a test.
 - Cross-agent findings (one agent finds something another must fix): relay with SendMessage immediately.
