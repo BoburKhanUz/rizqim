@@ -42,6 +42,13 @@ export function StatusTab({ onOpenTab }: { onOpenTab: (tab: 'alerts' | 'jobs') =
         </div>
       </div>
 
+      {data.notifications && (!data.notifications.telegram_configured || !data.notifications.dead_man_configured) && (
+        <div role="note" className="flex flex-col gap-1 rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
+          {!data.notifications.telegram_configured && <p className="font-bold">{t('monitoring_notify_noTelegram')}</p>}
+          {!data.notifications.dead_man_configured && <p className="font-bold">{t('monitoring_notify_noDeadMan')}</p>}
+        </div>
+      )}
+
       <ul aria-label={t('monitoring_tab_status')} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <DatabaseTile data={data} />
         <RedisTile data={data} />
@@ -220,10 +227,17 @@ function PitrTile({ pitr }: { pitr: NonNullable<MonitoringHealth['pitr']> }) {
       {pitr.message && <p className="font-bold text-fg">{t('monitoring_pitr_error', { message: pitr.message })}</p>}
       <p>{pitr.last_backup_at ? t('monitoring_pitr_lastBackup', { age: elapsed(pitr.last_backup_at, t), time: when(pitr.last_backup_at) }) : t('monitoring_pitr_lastBackupNone')}</p>
       {pitr.last_full_at && <p>{t('monitoring_pitr_lastFull', { age: elapsed(pitr.last_full_at, t) })}</p>}
-      {pitr.archive_failing ? (
+      {pitr.archive_failing && pitr.status === 'fail' ? (
         <p className="font-bold text-danger-soft-fg">{t('monitoring_pitr_walFailing')}</p>
       ) : (
-        <p>{pitr.last_wal_archived_at ? t('monitoring_pitr_wal', { age: elapsed(pitr.last_wal_archived_at, t) }) : t('monitoring_pitr_walNone')}</p>
+        <>
+          <p>{pitr.last_wal_archived_at ? t('monitoring_pitr_wal', { age: elapsed(pitr.last_wal_archived_at, t) }) : t('monitoring_pitr_walNone')}</p>
+          {pitr.archive_failing ? (
+            <p>{t('monitoring_pitr_walRetrying', { age: span(pitr.archive_failing_seconds ?? 0, t) })}</p>
+          ) : (
+            (pitr.wal_archived_age_seconds ?? 0) >= 3600 && <p>{t('monitoring_pitr_walIdle')}</p>
+          )}
+        </>
       )}
       {(pitr.ready_wal ?? 0) > 1 && <p>{t('monitoring_pitr_walWaiting', { count: pitr.ready_wal ?? 0 })}</p>}
       <p className={cx(pitr.offsite !== 'on' && 'font-bold text-fg')}>{t(offsite)}</p>

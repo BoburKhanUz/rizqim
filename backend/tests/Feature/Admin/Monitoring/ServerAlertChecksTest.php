@@ -223,24 +223,26 @@ class ServerAlertChecksTest extends TestCase
         $this->run_();
         $this->assertSame([], $this->subjects(AlertKind::WAL_ARCHIVE));
 
+        // Failing seen for the first time: only the backlog pages; the failure itself once it lasted the rule's 5 minutes
         config(['monitoring.pitr.enabled' => true]);
+        $this->run_();
+        $this->assertSame(['backlog'], $this->subjects(AlertKind::WAL_ARCHIVE));
+        $this->travel(6)->minutes();
         $this->run_();
         $this->assertSame(['backlog', 'failing'], $this->subjects(AlertKind::WAL_ARCHIVE));
         $failing = $this->unresolved(AlertKind::WAL_ARCHIVE)->firstWhere('subject_key', 'failing');
-        $this->assertSame("WAL 60 daqiqadan beri arxivga yuborilmayapti: PITR uzildi, to'liq zaxira kerak", $failing->title);
+        $this->assertSame("WAL kamida 6 daqiqadan beri arxivga yuborilmayapti: davom etsa PITR zanjiri uziladi va to'liq zaxira kerak bo'ladi", $failing->title);
         $this->assertSame('critical', $failing->severity);
 
-        // Failing for less than the rule's minutes: not yet
-        $this->fakeStats(['archiver' => ['failing' => true, 'failing_seconds' => 60] + $healthy]);
-        $this->run_();
-        $this->assertSame([], $this->subjects(AlertKind::WAL_ARCHIVE));
-
         // Cannot read the archiver: unknown, the alerts are left as they are
-        $this->fakeStats(['archiver' => ['failing' => true, 'failing_seconds' => 3600] + $healthy]);
-        $this->run_();
         $this->fakeStats(['archiver' => null]);
         $this->run_();
-        $this->assertSame(['failing'], $this->subjects(AlertKind::WAL_ARCHIVE));
+        $this->assertSame(['backlog', 'failing'], $this->subjects(AlertKind::WAL_ARCHIVE));
+
+        // Archiving works again (the last success moved): the failure clock starts over
+        $this->fakeStats(['archiver' => ['failing' => true, 'last_archived_at' => now()->toIso8601ZuluString(), 'ready_wal' => 0] + $healthy]);
+        $this->run_();
+        $this->assertSame([], $this->subjects(AlertKind::WAL_ARCHIVE));
 
         $this->fakeStats(['archiver' => ['archive_mode' => 'off'] + $healthy]);
         $this->run_();
@@ -317,7 +319,9 @@ class ServerAlertChecksTest extends TestCase
 
         $this->run_();
 
-        $this->assertStringStartsWith('Uzluksiz zaxira xato holatda: stanza missing', $this->unresolved(AlertKind::PITR_BACKUP_STALE)->sole()->title);
+        $alert = $this->unresolved(AlertKind::PITR_BACKUP_STALE)->sole();
+        $this->assertStringStartsWith('Uzluksiz zaxira xato holatda', $alert->title);
+        $this->assertSame('stanza missing', $alert->details['message']);
 
         // The sidecar writes enabled=false: off
         $this->marker('pitr', ['enabled' => false]);

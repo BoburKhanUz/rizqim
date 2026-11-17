@@ -381,7 +381,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         });
         $this->assertSame(['opened' => 0, 'updated' => 0, 'resolved' => 0], $this->run_());
         $this->assertSame('open', $existing->refresh()->state);
-        Log::shouldHaveReceived('error')->once();
+        Log::shouldHaveReceived('error')->with('Monitoring: alert rule failed', \Mockery::any())->once();
 
         $this->app->bind(FiscalFailuresCheck::class, fn () => new class implements AlertCheck {
             public function findings(AlertRule $rule): ?array
@@ -511,33 +511,37 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $this->assertSame('resolved', $this->alerts()->sole()->state);
     }
 
-    public function test_a_flapping_problem_is_announced_once_per_cooldown_and_never_resolved_unannounced(): void
+    public function test_a_reopen_after_the_resolve_notice_is_announced_but_one_the_group_was_not_told_ended_waits_for_the_cooldown(): void
     {
         $this->telegramOn();
         config(['monitoring.telegram.cooldown_minutes' => 15]);
-        $this->onlyRule(AlertKind::SCHEDULER_STALE);
+        $rule = $this->onlyRule(AlertKind::SCHEDULER_STALE);
 
-        // Opens (announced), resolves (announced)
+        // Opens (announced), resolves (announced), comes back 3 minutes later: announced again (M3 R3-2: the last
+        // word the group read must not be "resolved")
         $this->run_();
         HealthReport::beat();
         $this->run_();
-        $this->assertCount(2, $this->sentTexts());
-
-        // Comes back 3 minutes later: inside the cooldown, so neither the open nor its resolve is sent
         $this->travel(3)->minutes();
         Cache::forget(HealthReport::HEARTBEAT_KEY);
         $this->run_();
-        HealthReport::beat();
-        $this->run_();
-        $this->assertCount(2, $this->sentTexts());
-        $this->assertNull($this->alerts()->get(1)->telegram_opened_at);
-        $this->assertNull($this->alerts()->get(1)->telegram_resolved_at);
+        $this->assertCount(3, $this->sentTexts());
+        $this->assertStringStartsWith('[KRITIK]', $this->sentTexts()[2]);
 
-        // After the cooldown it is announced again
-        $this->travel(20)->minutes();
-        Cache::forget(HealthReport::HEARTBEAT_KEY);
+        // Switched off (resolved quietly) and on again within the cooldown: the group was never told it ended, so the
+        // new alert waits until the cooldown has passed, then goes out (it is offered again every run)
+        $rule->forceFill(['enabled' => false])->save();
+        $this->run_();
+        $rule->forceFill(['enabled' => true])->save();
+        $this->travel(1)->minutes();
         $this->run_();
         $this->assertCount(3, $this->sentTexts());
+        $this->assertNull($this->alerts()->last()->telegram_opened_at);
+
+        $this->travel(15)->minutes();
+        $this->run_();
+        $this->assertCount(4, $this->sentTexts());
+        $this->assertNotNull($this->alerts()->last()->telegram_opened_at);
     }
 
     public function test_different_subjects_are_not_held_back_by_each_others_cooldown(): void
@@ -572,7 +576,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $texts = $this->sentTexts();
         $this->assertCount(4, $texts); // 3 alerts + the notice
         $this->assertCount(3, array_filter($texts, fn ($text) => str_starts_with($text, '[DIQQAT]')));
-        $this->assertCount(1, array_filter($texts, fn ($text) => str_starts_with($text, 'Ogohlantirishlar ko\'p')));
+        $this->assertCount(1, array_filter($texts, fn ($text) => str_starts_with($text, 'Yana 3 ta ogohlantirish ochiq')));
         $this->assertSame(6, Alert::count());
         $this->assertSame(3, Alert::whereNotNull('telegram_opened_at')->count());
 

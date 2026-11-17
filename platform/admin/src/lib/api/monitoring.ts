@@ -52,6 +52,8 @@ export interface PitrHealth {
   last_wal_archived_at: string | null;
   wal_archived_age_seconds: number | null;
   archive_failing: boolean | null;
+  // How long archiving has been failing (from when it was first seen failing), null when it is not
+  archive_failing_seconds?: number | null;
   ready_wal: number | null;
   offsite: Offsite | string | null;
   offsite_note: string | null;
@@ -127,6 +129,8 @@ export interface MonitoringHealth {
   sentry: { configured: boolean; environment: string | null; project_url: string | null };
   alerts: { open: number; acknowledged: number; critical_unresolved: number };
   // M3; optional so an older backend still renders
+  // Whether alerts reach a Telegram chat and whether the outside dead-man switch (HEALTHCHECKS_PING_URL) is set
+  notifications?: { telegram_configured: boolean; dead_man_configured: boolean };
   postgres?: PostgresHealth;
   pitr?: PitrHealth;
   drill?: DrillHealth;

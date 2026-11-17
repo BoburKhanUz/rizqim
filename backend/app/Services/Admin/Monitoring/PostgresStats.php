@@ -118,14 +118,13 @@ class PostgresStats
      * pg_stat_archiver plus the number of WAL segments waiting to be archived (`.ready` files; needs pg_monitor or
      * superuser: null when not allowed, the rest is still returned).
      *
-     * @return array{archive_mode: string, last_archived_wal: string|null, last_archived_at: string|null, last_failed_wal: string|null, last_failed_at: string|null, failed_count: int, failing: bool, failing_seconds: int|null, ready_wal: int|null}|null
+     * @return array{archive_mode: string, last_archived_wal: string|null, last_archived_at: string|null, last_failed_wal: string|null, last_failed_at: string|null, failed_count: int, failing: bool, ready_wal: int|null}|null
      */
     public function archiver(): ?array
     {
         $state = self::bounded(function () {
             $row = DB::selectOne("SELECT current_setting('archive_mode') AS archive_mode, last_archived_wal, last_archived_time, last_failed_wal, last_failed_time, failed_count,
-                    coalesce(last_failed_time > coalesce(last_archived_time, '-infinity'::timestamptz), false) AS failing,
-                    floor(extract(epoch FROM now() - coalesce(last_archived_time, stats_reset)))::int AS since_success
+                    coalesce(last_failed_time > coalesce(last_archived_time, '-infinity'::timestamptz), false) AS failing
                   FROM pg_stat_archiver");
 
             return [
@@ -136,7 +135,6 @@ class PostgresStats
                 'last_failed_at' => self::iso($row->last_failed_time),
                 'failed_count' => (int) $row->failed_count,
                 'failing' => (bool) $row->failing,
-                'failing_seconds' => (bool) $row->failing && $row->since_success !== null ? (int) $row->since_success : null,
                 'ready_wal' => null,
             ];
         }, 'archiver');

@@ -33,10 +33,20 @@ class AlertEvaluator
     public function run(): array
     {
         $totals = ['opened' => 0, 'updated' => 0, 'resolved' => 0];
-        // One evaluation's Telegram time budget starts now (AlertNotifier)
+        // The run's Telegram budget starts with its first message (AlertNotifier), not before the checks
         $this->notifier->startRun();
+        // The checks share a time cap (each SQL read has its own statement timeout): past it the remaining rules are
+        // skipped this minute (unknown: their alerts stay as they are) so the announcements below still go out
+        $started = microtime(true);
+        $cap = max(5, (int) config('monitoring.checks_budget_seconds', 30));
+        $skipped = [];
 
         foreach (AlertRule::ensureAll() as $rule) {
+            if ($rule->enabled && microtime(true) - $started > $cap) {
+                $skipped[] = $rule->kind;
+
+                continue;
+            }
             try {
                 $result = $rule->enabled ? $this->evaluate($rule) : $this->switchedOff($rule);
             } catch (Throwable $e) {
@@ -48,6 +58,16 @@ class AlertEvaluator
             foreach ($result as $key => $count) {
                 $totals[$key] += $count;
             }
+        }
+        if ($skipped !== []) {
+            Log::warning('Monitoring: the checks took too long, rules skipped this run', ['cap_seconds' => $cap, 'skipped' => $skipped]);
+        }
+
+        // Every unresolved alert not announced yet (new ones, raised ones, ones a limit or an outage held back)
+        try {
+            $this->notifier->announcePending();
+        } catch (Throwable $e) {
+            Log::error('Monitoring: alert announcements failed', ['exception' => $e::class, 'message' => $e->getMessage()]);
         }
 
         return $totals;
@@ -126,8 +146,8 @@ class AlertEvaluator
                 ]);
                 $result['updated'] += $touched;
                 if ($touched === 1 && $escalated) {
-                    $existing->forceFill(['severity' => $severity, 'title' => mb_substr($finding->title, 0, 200)])->syncOriginal();
-                    $this->notifier->escalated($existing, $rule);
+                    // Announced again as what it is now (AlertNotifier::announcePending, at the end of the run)
+                    Alert::query()->whereKey($existing->getKey())->update(['telegram_opened_at' => null]);
                 }
 
                 continue;
@@ -154,7 +174,7 @@ class AlertEvaluator
 
             $result['opened']++;
             event(new PlatformAlertBroadcast($alert, PlatformAlertBroadcast::OPENED));
-            $this->notifier->opened($alert, $rule);
+            // Announced by AlertNotifier::announcePending at the end of the run
         }
 
         foreach ($unresolved as $subject => $alert) {

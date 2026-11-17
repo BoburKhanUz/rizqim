@@ -75,6 +75,16 @@ class CheckProductionConfigCommand extends Command
             $this->warn('OGOHLANTIRISH: API_DOCS_PUBLIC=true — /docs/api va spetsifikatsiya hammaga ochiq; productionda o\'chiring (o\'chiq bo\'lsa hujjat faqat repozitoriyda: packages/api-spec/openapi.json).');
         }
 
+        // M3: who hears of an alert, and of the server itself being down (docs/OPERATIONS.md, 21-bo'lim)
+        if (trim((string) config('services.telegram.ops_chat_id')) === '') {
+            $this->warn(trim((string) config('services.telegram.superadmin_chat_id')) === ''
+                ? "OGOHLANTIRISH: TELEGRAM_OPS_CHAT_ID (va TELEGRAM_SUPERADMIN_CHAT_ID) bo'sh: monitoring ogohlantirishlari hech kimga yuborilmaydi. Guruh ID sini backend/.env ga yozing."
+                : "OGOHLANTIRISH: TELEGRAM_OPS_CHAT_ID bo'sh: monitoring ogohlantirishlari superadmin chatiga ketadi. Egasi va texnik yordamchi bor guruh ID sini yozing.");
+        }
+        if (trim((string) config('monitoring.healthchecks_ping_url')) === '') {
+            $this->warn("OGOHLANTIRISH: HEALTHCHECKS_PING_URL bo'sh: server yoki scheduler to'xtasa hech kim xabar bermaydi. healthchecks.io da bepul tekshiruv ochib, manzilini ildizdagi .env ga yozing (docs/OPERATIONS.md, 21-bo'lim).");
+        }
+
         $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());
         $this->warnPaymentProviders();
 

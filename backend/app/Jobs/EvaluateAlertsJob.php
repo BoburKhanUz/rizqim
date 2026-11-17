@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Services\Admin\Monitoring\AlertEvaluator;
+use App\Services\Admin\Monitoring\DatabaseDownNotice;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +18,8 @@ use Throwable;
  * the retry.
  *
  * M3: after a run that finished, the dead-man switch HEALTHCHECKS_PING_URL (healthchecks.io or alike) is pinged; when
- * the pings stop (server, scheduler or database down) that outside service tells the owner. Unset: no call.
+ * the pings stop (server, scheduler or database down) that outside service tells the owner. Unset: no call. When
+ * the database does not answer, one direct Telegram message (DatabaseDownNotice) says so, and one when it is back.
  */
 class EvaluateAlertsJob
 {
@@ -24,8 +27,33 @@ class EvaluateAlertsJob
 
     public function handle(AlertEvaluator $evaluator): void
     {
-        $evaluator->run();
+        $notice = app(DatabaseDownNotice::class);
+        try {
+            $evaluator->run();
+        } catch (Throwable $e) {
+            // The rules and alerts live in the database: when it is down nothing else can tell anyone (R3-4)
+            if ($this->databaseDown()) {
+                $notice->down($e);
+
+                return;
+            }
+
+            throw $e;
+        }
+
+        $notice->up();
         $this->ping();
+    }
+
+    private function databaseDown(): bool
+    {
+        try {
+            DB::select('SELECT 1');
+
+            return false;
+        } catch (Throwable) {
+            return true;
+        }
     }
 
     public function displayName(): string

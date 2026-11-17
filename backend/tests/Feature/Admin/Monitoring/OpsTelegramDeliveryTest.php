@@ -162,12 +162,12 @@ class OpsTelegramDeliveryTest extends TestCase
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
         config(['monitoring.telegram.hourly_limit' => 2]);
-        $this->problems(4);
+        $this->findings = array_map(fn ($i) => new AlertFinding("w{$i}", "Muammo {$i}", [], null, 'warning'), range(1, 4));
 
         $this->run_();
 
         $texts = $this->telegramTexts();
-        $this->assertCount(3, $texts); // 2 alerts + the "held back" notice
-        $this->assertStringStartsWith("Ogohlantirishlar ko'p", $texts[2]);
+        $this->assertCount(3, $texts); // 2 warnings + one digest of the rest
+        $this->assertStringStartsWith('Yana 2 ta ogohlantirish ochiq', $texts[2]);
     }
 }

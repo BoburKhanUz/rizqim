@@ -18,6 +18,8 @@ return [
         'cooldown_minutes' => (int) env('MONITORING_TELEGRAM_COOLDOWN', 15),
         // Alert messages per hour in all; more are held back (one notice says so)
         'hourly_limit' => (int) env('MONITORING_TELEGRAM_HOURLY_LIMIT', 20),
+        // Criticals do not count against hourly_limit; this cap per rule and hour only stops a runaway loop
+        'critical_hourly_limit_per_rule' => 10,
         // M3: ops messages are sent at once by the process that raises them (the scheduler), not through the queue a
         // dead worker would hold them in. One request waits at most `timeout` seconds; one evaluation spends at most
         // `run_budget_seconds` on Telegram in all; after a failed request Telegram is skipped for `breaker_seconds`.
@@ -29,6 +31,8 @@ return [
 
     // M3 (docs/scale/M3_DESIGN.md section 7): the server-level checks
     'sql_statement_timeout' => '2s',
+    // All checks of one evaluation together; past it the remaining rules wait for the next minute
+    'checks_budget_seconds' => 30,
 
     // Point-in-time recovery (pgBackRest, the `backup` service): PITR_ENABLED=1 in the root .env. Unset and no fresh
     // `pitr` marker that says otherwise = off: wal_archive, pitr_backup_stale and restore_drill_stale stay quiet.

@@ -18659,7 +18659,7 @@
         "/v1/admin/monitoring/health": {
             "get": {
                 "operationId": "admin.monitoring.health",
-                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).\n\nM3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open\ntransaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched\non), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working\noff-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,\n`partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,\nwith its restore time and data loss window in seconds, `trigger` (`auto` monthly or `manual`) and `app_check`\n(`ok`, `failed`, `skipped`: a drill with the app check skipped passed but is not fully verified). `partitions`: the journals' months (`ok`, `warning`,\n`fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and\n`redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the\nage of the queue worker's last heartbeat.",
+                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).\n\nM3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open\ntransaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched\non), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working\noff-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,\n`partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,\nwith its restore time and data loss window in seconds, `trigger` (`auto` monthly or `manual`) and `app_check`\n(`ok`, `failed`, `skipped`: a drill with the app check skipped passed but is not fully verified). `partitions`: the journals' months (`ok`, `warning`,\n`fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and\n`redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the\nage of the queue worker's last heartbeat. `notifications`: whether alerts reach a Telegram chat\n(`telegram_configured`) and whether the outside dead-man switch is set (`dead_man_configured`).",
                 "summary": "System health",
                 "tags": [
                     "Admin"
@@ -19073,6 +19073,12 @@
                                                                 "null"
                                                             ]
                                                         },
+                                                        "archive_failing_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
                                                         "ready_wal": {
                                                             "type": [
                                                                 "integer",
@@ -19111,6 +19117,7 @@
                                                         "last_wal_archived_at",
                                                         "wal_archived_age_seconds",
                                                         "archive_failing",
+                                                        "archive_failing_seconds",
                                                         "ready_wal",
                                                         "offsite",
                                                         "offsite_note",
@@ -19429,6 +19436,21 @@
                                                         "environment"
                                                     ]
                                                 },
+                                                "notifications": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "telegram_configured": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "dead_man_configured": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "telegram_configured",
+                                                        "dead_man_configured"
+                                                    ]
+                                                },
                                                 "sentry": {
                                                     "type": "object",
                                                     "properties": {
@@ -19489,6 +19511,7 @@
                                                 "partitions",
                                                 "disk",
                                                 "app",
+                                                "notifications",
                                                 "sentry",
                                                 "alerts"
                                             ]

@@ -104,6 +104,11 @@ class MonitoringStatus
                 'commit' => config('monitoring.commit') ?: null,
                 'environment' => (string) config('app.env'),
             ],
+            // Who would be told: without these nobody hears of an alert, or of the server being down
+            'notifications' => [
+                'telegram_configured' => app(AlertNotifier::class)->configured(),
+                'dead_man_configured' => trim((string) config('monitoring.healthchecks_ping_url')) !== '',
+            ],
             'sentry' => [
                 'configured' => filled(config('sentry.dsn')),
                 'environment' => filled(config('sentry.dsn')) ? (string) config('sentry.environment') : null,
@@ -221,14 +226,14 @@ class MonitoringStatus
      * fail (an error, archiving fails, or the last backup is too old) | warning (no working off-site copy) | ok.
      *
      * @param  array<string, mixed>|null  $archiver
-     * @return array{status: string, enabled: bool, marker_at: string|null, marker_age_seconds: int|null, message: string|null, last_backup_at: string|null, last_backup_type: string|null, last_backup_age_seconds: int|null, last_full_at: string|null, last_wal_archived_at: string|null, wal_archived_age_seconds: int|null, archive_failing: bool|null, ready_wal: int|null, offsite: string|null, offsite_note: string|null, max_backup_age_hours: int, max_marker_age_minutes: int}
+     * @return array{status: string, enabled: bool, marker_at: string|null, marker_age_seconds: int|null, message: string|null, last_backup_at: string|null, last_backup_type: string|null, last_backup_age_seconds: int|null, last_full_at: string|null, last_wal_archived_at: string|null, wal_archived_age_seconds: int|null, archive_failing: bool|null, archive_failing_seconds: int|null, ready_wal: int|null, offsite: string|null, offsite_note: string|null, max_backup_age_hours: int, max_marker_age_minutes: int}
      */
     public function pitr(?array $archiver): array
     {
         $window = $this->threshold(AlertKind::PITR_BACKUP_STALE, 'window_minutes') ?: BackupState::MARKER_MAX_AGE_MINUTES;
         $maxHours = $this->threshold(AlertKind::PITR_BACKUP_STALE);
         $marker = $this->backups->marker(MonitoringMarker::PITR);
-        $enabled = $this->backups->pitrEnabled($marker, $window);
+        $enabled = $this->backups->pitrEnabled($marker);
         $meta = $marker !== null ? (array) $marker->meta : [];
         $age = $this->backups->markerAgeSeconds($marker);
 
@@ -237,6 +242,9 @@ class MonitoringStatus
         // The live archiver first (this very minute); the marker's copy when it cannot be read
         $archivedAt = $archiver['last_archived_at'] ?? ($meta['archived_at'] ?? null);
         $failing = $archiver !== null ? $archiver['failing'] : (isset($meta['archive_failing']) ? (bool) $meta['archive_failing'] : null);
+        // How long it has been failing (WalFailureClock), not "now - last success": an idle server archives nothing
+        $failingFor = $archiver !== null && $enabled ? WalFailureClock::failingSeconds($archiver) : null;
+        $failLimit = 60 * $this->threshold(AlertKind::WAL_ARCHIVE, 'threshold_secondary');
         $ready = $archiver['ready_wal'] ?? (isset($meta['ready_wal']) ? (int) $meta['ready_wal'] : null);
         $offsite = isset($meta['repo2']) ? (string) $meta['repo2'] : null;
 
@@ -246,7 +254,7 @@ class MonitoringStatus
             $age > $window * 60 => 'stale',
             ($meta['enabled'] ?? null) === false,
             ($meta['status'] ?? 'ok') !== 'ok',
-            $failing === true,
+            $failingFor !== null && $failingFor >= $failLimit,
             $last === null || $last->lt(now()->subHours($maxHours)) => 'fail',
             $offsite !== 'on' => 'warning',
             default => 'ok',
@@ -265,6 +273,7 @@ class MonitoringStatus
             'last_wal_archived_at' => is_string($archivedAt) ? BackupState::parseTime($archivedAt)?->toIso8601String() : null,
             'wal_archived_age_seconds' => BackupState::ageSeconds(is_string($archivedAt) ? BackupState::parseTime($archivedAt) : null),
             'archive_failing' => $failing,
+            'archive_failing_seconds' => $failingFor,
             'ready_wal' => $ready,
             'offsite' => $offsite,
             'offsite_note' => isset($meta['repo2_note']) ? mb_substr((string) $meta['repo2_note'], 0, 200) : null,

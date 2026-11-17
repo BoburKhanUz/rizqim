@@ -24,7 +24,7 @@ class PitrBackupStaleCheck implements AlertCheck
     {
         $window = max(1, (int) ($rule->window_minutes ?? BackupState::MARKER_MAX_AGE_MINUTES));
         $marker = $this->backups->marker(MonitoringMarker::PITR);
-        if (!$this->backups->pitrEnabled($marker, $window)) {
+        if (!$this->backups->pitrEnabled($marker)) {
             return [];
         }
 
@@ -52,7 +52,9 @@ class PitrBackupStaleCheck implements AlertCheck
             ])];
         }
         if (($meta['status'] ?? 'ok') !== 'ok') {
-            $findings[] = new AlertFinding('status', "Uzluksiz zaxira xato holatda: " . mb_substr((string) ($meta['message'] ?? "noma'lum xato"), 0, 120), [
+            // pgBackRest's own text can name hosts and buckets: it stays in the details (control center), not in the
+            // title that goes to Telegram
+            $findings[] = new AlertFinding('status', "Uzluksiz zaxira xato holatda: zaxira olinmayapti yoki tekshirib bo'lmayapti, xato matni boshqaruv markazida", [
                 'status' => $meta['status'] ?? null,
                 'message' => isset($meta['message']) ? mb_substr((string) $meta['message'], 0, 300) : null,
             ]);
@@ -98,7 +100,7 @@ class PitrBackupStaleCheck implements AlertCheck
         foreach ((array) ($meta['repos'] ?? []) as $repo) {
             if (is_array($repo) && ($repo['status'] ?? 'ok') !== 'ok') {
                 $key = (int) ($repo['key'] ?? 0);
-                $findings[] = new AlertFinding("repo{$key}", ($key === 2 ? 'Tashqi (S3)' : 'Mahalliy') . " zaxira ombori xato holatda: " . mb_substr((string) ($repo['message'] ?? ''), 0, 120), [
+                $findings[] = new AlertFinding("repo{$key}", ($key === 2 ? 'Tashqi (S3)' : 'Mahalliy') . " zaxira ombori xato holatda: xato matni boshqaruv markazida", [
                     'repo' => $key,
                     'message' => mb_substr((string) ($repo['message'] ?? ''), 0, 300),
                 ]);

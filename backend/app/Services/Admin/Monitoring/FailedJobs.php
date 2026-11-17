@@ -58,11 +58,13 @@ class FailedJobs
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $term) . '%';
             $query->whereRaw(self::NAME_SQL . ' ilike ?', [$like]);
         }
+        // A date is a platform (Tashkent) day, like the audit log's filters (App\Support\DayBounds); failed_at is UTC
+        $zone = \App\Services\Admin\Today\PlatformStats::TIMEZONE;
         if (!empty($filters['from'])) {
-            $query->where('failed_at', '>=', Carbon::parse($filters['from'])->startOfDay());
+            $query->where('failed_at', '>=', Carbon::parse((string) $filters['from'], $zone)->startOfDay()->utc()->format('Y-m-d H:i:s'));
         }
         if (!empty($filters['to'])) {
-            $query->where('failed_at', '<=', Carbon::parse($filters['to'])->endOfDay());
+            $query->where('failed_at', '<', Carbon::parse((string) $filters['to'], $zone)->startOfDay()->addDay()->utc()->format('Y-m-d H:i:s'));
         }
 
         return $query->orderByDesc('id');

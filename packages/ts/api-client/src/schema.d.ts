@@ -1935,7 +1935,8 @@ export interface paths {
          *     (`ok`, `failed`, `skipped`: a drill with the app check skipped passed but is not fully verified). `partitions`: the journals' months (`ok`, `warning`,
          *     `fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and
          *     `redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the
-         *     age of the queue worker's last heartbeat.
+         *     age of the queue worker's last heartbeat. `notifications`: whether alerts reach a Telegram chat
+         *     (`telegram_configured`) and whether the outside dead-man switch is set (`dead_man_configured`).
          */
         get: operations["admin.monitoring.health"];
         put?: never;
@@ -19815,6 +19816,7 @@ export interface operations {
                                 last_wal_archived_at: string | null;
                                 wal_archived_age_seconds: number | null;
                                 archive_failing: boolean | null;
+                                archive_failing_seconds: number | null;
                                 ready_wal: number | null;
                                 offsite: string | null;
                                 offsite_note: string | null;
@@ -19877,6 +19879,10 @@ export interface operations {
                                 version: string | null;
                                 commit: string | null;
                                 environment: string;
+                            };
+                            notifications: {
+                                telegram_configured: boolean;
+                                dead_man_configured: boolean;
                             };
                             sentry: {
                                 configured: boolean;

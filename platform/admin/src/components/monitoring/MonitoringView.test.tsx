@@ -268,6 +268,24 @@ describe('Monitoring: Holat', () => {
     expect((await tile("Ma'lumotlar bazasi")).getByText('Ulanishlar: 23 / 100 (23 %)')).toBeInTheDocument();
   });
 
+  it('says plainly when nobody would be told of an alert or of the server going down', async () => {
+    setup({ 'GET /monitoring/health': () => ok(health({ notifications: { telegram_configured: false, dead_man_configured: false } })) }, VIEW);
+    expect(await screen.findByText(/^Telegram ogohlantirish manzili sozlanmagan/)).toBeInTheDocument();
+    expect(screen.getByText(/^Tashqi kuzatuvchi sozlanmagan/)).toBeInTheDocument();
+  });
+
+  it('calls one failed WAL attempt a retry, not a broken backup, and an idle server normal', async () => {
+    const pitr = {
+      status: 'ok', enabled: true, marker_at: minutesAgo(2), marker_age_seconds: 120, message: null, last_backup_at: minutesAgo(60), last_backup_type: 'diff', last_backup_age_seconds: 3600,
+      last_full_at: minutesAgo(24 * 60), last_wal_archived_at: minutesAgo(5 * 60), wal_archived_age_seconds: 5 * 3600, archive_failing: true, archive_failing_seconds: 30, ready_wal: 1,
+      offsite: 'on', offsite_note: null, max_backup_age_hours: 26, max_marker_age_minutes: 15,
+    };
+    setup({ 'GET /monitoring/health': () => ok(health({ pitr })) }, VIEW);
+    const tile = within((await screen.findByRole('heading', { name: 'Uzluksiz zaxira (istalgan daqiqaga tiklash)' })).closest('li') as HTMLElement);
+    expect(tile.getByText("Oxirgi yuborishda xato bo'ldi, qayta urinilmoqda (30 soniya).")).toBeInTheDocument();
+    expect(tile.queryByText(/yuborib bo'lmayapti/)).toBeNull();
+  });
+
   it('shows an automatic drill without the app check as passed, with a note and the last fully verified one', async () => {
     const drill = { status: 'ok', last_at: minutesAgo(60), last_status: 'ok', restore_seconds: 200, data_loss_seconds: 30, reached_time: null, backup_label: null, error: null, last_ok_at: minutesAgo(60), max_age_days: 35, trigger: 'auto', app_check: 'skipped', last_app_check_ok_at: minutesAgo(40 * 24 * 60), app_check_max_age_days: 100 };
     setup({ 'GET /monitoring/health': () => ok(health({ drill })) }, VIEW);

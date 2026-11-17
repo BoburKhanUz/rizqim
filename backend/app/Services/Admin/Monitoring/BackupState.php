@@ -14,8 +14,8 @@ use Throwable;
  * write_markers) and the last restore drills (restore_drills, scripts/restore-drill.sh), read once for the checks
  * (pitr_backup_stale, disk_usage, restore_drill_stale) and for Monitoring → Holat.
  *
- * PITR counts as on when PITR_ENABLED is set for the backend (monitoring.pitr.enabled) or a fresh `pitr` marker says
- * so: on a fresh install with neither, everything PITR-related is "off" and nothing alerts.
+ * PITR counts as on when PITR_ENABLED is set for the backend (monitoring.pitr.enabled) or the `pitr` marker says so:
+ * on a fresh install with neither, everything PITR-related is "off" and nothing alerts.
  */
 class BackupState
 {
@@ -38,16 +38,19 @@ class BackupState
         return $marker === null ? null : max(0, (int) floor(Carbon::instance($marker->recorded_at)->diffInSeconds(now(), true)));
     }
 
-    public function pitrEnabled(?MonitoringMarker $pitr = null, int $maxAgeMinutes = self::MARKER_MAX_AGE_MINUTES): bool
+    /**
+     * PITR_ENABLED for the backend, or the `pitr` marker says `enabled: true` however old it is: once the backup
+     * service reported PITR on, a silent (stale) marker never turns it "off" (its alerts would resolve exactly when
+     * the service died, R3-10). Only the env key or a marker saying `enabled: false` does.
+     */
+    public function pitrEnabled(?MonitoringMarker $pitr = null): bool
     {
         if ((bool) config('monitoring.pitr.enabled')) {
             return true;
         }
         $pitr ??= $this->marker(MonitoringMarker::PITR);
 
-        return $pitr !== null
-            && ($pitr->meta['enabled'] ?? false) === true
-            && ($this->markerAgeSeconds($pitr) ?? PHP_INT_MAX) <= $maxAgeMinutes * 60;
+        return $pitr !== null && ($pitr->meta['enabled'] ?? false) === true;
     }
 
     /**
