@@ -62,6 +62,8 @@ if [ "$MODE" = "local" ]; then
     export BACKUP_DIR="$W/backups" PITR_STATE_DIR="$W/backups/.pitr" BACKUP_RETENTION_DAYS=1
     export PGHOST="$W/s" PGPORT="$LIVE_PORT" PGUSER="$DB_USER" PGDATABASE="$DB_NAME" PGPASSWORD=
     export PITR_INIT_TRIES=3
+    # Small spool cap so case R2-1 can overflow it with a few forced segment switches
+    export PITR_ARCHIVE_QUEUE_MAX="${PITR_CI_QUEUE_MAX:-48MB}"
     ARCHIVE_TIMEOUT=${PITR_CI_ARCHIVE_TIMEOUT:-10}
 
     if [ -f "$W/live/postmaster.pid" ]; then as_pg pg_ctl -D "$W/live" -m immediate stop >/dev/null 2>&1 || true; fi
@@ -95,6 +97,8 @@ if [ "$MODE" = "local" ]; then
     SMOKE_PORT=$PITR_RESTORE_PORT
     target_down() { find "$W/repo/archive" -type d -exec chmod 0500 {} +; }
     target_up() { find "$W/repo/archive" -type d -exec chmod 0750 {} +; }
+    repo1_down() { target_down; }
+    repo1_up() { target_up; }
     INFO_WAIT=0
 
 # --- mode: compose (CI) -------------------------------------------------------------------------------------------
@@ -125,6 +129,7 @@ DB_USERNAME=$DB_USER
 DB_PASSWORD=$DB_PASS
 PITR_ENABLED=1
 PITR_CIPHER_PASS=$(openssl rand -hex 24)
+PITR_ARCHIVE_QUEUE_MAX=48MB
 PITR_S3_ENDPOINT=https://minio:9000
 PITR_S3_BUCKET=rizqim-pitr
 PITR_S3_ACCESS_KEY=$s3_key
@@ -152,7 +157,8 @@ ENV
     $DC up -d backup
     export PGHOST=127.0.0.1 PGPORT="$PG_PORT" PGUSER="$DB_USER" PGPASSWORD="$DB_PASS" PGDATABASE="$DB_NAME"
     live_sql() { psql -X -A -t -q -v ON_ERROR_STOP=1 -c "$1"; }
-    in_backup() { $DC exec -T backup "$@"; }
+    # shellcheck disable=SC2086
+    in_backup() { $DC exec -T ${PITR_TEST_FORGET_FAIL:+-e PITR_TEST_FORGET_FAIL=$PITR_TEST_FORGET_FAIL} backup "$@"; }
     BACKUP_SH="in_backup sh /usr/local/bin/backup.sh"
     DRILL="sh $SCRIPT_DIR/restore-drill.sh"
     PITR_RESTORE_SH="sh $SCRIPT_DIR/pitr-restore.sh"
@@ -161,6 +167,9 @@ ENV
     SMOKE_PORT=${PITR_CI_RESTORE_PORT:-55499}
     target_down() { $DC stop minio; }
     target_up() { $DC start minio; }
+    # repo1 (the local volume) unwritable for the postgres container's archive-push
+    repo1_down() { $DC exec -T backup sh -c 'find /var/lib/pgbackrest/archive -type d -exec chmod 0500 {} +'; }
+    repo1_up() { $DC exec -T backup sh -c 'find /var/lib/pgbackrest/archive -type d -exec chmod 0750 {} +'; }
     INFO_WAIT=1
     # restore-drill.sh and pitr-restore.sh call plain `docker compose`: point it at both files
     export COMPOSE_FILE="docker-compose.yml:infra/ci/docker-compose.pitr.yml"
@@ -284,17 +293,115 @@ $BACKUP_SH --markers || true
 [ "$(live_sql "SELECT pg_postmaster_start_time()")" = "$started" ] || die "the live server restarted during the run (crash-restart? see the postgres log)"
 summary "live server never restarted: ok"
 
+# --- R2-1: the spool cap overflows while repo1 is unwritable: pgBackRest drops WAL and reports success ---------------
+log "R2-1: WAL gap: repo1 unwritable, the archive queue (48MB) overflows"
+repo1_down
+for i in 1 2 3 4 5 6 7 8; do
+    live_sql "INSERT INTO pitr_ci_rows (batch, n) SELECT 'G', g FROM generate_series(1, 20000) g" >/dev/null
+    live_sql "SELECT pg_switch_wal()" >/dev/null
+    sleep 1
+done
+i=0
+# The cap overflows: pgBackRest drops the queue and answers success, so the .ready files go and the archiver "recovers"
+until [ "$(live_sql "SELECT (SELECT count(*) FROM pg_ls_archive_statusdir() WHERE name LIKE '%.ready') = 0 AND failed_count > 0 AND last_archived_time > coalesce(last_failed_time, '-infinity') FROM pg_stat_archiver")" = "t" ]; do
+    i=$((i + 1)); [ "$i" -lt 240 ] || { repo1_up; die "the archiver neither dropped nor failed"; }
+    sleep 1
+done
+repo1_up
+live_sql "INSERT INTO pitr_ci_rows (batch, n) VALUES ('H', 1)" >/dev/null
+seg=$(live_sql "SELECT pg_walfile_name(pg_current_wal_lsn())")
+live_sql "SELECT pg_switch_wal()" >/dev/null
+i=0
+until [ "$(live_sql "SELECT last_archived_wal >= '$seg' FROM pg_stat_archiver")" = "t" ]; do
+    i=$((i + 1)); [ "$i" -lt 240 ] || die "archiving did not resume after repo1 came back"
+    sleep 1
+done
+$BACKUP_SH --markers || true
+gap_status=$(live_sql "SELECT (meta->>'status') || '|' || coalesce(meta->'gap'->>'detected', 'none') || '|' || coalesce(meta->'gap'->>'backup_after', '') FROM monitoring_markers WHERE key = 'pitr'")
+# error while nothing after the gap is restorable; in CI the daemon may already have taken the full backup (ok|true|<label>)
+case "$gap_status" in "error|true|" | "ok|true|"?*) ;; *) live_sql "SELECT meta FROM monitoring_markers WHERE key = 'pitr'" >&2; die "R2-1: the WAL gap was not detected (marker status|gap|backup_after = $gap_status)" ;; esac
+summary "R2-1: WAL gap detected: marker status=error ($(live_sql "SELECT meta->>'message' FROM monitoring_markers WHERE key = 'pitr'"))"
+$PITR_RESTORE_SH --info | grep -q "uzilgan" || die "R2-1: pitr-restore.sh --info does not report the gap"
+# A full backup must follow at once (the daemon in CI; locally the same function the daemon's loop calls)
+if [ "$INFO_WAIT" = "1" ]; then
+    i=0
+    until [ "$(live_sql "SELECT meta->>'status' = 'ok' AND meta->'gap'->>'backup_after' IS NOT NULL FROM monitoring_markers WHERE key = 'pitr'")" = "t" ]; do
+        i=$((i + 1)); [ "$i" -lt 100 ] || die "R2-1: the daemon took no full backup after the gap"
+        sleep 3
+    done
+else
+    $BACKUP_SH --pitr-heal || die "R2-1: backup.sh --pitr-heal"
+fi
+[ "$(live_sql "SELECT meta->>'status' = 'ok' AND meta->'gap'->>'backup_after' IS NOT NULL FROM monitoring_markers WHERE key = 'pitr'")" = "t" ] || die "R2-1: still no restorable point after the gap"
+unset PITR_DRILL_EXTRA_CHECK_SQL PITR_DRILL_EXTRA_CHECK_EXPECT
+$DRILL --ci >"$out" || { cat "$out"; die "R2-1: drill after the gap and the new full backup failed"; }
+summary "R2-1: new full backup after the gap, restorable window: $($PITR_RESTORE_SH --info | sed -n 's/^Tiklash mumkin (repo1, \(.*\))/\1/p' | tr '\n' ';'), drill ok"
+
+# --- R2-5: a POSTGRES_DATA_VOLUME path without data never becomes a fresh, empty live database ------------------------
+log "R2-5: POSTGRES_DATA_VOLUME pointing at a missing path"
+if [ "$MODE" = "local" ]; then
+    # the image's entrypoint guard, with a stand-in for the official entrypoint
+    mkdir -p "$W/ep/bin" "$W/ep/empty"
+    printf '#!/bin/sh\necho official-entrypoint-ran\n' >"$W/ep/bin/docker-entrypoint.sh"
+    chmod 0755 "$W/ep/bin/docker-entrypoint.sh"
+    rc=0; PATH="$W/ep/bin:$PATH" PGDATA="$W/ep/empty" RIZQIM_DATA_SOURCE=/srv/typo sh "$ROOT_DIR/infra/postgres/entrypoint.sh" postgres >"$W/ep/out" 2>&1 || rc=$?
+    { [ "$rc" = "78" ] && grep -q "YARATILMAYDI" "$W/ep/out"; } || { cat "$W/ep/out" >&2; die "R2-5: the entrypoint guard did not refuse"; }
+    [ "$(PATH="$W/ep/bin:$PATH" PGDATA="$W/live" RIZQIM_DATA_SOURCE='' sh "$ROOT_DIR/infra/postgres/entrypoint.sh" postgres)" = "official-entrypoint-ran" ] || die "R2-5: the guard blocks a normal start"
+else
+    missing="${RUNNER_TEMP:-/tmp}/rizqim-missing-pgdata-$$"
+    POSTGRES_DATA_VOLUME=$missing $DC up -d --no-deps postgres
+    i=0
+    until $DC logs --no-color postgres 2>&1 | grep -q "YARATILMAYDI"; do
+        i=$((i + 1)); [ "$i" -lt 60 ] || { $DC logs --no-color --tail=30 postgres >&2; die "R2-5: postgres did not refuse a missing data path"; }
+        sleep 1
+    done
+    [ ! -f "$missing/PG_VERSION" ] || die "R2-5: an empty database was created in $missing"
+    $DC up -d --no-deps --wait postgres
+    [ "$(live_sql "SELECT count(*) FROM pitr_ci_rows WHERE batch = 'A'")" = "$ROWS" ] || die "R2-5: the real database did not come back"
+fi
+summary "R2-5: a POSTGRES_DATA_VOLUME path without data is refused (no empty database created)"
+
 # --- 5. switch-over rehearsal: the restored copy at T becomes the live database, then back --------------------------
 counts() { live_sql "SELECT string_agg(batch || '=' || n, ' ' ORDER BY batch) FROM (SELECT batch, count(*) n FROM pitr_ci_rows GROUP BY batch) x"; }
+# Local mode: the scripts find the live data path in PITR_PGDATA (compose always mounts it at the same path)
+sync_live() {
+    [ "$MODE" = "local" ] || return 0
+    if [ -f "$W/backups/.pitr/live-data" ]; then PITR_PGDATA=$(cat "$W/backups/.pitr/live-data"); else PITR_PGDATA=$W/live; fi
+    export PITR_PGDATA
+}
+copy_sh() { # copy_sh <shell command run where the restored copies live (/restore in the backup container)>
+    if [ "$MODE" = "local" ]; then (cd "$W/restore" && sh -c "$1"); else $DC exec -T -w /restore backup sh -c "$1"; fi
+}
+live_started() { live_sql "SELECT pg_postmaster_start_time()"; }
 before=$(counts)
+
+# --- R2-3: a copy that is not fully recovered, or that cannot start, never becomes live -----------------------------
+log "R2-3: a pending (not yet recovered) copy is refused; a copy that fails to start is rolled back automatically"
+export PITR_SWITCH_APP_CMD=true
+$PITR_RESTORE_SH "$T+00" --into pend --no-start || die "pitr-restore.sh --into pend --no-start"
+st0=$(live_started)
+if $SWITCH pend --confirm "$DB_NAME"; then die "R2-3: a pending copy was switched to"; fi
+if [ "$(live_started)" != "$st0" ] || [ "$(counts)" != "$before" ]; then die "R2-3: the refused switch touched the live database"; fi
+$PITR_RESTORE_SH --drop pend || die "pitr-restore.sh --drop pend"
+$PITR_RESTORE_SH "$T+00" --into bad || die "pitr-restore.sh --into bad"
+$PITR_RESTORE_SH --stop bad || die "pitr-restore.sh --stop bad"
+copy_sh "echo \"shared_buffers = 'not-a-size'\" >> bad/postgresql.auto.conf"
+if PITR_SWITCH_DB_TIMEOUT=60 $SWITCH bad --confirm "$DB_NAME"; then die "R2-3: a copy that cannot start was switched to"; fi
+sync_live
+[ "$(counts)" = "$before" ] || die "R2-3: after the failed switch the live database is not the original one: $(counts)"
+[ "$(live_sql "SELECT pg_is_in_recovery()")" = "f" ] || die "R2-3: the original database did not come back"
+if [ "$MODE" = "local" ]; then [ ! -f "$W/backups/.pitr/switch.state" ] || die "R2-3: switch state left behind"; else
+    if [ -f .pitr-switch/switch.state ] || grep -q '^POSTGRES_DATA_VOLUME=' .env; then die "R2-3: .env or the switch state still point at the bad copy"; fi
+fi
+$PITR_RESTORE_SH --drop bad || die "pitr-restore.sh --drop bad"
+summary "R2-3: pending copy refused (live untouched); a copy that cannot start was rolled back automatically"
 log "switch rehearsal: restore to T into 'switchtest', stop it, make it live, then back (live before: $before)"
 $PITR_RESTORE_SH "$T+00" --into switchtest || die "pitr-restore.sh --into switchtest"
 $PITR_RESTORE_SH --stop switchtest || die "pitr-restore.sh --stop switchtest"
 # migrate:status (nothing pending) and db:restore-smoke against the live database once it is the copy
 export PITR_SWITCH_APP_CMD="cd '$ROOT_DIR/backend' && export APP_ENV=pitr-ci APP_KEY='base64:$smoke_key' DB_CONNECTION=pgsql DB_HOST='$MIG_HOST' DB_PORT='$MIG_PORT' DB_DATABASE='$DB_NAME' DB_USERNAME='$DB_USER' DB_PASSWORD='$MIG_PASS' DB_URL= DB_POOLER=direct CACHE_STORE=array QUEUE_CONNECTION=sync SESSION_DRIVER=array BROADCAST_CONNECTION=null LOG_CHANNEL=stderr && ! php artisan migrate:status | grep -q Pending && { php artisan help db:restore-smoke >/dev/null 2>&1 || exit 0; } && php artisan db:restore-smoke"
 $SWITCH switchtest --confirm "$DB_NAME" || die "pitr-switch.sh switchtest"
-# Local mode: the live data path is now the copy (compose mounts whatever it is at the same path)
-[ "$MODE" != "local" ] || export PITR_PGDATA="$W/restore/switchtest"
+sync_live
 after=$(counts)
 [ "$after" = "A=$ROWS B=$ROWS" ] || die "after the switch the live database should hold A and B only, it holds: $after"
 [ "$(live_sql "SELECT pg_is_in_recovery()")" = "f" ] || die "switched database still in recovery"
@@ -302,8 +409,15 @@ after=$(counts)
 summary "switch-over: the copy at T is live ($after, timeline $(live_sql "SELECT timeline_id FROM pg_control_checkpoint()")), full backup taken"
 batch E
 $PITR_RESTORE_SH --drop switchtest 2>/dev/null && die "pitr-restore.sh dropped the copy that is the live database"
+# R2-6: a second switch while the first is not finished (back or finalize) is refused
+# (T itself is gone by now: retention keeps the two newest full backups, both after T)
+$PITR_RESTORE_SH "$(live_sql "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')")+00" --into second --no-start || die "pitr-restore.sh --into second"
+if $SWITCH second --confirm "$DB_NAME" 2>"${TMPDIR:-/tmp}/pitr-ci-second.txt"; then die "R2-6: a second switch-over was accepted"; fi
+grep -q "hali yakunlanmagan" "${TMPDIR:-/tmp}/pitr-ci-second.txt" || { cat "${TMPDIR:-/tmp}/pitr-ci-second.txt" >&2; die "R2-6: refused for another reason"; }
+$PITR_RESTORE_SH --drop second || die "pitr-restore.sh --drop second"
+summary "R2-6: a second switch-over before --back/--finalize is refused"
 $SWITCH --back --confirm "$DB_NAME" || die "pitr-switch.sh --back"
-[ "$MODE" != "local" ] || export PITR_PGDATA="$W/live"
+sync_live
 [ "$(counts)" = "$before" ] || die "after --back the live database should be as before ($before), it holds: $(counts)"
 seg=$(live_sql "SELECT pg_walfile_name(pg_current_wal_lsn())")
 live_sql "SELECT pg_switch_wal()" >/dev/null
@@ -319,6 +433,61 @@ unset PITR_DRILL_EXTRA_CHECK_SQL PITR_DRILL_EXTRA_CHECK_EXPECT
 $DRILL --ci >"$out" || { cat "$out"; die "drill after the switch-back failed"; }
 [ "$(val DRILL_STATUS)" = "ok" ] || { cat "$out"; die "drill after the switch-back failed"; }
 summary "drill after the switch-back: ok (restore $(val RESTORE_SECONDS) s, smoke $(val CHECK_app_smoke))"
+
+# --- R2-4 + R2-2: two successive switch-overs (finalize in between), then back with a failing cleanup -------------------
+log "R2-4/R2-2: switch to copy1, finalize, switch to copy2, back with the timeline cleanup failing"
+# a point in time a retained backup covers: after batch J, before batch J2
+point_in_time() { # sets PIT (UTC) after the current batch and waits until a later batch is archived
+    live_sql "SELECT pg_switch_wal()" >/dev/null
+    sleep 2
+    PIT=$(live_sql "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')")
+    PIT_COUNTS=$(counts)
+    sleep 1.2
+    batch "$1"
+    pseg=$(live_sql "SELECT pg_walfile_name(pg_current_wal_lsn())")
+    live_sql "SELECT pg_switch_wal()" >/dev/null
+    i=0
+    until [ "$(live_sql "SELECT last_archived_wal >= '$pseg' FROM pg_stat_archiver")" = "t" ]; do i=$((i + 1)); [ "$i" -lt 240 ] || die "WAL not archived"; sleep 1; done
+}
+batch J
+point_in_time J2
+exp1=$PIT_COUNTS
+$PITR_RESTORE_SH "$PIT+00" --into copy1 || die "pitr-restore.sh --into copy1"
+$PITR_RESTORE_SH --stop copy1 || die "pitr-restore.sh --stop copy1"
+$SWITCH copy1 --confirm "$DB_NAME" || die "pitr-switch.sh copy1"
+sync_live
+tl1=$(live_sql "SELECT timeline_id FROM pg_control_checkpoint()")
+$SWITCH --finalize --confirm "$DB_NAME" || die "pitr-switch.sh --finalize"
+[ "$(counts)" = "$exp1" ] || die "R2-4: copy1 should hold $exp1: $(counts)"
+batch K
+point_in_time L
+exp2=$PIT_COUNTS
+$PITR_RESTORE_SH "$PIT+00" --into copy2 || die "pitr-restore.sh --into copy2 (a time on the timeline of copy1)"
+$PITR_RESTORE_SH --stop copy2 || die "pitr-restore.sh --stop copy2"
+$SWITCH copy2 --confirm "$DB_NAME" || die "pitr-switch.sh copy2"
+sync_live
+tl2=$(live_sql "SELECT timeline_id FROM pg_control_checkpoint()")
+[ "$tl2" -gt "$tl1" ] || die "R2-4: the second promotion reused timeline $tl2 (first: $tl1): the repository did not know the first one"
+[ "$(counts)" = "$exp2" ] || die "R2-4: copy2 should hold $exp2: $(counts)"
+if $PITR_RESTORE_SH --drop copy1 2>/dev/null; then die "R2-6: copy1 (the way back) was dropped"; fi
+summary "R2-4: second switch-over got timeline $tl2 (first $tl1); R2-6: the way back (copy1) cannot be dropped"
+PITR_TEST_FORGET_FAIL=1 $SWITCH --back --confirm "$DB_NAME" || die "pitr-switch.sh --back (cleanup failing)"
+sync_live
+exp_back=$(printf '%s L=%s' "$exp2" "$ROWS")
+[ "$(counts)" = "$exp_back" ] || die "R2-2: back on copy1 expected $exp_back: $(counts)"
+[ "$(live_sql "SELECT meta->>'status' = 'error' AND meta->>'forget_pending' IS NOT NULL FROM monitoring_markers WHERE key = 'pitr'")" = "t" ] || {
+    live_sql "SELECT meta FROM monitoring_markers WHERE key = 'pitr'" >&2; die "R2-2: the pending cleanup is not visible in the pitr marker"; }
+# the dangerous path of the review: further backups while the cleanup is pending must not expire anything
+PITR_TEST_FORGET_FAIL=1 $BACKUP_SH --pitr-backup diff || true
+$BACKUP_SH --pitr-forget-timeline || die "R2-2: backup.sh --pitr-forget-timeline"
+$BACKUP_SH --markers || true
+[ "$(live_sql "SELECT meta->>'status' = 'ok' AND meta->>'forget_pending' IS NULL FROM monitoring_markers WHERE key = 'pitr'")" = "t" ] || die "R2-2: cleanup done but the marker is not ok"
+$BACKUP_SH --pitr-verify >"${TMPDIR:-/tmp}/pitr-ci-verify.txt" 2>&1 || { cat "${TMPDIR:-/tmp}/pitr-ci-verify.txt" >&2; die "R2-4: pgbackrest verify does not accept the archive"; }
+if ! grep -q "$(printf '%08X' "$tl1").history" "${TMPDIR:-/tmp}/pitr-ci-verify.txt" || ! grep -q "$(printf '%08X' "$tl2").history" "${TMPDIR:-/tmp}/pitr-ci-verify.txt"; then
+    cat "${TMPDIR:-/tmp}/pitr-ci-verify.txt" >&2; die "R2-4: the timeline history files are not in the repository"
+fi
+$DRILL --ci >"$out" || { cat "$out"; die "R2-2/R2-4: drill after two switch-overs and a switch-back failed"; }
+summary "R2-2: cleanup failure left expire suspended (marker error), then cleaned; R2-4: verify ok, history $(sed -n 's/^repo1 timeline tarixi: //p' "${TMPDIR:-/tmp}/pitr-ci-verify.txt"); drill ok"
 rm -f "$out"
 
 printf '%s' "$results" >&2

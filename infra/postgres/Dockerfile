@@ -19,5 +19,9 @@ RUN apk add --no-cache pgbackrest postgresql17 \
 
 COPY pitr-env.sh /usr/local/bin/pitr-env.sh
 COPY archive.sh /usr/local/bin/pgbackrest-archive.sh
-RUN chmod 0644 /usr/local/bin/pitr-env.sh && chmod 0755 /usr/local/bin/pgbackrest-archive.sh \
+COPY entrypoint.sh /usr/local/bin/rizqim-postgres-entrypoint.sh
+RUN chmod 0644 /usr/local/bin/pitr-env.sh && chmod 0755 /usr/local/bin/pgbackrest-archive.sh /usr/local/bin/rizqim-postgres-entrypoint.sh \
     && PITR_ENABLED=0 /usr/local/bin/pgbackrest-archive.sh /nonexistent
+# Refuses to initdb an empty database on a POSTGRES_DATA_VOLUME path that holds none (entrypoint.sh), then the official one
+ENTRYPOINT ["rizqim-postgres-entrypoint.sh"]
+CMD ["postgres"]

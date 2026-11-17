@@ -79,7 +79,9 @@ fi
 # uploaded rows are retried only when S3 is now configured (a local-only copy waiting for an off-site one)
 statuses="'detached', 'failed'"
 [ "$s3" = "0" ] || statuses="'detached', 'failed', 'uploaded'"
-rows=$(psql -X -A -t -q -F '|' -v ON_ERROR_STOP=1 -c "SELECT id, table_name, partition_name, to_char(range_from, 'YYYY-MM') FROM partition_archives WHERE status IN ($statuses) ORDER BY range_from, id")
+# One file per detach: <YYYY-MM>-<detached_at>.dump. A partition that was `held` (re-attached) and detached again gets a
+# new file and a fresh dump, never the older file (rows written while it was held would be missing from it)
+rows=$(psql -X -A -t -q -F '|' -v ON_ERROR_STOP=1 -c "SELECT id, table_name, partition_name, to_char(range_from, 'YYYY-MM') || '-' || to_char(coalesce(detached_at, now() AT TIME ZONE 'UTC'), 'YYYYMMDD\"T\"HH24MISS'), status FROM partition_archives WHERE status IN ($statuses) ORDER BY range_from, id")
 [ -n "$rows" ] || { pitr_log "arxivlanadigan bo'lak yo'q"; exit 0; }
 
 failures=0
@@ -92,7 +94,8 @@ for row in $rows; do
     IFS=$old_ifs
     id=${row%%|*}; rest=${row#*|}
     table=${rest%%|*}; rest=${rest#*|}
-    part=${rest%%|*}; month=${rest#*|}
+    part=${rest%%|*}; rest=${rest#*|}
+    month=${rest%%|*}; rstatus=${rest#*|}
     case "$part" in
         [a-z]*_[0-9][0-9][0-9][0-9]_[0-9][0-9]) ;;
         *) mark_failed "$id" "bo'lak nomi kutilgan ko'rinishda emas: $part"; continue ;;
@@ -102,8 +105,11 @@ for row in $rows; do
     mkdir -p "$ARCHIVE_DIR/$table"
     file="$ARCHIVE_DIR/$table/$month.dump"
     name="$month.dump"
+    if [ "$rstatus" = "detached" ]; then
+        rm -f "$file" "$file.sha256"
+    fi
     if [ -s "$file" ] && [ -s "$file.sha256" ]; then
-        pitr_log "$part: mahalliy fayl bor ($file), qayta olinmaydi"
+        pitr_log "$part: shu ajratishning mahalliy fayli bor ($file), qayta olinmaydi"
     else
         if [ "$(pitr_val "SELECT to_regclass('public.$part') IS NOT NULL")" != "t" ]; then
             mark_failed "$id" "$part jadvali bazada yo'q va mahalliy arxiv fayli ham yo'q: qo'lda tekshiring"

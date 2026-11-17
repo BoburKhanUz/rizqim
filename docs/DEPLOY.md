@@ -66,7 +66,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | ildiz `.env` | `PITR_PING_URL` | bo'sh | healthchecks.io manzili: har muvaffaqiyatli PITR nusxasidan keyin so'rov yuboriladi |
 | ildiz `.env` | `HEALTHCHECKS_PING_URL` | bo'sh | healthchecks.io manzili: scheduler har daqiqalik tekshiruvdan keyin so'rov yuboradi (server jim bo'lsa tashqi xizmat xabar beradi) |
 | ildiz `.env` | `BACKUP_TIME` | `21:30` (UTC = Toshkent 02:30; M3 gacha `03:00`) | ketma-ket: PITR nusxasi, `pg_dump`, jurnallar arxivi. Eski `.env` da `03:00` yozilgan bo'lsa o'zgarmaydi |
-| ildiz `.env` | `POSTGRES_DATA_VOLUME` | bo'sh = `postgres_data` | faqat PITR bilan tiklangan nusxani ish bazasi qilishda: uni `scripts/pitr-switch.sh` o'zi yozadi va `--back` o'chiradi (OPERATIONS.md, 18-bo'lim, 5-qadam). Qo'lda tegmang |
+| ildiz `.env` | `POSTGRES_DATA_VOLUME` | bo'sh = `postgres_data` | faqat PITR bilan tiklangan nusxani ish bazasi qilishda: uni `scripts/pitr-switch.sh` o'zi yozadi va `--back` o'chiradi (OPERATIONS.md, 18-bo'lim, 5-qadam). Qo'lda tegmang. Yo'l noto'g'ri yoki papka bo'sh bo'lsa `postgres` ishga tushmaydi (`Bo'sh baza YARATILMAYDI`): bo'sh yangi baza hech qachon yaratilmaydi |
 | `backend/.env` | `TELEGRAM_OPS_CHAT_ID` | bo'sh = `TELEGRAM_SUPERADMIN_CHAT_ID` | ogohlantirishlar guruhi (egasi va texnik yordamchi) |
 | `backend/.env` | `ARCHIVE_AUDIT_MONTHS`, `ARCHIVE_FISCAL_MONTHS`, `ARCHIVE_NOTIFICATION_MONTHS` | `7`, `13`, `6` | jurnallar bazada necha oy (joriy oy bilan) turadi; eskisi arxivlanadi (xabarnomalar o'chiriladi) |
 | `backend/.env` | `ARCHIVE_ALLOW_LOCAL_ONLY` | `false` | `1` = S3 siz ham eski oy bazadan o'chadi. **Tavsiya etilmaydi** |

@@ -170,6 +170,7 @@ jobs:
               - 'infra/backup/**'
               - 'infra/ci/**'
               - 'docker-compose.yml'
+              - 'docker-compose.staging.yml'
               - '.env.example'
               - 'scripts/backup.sh'
               - 'scripts/pitr*.sh'
@@ -515,6 +516,9 @@ jobs:
           echo "postgres: $a / backup: $b"
           test -n "$a" && test "$a" = "$b"
           docker run --rm --entrypoint sh rizqim-postgres:ci -c 'test "$(command -v postgres)" = /usr/local/bin/postgres && postgres --version | grep -q "(PostgreSQL) 17" && /usr/local/bin/pgbackrest-archive.sh pg_wal/000000010000000000000001'
+          # A POSTGRES_DATA_VOLUME path without data: the entrypoint refuses instead of creating an empty database
+          rc=0; docker run --rm -e RIZQIM_DATA_SOURCE=/srv/typo -e POSTGRES_PASSWORD=x rizqim-postgres:ci postgres > /tmp/ep.txt 2>&1 || rc=$?
+          test "$rc" = 78 && grep -q YARATILMAYDI /tmp/ep.txt
           if timeout 120 docker run --rm --entrypoint sh -e PITR_ENABLED=1 -e PITR_ARCHIVE_ASYNC=n rizqim-postgres:ci -c '/usr/local/bin/pgbackrest-archive.sh pg_wal/000000010000000000000001' 2>/dev/null; then
             echo "archive command succeeded without a stanza: it must fail so Postgres keeps the WAL" >&2; exit 1
           fi
@@ -983,7 +987,11 @@ jobs:
   # directory inside the backup container and must find A and B but not C; then the archive target goes down and comes
   # back; then the switch-over rehearsal: the copy at T is made the live database by scripts/pitr-switch.sh (A and B
   # only), switched back (--back), and a second drill proves the PITR chain survived it. db:restore-smoke must pass on
-  # the restored copy. RESTORE_SECONDS, RECOVERY_POINT and DATA_LOSS_SECONDS go to the step summary. scripts/pitr-ci.sh does all of it
+  # the restored copy. Then the review cases: a WAL gap from a spool overflow is detected and healed by a full backup
+  # (R2-1), a missing POSTGRES_DATA_VOLUME path is refused (R2-5), a pending or broken copy never becomes live and a
+  # failed switch rolls back (R2-3), a second switch needs --back/--finalize (R2-6), two switch-overs get new timelines
+  # whose history reaches the repository (R2-4) and a failing cleanup after --back suspends expire (R2-2).
+  # RESTORE_SECONDS, RECOVERY_POINT and DATA_LOSS_SECONDS go to the step summary. scripts/pitr-ci.sh does all of it
   # (scripts/pitr-ci.sh --local runs the same steps without Docker). No secrets: every credential is generated per run.
   pitr-drill:
     name: PITR drill (pgBackRest, compose topology)

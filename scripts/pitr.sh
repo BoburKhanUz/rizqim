@@ -220,6 +220,69 @@ pitr_backup_label() { # pitr_backup_label <restore-log>
     sed -n 's/.*restore backup set \([0-9A-Za-z_-]*\).*/\1/p' "$1" | tail -n 1
 }
 
+# --- continuity of the archived WAL (gap detection) ---------------------------------------------------------------
+# When the archive target is down longer than the spool cap (PITR_ARCHIVE_QUEUE_MAX), pgBackRest DROPS WAL and reports
+# success: pg_stat_archiver then looks healthy although the chain has a hole. This looks at the repository itself:
+# the WAL segment files of one timeline must form one continuous run from the oldest retained backup to the newest
+# segment. Prints KEY=VALUE lines:
+#   TLI, RANGES (number of continuous runs from the oldest backup's start on), LAST_FROM/LAST_TO (segment names of the
+#   newest run), LAST_TO_TIME (epoch the newest segment was archived), GAP=0|1, GAP_AFTER/GAP_BEFORE (segments around
+#   the newest hole), GAP_AFTER_TIME/GAP_BEFORE_TIME (epochs), BACKUP_IN_LAST_RUN (label of the oldest backup whose WAL
+#   starts in the newest run, empty = none: nothing after the hole is restorable yet), WINDOW_FROM (stop epoch of that
+#   backup) and WINDOWS (all restorable windows "from_epoch-to_epoch,...", oldest first)
+# 16 MB segments assumed (the Postgres default; 256 per log id).
+pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal]
+    _wr_json=$(pgbr repo-ls --repo="$1" --recurse --output=json "archive/$PGBACKREST_STANZA" 2>/dev/null) || return 1
+    _wr_info=$(pgbr info --repo="$1" --output=json 2>/dev/null) || return 1
+    {
+        printf '%s' "$_wr_json" | sed 's/},"/}\n"/g' \
+            | sed -n 's/^"[^"]*\/\([0-9A-F]\{24\}\)-[0-9a-f]*\(\.[a-z0-9]*\)\{0,1\}":{"type":"file","size":[0-9]*,"time":\([0-9]*\)}.*/S \1 \3/p'
+        printf '%s' "$_wr_info" | sed 's/"archive":{"start":"/\n@/g' \
+            | sed -n 's/^@\([0-9A-F]\{24\}\)".*"label":"\([^"]*\)".*"timestamp":{"start":[0-9]*,"stop":\([0-9]*\)}.*/B \1 \3 \2/p'
+    } | sort -k2,2 | awk -v want="${2:-}" '
+        function hex(s,   i, v) { v = 0; for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789ABCDEF", substr(s, i, 1)) - 1; return v }
+        function idx(n) { return hex(substr(n, 9, 8)) * 256 + hex(substr(n, 17, 8)) }
+        $1 == "S" { ns++; sn[ns] = $2; st[ns] = $3; tl = hex(substr($2, 1, 8)); if (tl > maxtl) maxtl = tl }
+        $1 == "B" { nb++; bs[nb] = $2; bt[nb] = $3; bl[nb] = $4 }
+        END {
+            tli = (want != "" ? want + 0 : maxtl)
+            printf "TLI=%d\n", tli
+            # backups on this timeline, oldest start
+            first = -1
+            for (i = 1; i <= nb; i++) if (hex(substr(bs[i], 1, 8)) == tli) { x = idx(bs[i]); if (first < 0 || x < first) first = x }
+            runs = 0; prev = -2
+            for (i = 1; i <= ns; i++) {
+                if (hex(substr(sn[i], 1, 8)) != tli) continue
+                x = idx(sn[i])
+                if (first >= 0 && x < first) continue
+                if (x == prev) continue
+                if (x != prev + 1) { runs++; rf[runs] = sn[i]; rft[runs] = st[i]; rfi[runs] = x }
+                rl[runs] = sn[i]; rlt[runs] = st[i]; rli[runs] = x; prev = x
+            }
+            printf "RANGES=%d\n", runs
+            if (runs == 0) { print "GAP=0"; exit }
+            printf "LAST_FROM=%s\nLAST_TO=%s\nLAST_TO_TIME=%s\n", rf[runs], rl[runs], rlt[runs]
+            if (runs > 1) printf "GAP=1\nGAP_AFTER=%s\nGAP_AFTER_TIME=%s\nGAP_BEFORE=%s\nGAP_BEFORE_TIME=%s\n", rl[runs-1], rlt[runs-1], rf[runs], rft[runs]
+            else print "GAP=0"
+            w = ""
+            for (r = 1; r <= runs; r++) {
+                lab = ""; from = -1
+                for (i = 1; i <= nb; i++) {
+                    if (hex(substr(bs[i], 1, 8)) != tli) continue
+                    x = idx(bs[i])
+                    if (x >= rfi[r] && x <= rli[r] && (from < 0 || bt[i] < from)) { from = bt[i]; lab = bl[i] }
+                }
+                if (from >= 0) w = w (w == "" ? "" : ",") from "-" rlt[r]
+                if (r == runs) printf "BACKUP_IN_LAST_RUN=%s\nWINDOW_FROM=%s\n", lab, (from >= 0 ? from : "")
+            }
+            printf "WINDOWS=%s\n", w
+        }'
+}
+
+pitr_epoch_utc() { # epoch -> "YYYY-MM-DD HH:MM:SS" (busybox and GNU date)
+    date -u -d "@$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || printf '%s' "$1"
+}
+
 # --- rclone (S3 for the journal archive) ---------------------------------------------------------------------------
 # ARCHIVE_S3_* (each falling back to the BACKUP_S3_* key of the nightly dump). The archive must never be deletable:
 # the safe layout is its own bucket (Object Lock / versioning) or at least its own key WITHOUT delete permission,

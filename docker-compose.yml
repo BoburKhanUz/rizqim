@@ -130,6 +130,8 @@ services:
       POSTGRES_DB: ${DB_DATABASE:-rizqimbot}
       POSTGRES_USER: ${DB_USERNAME:-rizqimbot}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      # Set = the data is a host path (pitr-switch.sh): infra/postgres/entrypoint.sh then refuses to create an empty database
+      RIZQIM_DATA_SOURCE: ${POSTGRES_DATA_VOLUME:-}
       <<: *pitr-environment
     volumes:
       # POSTGRES_DATA_VOLUME bo'sh = postgres_data (avvalgi volume, o'zgarmaydi). Faqat PITR tiklangan nusxani ishga

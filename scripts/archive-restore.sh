@@ -62,14 +62,17 @@ case "$part" in *[!a-z0-9_]*) pitr_die "katalogdagi bo'lak nomi noto'g'ri: $part
 case "$status" in uploaded | verified | dropped | held) ;; *) pitr_die "$part holati '$status': arxiv fayli hali tayyor emas (archive-partitions.sh)" ;; esac
 
 dir="$BACKUP_DIR/archive/$table"
-file="$dir/$month.dump"
+# The catalogue names the file (one per detach: <YYYY-MM>-<detached_at>.dump; older archives: <YYYY-MM>.dump)
+fname=$(basename "${uri:-$month.dump}")
+case "$fname" in *[!A-Za-z0-9._-]* | '' ) pitr_die "katalogdagi fayl nomi noto'g'ri: $uri" ;; esac
+file="$dir/$fname"
 mkdir -p "$dir"
 if [ ! -s "$file" ]; then
     pitr_s3_configured || pitr_die "$file shu serverda yo'q va S3 sozlanmagan (ARCHIVE_S3_* / BACKUP_S3_*): fayl $uri"
     command -v rclone >/dev/null 2>&1 || pitr_die "rclone topilmadi"
     pitr_rclone_env
     pitr_log "S3 dan olinmoqda: $uri"
-    rclone copyto --retries 3 "$(pitr_s3_target)/$table/$month.dump" "$file.partial" || pitr_die "S3 dan yuklab bo'lmadi: $uri"
+    rclone copyto --retries 3 "$(pitr_s3_target)/$table/$fname" "$file.partial" || pitr_die "S3 dan yuklab bo'lmadi: $uri"
     mv "$file.partial" "$file"
 fi
 got=$(sha256sum "$file" | cut -d' ' -f1)
