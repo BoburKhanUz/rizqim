@@ -31,7 +31,8 @@ class PosTipPoolTest extends TestCase
         parent::setUp();
         // Wave M3: midday in Tashkent: the sessions and shifts below start "now" and run for hours, which after local
         // midnight would cross the 05:00 day start and (rightly) leave part of them to the next business day
-        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-17 12:00', 'Asia/Tashkent'));
+        // (in UTC: a test clock in another zone would make Carbon read the database's UTC strings in that zone)
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-17 12:00', 'Asia/Tashkent')->utc());
 
         $this->setUpTips();
     }
@@ -125,6 +126,64 @@ class PosTipPoolTest extends TestCase
 
         $this->assertSame([$this->waiter->id => 60, $this->waiter2->id => 360, $cook->id => 420], $minutes('2026-11-16'));
         $this->assertSame([$this->waiter->id => 120, $this->waiter2->id => 60], $minutes('2026-11-17'));
+        // Members: the 17th has none of its own yet (both pieces come from the 16th's session and shift)
+        $members = fn (string $date) => app(\App\Domain\Pos\Tips\TipWorkTime::class)->of($this->branch, $date, null)['members'];
+        $this->assertSame([$this->waiter->id, $this->waiter2->id, $cook->id], $members('2026-11-16'));
+        $this->assertSame([], $members('2026-11-17'));
+        // The mixed case: a session of the 17th as well makes the waiter its member, with both parts' minutes
+        DB::table('staff_work_sessions')->insert([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'user_id' => $this->waiter->id,
+            'business_date' => '2026-11-17', 'clock_in_at' => $local('2026-11-17 10:00'), 'clock_out_at' => $local('2026-11-17 11:00'),
+            'source' => 'manual', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->assertSame([$this->waiter->id => 180, $this->waiter2->id => 60], $minutes('2026-11-17'));
+        $this->assertSame([$this->waiter->id], $members('2026-11-17'));
+    }
+
+    public function test_a_day_s_members_are_its_own_sessions_and_shifts_hours_also_count_the_overlap(): void
+    {
+        // Wave M3 (review RR-4): the waiter who clocked in at 18:00 on the 16th and out at 05:00:40 is a member of the
+        // 16th only (40 seconds on the 17th are 0 minutes, no share); the cashier's 23:00 -> 06:00 shift belongs to the
+        // 16th, its hour after 05:00 counts under `hours` on the 17th but makes no member there for `equal` and weights
+        $local = fn (string $at) => \Illuminate\Support\Carbon::parse($at, 'Asia/Tashkent')->utc();
+        $night = $this->makeStaff(UserRole::CASHIER, $this->branch);
+        $session = fn (int $user, string $date, string $in, string $out) => DB::table('staff_work_sessions')->insert([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'user_id' => $user,
+            'business_date' => $date, 'clock_in_at' => $local($in), 'clock_out_at' => $local($out), 'source' => 'manual', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $session($this->waiter->id, '2026-11-16', '2026-11-16 18:00', '2026-11-17 05:00:40');
+        $session($this->waiter2->id, '2026-11-17', '2026-11-17 09:00', '2026-11-17 21:00');
+        PosShift::create([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'device_id' => $this->till['device']->id,
+            'opened_by' => $night->id, 'business_date' => '2026-11-16', 'opened_at' => $local('2026-11-16 23:00'), 'closed_at' => $local('2026-11-17 06:00'),
+            'status' => 'closed', 'opening_cash' => '0',
+        ]);
+        foreach (['2026-11-16' => '3000.50', '2026-11-17' => '9000.25'] as $date => $amount) {
+            DB::table('pos_tips')->insert(['uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'business_date' => $date,
+                'kind' => 'tip', 'method' => 'cash', 'mode' => 'pool', 'amount' => $amount, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        $lines = function (string $date, TipPoolRule $rule) use ($night) {
+            $this->tipSettings(TipMode::POOL, $rule, ['waiter', 'cashier'], ['cashier' => '2', 'waiter' => '1']);
+            $response = $this->owner('POST', '/owner/pos/tips/distributions', ['branch_id' => $this->branch->id, 'business_date' => $date])->assertOk()->json('data');
+            $got = collect($response['lines'])->mapWithKeys(fn ($line) => [$line['staff_id'] => [$line['basis'], $line['amount']]])->all();
+            // What the owner's page reads back is what was computed, and it adds up to the pool to the tiyin
+            $stored = collect($this->owner('GET', "/owner/pos/tips/distributions?branch_id={$this->branch->id}&from={$date}&to={$date}")->assertOk()->json('data.distributions'))
+                ->firstWhere('business_date', $date);
+            $this->assertSame($response['lines'], $stored['lines']);
+            $this->assertSame($response['pool_amount'], Money::sum('0', ...array_column($response['lines'], 'amount'))->toString());
+            $names = [$this->waiter->id => 'waiter', $this->waiter2->id => 'waiter2', $night->id => 'night'];
+
+            return collect($got)->mapWithKeys(fn ($line, $id) => [$names[$id] => $line])->all();
+        };
+
+        // The 17th: hours 720 (waiter2) and 60 (the night shift's last hour); the waiter with 40 s is not in it
+        $this->assertSame(['waiter2' => ['720.00', '8308.25'], 'night' => ['60.00', '692.00']], $lines('2026-11-17', TipPoolRule::HOURS));
+        $this->assertSame(['waiter2' => ['1.00', '9000.25']], $lines('2026-11-17', TipPoolRule::EQUAL));
+        $this->assertSame(['waiter2' => ['1.00', '9000.25']], $lines('2026-11-17', TipPoolRule::ROLE_WEIGHTS));
+        // The 16th: both of its own; hours 660 and 360
+        $this->assertSame(['waiter' => ['660.00', '1941.50'], 'night' => ['360.00', '1059.00']], $lines('2026-11-16', TipPoolRule::HOURS));
+        $this->assertSame(['waiter' => ['1.00', '1500.50'], 'night' => ['1.00', '1500.00']], $lines('2026-11-16', TipPoolRule::EQUAL));
+        $this->assertSame(['waiter' => ['1.00', '1000.00'], 'night' => ['2.00', '2000.50']], $lines('2026-11-16', TipPoolRule::ROLE_WEIGHTS));
     }
 
     public function test_hours_from_clock_in_sessions_sales_from_paid_bills_and_role_weights(): void

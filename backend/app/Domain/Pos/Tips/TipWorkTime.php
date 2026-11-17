@@ -23,6 +23,13 @@ use Illuminate\Support\Facades\Schema;
  *
  * Each person's pieces are clipped to the period and merged (an overlap counted once). The period: the business day
  * (from the branch's day start, in the store's time zone, 24 hours) or the shift (opened → closed, or now).
+ *
+ * Wave M3, who belongs to a day versus how long they worked in it: the MINUTES come from every session or shift that
+ * overlaps the day's window (one across the 05:00 day start gives each day its own part, none lost), but a day's
+ * MEMBERS are only those with a session or shift OF that day (its business_date, the day it was opened on) or, with
+ * neither, its orders or payments (by business date too): a session from 18:00 to 05:00:40 makes its waiter a member
+ * of the 16th only. The `equal`, `role_weights` and `sales` rules share among the members; `hours` among the members
+ * and anyone else with at least a minute in the window (TipPoolDistributor::people).
  */
 final class TipWorkTime
 {
@@ -46,7 +53,19 @@ final class TipWorkTime
      */
     public function minutes(Branch $branch, string $date, ?PosShift $shift): array
     {
+        return $this->of($branch, $date, $shift)['minutes'];
+    }
+
+    /**
+     * The minutes in the period's window and the members of the period (for a shift: everyone with a piece in it).
+     *
+     * @return array{minutes: array<int, int>, members: list<int>}
+     */
+    public function of(Branch $branch, string $date, ?PosShift $shift): array
+    {
         [$from, $to] = self::window($branch, $date, $shift);
+        $members = [];
+        $ownDay = fn (mixed $businessDate): bool => $shift !== null || ($businessDate !== null && substr((string) $businessDate, 0, 10) === $date);
         $now = CarbonImmutable::now();
         $intervals = [];
         $clip = function (int $userId, mixed $start, mixed $end) use (&$intervals, $from, $to): void {
@@ -65,9 +84,12 @@ final class TipWorkTime
                 // still open: its own business day only (a forgotten one must not fill every later day until set aside)
                 ->where('clock_in_at', '<', $to)->where(fn ($query) => $query->where('clock_out_at', '>', $from)
                     ->orWhere(fn ($query) => $query->whereNull('clock_out_at')->when($shift === null, fn ($query) => $query->whereDate('business_date', $date))))
-                ->get(['user_id', 'clock_in_at', 'clock_out_at']);
+                ->get(['user_id', 'business_date', 'clock_in_at', 'clock_out_at']);
             foreach ($sessions as $session) {
                 $clip((int) $session->user_id, $session->clock_in_at, $session->clock_out_at ?? $now);
+                if ($ownDay($session->business_date)) {
+                    $members[(int) $session->user_id] = true;
+                }
             }
         }
 
@@ -76,12 +98,16 @@ final class TipWorkTime
             ->when($shift === null, fn ($query) => $query->where('opened_at', '<', $to)->where(fn ($query) => $query->where('closed_at', '>', $from)
                 ->orWhere(fn ($query) => $query->whereNull('closed_at')->whereDate('business_date', $date))))
             ->when($shift !== null, fn ($query) => $query->whereKey($shift->id))
-            ->get(['opened_by', 'opened_at', 'closed_at']);
+            ->get(['opened_by', 'business_date', 'opened_at', 'closed_at']);
         foreach ($shifts as $row) {
             $clip((int) $row->getAttribute('opened_by'), $row->opened_at, $row->closed_at ?? $now);
+            if ($ownDay($row->business_date->toDateString())) {
+                $members[(int) $row->getAttribute('opened_by')] = true;
+            }
         }
 
-        // Neither a session nor a shift: the first to the last order served or payment taken in the period
+        // Neither a session nor a shift of the period: the first to the last order served or payment taken in it, by
+        // business date like the sessions and shifts that make a member (an overlap from the day before does not count)
         $activity = [];
         $orders = DB::table('orders')->where('branch_id', $branch->id)->whereNotNull('waiter_id')
             ->when($shift === null, fn ($query) => $query->whereDate('business_date', $date))
@@ -92,7 +118,7 @@ final class TipWorkTime
             ->groupBy('received_by')->selectRaw('received_by as user_id, min(paid_at) as first_at, max(paid_at) as last_at')->get();
         foreach ($orders->merge($payments) as $row) {
             $userId = (int) $row->user_id;
-            if (isset($intervals[$userId]) || $row->first_at === null) {
+            if (isset($members[$userId]) || $row->first_at === null) {
                 continue;
             }
             $activity[$userId][] = [$row->first_at, $row->last_at ?? $row->first_at];
@@ -102,6 +128,7 @@ final class TipWorkTime
                 $clip($userId, $start, $end);
             }
             $intervals[$userId] ??= [];
+            $members[$userId] = true;
         }
 
         $minutes = [];
@@ -109,8 +136,13 @@ final class TipWorkTime
             $minutes[$userId] = intdiv(self::merged($list), 60);
         }
         ksort($minutes);
+        if ($shift !== null) {
+            $members += array_fill_keys(array_keys($minutes), true);
+        }
+        $members = array_keys($members);
+        sort($members);
 
-        return $minutes;
+        return ['minutes' => $minutes, 'members' => $members];
     }
 
     /**
