@@ -158,9 +158,9 @@ M2 as shipped: POS side 19.5 PHP + 6.6 PG cores per 1 000 stores (M1: 19.5 + 5.8
 POS lunch peak the shipped real-time setting costs ~30 % more PHP than the same code with real-time down. Postgres at
 1 000 stores also has a 4x larger database than this box's L profile: not modelled.
 
-## 8. What M3 should target
+## 8. What should be targeted next
 
-1. **Event-driven re-read storm**: one event per committed write (not 5-6), per-screen scopes (KDS = kitchen changes,
+1. **[Addressed by the client fix (section 9), partly: the till still reads more than with polling]** **Event-driven re-read storm**: one event per committed write (not 5-6), per-screen scopes (KDS = kitchen changes,
    display = queue/cart, floor = table/order state) or apply the event payload instead of re-reading; at least stagger
    the screens' re-reads (jitter 0-2 s) and keep the owner board (67 ms, 96 KB per read) out of `critical`.
 2. **Branch open-orders list** (`orders where branch_id and channel in and status not in`): still #1 at lunch, 1.8 ms x
@@ -170,3 +170,76 @@ POS lunch peak the shipped real-time setting costs ~30 % more PHP than the same 
 4. **Per-request auth floor** (3-4 statements, ~9 ms PHP even for a 304): cache token+user per request burst.
 5. **`cashPickupBanApplies` per market read** (cache per customer) and the menu payload on every store open.
 6. Market cold start (2-2.5 % shed in the first minute after a Redis flush/deploy): warm the read model on deploy.
+
+## 9. After the client fix (re-measured)
+
+HEAD ae781ff (client fix e1bf367, bdb8736, 81d11f8, 4cf4979, 40187fd; server da1341b stock lock order, 589506a ETag clock
+expiry). Raw: `results_m2b/` (`compare.md`). Same box and method as section 1 (relative costs, not production capacity).
+**Differences**: replaced container, fresh `scale_m2` (same size), every reference re-run here (once each), new runs twice,
+interleaved, load before 0.09-0.29. Driver mode `m2b` (`load.mjs` block `b3)`) imitates the fixed clients: per-screen
+R/S/doubt fed by every event, relevant events only, paced reads (KDS 2 s / 0-0.5 s, floor 5 s / 0-1.5 s, order page 1 s /
+0-0.3 s, display 0.3 s / 0-0.25 s), heartbeat reads on `rev != S` (doubt: not on the display), one retry of a failed read;
+owner board: `GET /staff/orders/{uuid}` per relevant event (3 s / 0-1 s), payload for kitchen events, open list on a gap or
+heartbeat (30 s) and as 60 s safety poll, no `?status=new`; KDS polls 15 s after its last read (as its controller). Till
+`alt` = as m1/m2 (the floor does not read while an order page is open); `stack` = the app's navigation (the floor stays
+mounted under the order page and re-reads when it closes). Not modelled: billing page, waiters, pickup board, cart/queue
+events, Mini App sockets. PHP adjusted for KDS board growth as in section 1 (base 26.9 ms, the first run).
+
+| L1 lunch unless noted | m1mode | m2 storm | **m2b run 1 / run 2** | m2b `stack` | m2down |
+|---|---|---|---|---|---|
+| requests per POS store per minute | 32.2 | 41.6 | **30.1 / 30.0** | 37.5 | 31.5 |
+| PHP CPU s (adj) | 189 (189) | 257 (248) | **193 / 222 (177 / 185)** | 246 (204) | 214 (198) |
+| Postgres + PgBouncer CPU s | 53 + 13 | 68 + 18 | **60 + 14 / 66 + 16** | 70 + 16 | 59 + 15 |
+| (PHP + Postgres) CPU per POS order, adj | 0.86 s | 1.14 s | **0.86 / 0.91 s** (unadj 0.92 / 1.05) | 0.99 s | 0.93 s |
+| statements per request / per order | 27.9 / 758 | 26.2 / 942 | 31.5 / 809, 32.7 / 843 | 28.4 / 920 | 27.7 / 761 |
+| 304 share, all GETs | 0 % | 15.3 % | 3.7 / 3.6 % | 5.3 % | 23.0 % |
+| POST /pos/orders p95; floor p95; KDS p95 (ms) | 109; 30; 62 | 306; 217; 256 | **116 / 135; 36 / 42; 93 / 138** | 120; 49; 154 | 118; 34; 108 |
+| till+poll p95 during the L3 spike (before) | - | - | **122 / 152 (98 / 123)** | - | - |
+| L3 market shed during spike | - | - | 0.3 / 0.1 % | - | - |
+| bytes per POS store per minute | 352 kB | 645 kB | 240 / 353 kB | 462 kB | 402 kB |
+| off-peak (P, no orders): req/store/min, 304 | - | - | **8.4, 64 %** (section 2: 9.2, 62 %) | - | - |
+| till/POS/staff answers not 2xx/304 | 0 | 0 | **0** (L3: 0; market 503 sheds only) | 0 | 0 |
+
+**Reads by cause** (L1, poll / event / heartbeat): storm 1 649 / 4 761 / 498; **m2b 1 062 / 4 287 / 109** (runs within 3);
+stack 1 319 / 5 723 / 80 (+207 return reads). Of 15.5 k deliveries m2b skipped 995 (rev = R or already asked; storm 857),
+fed 13.3 k irrelevant ones into S only, asked 5.5 k (merged into 4.3 k reads), dropped 4-8 covered reads; 620-640 heartbeats
+asked (mostly doubt: an ignored event's token jumped, the "rev at send time" limit), ~110 became heartbeat reads. By screen
+(run 1): floor 1 297 event + 265 poll; order page 1 029 event + 62 poll + 78 heartbeat; KDS 943 + 240; owner 1 018
+single-order + 165 list polls (0 gap reads); display 330 polls + 22 heartbeat.
+**304 per endpoint** (m2b, both runs): floor 2.2 / 2.5 %, order 1.6 / 1.9 %, KDS 10.2 / 10.1 %, display 5.4 / 4.3 %,
+`/staff/orders/{uuid}` 0.7 / 0.5 %, `?scope=active` 0 %: event reads now come only after a real change, so they are 200s.
+**Single-order read** (`probe304_m2b`, one client, 40 reps): `GET /staff/orders/{uuid}` 200 = 16.5 ms PHP, 11 statements,
+2.4 KB; 304 = 12.3 ms, 3 statements, 0 B (list: 67 ms, 26 statements, 96 KB; `?scope=active` 19.8 ms, 11, 9.6 KB).
+**KDS artefact**: the board is never bumped, so its lines go late and stay; with 589506a a KDS ETag expires at the next
+line turning late, which matters while lines are still fresh. On this ever-growing board most lines are already late, so
+the expiry rarely binds (off-peak KDS 304 85 %, as before; m2down 10.6 %, section 2: 7-11 %); KDS 200 cost grew 26.9 ->
+63-67 ms over the session, which is why run 2 (later, bigger board) is slower and costlier than run 1.
+
+**Acceptance** (both m2b runs; same-session m1mode in brackets):
+- POST /pos/orders p95 back to m1mode (109 ms): run 1 **pass** (116, the m2down level 118), run 2 **fail** (135, +24 %).
+  `/pos/floor` p95 (30 ms): **fail** both (36, 42; m2down 34), but far from the storm (217). Till p95 in the L3 spike
+  <= ~190 ms: **pass** both (122, 152; section 2 storm 469-485).
+- Requests per POS store per minute <= ~34: **pass** both (30.1, 30.0). (PHP + Postgres) CPU per order <= m2down (0.93 s):
+  **pass** both adjusted (0.86, 0.91); unadjusted run 2 fails (1.05 vs 0.99). The `stack` till fails both (37.5; 0.99 s).
+- Off-peak unchanged: **pass** (8.4 req/store/min, 64 % 304, PHP 29 s / 358 s).
+- No measurable cost of the stock lock order: POST /pos/orders p50 81-92 ms (m1mode 81; section 2 81-90), lock waits 0.
+
+What still costs most: on the 4 `critical` workers the KDS reads 1.8x m1mode (1 190 vs 660; a 200 costs 42-67 ms PHP and
+grows with the board: 40-46 % of read PHP) and the floor 1.5x (1 564 vs 1 062). The order page's 1 029 event reads all
+follow the cashier's own writes (a write response proves no R). With the app's real navigation the floor under the order
+page doubles floor reads (stack: 2 835 event + 207 return reads, 37.5 req/store/min).
+Next cheapest levers: (1) let a write response carry `X-Revision` and set R from it, so a screen skips the event of its
+own write (order page ~1 000 reads/run, and the floor's under `stack`); (2) KDS: apply `kitchen.item_status_changed` and
+`order.items_changed` from the payload like the owner board, or a 5 s KDS window; (3) pause a screen covered by another
+route (floor under the order page) and read once on return.
+
+**Capacity [E]** (section 7 method; POS side from m2b L1 adjusted, market side unchanged from section 7, not re-measured):
+
+| stores | section 7 M2 as shipped PHP / PG | **m2b (runs 1-2)** PHP / PG (+ Reverb/queue, Redis) | m2b stack | same session: m1mode / m2down / m2 storm |
+|---|---|---|---|---|
+| 100 | 2.6 / 0.8 | **1.9 / 0.6-0.7** (+0.1, 0.1) | 2.0 / 0.7 | 2.0 / 0.6, 2.0 / 0.6, 2.4 / 0.7 |
+| 300 | 7.7 / 2.2 | **5.6-5.8 / 1.8-2.0** (+0.2, 0.2) | 6.1 / 2.0 | 5.9 / 1.7, 5.9 / 1.8, 7.0 / 2.1 |
+| 1 000 | ~26 / ~7.5 | **~19 / ~6.4** (+0.6, 0.6) | ~20 / ~6.8 | ~19.5 / ~5.6, ~20 / ~5.9, ~23.5 / ~6.9 |
+
+POS side per 1 000 stores: 12.5-13.0 PHP + 5.3-5.8 PG cores (storm today 17.3 + 6.0, m1mode 13.3 + 4.7). The fix removes
+the storm's PHP; Postgres stays 10-20 % above m1mode/m2down (unadjusted). Today's m1mode PHP is 189 s (section 2: 211-212 s).

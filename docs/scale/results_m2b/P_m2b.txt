@@ -1,0 +1,15 @@
+# P_m2b  2026-11-17T13:54:16Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.18 0.78 0.92
+# cfg {"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"rules":"paced","till":"alt","refresh":"ws"}}
+
+P_m2b wall=357.9s req=1648 rps=4.6 cpu php=28.75s pg=5.09s pgbouncer=1.42s nginx=0.67s redis=1.39s reverb=0.41s queue=0.41s scheduler=0s pg_rt=0s xacts=14378 conn_max=5 lockwaits=0 stmts/req=8.6
+by_group: {"poll":1648} pgss_by_role: {"rizqim":{"calls":14230,"ms":831}}
+redis: {"commands":25098,"cmd_per_s":70.1,"net_in":3390767,"net_out":190371,"top":{"get":7905,"eval":5588,"exists":3362,"incrby":1648,"select":1648,"setex":1552,"zrangebyscore":1476,"mget":1120,"lpop":750,"rpush":24,"zadd":12,"zrem":12}}
+realtime: {"rules":"paced","till":"alt","event_names":{},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0,"asked":0,"skipped_asked":0,"ignored":0,"dropped":0,"retries":0,"heartbeat_asks":0,"board_gap":0,"board_applied":0,"return_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":0,"heartbeats":2376,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":1648,"full_reads":330,"asked":0,"skipped_asked":0,"ignored":0,"dropped":0,"retries":0,"heartbeat_asks":0,"board_gap":0,"board_applied":0,"return_reads":0},"reads_by_kind":{"kds":{"poll":658},"display":{"poll":330},"floor":{"poll":495},"owner":{"list_poll":165}},"screens":198}
+GET /pos/display/state               n=  330 rps=  0.92 p50=15.3 p95=19.7 p99=22.3 err%=0 304%=70 inm=231 full=99 p50_200=16.5 p50_304=14.5 kB=37 st={"200":99,"304":231}
+GET /pos/floor                       n=  495 rps=  1.38 p50=20.6 p95=29.3 p99=32.4 err%=0 304%=40 inm=198 full=297 p50_200=23.5 p50_304=15.2 kB=1175 st={"200":297,"304":198}
+GET /staff/kitchen/tickets           n=  658 rps=  1.84 p50=15.5 p95=97.4 p99=120.5 err%=0 304%=85 inm=559 full=99 p50_200=89.9 p50_304=15.1 kB=7500 st={"200":99,"304":559}
+GET /staff/orders?scope=active       n=  165 rps=  0.46 p50=16.5 p95=22.6 p99=24.5 err%=0 304%=40 inm=132 full=33 p50_200=18.1 p50_304=13.8 kB=37 st={"200":99,"304":66}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.08 0.31 0.66

@@ -74,6 +74,14 @@ xarajatlar asosida; haqiqiy serverda o'lchanmagan):
 | 300 | ~315 | 12-13 | 3-4 | ~225 GB |
 | 1 000 | ~1 050 | ~40 | ~11 | ~750 GB |
 
+M2 dan keyin qayta o'lchandi ([scale/RESULTS_M2.md](scale/RESULTS_M2.md), 9-bo'lim; o'sha test mashinasidan taxmin):
+
+| Do'konlar | PHP yadrolari | Baza yadrolari |
+|---|---|---|
+| 100 | ~2 | ~0,7 |
+| 300 | ~6 | ~2 |
+| 1 000 | ~19-20 | ~6,5-7 |
+
 Bundan chiqadigan xulosalar: (1) 1 000 do'kon bitta serverga sig'maydi, ilova qismi bir nechta serverda ishlashi kerak
 (P bosqichiga qo'shiladi); (2) M2 so'rovlar sonini kamaytiradi, shuning uchun yadrolar soni shu jadvaldagidan kam
 bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallarsiz o'sish yiliga taxminan 315 GB;
@@ -84,5 +92,5 @@ bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallar
 | To'lqin | Holat |
 |---|---|
 | M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
-| M2 Jonli aloqa va kesh | Kod va o'lchov tayyor (PR #25, 17.11.2026): [scale/RESULTS_M2.md](scale/RESULTS_M2.md). Market va sokin vaqt ancha arzonlashdi; tushlik payti jonli aloqa kassalarni sekinlashtirgani o'lchandi, merge'dan oldin tuzatilmoqda |
+| M2 Jonli aloqa va kesh | Kod, tuzatishlar va qayta o'lchov tayyor (PR #25, 17.11.2026): [scale/RESULTS_M2.md](scale/RESULTS_M2.md). Market yuki 2-3 baravar kamaydi, sokin vaqtda so'rovlar 73 % kam; tushlikda kassa tezligi M1 darajasida (birinchi o'lchovda topilgan sekinlashuv tuzatildi). Merge egasining buyrug'ini kutmoqda |
 | M3–M5, P, L | Navbatda |

@@ -1,0 +1,27 @@
+total_commands_processed:95529
+instantaneous_ops_per_sec:0
+total_net_input_bytes:8019962
+total_net_output_bytes:743398
+total_net_repl_input_bytes:0
+total_net_repl_output_bytes:0
+instantaneous_input_kbps:0.01
+instantaneous_output_kbps:4.08
+instantaneous_input_repl_kbps:0.00
+instantaneous_output_repl_kbps:0.00
+keyspace_hits:51538
+keyspace_misses:3508
+used_memory_human:1.34M
+used_memory_peak_human:1.47M
+cmdstat_get:calls=33016,usec=118868,usec_per_call=3.60,rejected_calls=0,failed_calls=0
+cmdstat_eval:calls=18157,usec=349728,usec_per_call=19.26,rejected_calls=0,failed_calls=0
+cmdstat_exists:calls=15664,usec=22990,usec_per_call=1.47,rejected_calls=0,failed_calls=0
+cmdstat_select:calls=7800,usec=14983,usec_per_call=1.92,rejected_calls=0,failed_calls=0
+cmdstat_incrby:calls=7800,usec=19894,usec_per_call=2.55,rejected_calls=0,failed_calls=0
+cmdstat_mget:calls=6366,usec=22897,usec_per_call=3.60,rejected_calls=0,failed_calls=0
+cmdstat_incr:calls=4155,usec=14296,usec_per_call=3.44,rejected_calls=0,failed_calls=0
+cmdstat_setex:calls=2467,usec=10403,usec_per_call=4.22,rejected_calls=0,failed_calls=0
+cmdstat_set:calls=101,usec=538,usec_per_call=5.33,rejected_calls=0,failed_calls=0
+cmdstat_info:calls=4,usec=431,usec_per_call=107.75,rejected_calls=0,failed_calls=0
+cmdstat_config|resetstat:calls=1,usec=92,usec_per_call=92.00,rejected_calls=0,failed_calls=0
+# Commandstats
+0

@@ -1,0 +1,23 @@
+== php-fpm access: requests by pool and status
+   1054 critical 304
+    594 critical 200
+    198 default 200
+== nginx access: status counts
+   1054 304
+    792 200
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /staff/kitchen/tickets | critical | 658 | 99 | 559 | 0 | 85.0 | 88.9 / 14.2 | 67.3 / 12.2 | 77669 / 0 | 7509 |
+| GET /pos/floor | critical | 495 | 297 | 198 | 0 | 40.0 | 22.7 / 14.1 | 15.6 / 11.8 | 4063 / 0 | 1178 |
+| GET /pos/display/state | critical | 330 | 99 | 231 | 0 | 70.0 | 15.2 / 13.7 | 13.4 / 10.6 | 392 / 0 | 38 |
+| POST /api/broadcasting/auth | default | 198 | 198 | 0 | 0 | 0.0 | 16.1 / - | 9.0 / - | 95 / - | 18 |
+| GET /staff/orders?scope=active | critical | 165 | 99 | 66 | 0 | 40.0 | 17.1 / 12.8 | 13.7 / 10.5 | 390 / 0 | 38 |
+pool critical: 1648 req, 1054 x 304 (64.0 %), PHP CPU from %C 26.3 s (16.0 ms/req; 304s 12.3 s)
+pool default: 198 req, 0 x 304 (0.0 %), PHP CPU from %C 1.8 s (9.0 ms/req; 304s 0.0 s)
+bytes: non-market 8.58 MB in 1846 req = 44.6 kB per POS store per minute (33 stores, 357.9 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)
+      1 WARNING: [pool default] server reached max_children setting (4), consider raising it

@@ -1,0 +1,23 @@
+# L1_m2b_2  2026-11-17T13:32:09Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.09 0.44 0.70
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"rules":"paced","till":"alt","refresh":"ws"}}
+
+L1_m2b_2 wall=430.5s req=7110 rps=16.52 cpu php=222.37s pg=66.44s pgbouncer=16.17s nginx=2.44s redis=5.44s reverb=2.97s queue=5.09s scheduler=0.01s pg_rt=0s xacts=169834 conn_max=5 lockwaits=0 stmts/req=32.7
+by_group: {"pos":1656,"poll":5454} pgss_by_role: {"rizqim":{"calls":232562,"ms":9940}}
+redis: {"commands":157163,"cmd_per_s":365.1,"net_in":30796108,"net_out":8035342,"top":{"get":49505,"eval":36775,"exists":14279,"zrangebyscore":11676,"select":8490,"lpop":8336,"incrby":7110,"rpush":4996,"mget":4567,"incr":4140,"zrem":2498,"zadd":2498}}
+realtime: {"rules":"paced","till":"alt","event_names":{"order.created":1716,"order.items_changed":3432,"order.status_changed":3432,"order.bill_changed":5148,"fiscal.receipt_updated":1716},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0,"asked":0,"skipped_asked":0,"ignored":0,"dropped":0,"retries":0,"heartbeat_asks":0,"board_gap":0,"board_applied":0,"return_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15444,"heartbeats":2772,"skipped_same":105,"event_reads":4286,"heartbeat_reads":106,"poll_reads":1062,"full_reads":271,"asked":5470,"skipped_asked":930,"ignored":13153,"dropped":4,"retries":0,"heartbeat_asks":619,"board_gap":0,"board_applied":0,"return_reads":0},"reads_by_kind":{"floor":{"poll":264,"event":1325,"due_nothing":26,"due_dropped":1,"hb_missed":28,"hb_doubt":313,"heartbeat":3},"owner":{"list_poll":165,"order":1015},"kds":{"poll":242,"event":917,"due_nothing":8,"due_dropped":3,"hb_missed":23,"heartbeat":3,"hb_doubt":107},"display":{"poll":330,"hb_missed":23,"heartbeat":20},"order":{"event":1029,"hb_missed":45,"heartbeat":80,"poll":61,"hb_doubt":80}},"screens":198}
+GET /pos/display/state               n=  350 rps=  0.81 p50=17.8 p95=36.6 p99=83.8 err%=0 304%=4.3 inm=251 full=99 p50_200=17.9 p50_304=15.7 kB=124 st={"200":335,"304":15}
+GET /pos/floor                       n= 1592 rps=   3.7 p50=26.2 p95=42.1 p99=96.7 err%=0 304%=2.5 inm=1303 full=289 p50_200=26.3 p50_304=14 kB=6876 st={"200":1552,"304":40}
+GET /pos/orders/:id                  n= 1170 rps=  2.72 p50=31 p95=69.5 p99=116.3 err%=0 304%=1.9 inm=894 full=276 p50_200=31.2 p50_304=15.2 kB=4675 st={"200":1148,"304":22}
+GET /staff/kitchen/tickets           n= 1162 rps=   2.7 p50=87.7 p95=138.4 p99=169.6 err%=0 304%=10.1 inm=1115 full=47 p50_200=91.1 p50_304=14.7 kB=60403 st={"200":1045,"304":117}
+GET /staff/orders/:id                n= 1015 rps=  2.36 p50=24.2 p95=41.2 p99=94.1 err%=0 304%=0.5 inm=740 full=275 p50_200=24.2 p50_304=14.7 kB=3074 st={"200":1010,"304":5}
+GET /staff/orders?scope=active       n=  165 rps=  0.38 p50=23.9 p95=38.9 p99=86.5 err%=0 304%=0 inm=132 full=33 p50_200=23.9 p50_304=null kB=693 st={"200":165}
+POST /pos/bills/:id/payments         n=  276 rps=  0.64 p50=129.8 p95=193.4 p99=237.9 err%=0 kB=1127 st={"200":276}
+POST /pos/orders                     n=  276 rps=  0.64 p50=92.1 p95=134.8 p99=177.5 err%=0 kB=937 st={"201":276}
+POST /pos/orders/:id/bills           n=  276 rps=  0.64 p50=53.4 p95=77.1 p99=105.3 err%=0 kB=546 st={"201":276}
+POST /pos/orders/:id/close           n=  276 rps=  0.64 p50=33.4 p95=62.9 p99=147.5 err%=0 kB=1134 st={"200":276}
+POST /pos/orders/:id/rounds          n=  276 rps=  0.64 p50=75.8 p95=117.2 p99=134.3 err%=0 kB=1175 st={"200":276}
+POST /pos/orders/:id/send            n=  276 rps=  0.64 p50=68.4 p95=103.2 p99=176.7 err%=0 kB=1203 st={"200":276}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.15 0.67 0.78
