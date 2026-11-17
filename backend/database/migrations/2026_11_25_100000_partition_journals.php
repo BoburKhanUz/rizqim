@@ -16,9 +16,11 @@ return new class extends Migration
      * partitions.first_month to now + 3. Primary keys become (id, <column>); fiscal_receipts' uniques become
      * partition-local, its self foreign key is dropped and created_at is backfilled and NOT NULL.
      *
-     * Inline only while a table is small (config partitions.inline_max_rows): a bigger one makes this migration stop
-     * with a message telling the operator to run `php artisan db:partitions:convert <table>` (online) first. A table
-     * already partitioned (by that command) is skipped.
+     * Inline, one transaction per table: writes to the table wait for its conversion (about rows / 140 000 seconds),
+     * reads go on; the content of the copy is compared with the original before the swap. Above
+     * partitions.inline_max_rows the migration stops and says how long it would lock the table: the operator runs it
+     * in a quiet window with PARTITIONS_INLINE_MAX_ROWS raised (tills sell offline meanwhile). A table already
+     * partitioned is skipped.
      *
      * Rules for FUTURE migrations on these three tables: add columns on the parent only (they propagate to every
      * partition); never CREATE INDEX CONCURRENTLY on the parent (use App\Support\ConcurrentIndex::createPartitioned);

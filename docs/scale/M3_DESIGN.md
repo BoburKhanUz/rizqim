@@ -12,7 +12,7 @@ alternatives in one line each.
 |---|---|
 | A | Partition by month NOW: `audit_logs`, `fiscal_receipts`, `notification_logs`. Leave: `order_status_histories`, orders and their children, ledgers. Prune (no partitioning): `integration_events`, `telegram_actions`, `failed_jobs` |
 | B | Own artisan command `db:partitions:ensure` (daily, 3 months ahead) + a DEFAULT partition per table + an alert. No pg_partman |
-| C | Migration converts inline only when the table is small (no live stores: always today); otherwise it refuses and tells the operator to run the online, resumable `db:partitions:convert` first |
+| C | Migration converts inline, one transaction per table (writes wait ~1 s per 140 000 rows, content compared before the swap); above the row threshold it refuses and tells the operator to run it in a quiet window with `PARTITIONS_INLINE_MAX_ROWS` raised. No online converter (built, reviewed three times, removed: section 4) |
 | D | Online: audit 7 months, fiscal 13 months, notifications 6 months. After: detach, `pg_dump` the partition, upload with sha256 to S3, catalogue row, verify, drop. Fiscal and audit archives are never deleted. Notifications are dropped without archive |
 | E | pgBackRest in a custom `postgres:17-alpine` image, archive-push from the postgres container, backups from the `backup` sidecar; repo1 local volume + repo2 S3 (encrypted); `archive_timeout=60`. Keep the nightly `pg_dump` |
 | F | `scripts/restore-drill.sh`: PITR restore of a just-written marker into a scratch data dir inside the `backup` container, checks, one Uzbek report, a `restore_drills` row; monthly automatic |
@@ -124,9 +124,9 @@ help retention); a separate journal database (two connections in one transaction
 Migration `database/migrations/2026_11_25_100000_partition_journals.php` (`$withinTransaction = false`, pgsql only,
 like `ConcurrentIndex` users). Per table, in order notification_logs, audit_logs, fiscal_receipts:
 
-1. Skip if already partitioned (`pg_class.relkind = 'p'`), so it is a no-op after an online conversion.
-2. If `reltuples > config('partitions.inline_max_rows', 200000)`: throw with the Uzbek message "run `php artisan
-   db:partitions:convert <table>` first". Today (no stores) every table is far below; the pilot path is the command.
+1. Skip if already partitioned (`pg_class.relkind = 'p'`).
+2. If the exact row count is above `config('partitions.inline_max_rows', 200000)`: throw with the Uzbek message giving the
+   row count, the lock time and `PARTITIONS_INLINE_MAX_ROWS=<N> php artisan migrate` for a quiet window (section 4 note).
 3. Inline path, one transaction, `SET LOCAL lock_timeout = '5s'`, `LOCK TABLE t IN EXCLUSIVE MODE` (reads continue):
    `CREATE TABLE t_p (LIKE t INCLUDING DEFAULTS INCLUDING STORAGE INCLUDING COMMENTS) PARTITION BY RANGE (col)`;
    fiscal only: `UPDATE fiscal_receipts SET created_at = coalesce(sold_at, issued_at, updated_at, now()) WHERE created_at IS
@@ -146,17 +146,24 @@ like `ConcurrentIndex` users). Per table, in order notification_logs, audit_logs
    copy + index build of audit_logs took ~8 s for 619 MB on 4 vCPU [V], fiscal ~4 s, notifications ~1 s [E].
 4. `down()`: the reverse (plain table with the old constraints, `INSERT SELECT`, swap), inline only.
 
-**Online command** `php artisan db:partitions:convert {table} {--batch=20000} {--finish} {--rollback}` (for a database
-with data, the pilot): creates `t_p` without secondary indexes; installs an AFTER INSERT/UPDATE/DELETE trigger on `t` that
-records changed ids in `t_m3_changes(id)` (needed for the mutable fiscal/notification rows; harmless for audit); copies
-`WHERE id > :last ORDER BY id LIMIT :batch`, one commit per batch, progress = `max(id)` in `t_p` (resumable after a kill);
-builds indexes on `t_p` (not yet used: no lock on live); `--finish` = one transaction with `lock_timeout 3s`, retry: lock
-`t` EXCLUSIVE, re-copy ids in `t_m3_changes` and ids above the copy mark, swap as in step 3, keep `t_m3_old` (renamed)
-for 7 days. `--rollback` within those 7 days swaps back after copying rows written since the swap. After 7 days
-`db:partitions:convert --drop-old`. Duration [E]: at 100 GB total (audit ~27 GB, fiscal ~13 GB by the L proportions)
-~6 min of pure copy per 27 GB at the measured rate, x3 under production load = 20-40 min of background batches; the
-locked window is the final delta (seconds). The copy writes the table again to WAL: run it before PITR is enabled or take
-a new full backup right after.
+**Online converter: removed (2026-11-17).** An online, resumable `db:partitions:convert` (change-capture trigger, batch
+copy, `--finish`/`--rollback`/`--drop-old`, old table kept 7 days) was built in M3 and reviewed three times; each review
+proved a data-loss or till-blocking bug (a committed UPDATE lost by the capture's `ON CONFLICT DO NOTHING` against the
+catch-up; `--finish` livelocking against a steady writer; the archive holding the parent's ACCESS EXCLUSIVE through
+several FK lock waits (9.5 s till insert); a rollback leaving the plain table with NULL `created_at`; `--finish`
+draining an uncapped remainder and re-checking hashes under the lock (44.6 s); an interrupted `--rollback` leaving no
+capture trigger and a re-run losing an update; a column added during the 7-day window making `--drop-old` refuse
+forever). Nobody needs it in M3 (no live stores; the three tables are far below the threshold when the migration
+runs), so it was removed. The inline path stays: one transaction, bounded lock waits, a content comparison (md5 per
+row as jsonb, by column name) before the swap, every user trigger carried and checked; above
+`partitions.inline_max_rows` it refuses with the table's size, the lock time (~1 s per 140 000 rows measured; 5 M rows
+~36 s) and the one command for a quiet window (`PARTITIONS_INLINE_MAX_ROWS=<N> php artisan migrate`; tills sell offline
+meanwhile). A future online converter must get right, as its checklist: every committed change replayed whatever the
+interleaving (append-only log, delete only what was applied); copy and catch-up bounded against a steady writer;
+everything done under a lock capped in rows and time, `statement_timeout` kept for the whole locked section; content
+verified (by column name, schema changes during the window handled); resumable from every interrupted state, rollback
+included (capture trigger present whenever a copy exists); the old table's data equal to the new one's (backfills
+written to both); triggers carried; strong locks taken up front in a fixed order, bounded.
 
 **Application changes required by the new keys** (stage A2):
 - `FiscalService::issue/create` (`FiscalService.php:263,313`): inside the insert transaction take
@@ -387,8 +394,8 @@ Test plan:
   `audit_logs_default`, `partitions` finding appears; `ensure` moves it into the new month and the finding resolves.
 - Append-only on partitions: delete/update raise; user delete sets NULL; detach + drop succeeds; `PartitionArchiver`
   status machine (detach, never drop unless `verified`, keeps fiscal when S3 off).
-- Conversion: migration up/down on a seeded DB; `db:partitions:convert` killed mid-copy and resumed; `--finish` under a
-  concurrent writer (second connection) loses no row; `--rollback`.
+- Conversion: migration up/down on a seeded DB, content check, trigger carrying, refusal above the threshold and the
+  quiet-window override (the online converter and its tests were removed, section 4).
 - Fiscal idempotency across a month boundary (two connections, same key, `travelTo` 23:59:59 / 00:00:01).
 - Full suite timing before/after (target: < +2 % [E]).
 - PITR and drill: only in CI job `pitr-drill` (and locally with `--local` and pgbackrest 2.50).

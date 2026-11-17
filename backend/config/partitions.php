@@ -15,10 +15,12 @@ return [
     'months_ahead' => 3,
 
     // The partition_journals migration converts a table inline only below this many rows (pg_class.reltuples, and an
-    // exact count near the limit); a bigger table must first be converted online by `db:partitions:convert <table>`
+    // exact count); above it the migration refuses and says how long the conversion would lock the table: run it in a
+    // quiet window with PARTITIONS_INLINE_MAX_ROWS=<rows + margin> php artisan migrate (read from the process
+    // environment at that moment, also with a cached config)
     'inline_max_rows' => (int) env('PARTITIONS_INLINE_MAX_ROWS', 200000),
 
-    // lock_timeout of the maintenance DDL (attach, detach, the conversion swap) and how often it is retried: a till's
+    // lock_timeout of the maintenance DDL (attach, detach, the inline conversion) and how often it is retried: a till's
     // insert never waits longer than this behind it
     'lock_timeout' => env('PARTITIONS_LOCK_TIMEOUT', '2s'),
     'detach_lock_timeout' => env('PARTITIONS_DETACH_LOCK_TIMEOUT', '3s'),
@@ -28,9 +30,6 @@ return [
     // off-site copy nothing is dropped, unless ARCHIVE_ALLOW_LOCAL_ONLY=1 (then an `uploaded`, local-only copy suffices)
     'drop_after_days' => 3,
     'allow_local_only' => (bool) env('ARCHIVE_ALLOW_LOCAL_ONLY', false),
-
-    // Online conversion: the old plain table is kept this many days after `--finish` (`--rollback` works until then)
-    'keep_old_days' => 7,
 
     'tables' => [
         'audit_logs' => [

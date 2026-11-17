@@ -13,10 +13,10 @@ use Tests\Feature\OrderLifecycleFixtures;
 use Tests\TestCase;
 
 /**
- * Wave M3: every path that replaces fiscal_receipts (inline migration down/up, online convert, --finish, --rollback,
- * convert again) keeps EVERY user trigger of the table, in particular fiscal_receipt_keys_insert/_update (migration
- * 2026_11_25_100300: the global uniqueness of receipts across partitions), and fiscal_receipt_keys stays one row per
- * receipt. Committed data (the converter commits per batch): tearDown puts the schema back as migrated.
+ * Wave M3: the inline migration down/up of fiscal_receipts keeps EVERY user trigger of the table, in particular
+ * fiscal_receipt_keys_insert/_update (migration 2026_11_25_100300: the global uniqueness of receipts across
+ * partitions), fiscal_receipt_keys stays one row per receipt, and a missing key trigger is reported and repaired.
+ * Committed data (the repair commits its backfill in batches): tearDown puts the schema back as migrated.
  */
 class FiscalKeysConversionTest extends TestCase
 {
@@ -45,43 +45,6 @@ class FiscalKeysConversionTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_online_convert_finish_rollback_and_convert_again_keep_the_key_triggers_and_one_key_per_receipt(): void
-    {
-        $converter = app(PartitionConverter::class);
-        // The pilot's starting point: a plain table (the triggers follow it there too)
-        $converter->revertInline('fiscal_receipts');
-        $this->assertSame('r', app(PartitionManager::class)->relkind('fiscal_receipts'));
-        $this->assertTriggers();
-        $this->receipt(['created_at' => '2026-11-12 10:00:00']);
-        $this->assertKeysInStep(41);
-
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--batch' => 15])->assertSuccessful();
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--finish' => true])->assertSuccessful();
-        $this->assertTrue(app(PartitionManager::class)->isPartitioned('fiscal_receipts'));
-        $this->assertTriggers();
-        $this->assertKeysInStep(41);
-
-        // Written between --finish and --rollback: its key row exists and stays
-        $between = $this->receipt(['created_at' => '2026-11-13 10:00:00']);
-        $this->assertKeysInStep(42);
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--rollback' => true])->assertSuccessful();
-        $this->assertSame('r', app(PartitionManager::class)->relkind('fiscal_receipts'));
-        $this->assertTriggers();
-        $this->assertKeysInStep(42);
-        $this->assertSame(1, DB::table('fiscal_receipt_keys')->where('receipt_id', $between)->count());
-        $this->receipt([]);
-        $this->assertKeysInStep(43);
-
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts'])->assertSuccessful();
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--finish' => true])->assertSuccessful();
-        $this->assertTriggers();
-        $this->assertKeysInStep(43);
-        $this->assertDuplicateRefused();
-        $this->travel(8)->days();
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--drop-old' => true])->assertSuccessful();
-        $this->assertTriggers();
-    }
-
     public function test_the_inline_migration_down_and_up_keep_the_key_triggers_and_one_key_per_receipt(): void
     {
         $migration = require database_path('migrations/2026_11_25_100000_partition_journals.php');
@@ -93,28 +56,6 @@ class FiscalKeysConversionTest extends TestCase
         $this->assertTriggers();
         $this->assertKeysInStep(40);
         $this->assertDuplicateRefused();
-    }
-
-    public function test_after_a_rollback_the_plain_table_has_the_same_created_at_as_the_partitioned_one(): void
-    {
-        // A pilot database before M3: plain table, no key triggers yet, receipts without created_at
-        (require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php'))->down();
-        app(PartitionConverter::class)->revertInline('fiscal_receipts');
-        DB::statement("UPDATE fiscal_receipts SET created_at = NULL, sold_at = '2026-10-03 08:00:00' WHERE id IN (SELECT id FROM fiscal_receipts ORDER BY id LIMIT 5)");
-        DB::statement('UPDATE fiscal_receipts SET created_at = NULL, sold_at = NULL, issued_at = NULL WHERE id = (SELECT max(id) FROM fiscal_receipts)');
-
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts'])->assertSuccessful();
-        // A receipt written without created_at while the copy waits for --finish
-        $late = $this->receipt(['created_at' => null, 'sold_at' => '2026-11-14 09:00:00']);
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--finish' => true])->assertSuccessful();
-
-        $this->assertSame(0, DB::table('fiscal_receipts_m3_old')->whereNull('created_at')->count(), 'the old table got the same backfill');
-        $this->assertSame(0, (int) DB::selectOne('SELECT count(*) AS n FROM fiscal_receipts n JOIN fiscal_receipts_m3_old o USING (id) WHERE n.created_at IS DISTINCT FROM o.created_at')->n);
-        $this->assertSame('2026-11-14 09:00:00', DB::table('fiscal_receipts')->where('id', $late)->value('created_at'));
-
-        $this->artisan('db:partitions:convert', ['table' => 'fiscal_receipts', '--rollback' => true])->assertSuccessful();
-        $this->assertSame(0, DB::table('fiscal_receipts')->whereNull('created_at')->count(), 'a live receipt is found by id and created_at after the rollback');
-        $this->assertSame('2026-10-03 08:00:00', DB::table('fiscal_receipts')->orderBy('id')->value('created_at'));
     }
 
     public function test_a_missing_key_trigger_is_reported_and_ensure_repairs_it(): void
@@ -176,15 +117,11 @@ class FiscalKeysConversionTest extends TestCase
     }
 
     /**
-     * Back to the migrated state: no conversion leftovers, fiscal_receipts partitioned, empty, with the key triggers.
+     * Back to the migrated state: fiscal_receipts partitioned, empty, with the key triggers.
      */
     private function restore(): void
     {
         $manager = app(PartitionManager::class);
-        DB::statement('DROP TRIGGER IF EXISTS fiscal_receipts_m3_capture ON fiscal_receipts');
-        foreach (['_m3_new', '_m3_old', '_m3_changes', '_m3_plain'] as $suffix) {
-            DB::statement("DROP TABLE IF EXISTS fiscal_receipts{$suffix}");
-        }
         DB::statement('TRUNCATE fiscal_receipts');
         if ($manager->relkind('fiscal_receipts') === 'r') {
             app(PartitionConverter::class)->convertInline('fiscal_receipts');

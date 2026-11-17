@@ -144,15 +144,6 @@ class PartitionArchiverTest extends TestCase
         }
     }
 
-    public function test_nothing_is_detached_while_an_online_conversion_keeps_a_copy(): void
-    {
-        DB::statement('CREATE TABLE audit_logs_m3_old (id bigint)');
-        $this->travelTo('2026-11-17 22:40:00');
-        $this->artisan('db:partitions:archive')->expectsOutputToContain('audit_logs: onlayn konversiya tugallanmagan')->assertSuccessful();
-        $this->assertSame(0, DB::table('partition_archives')->where('table_name', 'audit_logs')->count());
-        $this->assertTrue(app(PartitionManager::class)->exists('audit_logs_2026_01'));
-    }
-
     public function test_the_catalogue_refuses_an_unknown_status(): void
     {
         $this->assertRaises(fn () => DB::table('partition_archives')->insert([

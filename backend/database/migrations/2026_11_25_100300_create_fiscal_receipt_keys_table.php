@@ -23,8 +23,8 @@ return new class extends Migration
      * The keys of receipts in a detached (archived) month stay here: a key is never reused, and FiscalService tells an
      * archived original receipt from a missing one.
      *
-     * Note for db:partitions:convert --rollback (PartitionConverter): the plain table it swaps back has its own global
-     * uniques but not this trigger; converting again must re-create the trigger (run this migration's up() body).
+     * The partition migration's up() and down() carry these triggers across the table swap (PartitionConverter), and
+     * `db:partitions:ensure` re-creates them if they are ever missing.
      */
     public function up(): void
     {

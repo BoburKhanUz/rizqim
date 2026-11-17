@@ -146,22 +146,17 @@ final class PartitionManager
     }
 
     /**
-     * Attach the missing months of one table: from its oldest attached month (or config first_month) to now +
+     * Repair missing required triggers, then attach the missing months of one table: config first_month to now +
      * months_ahead, plus every month a row in DEFAULT belongs to; rows in DEFAULT are moved into their month. Months the
      * archive took are skipped (their rows, if any arrived late, stay in DEFAULT and the status reports them).
      *
-     * $relation is the partitioned table to work on (the online converter passes `<table>_m3_new`); partition names
-     * always use the table's own name.
-     *
      * @return array{table: string, partitioned: bool, created: list<string>, moved: int, skipped: list<string>, repaired: list<string>}
      */
-    public function ensure(string $base, ?string $relation = null): array
+    public function ensure(string $base): array
     {
-        $relation ??= $base;
+        $relation = $base;
         $report = ['table' => $base, 'partitioned' => false, 'created' => [], 'moved' => 0, 'skipped' => [], 'repaired' => []];
-        if ($relation === $base) {
-            $report['repaired'] = $this->repairTriggers($base);
-        }
+        $report['repaired'] = $this->repairTriggers($base);
         if (!$this->isPartitioned($relation)) {
             return $report;
         }
@@ -599,12 +594,10 @@ final class PartitionManager
         $current = self::monthStart(now());
         foreach (self::tables() as $base => $config) {
             $kind = $this->relkind($base);
-            $conversion = $this->conversionState($base);
             $row = [
                 'table' => $base,
                 'column' => $config['column'],
                 'partitioned' => $kind === 'p',
-                'conversion' => $conversion,
                 'online_months' => $config['online_months'],
                 'archive' => $config['archive'],
                 'partitions' => 0,
@@ -618,7 +611,7 @@ final class PartitionManager
             ];
 
             if ($kind !== 'p') {
-                $problems[] = ['table' => $base, 'code' => 'not_partitioned', 'message' => "{$base} hali oylarga bo'linmagan: `php artisan db:partitions:convert {$base}` bajaring"];
+                $problems[] = ['table' => $base, 'code' => 'not_partitioned', 'message' => "{$base} hali oylarga bo'linmagan: `php artisan migrate` bajaring (jadval katta bo'lsa migratsiya qancha vaqt va qanday bajarishni aytadi)"];
             } else {
                 $months = [];
                 foreach ($this->partitions($base) as $partition) {
@@ -651,12 +644,6 @@ final class PartitionManager
             if ($missingTriggers !== []) {
                 $problems[] = ['table' => $base, 'code' => 'trigger_missing', 'message' => "{$base}: himoya triggeri yo'q (" . implode(', ', $missingTriggers) . '): takroriy yoki o\'zgartirilgan yozuvlardan himoya ishlamayapti. `php artisan db:partitions:ensure` bajaring (triggerni tiklaydi)'];
             }
-            if ($conversion !== 'none') {
-                $problems[] = ['table' => $base, 'code' => 'conversion_pending', 'message' => match ($conversion) {
-                    'copying' => "{$base}: onlayn ko'chirish tugallanmagan: `php artisan db:partitions:convert {$base}`, so'ng `--finish`",
-                    default => "{$base}: eski jadval {$base}_m3_old saqlanmoqda: muddatidan keyin `php artisan db:partitions:convert {$base} --drop-old`",
-                }];
-            }
             $tables[] = $row;
         }
 
@@ -675,19 +662,6 @@ final class PartitionManager
             'tables' => $tables,
             'archives' => $archives,
         ];
-    }
-
-    /**
-     * 'none', 'copying' (an online conversion is under way: `<table>_m3_new` exists) or 'swapped' (finished, the old
-     * plain table `<table>_m3_old` is kept for --rollback until --drop-old).
-     */
-    public function conversionState(string $base): string
-    {
-        if ($this->exists($base . '_m3_old')) {
-            return 'swapped';
-        }
-
-        return $this->exists($base . '_m3_new') ? 'copying' : 'none';
     }
 
     /**

@@ -54,8 +54,8 @@ class PartitionMigrationTest extends TestCase
 
         foreach (['audit_logs', 'fiscal_receipts', 'notification_logs'] as $table) {
             $this->assertTrue($manager->isPartitioned($table), "{$table} is partitioned after up()");
-            $this->assertFalse($manager->exists("{$table}_m3_old"));
-            $this->assertFalse($manager->exists("{$table}_m3_new"));
+            $this->assertFalse($manager->exists("{$table}_m3_replaced"));
+            $this->assertFalse($manager->exists("{$table}_m3_inline"));
         }
         $this->assertSame('audit_logs_2025_06', $this->partitionOf('audit_logs', $old->id), 'months start at the oldest row');
         $this->assertSame('audit_logs_2026_11', $this->partitionOf('audit_logs', $recent->id));
@@ -127,12 +127,45 @@ class PartitionMigrationTest extends TestCase
             $this->migration()->up();
             $this->fail('up() must refuse a big table');
         } catch (RuntimeException $e) {
-            $this->assertStringContainsString('php artisan db:partitions:convert audit_logs', $e->getMessage());
+            // The honest rule: the size, the lock time, the one command for a quiet window
+            $this->assertStringContainsString('audit_logs jadvalida 3 qator bor', $e->getMessage());
+            $this->assertStringContainsString('taxminan 1 soniya', $e->getMessage());
+            $this->assertStringContainsString('`PARTITIONS_INLINE_MAX_ROWS=1000 php artisan migrate`', $e->getMessage());
+            $this->assertStringContainsString('oflayn', $e->getMessage());
         }
         // notification_logs (empty) was converted, audit_logs left as it was
         $this->assertTrue(app(PartitionManager::class)->isPartitioned('notification_logs'));
         $this->assertSame('r', app(PartitionManager::class)->relkind('audit_logs'));
         $this->assertSame(3, DB::table('audit_logs')->count());
+
+        // The operator's override for the quiet window, from the process environment (works with a cached config)
+        putenv('PARTITIONS_INLINE_MAX_ROWS=1000');
+        try {
+            $this->migration()->up();
+        } finally {
+            putenv('PARTITIONS_INLINE_MAX_ROWS');
+        }
+        $this->assertTrue(app(PartitionManager::class)->isPartitioned('audit_logs'));
+        $this->assertSame(3, DB::table('audit_logs')->count());
+        $this->assertSame(36, \App\Support\Partitions\PartitionConverter::estimateSeconds(5_000_000));
+    }
+
+    public function test_the_content_check_refuses_a_copy_that_differs_from_the_original(): void
+    {
+        DB::table('notification_logs')->insert([['type' => 'a', 'status' => 'sent'], ['type' => 'b', 'status' => 'sent']]);
+        // The same rows with their columns in another order: equal (compared by column name)
+        DB::statement('CREATE TABLE m3_probe_copy AS SELECT status, type, id, user_id, order_id, sent_at, error_message, is_read, read_at FROM notification_logs');
+        $check = new \ReflectionMethod(\App\Support\Partitions\PartitionConverter::class, 'assertSameContent');
+        $converter = app(\App\Support\Partitions\PartitionConverter::class);
+        $check->invoke($converter, 'notification_logs', 'm3_probe_copy', false);
+
+        DB::statement("UPDATE m3_probe_copy SET type = 'changed' WHERE type = 'b'");
+        try {
+            $check->invoke($converter, 'notification_logs', 'm3_probe_copy', false);
+            $this->fail('a different copy must be refused');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('mazmuni farq qiladi', $e->getMessage());
+        }
     }
 
     public function test_every_user_trigger_follows_the_table_and_a_swap_that_cannot_keep_one_is_refused(): void
@@ -163,7 +196,7 @@ class PartitionMigrationTest extends TestCase
         }
         $this->assertSame('r', $manager->relkind('notification_logs'), 'nothing changed');
         $this->assertArrayHasKey('m3_probe_transition', $manager->userTriggers('notification_logs'));
-        $this->assertFalse($manager->exists('notification_logs_m3_new'));
+        $this->assertFalse($manager->exists('notification_logs_m3_inline'));
     }
 
     /**

@@ -27,20 +27,14 @@ final class PartitionArchiver
      * Phase 3 (drops) first, then phase 1 (detaches). Each step is idempotent; a run killed half-way is finished by the
      * next one. A month whose locks cannot be had within the bound is left for the next run ('failed', with the reason).
      *
-     * @return array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, skipped: list<string>, failed: array<string, string>}
+     * @return array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, failed: array<string, string>}
      */
     public function run(): array
     {
         [$dropped, $kept] = $this->dropArchived();
-        $report = ['dropped' => $dropped, 'detached' => [], 'deleted' => [], 'kept' => $kept, 'skipped' => [], 'failed' => []];
+        $report = ['dropped' => $dropped, 'detached' => [], 'deleted' => [], 'kept' => $kept, 'failed' => []];
         $this->finishDetached($report);
         foreach (PartitionManager::tables() as $table => $config) {
-            if ($this->manager->conversionState($table) !== 'none') {
-                // The online conversion keeps an old or a new copy of the table: no month leaves before it is settled
-                $report['skipped'][] = $table;
-
-                continue;
-            }
             foreach ($this->manager->dueForArchive($table) as $partition) {
                 try {
                     if ($config['archive']) {
@@ -102,7 +96,7 @@ final class PartitionArchiver
                 $this->manager->boundedLock('LOCK TABLE ' . implode(', ', $referenced) . ' IN SHARE ROW EXCLUSIVE MODE', $this->timeout());
             }
             $this->manager->boundedLock(sprintf('LOCK TABLE ONLY %s, %s%s IN ACCESS EXCLUSIVE MODE', $table, $name, $this->manager->exists($default) ? ", {$default}" : ''), $this->timeout());
-            $triggers = $this->manager->userTriggers($table, [$table . '_m3_capture']);
+            $triggers = $this->manager->userTriggers($table);
             // Not CONCURRENTLY: refused while a DEFAULT partition exists
             DB::statement(sprintf('ALTER TABLE %s DETACH PARTITION %s', $table, $name));
             // DETACH removes the cloned triggers: the parent's are put back on the month (append-only audit, the fiscal
@@ -156,7 +150,7 @@ final class PartitionArchiver
      * Steps a killed run left: detached months with foreign keys or no counts, and notification months detached but
      * not dropped (a standalone month table of an archive => false table that the catalogue does not know).
      *
-     * @param  array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, skipped: list<string>, failed: array<string, string>}  $report
+     * @param  array{dropped: list<string>, detached: list<string>, deleted: list<string>, kept: list<string>, failed: array<string, string>}  $report
      */
     private function finishDetached(array &$report): void
     {

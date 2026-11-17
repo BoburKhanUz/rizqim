@@ -12,7 +12,7 @@ use App\Support\Partitions\PartitionManager;
 /**
  * M3: the journals' monthly partitions (PartitionManager::status, the same report as `db:partitions:status`). Fewer
  * than `threshold` future months attached (or the current one missing) is critical: the next month's rows would land
- * in DEFAULT; rows in DEFAULT, a table not converted yet, an unfinished conversion and archive failures or stale
+ * in DEFAULT; rows in DEFAULT, a table not converted yet and archive failures or stale
  * detached partitions are warnings; a missing protective trigger (trigger_missing) is critical. One subject per problem and table; the texts are the status report's.
  */
 class PartitionsCheck implements AlertCheck
