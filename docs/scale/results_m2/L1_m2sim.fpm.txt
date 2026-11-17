@@ -1,0 +1,33 @@
+== php-fpm access: requests by pool and status
+   7703 critical 200
+   1237 critical 304
+    552 critical 201
+     99 critical 409
+== nginx access: status counts
+   7703 200
+   1237 304
+    552 201
+     99 409
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /staff/kitchen/tickets | critical | 1837 | 1231 | 606 | 0 | 33.0 | 130.4 / 13.5 | 91.4 / 10.5 | 107114 / 0 | 128766 |
+| GET /pos/floor | critical | 1638 | 1467 | 171 | 0 | 10.4 | 27.0 / 13.9 | 16.3 / 10.1 | 4588 / 0 | 6573 |
+| GET /staff/orders?status=new | critical | 1343 | 1160 | 183 | 0 | 13.6 | 19.7 / 13.0 | 14.1 / 9.7 | 1363 / 0 | 1544 |
+| GET /staff/orders | critical | 1343 | 1156 | 187 | 0 | 13.9 | 92.1 / 12.2 | 68.2 / 9.7 | 94455 / 0 | 106630 |
+| GET /pos/orders/:id | critical | 1246 | 1171 | 75 | 0 | 6.0 | 31.6 / 13.8 | 19.8 / 11.3 | 4147 / 0 | 4743 |
+| GET /pos/display/state | critical | 330 | 315 | 15 | 0 | 4.5 | 16.5 / 11.7 | 12.2 / 7.3 | 392 / 0 | 121 |
+| POST /pos/orders | critical | 276 | 0 | 0 | 276 | 0.0 | - / - | - / - | - / - | 916 |
+| POST /pos/orders/:id/rounds | critical | 276 | 276 | 0 | 0 | 0.0 | 77.2 / - | 42.0 / - | 4334 / - | 1168 |
+| POST /pos/orders/:id/send | critical | 276 | 276 | 0 | 0 | 0.0 | 70.7 / - | 38.7 / - | 4438 / - | 1196 |
+| POST /pos/orders/:id/bills | critical | 276 | 0 | 0 | 276 | 0.0 | - / - | - / - | - / - | 547 |
+| POST /pos/bills/:id/payments | critical | 276 | 276 | 0 | 0 | 0.0 | 143.6 / - | 68.4 / - | 4172 / - | 1124 |
+| POST /pos/orders/:id/close | critical | 276 | 276 | 0 | 0 | 0.0 | 35.4 / - | 21.2 / - | 4196 / - | 1131 |
+| POST /pos/shifts | critical | 99 | 0 | 0 | 99 | 0.0 | - / - | - / - | - / - | 16 |
+| GET /pos/shifts/current | critical | 99 | 99 | 0 | 0 | 0.0 | 53.4 / - | 31.2 / - | 20965 / - | 2027 |
+pool critical: 9591 req, 1237 x 304 (12.9 %), PHP CPU from %C 344.1 s (35.9 ms/req; 304s 12.6 s)
+bytes: non-market 250.49 MB in 9591 req = 1065.7 kB per POS store per minute (33 stores, 437.6 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)

@@ -1,0 +1,17 @@
+# L4_m1mode_2  2026-11-17T07:37:41Z  mode=fpm-pgb RT=0 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.46 1.10 1.42
+# cfg {"market":{"customers":250,"think_s":[3,8],"order_pct":2}}
+
+L4_m1mode_2 wall=312.9s req=17111 rps=54.69 cpu php=405.04s pg=34.83s pgbouncer=12.23s nginx=5.93s redis=9.31s reverb=0s queue=0s scheduler=0s pg_rt=0s xacts=121145 conn_max=5 lockwaits=0 stmts/req=7.2
+by_group: {"mkt":17111} pgss_by_role: {"rizqim":{"calls":123980,"ms":7020}}
+redis: {"commands":295216,"cmd_per_s":943.6,"net_in":83888973,"net_out":263959439,"top":{"get":117323,"eval":38561,"mget":37818,"exists":34887,"select":20219,"incrby":17174,"setex":13310,"del":4637,"set":3804,"multi":3603,"exec":3603,"incr":276}}
+realtime: undefined
+GET /catalog?geo                     n= 3441 rps=    11 p50=19.2 p95=32.8 p99=90.5 err%=0 kB=421113 st={"200":3441}
+GET /catalog?store_id                n= 3369 rps= 10.77 p50=25.6 p95=69.1 p99=138 err%=0 kB=190624 st={"200":3369}
+GET /notifications                   n= 3369 rps= 10.77 p50=18.3 p95=47.8 p99=82.6 err%=0 kB=11934 st={"200":3369}
+GET /orders                          n= 3369 rps= 10.77 p50=60.2 p95=99.7 p99=134.4 err%=0 kB=481204 st={"200":3369}
+GET /stores?geo                      n= 3494 rps= 11.17 p50=18 p95=45 p99=89 err%=0.17 kB=242373 st={"200":3488,"503":6}
+POST /orders                         n=   69 rps=  0.22 p50=60.6 p95=89.2 p99=113.5 err%=0 kB=12 st={"201":69}
+errors: {"GET /stores?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":6}
+retry_after: {"mkt 503 Retry-After=2":6}
+sync: {}
+load after: 1.93 1.63 1.55

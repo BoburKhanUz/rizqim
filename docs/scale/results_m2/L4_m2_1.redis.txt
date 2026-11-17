@@ -1,0 +1,41 @@
+total_commands_processed:289040
+instantaneous_ops_per_sec:9
+total_net_input_bytes:62287210
+total_net_output_bytes:140384091
+total_net_repl_input_bytes:0
+total_net_repl_output_bytes:0
+instantaneous_input_kbps:3.13
+instantaneous_output_kbps:4.88
+instantaneous_input_repl_kbps:0.00
+instantaneous_output_repl_kbps:0.00
+keyspace_hits:681789
+keyspace_misses:23397
+used_memory_human:5.15M
+used_memory_peak_human:6.02M
+cmdstat_get:calls=109085,usec=246335,usec_per_call=2.26,rejected_calls=0,failed_calls=0
+cmdstat_eval:calls=39588,usec=580915,usec_per_call=14.67,rejected_calls=0,failed_calls=0
+cmdstat_exists:calls=31417,usec=43695,usec_per_call=1.39,rejected_calls=0,failed_calls=0
+cmdstat_mget:calls=28414,usec=524216,usec_per_call=18.45,rejected_calls=0,failed_calls=0
+cmdstat_select:calls=20171,usec=23648,usec_per_call=1.17,rejected_calls=0,failed_calls=0
+cmdstat_setex:calls=17968,usec=62297,usec_per_call=3.47,rejected_calls=0,failed_calls=0
+cmdstat_incrby:calls=15451,usec=29494,usec_per_call=1.91,rejected_calls=0,failed_calls=0
+cmdstat_set:calls=7012,usec=39025,usec_per_call=5.57,rejected_calls=0,failed_calls=0
+cmdstat_del:calls=6037,usec=12039,usec_per_call=1.99,rejected_calls=0,failed_calls=0
+cmdstat_multi:calls=5024,usec=2854,usec_per_call=0.57,rejected_calls=0,failed_calls=0
+cmdstat_exec:calls=5024,usec=43211,usec_per_call=8.60,rejected_calls=0,failed_calls=0
+cmdstat_zrangebyscore:calls=1964,usec=3745,usec_per_call=1.91,rejected_calls=0,failed_calls=0
+cmdstat_lpop:calls=1114,usec=1676,usec_per_call=1.50,rejected_calls=0,failed_calls=0
+cmdstat_rpush:calls=264,usec=1250,usec_per_call=4.73,rejected_calls=0,failed_calls=0
+cmdstat_incr:calls=240,usec=506,usec_per_call=2.11,rejected_calls=0,failed_calls=0
+cmdstat_zrem:calls=132,usec=938,usec_per_call=7.11,rejected_calls=0,failed_calls=0
+cmdstat_zadd:calls=132,usec=1278,usec_per_call=9.68,rejected_calls=0,failed_calls=0
+cmdstat_info:calls=4,usec=438,usec_per_call=109.50,rejected_calls=0,failed_calls=0
+cmdstat_config|resetstat:calls=1,usec=56,usec_per_call=56.00,rejected_calls=0,failed_calls=0
+# Commandstats
+0
+== reverb log (tail)
+
+   INFO  Starting server on 127.0.0.1:18580.  
+
+== queue log: jobs
+133

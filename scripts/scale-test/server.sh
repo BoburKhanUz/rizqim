@@ -43,6 +43,7 @@ EOF
   { echo "[global]"; echo "pid = $FPM_DIR/php-fpm.pid"
     sed -e "$ports" -e '/^user = /d' -e '/^group = /d' -e '/^\[global\]/d' -e '/^daemonize = /d' \
         -e "s#^error_log = .*#error_log = $SCALE_WORK/logs/php-fpm.log#" -e "s#^access.log = .*#access.log = $SCALE_WORK/logs/php-fpm-access.log#" \
+        -e 's#^\(access.format = ".*\)"$#\1 cpu=%{total}C"#' \
         "$BACKEND/docker/php-fpm.conf"; } > "$FPM_DIR/php-fpm.conf"
   # backend/docker/php.ini too (upload limits, opcache), as the image's conf.d/zz-rizqim.ini; PROF=1|cpu adds the
   # profiler (php/prof/front.php: per-request CPU, phases, providers, SQL into $PROF_LOG; summary: php/prof/report.php)
@@ -68,6 +69,25 @@ stop_fpm() {
   rm -f "$FPM_DIR/nginx.pid" "$FPM_DIR/php-fpm.pid"
 }
 
+# RT=1 (env.sh): Reverb + one queue worker + the scheduler, logs in logs/; stopped by `stop` whatever RT says
+start_rt() {
+  # Their own config cache: straight to Postgres (DB_POOLER=direct, as the compose queue/scheduler/reverb) as role
+  # scale_rt (a member of the app role, new password per start), so pg_stat_statements and the backend CPU of the
+  # broadcast jobs are told apart from the web requests'. Dropped by `server.sh drop-rt-role` (cleanup).
+  local app_user rtpw; app_user=$(grep "^DB_USERNAME=" "$BACKEND/.env" | cut -d= -f2- | tr -d '"'); rtpw=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+  $PSQL -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scale_rt') THEN CREATE ROLE scale_rt LOGIN IN ROLE $app_user; END IF; END \$\$" \
+        -c "ALTER ROLE scale_rt PASSWORD '$rtpw'" >/dev/null
+  export APP_CONFIG_CACHE=$SCALE_WORK/cache/config-rt.php
+  (cd "$BACKEND" && DB_POOLER=direct DB_HOST=127.0.0.1 DB_PORT=5432 DB_USERNAME=scale_rt DB_PASSWORD=$rtpw php artisan config:cache -q)
+  (cd "$BACKEND" && exec php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT") > "$SCALE_WORK/logs/reverb.log" 2>&1 < /dev/null &
+  (cd "$BACKEND" && exec php artisan queue:work redis --queue=default,broadcasts --tries=3 --sleep=1) > "$SCALE_WORK/logs/queue.log" 2>&1 < /dev/null &
+  if [ "${RT_SCHEDULER:-heartbeat}" = full ]; then (cd "$BACKEND" && exec php artisan schedule:work) > "$SCALE_WORK/logs/scheduler.log" 2>&1 < /dev/null &
+  else (cd "$BACKEND" && exec php "$SC/php/rt/heartbeat.php" schedule:heartbeat) > "$SCALE_WORK/logs/scheduler.log" 2>&1 < /dev/null & fi
+  for _ in $(seq 1 40); do (echo > "/dev/tcp/127.0.0.1/$REVERB_PORT") 2>/dev/null && break; sleep 0.25; done
+  echo "real-time on: reverb :$REVERB_PORT, queue worker, scheduler"
+}
+stop_rt() { pkill -f "artisan reverb:start --host=127.0.0.1" ; pkill -f "artisan queue:work redis --queue=default,broadcasts"; pkill -f "artisan schedule:work"; pkill -f "artisan schedule:run"; pkill -f "rt/heartbeat.php schedule:heartbeat"; true; }
+
 case "$1" in
 start)
   W=${2:-4}
@@ -82,8 +102,11 @@ start)
     (cd "$BACKEND" && PHP_CLI_SERVER_WORKERS=$W exec php artisan serve --host=127.0.0.1 --port="$APP_PORT" --no-reload) > "$SCALE_WORK/logs/server.log" 2>&1 < /dev/null &
   fi
   for _ in $(seq 1 40); do curl -s -o /dev/null "http://127.0.0.1:$APP_PORT/up" && break; sleep 0.25; done
-  if [ "$SERVER" = fpm ]; then echo "server (nginx + php-fpm) up on $APP_PORT"; else echo "server up on $APP_PORT with $W workers"; fi;;
+  if [ "$SERVER" = fpm ]; then echo "server (nginx + php-fpm) up on $APP_PORT"; else echo "server up on $APP_PORT with $W workers"; fi
+  stop_rt; if [ "${RT:-0}" = 1 ]; then start_rt; fi;;
+drop-rt-role)
+  $PSQL -c "DROP ROLE IF EXISTS scale_rt" && echo "role scale_rt dropped";;
 stop)
-  stop_fpm
+  stop_rt; stop_fpm
   pkill -f "artisan serve --host=127.0.0.1 --port=$APP_PORT"; pkill -f "127.0.0.1:$APP_PORT"; sleep 1; echo stopped;;
 esac

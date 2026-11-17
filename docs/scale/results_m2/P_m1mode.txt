@@ -1,0 +1,16 @@
+# P_m1mode  2026-11-17T08:12:48Z  mode=fpm-pgb RT=0 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.18 1.17 1.41
+# cfg {"poll":{"web_s":15}}
+
+P_m1mode wall=314.8s req=5939 rps=18.86 cpu php=176.48s pg=29.82s pgbouncer=7.31s nginx=1.73s redis=2.46s reverb=0s queue=0s scheduler=0s pg_rt=0s xacts=85669 conn_max=5 lockwaits=0 stmts/req=14.4
+by_group: {"poll":5939} pgss_by_role: {"rizqim":{"calls":85522,"ms":6721}}
+redis: {"commands":66241,"cmd_per_s":210.4,"net_in":5399138,"net_out":502415,"top":{"get":28374,"eval":11944,"exists":11944,"select":5939,"incrby":5939,"setex":2100,"info":1}}
+realtime: undefined
+GET /pos/display/state               n= 1980 rps=  6.29 p50=15.1 p95=19.9 p99=24.4 err%=0 kB=734 st={"200":1980}
+GET /pos/floor                       n= 1979 rps=  6.29 p50=23.3 p95=29.9 p99=33.4 err%=0 kB=7827 st={"200":1979}
+GET /staff/kitchen/tickets           n=  660 rps=   2.1 p50=125.7 p95=168.1 p99=187 err%=0 kB=78693 st={"200":660}
+GET /staff/orders                    n=  660 rps=   2.1 p50=81.7 p95=103.4 p99=114.4 err%=0 kB=61307 st={"200":660}
+GET /staff/orders?status=new         n=  660 rps=   2.1 p50=18.8 p95=25.9 p99=31.3 err%=0 kB=898 st={"200":660}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.73 0.97 1.26

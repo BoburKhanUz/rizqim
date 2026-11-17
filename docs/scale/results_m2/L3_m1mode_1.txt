@@ -1,0 +1,30 @@
+# L3_m1mode_1  2026-11-17T06:55:14Z  mode=fpm-pgb RT=0 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.06 0.42 0.65
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"web_s":15},"market":{"customers":250,"think_s":[3,8],"order_pct":2,"start_s":90,"end_s":210,"ramp_s":30}}
+
+L3_m1mode_1 wall=426.8s req=13801 rps=32.34 cpu php=379.34s pg=72.08s pgbouncer=19.84s nginx=4.18s redis=6.39s reverb=0s queue=0s scheduler=0s pg_rt=0s xacts=204379 conn_max=7 lockwaits=0 stmts/req=19.2
+by_group: {"pos":1680,"poll":5940,"mkt":6181} pgss_by_role: {"rizqim":{"calls":265611,"ms":11741}}
+redis: {"commands":201446,"cmd_per_s":472,"net_in":40383894,"net_out":95139456,"top":{"get":78335,"eval":32380,"exists":28188,"select":14966,"incrby":13822,"mget":13747,"setex":8508,"incr":4304,"del":2078,"set":1825,"multi":1646,"exec":1646}}
+realtime: undefined
+GET /catalog?geo                     n= 1257 rps=  2.95 p50=22 p95=94.1 p99=145.8 err%=0.08 kB=154040 st={"200":1256,"503":1}
+GET /catalog?store_id                n= 1195 rps=   2.8 p50=32.9 p95=115 p99=184.2 err%=0 kB=67616 st={"200":1195}
+GET /notifications                   n= 1195 rps=   2.8 p50=20.5 p95=78.7 p99=153.5 err%=0.08 kB=4195 st={"200":1194,"503":1}
+GET /orders                          n= 1195 rps=   2.8 p50=65.7 p95=147.8 p99=219.2 err%=0.08 kB=164357 st={"200":1194,"503":1}
+GET /pos/display/state               n= 1980 rps=  4.64 p50=16.3 p95=26.6 p99=50.6 err%=0 kB=734 st={"200":1980}
+GET /pos/floor                       n= 1031 rps=  2.42 p50=25.9 p95=38.5 p99=51.6 err%=0 kB=4407 st={"200":1031}
+GET /pos/orders/:id                  n=  949 rps=  2.22 p50=30.7 p95=46.7 p99=63.6 err%=0 kB=3823 st={"200":949}
+GET /staff/kitchen/tickets           n=  660 rps=  1.55 p50=97.4 p95=139.4 p99=169.1 err%=0 kB=41467 st={"200":660}
+GET /staff/orders                    n=  660 rps=  1.55 p50=90.9 p95=122.4 p99=150.3 err%=0 kB=61863 st={"200":660}
+GET /staff/orders?status=new         n=  660 rps=  1.55 p50=16.8 p95=28.1 p99=47.4 err%=0 kB=87 st={"200":660}
+GET /stores?geo                      n= 1313 rps=  3.08 p50=21.4 p95=80.5 p99=143.7 err%=0.15 kB=90949 st={"200":1311,"503":2}
+POST /orders                         n=   26 rps=  0.06 p50=70.1 p95=108.5 p99=145 err%=0 kB=5 st={"201":26}
+POST /pos/bills/:id/payments         n=  280 rps=  0.66 p50=138.5 p95=195.2 p99=238.3 err%=0 kB=1141 st={"200":280}
+POST /pos/orders                     n=  280 rps=  0.66 p50=90.6 p95=131.9 p99=148.2 err%=0 kB=936 st={"201":280}
+POST /pos/orders/:id/bills           n=  280 rps=  0.66 p50=54.5 p95=77.4 p99=117.1 err%=0 kB=553 st={"201":280}
+POST /pos/orders/:id/close           n=  280 rps=  0.66 p50=35.4 p95=61.9 p99=85.2 err%=0 kB=1147 st={"200":280}
+POST /pos/orders/:id/rounds          n=  280 rps=  0.66 p50=78.1 p95=113.3 p99=143.4 err%=0 kB=1188 st={"200":280}
+POST /pos/orders/:id/send            n=  280 rps=  0.66 p50=70.7 p95=102.3 p99=146.4 err%=0 kB=1216 st={"200":280}
+errors: {"GET /stores?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":2,"GET /catalog?geo 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1,"GET /orders 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1,"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1}
+retry_after: {"mkt 503 Retry-After=2":5}
+sync: {}
+phases: {"before":{"secs":90,"rps":24.6,"till_n":2216,"till_p50":30,"till_p95":111.8,"till_p99":146.5,"mkt_status":{},"mkt_ok_p50":null,"mkt_ok_p95":null},"during":{"secs":120,"rps":75.2,"till_n":2995,"till_p50":31.2,"till_p95":136.6,"till_p99":186.6,"mkt_status":{"200":5998,"201":26,"503":5},"mkt_ok_p50":27.8,"mkt_ok_p95":113},"after":{"secs":217,"rps":11.8,"till_n":2409,"till_p50":28.9,"till_p95":118.8,"till_p99":142.3,"mkt_status":{"200":152},"mkt_ok_p50":37.3,"mkt_ok_p95":80.7}}
+load after: 0.29 1.00 0.94

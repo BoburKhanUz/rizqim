@@ -1,0 +1,18 @@
+== php-fpm access: requests by pool and status
+   5939 critical 200
+== nginx access: status counts
+   5939 200
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /pos/display/state | critical | 1980 | 1980 | 0 | 0 | 0.0 | 14.8 / - | 11.7 / - | 392 / - | 757 |
+| GET /pos/floor | critical | 1979 | 1979 | 0 | 0 | 0.0 | 23.2 / - | 15.9 / - | 4063 / - | 7851 |
+| GET /staff/kitchen/tickets | critical | 660 | 660 | 0 | 0 | 0.0 | 126.3 / - | 99.3 / - | 122223 / - | 78776 |
+| GET /staff/orders?status=new | critical | 660 | 660 | 0 | 0 | 0.0 | 18.3 / - | 14.4 / - | 1404 / - | 905 |
+| GET /staff/orders | critical | 660 | 660 | 0 | 0 | 0.0 | 82.7 / - | 67.8 / - | 95219 / - | 61372 |
+pool critical: 5939 req, 0 x 304 (0.0 %), PHP CPU from %C 174.3 s (29.4 ms/req; 304s 0.0 s)
+bytes: non-market 146.15 MB in 5939 req = 864.4 kB per POS store per minute (33 stores, 314.8 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)

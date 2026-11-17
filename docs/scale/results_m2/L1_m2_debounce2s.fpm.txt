@@ -1,0 +1,37 @@
+== php-fpm access: requests by pool and status
+   7281 critical 200
+   1490 critical 304
+    558 critical 201
+    198 default 200
+     99 critical 409
+== nginx access: status counts
+   7479 200
+   1490 304
+    558 201
+     99 409
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /staff/kitchen/tickets | critical | 1674 | 1037 | 637 | 0 | 38.1 | 154.4 / 14.6 | 104.6 / 10.7 | 124501 / 0 | 126081 |
+| GET /pos/floor | critical | 1510 | 1314 | 196 | 0 | 13.0 | 29.3 / 14.8 | 16.2 / 10.7 | 4568 / 0 | 5861 |
+| GET /pos/orders/:id | critical | 1402 | 1290 | 112 | 0 | 8.0 | 35.5 / 14.4 | 19.9 / 10.5 | 4135 / 0 | 5209 |
+| GET /staff/orders?status=new | critical | 1200 | 962 | 238 | 0 | 19.8 | 21.8 / 13.5 | 14.3 / 11.2 | 1339 / 0 | 1258 |
+| GET /staff/orders | critical | 1200 | 949 | 251 | 0 | 20.9 | 98.9 / 13.0 | 69.9 / 9.4 | 94537 / 0 | 87613 |
+| GET /pos/display/state | critical | 570 | 514 | 56 | 0 | 9.8 | 16.6 / 13.3 | 11.4 / 9.5 | 392 / 0 | 197 |
+| POST /pos/orders | critical | 279 | 0 | 0 | 279 | 0.0 | - / - | - / - | - / - | 935 |
+| POST /pos/orders/:id/rounds | critical | 279 | 279 | 0 | 0 | 0.0 | 79.4 / - | 44.0 / - | 4348 / - | 1185 |
+| POST /pos/orders/:id/send | critical | 279 | 279 | 0 | 0 | 0.0 | 71.7 / - | 39.9 / - | 4452 / - | 1213 |
+| POST /pos/orders/:id/bills | critical | 279 | 0 | 0 | 279 | 0.0 | - / - | - / - | - / - | 554 |
+| POST /pos/bills/:id/payments | critical | 279 | 279 | 0 | 0 | 0.0 | 137.5 / - | 69.0 / - | 4178 / - | 1138 |
+| POST /pos/orders/:id/close | critical | 279 | 279 | 0 | 0 | 0.0 | 34.1 / - | 21.8 / - | 4202 / - | 1145 |
+| POST /api/broadcasting/auth | default | 198 | 198 | 0 | 0 | 0.0 | 18.1 / - | 10.9 / - | 95 / - | 18 |
+| POST /pos/shifts | critical | 99 | 0 | 0 | 99 | 0.0 | - / - | - / - | - / - | 16 |
+| GET /pos/shifts/current | critical | 99 | 99 | 0 | 0 | 0.0 | 59.7 / - | 36.6 / - | 23721 / - | 2293 |
+pool critical: 9428 req, 1490 x 304 (15.8 %), PHP CPU from %C 333.0 s (35.3 ms/req; 304s 15.7 s)
+pool default: 198 req, 0 x 304 (0.0 %), PHP CPU from %C 2.2 s (10.9 ms/req; 304s 0.0 s)
+bytes: non-market 229.22 MB in 9626 req = 978.6 kB per POS store per minute (33 stores, 436.1 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)
+      1 WARNING: [pool default] server reached max_children setting (4), consider raising it

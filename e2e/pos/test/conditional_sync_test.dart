@@ -9,6 +9,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -54,6 +55,39 @@ class WireLog extends Interceptor {
         for (final s in seen)
           if (s.path.endsWith(suffix)) s,
       ];
+}
+
+/// The screen's socket, with the test deciding what of it reaches the screen ([dropHeartbeats]).
+class SocketGate {
+  bool dropHeartbeats = false;
+  int droppedHeartbeats = 0;
+
+  Future<RealtimeSocket> connect(Uri uri, Map<String, String> headers) async =>
+      _GatedSocket(await ioRealtimeConnector(uri, headers), this);
+}
+
+class _GatedSocket implements RealtimeSocket {
+  _GatedSocket(this._inner, this._gate);
+
+  final RealtimeSocket _inner;
+  final SocketGate _gate;
+
+  @override
+  Stream<String> get messages => _inner.messages.where((String raw) {
+    if (!_gate.dropHeartbeats || !raw.contains(heartbeatEvent)) return true;
+    final Object? m = jsonDecode(raw);
+    if (m is Map && m['event'] == heartbeatEvent) {
+      _gate.droppedHeartbeats++;
+      return false;
+    }
+    return true;
+  });
+
+  @override
+  void send(String message) => _inner.send(message);
+
+  @override
+  Future<void> close() => _inner.close();
 }
 
 void main() {
@@ -230,18 +264,37 @@ void main() {
       final CapturedRead<PosFloor> read = await ReadTracking.capture(
         () => floorOf(till),
       );
-      expect(read.reads.revisionFor('branch:$branchId'), rev);
+      // At least the event's token (the stack's own jobs may write in between: the read then names a later one)
+      expect(
+        read.reads.revisionFor('branch:$branchId'),
+        greaterThanOrEqualTo(rev!),
+      );
     }
   });
 
   test('a missed event: the next event is not N+1, so the screen re-reads in full; the heartbeat catches the rest', () async {
-    // The till's floor screen the way the app runs it: re-read on a relevant event (here: only items_changed, so the
-    // order.created of the same order is an event this screen never gets)
+    // The screen gets its own socket through a gate the test controls, and no poll: nothing but what the test lets
+    // through can move its token N. The stack's heartbeat loop (every 15 s) and the safety poll would otherwise catch
+    // a miss up at a random moment and turn the gap below into an ordinary N+1.
+    final SocketGate gate = SocketGate();
+    final PosRealtime rt = PosRealtime.create(
+      client: till.client,
+      terminal: till.client.auth.terminal!,
+      apiBaseUrl: config.apiUrl,
+      appKey: config.reverbKey,
+      reverbUrl: config.reverbUrl,
+      clientName: 'pos-e2e-gated',
+      connector: gate.connect,
+    )!;
+    addTearDown(rt.dispose);
     final List<PosRefreshReason> reasons = <PosRefreshReason>[];
     late PosFloor shown;
     final PosRefreshScheduler screen = PosRefreshScheduler(
-      realtime: till.realtime,
+      realtime: rt,
+      // Only items_changed: the order.created of the same order is an event this screen never gets
       eventFilter: (PosEvent e) => e is PosOrderItemsChanged,
+      pollInterval: Duration.zero,
+      livePollInterval: Duration.zero,
       onRefresh: (PosRefreshReason r) async {
         shown = await floorOf(till);
         // After the read: a test waiting for the reason then sees the floor it brought
@@ -250,11 +303,26 @@ void main() {
       debounce: const Duration(milliseconds: 100),
     )..start();
     addTearDown(screen.dispose);
+    final EventLog heard = EventLog(rt);
+    addTearDown(heard.dispose);
+    gate.dropHeartbeats = true;
+    rt.start();
+    await rt.states
+        .firstWhere((PosLiveState s) => s == PosLiveState.live)
+        .timeout(const Duration(seconds: 15));
     await screen.refreshNow();
     if (tokensWork) expect(screen.revision!.known, isNotNull);
 
-    final PosFloor floor = await floorOf(till);
-    final int table = freeTable(floor);
+    Future<void> waitForReason(PosRefreshReason r) async {
+      final DateTime until = DateTime.now().add(const Duration(seconds: 15));
+      while (!reasons.contains(r) && DateTime.now().isBefore(until)) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(reasons, contains(r));
+    }
+
+    // 1. The gap: order.created is missed (filtered), so the round's items_changed is N+2 for this screen
+    final int table = freeTable(await floorOf(till));
     final PosOrder order = await waiter.pos.orders.open(
       channel: PosChannel.hall,
       tableId: table,
@@ -262,31 +330,28 @@ void main() {
       waiterId: config.seed.staff('waiter1').id,
     );
     opened.add(order);
-    await till.log!.waitFor(
+    await heard.waitFor(
       (PosEvent e) => e is PosOrderEvent && e.orderUuid == order.uuid,
-      what: 'order.created',
+      what: 'order.created on the gated socket',
     );
     reasons.clear();
     final int rereadsBefore = screen.revision!.rereadCount;
-    // The next relevant event (a round sent) carries N+2 for this screen: a gap, not N+1
+    final int heartbeatsBefore = screen.revision!.heartbeatRereads;
     await waiter.pos.orders.addRound(
       order.uuid,
       version: order.version,
       items: menu.inputs(<Dish>[Dish.of('Osh', 1)]),
       send: true,
     );
-    final DateTime until = DateTime.now().add(const Duration(seconds: 10));
-    while (!reasons.contains(PosRefreshReason.event) &&
-        DateTime.now().isBefore(until)) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    expect(reasons, contains(PosRefreshReason.event));
+    await waitForReason(PosRefreshReason.event);
     expect(
       screen.revision!.rereadCount,
       greaterThan(rereadsBefore),
       reason:
           'the first relevant event after a missed one is a re-read, not N+1',
     );
+    expect(screen.revision!.heartbeatRereads, heartbeatsBefore);
+    expect(reasons.toSet(), <PosRefreshReason>{PosRefreshReason.event});
     expect(
       shown.tables
           .firstWhere((FloorTable t) => t.id == table)
@@ -295,11 +360,11 @@ void main() {
       contains(order.uuid),
     );
 
-    // Lost entirely: a change whose event this screen ignores, then the server's heartbeat names the new token
+    // 2. Lost entirely: a change whose only event this screen ignores; heartbeats are still held at the gate
     await screen.refreshNow();
+    final BigInt? n = screen.revision!.known;
     reasons.clear();
-    final PosFloor before = await floorOf(till);
-    final int table2 = freeTable(before);
+    final int table2 = freeTable(await floorOf(till));
     final PosOrder lost = await waiter.pos.orders.open(
       channel: PosChannel.hall,
       tableId: table2,
@@ -307,73 +372,19 @@ void main() {
       waiterId: config.seed.staff('waiter1').id,
     );
     opened.add(lost);
-    await till.log!.waitFor(
+    await heard.waitFor(
       (PosEvent e) => e is PosOrderEvent && e.orderUuid == lost.uuid,
       what: 'order.created (ignored by the screen)',
     );
     expect(reasons, isEmpty, reason: 'the screen did not get it');
-    // Backend gap (reported): SendRealtimeHeartbeat gives up on ALL channels when one of its three prefixes has no
-    // subscriber (pusher-php getChannels() on Reverb's empty `[]`). Here the owner's panel keeps private-store and
-    // private-branch occupied, as in a store whose owner has the partner web open.
-    final PusherClient owner = PusherClient(
-      uri: realtimeUri(
-        apiBaseUrl: config.apiUrl,
-        appKey: config.reverbKey,
-        override: config.reverbUrl,
-        clientName: 'pos-e2e-owner',
-      ),
-      headers: <String, String>{'Origin': originOf(config.apiUrl)},
-      connector: ioRealtimeConnector,
-      authorize: ChannelAuth(
-        Dio(
-          BaseOptions(
-            baseUrl: config.apiUrl,
-            headers: <String, Object?>{
-              'Accept': 'application/json',
-              'Authorization': 'Bearer ${config.seed.ownerToken}',
-            },
-          ),
-        ),
-      ).current,
-    );
-    addTearDown(owner.dispose);
-    final List<String> ownerChannels = <String>[
-      'private-store.${till.bootstrap.store.id}',
-      'private-branch.$branchId',
-    ];
-    final Future<void> ownerReady = owner.channelStates
-        .where(
-          (RealtimeChannelState c) =>
-              c.state == RealtimeSubscriptionState.subscribed,
-        )
-        .take(ownerChannels.length)
-        .drain<void>()
-        .timeout(const Duration(seconds: 15));
-    for (final String c in ownerChannels) {
-      owner.subscribe(c);
-    }
-    owner.connect();
-    await ownerReady;
-
-    final Future<PosHeartbeat> beat = till.realtime!.heartbeats.first.timeout(
-      const Duration(seconds: 15),
-    );
-    await artisan(<String>[
-      'tinker',
-      '--execute=dispatch_sync(new \\App\\Domain\\Realtime\\Heartbeat\\SendRealtimeHeartbeat);',
-    ]);
-    final PosHeartbeat heartbeat = await beat;
-    expect(
-      ChannelRevision.revisionIn(heartbeat.data, channelKey),
-      isNotNull,
-      reason: 'the heartbeat carries the channel token: ${heartbeat.data}',
-    );
-    final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
-    while (!reasons.contains(PosRefreshReason.heartbeat) &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    expect(reasons, contains(PosRefreshReason.heartbeat));
+    expect(screen.revision!.known, n, reason: 'N did not move');
+    // Heartbeats through again, and one sent now: whichever arrives first (this one or the stack's own) is stamped
+    // after the change, so its token differs from N
+    final int beatsBefore = screen.revision!.heartbeatRereads;
+    gate.dropHeartbeats = false;
+    await artisan(<String>['schedule:test', '--name=realtime-heartbeat']);
+    await waitForReason(PosRefreshReason.heartbeat);
+    expect(screen.revision!.heartbeatRereads, greaterThan(beatsBefore));
     expect(
       shown.tables
           .firstWhere((FloorTable t) => t.id == table2)

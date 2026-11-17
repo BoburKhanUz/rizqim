@@ -1,0 +1,18 @@
+# L4_m2_2  2026-11-17T07:43:39Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.99 1.41 1.48
+# cfg {"client":{"cond":true},"market":{"customers":250,"think_s":[3,8],"order_pct":2,"mode":"m2","orders_s":60}}
+
+L4_m2_2 wall=359.7s req=15819 rps=43.97 cpu php=218.75s pg=22.05s pgbouncer=8.38s nginx=4.38s redis=8.57s reverb=0.15s queue=0.55s scheduler=0s pg_rt=0s xacts=87250 conn_max=6 lockwaits=0 stmts/req=5.7
+by_group: {"mkt":15819} pgss_by_role: {"rizqim":{"calls":89774,"ms":2896}}
+redis: {"commands":289311,"cmd_per_s":804.2,"net_in":62077210,"net_out":140745195,"top":{"get":109395,"eval":39784,"exists":31694,"mget":28620,"select":20242,"setex":17547,"incrby":15588,"set":6874,"del":5830,"multi":4896,"exec":4896,"zrangebyscore":1992}}
+realtime: {"event_names":{},"setup":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"screens":0}
+GET /catalog/availability            n= 3002 rps=  8.34 p50=24 p95=273.7 p99=321.5 err%=1.23 304%=0 inm=1126 full=1876 p50_200=24.1 p50_304=null kB=886 st={"200":2965,"503":37}
+GET /catalog?geo&view=cards          n= 1729 rps=  4.81 p50=19.5 p95=106.4 p99=333.6 err%=5.44 304%=0 inm=1385 full=344 p50_200=19.8 p50_304=null kB=69324 st={"200":1635,"503":94}
+GET /catalog?store_id                n= 2850 rps=  7.92 p50=54.9 p95=282.5 p99=317.3 err%=0.6 304%=7.5 inm=988 full=1862 p50_200=78.1 p50_304=13.1 kB=149740 st={"200":2618,"304":215,"503":17}
+GET /notifications                   n= 4967 rps= 13.81 p50=13.1 p95=50.7 p99=117.6 err%=0.32 304%=93.4 inm=4702 full=265 p50_200=21.8 p50_304=12.9 kB=1104 st={"200":310,"304":4641,"503":16}
+GET /orders?scope=active             n= 1245 rps=  3.46 p50=13.8 p95=48 p99=119.5 err%=0.64 304%=75.3 inm=987 full=258 p50_200=21.6 p50_304=12.8 kB=2209 st={"200":299,"304":938,"503":8}
+GET /stores?geo&page                 n= 1962 rps=  5.45 p50=17.2 p95=110 p99=321.2 err%=6.27 304%=0 inm=1167 full=795 p50_200=17.7 p50_304=null kB=15246 st={"200":1839,"503":123}
+POST /orders                         n=   64 rps=  0.18 p50=57.2 p95=79.7 p99=101.5 err%=0 kB=11 st={"201":64}
+errors: {"GET /catalog?geo&view=cards 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":94,"GET /stores?geo&page 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":123,"GET /orders?scope=active 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":8,"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":16,"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":17,"GET /catalog/availability 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":37}
+retry_after: {"mkt 503 Retry-After=2":295}
+sync: {}
+load after: 0.37 0.93 1.25
