@@ -92,5 +92,6 @@ bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallar
 | To'lqin | Holat |
 |---|---|
 | M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
-| M2 Jonli aloqa va kesh | Kod, tuzatishlar va qayta o'lchov tayyor (PR #25, 17.11.2026): [scale/RESULTS_M2.md](scale/RESULTS_M2.md). Market yuki 2-3 baravar kamaydi, sokin vaqtda so'rovlar 73 % kam; tushlikda kassa tezligi M1 darajasida (birinchi o'lchovda topilgan sekinlashuv tuzatildi). Merge egasining buyrug'ini kutmoqda |
-| M3–M5, P, L | Navbatda |
+| M2 Jonli aloqa va kesh | **Tugadi** (PR #25, 17.11.2026). Natija: [scale/RESULTS_M2.md](scale/RESULTS_M2.md): market yuki 2-3 baravar kam, sokin vaqtda so'rovlar 73 % kam, tushlikda kassa tezligi M1 darajasida va ekranlar 2-5 soniyada yangilanadi |
+| M3 Ishonchlilik | Boshlandi (17.11.2026) |
+| M4, M5, P, L | Navbatda |
