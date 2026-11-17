@@ -76,8 +76,8 @@ else
     command -v docker >/dev/null 2>&1 || die "docker topilmadi (buyruqni serverda, loyiha papkasida bajaring)"
     cd "$ROOT_DIR"
     [ -f .env ] || die "ildizdagi .env yo'q"
-    STATE="${BACKUP_HOST_DIR:-$(dotenv BACKUP_HOST_DIR)}"
-    STATE="${STATE:-./backups}/.pitr/switch.state"
+    # In the project directory, owned by the operator (./backups/.pitr is root-only: the backup container writes it)
+    STATE="$ROOT_DIR/.pitr-switch/switch.state"
     DB=$(dotenv DB_DATABASE); DB=${DB:-rizqimbot}
     DBUSER=$(dotenv DB_USERNAME); DBUSER=${DBUSER:-rizqimbot}
     APP_SERVICES="frontend partner-web platform-admin reverb scheduler queue queue-reports backend pgbouncer"
@@ -163,6 +163,12 @@ else
     kind=$(printf '%s\n' "$check_out" | sed -n 's/^COPY_KIND=//p')
     log "ISH BAZASI ALMASHTIRILADI: $(current_data) -> $target"
     log "DIQQAT: tiklash nuqtasidan keyin hozirgi bazaga yozilgan HAMMA narsa (buyurtmalar, to'lovlar) yangi bazada bo'lmaydi. Hozirgi baza o'chirilmaydi: orqaga qaytish mumkin (--back)"
+fi
+
+# Everything this run must write, checked before anything is stopped
+[ -w "$(dirname "$STATE")" ] || die "$(dirname "$STATE") ga yozib bo'lmaydi (shu foydalanuvchi bilan): hech narsa o'zgarmadi"
+if [ "$LOCAL" = "0" ]; then
+    if [ ! -w .env ] || [ ! -w . ]; then die "ildizdagi .env yoki loyiha papkasiga yozib bo'lmaydi: hech narsa o'zgarmadi"; fi
 fi
 
 # --- 2. typed confirmation ----------------------------------------------------------------------------------------
