@@ -1,0 +1,31 @@
+== php-fpm access: requests by pool and status
+   7181 critical 200
+    572 critical 201
+     99 critical 409
+== nginx access: status counts
+   7181 200
+    572 201
+     99 409
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /pos/display/state | critical | 1979 | 1979 | 0 | 0 | 0.0 | 14.5 / - | 11.6 / - | 392 / - | 757 |
+| GET /pos/floor | critical | 1041 | 1041 | 0 | 0 | 0.0 | 23.5 / - | 16.0 / - | 4423 / - | 4496 |
+| GET /pos/orders/:id | critical | 939 | 939 | 0 | 0 | 0.0 | 27.9 / - | 20.1 / - | 4112 / - | 3771 |
+| GET /staff/orders?status=new | critical | 660 | 660 | 0 | 0 | 0.0 | 14.9 / - | 12.1 / - | 92 / - | 59 |
+| GET /staff/orders | critical | 660 | 660 | 0 | 0 | 0.0 | 85.6 / - | 68.5 / - | 94702 / - | 61039 |
+| GET /staff/kitchen/tickets | critical | 659 | 659 | 0 | 0 | 0.0 | 55.3 / - | 38.7 / - | 26817 / - | 17258 |
+| POST /pos/orders | critical | 286 | 0 | 0 | 286 | 0.0 | - / - | - / - | - / - | 957 |
+| POST /pos/orders/:id/rounds | critical | 286 | 286 | 0 | 0 | 0.0 | 68.9 / - | 40.3 / - | 4340 / - | 1212 |
+| POST /pos/orders/:id/send | critical | 286 | 286 | 0 | 0 | 0.0 | 63.9 / - | 37.4 / - | 4445 / - | 1242 |
+| POST /pos/orders/:id/bills | critical | 286 | 0 | 0 | 286 | 0.0 | - / - | - / - | - / - | 567 |
+| POST /pos/bills/:id/payments | critical | 286 | 286 | 0 | 0 | 0.0 | 125.3 / - | 65.6 / - | 4176 / - | 1166 |
+| POST /pos/orders/:id/close | critical | 286 | 286 | 0 | 0 | 0.0 | 31.9 / - | 20.8 / - | 4200 / - | 1173 |
+| POST /pos/shifts | critical | 99 | 0 | 0 | 99 | 0.0 | - / - | - / - | - / - | 16 |
+| GET /pos/shifts/current | critical | 99 | 99 | 0 | 0 | 0.0 | 36.4 / - | 19.4 / - | 9928 / - | 960 |
+pool critical: 7852 req, 0 x 304 (0.0 %), PHP CPU from %C 208.7 s (26.6 ms/req; 304s 0.0 s)
+bytes: non-market 92.46 MB in 7852 req = 397.0 kB per POS store per minute (33 stores, 433.6 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)

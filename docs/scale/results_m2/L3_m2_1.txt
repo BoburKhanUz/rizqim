@@ -1,0 +1,31 @@
+# L3_m2_1  2026-11-17T07:02:34Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.32 0.99 0.94
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"refresh":"ws"},"market":{"customers":250,"think_s":[3,8],"order_pct":2,"start_s":90,"end_s":210,"ramp_s":30,"mode":"m2","orders_s":60}}
+
+L3_m2_1 wall=437.1s req=15844 rps=36.24 cpu php=436.7s pg=87.01s pgbouncer=23.95s nginx=4.25s redis=8.71s reverb=3s queue=5.33s scheduler=0.01s pg_rt=0s xacts=248314 conn_max=7 lockwaits=0 stmts/req=19.5
+by_group: {"pos":1692,"poll":8295,"mkt":5857} pgss_by_role: {"rizqim":{"calls":309314,"ms":14107}}
+redis: {"commands":308659,"cmd_per_s":706.1,"net_in":61098624,"net_out":67927736,"top":{"get":107560,"eval":57489,"exists":32210,"mget":21474,"select":18982,"incrby":15824,"zrangebyscore":12004,"setex":10267,"lpop":8576,"rpush":5148,"incr":4274,"set":2912}}
+realtime: {"event_names":{"order.created":1751,"order.items_changed":3502,"order.status_changed":3502,"order.bill_changed":5253,"fiscal.receipt_updated":1751},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15759,"heartbeats":2772,"skipped_same":893,"event_reads":4764,"heartbeat_reads":520,"poll_reads":1649,"full_reads":330},"screens":198}
+GET /catalog/availability            n= 1084 rps=  2.48 p50=56.6 p95=323.7 p99=424.3 err%=0.55 304%=0 inm=187 full=897 p50_200=56.7 p50_304=null kB=321 st={"200":1078,"503":6}
+GET /catalog?geo&view=cards          n=  703 rps=  1.61 p50=38 p95=191.1 p99=377.4 err%=0.57 304%=0 inm=452 full=251 p50_200=38.1 p50_304=null kB=29530 st={"200":699,"503":4}
+GET /catalog?store_id                n= 1038 rps=  2.37 p50=91.8 p95=342.6 p99=410.5 err%=0.39 304%=4.8 inm=141 full=897 p50_200=96.5 p50_304=25.5 kB=55277 st={"200":984,"304":50,"503":4}
+GET /notifications                   n= 1746 rps=  3.99 p50=24 p95=148.6 p99=216.3 err%=0.52 304%=84.7 inm=1496 full=250 p50_200=31.5 p50_304=23.3 kB=911 st={"200":259,"304":1478,"503":9}
+GET /orders?scope=active             n=  432 rps=  0.99 p50=25.2 p95=126.2 p99=208.8 err%=0.23 304%=41.2 inm=182 full=250 p50_200=23.8 p50_304=28 kB=218 st={"200":253,"304":178,"503":1}
+GET /pos/display/state               n=  577 rps=  1.32 p50=86.2 p95=502.3 p99=640.7 err%=0 304%=9.5 inm=478 full=99 p50_200=96 p50_304=17.3 kB=194 st={"200":522,"304":55}
+GET /pos/floor                       n= 1691 rps=  3.87 p50=87 p95=343.8 p99=463.8 err%=0 304%=8.2 inm=1486 full=205 p50_200=89 p50_304=42.5 kB=6966 st={"200":1553,"304":138}
+GET /pos/orders/:id                  n= 1501 rps=  3.43 p50=118.8 p95=452 p99=609 err%=0 304%=7.4 inm=1127 full=374 p50_200=124.7 p50_304=27.3 kB=5592 st={"200":1390,"304":111}
+GET /staff/kitchen/tickets           n= 1802 rps=  4.12 p50=174.9 p95=442.9 p99=594.4 err%=0 304%=31.7 inm=1703 full=99 p50_200=206.9 p50_304=17.7 kB=94034 st={"200":1230,"304":572}
+GET /staff/orders                    n= 1362 rps=  3.12 p50=254.4 p95=469.1 p99=646.9 err%=0 304%=16.2 inm=1329 full=33 p50_200=276.4 p50_304=25 kB=106961 st={"200":1142,"304":220}
+GET /staff/orders?status=new         n= 1362 rps=  3.12 p50=75.8 p95=345.5 p99=475 err%=0 304%=15.4 inm=1329 full=33 p50_200=84.4 p50_304=18.3 kB=206 st={"200":1152,"304":210}
+GET /stores?geo&page                 n=  843 rps=  1.93 p50=34.1 p95=168.5 p99=287.3 err%=0.83 304%=0 inm=294 full=549 p50_200=34.7 p50_304=null kB=6929 st={"200":836,"503":7}
+POST /orders                         n=   11 rps=  0.03 p50=70.2 p95=125.3 p99=125.3 err%=0 kB=2 st={"201":11}
+POST /pos/bills/:id/payments         n=  282 rps=  0.65 p50=153.2 p95=473.5 p99=610 err%=0 kB=1151 st={"200":282}
+POST /pos/orders                     n=  282 rps=  0.65 p50=103.1 p95=400 p99=597.9 err%=0 kB=943 st={"201":282}
+POST /pos/orders/:id/bills           n=  282 rps=  0.65 p50=60.9 p95=359.2 p99=450.5 err%=0 kB=558 st={"201":282}
+POST /pos/orders/:id/close           n=  282 rps=  0.65 p50=37 p95=236.3 p99=429.2 err%=0 kB=1158 st={"200":282}
+POST /pos/orders/:id/rounds          n=  282 rps=  0.65 p50=83.6 p95=427.7 p99=572.6 err%=0 kB=1199 st={"200":282}
+POST /pos/orders/:id/send            n=  282 rps=  0.65 p50=80 p95=389.3 p99=546.3 err%=0 kB=1228 st={"200":282}
+errors: {"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":9,"GET /catalog?geo&view=cards 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":4,"GET /stores?geo&page 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":7,"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":4,"GET /catalog/availability 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":6,"GET /orders?scope=active 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1}
+retry_after: {"mkt 503 Retry-After=2":31}
+sync: {}
+phases: {"before":{"secs":90,"rps":32.1,"till_n":2889,"till_p50":114.3,"till_p95":350.2,"till_p99":425.4,"mkt_status":{},"mkt_ok_p50":null,"mkt_ok_p95":null},"during":{"secs":120,"rps":81.6,"till_n":3938,"till_p50":148.6,"till_p95":485.2,"till_p99":642.1,"mkt_status":{"200":4109,"201":11,"304":1704,"503":31},"mkt_ok_p50":49,"mkt_ok_p95":305.3},"after":{"secs":227,"rps":13.9,"till_n":3160,"till_p50":122.3,"till_p95":411.2,"till_p99":531.4,"mkt_status":{"304":2},"mkt_ok_p50":null,"mkt_ok_p95":null}}
+load after: 0.33 1.47 1.31

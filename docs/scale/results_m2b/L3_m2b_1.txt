@@ -1,0 +1,31 @@
+# L3_m2b_1  2026-11-17T13:17:00Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.13 0.55 0.77
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"rules":"paced","till":"alt","refresh":"ws"},"market":{"customers":250,"think_s":[3,8],"order_pct":2,"start_s":90,"end_s":210,"ramp_s":30,"mode":"m2","orders_s":60}}
+
+L3_m2b_1 wall=437.1s req=13035 rps=29.82 cpu php=277.13s pg=70.52s pgbouncer=18.27s nginx=3.64s redis=8.16s reverb=2.9s queue=5.04s scheduler=0.01s pg_rt=0s xacts=200724 conn_max=7 lockwaits=0 stmts/req=20.3
+by_group: {"pos":1674,"poll":5452,"mkt":5909} pgss_by_role: {"rizqim":{"calls":264911,"ms":11450}}
+redis: {"commands":272517,"cmd_per_s":623.5,"net_in":57367013,"net_out":67416136,"top":{"get":92982,"eval":51909,"exists":26635,"select":16238,"mget":16068,"incrby":13038,"zrangebyscore":11968,"setex":10468,"lpop":8549,"rpush":5130,"incr":4265,"set":3090}}
+realtime: {"rules":"paced","till":"alt","event_names":{"order.created":1737,"order.items_changed":3460,"order.status_changed":3460,"order.bill_changed":5190,"fiscal.receipt_updated":1730},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0,"asked":0,"skipped_asked":0,"ignored":0,"dropped":0,"retries":0,"heartbeat_asks":0,"board_gap":0,"board_applied":0,"return_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15577,"heartbeats":2772,"skipped_same":101,"event_reads":4283,"heartbeat_reads":106,"poll_reads":1063,"full_reads":268,"asked":5518,"skipped_asked":933,"ignored":13227,"dropped":11,"retries":0,"heartbeat_asks":643,"board_gap":0,"board_applied":0,"return_reads":0},"reads_by_kind":{"display":{"poll":330,"hb_missed":18,"heartbeat":17},"floor":{"poll":259,"event":1311,"due_nothing":28,"due_dropped":4,"hb_doubt":359,"heartbeat":3,"hb_missed":18},"kds":{"poll":248,"event":918,"due_nothing":11,"hb_missed":16,"heartbeat":2,"hb_doubt":118,"due_dropped":6},"order":{"event":1031,"hb_missed":34,"heartbeat":84,"hb_doubt":80,"poll":61,"due_dropped":1},"owner":{"order":1023,"list_poll":165}},"screens":198}
+GET /catalog/availability            n= 1104 rps=  2.53 p50=29.2 p95=282.4 p99=318.1 err%=0.54 304%=0 inm=185 full=919 p50_200=29.3 p50_304=null kB=328 st={"200":1098,"503":6}
+GET /catalog?geo&view=cards          n=  703 rps=  1.61 p50=23 p95=120.9 p99=333.1 err%=0 304%=0 inm=453 full=250 p50_200=23 p50_304=null kB=29787 st={"200":703}
+GET /catalog?store_id                n= 1042 rps=  2.38 p50=70.9 p95=305.1 p99=343.5 err%=0.38 304%=3.9 inm=123 full=919 p50_200=79.6 p50_304=14.4 kB=56681 st={"200":997,"304":41,"503":4}
+GET /notifications                   n= 1753 rps=  4.01 p50=14.5 p95=68.1 p99=117 err%=0.29 304%=84.4 inm=1503 full=250 p50_200=22.3 p50_304=13.2 kB=946 st={"200":269,"304":1479,"503":5}
+GET /orders?scope=active             n=  432 rps=  0.99 p50=15.6 p95=71 p99=114.2 err%=0.23 304%=40.3 inm=182 full=250 p50_200=16.9 p50_304=13.1 kB=90 st={"200":257,"304":174,"503":1}
+GET /pos/display/state               n=  347 rps=  0.79 p50=15.9 p95=30.7 p99=59.8 err%=0 304%=5.2 inm=248 full=99 p50_200=16.2 p50_304=12.5 kB=122 st={"200":329,"304":18}
+GET /pos/floor                       n= 1573 rps=   3.6 p50=24.5 p95=38.5 p99=56.9 err%=0 304%=1.7 inm=1286 full=287 p50_200=24.6 p50_304=14.5 kB=6895 st={"200":1546,"304":27}
+GET /pos/orders/:id                  n= 1176 rps=  2.69 p50=30.2 p95=60.6 p99=89.8 err%=0 304%=1.9 inm=898 full=278 p50_200=30.3 p50_304=14.1 kB=4668 st={"200":1154,"304":22}
+GET /staff/kitchen/tickets           n= 1168 rps=  2.67 p50=69 p95=115 p99=141.4 err%=0 304%=10.4 inm=1121 full=47 p50_200=71.6 p50_304=14.3 kB=42361 st={"200":1047,"304":121}
+GET /staff/orders/:id                n= 1023 rps=  2.34 p50=22.5 p95=41.2 p99=68.8 err%=0 304%=0.6 inm=744 full=279 p50_200=22.6 p50_304=15.5 kB=3069 st={"200":1017,"304":6}
+GET /staff/orders?scope=active       n=  165 rps=  0.38 p50=22.6 p95=38.3 p99=73.9 err%=0 304%=0 inm=132 full=33 p50_200=22.6 p50_304=null kB=699 st={"200":165}
+GET /stores?geo&page                 n=  855 rps=  1.96 p50=22.4 p95=110.2 p99=284 err%=0.12 304%=0 inm=293 full=562 p50_200=22.4 p50_304=null kB=7069 st={"200":854,"503":1}
+POST /orders                         n=   20 rps=  0.05 p50=88.5 p95=125.5 p99=125.5 err%=0 kB=3 st={"201":20}
+POST /pos/bills/:id/payments         n=  279 rps=  0.64 p50=126.9 p95=203.4 p99=239.7 err%=0 kB=1134 st={"200":279}
+POST /pos/orders                     n=  279 rps=  0.64 p50=86 p95=135.2 p99=163.8 err%=0 kB=925 st={"201":279}
+POST /pos/orders/:id/bills           n=  279 rps=  0.64 p50=50.7 p95=70.5 p99=94.8 err%=0 kB=550 st={"201":279}
+POST /pos/orders/:id/close           n=  279 rps=  0.64 p50=32 p95=48.8 p99=73.2 err%=0 kB=1141 st={"200":279}
+POST /pos/orders/:id/rounds          n=  279 rps=  0.64 p50=74 p95=119.5 p99=142.7 err%=0 kB=1180 st={"200":279}
+POST /pos/orders/:id/send            n=  279 rps=  0.64 p50=65.4 p95=102.2 p99=124 err%=0 kB=1208 st={"200":279}
+errors: {"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":4,"GET /catalog/availability 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":6,"GET /notifications 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":5,"GET /orders?scope=active 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1,"GET /stores?geo&page 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1}
+retry_after: {"mkt 503 Retry-After=2":17}
+sync: {}
+phases: {"before":{"secs":90,"rps":22.6,"till_n":2038,"till_p50":30.8,"till_p95":97.8,"till_p99":138,"mkt_status":{},"mkt_ok_p50":null,"mkt_ok_p95":null},"during":{"secs":120,"rps":72.5,"till_n":2801,"till_p50":32.6,"till_p95":121.7,"till_p99":169.6,"mkt_status":{"200":4174,"201":20,"304":1694,"503":17},"mkt_ok_p50":28.7,"mkt_ok_p95":284.5},"after":{"secs":227,"rps":10.1,"till_n":2287,"till_p50":29.4,"till_p95":106.1,"till_p99":144.8,"mkt_status":{"200":4},"mkt_ok_p50":265.5,"mkt_ok_p95":272.6}}
+load after: 0.25 0.94 0.95

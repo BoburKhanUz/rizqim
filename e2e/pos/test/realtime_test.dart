@@ -140,7 +140,11 @@ void main() {
         refreshes.add(reason);
         seenByWaiter2 = await waiter2.pos.floor.load();
       },
-      debounce: const Duration(milliseconds: 100),
+      // M2 fix round 2: the app paces floors (RefreshPacing.floor); a short window keeps the test quick
+      pacing: const RefreshPacing(
+        window: Duration(milliseconds: 100),
+        spread: Duration.zero,
+      ),
     )..start();
     addTearDown(scheduler.dispose);
 
@@ -166,7 +170,10 @@ void main() {
     // ... and the second waiter's floor map reloaded by itself and shows it
     await eventually<bool>(
       () async =>
-          refreshes.contains(PosRefreshReason.event) &&
+          // By itself: on the event, or on the stack's heartbeat if one carried the new token first (the event is then
+          // already read and skipped, wave M2)
+          (refreshes.contains(PosRefreshReason.event) ||
+                  refreshes.contains(PosRefreshReason.heartbeat)) &&
               seenByWaiter2.table(tableId('Stol 2'))!.orders.isNotEmpty
           ? true
           : null,

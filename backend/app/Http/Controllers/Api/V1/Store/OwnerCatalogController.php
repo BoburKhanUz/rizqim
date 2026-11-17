@@ -245,7 +245,9 @@ class OwnerCatalogController extends Controller
             $updateData += $this->fiscalFields($validated); // P3-11: fields left out are kept
             $product->update($updateData);
 
-            // Sync variants
+            // Sync variants. Review M2: the product's variants locked first in id order (StockLocks), as a sale locks
+            // them, so updating them in the form's order cannot deadlock with a till sale of two of them
+            app(\App\Services\Catalog\StockLocks::class)->lock(null, [], ProductVariant::where('product_id', $product->id)->pluck('id')->map(fn ($id) => (int) $id)->all());
             $variantsData = json_decode($validated['variants'], true);
             $existingVariantIds = [];
 
@@ -329,6 +331,8 @@ class OwnerCatalogController extends Controller
             if ($fields !== []) {
                 $product->update($fields);
             }
+            // Review M2: the variants in id order first (StockLocks), then written in the request's order
+            app(\App\Services\Catalog\StockLocks::class)->lock(null, [], array_map(fn (array $row) => (int) $row['id'], $validated['variants'] ?? []));
             foreach ($validated['variants'] ?? [] as $row) {
                 $label = is_string($row['unit_label'] ?? null) && trim($row['unit_label']) !== '' ? trim($row['unit_label']) : null;
                 ProductVariant::where('product_id', $product->id)->whereKey((int) $row['id'])->update(['unit_label' => $label]);

@@ -10,3 +10,7 @@ use Illuminate\Support\Facades\Route;
 // untouched.
 Route::get('/health', HealthController::class)->name('health');
 Route::get('/api/v1/health', HealthController::class)->name('health.api');
+
+// M2: is real-time live, and how clients connect (public: the Reverb app key is public by design). No database;
+// cached for 5 s. docs/API.md, "Real-time"
+Route::get('/api/v1/realtime', \App\Domain\Realtime\Http\RealtimeStatusController::class)->name('realtime.status');

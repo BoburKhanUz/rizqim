@@ -114,12 +114,14 @@ class PosLineBuilder
         $store = $order->store;
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
 
+        // Review M2 (40P01): the variants (with the combos' part variants), then the batches, in id order (StockLocks)
+        app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, array_map(fn (array $line) => (string) $line['variant_uuid'], $lines));
         $variants = ProductVariant::with('product')
             ->whereIn('uuid', array_values(array_unique(array_map(fn (array $line) => $line['variant_uuid'], $lines))))
             ->where('is_active', true)
             ->whereHas('product', fn ($query) => $query->where('store_id', $order->store_id)->where('status', 'active'))
             ->orderBy('id')
-            ->lockForUpdate()
+            ->lock(\App\Services\Catalog\StockLocks::mode())
             ->get()
             ->keyBy(fn (ProductVariant $variant) => strtolower((string) $variant->uuid));
 
@@ -271,12 +273,14 @@ class PosLineBuilder
         $lines = \App\Domain\Pos\Takeaway\ScheduledPickup::prepare($order, $lines); // P6-34
 
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
+        // Review M2 (40P01): the variants (with the combos' part variants), then the batches, in id order (StockLocks)
+        app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, array_map(fn (array $line) => (string) $line['variant_uuid'], $lines));
         $variants = ProductVariant::withTrashed()
             ->with(['product' => fn ($query) => $query->withTrashed()])
             ->whereIn('uuid', array_values(array_unique(array_map(fn (array $line) => $line['variant_uuid'], $lines))))
             ->whereHas('product', fn ($query) => $query->withTrashed()->where('store_id', $order->store_id))
             ->orderBy('id')
-            ->lockForUpdate()
+            ->lock(\App\Services\Catalog\StockLocks::mode())
             ->get()
             ->keyBy(fn (ProductVariant $variant) => strtolower((string) $variant->uuid));
 
@@ -379,7 +383,7 @@ class PosLineBuilder
 
         // The kazan: what the open batch still holds; the rest is oversold (never below zero)
         $productIds = array_values(array_unique(array_map(fn (array $line) => (int) $line['variant']->product_id, $priced)));
-        $open = MenuBatch::query()->where('branch_id', $branch->id)->whereIn('product_id', $productIds)->open()->orderBy('id')->lockForUpdate()->get();
+        $open = MenuBatch::query()->where('branch_id', $branch->id)->whereIn('product_id', $productIds)->open()->orderBy('id')->lock(\App\Services\Catalog\StockLocks::mode())->get();
 
         $created = collect();
         foreach ($priced as $line) {
@@ -616,7 +620,7 @@ class PosLineBuilder
             ->whereIn('product_id', $productIds)
             ->open()
             ->orderBy('id')
-            ->lockForUpdate()
+            ->lock(\App\Services\Catalog\StockLocks::mode())
             ->get();
 
         $kept = [];

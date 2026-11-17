@@ -71,8 +71,13 @@ class PosOrderController extends PosHallController
     public function show(Request $request, string $uuid): JsonResponse
     {
         $user = $this->staff($request);
+        $order = $this->order($user, $uuid, Permission::ORDERS_VIEW);
+        // Wave M2: a pickup for later stops `waiting` at its kitchen time with no write
+        if (($at = \App\Domain\Pos\Takeaway\ScheduledPickup::waitingEndsAt($order)) !== null) {
+            \App\Http\Middleware\ConditionalGet::validUntil($request, $at);
+        }
 
-        return $this->success($this->presenter->order($this->order($user, $uuid, Permission::ORDERS_VIEW)));
+        return $this->success($this->presenter->order($order));
     }
 
     /**
@@ -514,6 +519,17 @@ class PosOrderController extends PosHallController
         };
 
         $orders = $query->limit(300)->get();
+
+        // Wave M2: what this list shows by the clock alone ends its ETag: the closed list is today's business day (it
+        // empties at the next day start), and a pickup for later stops `waiting` at its kitchen time
+        if ($scope === 'closed' && !isset($data['business_date'])) {
+            \App\Http\Middleware\ConditionalGet::validUntil($request, BusinessDay::nextStart($branch));
+        }
+        foreach ($orders as $order) {
+            if (($at = \App\Domain\Pos\Takeaway\ScheduledPickup::waitingEndsAt($order)) !== null) {
+                \App\Http\Middleware\ConditionalGet::validUntil($request, $at);
+            }
+        }
         // The online cards' relations (lines, history, branch; the customer and courier for orders.manage) in a few queries
         $online = $orders->reject(fn (Order $order) => $order->channel->isPos());
         if ($online->isNotEmpty()) {

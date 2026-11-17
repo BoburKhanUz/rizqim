@@ -63,7 +63,9 @@ describe('AuthProvider', () => {
     const otherTab = await import('@/lib/session/client');
     await otherTab.login('+998901234567', '123456');
 
-    expect(await screen.findByText('Aziz#7')).toBeInTheDocument();
+    // The message crosses a BroadcastChannel after a cold import of the session module: on a loaded CI runner that
+    // takes longer than the default 1 s (seen: 1036 ms)
+    expect(await screen.findByText('Aziz#7', {}, { timeout: 5000 })).toBeInTheDocument();
     otherTab.setSession(null);
   });
 });

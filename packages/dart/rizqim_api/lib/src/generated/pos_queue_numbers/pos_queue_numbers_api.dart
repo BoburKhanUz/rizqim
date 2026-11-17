@@ -70,9 +70,12 @@ abstract class PosQueueNumbersApi {
   /// caller's (or their terminal's) branch.
   ///
   /// [branchId] - The branch; default: the caller's (or their terminal's).
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/queue')
   Future<GetV1PosQueueResponse> posQueueBoard({
     @Query('branch_id') int? branchId,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Reserve the till's next number block.

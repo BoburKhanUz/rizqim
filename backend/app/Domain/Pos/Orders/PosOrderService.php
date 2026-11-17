@@ -122,7 +122,7 @@ class PosOrderService implements PosOrderOpener
      * table, module table_service: checked by the caller). P6-34: `pickup_at` (a takeaway picked up later, module
      * scheduled_pickup: checked by the caller; its lines are held until pickup_at − the prep time, ScheduledPickup).
      *
-     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string, pickup_at?: ?\DateTimeInterface}  $options
+     * @param  array{booking_id?: ?int, held?: list<array<string, mixed>>, items?: list<array<string, mixed>>, external_id?: ?string, send?: bool, note?: ?string, queue_number?: ?int, business_date?: ?string, table_label?: ?string, pickup_at?: ?\DateTimeInterface, also_lock?: list<string>}  $options
      */
     public function openOrder(Branch $branch, OrderChannel $channel, ?DiningTable $table, int $guests, ?int $waiterId, ?int $deviceId, User $actor, array $options = []): Order
     {
@@ -196,8 +196,15 @@ class PosOrderService implements PosOrderOpener
 
             // Round 1: the booking's pre-orders (held), the first lines, and the guests' tea and bread
             $first = [...($options['held'] ?? []), ...($options['items'] ?? [])];
+            $guestLines = $this->autoGuestLines($order, 0, $guests);
+            // Review M2 (40P01): both adds below (and the caller's later round, `also_lock`) in one lock order: all their
+            // variants first, then the batches, each in id order (StockLocks); the adds' own locks then return at once
+            app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, [
+                ...array_map(fn (array $line) => (string) $line['variant_uuid'], [...$first, ...$guestLines]),
+                ...array_map('strval', $options['also_lock'] ?? []),
+            ]);
             $added = $this->lines->add($order, $branch, $first, 1, $actor);
-            $auto = $this->lines->add($order, $branch, $this->autoGuestLines($order, 0, $guests), 1, $actor, true);
+            $auto = $this->lines->add($order, $branch, $guestLines, 1, $actor, true);
 
             $this->charges->recalculate($order);
 
@@ -1036,6 +1043,7 @@ class PosOrderService implements PosOrderOpener
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
+            $this->lockReleases($items);
             $sentItems = [];
             $restocked = 0;
             foreach ($items as $item) {
@@ -1139,6 +1147,7 @@ class PosOrderService implements PosOrderOpener
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
+        $this->lockReleases($cooking);
         foreach ($cooking as $item) {
             $sent = $item->sent_at !== null;
             $item->forceFill([
@@ -1419,6 +1428,26 @@ class PosOrderService implements PosOrderOpener
      *
      * @return list<array<string, mixed>>
      */
+    /**
+     * Review M2 (40P01): the stock the unsent lines of a cancel give back (PosLineBuilder::release, line by line in
+     * line order) locked first in one id order, variants then batches (StockLocks), as checkout takes them.
+     *
+     * @param  \Illuminate\Support\Collection<int, OrderItem>  $items
+     */
+    protected function lockReleases(\Illuminate\Support\Collection $items): void
+    {
+        $unsent = $items->filter(fn (OrderItem $item) => $item->sent_at === null);
+        if ($unsent->isEmpty()) {
+            return;
+        }
+        app(\App\Services\Catalog\StockLocks::class)->lock(
+            null,
+            [],
+            $unsent->pluck('product_variant_id')->filter()->map(fn ($id) => (int) $id)->values()->all(),
+            $unsent->pluck('batch_id')->filter()->map(fn ($id) => (int) $id)->values()->all(),
+        );
+    }
+
     protected function autoGuestLines(Order $order, int $from, int $to): array
     {
         if ($order->channel !== OrderChannel::POS_HALL || $to <= $from) {

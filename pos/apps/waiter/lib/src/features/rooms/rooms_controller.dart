@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:pos_core/pos_core.dart';
 import 'package:pos_data/pos_data.dart';
+import 'package:rizqim_api/rizqim_api.dart' show CapturedRead, ReadTracking;
 
 /// "Mening xonalarim" ro'yxati filtri.
 enum RoomsFilter {
@@ -88,16 +89,10 @@ class RoomsController extends ChangeNotifier {
       realtime: realtime,
       pollInterval: pollInterval,
       livePollInterval: livePollInterval,
-      eventFilter: (PosEvent e) =>
-          e is PosOrderEvent ||
-          e is PosOrderItemsChanged ||
-          e is PosOrderBillChanged ||
-          e is PosOrderBillRequested ||
-          e is PosKitchenItemChanged ||
-          e is PosBookingChanged ||
-          // P6-24/P6-26: a table handed to another waiter, a table marked as being cleaned
-          e is PosOrderTransferred ||
-          e is PosTableStateChanged,
+      // M2 fix round 2: the floors' table (P6-24/P6-26 hand-overs and cleaning marks included; not payment or fiscal
+      // bill changes), paced
+      eventFilter: PosRelevance.floor,
+      pacing: RefreshPacing.floor,
       onRefresh: (PosRefreshReason _) => load(),
       // P6: the hub's events in `lan` mode
       localEvents: data.lanEvents,
@@ -114,9 +109,12 @@ class RoomsController extends ChangeNotifier {
     loading = true;
     _notify();
     try {
-      final PosFloor next = await data.floor.load();
-      floor = next;
-      loadedAt = _clock();
+      // M2: a 304 answered from the kept body counts from its original 200 (open times must not restart)
+      final CapturedRead<PosFloor> read = await ReadTracking.capture(
+        () => data.floor.load(),
+      );
+      floor = read.value;
+      loadedAt = read.reads.receivedAt(_clock());
       error = null;
       _retry?.cancel();
       _retry = null;

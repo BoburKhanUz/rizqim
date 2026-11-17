@@ -4,11 +4,17 @@ import type { EchoChannelLike, EchoLike } from '@/lib/realtime';
 // results and connection changes.
 export class FakeChannel implements EchoChannelLike {
   listeners = new Map<string, (payload: unknown) => void>();
+  // listenToAll: every event, named as laravel-echo names it (".order.created")
+  globalListeners: ((event: string, payload: unknown) => void)[] = [];
   onSubscribed: (() => void) | null = null;
   onError: ((error: unknown) => void) | null = null;
   constructor(readonly name: string) {}
   listen(event: string, callback: (payload: unknown) => void) {
     this.listeners.set(event, callback);
+    return this;
+  }
+  listenToAll(callback: (event: string, payload: unknown) => void) {
+    this.globalListeners.push(callback);
     return this;
   }
   subscribed(callback: () => void) {
@@ -21,6 +27,7 @@ export class FakeChannel implements EchoChannelLike {
   }
   emit(event: string, payload: unknown) {
     this.listeners.get(`.${event}`)?.(payload);
+    for (const listener of this.globalListeners) listener(`.${event}`, payload);
   }
 }
 

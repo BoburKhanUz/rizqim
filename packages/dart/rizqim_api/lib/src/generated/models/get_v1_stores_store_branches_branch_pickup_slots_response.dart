@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data369.dart';
+import 'data370.dart';
 
 part 'get_v1_stores_store_branches_branch_pickup_slots_response.g.dart';
 
@@ -22,7 +22,7 @@ class GetV1StoresStoreBranchesBranchPickupSlotsResponse {
 
   final bool success;
   final String message;
-  final Data369 data;
+  final Data370 data;
 
   Map<String, Object?> toJson() =>
       _$GetV1StoresStoreBranchesBranchPickupSlotsResponseToJson(this);

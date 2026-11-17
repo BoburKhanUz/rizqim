@@ -18,7 +18,14 @@ class StoreController extends Controller
      * Active stores with a branch that delivers to the point (nearest first, `min_distance` in km), or with a branch
      * in the region/district. Without parameters the user's default address is used. Cash is shown as disabled when
      * the customer may not pay cash.
+     *
+     * Wave M2: answered from the marketplace read model (App\Domain\Marketplace\MarketplaceBrowse, docs/API.md "Market
+     * o'qish modeli"): the same cards plus `accepting_orders` (open now, not order-locked, reachable). With `page` or
+     * `per_page` one page is answered, with `meta` {page, per_page, total, last_page}; without them every store, as
+     * before. `for=checkout` (the cart) reads the database, as before. This method is the read model's fallback.
      */
+    #[QueryParameter('page', description: 'Wave M2: the page (from 1); with it or `per_page` the answer is one page and carries `meta`.', type: 'int', required: false)]
+    #[QueryParameter('per_page', description: 'Wave M2: stores per page (default 20, at most 50).', type: 'int', required: false)]
     #[QueryParameter('lat', description: 'Latitude of the delivery point (with `lng`).', type: 'float')]
     #[QueryParameter('lng', description: 'Longitude of the delivery point (with `lat`).', type: 'float')]
     #[QueryParameter('region_id', description: 'Without coordinates: stores with a branch in this region.', type: 'int')]
@@ -90,6 +97,10 @@ class StoreController extends Controller
                 });
             }
         }
+
+        // A deterministic order (heap order changes with every update): id, after the distance when there is one; the
+        // read model (App\Domain\Marketplace\StoreDirectory) answers in the same order
+        $query->orderBy('id');
 
         $stores = $query->get();
 

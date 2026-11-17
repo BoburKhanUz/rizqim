@@ -21,11 +21,15 @@ class _OwnerIngredientsApi implements OwnerIngredientsApi {
   final ParseErrorLogger? errorLogger;
 
   @override
-  Future<GetV1OwnerIngredientsResponse> ingredientIndex({int? branchId}) async {
+  Future<GetV1OwnerIngredientsResponse> ingredientIndex({
+    int? branchId,
+    String? ifNoneMatch,
+  }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{r'branch_id': branchId};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1OwnerIngredientsResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

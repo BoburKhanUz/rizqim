@@ -1,6 +1,10 @@
 <?php
 
 return [
+    // M2: change revisions: the pgsql connection whose query builder touches them on every write (first: before any query)
+    App\Domain\Realtime\RealtimeServiceProvider::class,
+    // M2: marketplace read model: the area/global documents' write hooks (App\Domain\Marketplace)
+    App\Domain\Marketplace\MarketplaceServiceProvider::class,
     App\Providers\AppServiceProvider::class,
     // P1-12: device guard, permissions Gate, audit observers, auth/device rate limits
     App\Providers\AccessServiceProvider::class,

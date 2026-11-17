@@ -34,8 +34,11 @@ abstract class NotificationsApi {
   /// The user's notification feed, newest first, 20 per page, with the unread count.
   ///
   /// [page] - Page number (Laravel pagination).
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/notifications')
   Future<GetV1NotificationsResponse> orderNotifications({
+    @Header('If-None-Match') String? ifNoneMatch,
     @Query('page') int? page = 1,
   });
 

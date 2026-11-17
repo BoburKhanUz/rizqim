@@ -98,6 +98,13 @@ class _ConnectionIndicatorState extends State<ConnectionIndicator> {
                 : "Server javob bermayapti. Oxirgi aloqa: ${formatTime(net.lastContactAt!.toLocal())}",
           )
         : switch (live) {
+            // M2: subscribed, but the server says real-time is not live or the channel went silent: fast polling
+            PosLiveState.live when widget.realtime?.degraded ?? false => (
+              Icons.sync_rounded,
+              c.fgMuted,
+              polling,
+              "Real-time javob bermayapti: ekranlar har ${widget.pollSeconds} soniyada yangilanadi",
+            ),
             PosLiveState.live => (
               Icons.sensors_rounded,
               c.successSoftFg,

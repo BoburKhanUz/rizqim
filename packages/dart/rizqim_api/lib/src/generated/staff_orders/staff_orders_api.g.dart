@@ -33,6 +33,7 @@ class _StaffOrdersApi implements StaffOrdersApi {
     String? to,
     String? q,
     String? cursor,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -49,7 +50,8 @@ class _StaffOrdersApi implements StaffOrdersApi {
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1StaffOrdersResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -75,10 +77,13 @@ class _StaffOrdersApi implements StaffOrdersApi {
   @override
   Future<GetV1StaffOrdersUuidResponse> staffOrderShow({
     required String uuid,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
-    final _headers = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1StaffOrdersUuidResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

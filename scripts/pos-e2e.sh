@@ -10,13 +10,14 @@
 #   Reverb        (php artisan reverb:start)         $POS_E2E_REVERB_PORT   default 18280
 #   (P6-49) the Click merchant API of a QR refund   $POS_E2E_CLICK_API_PORT default 18290   answered by the stolovaya test's own fake
 #   the minute jobs the tests need     (php artisan pos:fire-scheduled-pickups every $POS_E2E_TICK_SECONDS, default 5)
+#   the real-time heartbeat            (php artisan schedule:test --name=realtime-heartbeat every $POS_E2E_HEARTBEAT_SECONDS, default 15)
 # then runs e2e/pos (`dart test`): the choyxona Thursday evening (shift, booking with a deposit, ten rooms served by two
 # waiters and the cashier, split bills, every tender, SALE/ADVANCE/CREDIT/REFUND receipts, X and Z), a Telegram order
 # accepted at the till, the real-time channel and a version conflict. The apps' data layer (pos_data) is the only client.
 #
 # Needs: PHP 8.3 with pdo_pgsql and `composer install` done in backend/, the Dart workspace resolved (`flutter pub get`
 # at the repository root) with `dart` on PATH, and a reachable Postgres. Redis is not needed: the stack uses the database
-# for the cache and the sync queue.
+# for the cache, the change tokens (REALTIME_REVISION_STORE=database) and the sync queue.
 #
 # Database: POS_E2E_DB_HOST/PORT/DATABASE/USERNAME/PASSWORD (127.0.0.1, 5432, rizqim_pos_e2e, rizqim, rizqim). It is
 # created when the role may, and emptied (migrate:fresh) on every run, so the name must contain "e2e" or "testing".
@@ -160,6 +161,10 @@ BACKEND_ENV=(
   DB_CONNECTION=pgsql DB_HOST="$DB_HOST" DB_PORT="$DB_PORT" DB_DATABASE="$DB_NAME" DB_USERNAME="$DB_USER" DB_PASSWORD="$DB_PASS" DB_URL=
   # No Redis: cache (OTP, rate limits, selection tickets) in the database, events published at once (sync queue)
   CACHE_STORE=database QUEUE_CONNECTION=sync SESSION_DRIVER=array
+  # Wave M2: the change tokens (ETag / 304, X-Revision, rev) and the heartbeat record shared by every process of the
+  # stack, in the same database cache (its `cache` table comes with migrate:fresh). Without it every token is random:
+  # no 304 ever, and GET /api/v1/realtime stays live:false
+  REALTIME_REVISION_STORE=database
   SMS_DRIVER=log LOG_CHANNEL=stderr LOG_LEVEL=info
   BROADCAST_CONNECTION=reverb REVERB_APP_ID=pos-e2e REVERB_APP_KEY="$REVERB_KEY" REVERB_APP_SECRET=pos-e2e-reverb-secret
   REVERB_HOST=127.0.0.1 REVERB_PORT="$REVERB_PORT" REVERB_SCHEME=http
@@ -230,6 +235,11 @@ log "starting the backend (:$BACKEND_PORT) and Reverb (:$REVERB_PORT)"
 TICK="${POS_E2E_TICK_SECONDS:-5}"
 # shellcheck disable=SC2016 # the $ are the inner shell's
 (cd "$ROOT/backend" && start scheduler env "${BACKEND_ENV[@]}" TICK="$TICK" bash -c 'while true; do php artisan pos:fire-scheduled-pickups --no-interaction; sleep "$TICK"; done')
+# Wave M2: the real-time heartbeat (the scheduler's `realtime-heartbeat` job, sent at once on the sync queue) every
+# $POS_E2E_HEARTBEAT_SECONDS (default 15, under the 30 s interval clients expect), so GET /api/v1/realtime says live:true
+HEARTBEAT="${POS_E2E_HEARTBEAT_SECONDS:-15}"
+# shellcheck disable=SC2016 # the $ are the inner shell's
+(cd "$ROOT/backend" && start heartbeat env "${BACKEND_ENV[@]}" HEARTBEAT="$HEARTBEAT" bash -c 'while true; do php artisan schedule:test --name=realtime-heartbeat --no-interaction; sleep "$HEARTBEAT"; done')
 
 wait_for backend "http://127.0.0.1:$BACKEND_PORT/api/v1/health" 60
 # Reverb answers 404 on a plain GET but is up when it answers at all

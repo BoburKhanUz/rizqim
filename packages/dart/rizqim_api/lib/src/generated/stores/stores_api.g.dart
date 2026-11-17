@@ -22,20 +22,26 @@ class _StoresApi implements StoresApi {
 
   @override
   Future<GetV1StoresResponse> storeIndex({
+    int? page,
+    int? perPage,
     num? lat,
     num? lng,
     int? regionId,
     int? districtId,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
+      r'page': page,
+      r'per_page': perPage,
       r'lat': lat,
       r'lng': lng,
       r'region_id': regionId,
       r'district_id': districtId,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1StoresResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

@@ -49,6 +49,13 @@ final next = await pos.orders.addRound(order.uuid, version: order.version, items
   o'sha amal — xatodagi kalit), buyurtmada `version`. Pul — `PosMoney`, miqdor — `PosQuantity` (`pos_core`).
 - **Real-time:** `PosRealtime.create(...)` — `private-pos-branch.{id}` terminal tokeni bilan; `events` (tiplangan
   `PosEvent`), `states` (`PosLiveState`), `resubscribed`. `PosRefreshScheduler` — polling zaxirasi.
+- **M2 (shartli o'qish va reviziyalar):** `RizqimClient` ning `ConditionalGetInterceptor` i (rizqim_api) polling
+  GET'larga `If-None-Match` qo'yadi, `304` da oxirgi tanani asl kelgan vaqti bilan qaytaradi (`EtagStore`: 64 yozuv, LRU,
+  kirish o'zgarganda tozalanadi). `PosRefreshScheduler` har yuklashni `ReadTracking.capture` ichida qiladi: `X-Revision`
+  dan ekran tokeni N; hodisa `rev` N+1 — avvalgidek, N — hech narsa, boshqasi — to'liq qayta o'qish; heartbeat tokeni
+  boshqacha — qayta o'qish; har 2 daqiqada kamida bir polling shartsiz; ilova oldingi planga qaytganda (`AppResume`) darhol.
+  `PosRealtime`: `GET /v1/realtime` (kalit ilovada bo'lmasa serverdan), `degraded` (server `live: false` yoki kanal
+  `silence_seconds` jim) — tez polling, `heartbeats`, qayta ulanish 0-10 s tarqatilgan (`Backoff.reconnect`).
 - **`PosConnectivity`** — server javob beryaptimi va oflayn navbatdagi amallar soni (P3-31).
 
 ## Internetsiz rejim (P3-31)

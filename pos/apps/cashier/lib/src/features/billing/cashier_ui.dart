@@ -636,7 +636,8 @@ mixin RefreshingState<T extends StatefulWidget> on State<T> {
   /// Sahifa ochilganda va yangilanganda.
   Future<void> refresh();
 
-  /// [offline] va [orderRef] berilsa (P3-35): offlayn navbat serverga yetganda shu buyurtmaning amali bo'lsa sahifa
+  /// [pacing] (M2 fix round 2): hodisa o'qishlari qanday taqsimlanadi (ro'yxatlar — [RefreshPacing.list], bitta buyurtma
+  /// sahifasi — [RefreshPacing.order]). [offline] va [orderRef] berilsa (P3-35): offlayn navbat serverga yetganda shu buyurtmaning amali bo'lsa sahifa
   /// serverdan qayta yuklanadi (qator server narxida saqlangan bo'lishi mumkin) va [onSynced] chaqiriladi.
   void startRefreshing(
     PosRealtime? realtime, {
@@ -645,11 +646,13 @@ mixin RefreshingState<T extends StatefulWidget> on State<T> {
     PosOffline? offline,
     String? orderRef,
     void Function(List<SyncOperation> ops)? onSynced,
+    RefreshPacing pacing = RefreshPacing.list,
   }) {
     _scheduler = PosRefreshScheduler(
       realtime: realtime,
       eventFilter: filter,
       pollInterval: pollInterval,
+      pacing: pacing,
       onRefresh: (_) => refresh(),
     )..start();
     if (offline != null && orderRef != null) {

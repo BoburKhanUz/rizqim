@@ -168,3 +168,48 @@ export * from './hooks/permissions';
 // notice and the server's plan refusals
 export * from './api/entitlements';
 export * from './hooks/entitlements';
+
+// Wave M2: change tokens (`rev`, X-Revision), the heartbeat silence, GET /realtime and the reconnect spread of the
+// real-time screens (partner web board, the Mini App's staff screens and order tracking)
+export {
+  channelsOfScope,
+  DEFAULT_READ_TTL_MS,
+  isNextToken,
+  isOlderToken,
+  isSingleRecordRead,
+  isToken,
+  noteResponseRevision,
+  revOf,
+  RevisionTracker,
+  withRevisionCapture,
+  type HeartbeatVerdict,
+  type RevisionTrackerOptions,
+  type RevisionVerdict,
+} from './realtime/revision';
+// Wave M2 fix round 2: pacing of event-driven re-reads, and the owner board patching an order in instead of re-reading
+export { createRefreshThrottle, spreadDelay, type RefreshPacing, type RefreshThrottle, type RefreshThrottleOptions, type ThrottleTimers } from './realtime/throttle';
+export {
+  applyBoardOrder,
+  applyKitchenEvent,
+  matchesBoardQuery,
+  parseKitchenEvent,
+  removeBoardOrder,
+  type ApplyResult,
+  type BoardCacheOptions,
+  type KitchenEventPayload,
+} from './realtime/boardCache';
+export {
+  createSilenceWatch,
+  fetchRealtimeStatus,
+  onPageReturn,
+  parseRealtimeStatus,
+  RECONNECT_SPREAD_MS,
+  REALTIME_STATUS_PATH,
+  reverbConnectionOf,
+  spreadFirstReconnect,
+  type PusherLike,
+  type RealtimeStatus,
+  type ReverbConnection,
+  type ReverbSettings,
+  type SilenceWatch,
+} from './realtime/liveness';

@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import type { Product } from '../../types';
+import type { MenuUnit, Product } from '../../types';
 import { formatMoney } from '../../lib/format';
 import { getProductBasePrice } from '../../lib/catalog';
 import { isProductSoldOut } from '../../lib/stock';
@@ -15,15 +15,23 @@ interface ProductCardProps {
   // Open the restaurant of the dish; without it the card is not a link
   onOpen?: () => void;
   onAdd: () => void;
+  // The unit the price is per, when the product carries no variant to say it (a feed card with options)
+  priceUnit?: MenuUnit | null;
+  // The restaurant's name when the product does not carry its store (a feed card)
+  storeName?: string;
+  // The restaurant does not take orders now: this text instead of the add button
+  blockedText?: string;
+  // The full product is being loaded for its sheet (the add button waits)
+  busy?: boolean;
 }
 
 // A dish of the feed and of the category pages (two columns): photo, restaurant, name, description, price, add.
-export function ProductCard({ product, cartQty, onOpen, onAdd }: ProductCardProps) {
+export function ProductCard({ product, priceUnit, storeName, cartQty, onOpen, onAdd, blockedText, busy = false }: ProductCardProps) {
   const { language } = useLanguageStore();
   const store = product.store;
   // Only the stock the feed carries is known here (the stop-list is per store, see the store page)
   const soldOut = isProductSoldOut(product);
-  const measured = (product.variants ?? []).find((variant) => isMeasuredUnit(variant.unit));
+  const measured = (product.variants ?? []).find((variant) => isMeasuredUnit(variant.unit)) ?? (isMeasuredUnit(priceUnit ?? undefined) ? { unit: priceUnit ?? undefined } : undefined);
   const name = <span className="line-clamp-2 text-left">{product.name}</span>;
 
   return (
@@ -38,7 +46,7 @@ export function ProductCard({ product, cartQty, onOpen, onAdd }: ProductCardProp
             </span>
           )}
         </div>
-        {store && <p className="truncate text-caption font-medium text-fg-muted">{store.name}</p>}
+        {(store?.name ?? storeName) && <p className="truncate text-caption font-medium text-fg-muted">{store?.name ?? storeName}</p>}
         <h3 className="text-body font-bold text-fg">
           {onOpen ? (
             // The whole card opens the restaurant (the add button stays above this overlay)
@@ -56,15 +64,18 @@ export function ProductCard({ product, cartQty, onOpen, onAdd }: ProductCardProp
           {formatMoney(getProductBasePrice(product))}
           {measured && <span className="text-footnote font-medium text-fg-muted"> / {unitLabel(measured.unit)}</span>}
         </span>
-        {!soldOut && (
+        {!soldOut && blockedText && <span className="text-caption font-medium text-fg-muted">{blockedText}</span>}
+        {!soldOut && !blockedText && (
           <button
             type="button"
             aria-label={language === 'uz' ? "Savatga qo'shish" : 'Добавить в корзину'}
             title={language === 'uz' ? "Savatga qo'shish" : 'Добавить в корзину'}
             onClick={onAdd}
-            className="relative z-10 ml-auto flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand-soft text-brand-soft-fg transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-safe:active:scale-90"
+            disabled={busy}
+            aria-busy={busy || undefined}
+            className="relative z-10 ml-auto flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand-soft text-brand-soft-fg transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-wait disabled:opacity-60 motion-safe:active:scale-90"
           >
-            <Plus aria-hidden="true" className="size-5" />
+            <Plus aria-hidden="true" className={cx('size-5', busy && 'motion-safe:animate-pulse')} />
           </button>
         )}
       </div>

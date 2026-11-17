@@ -26,6 +26,8 @@ abstract final class AppConfig {
   /// Real-time ishlamayotganda chiptalar shu oraliqda qayta so'raladi.
   static const Duration pollInterval = Duration(seconds: 15);
 
-  /// Real-time ulangan bo'lsa ham ehtiyot uchun (hodisa yo'qolishi mumkin: docs/API.md, 8-bo'lim).
-  static const Duration livePollInterval = Duration(seconds: 60);
+  /// Real-time ulangan bo'lsa ham ehtiyot uchun (hodisa yo'qolishi mumkin: docs/API.md, 8-bo'lim). M2: oshxona ekrani
+  /// jonli paytda ham 15 s (boshqa ekranlar 60 s): so'rov shartli (`If-None-Match`), o'zgarmagan doska `304` — arzon,
+  /// lekin yo'qolgan hodisa oshxonada 15 soniyadan ortiq kutmaydi. Har 2 daqiqada kamida bir marta shartsiz.
+  static const Duration livePollInterval = Duration(seconds: 15);
 }

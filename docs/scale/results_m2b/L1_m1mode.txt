@@ -1,0 +1,23 @@
+# L1_m1mode  2026-11-17T12:54:50Z  mode=fpm-pgb RT=0 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.21 0.66 1.00
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"web_s":15}}
+
+L1_m1mode wall=430.1s req=7626 rps=17.73 cpu php=188.91s pg=53.4s pgbouncer=13.26s nginx=2.24s redis=3.45s reverb=0s queue=0s scheduler=0s pg_rt=0s xacts=149319 conn_max=5 lockwaits=0 stmts/req=27.9
+by_group: {"pos":1686,"poll":5940} pgss_by_role: {"rizqim":{"calls":212917,"ms":9521}}
+redis: {"commands":89730,"cmd_per_s":208.6,"net_in":7668894,"net_out":606986,"top":{"get":34768,"eval":17846,"exists":15317,"incrby":7626,"select":7626,"incr":4215,"setex":2231,"set":100,"info":1}}
+realtime: undefined
+GET /pos/display/state               n= 1980 rps=   4.6 p50=14.4 p95=20.6 p99=27.5 err%=0 kB=734 st={"200":1980}
+GET /pos/floor                       n= 1062 rps=  2.47 p50=22 p95=30.4 p99=35.6 err%=0 kB=4594 st={"200":1062}
+GET /pos/orders/:id                  n=  918 rps=  2.13 p50=25.5 p95=36 p99=43.4 err%=0 kB=3695 st={"200":918}
+GET /staff/kitchen/tickets           n=  660 rps=  1.53 p50=37.6 p95=61.9 p99=75.5 err%=0 kB=8952 st={"200":660}
+GET /staff/orders                    n=  660 rps=  1.53 p50=74.1 p95=98.5 p99=113.7 err%=0 kB=58193 st={"200":660}
+GET /staff/orders?status=new         n=  660 rps=  1.53 p50=14.7 p95=20.8 p99=27 err%=0 kB=52 st={"200":660}
+POST /pos/bills/:id/payments         n=  281 rps=  0.65 p50=116.3 p95=150.6 p99=177 err%=0 kB=1147 st={"200":281}
+POST /pos/orders                     n=  281 rps=  0.65 p50=81.2 p95=109.4 p99=195.9 err%=0 kB=944 st={"201":281}
+POST /pos/orders/:id/bills           n=  281 rps=  0.65 p50=45.7 p95=61.4 p99=88.5 err%=0 kB=556 st={"201":281}
+POST /pos/orders/:id/close           n=  281 rps=  0.65 p50=29.9 p95=40.8 p99=46.4 err%=0 kB=1154 st={"200":281}
+POST /pos/orders/:id/rounds          n=  281 rps=  0.65 p50=65.5 p95=88.9 p99=103.7 err%=0 kB=1194 st={"200":281}
+POST /pos/orders/:id/send            n=  281 rps=  0.65 p50=59.4 p95=79.7 p99=102.7 err%=0 kB=1223 st={"200":281}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.05 0.43 0.80

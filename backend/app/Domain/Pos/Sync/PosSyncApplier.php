@@ -401,6 +401,13 @@ final class PosSyncApplier
             $options['business_date'] = BusinessDay::of($branch, $occurredAt);
         }
 
+        // Review M2 (40P01): the round added below locks in the same order as the open (StockLocks); lines that cannot
+        // be read are refused by that round, as before
+        try {
+            $options['also_lock'] = array_map(fn (array $line) => (string) $line['variant_uuid'], $this->lineInputs($payload['items'] ?? []));
+        } catch (ValidationException) {
+        }
+
         try {
             $order = $this->orders->openOrder($branch, $channel, $table, $guests, $waiterId, (int) $device->id, $staff, $options);
         } catch (PosOrderException $e) {

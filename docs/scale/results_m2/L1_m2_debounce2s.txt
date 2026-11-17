@@ -1,0 +1,23 @@
+# L1_m2_debounce2s  2026-11-17T08:05:08Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.37 1.37 1.41
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"debounce_ms":2000,"refresh":"ws"}}
+
+L1_m2_debounce2s wall=436.1s req=9230 rps=21.16 cpu php=338.75s pg=72.64s pgbouncer=19s nginx=2.45s redis=5.21s reverb=2.92s queue=5.08s scheduler=0s pg_rt=0s xacts=199104 conn_max=5 lockwaits=0 stmts/req=28.1
+by_group: {"pos":1674,"poll":7556} pgss_by_role: {"rizqim":{"calls":259139,"ms":11687}}
+redis: {"commands":185868,"cmd_per_s":426.2,"net_in":33477706,"net_out":8451733,"top":{"get":60339,"eval":41254,"exists":18524,"zrangebyscore":11796,"select":10625,"incrby":9230,"mget":9053,"lpop":8423,"rpush":5050,"incr":4185,"zrem":2525,"zadd":2525}}
+realtime: {"event_names":{"order.created":1727,"order.items_changed":3454,"order.status_changed":3454,"order.bill_changed":5181,"fiscal.receipt_updated":1727},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15543,"heartbeats":2772,"skipped_same":714,"event_reads":4263,"heartbeat_reads":443,"poll_reads":1650,"full_reads":330},"screens":198}
+GET /pos/display/state               n=  570 rps=  1.31 p50=112.7 p95=569.8 p99=770.1 err%=0 304%=9.8 inm=471 full=99 p50_200=125 p50_304=14.9 kB=191 st={"200":514,"304":56}
+GET /pos/floor                       n= 1510 rps=  3.46 p50=65.2 p95=310.2 p99=431 err%=0 304%=13 inm=1326 full=184 p50_200=69.8 p50_304=24.3 kB=5842 st={"200":1314,"304":196}
+GET /pos/orders/:id                  n= 1402 rps=  3.21 p50=87.3 p95=451.9 p99=690.4 err%=0 304%=8 inm=1013 full=389 p50_200=93.4 p50_304=21.4 kB=5191 st={"200":1290,"304":112}
+GET /staff/kitchen/tickets           n= 1674 rps=  3.84 p50=164.9 p95=413.8 p99=535.8 err%=0 304%=38.1 inm=1575 full=99 p50_200=212.8 p50_304=20.6 kB=125946 st={"200":1037,"304":637}
+GET /staff/orders                    n= 1200 rps=  2.75 p50=205.2 p95=442.5 p99=556.4 err%=0 304%=20.9 inm=1167 full=33 p50_200=233.9 p50_304=42.4 kB=87520 st={"200":949,"304":251}
+GET /staff/orders?status=new         n= 1200 rps=  2.75 p50=51.6 p95=300.6 p99=396.5 err%=0 304%=19.8 inm=1167 full=33 p50_200=59.7 p50_304=17.4 kB=1247 st={"200":962,"304":238}
+POST /pos/bills/:id/payments         n=  279 rps=  0.64 p50=138.2 p95=417.5 p99=627 err%=0 kB=1135 st={"200":279}
+POST /pos/orders                     n=  279 rps=  0.64 p50=96.1 p95=410.6 p99=603.3 err%=0 kB=932 st={"201":279}
+POST /pos/orders/:id/bills           n=  279 rps=  0.64 p50=54.8 p95=316.1 p99=512.9 err%=0 kB=550 st={"201":279}
+POST /pos/orders/:id/close           n=  279 rps=  0.64 p50=33.7 p95=200.6 p99=428.2 err%=0 kB=1141 st={"200":279}
+POST /pos/orders/:id/rounds          n=  279 rps=  0.64 p50=82.8 p95=350.4 p99=474.3 err%=0 kB=1181 st={"200":279}
+POST /pos/orders/:id/send            n=  279 rps=  0.64 p50=73.3 p95=334.2 p99=486.7 err%=0 kB=1209 st={"200":279}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.26 1.25 1.44

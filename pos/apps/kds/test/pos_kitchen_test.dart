@@ -42,8 +42,9 @@ const Map<String, Object?> onlyMangal = <String, Object?>{
   'stations_general': false,
 };
 
+/// An event's paced read: within one KDS pacing window (M2 fix round 2; the harness has no random spread).
 Future<void> event(WidgetTester tester) async {
-  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 2100));
   await tester.pumpAndSettle();
 }
 
@@ -863,7 +864,8 @@ void main() {
           findsOneWidget,
         );
 
-        await advance(tester, h, const Duration(minutes: 1));
+        // The badge clears on the board's next repaint after a minute (the event read now lands ~2 s later)
+        await advance(tester, h, const Duration(seconds: 75));
         expect(find.text(NewBadge.label), findsNothing);
       },
     );

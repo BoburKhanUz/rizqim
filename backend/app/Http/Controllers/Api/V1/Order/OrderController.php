@@ -253,14 +253,17 @@ class OrderController extends Controller
             $payload['channel'] = $this->channelOf($request);
 
             // The Idempotency-Key is marked used in the order's own transaction, so the order and the key commit
-            // together: a retry can never place it a second time (IdempotencyService::markApplied)
+            // together: a retry can never place it a second time (IdempotencyService::markApplied).
+            // Review M2: a deadlock or serialization failure (40P01/40001) re-runs the whole transaction, at most 3
+            // attempts. Safe: everything the attempt did is rolled back with it (order, stock, batches, keshbek, promo,
+            // the key's mark), and its announcements wait for the commit (DB::afterCommit, ShouldDispatchAfterCommit).
             $order = DB::transaction(function () use ($request, $payload) {
                 // Its "new" status history row is written by the action itself
                 $order = $this->createOrderAction->execute($request->user(), $request->items, $payload);
                 $this->idempotency->markApplied($request);
 
                 return $order;
-            });
+            }, 3);
 
             $this->alerts->newOrder($order);
 
@@ -279,6 +282,16 @@ class OrderController extends Controller
         } catch (\Symfony\Component\HttpKernel\Exception\ConflictHttpException $e) {
             // The Idempotency-Key's claim was taken over by a retry: this attempt was rolled back
             return $this->error($e->getMessage(), [], 409);
+        } catch (\PDOException $e) {
+            // Review M2 (LR-4): a database error never reaches the app as SQL text. A deadlock or serialization
+            // failure left after the retries is the retryable 503 server_busy (bootstrap/app.php); anything else is
+            // logged and answered with a plain message
+            if (\App\Support\ConcurrencyFailure::is($e)) {
+                throw $e;
+            }
+            \Illuminate\Support\Facades\Log::error('Order could not be created', ['user_id' => $request->user()?->id, 'error' => $e->getMessage()]);
+
+            return $this->error("Buyurtmani saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), [], 400);
         }

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_health_response.dart';
+import '../models/get_v1_realtime_response.dart';
 
 part 'health_api.g.dart';
 
@@ -19,4 +20,14 @@ abstract class HealthApi {
   /// carries only its `status`, unless the request comes from the internal network or sends `X-Health-Token`.
   @GET('/v1/health')
   Future<GetV1HealthResponse> healthApi();
+
+  /// Real-time status and connection settings.
+  ///
+  /// Public, no database. `live` false (Reverb off, the heartbeat stale or the broadcasts queue backed up): clients.
+  /// poll at `poll_seconds.fallback`; live: they listen and poll at `poll_seconds.live` as a safety net, and treat.
+  /// `silence_seconds` without any event or `realtime.heartbeat` on a channel as "not live". `reverb` is what a client.
+  /// connects with (the public app key; null host = the API's own host); null when real-time is off. Read it on start.
+  /// and on every reconnect, not on every poll. Kept for 5 seconds.
+  @GET('/v1/realtime')
+  Future<GetV1RealtimeResponse> realtimeStatus();
 }

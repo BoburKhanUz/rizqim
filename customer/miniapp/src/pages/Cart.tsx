@@ -36,6 +36,7 @@ import { useMenuAvailability } from '../hooks/useMenuAvailability';
 import { getAllowedPaymentMethods, getAvailableOrderTypes, pickOrderType, pickPaymentMethod } from '../lib/checkout';
 import type { CartOrderType, CartPaymentMethod } from '../lib/checkout';
 import { formatMoney } from '../lib/format';
+import { isAcceptingOrders, NOT_ACCEPTING_TEXT } from '../lib/marketplace';
 import { getPaymentMethodLabel } from '../lib/paymentMethod';
 import { useLanguageStore } from '../store/languageStore';
 import { parseAmount, toAmount } from '../lib/money';
@@ -123,7 +124,7 @@ export default function Cart() {
   const [noteOpen, setNoteOpen] = useState(false);
 
   // The upsell catalog of the store it was fetched for, so a different store's products are never shown
-  const [catalog, setCatalog] = useState<{ storeId: string; products: Product[] } | null>(null);
+  const [catalog, setCatalog] = useState<{ storeId: string; products: Product[]; accepting: boolean } | null>(null);
   const [catalogReload, setCatalogReload] = useState(0); // bumped when the menu may have changed under the cart
 
   // The customer's own pick (the way actually used is deliveryMethod, which only ever is one the store takes)
@@ -218,7 +219,8 @@ export default function Cart() {
       const storeId = cartStoreId;
       api.get<ApiResponse<StoreCatalog>>(`/catalog?store_id=${storeId}`).then(res => {
         if (res.data?.success) {
-          setCatalog({ storeId, products: res.data.data.products || [] });
+          // Wave M2: the menu's store says whether it takes orders now (open, not locked, reachable)
+          setCatalog({ storeId, products: res.data.data.products || [], accepting: isAcceptingOrders(res.data.data.store) });
         }
       }).catch(err => {
         logApiError('Failed to fetch store products for upsell', err);
@@ -368,6 +370,8 @@ export default function Cart() {
   // The server decides whether the store can take orders (debt / finance status): `is_order_locked` on the
   // public store. A missing field (older backend) means not locked.
   const isStoreLocked = storeDetail?.is_order_locked === true;
+  // Wave M2: the store is closed or cannot be reached now (`accepting_orders` false on its menu): no order until it is
+  const isNotAccepting = !isStoreLocked && catalog !== null && catalog.storeId === cartStoreId && !catalog.accepting;
   const selectedBranch = storeBranches.find(b => b.id === selectedBranchId) || storeBranches[0];
   // The map opens at the restaurant until the customer has dropped a pin (a view only, never saved as an address)
   const mapFallbackCenter = toLatLng(selectedBranch?.latitude, selectedBranch?.longitude);
@@ -417,7 +421,7 @@ export default function Cart() {
   const isKeshbekAffordable = balance !== undefined && balance >= total;
   const effectivePaymentMethod = pickPaymentMethod(availablePaymentMethods, chosenPaymentMethod, isKeshbekAffordable);
 
-  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || hasIssues || isQuoteBlocking
+  const isOrderDisabled = isOrdering || isMinOrderNotMet || isStoreLocked || isNotAccepting || hasIssues || isQuoteBlocking
     || deliveryMethod === null || effectivePaymentMethod === null
     || (deliveryMethod === 'delivery' && !hasDeliveryLocation);
 
@@ -444,6 +448,11 @@ export default function Cart() {
     if (isStoreLocked) {
       hapticFeedback('error');
       void showAlert("Do'kon vaqtincha to'lov muammolari sababli buyurtma qabul qilmayapti. Savat saqlanadi, keyinroq urinib ko'ring.");
+      return;
+    }
+    if (isNotAccepting) {
+      hapticFeedback('error');
+      void showAlert(`${NOT_ACCEPTING_TEXT}. Savat saqlanadi, keyinroq urinib ko'ring.`);
       return;
     }
     if (lineProblems.length > 0) {
@@ -590,7 +599,9 @@ export default function Cart() {
   useMainButton({
     text: isStoreLocked
       ? "Do'kon vaqtincha yopiq"
-      : lineProblems.length > 0
+      : isNotAccepting
+        ? NOT_ACCEPTING_TEXT
+        : lineProblems.length > 0
         ? "Tugaganlarni olib tashlang"
         : priceChanges.length > 0
           ? 'Yangi narxlarni tasdiqlang'
@@ -653,6 +664,16 @@ export default function Cart() {
           <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-body font-bold">Do'kon vaqtincha buyurtma qabul qilmayapti</p>
+            <p className="text-footnote">Savat saqlanadi, keyinroq urinib ko'ring.</p>
+          </div>
+        </div>
+      )}
+
+      {isNotAccepting && (
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-danger-soft p-4 text-danger-soft-fg">
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <div>
+            <p className="text-body font-bold">{NOT_ACCEPTING_TEXT}</p>
             <p className="text-footnote">Savat saqlanadi, keyinroq urinib ko'ring.</p>
           </div>
         </div>

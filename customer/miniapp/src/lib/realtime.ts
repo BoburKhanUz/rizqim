@@ -1,4 +1,5 @@
 import { isCustomerRole } from './roles';
+import { revOf, reverbConnectionOf, spreadFirstReconnect, type PusherLike, type RealtimeStatus } from '@rizqim/staff';
 import type { OrderStatus, UserRole } from '../types';
 
 // Real-time order updates over Laravel Reverb (laravel-echo + pusher-js). Both libraries are imported when the
@@ -45,6 +46,19 @@ export function getRealtimeConfig(env: Env = import.meta.env, hostname: string =
   };
 }
 
+// Wave M2: without VITE_REVERB_APP_KEY in the build, the server's own settings (GET /realtime `reverb`, its key may
+// be generated on the server at first start): a null host there is the API's host. null when neither has a key.
+export function resolveRealtimeConfig(
+  status: RealtimeStatus | null,
+  env: Env = import.meta.env,
+  hostname: string = window.location.hostname,
+): RealtimeConfig | null {
+  const built = getRealtimeConfig(env, hostname);
+  if (built || !status?.reverb) return built;
+  const connection = reverbConnectionOf(status.reverb, env.VITE_API_URL || '/api/v1');
+  return connection ? { ...connection, authEndpoint: resolveAuthEndpoint(env.VITE_API_URL) } : null;
+}
+
 // The slice of the signed-in user that decides the channel.
 export interface ChannelUser {
   id: number;
@@ -75,6 +89,8 @@ export function getOrderChannelNames(user: ChannelUser | null | undefined): stri
 }
 
 export const ORDER_EVENTS = ['order.created', 'order.status_changed', 'order.assigned'] as const;
+// Wave M2: every 30 s on the staff channels (pos-branch, branch, store), with the channel's token
+export const HEARTBEAT_EVENT = 'realtime.heartbeat';
 export type OrderEventName = (typeof ORDER_EVENTS)[number];
 
 // What the staff channels (store, branch, pos-branch) carry besides the order events: a cook marking a line ready or taking
@@ -99,6 +115,8 @@ export interface OrderEventOrder {
 export interface OrderEvent {
   name: StaffEventName;
   order: OrderEventOrder | null; // null when the payload was not what the contract says (the event still counts)
+  channel: string; // the channel it came on (no private- prefix)
+  rev: string | null; // the channel's change token the event carries (wave M2), null when none
 }
 
 export function parseOrderPayload(payload: unknown): OrderEventOrder | null {
@@ -111,6 +129,12 @@ export function parseOrderPayload(payload: unknown): OrderEventOrder | null {
 
 export interface OrderChannelHandlers {
   onEvent: (event: OrderEvent) => void;
+  // Fix round 2: any other event of the channel (bills, fiscal, shift, queue...): the app does not read for it, but its
+  // `rev` moved the channel's token, so it is counted (otherwise the next relevant event looks like a gap and every
+  // heartbeat like a missed change)
+  onOtherEvent?: (channel: string, name: string, rev: string | null) => void;
+  // realtime.heartbeat on a staff channel: its token (null when none)
+  onHeartbeat?: (channel: string, rev: string | null) => void;
   // true once the socket is connected and the channel subscribed; false whenever either is lost
   onConnectionChange: (connected: boolean) => void;
   // events may have been missed: the channel is subscribed again after having been lost
@@ -126,7 +150,7 @@ export interface OrderChannelSession {
 async function createEcho(config: RealtimeConfig, getToken: () => string | null) {
   const [{ default: Echo }, { default: Pusher }] = await Promise.all([import('laravel-echo'), import('pusher-js')]);
 
-  return new Echo({
+  const echo = new Echo({
     broadcaster: 'reverb',
     key: config.key,
     Pusher,
@@ -146,6 +170,14 @@ async function createEcho(config: RealtimeConfig, getToken: () => string | null)
       },
     },
   });
+  // Wave M2: after a drop the first reconnect waits a random 0-10 s, so a Reverb restart does not bring every phone back at once
+  const stopSpread = spreadFirstReconnect((echo.connector as { pusher?: PusherLike }).pusher);
+  const disconnect = echo.disconnect.bind(echo);
+  echo.disconnect = () => {
+    stopSpread();
+    disconnect();
+  };
+  return echo;
 }
 
 const RESUBSCRIBE_BASE_MS = 5_000;
@@ -199,9 +231,22 @@ export async function openOrderChannels(
     const events: readonly StaffEventName[] = isStaffChannel(state.name) ? [...ORDER_EVENTS, ...STAFF_ONLY_EVENTS] : ORDER_EVENTS;
     for (const name of events) {
       channel.listen(`.${name}`, (payload: unknown) => {
-        if (!closed) handlers.onEvent({ name, order: parseOrderPayload(payload) });
+        if (!closed) handlers.onEvent({ name, order: parseOrderPayload(payload), channel: state.name, rev: revOf(payload, state.name) });
       });
     }
+    if (isStaffChannel(state.name)) {
+      channel.listen(`.${HEARTBEAT_EVENT}`, (payload: unknown) => {
+        if (!closed) handlers.onHeartbeat?.(state.name, revOf(payload, state.name));
+      });
+    }
+    // Every event reaches the global listener too: the ones listened for above are handled there
+    const handled = new Set<string>([...events, HEARTBEAT_EVENT]);
+    channel.listenToAll((event: string, payload: unknown) => {
+      if (closed) return;
+      const name = event.replace(/^\./, '');
+      if (name === '' || handled.has(name) || name.startsWith('pusher:') || name.startsWith('pusher_internal:')) return;
+      handlers.onOtherEvent?.(state.name, name, revOf(payload, state.name));
+    });
     channel.subscribed(() => {
       if (closed) return;
       state.failures = 0;

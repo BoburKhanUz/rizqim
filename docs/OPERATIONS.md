@@ -156,7 +156,22 @@ Sozlash va kanallar: `docs/DEPLOY.md`, 9-bo'lim. Reverb ixtiyoriy qatlam: ishlam
 | Backend Reverb'ga yoza olmayapti | `failed_jobs` da `BroadcastEvent` (`cURL error`, `401`/`Invalid auth signature`; `broadcasts` navbati, bitta urinish), Sentry'da `BroadcastException`. API so'rovlari baribir muvaffaqiyatli tugaydi | Kalitlar backend va `reverb` da bir xilmi (`REVERB_APP_ID`/`KEY`/`SECRET`), `REVERB_HOST`/`PORT` to'g'rimi. Eski hodisalarni qayta yuborish shart emas (mijozlar baribir qayta so'raydi): `php artisan queue:forget <id>` yoki `queue:flush` |
 | Obuna `403` | Mini App ulanadi, lekin kanalga qo'shilmaydi | Foydalanuvchining roli, `store_id`, `branch_id` kanalga mos emas (`routes/channels.php`); do'konsiz xodimni `user:assign-role` bilan biriktiring |
 | WebSocket tez-tez uzilyapti | DevTools'da qayta ulanishlar | Tashqi proksi `/app/` uchun `Upgrade`/`Connection` va `proxy_read_timeout` (≥ 120 s) ni o'tkazayotganini tekshiring |
+| Ekran eski holatda qolyapti, deb shubha (M2 `ETag`) | Klient `304` olyapti, lekin ma'lumot o'zgargan | `backend/.env` da `CONDITIONAL_GET_ENABLED=false`, `docker compose up -d --force-recreate backend`: har so'rov yana to'liq javob. Sababini (yozuv tokenni almashtirmagan jadval) `App\Domain\Realtime\RevisionMap` da toping. Kuzatish: nginx access logda `304` ulushi (`GET /api/v1/pos/floor` va boshqalar, [API.md](API.md) 7.1) |
 | Real-time'ni vaqtincha o'chirish | — | Ildiz `.env` da `BROADCAST_CONNECTION=null`, so'ng `docker compose up -d --force-recreate backend queue queue-reports scheduler` |
+
+**M2: o'zgarish tokenlari (`ChangeRevision`).** Har filial, do'kon va mijoz uchun Redis'da bitta raqamli token (`rev:b:{id}`, `rev:s:{id}`, `rev:u:{id}`, cache prefiksi bilan). Ekran ko'rsatadigan jadvalga har yozuv (Eloquent, ommaviy `update`, `DB::table`, pivot) tranzaksiya commit bo'lgach tokenni +1 qiladi: qoidalar `backend/app/Domain/Realtime/RevisionMap.php` da, **sxemadagi har jadval** ro'yxatda bo'lishi shart (`RevisionMapCoverageTest`: yangi migratsiya jadvalni tasniflamasa test yiqiladi). Menyu, stop-list, do'kon/filial sozlamasi do'kon tokenini va uning hamma filialini o'zgartiradi; buyurtma, schyot, to'lov, stol, smena, bron, navbat — filial tokenini va mijozning tokenini. Qurilmaning `last_seen_at` kabi "tiriklik" belgilari tokenni o'zgartirmaydi.
+
+- **Oddiy savdo faqat sotgan filialni o'zgartiradi** (review M2 R3-1, `RevisionMap::NARROW_COLUMNS` da har ekran bo'yicha sabab). Hisob-kitob ustunlari (`stores.debt_balance`, `wallet_balance`, `subscription_debt`) va `store_transactions` / `store_wallet_transactions` qatorlari hech qaysi tokenni o'zgartirmaydi; faqat qarz qulfi (`is_order_locked`, market do'kon hujjatida) almashsa do'kon va hamma filial o'zgaradi (status o'zgarishi — doim). Qoldiq (`product_variants.stock`) hech qaysi filial ekranida ko'rinmaydi (POS menyusida yo'q): qoldiq oldin yoki keyin `REALTIME_EXACT_STOCK_BELOW` (20) yoki undan kam bo'lsa faqat do'kon tokeni o'zgaradi (Mini App menyusidagi qoldiq shu chegaragacha aniq, "tugadi" va "yana bor" darhol); undan yuqorida menyu ko'rsatgan qoldiq haqiqiydan katta bo'lishi mumkin (savat chegarasi; checkout jonli qatorni tekshiradi). Qozon (`menu_batches.quantity_left`): sotgan filial, chegarada esa do'kon ham. Natija: 3 filialli do'konda sotuv boshqa filiallarning 304 ulushiga ta'sir qilmaydi; sotuv boshiga Redis'ga 1–2 skript chaqiruv (oldin 5–10 INCR).
+- **Arzon yozish.** Tranzaksiyaga bitta after-commit chaqiruv; kutilayotgan doiralar takrorsiz to'plam; filiallar ro'yxati flush'da bitta SQL; inkrementlar Redis'ga bitta Lua skriptda (5 000 kalitgacha). Platforma ma'lumoti (`categories`, `regions`, `settings` ...) 1 000 do'kon × 2 filialda: yozuv boshiga 1 SQL va 1 Redis chaqiruv (oldin 2 006 SQL, 6 003 buyruq); 300 ta yozuvli tranzaksiya xotirada bitta bayroq saqlaydi.
+- **Redis yozuvni rad etsa ham eski token qaytmaydi** (review M2 R1-2). INCR rad etilsa (`maxmemory` + `noeviction`, timeout) kalitlar o'chiriladi (`DEL` to'la Redis'da ham ishlaydi): keyingi o'qish yangi tasodifiy token, klient to'liq o'qiydi. `DEL` ham o'tmasa doira shu jarayonda "hal qilinmagan" bo'lib qoladi: har o'qish yangi token beradi, keyingi flush, o'qish yoki so'rov oxiri kalitni o'chiradi. Qoplanmaydigan holat: qisqa PHP-FPM so'rovi INCR ham, DEL ham o'tmay tugasa va Redis keyin eski kalit bilan qaytsa — token shu doiraga keyingi yozuvgacha yoki TTL gacha qoladi; buni klientlarning `If-None-Match` siz xavfsizlik so'rovi (live: 60 s) va ETag umri chegaralaydi.
+- Token yo'q bo'lsa (TTL 7 kun, Redis tozalangan) tasodifiy yangisi beriladi: klient bir marta to'liq o'qiydi. Redis ishlamasa har o'qish yangi token (hamma to'liq o'qiydi, eski ekran yo'q; yuk vaqtincha M2 dan oldingidek). Ekran eskirgan deb shubha bo'lsa: `CONDITIONAL_GET_ENABLED=false` (yuqoridagi jadval) va `RevisionMap` dagi qoidani tekshiring.
+- **Do'kon tokeni nimani oshkor qiladi** (review M2 R2-2). Buyurtma va hisob-kitob uni o'zgartirmaydi. Hali o'zgartiradi: menyu/stop-list/sozlama tahriri, har sharh (`store_ratings`, sharhlar soni baribir ochiq), qarz qulfi almashishi, chegaradagi qoldiq va qozon sotuvlari (variant/qozon boshiga to'ldirishgacha eng ko'pi ~20 ta) va qozon tugashi. Mijozga do'kon doirasining xom tokeni berilmaydi ([API.md](API.md) 7.1); menyu hujjatidagi `stock` raqamining o'zi esa sotuvni ko'rsatadi (mijoz kontrakti, o'zgartirilmagan).
+
+**Heartbeat va sog'liq.** Scheduler har `REALTIME_HEARTBEAT_SECONDS` (30) da `broadcasts` navbatiga `SendRealtimeHeartbeat` qo'yadi; u Reverb'dan band kanallar ro'yxatini oladi va har `pos-branch.*`, `branch.*`, `store.*` kanaliga `realtime.heartbeat` (`{"at","interval","rev"}`) yuboradi. Bu har event yuradigan yo'lning o'zi (scheduler → navbat → ishchi → Reverb), shuning uchun "soketlar ochiq, eventlar kelmaydi" holati ko'rinadi: klient 3 interval (90 s) jim qolsa tez so'rovga o'tadi. Server tomoni: oxirgi muvaffaqiyatli heartbeat `REALTIME_HEARTBEAT_STALE_SECONDS` (120) dan eski yoki `broadcasts` navbati `REALTIME_QUEUE_BACKLOG_THRESHOLD` (500) dan uzun bo'lsa real-time **degraded**: `GET /api/v1/realtime` `live: false` beradi, `reverb` konteyneri `unhealthy` (`php artisan realtime:health`; `REVERB_SCALING_ENABLED` bilan Redis'ni ham tekshiradi). Qo'lda: `docker compose exec -u www-data reverb php artisan realtime:health`. `/health` ga kiritilmagan: real-time ishlamasa hech narsa to'xtamaydi.
+
+**Kanal obunasi keshi.** `POST /api/broadcasting/auth`: shu token shu kanalga ruxsat olgan bo'lsa, `REALTIME_AUTH_CACHE_SECONDS` (60) davomida qayta obuna Redis'dan imzolanadi (baza va token tekshiruvisiz, 2 ta Redis o'qishi; faqat `pos-branch`, `branch`, `store`, `user`, `courier` kanallari, `platform.ops` emas, rad javobi keshlanmaydi; daqiqasiga 60 ta cheklovi keshdan ham xuddi shu hisobda). Har ruxsat o'z "epoxa"larini eslaydi: token, foydalanuvchi yoki terminal, PIN sessiya bog'langan terminal, do'kon (ruxsat sozlamalari) va umumiy epoxa. Yozuv faqat o'zgargan qatorlarnikini commit bilan almashtiradi: token yangilansa yoki o'chirilsa — faqat shu token, rol/do'kon/filial o'zgarsa — shu foydalanuvchi, terminal uzilsa — shu terminal va uning PIN sessiyalari, ruxsat sozlamasi (qo'shish ham) — shu do'kon; filial boshqa do'konga o'tsa yoki qatorlar aniqlanmasa — hammasi (review M2 R2-4: oldin har 15 daqiqalik token yangilanishi butun platformadagi ruxsatlarni bekor qilardi). Muddati o'tgan token (`expires_at`, `SANCTUM_TOKEN_EXPIRATION`) keshdan imzolanmaydi (R2-5). Kanal qarori faqat shu jadvallarga bog'liq (tarif moduli, do'kon statusi emas), boshqa hollarni TTL (60 s) chegaralaydi (ochiq soket esa, avvalgidek, yopilguncha kanalda qoladi). `0` keshni o'chiradi.
+
+**O'lcham (1 000 do'kon).** Do'konga ~7 ulanish (2 kassa, KDS, 3 ofitsiant, mijoz ekrani) + ochiq panel/Mini App: ~7 000–10 000 soket. Bitta Reverb jarayoni (ext-uv) ~10 000 gacha; har soket bitta fayl deskriptori (`nofile` 65536). Heartbeat: band kanal soni / 10 ta HTTP so'rov har 30 s da (1 500 kanal ≈ 5 so'rov/s, `broadcasts` navbatida bitta job). **Reverb qayta ishga tushishi = qayta ulanish to'lqini:** hamma klient bir vaqtda qayta ulanadi va obunani qayta imzolatadi (kesh shu to'lqin uchun). Klientlar: POS ilovalari (`packages/dart/rizqim_api` `Backoff`) 1 s dan 30 s gacha eksponensial, ±20% jitter — birinchi urinish ~1 s da hammada bir vaqtda; Mini App va panel `pusher-js` ning o'z qayta ulanishi (jitter yo'q). Stage B: birinchi qayta ulanishni 0–10 s oralig'iga tarqatish. Reverb'ni ish vaqtida qayta ishga tushirmang.
 
 Loglar: `docker compose logs -f reverb` (ulanishlar sonini ko'rish uchun vaqtincha `php artisan reverb:start --debug`). Hodisalarda shaxsiy ma'lumot yo'q (faqat buyurtma `uuid`, holat va id'lar), shuning uchun Reverb loglari maxfiy emas. Yangi kod bilan Reverb `docker compose up -d --build` da qayta yaratiladi.
 
@@ -472,3 +487,69 @@ hisobi (konteynerlar × 12 ishchi): 12-bo'lim.
   429 oldi. Bular ko'p va doimiy bo'lsa, `FPM_MARKET_CHILDREN`/`NGINX_MARKET_MAX_INFLIGHT` ni (protsessor yetsa) oshiring.
 O'zgartirish: `backend/.env` da qiymat, so'ng `docker compose up -d backend`. Qaytarish: qatorni o'chiring (standart qaytadi).
 Yuk sinovi haqiqiy konfiguratsiya bilan: `SERVER=fpm scripts/scale-test/server.sh start` (`scripts/scale-test/README.md`).
+
+## 15. Market o'qish modeli (M2)
+
+Mini App'ning ko'rish so'rovlari (`/stores`, `/catalog`, `/catalog/availability` filialsiz) Redis'dagi hujjatlardan
+beriladi (`backend/app/Domain/Marketplace`, `config/marketplace.php`); iliq keshda `products`, `product_variants`,
+`stores`, `branches` o'qilmaydi. Buyurtma har doim jonli jadvallardan narxlanadi va tekshiriladi.
+
+- **Hujjatlar.** Hudud (geo katak 0,05° ≈ 5,6 × 4,2 km, tuman, viloyat yoki "hammasi") — do'kon kartalari va filial
+  doiralari; aniq radius tekshiruvi har so'rovda. Do'kon menyusi (kanal bo'yicha) va do'kon kartasi —
+  `ChangeRevision::store` tokeni bilan. Mavjudlik qatlami — 5 s yangi, eng ko'pi 15 s. Lenta puli (hudud × kategoriya,
+  120 mahsulot) — 60 s yangi, eng ko'pi 120 s. Kategoriyalar, bannerlar — umumiy token. Hudud hujjatining har do'koni va
+  lenta pulining har do'koni o'zi qurilgan do'kon tokenini yozib qo'yadi (ma'lumotdan oldin o'qilgan); har o'qishda
+  joriy tokenlar bitta `MGET` bilan solishtiriladi: hududda faqat o'zgargan do'konlar qayta o'qiladi, pul to'liq
+  qayta quriladi (bitta quruvchi, lock ostida). Eskirish jadvali: `docs/API.md` "Market o'qish modeli".
+- **Yangilanish.** Menyu/stop-list/do'kon jadvaliga har yozuv (M2-1 `RevisionMap`) do'kon tokenini, `stores`/`branches`
+  kartadagi ustuni yoki `categories`/`promos`/`payment_providers`/`settings` ga yozuv esa market tokenini
+  (`MarketplaceWrites`, SQL matni bo'yicha) commit'dan keyin almashtiradi. Faqat qarz (`debt_balance`) o'zgarsa
+  hududlar qayta qurilmaydi: kartadagi xom balans 120 s gacha eski, `is_order_locked` esa chegaradan o'tishda do'kon
+  tokeni bilan darhol. Narxi: do'kon tokeni o'zgarishi (menyu tahriri, qarz qulfi) o'sha do'kon bor hudud kataklarida
+  bitta kichik `whereIn` so'rov va o'sha do'konli lenta pullarini qayta quradi (sotuv tokenni o'zgartirmaydi).
+- **Bosim.** `Cache::flexible` (eskisi bir marta beriladi, javobdan keyin qayta quriladi) + `Cache::lock`: sovuq
+  hujjatni bitta so'rov quradi, qolganlar 3 s gacha kutadi, keyin o'zi quradi. Redis ishlamasa har so'rov bazadan
+  (sekin, lekin to'g'ri).
+- **Xotira (1 000 do'kon, 60 taomli menyu).** Hujjatlar siqilgan (zlib): menyu ~14 KB (siqilmagan 210 KB), do'kon
+  kartasi ~1 KB (+ sharhlar), mavjudlik ~0,5 KB, hudud katagi ~130 B/do'kon (300 do'konli katak ~40 KB), lenta puli
+  ~47 KB. Jami: menyular 14–28 MB (1–2 kanal), kataklar ~8 MB (200 faol), lenta pullari 10–55 MB (faol katak ×
+  kategoriya), qolgani < 10 MB: **≈ 40–100 MB**. Har yangi versiya oldingisini darhol o'chiradi; hamma kalitda TTL bor
+  (≤ 1 soat). Redis `maxmemory` ni shu hisobga qo'shing.
+- **Redis `maxmemory`.** `docker-compose.yml` dagi `redis` `--maxmemory ${REDIS_MAXMEMORY:-1gb}` bilan ishlaydi
+  (staging'da konteyner chegarasi 256 MB, shuning uchun `.env` da `REDIS_MAXMEMORY=200mb`); siyosat standart `noeviction` qolsin (yuqoridagi izoh: navbat va
+  sessiya kalitlari o'chmasin). Ogohlantirish: `used_memory` > 80 % `maxmemory`. To'lib qolsa Redis yozuvni rad etadi
+  (navbat, rate limit) — shuning uchun so'rovdagi hech narsa (masalan soxta `If-None-Match`) imzosiz Redis kaliti
+  yarata olmaydi (`ConditionalGet`, review M2 R2-1).
+- **Kuzatish.** Redis `used_memory`, `mkt:*` kalitlar soni (`redis-cli --scan --pattern '*mkt:*' | wc -l`), loglarda
+  `Marketplace read model: cache unavailable`. nginx'da market pulining `304` ulushi.
+- **Qaytarish.** `MARKETPLACE_READ_MODEL=false` (`backend/.env`, so'ng `docker compose up -d backend`): hamma ko'rish
+  so'rovi M2 dan oldingidek bazadan.
+
+**Terminal bilan aloqa qoidasi (standart O'CHIQ).** Ikkalasi kerak: `MARKETPLACE_REACHABILITY=true` va do'konda
+`stores.marketplace_offline_minutes` (masalan 10). Shunda do'konning faol POS/KDS terminallaridan (mijoz ekrani
+hisoblanmaydi) hech biri shuncha daqiqa server bilan bog'lanmagan bo'lsa, market uni "hozir buyurtma qabul qilmayapti"
+(`accepting_orders=false`) ko'rsatadi va checkout rad etadi. Terminali yo'q do'konga hech qachon ta'sir qilmaydi.
+Signal: `devices.last_seen_at` (terminal har so'rovda, daqiqada ko'pi bilan bir marta yozadi). Noto'g'ri rad etish
+xavfi: buyurtmani faqat panel yoki Telegram'dan qabul qiladigan, lekin terminali o'chiq do'kon; planshet uxlab qolgan
+yoki ilova yopilgan (so'rov yubormaydi); internet uzilib lokal rejimda ishlayotgan kassa; ilova versiyasi so'rov
+yubormay faqat WebSocket'da turgan holat (xavfsizlik so'rovi bor, lekin oralig'i chegaradan uzun bo'lmasin).
+Yoqish: `UPDATE stores SET marketplace_offline_minutes = 10 WHERE id = ...;` (o'chirish: `NULL`).
+
+## 16. PHP so'rov narxi: OPcache, preload (M2)
+
+O'lchov va tahlil: [scale/PHP_COST_M2.md](scale/PHP_COST_M2.md). Arzon autentifikatsiyali GET (`/pos/sync/status`) bitta
+so'rovda ~12,8 ms → ~9,7 ms PHP CPU, POS yozuvlari 9–18 % kam.
+
+- **Nima o'zgardi.** `backend/docker/php.ini`: OPcache 192 MB, interned strings 32 MB (8 MB standarti 93 % to'lgan edi:
+  to'lsa har so'rov satrlarni qayta ko'chiradi), fayl vaqti tekshirilmaydi, preload (`docker/preload.php`). Entrypoint
+  `event:cache` qiladi. Scramble (API hujjati) faqat `/docs/api*` va konsolda yuklanadi. Terminal tokeni o'z qurilmasini
+  ikkinchi marta so'ramaydi; `GET /pos/floor` jadval borligini so'ramaydi (2 so'rov kam).
+- **Kuzatish.** php-fpm ishga tushganda logda `preload: N classes preloaded, M skipped` qatori chiqadi (N ≈ 1 260).
+  `M` katta bo'lsa yoki `skipped <klass>: <xato>` qatorlari bo'lsa, ro'yxat eskirgan: tezlik biroz tushadi, xato emas.
+  O'lchovda 192 MB OPcache'ning ~70 MB i va 32 MB interned strings'ning ~14 MB i ishlatildi (zaxira yetarli).
+- **Ro'yxatni yangilash** (katta o'zgarishlardan keyin): `scripts/scale-test/php/prof/preload-list.php` (README'da buyruqlar),
+  natija `backend/docker/preload-classes.txt` commit qilinadi.
+- **Qaytarish.** `PHP_PRELOAD=0` (`backend/.env`, so'ng `docker compose up -d backend`). Manba kodi mount qilingan lokal
+  konteynerda: `PHP_OPCACHE_VALIDATE_TIMESTAMPS=1` (preload ham o'chadi).
+- **JIT** standart o'chiq (`PHP_OPCACHE_JIT_BUFFER_SIZE=0`). `64M` bilan yana ~4 % CPU tejaladi (o'lchangan), lekin PHP
+  8.3 dagi tracing JIT eng kam sinalgan qism: avval staging'da, segfault'larni (`php-fpm` logida `SIGSEGV`) kuzating.

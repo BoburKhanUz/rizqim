@@ -25,6 +25,9 @@ class MenuAvailabilityController extends Controller
      * ids (stop-list and branch switches, `stop_list` has reasons and `until`), `sold_out.variants` (batch stock:
      * "tugadi") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public
      * channel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.
+     *
+     * Wave M2: without `branch_id` (the Mini App) it comes from the read model's availability overlay, at most 15 s
+     * old (App\Domain\Marketplace\MarketplaceBrowse); with a branch (tills, staff screens) from the tables.
      */
     #[QueryParameter('store_id', description: "The store's uuid or numeric id.", required: true, type: 'string')]
     #[QueryParameter('branch_id', description: 'Only this branch.', type: 'int')]

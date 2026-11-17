@@ -47,6 +47,22 @@ class AccessCorsTest extends TestCase
         $this->assertContains('retry-after', $exposed);
     }
 
+    public function test_the_change_token_headers_are_readable_cross_origin_and_preflights_are_cached(): void
+    {
+        config(['cors.allowed_origins' => ['https://partner.example.uz']]);
+
+        $response = $this->call('GET', '/api/v1/user', [], [], [], ['HTTP_ORIGIN' => 'https://partner.example.uz', 'HTTP_ACCEPT' => 'application/json']);
+        $exposed = array_map('trim', explode(',', strtolower((string) $response->headers->get('Access-Control-Expose-Headers'))));
+        foreach (['etag', 'x-revision', 'x-revision-scope'] as $header) {
+            $this->assertContains($header, $exposed);
+        }
+
+        // Wave M2: the partner web polls cross-origin; a preflight answer is kept by the browser instead of repeated
+        $maxAge = (int) $this->preflight('https://partner.example.uz')->headers->get('Access-Control-Max-Age');
+        $this->assertGreaterThanOrEqual(600, $maxAge);
+        $this->assertLessThanOrEqual(7200, $maxAge);
+    }
+
     public function test_origins_come_from_env_and_default_to_webapp_and_app_urls(): void
     {
         $original = [

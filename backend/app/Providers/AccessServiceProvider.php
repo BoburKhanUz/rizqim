@@ -110,8 +110,17 @@ class AccessServiceProvider extends ServiceProvider
             }
 
             $deviceId = $accessToken->getAttribute('device_id');
+            if ($deviceId === null) {
+                return true;
+            }
 
-            return $deviceId === null || Device::whereKey($deviceId)->whereNull('revoked_at')->exists();
+            // M2-4: a terminal's own token (tokenable = that device): its row was read for this request just above, so
+            // its revoked_at is exactly as fresh as a second query would be (one statement less on every terminal call)
+            if ($tokenable instanceof Device && (int) $tokenable->getKey() === (int) $deviceId) {
+                return !$tokenable->isRevoked();
+            }
+
+            return Device::whereKey($deviceId)->whereNull('revoked_at')->exists();
         });
     }
 

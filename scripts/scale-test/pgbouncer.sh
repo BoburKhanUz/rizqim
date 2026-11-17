@@ -25,7 +25,8 @@ start)
   for _ in $(seq 1 20); do (echo > "/dev/tcp/127.0.0.1/$DB_POOL_PORT") 2>/dev/null && break; sleep 0.25; done
   echo "pgbouncer (transaction mode) on 127.0.0.1:$DB_POOL_PORT -> $DB_DATABASE";;
 stop)
-  sudo -n pkill -f "pgbouncer $PGB_DIR/pgbouncer.ini"; echo stopped;;
+  # only the kit's own PgBouncer: the whole command line is its own config (not another PgBouncer, not this wrapper)
+  sudo -n pkill -f "^pgbouncer $PGB_DIR/pgbouncer.ini\$"; echo stopped;;
 stats)
   PGPASSWORD="${DB_PASSWORD:-$(db_env DB_PASSWORD)}" psql -h 127.0.0.1 -p "$DB_POOL_PORT" -U "${DB_USERNAME:-$(db_env DB_USERNAME)}" pgbouncer \
     -c 'show pools' -c 'show stats';;

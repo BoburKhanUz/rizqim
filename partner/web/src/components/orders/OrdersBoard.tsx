@@ -44,7 +44,7 @@ import { useNow } from './useNow';
 // The live orders board (P2-21): the open orders of the chosen branch scope in columns by status (GET /staff/orders,
 // scope=active, every page), today's finished ones in a collapsible last column (scope=history, date=today, a page at a
 // time), an order's detail in a drawer (GET /staff/orders/{uuid}). Kept fresh by the shell's real-time connection (an
-// event refetches the lists and that order) and by polling (faster while real-time is off). The actions are the ones the
+// event reads that order and patches it in, LiveOrders.tsx) and by polling (faster while real-time is off). The actions are the ones the
 // API offers for the order and the person's permissions; a refusal (403/404/422) is said in words and the board refetched.
 
 const DONE_COLLAPSED_KEY = 'rz_board_done_collapsed';

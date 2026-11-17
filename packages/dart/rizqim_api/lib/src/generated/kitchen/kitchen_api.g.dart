@@ -25,6 +25,7 @@ class _KitchenApi implements KitchenApi {
     int? branchId,
     bool? includeReady,
     int? canceledWithin,
+    String? ifNoneMatch,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
@@ -33,7 +34,8 @@ class _KitchenApi implements KitchenApi {
       r'canceled_within': canceledWithin,
     };
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-None-Match': ifNoneMatch};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<GetV1StaffKitchenTicketsResponse>(
       Options(method: 'GET', headers: _headers, extra: _extra)

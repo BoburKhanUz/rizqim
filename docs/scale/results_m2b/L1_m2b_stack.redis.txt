@@ -1,0 +1,38 @@
+total_commands_processed:186383
+instantaneous_ops_per_sec:9
+total_net_input_bytes:33329701
+total_net_output_bytes:8316338
+total_net_repl_input_bytes:0
+total_net_repl_output_bytes:0
+instantaneous_input_kbps:3.12
+instantaneous_output_kbps:4.60
+instantaneous_input_repl_kbps:0.00
+instantaneous_output_repl_kbps:0.00
+keyspace_hits:74175
+keyspace_misses:25618
+used_memory_human:1.53M
+used_memory_peak_human:1.82M
+cmdstat_get:calls=61851,usec=160768,usec_per_call=2.60,rejected_calls=0,failed_calls=0
+cmdstat_eval:calls=41466,usec=719337,usec_per_call=17.35,rejected_calls=0,failed_calls=0
+cmdstat_exists:calls=18837,usec=25362,usec_per_call=1.35,rejected_calls=0,failed_calls=0
+cmdstat_zrangebyscore:calls=11752,usec=14385,usec_per_call=1.22,rejected_calls=0,failed_calls=0
+cmdstat_select:calls=10772,usec=17459,usec_per_call=1.62,rejected_calls=0,failed_calls=0
+cmdstat_incrby:calls=9387,usec=21112,usec_per_call=2.25,rejected_calls=0,failed_calls=0
+cmdstat_lpop:calls=8384,usec=18452,usec_per_call=2.20,rejected_calls=0,failed_calls=0
+cmdstat_mget:calls=6627,usec=18998,usec_per_call=2.87,rejected_calls=0,failed_calls=0
+cmdstat_rpush:calls=5016,usec=17950,usec_per_call=3.58,rejected_calls=0,failed_calls=0
+cmdstat_incr:calls=4155,usec=11749,usec_per_call=2.83,rejected_calls=0,failed_calls=0
+cmdstat_setex:calls=3015,usec=12802,usec_per_call=4.25,rejected_calls=0,failed_calls=0
+cmdstat_zrem:calls=2508,usec=16422,usec_per_call=6.55,rejected_calls=0,failed_calls=0
+cmdstat_zadd:calls=2508,usec=12546,usec_per_call=5.00,rejected_calls=0,failed_calls=0
+cmdstat_set:calls=102,usec=467,usec_per_call=4.58,rejected_calls=0,failed_calls=0
+cmdstat_info:calls=4,usec=498,usec_per_call=124.50,rejected_calls=0,failed_calls=0
+cmdstat_config|resetstat:calls=1,usec=123,usec_per_call=123.00,rejected_calls=0,failed_calls=0
+# Commandstats
+0
+== reverb log (tail)
+
+   INFO  Starting server on 127.0.0.1:18580.  
+
+== queue log: jobs
+2509

@@ -274,8 +274,23 @@ export class FakeApi {
     return result
   }
 
+  /** Wave M2: what GET /realtime says. Real-time is off in these tests (no Reverb key in the build, none here). */
+  realtimeStatus: Record<string, unknown> = {
+    status: 'off',
+    live: false,
+    heartbeat_seconds: 30,
+    silence_seconds: 90,
+    poll_seconds: { live: 60, fallback: 15 },
+    reverb: null,
+  }
+
+  /** Wave M2: what the store list and the store's menu say about taking orders now (open, not locked, reachable). */
+  acceptingOrders = true
+
   private route(method: string, path: string, query: Record<string, string>, body: Record<string, unknown> | null, authorization: string | null, idempotencyKey: string | null): ApiReply {
     if (method === 'POST' && path === '/auth/telegram') return this.login()
+    // Public: no token (GET /api/v1/realtime)
+    if (method === 'GET' && path === '/realtime') return ok(this.realtimeStatus)
 
     const token = authorization?.replace(/^Bearer /, '') ?? ''
     if (!this.validTokens.has(token)) return fail(401, 'Unauthenticated.')
@@ -283,7 +298,7 @@ export class FakeApi {
     if (method === 'GET' && path === '/user') {
       return ok({ user: this.user, store: this.userStore(), sms_verification_required: false })
     }
-    if (method === 'GET' && path === '/stores') return ok([this.storeListItem()])
+    if (method === 'GET' && path === '/stores') return this.stores(query)
     if (method === 'GET' && path === '/catalog') return this.catalog(query)
     if (method === 'GET' && path === '/couriers') return ok([])
     // The unread badge of the home screen's bell: no notifications
@@ -336,14 +351,58 @@ export class FakeApi {
     }
   }
 
-  // GET /catalog (the global feed) and GET /catalog?store_id=... (one store, by uuid or id)
+  // GET /stores: the old list (every store), or one page of it with `meta` (wave M2); for=checkout as before
+  private stores(query: Record<string, string>): ApiReply {
+    const item = { ...this.storeListItem(), ...(query.for === 'checkout' ? {} : { accepting_orders: this.acceptingOrders }) }
+    if (query.page === undefined && query.per_page === undefined) return ok([item])
+    const page = Number(query.page) || 1
+    const perPage = Number(query.per_page) || 20
+    const all = [item]
+    return ok(all.slice((page - 1) * perPage, page * perPage), { meta: { page, per_page: perPage, total: all.length, last_page: Math.max(1, Math.ceil(all.length / perPage)) } })
+  }
+
+  // The light card of a product (wave M2, CatalogFeed::card): the one plain variant when there is nothing to choose
+  private cardOf(product: Product) {
+    const variants = product.variants ?? []
+    const needsOptions = variants.length > 1 || (product.modifier_groups ?? []).some((group) => group.modifiers.length > 0) || variants.some((v) => v.unit === 'kg' || v.unit === 'l') || Boolean(product.combo)
+    const priced = variants.filter((v) => Number(v.price) > 0).sort((a, b) => Number(a.price) - Number(b.price))
+    const variant = !needsOptions && variants.length === 1 ? variants[0] : null
+    const { id, uuid, name, address, logo_url } = this.store
+    return {
+      id: product.id,
+      uuid: product.uuid,
+      store_id: product.store_id,
+      category_id: product.category_id,
+      name: product.name,
+      description: product.description,
+      image_url: product.image_url,
+      image_thumb_urls: null,
+      batch_tracked: Boolean(product.batch_tracked),
+      price: priced[0] ? String(priced[0].price) : null,
+      unit: priced[0] ? (priced[0].unit ?? 'piece') : null,
+      needs_options: needsOptions,
+      variant: variant ? { id: variant.id, uuid: variant.uuid, name: variant.name, price: variant.price, unit: variant.unit ?? 'piece', stock: variant.stock } : null,
+      store: { id, uuid, name, address, logo_url, accepting_orders: this.acceptingOrders },
+    }
+  }
+
+  // GET /catalog (the global feed, full products or view=cards) and GET /catalog?store_id=... (one store, by uuid or id)
   private catalog(query: Record<string, string>): ApiReply {
     if (!query.store_id) {
+      if (query.view === 'cards') {
+        const cards = this.products.map((product) => this.cardOf(product)).slice(0, Number(query.limit) || 20)
+        return ok({ categories: [CATEGORY], products: cards, promos: [], highlight_product: null })
+      }
       const products = this.products.map((product) => ({ ...product, store: this.store }))
       return ok({ categories: [CATEGORY], products, promos: [], highlight_product: null })
     }
     if (query.store_id !== this.store.uuid && query.store_id !== String(this.store.id)) return fail(404, 'Do\'kon topilmadi.')
-    return ok({ store: { ...this.store, branches: [BRANCH], ratings: [] }, categories: [CATEGORY], products: this.products, availability: this.availabilityBranches() })
+    return ok({
+      store: { ...this.store, branches: [BRANCH], ratings: [], accepting_orders: this.acceptingOrders },
+      categories: [CATEGORY],
+      products: this.products,
+      availability: this.availabilityBranches(),
+    })
   }
 
   // What GET /orders shows the signed-in user: a customer their own orders, staff the orders of their store

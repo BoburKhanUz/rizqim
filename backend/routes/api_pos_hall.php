@@ -64,10 +64,10 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
 
     // POS: the till and the waiter phones
     Route::prefix('pos')->group(function () {
-        Route::get('/floor', [PosFloorController::class, 'show'])->middleware('permission:orders.view');
+        Route::get('/floor', [PosFloorController::class, 'show'])->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
         // P3 integration fix: the open orders of every channel (one queue for the till)
-        Route::get('/orders', [PosOrderController::class, 'index'])->middleware('permission:orders.view');
-        Route::get('/orders/{uuid}', [PosOrderController::class, 'show'])->whereUuid('uuid')->middleware('permission:orders.view');
+        Route::get('/orders', [PosOrderController::class, 'index'])->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
+        Route::get('/orders/{uuid}', [PosOrderController::class, 'show'])->whereUuid('uuid')->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('order', 120)]);
 
         $idempotent = fn (string $scope) => EnsureIdempotency::class . ':' . $scope;
 

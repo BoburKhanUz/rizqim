@@ -33,9 +33,12 @@ abstract class OwnerIngredientsApi {
   /// (on `branch_id`, when given).
   ///
   /// [branchId] - The branch `stopped_here` is about (a branch-bound caller: their own).
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/owner/ingredients')
   Future<GetV1OwnerIngredientsResponse> ingredientIndex({
     @Query('branch_id') int? branchId,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Create an ingredient.

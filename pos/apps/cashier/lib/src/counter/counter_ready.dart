@@ -87,14 +87,15 @@ class CounterReadyBoard extends ChangeNotifier {
       if (e.announce && e.number != null) {
         announce(e.number!, recall: e.called);
       }
-      // The board moves at once (the debounced refresh below is the fallback)
-      unawaited(refresh());
+      // M2 fix round 2: the sound and banner come from the event itself, at once; the list read is the scheduler's
+      // (paced: [RefreshPacing.pickup])
     });
     _scheduler ??= PosRefreshScheduler(
       realtime: realtime,
       pollInterval: pollInterval,
       livePollInterval: livePollInterval,
-      eventFilter: (PosEvent e) => e is PosOrderEvent,
+      eventFilter: PosRelevance.pickup,
+      pacing: RefreshPacing.pickup,
       onRefresh: (_) => refresh(),
     )..start();
     unawaited(refresh());

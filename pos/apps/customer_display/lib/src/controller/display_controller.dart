@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_lan/pos_lan.dart';
+import 'package:rizqim_api/rizqim_api.dart'
+    show AppResume, CapturedRead, ChannelRevision, ReadTracking;
 
 import '../app_config.dart';
 import '../lan/display_lan.dart';
@@ -64,8 +66,10 @@ class ReadyAnnouncement {
 /// Mijoz ekranining holati: kassa cheki (`display.cart` hodisasi va so'rov), "Tayyorlanmoqda / Tayyor" taxtasi
 /// (`queue.*` hodisalari va so'rov), aloqa va ovoz.
 ///
-/// * **Tezlik:** hodisa kelsa o'sha zahoti qayta o'qiladi (kutmasdan); tayyor raqam ovozi va yirik ko'rsatish hodisaning
-///   o'zidan, so'rovni kutmasdan. Real-time bo'lmasa yoki uzilsa — [pollInterval] da so'raladi, jonli bo'lsa ham ehtiyot
+/// * **Tezlik:** o'z kassasining `display.cart` va `queue.*` hodisasida qisqa taqsimlash bilan ([pacing]: birinchisi
+///   0-250 ms ichida, 300 ms oynadagilar bitta o'qishga) qayta o'qiladi; tayyor raqam ovozi va yirik ko'rsatish
+///   hodisaning o'zidan, so'rovni kutmasdan. Boshqa hodisalar faqat reviziyani yuritadi (M2 fix round 2); heartbeat
+///   faqat hodisa o'tkazib yuborilganda o'qitadi (shubhada emas: 30 s ehtiyot so'rovi bor). Real-time bo'lmasa yoki uzilsa — [pollInterval] da so'raladi, jonli bo'lsa ham ehtiyot
 ///   uchun [livePollInterval] da; obuna (qayta) tasdiqlanganda darhol.
 /// * **Aloqa uzilsa** oxirgi ma'lum chek va raqamlar turadi, burchakda "Aloqa yo'q"; tiklanganda o'zi yangilanadi.
 /// * **Chek:** "Rahmat" [paidHold] turadi, kassa unutgan chek [staleCart] dan keyin salomlashishga qaytadi.
@@ -85,6 +89,7 @@ class DisplayController extends ChangeNotifier {
     this.staleCart = AppConfig.staleCart,
     this.announceHold = AppConfig.announceHold,
     this.lan,
+    this.pacing = RefreshPacing.display,
   }) : _clock = clock ?? DateTime.now;
 
   final PosDisplayRepository repository;
@@ -100,6 +105,9 @@ class DisplayController extends ChangeNotifier {
 
   /// P6 lokal ko'prik; `null` — yo'q.
   final DisplayLan? lan;
+
+  /// M2 fix round 2: how event and heartbeat reads are paced.
+  final RefreshPacing pacing;
 
   PosDisplayState? _state;
   PosQueueBoard? _board;
@@ -122,7 +130,32 @@ class DisplayController extends ChangeNotifier {
   StreamSubscription<PosEvent>? _eventSub;
   StreamSubscription<PosLiveState>? _liveSub;
   StreamSubscription<void>? _resubSub;
+  StreamSubscription<PosHeartbeat>? _heartbeatSub;
+  StreamSubscription<void>? _resumeSub;
   StreamSubscription<LanEvent>? _lanSub;
+
+  /// M2 fix round 2: events and heartbeats of the branch channel (`null` without realtime): every event feeds the
+  /// screen's revision, only its till's cart and the queue read ([ScreenRelevance.display]), paced.
+  PacedRefresh? _paced;
+
+  /// M2: poll time since the last read without `If-None-Match` (counted by the poll timer).
+  Duration _sinceUnconditional = Duration.zero;
+  bool _unconditionalNext = false;
+
+  /// M2: a read without `If-None-Match` at least this often while polling.
+  static const Duration unconditionalEvery = Duration(seconds: 110);
+
+  /// M2: events not re-read because their `rev` was already on the screen (tests).
+  int skippedEvents = 0;
+
+  /// M2: reads sent without `If-None-Match` (tests).
+  int unconditionalReads = 0;
+
+  /// M2: the revision state (tests).
+  ChannelRevision? get revision => _paced?.revision;
+
+  /// M2 fix round 2: the paced reads (tests).
+  PacedRefresh? get paced => _paced;
   bool _viaHub = false;
 
   // The till's last cart over the LAN (its run and number): an older one that arrives late is dropped
@@ -175,7 +208,8 @@ class DisplayController extends ChangeNotifier {
     final PosRealtime? rt = realtime;
     if (rt == null) return DisplayLink.polling;
     return switch (rt.state) {
-      PosLiveState.live => DisplayLink.live,
+      // M2: subscribed, but real-time not live (server) or silent: the screen polls fast, say so
+      PosLiveState.live => rt.isLive ? DisplayLink.live : DisplayLink.polling,
       PosLiveState.connecting => DisplayLink.connecting,
       _ => DisplayLink.polling,
     };
@@ -238,7 +272,18 @@ class DisplayController extends ChangeNotifier {
     settings.addListener(_notify);
     final PosRealtime? rt = realtime;
     if (rt != null) {
+      _paced = PacedRefresh(
+        channel: rt.channel,
+        pacing: pacing,
+        // The display never reads on doubt alone: its safety poll covers it
+        readOnDoubt: false,
+        onRead: (PacedReason _) => unawaited(refresh()),
+      );
       _eventSub = rt.events.listen(_onEvent);
+      // A heartbeat ahead of what the screen accounted for: an event was missed
+      _heartbeatSub = rt.heartbeats.listen(
+        (PosHeartbeat h) => _paced?.heartbeat(h.data),
+      );
       _liveSub = rt.states.listen((_) {
         _armPoll();
         _notify();
@@ -251,6 +296,8 @@ class DisplayController extends ChangeNotifier {
       _lanSub = l.events.listen(_onLanEvent);
       l.addListener(_onLanChanged);
     }
+    // M2: back in the foreground: re-read at once
+    _resumeSub = AppResume.resumed.listen((_) => unawaited(refresh()));
     _armPoll();
     unawaited(refresh());
   }
@@ -290,34 +337,28 @@ class DisplayController extends ChangeNotifier {
   Future<void> _load() async {
     // Over the LAN the hub is the source; the bridge itself asks the server
     if (lan?.viaHub ?? false) return;
+    final bool unconditional = _unconditionalNext;
+    _unconditionalNext = false;
+    if (unconditional) unconditionalReads++;
+    final PacedRefresh? paced = _paced;
+    // Every full read shows what was asked so far: a paced read still due for it is dropped when covered
+    paced?.readStarted();
     try {
-      final PosDisplayState s = await repository.state();
-      if (_disposed) return;
-      lan?.reportCloud(true);
-      // The server answered while the bridge kept the LAN mode (the hub's queue not on the server yet): the hub's
-      // picture stays until the bridge says it is over
-      if (lan?.viaHub ?? false) return;
-      _state = s;
-      _fetchedAt = _clock();
-      _trackPaid(s.cart);
-      _error = null;
-      _offline = false;
-      if (s.modules.queueCalling) {
-        try {
-          final PosQueueBoard b = await repository.queue();
-          if (_disposed) return;
-          _applyBoard(b);
-        } on PosModuleDisabled {
-          _board = null;
-        }
-      } else {
-        _board = null;
-      }
-      _lastUpdate = _clock();
+      // M2: conditional reads; the capture proves the revision the screen shows and keeps the receive time of a body
+      // answered after a 304 (the cart's age counts from its original 200)
+      final CapturedRead<bool> all = await ReadTracking.capture(
+        () => _read(),
+        unconditional: unconditional,
+      );
+      if (_disposed || !all.value) return;
+      final String? scope = paced?.revision?.scope;
+      paced?.readDone(scope == null ? null : all.reads.revisionFor(scope));
     } on PosNetworkException {
+      paced?.readFailed();
       _offline = true;
       lan?.reportCloud(false);
     } on PosException catch (e) {
+      paced?.readFailed();
       // Server javob berdi, lekin rad etdi: tarmoq muammosi emas
       if (e.isNetworkError) {
         _offline = true;
@@ -327,6 +368,7 @@ class DisplayController extends ChangeNotifier {
         _error = e.message;
       }
     } on Object catch (e) {
+      paced?.readFailed();
       _offline = true;
       if (kDebugMode) debugPrint('display refresh failed: $e');
     }
@@ -334,25 +376,58 @@ class DisplayController extends ChangeNotifier {
     _notify();
   }
 
+  /// The two reads of a refresh; `false` when the screen is gone or the hub took over meanwhile.
+  Future<bool> _read() async {
+    final CapturedRead<PosDisplayState> read = await ReadTracking.capture(
+      () => repository.state(),
+    );
+    final PosDisplayState s = read.value;
+    if (_disposed) return false;
+    lan?.reportCloud(true);
+    // The server answered while the bridge kept the LAN mode (the hub's queue not on the server yet): the hub's
+    // picture stays until the bridge says it is over
+    if (lan?.viaHub ?? false) return false;
+    _state = s;
+    _fetchedAt = read.reads.receivedAt(_clock());
+    _trackPaid(s.cart);
+    _error = null;
+    _offline = false;
+    if (s.modules.queueCalling) {
+      try {
+        final PosQueueBoard b = await repository.queue();
+        if (_disposed) return false;
+        _applyBoard(b);
+      } on PosModuleDisabled {
+        _board = null;
+      }
+    } else {
+      _board = null;
+    }
+    _lastUpdate = _clock();
+    return true;
+  }
+
   // --- hodisalar -----------------------------------------------------------------------------------------------
 
   void _onEvent(PosEvent e) {
     if (_disposed) return;
-    switch (e) {
-      case PosDisplayCartChanged():
-        final String? till = _state?.tillUuid;
-        if (till != null && e.terminal != null && e.terminal != till) return;
-        unawaited(refresh());
-      case PosQueueEvent():
-        final int? number = e.number;
-        if (number != null && e.name == 'queue.ready') {
-          // Ovoz va yirik raqam hodisaning o'zidan: so'rov javobini kutmaymiz
-          _announce(number, callCount: e.callCount, again: e.called);
-        }
-        unawaited(refresh());
-      default:
-        break;
+    if (e is PosQueueEvent) {
+      final int? number = e.number;
+      if (number != null && e.name == 'queue.ready') {
+        // Ovoz va yirik raqam hodisaning o'zidan: so'rov javobini kutmaymiz
+        _announce(number, callCount: e.callCount, again: e.called);
+      }
     }
+    // M2 fix round 2: every event feeds the revision (an ignored one too, so the next relevant event or heartbeat is
+    // not taken for a gap); only this till's cart and the queue read, paced. A `rev` already on screen (or already
+    // asked for) reads nothing: the announcement above still plays.
+    final PacedRefresh? paced = _paced;
+    if (paced == null) return;
+    final PacedVerdict v = paced.event(
+      e.data,
+      relevant: ScreenRelevance.display(e.name, e.data, _state?.tillUuid),
+    );
+    if (v == PacedVerdict.skipped) skippedEvents++;
   }
 
   // --- P6: markaz kassa hodisalari ----------------------------------------------------------------------------
@@ -646,7 +721,14 @@ class DisplayController extends ChangeNotifier {
     final bool live = realtime?.isLive ?? false;
     final Duration every = live ? livePollInterval : pollInterval;
     if (every <= Duration.zero) return;
-    _poll = Timer.periodic(every, (_) => unawaited(refresh()));
+    _poll = Timer.periodic(every, (_) {
+      _sinceUnconditional += every;
+      if (_sinceUnconditional >= unconditionalEvery) {
+        _sinceUnconditional = Duration.zero;
+        _unconditionalNext = true;
+      }
+      unawaited(refresh());
+    });
   }
 
   void _notify() {
@@ -662,9 +744,12 @@ class DisplayController extends ChangeNotifier {
       t.cancel();
     }
     settings.removeListener(_notify);
+    _paced?.dispose();
     unawaited(_eventSub?.cancel());
     unawaited(_liveSub?.cancel());
     unawaited(_resubSub?.cancel());
+    unawaited(_heartbeatSub?.cancel());
+    unawaited(_resumeSub?.cancel());
     unawaited(_lanSub?.cancel());
     lan?.removeListener(_onLanChanged);
     unawaited(_announcements.close());

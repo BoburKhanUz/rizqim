@@ -150,11 +150,17 @@ class FakePosServer {
         body,
         auth?.replaceFirst('Bearer ', ''),
         idempotencyKey: request.headers.value('Idempotency-Key'),
+        ifNoneMatch: request.headers.value('If-None-Match'),
       );
       if (verbose) {
         stdout.writeln('${request.method} ${request.uri} -> ${r.status}');
       }
       r.headers.forEach(request.response.headers.set);
+      if (r.status == 304) {
+        request.response.statusCode = 304;
+        unawaited(request.response.close());
+        return;
+      }
       _json(request, r.status, r.body);
     } on Object catch (e) {
       stderr.writeln('xato: $e');

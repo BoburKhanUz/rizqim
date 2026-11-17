@@ -25,6 +25,10 @@ test.describe('a new order arrives', () => {
     expect(reverb.subscribed).toContain('private-store.1')
     expect(api.callsTo('POST', '/broadcasting/auth')[0].body).toMatchObject({ channel_name: 'private-store.1' })
 
+    // Fix round 2: the event reads only that order (paced: within the 0-1 s spread) and patches it in, no list read
+    await page.waitForTimeout(500)
+    const listReads = () => api.callsTo('GET', '/v1/staff/orders').length
+    const listsBefore = listReads()
     const order = api.orders.add({ short_code: 'R1' })
     reverb.emitOrder('order.created', order, ['private-store.1'])
 
@@ -34,6 +38,8 @@ test.describe('a new order arrives', () => {
     await expect(card.getByText('Lavash')).toBeVisible()
     // The sidebar badge counts the orders waiting for acceptance
     await expect(page.getByText('1 ta yangi buyurtma').first()).toBeAttached()
+    expect(api.callsTo('GET', `/v1/staff/orders/${order.uuid}`)).toHaveLength(1)
+    expect(listReads()).toBe(listsBefore)
   })
 
   test('by polling when there is no socket', async ({ page, api, signIn, reverb }) => {

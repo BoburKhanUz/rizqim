@@ -58,6 +58,8 @@ class CashierHarness {
               apiBaseUrl: 'https://api.test/api',
               appKey: FakePosState.realtimeKey,
               connector: hub.connect,
+              // The tests time the old 1-2-4 s backoff; the 0-10 s first spread is tested in rizqim_api and pos_data
+              backoff: const Backoff(),
             )
           : null,
     );

@@ -37,14 +37,16 @@ x-backend-environment: &backend-environment
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-  # Real-time updates (Laravel Reverb, `reverb` xizmati). Kalitlar ildiz .env dan (frontend build ham shu REVERB_APP_KEY
-  # ni oladi), shuning uchun backend/.env dagi REVERB_APP_* va BROADCAST_CONNECTION Docker'da e'tiborga olinmaydi.
-  # Backend Reverb'ga compose tarmog'i ichida HTTP orqali (reverb:8080) yozadi; brauzerlar esa Mini App origin'i orqali
-  # (frontend nginx faqat /app/ ni reverb:8080 ga proksi qiladi). Standart null (o'chiq; qolgan hammasi odatdagidek
-  # ishlaydi, Mini App so'rov bilan yangilaydi): bo'sh kalitlar bilan private kanal imzosini istalgan kishi soxtalashtira
-  # oladi. Kalitlarni yaratgach ildiz .env da BROADCAST_CONNECTION=reverb qiling; reverb + bo'sh kalit bo'lsa
-  # app:check-production konteynerni ishga tushirmaydi. docs/DEPLOY.md (9-bo'lim), docs/OPERATIONS.md
-  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-null}
+  # Real-time updates (Laravel Reverb, `reverb` xizmati). M2: standart bo'yicha YOQIQ (reverb). Ildiz .env da
+  # REVERB_APP_ID/KEY/SECRET bo'lmasa, backend konteyneri ularni birinchi ishga tushishda bir marta yaratadi va
+  # backend_storage volume'ida (storage/app/.realtime/reverb.env, faqat root o'qiydi) saqlaydi; queue, scheduler va reverb
+  # shu fayldan oladi (backend/docker/entrypoint.sh). Qiymatlar logga chiqmaydi va repoga tushmaydi. Ildiz .env da
+  # kalitlar bo'lsa, o'shalar ishlatiladi (hech qachon ustiga yozilmaydi). Ilovalar kalitni GET /api/v1/realtime dan oladi
+  # (build paytidagi VITE_REVERB_APP_KEY / RIZQIM_REVERB_KEY bo'sh bo'lsa). Backend Reverb'ga compose tarmog'i ichida HTTP
+  # orqali (reverb:8080) yozadi; brauzerlar Mini App origin'i orqali (frontend nginx /app/ ni reverb:8080 ga proksi qiladi).
+  # O'chirish (rollback): ildiz .env da BROADCAST_CONNECTION=null, so'ng docker compose up -d: hammasi so'rov bilan
+  # ishlaydi, boshqa hech narsa o'zgarmaydi. docs/DEPLOY.md (9-bo'lim), docs/OPERATIONS.md («Real-time»)
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
   REVERB_APP_ID: ${REVERB_APP_ID:-}
   REVERB_APP_KEY: ${REVERB_APP_KEY:-}
   REVERB_APP_SECRET: ${REVERB_APP_SECRET:-}
@@ -124,7 +126,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    # Xotira chegarasi (noeviction): chegaraga yetganda Redis yozishni rad etadi, lekin butun serverni xotirasiz
+    # qoldirmaydi. used_memory 80 % dan oshsa ogohlantiring (docs/OPERATIONS.md, 15-bo'lim).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}", "--maxmemory", "${REDIS_MAXMEMORY:-1gb}"]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
@@ -237,13 +241,17 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    # Reverb'ning o'z GET /up yo'li (server ishlayapti va so'rovlarga javob beryapti)
+    # M2: nosog'lom = soketlar ochiq, lekin eventlar kelmaydi (Wolt hodisasi): Reverb'ning o'z /up yo'li javob bermasa,
+    # REVERB_SCALING_ENABLED bilan Redis javob bermasa, heartbeat (scheduler -> broadcasts navbati -> Reverb, har 30 s)
+    # REALTIME_HEARTBEAT_STALE_SECONDS (120) dan eskirsa yoki broadcasts navbati REALTIME_QUEUE_BACKLOG_THRESHOLD (500)
+    # dan oshsa. Ilovalar shu holatni GET /api/v1/realtime (live) va heartbeat jimligidan biladi va tez so'rovga o'tadi.
+    # artisan www-data nomidan (root yaratgan log faylini php-fpm yoza olmaydi). docs/OPERATIONS.md, «Real-time»
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/up || exit 1"]
+      test: ["CMD-SHELL", "su-exec www-data php artisan realtime:health || exit 1"]
       interval: 30s
-      timeout: 5s
+      timeout: 15s
       retries: 3
-      start_period: 60s
+      start_period: 120s
 
   frontend:
     build:

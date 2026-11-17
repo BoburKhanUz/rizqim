@@ -1,0 +1,29 @@
+== php-fpm access: requests by pool and status
+   9666 market 200
+   5794 market 304
+     64 default 201
+== nginx access: status counts
+   9666 200
+   5794 304
+    295 503
+     64 201
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /notifications | market | 4951 | 310 | 4641 | 0 | 93.7 | 17.6 / 11.7 | 13.2 / 9.6 | 3652 / 0 | 1107 |
+| GET /catalog/availability?store_id | market | 2965 | 2965 | 0 | 0 | 0.0 | 46.6 / - | 13.8 / - | 316 / - | 921 |
+| GET /catalog?store_id | market | 2833 | 2618 | 215 | 0 | 7.6 | 133.0 / 12.0 | 16.6 / 9.7 | 58635 / 0 | 149910 |
+| GET /catalog?lat&limit&lng&view=cards | market | 1635 | 1635 | 0 | 0 | 0.0 | 27.9 / - | 22.6 / - | 43467 / - | 69414 |
+| GET /orders?scope=active | market | 1237 | 299 | 938 | 0 | 75.8 | 19.2 / 11.7 | 15.0 / 10.1 | 7576 / 0 | 2213 |
+| GET /stores?lat&lng&page=1&per_page | market | 994 | 994 | 0 | 0 | 0.0 | 21.8 / - | 13.9 / - | 8501 / - | 8266 |
+| GET /stores?lat&lng&page=n&per_page | market | 845 | 845 | 0 | 0 | 0.0 | 16.7 / - | 13.6 / - | 8490 / - | 7007 |
+| POST /orders | default | 64 | 0 | 0 | 64 | 0.0 | - / - | - / - | - / - | 12 |
+pool default: 64 req, 0 x 304 (0.0 %), PHP CPU from %C 2.1 s (33.3 ms/req; 304s 0.0 s)
+pool market: 15460 req, 5794 x 304 (37.5 %), PHP CPU from %C 211.5 s (13.7 ms/req; 304s 56.1 s)
+bytes: non-market 0.00 MB in 0 req = 0.0 kB per POS store per minute (33 stores, 359.7 s); market 233.25 MB in 15819 req
+
+== nginx error log: limit hits by zone
+    295 zone "rizqim_market_all"
+== php-fpm log warnings (this run)
+      1 WARNING: [pool market] server reached max_children setting (4), consider raising it

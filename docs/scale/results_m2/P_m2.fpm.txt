@@ -1,0 +1,24 @@
+== php-fpm access: requests by pool and status
+   1129 critical 304
+    686 critical 200
+    198 default 200
+== nginx access: status counts
+   1129 304
+    884 200
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /staff/kitchen/tickets | critical | 660 | 99 | 561 | 0 | 85.0 | 132.9 / 14.6 | 104.2 / 11.7 | 122227 / 0 | 11817 |
+| GET /pos/floor | critical | 495 | 297 | 198 | 0 | 40.0 | 24.6 / 15.1 | 17.2 / 12.8 | 4062 / 0 | 1178 |
+| GET /pos/display/state | critical | 330 | 99 | 231 | 0 | 70.0 | 16.7 / 14.5 | 13.7 / 11.6 | 392 / 0 | 38 |
+| POST /api/broadcasting/auth | default | 198 | 198 | 0 | 0 | 0.0 | 18.9 / - | 10.7 / - | 95 / - | 18 |
+| GET /staff/orders?status=new | critical | 165 | 98 | 67 | 0 | 40.6 | 20.3 / 13.7 | 16.4 / 11.9 | 1404 / 0 | 134 |
+| GET /staff/orders | critical | 165 | 93 | 72 | 0 | 43.6 | 86.7 / 12.4 | 70.3 / 9.4 | 95149 / 0 | 8641 |
+pool critical: 1815 req, 1129 x 304 (62.2 %), PHP CPU from %C 38.2 s (21.0 ms/req; 304s 13.3 s)
+pool default: 198 req, 0 x 304 (0.0 %), PHP CPU from %C 2.1 s (10.7 ms/req; 304s 0.0 s)
+bytes: non-market 21.32 MB in 2013 req = 110.3 kB per POS store per minute (33 stores, 359.7 s); market 0.00 MB in 0 req
+
+== nginx error log: limit hits by zone
+== php-fpm log warnings (this run)
+      1 WARNING: [pool default] server reached max_children setting (4), consider raising it

@@ -42,6 +42,16 @@ class IngredientController extends ManagementController
         // A caller bound to one branch sees where the ingredient is stopped on their branch only
         $visible = $this->permissions->actingBranchId($request->user());
 
+        // Wave M2: a stop with an end time drops off `stopped` by the clock alone (before the cleanup's write)
+        $nextEnd = \App\Models\StopListEntry::where('store_id', $this->storeId($request))
+            ->where('subject_type', \App\Enums\StopListSubject::INGREDIENT->value)
+            ->when($visible !== null, fn ($query) => $query->where('branch_id', $visible))
+            ->where('until', '>', now())
+            ->min('until');
+        if ($nextEnd !== null) {
+            \App\Http\Middleware\ConditionalGet::validUntil($request, Carbon::parse($nextEnd));
+        }
+
         return $this->success([
             'branch_id' => $branch?->id,
             'ingredients' => $ingredients->map(fn (Ingredient $ingredient) => $service->present($ingredient, $branch?->id, $visible))->values()->all(),

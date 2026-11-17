@@ -1,19 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useLanguageStore } from '../store/languageStore';
 import { selectionChanged } from '../lib/twa';
-import { useAddToCart } from '../hooks/useAddToCart';
+import { useCardToCart, useFeedCards } from '../hooks/useMarketplace';
+import { useAddressStore } from '../store/useAddressStore';
+import { getLocationParams } from '../lib/location';
+import { cardToProduct, isAcceptingOrders, NOT_ACCEPTING_TEXT, searchCards } from '../lib/marketplace';
 import { ShoppingBag } from 'lucide-react';
 import ProductSheet from '../components/ProductSheet';
 import { EmptyState, InlineError, PageHeader, cx } from '../components/ui';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { ReplaceCartDialog } from '../components/catalog/ReplaceCartDialog';
 import { SearchField } from '../components/catalog/SearchField';
-import api from '../services/api';
-import { logApiError } from '../lib/apiError';
-import { getStoreInfo } from '../lib/catalog';
-import type { ApiResponse, Category, FeedCatalog, Product } from '../types';
+import type { Category, ProductCardItem } from '../types';
+
+const NO_CATEGORIES: Category[] = [];
+const NO_CARDS: ProductCardItem[] = [];
 
 const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
 
@@ -23,42 +26,19 @@ export default function CategoryDetail() {
   const { language } = useLanguageStore();
   const uz = language === 'uz';
   const cartItems = useCartStore((state) => state.items);
-  const cart = useAddToCart({ storeInfoOf: (product) => getStoreInfo(product.store) });
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<unknown>(null);
-  const [reloadKey, setReloadKey] = useState(0); // bumped by "Qayta urinish" after a failed load
+  const { addresses, selectedAddressId } = useAddressStore();
+  const activeAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
+  // Wave M2: the category's dishes of the stores serving the address (as the home feed), as light cards
+  const location = useMemo(() => getLocationParams(activeAddress), [activeAddress]);
+  const feed = useFeedCards(location, id, Boolean(id));
+  const cart = useCardToCart();
+  const categories = feed.data?.categories ?? NO_CATEGORIES;
+  const products = feed.data?.products ?? NO_CARDS;
+  const loading = feed.isPending;
+  const error = feed.error;
 
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    const fetchCategoryData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await api.get<ApiResponse<FeedCatalog>>(`/catalog?category_id=${id}`);
-        if (res.data.success && !cancelled) {
-          setCategories(res.data.data.categories || []);
-          setProducts(res.data.data.products || []);
-        }
-      } catch (err) {
-        logApiError('Failed to load category:', err);
-        if (!cancelled) setError(err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchCategoryData();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, reloadKey]);
 
   const currentCategory = useMemo(() => {
     return categories.find(c => c.id === Number(id));
@@ -69,17 +49,8 @@ export default function CategoryDetail() {
   }, [categories, id]);
 
   const filteredProducts = useMemo(() => {
-    let result = products;
-    if (selectedSubCategoryId) {
-      result = result.filter(p => p.category_id === selectedSubCategoryId);
-    }
-    if (searchQuery) {
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
-    return result;
+    const result = selectedSubCategoryId ? products.filter(p => p.category_id === selectedSubCategoryId) : products;
+    return searchCards(result, searchQuery);
   }, [products, selectedSubCategoryId, searchQuery]);
 
   const selectSubCategory = (subCategoryId: number | null) => {
@@ -121,7 +92,7 @@ export default function CategoryDetail() {
       )}
 
       {error ? (
-        <InlineError onRetry={() => setReloadKey((key) => key + 1)} />
+        <InlineError onRetry={() => void feed.refetch()} />
       ) : loading ? (
         <div className="grid grid-cols-2 gap-3" aria-busy="true">
           {[1, 2, 3, 4].map((i) => (
@@ -140,19 +111,23 @@ export default function CategoryDetail() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 animate-fade-in">
-          {filteredProducts.map((product) => {
-            const matchStore = product.store;
+          {filteredProducts.map((card) => {
+            const matchStore = card.store;
             const cartQty = cartItems
-              .filter(item => item.productId === product.id)
+              .filter(item => item.productId === card.id)
               .reduce((sum, item) => sum + item.quantity, 0);
 
             return (
               <ProductCard
-                key={product.id}
-                product={product}
+                key={card.id}
+                product={cardToProduct(card)}
+                storeName={matchStore?.name}
+                priceUnit={card.unit}
                 cartQty={cartQty}
                 onOpen={matchStore ? () => navigate(`/store/${matchStore.uuid}`) : undefined}
-                onAdd={() => cart.start(product)}
+                onAdd={() => void cart.start(card)}
+                busy={cart.loadingId === card.id}
+                blockedText={isAcceptingOrders(matchStore) ? undefined : NOT_ACCEPTING_TEXT}
               />
             );
           })}
@@ -164,10 +139,9 @@ export default function CategoryDetail() {
         <ProductSheet
           isOpen
           product={cart.sheetProduct}
+          availability={cart.availability}
           onClose={cart.closeSheet}
-          onAdd={(choice) => {
-            if (cart.sheetProduct) cart.addVariant(cart.sheetProduct, choice.variant, choice);
-          }}
+          onAdd={cart.addFromSheet}
         />
       )}
 

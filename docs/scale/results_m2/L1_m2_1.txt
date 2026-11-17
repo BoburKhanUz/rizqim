@@ -1,0 +1,23 @@
+# L1_m2_1  2026-11-17T06:17:46Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.31 0.44 0.42
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"refresh":"ws"}}
+
+L1_m2_1 wall=432.3s req=10917 rps=25.25 cpu php=273.78s pg=65.24s pgbouncer=16.83s nginx=2.43s redis=5.34s reverb=2.59s queue=4.68s scheduler=0.01s pg_rt=0s xacts=201515 conn_max=5 lockwaits=0 stmts/req=23.9
+by_group: {"pos":1644,"poll":9273} pgss_by_role: {"rizqim":{"calls":260578,"ms":9633}}
+redis: {"commands":204120,"cmd_per_s":472.2,"net_in":34680159,"net_out":8508198,"top":{"get":67445,"eval":44259,"exists":21894,"select":12287,"zrangebyscore":11612,"mget":11055,"incrby":10917,"lpop":8286,"rpush":4962,"incr":4110,"zrem":2480,"zadd":2480}}
+realtime: {"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15300,"heartbeats":2772,"skipped_same":1195,"event_reads":6023,"heartbeat_reads":259,"poll_reads":1650,"full_reads":330},"screens":198}
+GET /pos/display/state               n= 1469 rps=   3.4 p50=75 p95=246.6 p99=312.8 err%=0 304%=17.3 inm=1370 full=99 p50_200=83.5 p50_304=13.8 kB=450 st={"200":1215,"304":254}
+GET /pos/floor                       n= 1710 rps=  3.96 p50=72.7 p95=236.9 p99=313.4 err%=0 304%=9.2 inm=1513 full=197 p50_200=78.3 p50_304=14.5 kB=6924 st={"200":1553,"304":157}
+GET /pos/orders/:id                  n= 1637 rps=  3.79 p50=82 p95=264.3 p99=346.9 err%=0 304%=7.5 inm=1265 full=372 p50_200=85.2 p50_304=16.4 kB=6156 st={"200":1515,"304":122}
+GET /staff/kitchen/tickets           n= 1775 rps=  4.11 p50=89.3 p95=270.3 p99=346.7 err%=0 304%=30.7 inm=1676 full=99 p50_200=112.9 p50_304=14.2 kB=24381 st={"200":1230,"304":545}
+GET /staff/orders                    n= 1341 rps=   3.1 p50=191.3 p95=333.6 p99=409.8 err%=0 304%=15.1 inm=1308 full=33 p50_200=207.3 p50_304=13.1 kB=102096 st={"200":1139,"304":202}
+GET /staff/orders?status=new         n= 1341 rps=   3.1 p50=59.7 p95=233.1 p99=301.4 err%=0 304%=14.8 inm=1308 full=33 p50_200=72.3 p50_304=14.1 kB=90 st={"200":1143,"304":198}
+POST /pos/bills/:id/payments         n=  274 rps=  0.63 p50=122.4 p95=337.8 p99=409.4 err%=0 kB=1119 st={"200":274}
+POST /pos/orders                     n=  274 rps=  0.63 p50=81.7 p95=253.8 p99=354.7 err%=0 kB=912 st={"201":274}
+POST /pos/orders/:id/bills           n=  274 rps=  0.63 p50=48 p95=214.9 p99=311.1 err%=0 kB=542 st={"201":274}
+POST /pos/orders/:id/close           n=  274 rps=  0.63 p50=30.7 p95=192.5 p99=259.3 err%=0 kB=1125 st={"200":274}
+POST /pos/orders/:id/rounds          n=  274 rps=  0.63 p50=73.2 p95=277.1 p99=362.3 err%=0 kB=1166 st={"200":274}
+POST /pos/orders/:id/send            n=  274 rps=  0.63 p50=64.8 p95=210.7 p99=286.3 err%=0 kB=1194 st={"200":274}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.18 0.75 0.64

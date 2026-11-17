@@ -23,6 +23,21 @@ class FakeKds implements HttpClientAdapter {
   /// Hamma so'rov tarmoq xatosi bilan tugaydi.
   bool offline = false;
 
+  /// M2: conditional GETs (`ETag`, `304`).
+  bool etags = true;
+
+  /// `304` answers given.
+  int notModified = 0;
+
+  static String _fnv(String s) {
+    var h = 0xcbf29ce484222325;
+    for (final int c in utf8.encode(s)) {
+      h ^= c;
+      h = (h * 0x100000001b3) & 0x7fffffffffffffff;
+    }
+    return h.toRadixString(36);
+  }
+
   /// Berilsa, `/staff/` ostidagi POST so'rovlar shu tugaguncha javob kutadi (optimistik holatni ko'rish uchun).
   Completer<void>? hold;
 
@@ -62,6 +77,33 @@ class FakeKds implements HttpClientAdapter {
       options.data,
       auth?.replaceFirst('Bearer ', ''),
     );
+    // M2: the polled GETs carry X-Revision and an ETag bound to the token and the body; a matching If-None-Match is
+    // a 304 with no body (as the server)
+    if (etags &&
+        options.method == 'GET' &&
+        response.status == 200 &&
+        isConditionalGetPath(options.uri.path)) {
+      final String encoded = jsonEncode(response.body);
+      final String tag =
+          '"k.${_fnv('$auth|${options.uri}|${state.revision}|$encoded')}"';
+      final Map<String, String> headers = <String, String>{
+        ...response.headers,
+        'ETag': tag,
+        'X-Revision': '${state.revision}',
+        'X-Revision-Scope': 'branch:${FakeKitchenState.branchId}',
+      };
+      if (options.headers['If-None-Match'] == tag) {
+        notModified++;
+        return ResponseBody.fromString(
+          '',
+          304,
+          headers: <String, List<String>>{
+            'etag': <String>[tag],
+          },
+        );
+      }
+      response = FakeResponse(response.status, response.body, headers: headers);
+    }
     return ResponseBody.fromString(
       jsonEncode(response.body),
       response.status,
@@ -116,6 +158,8 @@ class KdsHarness {
               apiBaseUrl: 'https://api.test/api',
               appKey: 'kds-key',
               connector: hub.connect,
+              // The tests below time the old 1-2-4 s backoff; the 0-10 s first spread is tested in rizqim_api
+              backoff: const Backoff(),
             )
           : null,
     );

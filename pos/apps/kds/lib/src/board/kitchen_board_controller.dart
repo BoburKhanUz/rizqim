@@ -62,6 +62,7 @@ class KitchenBoardController extends ChangeNotifier {
     this.recentMax = 12,
     this.newBadgeFor = const Duration(minutes: 1),
     this.eventDebounce = const Duration(milliseconds: 300),
+    this.pacing = RefreshPacing.kitchen,
   }) : _clock = clock ?? DateTime.now;
 
   final KitchenService service;
@@ -92,7 +93,12 @@ class KitchenBoardController extends ChangeNotifier {
   final Duration recentWindow;
   final int recentMax;
   final Duration newBadgeFor;
+
+  /// The cook's own action (bump, recall, ready, assembled) re-reads after this, not paced.
   final Duration eventDebounce;
+
+  /// M2 fix round 2: how event and heartbeat reads are paced (a kitchen ticket within ~2.5 s).
+  final RefreshPacing pacing;
 
   // --- holat ------------------------------------------------------------------------------------------------------
 
@@ -153,9 +159,36 @@ class KitchenBoardController extends ChangeNotifier {
   Timer? _pollTimer;
   Timer? _debounce;
   StreamSubscription<RealtimeEvent>? _eventSub;
+  StreamSubscription<RealtimeEvent>? _heartbeatSub;
+  StreamSubscription<void>? _resubSub;
+  StreamSubscription<void>? _resumeSub;
   RealtimeStatusListener? _statusListener;
   bool _wasLive = false;
   bool _disposed = false;
+
+  /// M2 fix round 2: events and heartbeats of the branch channel (`null` without realtime): every event feeds the
+  /// board's revision, only kitchen ones read ([ScreenRelevance.kitchen]), paced ([pacing]).
+  PacedRefresh? _paced;
+
+  /// M2: poll time since the last read sent without `If-None-Match` (counted by the poll timer, not by a clock).
+  Duration _sinceUnconditional = Duration.zero;
+  bool _unconditionalNext = false;
+
+  /// M2: the board's revision state (tests).
+  ChannelRevision? get revision => _paced?.revision;
+
+  /// M2 fix round 2: the paced reads (tests).
+  PacedRefresh? get paced => _paced;
+
+  /// M2: kitchen events not re-read because their `rev` was already on the board or already asked for (tests).
+  int skippedEvents = 0;
+
+  /// M2: reads sent without `If-None-Match` (tests).
+  int unconditionalReads = 0;
+
+  /// M2: a read without `If-None-Match` at least this often while polling, so a change the server failed to record
+  /// cannot keep the board stale.
+  static const Duration unconditionalEvery = Duration(seconds: 110);
 
   /// Doskadagi chiptalar: eskisidan yangisiga, javobi kutilayotgan amallar bilan.
   List<KitchenTicket> get tickets {
@@ -301,15 +334,33 @@ class KitchenBoardController extends ChangeNotifier {
     unawaited(loadStations());
     final BranchRealtime? rt = realtime;
     if (rt != null) {
-      _eventSub = rt.events.listen((_) => _scheduleEventRefresh());
+      final PacedRefresh paced = PacedRefresh(
+        channel: rt.channel,
+        pacing: pacing,
+        onRead: (PacedReason _) => unawaited(refresh()),
+      );
+      _paced = paced;
+      // M2 fix round 2: every event feeds the board's revision; only kitchen changes read (not bills, payments,
+      // fiscal, shift, bookings ...: ScreenRelevance.kitchen keeps the table), paced
+      _eventSub = rt.events.listen((RealtimeEvent e) {
+        final PacedVerdict v = paced.event(
+          e.data,
+          relevant: ScreenRelevance.kitchen(e.event),
+        );
+        if (v == PacedVerdict.skipped) skippedEvents++;
+      });
+      // A heartbeat ahead of what the board accounted for (an event was missed), or doubt: a paced read
+      _heartbeatSub = rt.heartbeats.listen(
+        (RealtimeEvent e) => paced.heartbeat(e.data),
+      );
+      // Obuna (qayta) tasdiqlandi: uzilish paytidagi hodisalar yo'qolgan, ro'yxat to'liq qayta yuklanadi
+      _resubSub = rt.resubscribed.listen((_) => unawaited(refresh()));
       _wasLive = rt.isLive;
       void onStatus() {
-        // "Jonli" = ulangan va kanal obunasi tasdiqlangan (`subscription_succeeded`). Faqat ulanish (handshake) yetarli
-        // emas: obuna hali yo'q yoki rad etilgan bo'lsa hodisalar kelmaydi, polling 15 s qoladi.
+        // "Jonli" = ulangan, kanal obunasi tasdiqlangan va (M2) real-time jim emas. Faqat ulanish (handshake) yetarli
+        // emas: obuna hali yo'q yoki rad etilgan bo'lsa hodisalar kelmaydi.
         final bool live = rt.isLive;
         if (live == _wasLive) return;
-        // Obuna (qayta) tasdiqlandi: uzilish paytidagi hodisalar yo'qolgan, ro'yxat to'liq qayta yuklanadi
-        if (live) unawaited(refresh());
         _wasLive = live;
         _schedulePoll();
         _notify();
@@ -318,6 +369,8 @@ class KitchenBoardController extends ChangeNotifier {
       _statusListener = onStatus;
       rt.changes.addListener(onStatus);
     }
+    // M2: back in the foreground (the screen slept): re-read at once
+    _resumeSub = AppResume.resumed.listen((_) => unawaited(refresh()));
     unawaited(refresh());
   }
 
@@ -362,13 +415,28 @@ class KitchenBoardController extends ChangeNotifier {
   }
 
   Future<void> _fetch() async {
+    final bool unconditional = _unconditionalNext;
+    _unconditionalNext = false;
+    if (unconditional) unconditionalReads++;
+    final PacedRefresh? paced = _paced;
+    // Every full read shows what was asked so far: a paced read still due for it is dropped when covered
+    paced?.readStarted();
     try {
-      final KitchenTicketList list = await service.tickets(
-        branchId: branchId,
-        // P3-26: yaqinda bekor qilinganlar ham (alohida so'rovsiz chizib ko'rsatish uchun)
-        canceledWithin: math.max(1, (voidWindow.inSeconds / 60).ceil()),
-      );
+      // M2: a conditional GET (a 304 keeps the body and its receive time); the capture proves which revision the
+      // board now shows
+      final CapturedRead<KitchenTicketList> captured =
+          await ReadTracking.capture(
+            () => service.tickets(
+              branchId: branchId,
+              // P3-26: yaqinda bekor qilinganlar ham (alohida so'rovsiz chizib ko'rsatish uchun)
+              canceledWithin: math.max(1, (voidWindow.inSeconds / 60).ceil()),
+            ),
+            unconditional: unconditional,
+          );
       if (_disposed) return;
+      final String? scope = paced?.revision?.scope;
+      paced?.readDone(scope == null ? null : captured.reads.revisionFor(scope));
+      final KitchenTicketList list = captured.value;
       final DateTime now = _clock();
       final List<KitchenTicket> live = <KitchenTicket>[
         for (final KitchenTicket t in list.tickets)
@@ -458,6 +526,7 @@ class KitchenBoardController extends ChangeNotifier {
       if (_stationsRetry) unawaited(loadStations());
     } on ApiException catch (e) {
       if (_disposed) return;
+      paced?.readFailed();
       _error = e;
     }
     _pruneRecent();
@@ -582,6 +651,7 @@ class KitchenBoardController extends ChangeNotifier {
     return cue;
   }
 
+  /// The cook's own action: re-read shortly (not paced).
   void _scheduleEventRefresh() {
     _debounce?.cancel();
     _debounce = Timer(eventDebounce, () => unawaited(refresh()));
@@ -591,10 +661,15 @@ class KitchenBoardController extends ChangeNotifier {
     _pollTimer?.cancel();
     if (_disposed) return;
     final bool live = realtime?.isLive ?? false;
-    _pollTimer = Timer(
-      live && !offline ? livePollInterval : pollInterval,
-      () => unawaited(refresh()),
-    );
+    final Duration every = live && !offline ? livePollInterval : pollInterval;
+    _pollTimer = Timer(every, () {
+      _sinceUnconditional += every;
+      if (_sinceUnconditional >= unconditionalEvery) {
+        _sinceUnconditional = Duration.zero;
+        _unconditionalNext = true;
+      }
+      unawaited(refresh());
+    });
   }
 
   // --- amallar ------------------------------------------------------------------------------------------------------
@@ -843,7 +918,11 @@ class KitchenBoardController extends ChangeNotifier {
     selection?.removeListener(_onSelection);
     _pollTimer?.cancel();
     _debounce?.cancel();
+    _paced?.dispose();
     unawaited(_eventSub?.cancel());
+    unawaited(_heartbeatSub?.cancel());
+    unawaited(_resubSub?.cancel());
+    unawaited(_resumeSub?.cancel());
     final RealtimeStatusListener? l = _statusListener;
     if (l != null) realtime?.changes.removeListener(l);
     unawaited(_notices.close());

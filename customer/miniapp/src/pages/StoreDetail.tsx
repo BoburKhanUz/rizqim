@@ -19,6 +19,7 @@ import { availabilityView, isProductUnavailable } from '../lib/menuAvailability'
 import { formatQuantity, isMeasuredUnit, unitLabel } from '../lib/quantity';
 import { formatDate, formatMoney } from '../lib/format';
 import { getProductBasePrice, getStoreInfo, needsProductSheet } from '../lib/catalog';
+import { isAcceptingOrders, NOT_ACCEPTING_TEXT } from '../lib/marketplace';
 import type { ApiResponse, BranchAvailability, Category, Product, StoreCatalog, StoreCatalogStore } from '../types';
 
 const CHIP = 'min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-control px-4 text-body font-medium transition-colors';
@@ -81,7 +82,9 @@ export default function StoreDetail() {
   const { branches: availabilityBranches } = useMenuAvailability(store?.id, catalogAvailability);
   const availability = useMemo(() => availabilityView(availabilityBranches), [availabilityBranches]);
   const cart = useAddToCart({ storeInfoOf: () => getStoreInfo(store), availability });
-  const variantModalProduct = cart.sheetProduct ?? targetProduct;
+  // Wave M2: open now, not order-locked and reachable (`accepting_orders`); a store that is not shows its menu only
+  const canOrder = store !== null && store.is_open && isAcceptingOrders(store);
+  const variantModalProduct = cart.sheetProduct ?? (canOrder ? targetProduct : null);
 
   const parentCategories = useMemo(() => {
     return categories.filter(c => !c.parent_id);
@@ -247,10 +250,16 @@ export default function StoreDetail() {
           )}
         </section>
 
-        {!store.is_open && (
+        {!store.is_open ? (
           <p role="status" className="rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
             Oshxona hozir yopiq: buyurtma qabul qilinmaydi.
           </p>
+        ) : (
+          !canOrder && (
+            <p role="status" className="rounded-card bg-warning-soft px-4 py-3 text-footnote text-warning-soft-fg">
+              {NOT_ACCEPTING_TEXT}. Menyuni ko'rishingiz mumkin, buyurtmani keyinroq bering.
+            </p>
+          )
         )}
 
         {/* Menu / reviews */}
@@ -345,7 +354,7 @@ export default function StoreDetail() {
                       return (
                         <li key={product.id} className="flex gap-3 rounded-card border border-line bg-surface p-3">
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
-                            <h3 className={cx('text-body font-bold', isSoldOut || !store.is_open ? 'text-fg-muted' : 'text-fg')}>{product.name}</h3>
+                            <h3 className={cx('text-body font-bold', isSoldOut || !canOrder ? 'text-fg-muted' : 'text-fg')}>{product.name}</h3>
                             {product.description && <p className="line-clamp-2 text-footnote text-fg-muted">{product.description}</p>}
                             <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-1">
                               <span className={cx('text-body font-bold', isSoldOut ? 'text-fg-muted' : 'text-fg')}>
@@ -355,7 +364,7 @@ export default function StoreDetail() {
                               {isSoldOut ? (
                                 <SoldOutBadge className="ml-auto" nextBatch={availability.nextBatch(product.id)} />
                               ) : (
-                                store.is_open &&
+                                canOrder &&
                                 (needsSheet ? (
                                   <div className="ml-auto flex items-center gap-2">
                                     {cartQty > 0 && <span className="text-footnote font-medium text-fg-muted">Savatda: {inCartText}</span>}
@@ -394,7 +403,7 @@ export default function StoreDetail() {
                               )}
                             </div>
                           </div>
-                          <ProductImage src={product.image_url} className={cx('size-20 rounded-control', (isSoldOut || !store.is_open) && 'opacity-50 grayscale')} />
+                          <ProductImage src={product.image_url} className={cx('size-20 rounded-control', (isSoldOut || !canOrder) && 'opacity-50 grayscale')} />
                         </li>
                       );
                     })}

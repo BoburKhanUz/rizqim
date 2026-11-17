@@ -25,7 +25,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
     // What is unavailable on a store's branches now (stop-list, sold-out batches): refetched on menu.availability_changed
-    Route::get('/catalog/availability', [MenuAvailabilityController::class, 'index']);
+    // Wave M2: the Mini App's form (no branch_id) from the read model, 304 to a matching If-None-Match (15 s at most)
+    Route::get('/catalog/availability', [MenuAvailabilityController::class, 'index'])->middleware([\App\Http\Middleware\ConditionalGet::using('none', \App\Domain\Marketplace\MarketplaceEtag::AVAILABILITY_MAX_AGE), \App\Domain\Marketplace\MarketplaceBrowse::for('availability')]);
 
     // Modifier groups and modifiers of the store's menu
     Route::get('/owner/modifier-groups', [ModifierGroupController::class, 'index'])->middleware('permission:menu.view,menu.manage');

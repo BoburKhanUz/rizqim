@@ -48,6 +48,10 @@ class FakePosRealtimeHub {
     }
   }
 
+  /// M2: a `realtime.heartbeat` to every subscriber ([FakePosState.heartbeatBody] for the current token).
+  void heartbeat(Map<String, Object?> body) =>
+      broadcast('realtime.heartbeat', body);
+
   void releaseSubscriptions() {
     holdSubscriptions = false;
     for (final FakePosSocket s in open) {
@@ -86,6 +90,10 @@ class FakePosSocket implements RealtimeSocket {
     final Map<String, Object?> m =
         (jsonDecode(message) as Map<Object?, Object?>).cast<String, Object?>();
     sent.add(m);
+    if (m['event'] == 'pusher:ping') {
+      scheduleMicrotask(() => push('pusher:pong'));
+      return;
+    }
     if (m['event'] != 'pusher:subscribe') return;
     final Map<String, Object?> data = (m['data']! as Map<Object?, Object?>)
         .cast<String, Object?>();

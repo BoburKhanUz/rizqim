@@ -194,6 +194,21 @@ class StaffOrderPresenter
     /** @var array{now: Carbon|null, targets: KitchenTargets, assembly: KitchenAssembly}|null */
     private ?array $kitchen = null;
 
+    /** Wave M2: the earliest moment a line of the tickets presented since the last takeNextLateAt() turns late. */
+    private ?CarbonInterface $nextLateAt = null;
+
+    /**
+     * Wave M2: the earliest moment a line of the tickets presented since the last call turns `late` by the clock alone
+     * (null: none will), and starts afresh. GET /staff/kitchen/tickets ends its ETag then (ConditionalGet::validUntil).
+     */
+    public function takeNextLateAt(): ?CarbonInterface
+    {
+        $at = $this->nextLateAt;
+        $this->nextLateAt = null;
+
+        return $at;
+    }
+
     /**
      * P6-33: what the ticket's targets and expo view read (stations, dishes, the module), kept for one ticket listing:
      * the listing passes one `$now` for every ticket; a single ticket (null) reads afresh.
@@ -224,6 +239,11 @@ class StaffOrderPresenter
         return $items->map(function (OrderItem $item) use ($targets, $order, $acceptedAt, $now) {
             $data = $this->item($item, false);
             $annotation = $targets->annotate($item, $order, $acceptedAt, $now);
+            // Wave M2: the earliest moment a listed line turns late by the clock alone (the listing's ETag ends then)
+            $lateAt = $targets->turnsLateAt($item, $order, $acceptedAt, $now);
+            if ($lateAt !== null && ($this->nextLateAt === null || $lateAt->lessThan($this->nextLateAt))) {
+                $this->nextLateAt = $lateAt;
+            }
             // An online line keeps its P2-11 shape unless a target applies to it
             if ($item->fire_mode !== null || $annotation['target_seconds'] !== null) {
                 $data += $annotation;

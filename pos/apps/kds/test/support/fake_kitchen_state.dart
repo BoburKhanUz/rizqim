@@ -656,7 +656,34 @@ class FakeKitchenState {
 
   // --- HTTP ---------------------------------------------------------------------------------------------------------
 
+  /// M2: the branch's change token (as the server's `ChangeRevision`): +1 per mutating request, +1 per event sent
+  /// outside one; events carry it in `rev`, the kitchen board in `X-Revision` ([FakeKds] adds the ETag).
+  int revision = 4000000000000;
+  bool _inRequest = false;
+
+  /// The `rev` map events and heartbeats carry.
+  Map<String, Object?> get revMap => <String, Object?>{
+    'pos-branch.$branchId': '$revision',
+  };
+
   FakeResponse handle(
+    String method,
+    String path,
+    Map<String, String> query,
+    Object? body,
+    String? bearer,
+  ) {
+    if (method != 'GET') revision++;
+    final bool outer = !_inRequest;
+    _inRequest = true;
+    try {
+      return _handle(method, path, query, body, bearer);
+    } finally {
+      if (outer) _inRequest = false;
+    }
+  }
+
+  FakeResponse _handle(
     String method,
     String path,
     Map<String, String> query,
@@ -1355,7 +1382,9 @@ class FakeKitchenState {
     Map<String, Object?> extra = const <String, Object?>{},
   }) {
     final Map<String, Object?>? o = _order(uuid);
+    if (!_inRequest) revision++;
     onEvent?.call(event, <String, Object?>{
+      'rev': revMap,
       ...extra,
       'order': <String, Object?>{
         'uuid': uuid,

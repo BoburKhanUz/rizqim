@@ -38,8 +38,12 @@ abstract class PosCustomerDisplayApi {
   ///
   /// Today's "Tayyorlanmoqda / Tayyor" numbers of the display's branch, the same payload as GET /pos/queue (a terminal's own.
   /// token instead of a staff session). Refetch on `queue.*` events of `pos-branch.{id}`. Needs `queue_calling`.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/display/queue')
-  Future<GetV1PosDisplayQueueResponse> posDisplayQueue();
+  Future<GetV1PosDisplayQueueResponse> posDisplayQueue({
+    @Header('If-None-Match') String? ifNoneMatch,
+  });
 
   /// The display's state.
   ///
@@ -47,6 +51,10 @@ abstract class PosCustomerDisplayApi {
   /// the branch's latest cart), which screens the format allows (`modules`) and the current `cart` (null: nothing.
   /// published yet or the cart expired). The display refetches this on `display.cart` events of `pos-branch.{id}`.
   /// A terminal's own token; 422 `branch_required` without a branch.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/pos/display/state')
-  Future<GetV1PosDisplayStateResponse> posDisplayState();
+  Future<GetV1PosDisplayStateResponse> posDisplayState({
+    @Header('If-None-Match') String? ifNoneMatch,
+  });
 }

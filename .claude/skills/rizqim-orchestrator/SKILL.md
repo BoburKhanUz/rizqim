@@ -83,7 +83,8 @@ Run in this order; long suites in the background.
 6. packages/ts/staff and partner/web: `npx tsc --noEmit`, lint, `npx vitest run`
 7. `bash scripts/pos-e2e.sh`, then `bash scripts/e2e-stack.sh` (cross-app e2e: control center, partner web, Mini App) last.
 
-Never commit while agents are still editing. A stop hook will nag: answer in one line and wait. Commit only when everything is green. No empty commits.
+Never commit while agents are still editing. A stop hook will nag: answer in one line and wait. No empty commits.
+The container can be REPLACED at any time (not just restarted): the working tree, the scratchpad, databases and installed tools are lost; only pushed commits survive (17.11.2026: 1.5 hours of finished, tested agent work lost this way). So: as soon as an agent hands back with its own gates green and no other agent is editing its files, commit and push that work as a checkpoint; the orchestrator gates and reviews follow as further commits. Keep brief files in the scratchpad short-lived: paste what a re-run would need into the agent's report request.
 
 ## 9. Git
 - Work only on the designated branch.
@@ -94,7 +95,7 @@ Never commit while agents are still editing. A stop hook will nag: answer in one
 ## 10. Failure handling
 - Rate limit (429) or worker restart: resume the SAME agent with SendMessage ("continue from where you stopped", plus what changed meanwhile).
 - An agent stopped by the owner cannot be resumed: ask the owner, then spawn a fresh agent with a RESUME brief (section 4).
-- Container restart: restart Postgres, check `git status`, resume or re-create agents.
+- Container restart: restart Postgres, check `git status`, resume or re-create agents. If `backend/vendor` and `/opt/flutter` are gone, the container was replaced: run `bash scripts/dev-setup.sh` (about 25 minutes: system packages, Postgres role `rizqim`/`rizqim` and database `testing`, Flutter SDK, `composer install` by cloning because GitHub archives are refused, `npm ci`, `flutter pub get`; never while an agent is using `node_modules`), then re-create the lost agents from their reports.
 - A suite red while agents edit: rerun the failing file alone before judging.
 - A flaky pre-existing test: prove it (5 solo reruns), say so in the report. Never skip or disable a test.
 - Cross-agent findings (one agent finds something another must fix): relay with SendMessage immediately.

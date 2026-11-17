@@ -45,7 +45,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     });
 
     // "Tovuq tugadi": the list and the quick stop (the panel now; the till and the KDS in stage B, hence PIN sessions too)
-    Route::get('/owner/ingredients', [IngredientController::class, 'index'])->middleware(['permission:menu.view,menu.manage,stoplist.manage', 'pos.module:ingredient_stoplist']);
+    Route::get('/owner/ingredients', [IngredientController::class, 'index'])->middleware(['permission:menu.view,menu.manage,stoplist.manage', 'pos.module:ingredient_stoplist', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
     // (an optional Idempotency-Key: a till retrying after a lost answer gets the first answer back)
     Route::post('/owner/ingredients/{id}/stop', [IngredientController::class, 'stop'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:stoplist.manage', 'pos.module:ingredient_stoplist', EnsureIdempotency::class . ':owner.ingredients.stop,optional']);
     Route::delete('/owner/ingredients/{id}/stop', [IngredientController::class, 'reopen'])->where('id', RowId::ROUTE_PATTERN)->middleware(['permission:stoplist.manage', EnsureIdempotency::class . ':owner.ingredients.reopen,optional']);

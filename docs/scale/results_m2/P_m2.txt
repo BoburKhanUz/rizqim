@@ -1,0 +1,16 @@
+# P_m2  2026-11-17T08:18:13Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.69 0.96 1.25
+# cfg {"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"debounce_ms":300,"refresh":"ws"}}
+
+P_m2 wall=359.7s req=1815 rps=5.05 cpu php=41.15s pg=6.38s pgbouncer=1.87s nginx=0.65s redis=1.44s reverb=0.48s queue=0.39s scheduler=0s pg_rt=0s xacts=17245 conn_max=5 lockwaits=0 stmts/req=9.4
+by_group: {"poll":1815} pgss_by_role: {"rizqim":{"calls":17095,"ms":1156}}
+redis: {"commands":27117,"cmd_per_s":75.4,"net_in":3586632,"net_out":207907,"top":{"get":8615,"eval":5934,"exists":3696,"select":1815,"incrby":1815,"setex":1687,"zrangebyscore":1484,"mget":1268,"lpop":754,"rpush":24,"zrem":12,"zadd":12}}
+realtime: {"event_names":{},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":0,"heartbeats":2376,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":1650,"full_reads":330},"screens":198}
+GET /pos/display/state               n=  330 rps=  0.92 p50=15.9 p95=20.5 p99=23.4 err%=0 304%=70 inm=231 full=99 p50_200=17.4 p50_304=14.9 kB=37 st={"200":99,"304":231}
+GET /pos/floor                       n=  495 rps=  1.38 p50=22.4 p95=31.4 p99=35.8 err%=0 304%=40 inm=198 full=297 p50_200=25 p50_304=15.8 kB=1175 st={"200":297,"304":198}
+GET /staff/kitchen/tickets           n=  660 rps=  1.83 p50=15.5 p95=146.8 p99=176 err%=0 304%=85 inm=561 full=99 p50_200=135.5 p50_304=15.1 kB=11804 st={"200":99,"304":561}
+GET /staff/orders                    n=  165 rps=  0.46 p50=78.2 p95=99.7 p99=113.1 err%=0 304%=43.6 inm=132 full=33 p50_200=86.8 p50_304=12.6 kB=8632 st={"200":93,"304":72}
+GET /staff/orders?status=new         n=  165 rps=  0.46 p50=18 p95=27.1 p99=30 err%=0 304%=40.6 inm=132 full=33 p50_200=21.1 p50_304=14.3 kB=133 st={"200":98,"304":67}
+errors: {}
+retry_after: {}
+sync: {}
+load after: 0.12 0.43 0.91

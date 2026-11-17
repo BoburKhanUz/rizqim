@@ -140,6 +140,51 @@ export interface FeedCatalog {
   highlight_product: Product | null;
 }
 
+// Wave M2: a light product card of the feed (GET /catalog?view=cards, docs/API.md "Market o'qish modeli").
+export interface CardVariant {
+  id: number;
+  uuid: string;
+  name: string | null;
+  price: Decimal;
+  unit: MenuUnit;
+  stock: number | null;
+}
+
+export interface CardStore {
+  id: number;
+  uuid: string;
+  name: string;
+  address: string | null;
+  logo_url: string | null;
+  accepting_orders?: boolean; // the store list's rule (open now, not order-locked, reachable); missing on an older backend: unknown
+}
+
+export interface ProductCardItem {
+  id: number;
+  uuid: string;
+  store_id: number;
+  category_id: number;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  image_thumb_urls?: Record<string, string> | null;
+  batch_tracked: boolean;
+  price: Decimal | null; // the cheapest variant's price (the channel price)
+  unit?: MenuUnit | null; // the unit of that variant ("/ kg" on a card with options); null when price is null
+  // true: a variant to choose, modifiers, a weight or a combo: the full product comes from the store's menu
+  needs_options: boolean;
+  variant: CardVariant | null; // the one plain variant when needs_options is false
+  store: CardStore;
+}
+
+// GET /catalog?view=cards (the home feed, a category)
+export interface FeedCards {
+  categories: Category[];
+  products: ProductCardItem[];
+  promos: Promo[];
+  highlight_product: ProductCardItem | null;
+}
+
 // What cannot be ordered on one branch right now (GET /catalog/availability, MenuAvailability::forStore).
 export interface BranchAvailability {
   branch_id: number;

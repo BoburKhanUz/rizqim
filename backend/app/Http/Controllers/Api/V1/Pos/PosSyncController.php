@@ -38,12 +38,27 @@ class PosSyncController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(
-        private readonly PosSyncService $sync,
-        private readonly PosSyncErrors $errors,
-        private readonly StaffOrderScope $scope,
-        private readonly PermissionService $permissions,
-    ) {}
+    // Wave M2: the services are resolved when an action needs them, not for every request (GET /pos/sync/status is
+    // polled by every till: it built the whole sync engine graph for a status read)
+    private function sync(): PosSyncService
+    {
+        return app(PosSyncService::class);
+    }
+
+    private function syncErrors(): PosSyncErrors
+    {
+        return app(PosSyncErrors::class);
+    }
+
+    private function scope(): StaffOrderScope
+    {
+        return app(StaffOrderScope::class);
+    }
+
+    private function permissions(): PermissionService
+    {
+        return app(PermissionService::class);
+    }
 
     /**
      * Send the offline queue
@@ -86,7 +101,7 @@ class PosSyncController extends Controller
         ]);
 
         try {
-            $outcome = $this->sync->sync(
+            $outcome = $this->sync()->sync(
                 $device,
                 array_values($data['operations']),
                 isset($data['sent_at']) ? Carbon::parse((string) $data['sent_at']) : null,
@@ -127,14 +142,15 @@ class PosSyncController extends Controller
             'oldest_at' => 'nullable|date',
         ]);
         if (isset($data['queue_size'])) {
-            $this->sync->report($device, [], ['size' => (int) $data['queue_size'], 'oldest_at' => $data['oldest_at'] ?? null], null);
+            $this->sync()->report($device, [], ['size' => (int) $data['queue_size'], 'oldest_at' => $data['oldest_at'] ?? null], null);
         }
 
-        $query = $this->errors->query((int) $device->store_id, null, $device);
+        $query = $this->syncErrors()->query((int) $device->store_id, null, $device);
 
         return $this->success([
             'server_time' => now()->toJSON(),
-            'device' => PosSyncPresenter::device($device->refresh()),
+            // The guard's row: report() above saved onto this same instance, so no second read
+            'device' => PosSyncPresenter::device($device),
             'errors' => $query->clone()->limit(100)->get()->map(fn (PosSyncOperation $op) => PosSyncPresenter::operation($op))->values()->all(),
             'errors_count' => $query->count(),
         ]);
@@ -167,7 +183,7 @@ class PosSyncController extends Controller
             return $this->error('Kassa topilmadi.', [], 404);
         }
 
-        $page = $this->errors->query((int) $user->store_id, $branchId, $device, (bool) ($data['all'] ?? false))->paginate(50);
+        $page = $this->syncErrors()->query((int) $user->store_id, $branchId, $device, (bool) ($data['all'] ?? false))->paginate(50);
 
         return $this->success([
             'errors' => collect($page->items())->map(fn (PosSyncOperation $op) => PosSyncPresenter::operation($op))->values()->all(),
@@ -202,7 +218,7 @@ class PosSyncController extends Controller
             return $this->error('Sinxronlash xatosi topilmadi.', [], 404);
         }
 
-        $op = $this->errors->resolve($op, $user, (string) $data['resolution'], $data['note'] ?? null);
+        $op = $this->syncErrors()->resolve($op, $user, (string) $data['resolution'], $data['note'] ?? null);
 
         return $this->success(PosSyncPresenter::operation($op->fresh() ?? $op), $data['resolution'] === 'resolved' ? 'Hal qilindi deb belgilandi.' : 'Yopildi.');
     }
@@ -220,7 +236,7 @@ class PosSyncController extends Controller
     private function staff(Request $request): User
     {
         $user = $request->user();
-        if (!$user instanceof User || !$this->scope->isStoreStaff($user)) {
+        if (!$user instanceof User || !$this->scope()->isStoreStaff($user)) {
             throw new HttpResponseException($this->error('Ruxsat etilmagan', [], 403));
         }
 
@@ -233,12 +249,12 @@ class PosSyncController extends Controller
      */
     private function branchId(User $user, ?int $branchId, Permission $permission): ?int
     {
-        $acting = $this->permissions->actingBranchId($user);
+        $acting = $this->permissions()->actingBranchId($user);
         if ($branchId === null) {
             return $acting;
         }
         $branch = \App\Models\Branch::where('store_id', $user->store_id)->find($branchId);
-        if ($branch === null || !$this->scope->allowsBranch($user, $permission, $branch)) {
+        if ($branch === null || !$this->scope()->allowsBranch($user, $permission, $branch)) {
             throw new HttpResponseException($this->error('Filial topilmadi.', [], 404));
         }
 

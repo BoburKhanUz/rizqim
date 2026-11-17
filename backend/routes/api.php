@@ -70,11 +70,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/geocode/reverse', [\App\Http\Controllers\Api\V1\GeocodeController::class, 'reverse'])->middleware('throttle:geocode');
         Route::get('/geocode/search', [\App\Http\Controllers\Api\V1\GeocodeController::class, 'search'])->middleware('throttle:geocode');
 
-        Route::get('/stores', [\App\Http\Controllers\Api\V1\Store\StoreController::class, 'index']);
+        // Wave M2: /stores and /catalog from the marketplace read model (MarketplaceBrowse) with an ETag (MarketplaceEtag)
+        Route::get('/stores', [\App\Http\Controllers\Api\V1\Store\StoreController::class, 'index'])->middleware([\App\Http\Middleware\ConditionalGet::using('none', \App\Domain\Marketplace\MarketplaceEtag::AREA_MAX_AGE), \App\Domain\Marketplace\MarketplaceBrowse::for('stores')]);
         Route::post('/stores/{id}/rate', [\App\Http\Controllers\Api\V1\StoreRatingController::class, 'rate'])->where('id', \App\Support\RowId::ROUTE_PATTERN)->middleware('throttle:store-ratings');
-        Route::get('/catalog', [\App\Http\Controllers\Api\V1\Catalog\CatalogController::class, 'index']);
-        Route::get('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'index']);
-        Route::get('/notifications', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'notifications']);
+        Route::get('/catalog', [\App\Http\Controllers\Api\V1\Catalog\CatalogController::class, 'index'])->middleware([\App\Http\Middleware\ConditionalGet::using('none', \App\Domain\Marketplace\MarketplaceEtag::STORE_MAX_AGE), \App\Domain\Marketplace\MarketplaceBrowse::for('catalog')]);
+        Route::get('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'index'])->middleware(\App\Http\Middleware\ConditionalGet::using('orders_feed', 300));
+        Route::get('/notifications', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'notifications'])->middleware(\App\Http\Middleware\ConditionalGet::using('user', 300));
         Route::post('/notifications/read', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'markNotificationsRead']);
         // P1-21: an Idempotency-Key header makes a retried checkout return the first order instead of placing another
         Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store'])->middleware(['throttle:orders', \App\Http\Middleware\EnsureIdempotency::class . ':orders.store']);

@@ -43,6 +43,10 @@ class FakeRealtimeHub {
     }
   }
 
+  /// M2: a `realtime.heartbeat` to every subscriber.
+  void heartbeat(Map<String, Object?> body) =>
+      broadcast('realtime.heartbeat', body);
+
   /// Ushlab turilgan obunalarni tasdiqlaydi.
   void releaseSubscriptions() {
     holdSubscriptions = false;
@@ -84,6 +88,10 @@ class FakeSocket implements RealtimeSocket {
     final Map<String, Object?> m =
         (jsonDecode(message) as Map<Object?, Object?>).cast<String, Object?>();
     sent.add(m);
+    if (m['event'] == 'pusher:ping') {
+      scheduleMicrotask(() => push('pusher:pong'));
+      return;
+    }
     if (m['event'] == 'pusher:subscribe') {
       final Map<String, Object?> data = (m['data']! as Map<Object?, Object?>)
           .cast<String, Object?>();

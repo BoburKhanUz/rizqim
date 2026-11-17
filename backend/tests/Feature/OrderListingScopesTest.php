@@ -271,6 +271,9 @@ class OrderListingScopesTest extends TestCase
         $scopes = [[], ['scope' => 'active'], ['scope' => 'history']];
 
         $this->makeRichOrders(2);
+        // Wave M2: one warm-up round first: a store-wide list caches its branch list once (ConditionalGet), which is
+        // not a per-order query
+        $this->countQueries($users, $scopes);
         $few = $this->countQueries($users, $scopes);
 
         $this->makeRichOrders(12);

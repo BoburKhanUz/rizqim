@@ -148,7 +148,8 @@ void main() {
     });
     await lan.start();
     c.start();
-    await until(() => c.state != null && lan.link.available);
+    // The state AND the board (read right after it): going offline between the two leaves no board to show
+    await until(() => c.state != null && c.board != null && lan.link.available);
     expect(c.link, isNot(DisplayLink.lan));
     expect(lan.mode, LanMode.cloud);
     expect(hub.peers, isEmpty, reason: 'online the LAN stays idle');

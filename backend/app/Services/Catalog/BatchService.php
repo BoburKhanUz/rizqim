@@ -47,7 +47,7 @@ class BatchService
                     ->where('product_id', $product->id)
                     ->when($variant, fn ($query) => $query->where('product_variant_id', $variant->id), fn ($query) => $query->whereNull('product_variant_id'))
                     ->open()
-                    ->lockForUpdate()
+                    ->lock(StockLocks::mode())
                     ->exists();
                 if ($exists) {
                     throw $this->alreadyOpen();
@@ -96,7 +96,7 @@ class BatchService
     {
         return DB::transaction(function () use ($batch, $add, $left, $reason, $actor) {
             /** @var MenuBatch $batch */
-            $batch = MenuBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
+            $batch = MenuBatch::whereKey($batch->id)->lock(StockLocks::mode())->firstOrFail();
             if ($batch->closed_at !== null) {
                 throw ValidationException::withMessages(['batch' => 'Yopilgan partiyani o\'zgartirib bo\'lmaydi.']);
             }
@@ -146,7 +146,7 @@ class BatchService
     {
         return DB::transaction(function () use ($batch, $actor) {
             /** @var MenuBatch $batch */
-            $batch = MenuBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
+            $batch = MenuBatch::whereKey($batch->id)->lock(StockLocks::mode())->firstOrFail();
             if ($batch->closed_at !== null) {
                 return $batch;
             }
@@ -184,7 +184,7 @@ class BatchService
 
         return DB::transaction(function () use ($batch, $quantity, $reason, $note, $shift, $actor, $close, $approvedBy) {
             /** @var MenuBatch $batch */
-            $batch = MenuBatch::whereKey($batch->id)->lockForUpdate()->firstOrFail();
+            $batch = MenuBatch::whereKey($batch->id)->lock(StockLocks::mode())->firstOrFail();
             if ($batch->closed_at !== null) {
                 throw ValidationException::withMessages(['batch' => "Yopilgan partiyadan hisobdan chiqarib bo'lmaydi."]);
             }

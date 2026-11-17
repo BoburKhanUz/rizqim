@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos')->group(function () {
     $idempotent = fn (string $scope) => EnsureIdempotency::class . ':' . $scope;
 
-    Route::get('/queue', [PosQueueController::class, 'board'])->middleware(['permission:orders.view', 'pos.module:queue_calling']);
+    Route::get('/queue', [PosQueueController::class, 'board'])->middleware(['permission:orders.view', 'pos.module:queue_calling', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
     Route::post('/queue/blocks', [PosQueueController::class, 'reserve'])->middleware(['permission:orders.manage', 'pos.module:queue_numbers', $idempotent('pos.queue.blocks')]);
 
     Route::middleware(['permission:orders.manage,kitchen.manage'])->group(function () use ($idempotent) {

@@ -30,7 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
     // P4-11: an admin session token (`admin` guard) too, for the platform.ops channel only
     ->withBroadcasting(__DIR__.'/../routes/channels.php', [
         'prefix' => 'api',
-        'middleware' => ['auth:sanctum,device,admin', 'throttle:broadcast-auth'],
+        // M2: a subscription this token was granted in the last REALTIME_AUTH_CACHE_SECONDS (60) is signed from the cache,
+        // before auth and the throttle (the reconnect wave after a Reverb restart): app/Domain/Realtime/Http/CachedChannelAuth
+        'middleware' => [\App\Domain\Realtime\Http\CachedChannelAuth::class, 'auth:sanctum,device,admin', 'throttle:broadcast-auth'],
     ])
     ->withSchedule(function (Schedule $schedule) {
         $schedule->job(new \App\Jobs\CheckUnacceptedAssignmentsJob)->everyMinute();
@@ -137,6 +139,22 @@ return Application::configure(basePath: dirname(__DIR__))
                 'errors' => $e->errors(),
                 'data' => ['reason' => 'validation', 'errors' => $e->errors()],
             ], $e->status);
+        });
+
+        // Review M2 (LR-4): a deadlock or serialization failure (40P01/40001) that outlived its retries is a retryable
+        // answer for every API client (the Mini App, the tills), never a 500 or SQL text: 503 server_busy with
+        // Retry-After. It is still reported (logged with its SQL) like any other error.
+        $exceptions->render(function (\Throwable $e, Request $request) {
+            if (!$request->is('api/*') || !\App\Support\ConcurrencyFailure::is($e)) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Server hozir band. Bir necha soniyadan so'ng qayta urinib ko'ring.",
+                'code' => 'server_busy',
+                'data' => ['reason' => 'server_busy'],
+            ], 503, ['Retry-After' => '2']);
         });
 
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {

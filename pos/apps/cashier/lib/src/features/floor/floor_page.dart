@@ -19,8 +19,9 @@ import 'floor_layout.dart';
 /// o'ngda stolsiz va olib ketish buyurtmalari va "Tez kassa".
 ///
 /// Bo'sh joy bosilsa — buyurtma ochish oynasi (mehmonlar, ofitsiant), so'ng buyurtma muharriri; band joy — uning
-/// buyurtmasi (bir nechta bo'lsa — tanlash). Real-time hodisalarida (`order.*`, `booking.changed`) va polling bilan
-/// yangilanadi ([PosRefreshScheduler]).
+/// buyurtmasi (bir nechta bo'lsa — tanlash). Real-time hodisalarida ([PosRelevance.floor]: `order.*`, oshxona,
+/// `booking.changed`, `table.state_changed`; [RefreshPacing.floor] bilan) va polling bilan yangilanadi
+/// ([PosRefreshScheduler]).
 class FloorPage extends StatefulWidget {
   const FloorPage({super.key});
 
@@ -47,11 +48,10 @@ class _FloorPageState extends State<FloorPage> {
       realtime: scope.realtime,
       pollInterval: scope.services.pollInterval,
       livePollInterval: scope.services.livePollInterval,
-      eventFilter: (PosEvent e) =>
-          e is PosOrderEvent ||
-          e is PosOrderItemsChanged ||
-          e is PosOrderBillChanged ||
-          e is PosBookingChanged,
+      // M2 fix round 2: the floors' table (order and table state, kitchen, bookings; not payments, fiscal, shift ...),
+      // paced so the branch's screens do not all re-read in the same instant
+      eventFilter: PosRelevance.floor,
+      pacing: RefreshPacing.floor,
       onRefresh: (_) => _load(),
     )..start();
     unawaited(_scheduler!.refreshNow());
@@ -488,9 +488,18 @@ class _UntabledPanel extends StatelessWidget {
                                 Expanded(
                                   child: Text(channelPlaceLabel(o.channel)),
                                 ),
-                                Text(
-                                  o.totalPrice.format(),
-                                  style: RzType.headline.copyWith(color: c.fg),
+                                // A large total in the narrow side panel shrinks to fit instead of overflowing
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      o.totalPrice.format(),
+                                      style: RzType.headline.copyWith(
+                                        color: c.fg,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),

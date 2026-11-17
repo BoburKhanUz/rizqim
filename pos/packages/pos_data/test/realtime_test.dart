@@ -5,11 +5,14 @@ import 'package:fake_async/fake_async.dart';
 import 'package:pos_core/pos_core.dart' show PosMoney, PosQuantity;
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_data/testing.dart';
+import 'package:rizqim_api/rizqim_api.dart' show Backoff;
 import 'package:test/test.dart';
 
 import 'support/harness.dart';
 
 void main() {
+  // M2 fix round 2: no random spread in tests (the pacing window still applies)
+  setUp(() => RefreshThrottle.defaultRandom = () => 0);
   group('PosEvent parsing', () {
     const Map<String, Object?> order = <String, Object?>{
       'uuid': 'o1',
@@ -256,6 +259,16 @@ void main() {
     test(
       'a dropped connection reconnects and fires resubscribed again',
       () async {
+        await rt.dispose();
+        // M2: the first reconnect is spread over 0-10 s by default; a fixed 1 s here
+        rt = PosRealtime.create(
+          client: h.client,
+          terminal: h.client.auth.terminal!,
+          apiBaseUrl: 'https://api.test/api',
+          appKey: FakePosState.realtimeKey,
+          connector: hub.connect,
+          backoff: const Backoff(jitter: 0),
+        )!;
         int resyncs = 0;
         rt.resubscribed.listen((_) => resyncs++);
         rt.start();
@@ -283,16 +296,30 @@ void main() {
       },
     );
 
-    test('no key or no branch → no realtime (polling only)', () {
-      expect(
-        PosRealtime.create(
+    test('M2: no compiled key and none from the server → off (polling only), asks again later', () {
+      fakeAsync((FakeAsync async) {
+        int connects = 0;
+        final PosRealtime noKey = PosRealtime.create(
           client: h.client,
           terminal: h.client.auth.terminal!,
           apiBaseUrl: 'https://api.test/api',
           appKey: '',
-        ),
-        isNull,
-      );
+          connector: (Uri u, Map<String, String> headers) {
+            connects++;
+            return hub.connect(u, headers);
+          },
+        )!;
+        noKey.start();
+        async.elapse(const Duration(seconds: 5));
+        expect(noKey.state, PosLiveState.off);
+        expect(noKey.isLive, isFalse);
+        expect(connects, 0);
+        expect(h.adapter.to('GET', '/v1/realtime'), hasLength(1));
+        async.elapse(const Duration(seconds: 61));
+        expect(h.adapter.to('GET', '/v1/realtime'), hasLength(2));
+        unawaited(noKey.dispose());
+        async.flushMicrotasks();
+      });
     });
   });
 

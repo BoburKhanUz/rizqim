@@ -220,6 +220,57 @@ Umumiy: kirgan foydalanuvchiga daqiqasiga 300 ta (`api`). Oshsa 429 va `Retry-Af
 
 `/health` va webhooklar cheklovsiz.
 
+### 7.1. Shartli so'rovlar (ETag, M2 to'lqini)
+
+Tez-tez so'raladigan (polling) GET'lar `200` javobida `ETag` va `Cache-Control: private, no-cache` beradi. Klient
+keyingi so'rovda oxirgi `ETag`ni `If-None-Match` sarlavhasida yuboradi; hech narsa o'zgarmagan bo'lsa server
+`304 Not Modified` (bo'sh tana, o'sha `ETag`) qaytaradi va asosiy jadvallarni o'qimaydi. Javob tanasi va OpenAPI
+sxemasi o'zgarmagan; `If-None-Match` yubormagan klient avvalgidek har safar `200` oladi.
+
+- `ETag` kimga, qaysi so'rovga berilgan bo'lsa, faqat o'shanga ishlaydi: yo'l, query, til, foydalanuvchi (roli, do'koni,
+  filiali, terminal filiali, ruxsatlari, tokeni) yoki qurilma (filiali, turi, nomi, ulangan kassasi) imzoga kiradi.
+  Boshqa foydalanuvchi, boshqa filtr yoki eski deploy bilan doim `200`.
+- Autentifikatsiya, rate limit, ruxsat va modul tekshiruvi `304` dan oldin ham ishlaydi: bekor qilingan token `401`,
+  olib qo'yilgan ruxsat `403` oladi, `304` emas. `304` rate limitda oddiy so'rov kabi bitta hisoblanadi.
+- `ETag` filial / do'kon / mijozning o'zgarish tokeniga (`ChangeRevision`) bog'langan: shu doiradagi ekran ko'rsatadigan
+  har qanday yozuv tokenni almashtiradi, keyingi so'rov `200`. Oddiy sotuv faqat sotgan filialni (va mijozni) o'zgartiradi:
+  boshqa filiallar o'zgarmaydi, do'kon tokeni (menyu) faqat qoldiq yoki qozon 20 va undan kam bo'lganda (tugash ham) yoki
+  qarz qulfi almashganda o'zgaradi ([OPERATIONS.md](OPERATIONS.md), 6-bo'lim). Vaqt bilan o'zgaradigan maydonlar uchun `ETag` ning yashash muddati bor
+  (pastdagi jadval): undan keyin `200`.
+- Zaif `W/"..."` (nginx gzip) qabul qilinadi; `If-None-Match` dagi faqat **birinchi ikki** teg ko'riladi (klient bittasini
+  yuborsin), 1 500 baytdan uzun teg e'tiborsiz. `ETag` klient uchun shaffof emas (ichini o'qimang): uning ikki imzosi bor,
+  birinchisi (so'rov, aktor, muddat va doiralar nomi) Redis'ga murojaatdan oldin tekshiriladi, shuning uchun soxta yoki
+  boshqa so'rovning tegi Redis'ga yetmaydi va hech qanday kalit yaratmaydi; mavjud bo'lmagan token "o'zgargan" degani.
+- Bitta doirali javob (masalan filial) `X-Revision: <token>` va `X-Revision-Scope: branch:12` (`store:N`, `user:N`) ham beradi:
+  bu token real-time hodisalarining `rev` maydoni bilan bir xil. Do'kon bo'ylab ro'yxatda (bir nechta filial) bu sarlavhalar yo'q.
+  Sarlavha faqat shu doirani kuzatishga haqli aktorga beriladi: filial tokeni o'sha filial qurilmasiga va do'kon
+  xodimiga, do'kon tokeni o'sha do'kon xodimi/qurilmasiga, `user:N` faqat N ning o'ziga. Mijoz hech qachon do'kon tokenini
+  olmaydi (`/catalog/availability`, `/catalog?store_id`, `/stores`, lenta: `ETag` bor, `X-Revision` yo'q).
+- Boshqa domendagi klient (partner web) uchun `ETag`, `X-Revision`, `X-Revision-Scope` CORS `Access-Control-Expose-Headers`
+  da ochiq (`Content-Disposition`, `Retry-After` bilan birga); preflight (`OPTIONS`) javobi brauzerda 2 soat saqlanadi
+  (`Access-Control-Max-Age: 7200`), har polldan oldin qayta so'ralmaydi.
+- `304` kelganda klient oxirgi tanani VA uni olgan vaqtini saqlaydi: `waiting_seconds`, `open_minutes`, `server_time`
+  kabi taymerlar o'sha vaqtdan sanaladi (vaqtni qayta boshlamang).
+- Brauzer `fetch` (standart `cache` rejimi) `If-None-Match` ni o'zi yuboradi va `304` ni eski tana bilan `200` qilib
+  beradi.
+
+| Endpoint | `ETag` qaysi tokenlarga bog'liq | Vaqt bo'yicha eng ko'p kechikish |
+|---|---|---|
+| `GET /pos/floor`, `GET /pos/orders`, `GET /pos/queue` | so'rov filiali (`branch_id` yoki terminal/xodim filiali) | darhol: `overdue`, "bron yaqin" (kirishi va chiqishi), ish kuni almashishi (navbat, `scope=closed`), `pickup.waiting` tugashi; qolgani 120 s |
+| `GET /pos/orders/{uuid}`, `GET /pos/orders/{uuid}/bills` | buyurtma filiali | darhol: `pickup.waiting` tugashi; qolgani 120 s |
+| `GET /pos/display/state`, `GET /pos/display/queue` | qurilma filiali + qurilmaning o'zi | navbat: ish kuni almashishida darhol; qolgani 120 s |
+| `GET /staff/kitchen/tickets` | filial (filialsiz egada: do'kon + barcha filiallar) | darhol: qator `late` bo'lishi (`sent_at` + maqsad), keyinga olingan buyurtma oshxona vaqti, yopilgan kassa raqamining `ORDERS_KDS_CLOSED_COUNTER_MINUTES` oynasi tugashi, `canceled_within` dan chiqishi; qolgani 120 s |
+| `GET /staff/orders`, `GET /staff/orders/{uuid}` | filial yoki do'kon + barcha filiallar / buyurtma filiali | 120 s |
+| `GET /owner/ingredients` | filial yoki do'kon + barcha filiallar | darhol: stop `until` tugashi; qolgani 120 s |
+| `GET /orders` | mijoz: o'zi; ega/menejer: filial yoki do'kon; kuryer: o'zi + do'kon | 300 s (taom nomi kabi menyu o'zgarishlari tarixda) |
+| `GET /notifications` | foydalanuvchining o'zi | 300 s |
+
+Shartli emas (har safar to'liq javob): `GET /pos/sync/status` (yurak urishi: navbat hajmini yozadi, `server_time`),
+`GET /pos/bills/{uuid}/qr` (provayderdan holatni yangilaydi), egasining moliya va analitika sahifalari.
+
+O'chirish: `CONDITIONAL_GET_ENABLED=false` (hech qanday `ETag`, avvalgidek). Redis ishlamasa tokenlar har safar yangi:
+`304` bo'lmaydi, eski ekran ham bo'lmaydi.
+
 ## 8. Real-time kanallar va hodisalar
 
 WebSocket: Laravel Reverb (Pusher protokoli). Ulanish: `wss://<domen>/app/<REVERB_APP_KEY>` (Pusher/Echo klient).
@@ -296,6 +347,24 @@ Qoidalar:
   `courier`, `user` kanallari avvalgidek. Hodisada kim ko'rishidan qat'i nazar shaxsiy ma'lumot (ism, telefon, manzil,
   narx) yo'q: ilova `GET /staff/orders/{uuid}` yoki `GET /staff/kitchen/tickets` ni qayta so'raydi va server rolga qarab
   javob beradi (oshpaz telefon va manzilni ko'rmaydi).
+
+**M2: `rev`, heartbeat, holat.**
+
+- Har hodisa tanasida `rev`: hodisa borgan har kanalning joriy o'zgarish tokeni, kanal nomi bo'yicha
+  (`"rev": {"pos-branch.5": "4711", "store.3": "90210"}`). Token o'nlik raqam satri, har commit +1. Klient o'z kanalining
+  oxirgi tokenini N saqlaydi: hodisada `N+1` — hodisani qo'llaydi va N+1 ni saqlaydi; `N` — e'tiborsiz; boshqa qiymat —
+  biror narsa o'tkazib yuborilgan: ekranni to'liq qayta o'qiydi. Tokenlarni faqat tenglik va "+1" bilan solishtiring
+  (boshlang'ich qiymat tasodifiy, Redis tozalansa boshqa qiymatga sakraydi).
+- `realtime.heartbeat` (`pos-branch`, `branch`, `store` kanallariga, har 30 s): `{"at": "...", "interval": 30,
+  "rev": {"pos-branch.5": "4711"}}` (boshqa hodisalar kabi obyekt; M2 tuzatishigacha ikki marta kodlangan satr edi, ikkalasini
+  ham qabul qilish zarar qilmaydi). `rev` saqlangan tokendan farq qilsa — qayta o'qish. `silence_seconds` (90) davomida
+  kanalda hech qanday hodisa yoki heartbeat bo'lmasa real-time ishlamayapti deb hisoblang va tez so'rovga o'ting.
+- `GET /api/v1/realtime` (ochiq, tokensiz, bazasiz, 5 s kesh): `{"status": "ok|degraded|off", "live": true,
+  "heartbeat_seconds": 30, "silence_seconds": 90, "poll_seconds": {"live": 60, "fallback": 15},
+  "reverb": {"key": "...", "host": null, "port": null, "scheme": null}}`. `reverb` real-time o'chiq bo'lsa `null`; `host`
+  null — API hostining `/app/` yo'li. Ilova ishga tushganda va har qayta ulanishda o'qiydi, har so'rovda emas.
+- `POST /api/broadcasting/auth`: bir token bir kanalga 60 s ichida qayta obuna bo'lsa keshdan imzolanadi (javob va 429
+  cheklovi o'zgarmaydi; token yoki kirish huquqi o'zgarsa kesh darhol bekor bo'ladi; [OPERATIONS.md](OPERATIONS.md), 6-bo'lim).
 
 Sozlash: [DEPLOY.md](DEPLOY.md), 9-bo'lim.
 
@@ -4534,3 +4603,49 @@ Mavjud endpointlarga qo'shimchalar (additive):
   qatorda), chiptada `brands[]` (faqat brendli chiptada) — yorliq va KDS belgisi (2-bosqich) shundan.
 - Migratsiyalar: `2026_11_21_400100` (`brands`, `branch_brands`, `brand_channels`, `products.brand_id`, `order_items.brand_id`,
   `order_items.brand`), `2026_11_21_400200` (`ingredients`, `product_ingredients`, `channel_commissions`).
+
+## Market o'qish modeli (M2)
+
+Mijozning ko'rish so'rovlari (`GET /stores`, `GET /catalog`, `GET /catalog/availability` filialsiz) M2 dan boshlab
+jadvallardan emas, Redis'dagi tayyor hujjatlardan javob beradi (`backend/app/Domain/Marketplace`). JSON avvalgidek;
+qo'shimchalar quyida. Buyurtma (`POST /orders`) **hech qachon** keshni o'qimaydi: narx, mavjudlik, do'konning
+ochiq/pauza/qarz holati jonli jadvallardan tekshiriladi (`MarketplaceCheckoutTest`).
+
+**Qo'shimcha maydonlar (additive).**
+- Do'kon kartasi (`/stores` har elementi, `/catalog?store_id=` dagi `store`): `accepting_orders` (bool) = hozir ochiq
+  (`is_open`, ish soati) va `is_order_locked` emas va (yoqilgan bo'lsa) terminal bilan aloqa bor.
+- `GET /stores?page=1&per_page=20`: `page` yoki `per_page` yuborilsa bitta sahifa (standart 20, ko'pi bilan 50, eng
+  yaqini birinchi) va `meta: {page, per_page, total, last_page}`. Ularsiz — avvalgidek hamma do'kon, `meta` siz.
+  `for=checkout` (savat) avvalgidek jonli bazadan.
+- `GET /catalog?lat&lng&view=cards&limit=20`: to'liq mahsulot o'rniga kichik kartalar (standart 20, ko'pi bilan 50):
+  `{id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, unit,
+  needs_options, variant, store: {id, uuid, name, address, logo_url, accepting_orders}}`. `price` — eng arzon variant narxi (kanal
+  narxi, decimal satr); `unit` — shu narx qaysi birlikda (`piece`, `kg`, `l`; o'sha variantniki, `price` null bo'lsa null):
+  `needs_options=true` (variant null) kartada ham "/ kg" ko'rsatish uchun. `store.accepting_orders` — do'kon ro'yxatidagi
+  bilan bir xil qoida va yangilik (har so'rovda hisoblanadi, keshlangan lentaga yozilmaydi): ikkinchi so'rovsiz "buyurtma
+  qabul qilmayapti" ko'rsatish mumkin. `needs_options=true`: variant tanlash, modifikator, og'irlik yoki kombo kerak — to'liq
+  mahsulotni `GET /catalog?store_id={store.uuid}` dan oling. `false` bo'lsa `variant` = `{id, uuid, name, price, unit,
+  stock}`, savatga to'g'ridan qo'shsa bo'ladi. `categories`, `promos` avvalgidek; `highlight_product` ham karta.
+  `view` siz eski javob (50 ta to'liq mahsulot) bir reliz davomida ishlaydi.
+
+**ETag.** Uchala so'rov `ETag` va `Cache-Control: private, no-cache` beradi (M2-2 `ConditionalGet`, 7.1-bo'lim): mos
+`If-None-Match` bilan `304`. Muddati: `/catalog` 30 s, `/stores` 60 s, `/catalog/availability` 15 s (soat bilan
+o'zgaradigan narsalar: ish soati, stop-list `until`, bugungi menyu). Do'kon tokeni o'zgarsa (menyu, stop-list, do'kon,
+filial, sharh, kategoriya, to'lov tizimi) darhol `200`. 60 tadan ko'p do'kon ko'rsatgan javob (`/stores` sahifasiz
+katta hudud) `ETag` siz.
+
+**Eskirish (eng ko'pi).** "Darhol" = commit'dan keyingi birinchi so'rovda (do'kon tokeni o'zgaradi, eski `ETag` `200`
+oladi); qolgan vaqt klientning so'rash oralig'i.
+- Do'kon menyusi (`/catalog?store_id`): narx, variant, kanal narxi, taom holati, do'kon kartasi, filiallar — darhol;
+  hech qanday token o'zgartirmagan yozuv bo'lsa 1 soat (`ttl.menu`).
+- Lenta kartasi (`/catalog` `view=cards` va eski lenta): narx, kanal narxi, variant, o'chirilgan/yashirilgan taom — darhol
+  (pul har o'qishda undagi do'konlarning tokenlari bilan solishtiriladi, birortasi o'zgargan bo'lsa qayta quriladi).
+  Pulga yangi taom tushishi (tasodifiy tanlov) va token o'zgartirmagan yozuv — ko'pi bilan 120 s (`ttl.feed`).
+- Hudud ro'yxati (`/stores`) va lentadagi `store.accepting_orders`: do'kon kartasi, `is_order_locked` (qarz chegarasidan
+  o'tishi do'kon tokenini o'zgartiradi) — darhol; kartadagi xom `debt_balance`/`subscription_debt` raqamlari (har
+  buyurtmada o'zgaradi, token o'zgartirmaydi) — ko'pi bilan 120 s (`ttl.area`). Hududga yangi do'kon/filial: darhol
+  hujjatda; eski `ETag` bilan `304` ko'pi bilan 60 s (`/stores` muddati).
+- Mavjudlik (stop-list, tugadi, partiya): darhol, soat bilan o'zgarganlari 15 s.
+- Kategoriyalar, bannerlar: darhol (yozuvda), token o'zgartirmagan yozuv 600 s; banner jadvali har so'rovda tekshiriladi.
+- `ETag` dagi do'kon tokenlari hujjat o'qilgan tokenlar (ma'lumotdan OLDIN o'qilgan): yangi token eski tanaga hech qachon
+  yopishmaydi.

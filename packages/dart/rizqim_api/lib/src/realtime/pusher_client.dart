@@ -99,8 +99,9 @@ class PusherClient {
     Duration defaultActivityTimeout = const Duration(seconds: 120),
   }) : _activityTimeout = defaultActivityTimeout;
 
-  /// `wss://<domen>/app/<REVERB_APP_KEY>?protocol=7&client=...` ([realtimeUri]).
-  final Uri uri;
+  /// `wss://<domen>/app/<REVERB_APP_KEY>?protocol=7&client=...` ([realtimeUri]). M2: may be replaced (the server's
+  /// `GET /v1/realtime` named another key or host); the next connection attempt uses the new address.
+  Uri uri;
 
   /// WebSocket so'roviga qo'shimcha sarlavhalar (masalan `Origin`: Reverb `allowed_origins` ni tekshiradi).
   final Map<String, String> headers;
@@ -509,14 +510,18 @@ class PusherClient {
     if (!_errors.isClosed) _errors.add(error);
   }
 
-  /// Pusher `data` maydoni JSON satr (server hodisalarida) yoki obyekt bo'lishi mumkin.
+  /// Pusher `data` maydoni JSON satr (server hodisalarida) yoki obyekt bo'lishi mumkin. M2: JSON satrning ichida yana
+  /// JSON satr bo'lsa ham (ikki marta kodlangan: backend'ning `realtime.heartbeat` i `triggerBatch` ga tayyor satr
+  /// beradi) ochiladi.
   static Map<String, Object?> _decodeData(Object? data) {
     Object? value = data;
-    if (value is String) {
+    for (var depth = 0; depth < 2 && value is String; depth++) {
       try {
         value = jsonDecode(value);
       } on FormatException {
-        return <String, Object?>{'value': data};
+        return depth == 0
+            ? <String, Object?>{'value': data}
+            : <String, Object?>{'value': value};
       }
     }
     if (value is Map) return value.cast<String, Object?>();

@@ -128,6 +128,8 @@ class TerminalHome extends StatefulWidget {
 }
 
 class _TerminalHomeState extends State<TerminalHome> {
+  late final AppLifecycleListener _lifecycle;
+
   PosRealtime? _realtime;
   WaiterLan? _lan;
   late final StreamSubscription<AuthEvent> _authSub;
@@ -142,6 +144,8 @@ class _TerminalHomeState extends State<TerminalHome> {
   @override
   void initState() {
     super.initState();
+    // M2: back in the foreground (Android resume, a Windows window focused again): every screen re-reads at once
+    _lifecycle = AppLifecycleListener(onResume: AppResume.notify);
     _realtime = _s.realtimeFactory?.call(_s.client, widget.terminal)?..start();
     if (_s.lanEnabled) {
       _lan = WaiterLan(
@@ -164,6 +168,7 @@ class _TerminalHomeState extends State<TerminalHome> {
     unawaited(_phaseSub.cancel());
     unawaited(_realtime?.dispose());
     _lan?.dispose();
+    _lifecycle.dispose();
     super.dispose();
   }
 

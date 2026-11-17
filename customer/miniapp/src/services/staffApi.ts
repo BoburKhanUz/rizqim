@@ -1,4 +1,5 @@
-import { createAuthFetch, createStaffApi, setDefaultStaffApi, toApiRoot } from '@rizqim/staff';
+import { createAuthFetch, createStaffApi, setDefaultStaffApi, toApiRoot, withRevisionCapture } from '@rizqim/staff';
+import { revisions } from '../lib/revisions';
 import { useAuthStore } from '../store/authStore';
 import { recoverToken } from './api';
 
@@ -8,12 +9,16 @@ import { recoverToken } from './api';
 export const staffApi = createStaffApi({
   baseUrl: toApiRoot(import.meta.env.VITE_API_URL || '/api/v1'),
   headers: { 'Bypass-Tunnel-Reminder': 'true' },
-  fetch: createAuthFetch({
-    getToken: () => useAuthStore.getState().token,
-    renewToken: recoverToken,
-    // Can't renew the session: fall back to the sign-in screen, as the axios client does
-    onSignedOut: () => useAuthStore.getState().logout(),
-  }),
+  // Wave M2: the X-Revision of the board's single-branch reads (lib/revisions.ts); the 304s are the browser cache's
+  fetch: withRevisionCapture(
+    createAuthFetch({
+      getToken: () => useAuthStore.getState().token,
+      renewToken: recoverToken,
+      // Can't renew the session: fall back to the sign-in screen, as the axios client does
+      onSignedOut: () => useAuthStore.getState().logout(),
+    }),
+    revisions,
+  ),
 });
 
 // The hooks of the package read their API from here (the app has one, for its whole life)

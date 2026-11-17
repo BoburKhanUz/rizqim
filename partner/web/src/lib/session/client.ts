@@ -1,5 +1,6 @@
 import { createApiClient, type ApiClient } from '@rizqim/api-client';
-import { createStaffApi, type StaffApi } from '@rizqim/staff';
+import { createStaffApi, withRevisionCapture, type StaffApi } from '@rizqim/staff';
+import { revisions } from '../revisions';
 import type { AccountChoice, SessionPayload, SessionUser } from './types';
 
 // Browser half of the sign-in. The access token (15 minutes) lives in this module's memory only: not in localStorage,
@@ -289,7 +290,10 @@ const staffApis = new Map<string, StaffApi>();
 export function getStaffApi(baseUrl: string): StaffApi {
   let api = staffApis.get(baseUrl);
   if (!api) {
-    api = createStaffApi({ baseUrl, fetch: authFetch });
+    // Wave M2: the X-Revision of the board's single-branch reads (lib/realtime.ts revisions). The polls are conditional
+    // through the browser's HTTP cache (ETag + `Cache-Control: private, no-cache`; e2e/conditional.spec.ts shows the 304s
+    // on the wire), so there is no ETag store here.
+    api = createStaffApi({ baseUrl, fetch: withRevisionCapture(authFetch, revisions) });
     staffApis.set(baseUrl, api);
   }
   return api;

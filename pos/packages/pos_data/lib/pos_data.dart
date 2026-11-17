@@ -77,6 +77,17 @@ export 'src/queue/online_order_models.dart';
 export 'src/queue/online_order_repository.dart';
 export 'src/realtime/pos_events.dart';
 export 'src/realtime/pos_realtime.dart';
+
+// M2 fix round 2: the screens pace their event reads with these
+export 'package:rizqim_api/rizqim_api.dart'
+    show
+        PacedReason,
+        PacedRefresh,
+        PacedVerdict,
+        RefreshPacing,
+        RefreshThrottle,
+        ScreenRelevance;
+
 export 'src/session/approvals.dart';
 export 'src/session/pos_session.dart';
 export 'src/shift/shift_models.dart';

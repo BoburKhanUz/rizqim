@@ -57,6 +57,8 @@ class PosQueueController extends PosHallController
         $user = $this->staff($request);
         $request->validate(['branch_id' => 'nullable|integer|min:1']);
         $branch = $this->branchFor($request, $user, Permission::ORDERS_VIEW);
+        // Wave M2: the board is the business day's: it empties at the next day start with no write
+        \App\Http\Middleware\ConditionalGet::validUntil($request, BusinessDay::nextStart($branch));
 
         return $this->success(self::boardOf($branch));
     }

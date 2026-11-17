@@ -26,6 +26,10 @@ abstract class CatalogApi {
   /// `modifier_groups` (effective `min_select`/`max_select`/`is_required` for that product, active `modifiers` with.
   /// `price_delta`); hidden products/variants of the channel are left out. Store mode adds `availability`.
   ///
+  /// Wave M2: the customer forms are answered from the marketplace read model (App\Domain\Marketplace\MarketplaceBrowse,.
+  /// docs/API.md "Market o'qish modeli"; the store carries `accepting_orders`); this method is its fallback and serves.
+  /// the POS channels. Orders are always priced and checked against the live tables.
+  ///
   /// [storeId] - The store's uuid (or numeric id): store menu instead of the global feed.
   ///
   /// [lat] - Global feed: latitude of the delivery point (with `lng`).
@@ -42,7 +46,13 @@ abstract class CatalogApi {
   ///
   /// [brand] - P6-55, store mode: only this brand's dishes (the brand's uuid or id; an unknown or inactive one: 404).
   ///
+  /// [view] - Wave M2, global feed: `cards` answers small product cards ({id, uuid, store_id, category_id, name, description, image_url, image_thumb_urls, batch_tracked, price, unit, needs_options, variant, store: {id, uuid, name, address, logo_url, accepting_orders}}) instead of full products; docs/API.md.
+  ///
+  /// [limit] - Wave M2, global feed with view=cards: how many cards (default 20, at most 50).
+  ///
   /// [channel] - P1-21: whose prices and visibility to show: telegram (default) or mobile. P3-13: `pos_hall` or `pos_takeaway` is the POS menu of one branch for the store's own staff (menu.view; `branch_id` for an owner), with the channel prices, `is_available`/`unavailable_reason`, `station_id`, modifiers, units and the branch availability; see docs/API.md (POS bo'limi).
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/catalog')
   Future<dynamic> catalogIndex({
     @Query('store_id') String? storeId,
@@ -53,7 +63,10 @@ abstract class CatalogApi {
     @Query('branch_id') int? branchId,
     @Query('category_id') int? categoryId,
     @Query('brand') String? brand,
+    @Query('view') String? view,
+    @Query('limit') int? limit,
     @Query('channel') Channel? channel,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 
   /// Menu availability per branch.
@@ -63,12 +76,18 @@ abstract class CatalogApi {
   /// "tugadi") and the open `batches` with what is left. Refetch it on the `menu.availability_changed` event (public.
   /// channel `menu.{store_id}`). The same data is in GET /catalog?store_id=… as `availability`.
   ///
+  /// Wave M2: without `branch_id` (the Mini App) it comes from the read model's availability overlay, at most 15 s.
+  /// old (App\Domain\Marketplace\MarketplaceBrowse); with a branch (tills, staff screens) from the tables.
+  ///
   /// [storeId] - The store's uuid or numeric id.
   ///
   /// [branchId] - Only this branch.
+  ///
+  /// [ifNoneMatch] - Optional: the ETag of the last 200 answer. While nothing it depends on has changed the answer is 304 with no body: keep the last body and the time it was received.
   @GET('/v1/catalog/availability')
   Future<GetV1CatalogAvailabilityResponse> menuAvailabilityIndex({
     @Query('store_id') required String storeId,
     @Query('branch_id') int? branchId,
+    @Header('If-None-Match') String? ifNoneMatch,
   });
 }

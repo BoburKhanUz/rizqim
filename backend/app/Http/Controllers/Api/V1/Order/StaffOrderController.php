@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\ConditionalGet;
 use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -380,6 +381,17 @@ class StaffOrderController extends Controller
         // P6-34: an online pickup for later reaches the kitchen at its kitchen time (ScheduledPickup)
         $query->where(fn ($query) => $query->whereNull('orders.kitchen_fire_at')->orWhereNotNull('orders.kitchen_fired_at')->orWhere('orders.kitchen_fire_at', '<=', now()));
 
+        // Wave M2: a pickup for later appears on the board at its kitchen time with no write, so this answer's ETag
+        // stops validating then (ConditionalGet), not only after the route's max-age
+        $nextFire = $this->scope->query($user)
+            ->when($request->query('branch_id') !== null, fn ($q) => $q->where('orders.branch_id', RowId::parse($request->query('branch_id'))))
+            ->whereNull('orders.kitchen_fired_at')
+            ->where('orders.kitchen_fire_at', '>', now())
+            ->min('orders.kitchen_fire_at');
+        if ($nextFire !== null) {
+            ConditionalGet::validUntil($request, Carbon::parse($nextFire));
+        }
+
         $rows = $query->with(StaffOrderPresenter::RELATIONS)
             ->orderBy('orders.created_at')
             ->orderBy('orders.id')
@@ -392,12 +404,103 @@ class StaffOrderController extends Controller
             $rows = $rows->concat($this->recentlyCanceled($user, $request, $request->integer('canceled_within'), self::TICKETS_CAP + 1 - $rows->count()));
         }
 
+        $listed = $rows->take(self::TICKETS_CAP)->values();
+        $this->presenter->takeNextLateAt();
+        $data = $listed->map(fn (Order $order) => $this->presenter->ticket($order, $now))->all();
+
+        // Wave M2: the body also changes by the clock alone; the ETag stops validating at the first such moment
+        foreach ([
+            $this->presenter->takeNextLateAt(),
+            $this->counterLeavesAt($listed, $includeReady, $now),
+            $request->filled('canceled_within') ? $this->canceledLeavesAt($listed, $request->integer('canceled_within'), $now) : null,
+        ] as $at) {
+            if ($at !== null) {
+                ConditionalGet::validUntil($request, $at);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => '',
-            'data' => $rows->take(self::TICKETS_CAP)->map(fn (Order $order) => $this->presenter->ticket($order, $now))->values()->all(),
+            'data' => $data,
             'meta' => ['truncated' => $rows->count() > self::TICKETS_CAP],
         ]);
+    }
+
+    /**
+     * Wave M2: the first moment a listed counter order paid first (closed while its number is still on the board)
+     * drops off by the closed-counter window alone: the latest of closed, fired and its last line ready, plus the
+     * window (the tickets() query). A moment already past means a line still to cook keeps it (it leaves on a write).
+     *
+     * @param  \Illuminate\Support\Collection<int, Order>  $listed
+     */
+    protected function counterLeavesAt(\Illuminate\Support\Collection $listed, bool $includeReady, Carbon $now): ?Carbon
+    {
+        $pickup = $includeReady ? ['preparing', 'ready'] : ['preparing'];
+        $counter = $listed->filter(fn (Order $order) => $order->status === OrderStatus::DELIVERED
+            && in_array($order->channel, [OrderChannel::POS_HALL, OrderChannel::POS_TAKEAWAY], true)
+            && in_array($order->getAttribute('pickup_status'), $pickup, true));
+        if ($counter->isEmpty()) {
+            return null;
+        }
+
+        // Every line row, combo parts included, as the query counts them
+        $lastReady = \Illuminate\Support\Facades\DB::table('order_items')
+            ->whereIn('order_id', $counter->map(fn (Order $order) => (int) $order->id)->values()->all())
+            ->whereNull('deleted_at')
+            ->whereIn('kitchen_status', \App\Enums\KitchenItemStatus::doneValues())
+            ->groupBy('order_id')
+            ->selectRaw('order_id, max(ready_at) as last_ready')
+            ->pluck('last_ready', 'order_id');
+        $window = max(1, (int) config('orders.kitchen_board.closed_counter_minutes', 240));
+
+        $first = null;
+        foreach ($counter as $order) {
+            $latest = null;
+            foreach ([$order->getAttribute('closed_at'), $order->getAttribute('kitchen_fired_at'), $lastReady[$order->id] ?? null] as $value) {
+                if ($value !== null) {
+                    $at = Carbon::parse($value);
+                    $latest = $latest === null || $at->greaterThan($latest) ? $at : $latest;
+                }
+            }
+            // Listed while latest >= now − window: gone right after latest + window
+            $leaves = $latest?->copy()->addMinutes($window);
+            if ($leaves !== null && $leaves->greaterThanOrEqualTo($now) && ($first === null || $leaves->lessThan($first))) {
+                $first = $leaves;
+            }
+        }
+
+        return $first;
+    }
+
+    /**
+     * Wave M2: the first moment a listed cancelled or rejected order leaves the `canceled_within` list by the clock
+     * alone: its latest cancellation plus the look-back (recentlyCanceled()).
+     *
+     * @param  \Illuminate\Support\Collection<int, Order>  $listed
+     */
+    protected function canceledLeavesAt(\Illuminate\Support\Collection $listed, int $minutes, Carbon $now): ?Carbon
+    {
+        $cancelled = $listed->filter(fn (Order $order) => $order->status->isCancellation());
+        if ($cancelled->isEmpty()) {
+            return null;
+        }
+
+        $first = null;
+        $latest = \Illuminate\Support\Facades\DB::table('order_status_histories')
+            ->whereIn('order_id', $cancelled->map(fn (Order $order) => (int) $order->id)->values()->all())
+            ->whereIn('status', [OrderStatus::CANCELED->value, OrderStatus::REJECTED->value])
+            ->groupBy('order_id')
+            ->selectRaw('order_id, max(created_at) as cancelled_at')
+            ->pluck('cancelled_at');
+        foreach ($latest as $value) {
+            $leaves = Carbon::parse((string) $value)->addMinutes($minutes);
+            if ($leaves->greaterThanOrEqualTo($now) && ($first === null || $leaves->lessThan($first))) {
+                $first = $leaves;
+            }
+        }
+
+        return $first;
     }
 
     /**

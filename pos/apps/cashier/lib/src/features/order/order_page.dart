@@ -124,6 +124,8 @@ class _OrderPageState extends State<OrderPage> {
       pollInterval: scope.services.pollInterval,
       livePollInterval: scope.services.livePollInterval,
       eventFilter: (PosEvent e) => ctl.uuid != null && e.orderUuid == ctl.uuid,
+      // M2 fix round 2: this order's events only, paced briefly (the cashier's own actions read at once)
+      pacing: RefreshPacing.order,
       onRefresh: (_) => ctl.refresh(),
     )..start();
     _menuSub = scope.realtime?.events.listen((PosEvent e) {

@@ -465,6 +465,8 @@ class KitchenCrew {
         (status == 'pending' && line['fire_mode'] == null);
   }
 
+  /// A conditional read like the apps' own (If-None-Match; a 304 replays the last body): the server ends the tickets'
+  /// ETag at the moment a line turns `late` by the clock alone, so the crew sees `late` as soon as a full read would.
   Future<List<Map<String, Object?>>> fetch({bool includeReady = false}) async {
     final Response<Object?> r = await kds.client.dio.get<Object?>(
       '/v1/staff/kitchen/tickets',
