@@ -78,6 +78,7 @@ class PosOffline {
       random: random,
       onDrained: _afterDrain,
     );
+    _wasOnline = connectivity.state.online;
     _subs
       ..add(connectivity.changes.listen(_onConnectivity))
       ..add(store.changes.listen((_) => _emit()))
@@ -114,6 +115,9 @@ class PosOffline {
       StreamController<List<SyncOperation>>.broadcast();
   Timer? _probe;
   Timer? _tick;
+
+  /// The last connection state seen ([_onConnectivity]): a nudge only on the way back from offline.
+  bool _wasOnline = true;
   int _probeFailures = 0;
   bool _warming = false;
 
@@ -1128,12 +1132,19 @@ class PosOffline {
     }
   }
 
+  /// The connection state changes on every answer (the contact time) and every queue change. Only the way back from
+  /// offline (no answer -> an answer, from any request, the probe or the sync request itself) nudges the sender: the
+  /// backoff wait is cancelled and the queue goes at once ([SyncSender.nudge]: an attempt already on the wire is not
+  /// doubled, and is made again only if it never got through). Other answers, while the server refuses or stops the
+  /// queue (5xx, `stopped_at`), do not cut the backoff short; the cashier's "send now" ([syncNow]) always can.
   void _onConnectivity(PosConnectivityState s) {
+    final bool back = s.online && !_wasOnline;
+    _wasOnline = s.online;
     if (s.online) {
       final DateTime? at = s.lastContactAt;
       if (at != null) unawaited(store.markContact(at));
       _stopProbe();
-      if (store.hasPending) sender.nudge();
+      if (back && store.hasPending) sender.nudge();
     } else {
       _startProbe();
     }

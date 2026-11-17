@@ -747,4 +747,49 @@ void main() {
     expect(h.offline.sender.nextRetryAt, isNull);
     expect(h.offline.status.lastSyncError, isNull);
   });
+
+  test('while the server refuses the queue (503), other answers do not cut the backoff short: only coming back from '
+      'offline does', () async {
+    await h.warmUp();
+    await h.goOffline();
+    await h.pos.orders.open(
+      channel: PosChannel.takeaway,
+      items: <PosLineInput>[line(1, '1')],
+    );
+    h.adapter.respond = (RequestOptions o) =>
+        o.method == 'POST' && o.uri.path.endsWith('/pos/sync')
+        ? const FakeResponse(503, <String, Object?>{'message': 'busy'})
+        : null;
+    h.adapter.offline = false;
+    final SyncDrainResult first = await h.offline.syncNow();
+    await pumpEventQueue();
+    expect(first.drained, isFalse);
+    final int sends = h.adapter.to('POST', '/pos/sync').length;
+    expect(h.offline.sender.nextRetryAt, isNotNull);
+    final DateTime? wait = h.offline.sender.nextRetryAt;
+
+    // Other screens poll and get answers (the contact time moves on)
+    for (var i = 0; i < 3; i++) {
+      h.clock.now = h.clock.now.add(const Duration(seconds: 1));
+      await h.offline.serverErrors();
+      await pumpEventQueue();
+    }
+    expect(h.adapter.to('POST', '/pos/sync'), hasLength(sends));
+    expect(h.offline.sender.nextRetryAt, wait);
+
+    // Offline and back: one attempt at once
+    h.adapter.offline = true;
+    await expectLater(
+      h.offline.serverErrors(),
+      throwsA(isA<PosNetworkException>()),
+    );
+    h.adapter.offline = false;
+    h.adapter.respond = null;
+    await h.offline.serverErrors();
+    for (var i = 0; i < 20 && h.offline.store.hasPending; i++) {
+      await pumpEventQueue();
+    }
+    expect(h.offline.store.pendingCount, 0);
+    expect(h.adapter.to('POST', '/pos/sync'), hasLength(sends + 1));
+  });
 }

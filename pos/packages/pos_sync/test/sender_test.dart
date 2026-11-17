@@ -294,6 +294,78 @@ void main() {
     expect(sender.nextRetryAt, isNotNull);
   });
 
+  test('stop() (logout, re-pair): a fresh attempt asked for before it is not sent, and "send now" after it sends '
+      'nothing', () async {
+    final _Held net = _Held(server);
+    final SyncSender sender = SyncSender(
+      store: store,
+      transport: net,
+      backoff: const SyncBackoff(jitter: 0),
+    );
+    addTearDown(sender.dispose);
+    sender.start();
+    await queue(1);
+    await pumpEventQueue();
+    expect(
+      net.held,
+      hasLength(1),
+      reason: 'the automatic attempt is on the wire',
+    );
+
+    sender.nudge();
+    await sender.stop();
+    net.offline = false;
+    net.held.single.complete();
+    await pumpEventQueue();
+
+    expect(net.calls, 1, reason: 'nothing goes out after stop()');
+    expect(
+      sender.failures,
+      1,
+      reason: 'only the attempt that was on the wire failed',
+    );
+    expect(sender.nextRetryAt, isNull);
+
+    final SyncDrainResult r = await sender.drain();
+    await pumpEventQueue();
+    expect(net.calls, 1);
+    expect(r.drained, isFalse);
+    expect(r.left, 1);
+    expect(r.error, isNot(isA<SyncUnreachable>()));
+    expect(sender.failures, 1);
+    expect(store.pendingCount, 1, reason: 'the queue is left as it is');
+  });
+
+  test('an attempt that reached the server is not run again because its own answer reported contact: a refusal '
+      'waits the backoff', () async {
+    final _Held net = _Held(server)..offline = false;
+    final SyncSender sender = SyncSender(
+      store: store,
+      transport: net,
+      backoff: const SyncBackoff(jitter: 0),
+    );
+    addTearDown(sender.dispose);
+    server.stopAt = 1;
+    sender.start();
+    await queue(1);
+    await pumpEventQueue();
+    expect(net.held, hasLength(1));
+
+    // The answer arrives: PosHttp reports contact (offline -> online) and the till nudges, before the sender reads it
+    sender.nudge();
+    net.held.single.complete();
+    await pumpEventQueue();
+
+    expect(
+      net.calls,
+      1,
+      reason: 'the server answered this attempt: no second send at once',
+    );
+    expect(sender.failures, 1);
+    expect(sender.lastError, isA<SyncRefused>());
+    expect(sender.nextRetryAt, isNotNull, reason: 'the backoff stands');
+  });
+
   test('the backoff is capped', () {
     const SyncBackoff b = SyncBackoff(
       base: Duration(seconds: 2),

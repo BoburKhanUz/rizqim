@@ -77,6 +77,15 @@ class SyncUnreachable implements Exception {
   String toString() => 'SyncUnreachable($cause)';
 }
 
+/// The sender was stopped ([SyncSender.stop]: logout, re-pair, shutdown): nothing more is sent, the queue is left as
+/// it is.
+class SyncStopped implements Exception {
+  const SyncStopped();
+
+  @override
+  String toString() => 'SyncStopped()';
+}
+
 class SyncRefused implements Exception {
   const SyncRefused(this.message, {this.status, this.reason});
 
@@ -163,6 +172,9 @@ class SyncSender {
   StreamSubscription<void>? _storeSub;
   bool _started = false;
 
+  /// [stop] was called (and no [start] since): nothing may be sent, whoever asks.
+  bool _stopped = false;
+
   int failures = 0;
   DateTime? lastSuccessAt;
   Object? lastError;
@@ -180,7 +192,10 @@ class SyncSender {
   /// its way back with that failure: the answer to this call is not that one. It waits for it (one send at a time, in
   /// order) and, if the queue is not empty then, sends once more at once, without the backoff. An attempt started for
   /// an earlier explicit request is joined.
+  ///
+  /// After [stop] it sends nothing and answers [SyncStopped] at once.
   Future<SyncDrainResult> drain() {
+    if (_stopped) return Future<SyncDrainResult>.value(_stoppedResult(0));
     final Future<SyncDrainResult>? running = _running;
     if (running == null || _runningExplicit) return _join(explicit: true);
     return _fresh ??= _after(running);
@@ -195,6 +210,7 @@ class SyncSender {
     } finally {
       _fresh = null;
     }
+    if (_stopped) return _stoppedResult(0);
     if (!store.hasPending) {
       // Nothing left to send: a wait set before this request is moot
       if (!syncing) _cancelRetry();
@@ -202,8 +218,22 @@ class SyncSender {
           ? before
           : SyncDrainResult(sent: before?.sent ?? 0, left: 0);
     }
+    final Object? error = before?.error;
+    if (before != null && error != null && error is! SyncUnreachable) {
+      // That attempt reached the server and was answered (refused, stopped, 5xx): the answer stands, and so does the
+      // backoff it sets; only an attempt that never got through is made again
+      _settle(before);
+      _emit();
+      return before;
+    }
     return _join(explicit: true);
   }
+
+  SyncDrainResult _stoppedResult(int sent) => SyncDrainResult(
+    sent: sent,
+    left: store.pendingCount,
+    error: const SyncStopped(),
+  );
 
   Future<SyncDrainResult> _join({bool explicit = false}) {
     final Future<SyncDrainResult>? running = _running;
@@ -248,13 +278,23 @@ class SyncSender {
   void start() {
     if (_started) return;
     _started = true;
+    _stopped = false;
     _storeSub = store.changes.listen((_) {
       if (store.hasPending && !syncing && _retry == null) unawaited(_auto());
     });
     if (store.hasPending) unawaited(_auto());
   }
 
-  /// Aloqa qaytdi: kutmasdan darhol urinish (oldin chiqqan urinish yo'lda bo'lsa — u tugagach, bir marta yangidan).
+  /// Aloqa qaytdi: kutmasdan darhol urinish. Call it when the network comes BACK (offline -> online) or the cashier
+  /// asks ("send now"), not on every answer.
+  ///
+  /// What starts a send: an operation queued while nothing runs and no wait is set; the end of the backoff wait;
+  /// [nudge]; [drain]; a successful attempt that ends with operations queued meanwhile.
+  /// What resets the backoff: [nudge] (the wait is cancelled and an attempt goes at once) and an attempt the server
+  /// accepts (`failures` back to 0). What does not: a failed attempt (the wait grows), an attempt the server answered
+  /// but refused or stopped (the wait grows; a [nudge] that came while it ran does not send it again at once).
+  /// If an attempt is running when [nudge] comes, it is not doubled: when it ends, the queue is sent once more at once
+  /// only if that attempt never got through ([SyncUnreachable]). After [stop] nothing is sent.
   void nudge() {
     _cancelRetry();
     if (_started && store.hasPending) unawaited(_auto(explicit: true));
@@ -262,6 +302,7 @@ class SyncSender {
 
   Future<void> stop() async {
     _started = false;
+    _stopped = true;
     _cancelRetry();
     await _storeSub?.cancel();
     _storeSub = null;
@@ -286,6 +327,8 @@ class SyncSender {
     var sent = 0;
     _emit();
     while (store.hasPending) {
+      // Stopped between batches (logout, re-pair): the rest is not sent with credentials that are going away
+      if (_stopped) return _stoppedResult(sent);
       final List<SyncOperation> pending = store.pending;
       final List<SyncOperation> batch = pending
           .take(max(1, limits.batchSize))
