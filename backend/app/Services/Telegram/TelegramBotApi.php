@@ -7,8 +7,9 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
- * The HTTP side of the Telegram Bot API. Only queue jobs call it (SendTelegramRequest, SendOrderReport):
- * everything else queues its calls through TelegramMessenger.
+ * The HTTP side of the Telegram Bot API. Queue jobs call it (SendTelegramRequest, SendOrderReport), and since M3 the
+ * ops alerts (AlertNotifier, sent at once so a dead queue worker cannot hold back its own alert): everything else
+ * queues its calls through TelegramMessenger.
  */
 class TelegramBotApi
 {
@@ -27,12 +28,16 @@ class TelegramBotApi
     /**
      * @param array{name: string, contents: string|resource, filename: string}|null $attachment multipart file (sendDocument),
      *     its contents a string or a stream read as it is sent
+     * @param  float|null  $timeout seconds; M3: the ops alerts sent at once by the scheduler wait less (AlertNotifier)
      *
      * @throws ConnectionException
      */
-    public function call(string $method, array $params, ?array $attachment = null): Response
+    public function call(string $method, array $params, ?array $attachment = null, ?float $timeout = null): Response
     {
-        $request = Http::timeout($attachment ? 30 : 10);
+        $request = Http::timeout($timeout ?? ($attachment ? 30 : 10));
+        if ($timeout !== null) {
+            $request = $request->connectTimeout(min($timeout, 3.0));
+        }
 
         if ($attachment) {
             $request = $request->attach($attachment['name'], $attachment['contents'], $attachment['filename']);

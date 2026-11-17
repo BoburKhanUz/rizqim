@@ -17362,6 +17362,19 @@
                                 "settlement_failures",
                                 "backup_stale",
                                 "scheduler_stale",
+                                "db_connections",
+                                "db_long_transaction",
+                                "db_lock_waits",
+                                "wal_archive",
+                                "pitr_backup_stale",
+                                "restore_drill_stale",
+                                "disk_usage",
+                                "redis_memory",
+                                "queue_worker_stale",
+                                "realtime_down",
+                                "table_bloat",
+                                "partitions",
+                                "tls_expiry",
                                 null
                             ]
                         }
@@ -18646,7 +18659,7 @@
         "/v1/admin/monitoring/health": {
             "get": {
                 "operationId": "admin.monitoring.health",
-                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).",
+                "description": "`status` is `ok`, `degraded` (the app works, something needs a look: a stale scheduler, a long queue, Reverb\ndown, an old backup) or `fail` (database or Redis). `database`, `redis`, `queue` (the `/health` report's numbers\nplus every queue with its size and the age of its oldest waiting job, and failed job counts) and `scheduler` come\nfrom the same report as `GET /health`. `reverb`: `ok`, `fail` or `not_configured` (real-time is switched off).\n`backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).\n`app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and\n`alerts` (open, acknowledged, critical unresolved counts).\n\nM3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open\ntransaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched\non), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working\noff-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,\n`partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,\nwith its restore time and data loss window in seconds. `partitions`: the journals' months (`ok`, `warning`,\n`fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and\n`redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the\nage of the queue worker's last heartbeat.",
                 "summary": "System health",
                 "tags": [
                     "Admin"
@@ -18696,10 +18709,46 @@
                                                         },
                                                         "latency_ms": {
                                                             "type": "number"
+                                                        },
+                                                        "memory": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "used_bytes": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "max_bytes": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "percent": {
+                                                                    "type": [
+                                                                        "number",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "policy": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "used_bytes",
+                                                                "max_bytes",
+                                                                "percent",
+                                                                "policy"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
-                                                        "status"
+                                                        "status",
+                                                        "memory"
                                                     ]
                                                 },
                                                 "queue": {
@@ -18736,6 +18785,24 @@
                                                                 ]
                                                             }
                                                         },
+                                                        "worker": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "last_heartbeat_age_seconds": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "max_age_seconds": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "last_heartbeat_age_seconds",
+                                                                "max_age_seconds"
+                                                            ]
+                                                        },
                                                         "failed_jobs": {
                                                             "type": "object",
                                                             "properties": {
@@ -18762,6 +18829,7 @@
                                                     "required": [
                                                         "status",
                                                         "queues",
+                                                        "worker",
                                                         "failed_jobs"
                                                     ]
                                                 },
@@ -18832,6 +18900,483 @@
                                                         "last_backup_at",
                                                         "age_hours",
                                                         "max_age_hours"
+                                                    ]
+                                                },
+                                                "postgres": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "connections": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "used": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "max": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "percent": {
+                                                                    "type": "number"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "used",
+                                                                "max",
+                                                                "percent"
+                                                            ]
+                                                        },
+                                                        "longest_transaction_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "idle_transaction_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "lock_waits": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "archiver": {
+                                                            "type": [
+                                                                "object",
+                                                                "null"
+                                                            ],
+                                                            "properties": {
+                                                                "archive_mode": {
+                                                                    "type": "string"
+                                                                },
+                                                                "last_archived_wal": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "last_archived_at": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "last_failed_at": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "failing": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "ready_wal": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "archive_mode",
+                                                                "last_archived_wal",
+                                                                "last_archived_at",
+                                                                "last_failed_at",
+                                                                "failing",
+                                                                "ready_wal"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "connections",
+                                                        "longest_transaction_seconds",
+                                                        "idle_transaction_seconds",
+                                                        "lock_waits",
+                                                        "archiver"
+                                                    ]
+                                                },
+                                                "pitr": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "marker_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "marker_age_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_backup_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_backup_type": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_backup_age_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_full_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_wal_archived_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "wal_archived_age_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "archive_failing": {
+                                                            "type": [
+                                                                "boolean",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "ready_wal": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "offsite": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "offsite_note": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "max_backup_age_hours": {
+                                                            "type": "integer"
+                                                        },
+                                                        "max_marker_age_minutes": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "enabled",
+                                                        "marker_at",
+                                                        "marker_age_seconds",
+                                                        "message",
+                                                        "last_backup_at",
+                                                        "last_backup_type",
+                                                        "last_backup_age_seconds",
+                                                        "last_full_at",
+                                                        "last_wal_archived_at",
+                                                        "wal_archived_age_seconds",
+                                                        "archive_failing",
+                                                        "ready_wal",
+                                                        "offsite",
+                                                        "offsite_note",
+                                                        "max_backup_age_hours",
+                                                        "max_marker_age_minutes"
+                                                    ]
+                                                },
+                                                "drill": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_status": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "restore_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "data_loss_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "reached_time": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "backup_label": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "error": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_ok_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "max_age_days": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "last_at",
+                                                        "last_status",
+                                                        "restore_seconds",
+                                                        "data_loss_seconds",
+                                                        "reached_time",
+                                                        "backup_label",
+                                                        "error",
+                                                        "last_ok_at",
+                                                        "max_age_days"
+                                                    ]
+                                                },
+                                                "partitions": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "months_ahead": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "min_months_ahead": {
+                                                            "type": "integer"
+                                                        },
+                                                        "default_rows": {
+                                                            "type": "integer"
+                                                        },
+                                                        "archive_failed": {
+                                                            "type": "integer"
+                                                        },
+                                                        "archive_stale": {
+                                                            "type": "integer"
+                                                        },
+                                                        "problems": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "table": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "message": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "table",
+                                                                    "code",
+                                                                    "message"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "tables": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "table": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "partitioned": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "future_months": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "default_rows": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "oldest_month": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "newest_month": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "table",
+                                                                    "partitioned",
+                                                                    "future_months",
+                                                                    "default_rows",
+                                                                    "oldest_month",
+                                                                    "newest_month"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "months_ahead",
+                                                        "min_months_ahead",
+                                                        "default_rows",
+                                                        "archive_failed",
+                                                        "archive_stale",
+                                                        "problems",
+                                                        "tables"
+                                                    ]
+                                                },
+                                                "disk": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string"
+                                                        },
+                                                        "recorded_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "age_seconds": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "used_percent": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "avail_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "total_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "pg_wal_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "spool_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "db_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "repo_used_percent": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "repo_avail_bytes": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "warn_percent": {
+                                                            "type": "integer"
+                                                        },
+                                                        "critical_percent": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "recorded_at",
+                                                        "age_seconds",
+                                                        "used_percent",
+                                                        "avail_bytes",
+                                                        "total_bytes",
+                                                        "pg_wal_bytes",
+                                                        "spool_bytes",
+                                                        "db_bytes",
+                                                        "repo_used_percent",
+                                                        "repo_avail_bytes",
+                                                        "warn_percent",
+                                                        "critical_percent"
                                                     ]
                                                 },
                                                 "app": {
@@ -18913,6 +19458,11 @@
                                                 "scheduler",
                                                 "reverb",
                                                 "backup",
+                                                "postgres",
+                                                "pitr",
+                                                "drill",
+                                                "partitions",
+                                                "disk",
                                                 "app",
                                                 "sentry",
                                                 "alerts"
@@ -18942,7 +19492,7 @@
         "/v1/admin/monitoring/rules": {
             "get": {
                 "operationId": "admin.monitoring.rules",
-                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
+                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
                 "summary": "Alert rules",
                 "tags": [
                     "Admin"
@@ -18976,6 +19526,9 @@
                                                                 "type": "string"
                                                             },
                                                             "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "action": {
                                                                 "type": "string"
                                                             },
                                                             "severity": {
@@ -19047,6 +19600,7 @@
                                                             "kind",
                                                             "label",
                                                             "description",
+                                                            "action",
                                                             "severity",
                                                             "enabled",
                                                             "telegram",
@@ -19175,6 +19729,9 @@
                                                             "description": {
                                                                 "type": "string"
                                                             },
+                                                            "action": {
+                                                                "type": "string"
+                                                            },
                                                             "severity": {
                                                                 "type": "string"
                                                             },
@@ -19244,6 +19801,7 @@
                                                             "kind",
                                                             "label",
                                                             "description",
+                                                            "action",
                                                             "severity",
                                                             "enabled",
                                                             "telegram",

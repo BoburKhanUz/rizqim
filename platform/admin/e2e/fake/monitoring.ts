@@ -137,6 +137,17 @@ export function defaultHealth() {
     app: { version: '1.4.0', commit: 'a1b2c3d', environment: 'production' },
     sentry: { configured: true, environment: 'production', project_url: 'https://sentry.io/organizations/rizqim/projects/rizqim-backend/' },
     alerts: { open: 2, acknowledged: 1, critical_unresolved: 1 },
+    // M3: the server blocks (App\Services\Admin\Monitoring\MonitoringStatus)
+    postgres: { status: 'ok', connections: { used: 23, max: 100, percent: 23 }, longest_transaction_seconds: 4, idle_transaction_seconds: 0, lock_waits: 0, archiver: null },
+    pitr: {
+      status: 'warning', enabled: true, marker_at: minutesAgo(2), marker_age_seconds: 120, message: null as string | null,
+      last_backup_at: minutesAgo(5 * 60) as string | null, last_backup_type: 'diff', last_backup_age_seconds: 18000, last_full_at: minutesAgo(3 * 24 * 60),
+      last_wal_archived_at: minutesAgo(1), wal_archived_age_seconds: 60, archive_failing: false, ready_wal: 0, offsite: 'off', offsite_note: null,
+      max_backup_age_hours: 26, max_marker_age_minutes: 15,
+    },
+    drill: { status: 'ok', last_at: minutesAgo(3 * 24 * 60), last_status: 'ok', restore_seconds: 252, data_loss_seconds: 38, reached_time: minutesAgo(3 * 24 * 60), backup_label: '20261114-213000F', error: null as string | null, last_ok_at: minutesAgo(3 * 24 * 60), max_age_days: 35 },
+    disk: { status: 'ok', recorded_at: minutesAgo(3), age_seconds: 180, used_percent: 42.5, avail_bytes: 57 * 1024 ** 3, total_bytes: 100 * 1024 ** 3, pg_wal_bytes: 300 * 1024 ** 2, spool_bytes: 0, db_bytes: 12 * 1024 ** 3, repo_used_percent: 42.5, repo_avail_bytes: 57 * 1024 ** 3, warn_percent: 80, critical_percent: 90 },
+    partitions: { status: 'ok', months_ahead: 3, min_months_ahead: 2, default_rows: 0, archive_failed: 0, archive_stale: 0, problems: [] as Array<{ table: string | null; code: string; message: string }>, tables: [] },
   }
 }
 

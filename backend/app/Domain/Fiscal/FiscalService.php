@@ -44,14 +44,14 @@ class FiscalService implements FiscalIssuer
         }
 
         $original = $this->original($document);
-        $this->validator->validate($document, $store, $original);
 
+        // Validated under the lock (M3): two refunds of one sale are checked one after the other
         $receipt = $this->create($document, $store, $original, [
             // P6-16: a smart kassa's receipts go through the provider's virtual kassa bound to it (once it is the store's)
             'driver' => FiscalSettings::of($store)->driverFor($document->deviceId !== null ? \App\Models\Device::find($document->deviceId) : null, $store),
             'status' => FiscalReceiptStatus::PENDING,
             'next_attempt_at' => now(),
-        ]);
+        ], fn () => $this->validator->validate($document, $store, $original));
         if (!$receipt->wasRecentlyCreated) {
             return $this->repeat($receipt, $document);
         }
@@ -73,14 +73,7 @@ class FiscalService implements FiscalIssuer
         $data = $this->externalFields($providerData);
         $existing = $this->existing($document);
         if ($existing !== null) {
-            if ($existing->status !== FiscalReceiptStatus::ISSUED) {
-                $this->markIssued($existing, new FiscalProviderResponse(
-                    fiscalSign: $data['fiscal_sign'], receiptNumber: $data['receipt_number'], qrUrl: $data['qr_url'],
-                    terminalId: $data['terminal_id'], payload: $providerData,
-                ));
-            }
-
-            return ($existing->fresh() ?? $existing)->toResult();
+            return $this->recordedAgain($existing, $data, $providerData);
         }
 
         // The provider has registered this receipt already: it is stored whatever its shape, a problem only noted
@@ -105,8 +98,28 @@ class FiscalService implements FiscalIssuer
             'error' => $warning,
             'issued_at' => now(),
         ]);
+        if (!$receipt->wasRecentlyCreated) {
+            // Written meanwhile by a concurrent request with the same key
+            return $this->recordedAgain($receipt, $data, $providerData);
+        }
 
         return $receipt->toResult();
+    }
+
+    /**
+     * @param  array{fiscal_sign: string|null, receipt_number: string|null, qr_url: string|null, terminal_id: string|null}  $data
+     * @param  array<string, mixed>  $providerData
+     */
+    private function recordedAgain(FiscalReceipt $existing, array $data, array $providerData): FiscalIssueResult
+    {
+        if ($existing->status !== FiscalReceiptStatus::ISSUED) {
+            $this->markIssued($existing, new FiscalProviderResponse(
+                fiscalSign: $data['fiscal_sign'], receiptNumber: $data['receipt_number'], qrUrl: $data['qr_url'],
+                terminalId: $data['terminal_id'], payload: $providerData,
+            ));
+        }
+
+        return ($existing->fresh() ?? $existing)->toResult();
     }
 
     public function hasPending(string $subjectType, int $subjectId): bool
@@ -146,6 +159,11 @@ class FiscalService implements FiscalIssuer
         try {
             if (!$store instanceof Store) {
                 throw FiscalGatewayException::rejected("Do'kon topilmadi.");
+            }
+            // M3: no foreign key keeps the original; a month taken offline (archived) takes it out of the table. A
+            // refund is never sent without the receipt it refunds
+            if ($receipt->original_receipt_id !== null && $receipt->originalReceipt === null) {
+                throw FiscalGatewayException::rejected("Asl chek bazada yo'q (arxivga o'tkazilgan): bu chekni tizim orqali yuborib bo'lmaydi.");
             }
             $gateway = $this->gateways->driver($receipt->driver);
             // A retry asks first: the provider may have taken the receipt just before an earlier attempt timed out
@@ -207,12 +225,27 @@ class FiscalService implements FiscalIssuer
     /**
      * The scheduler's safety net (fiscal:retry-pending): every pending receipt that is due gets an attempt; one that
      * already had all its attempts is failed. Returns how many receipts were attempted.
+     *
+     * M3: the retry queries look only at months the window config('fiscal.retry.max_age_days') reaches (partition
+     * pruning: the sweep runs every minute; the stale query reads the older online months through their (status,
+     * created_at) index, one empty probe each). A receipt still pending beyond the window is not left pending for ever:
+     * it becomes `failed` with a message (the owner's "Qayta yuborish" asks the provider first), which the failed
+     * receipt lists and the fiscal_failures alert show.
      */
     public function sweep(int $limit = 100): int
     {
         $max = $this->maxAttempts();
+        $since = now()->subDays($this->maxAgeDays());
 
         FiscalReceipt::where('status', FiscalReceiptStatus::PENDING->value)
+            ->where('created_at', '<', $since)
+            ->orderBy('created_at')
+            ->limit($limit)
+            ->get()
+            ->each(fn (FiscalReceipt $receipt) => $this->markFailed($receipt, "{$this->maxAgeDays()} kundan ortiq ro'yxatdan o'tmay turdi: avtomatik urinish to'xtatildi. Qo'lda qayta yuboring." . ($receipt->error !== null ? " Oxirgi xato: {$receipt->error}" : '')));
+
+        FiscalReceipt::where('status', FiscalReceiptStatus::PENDING->value)
+            ->where('created_at', '>=', $since)
             ->where('attempts', '>=', $max)
             ->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', now()))
             ->orderBy('id')
@@ -221,6 +254,7 @@ class FiscalService implements FiscalIssuer
             ->each(fn (FiscalReceipt $receipt) => $this->markFailed($receipt, $receipt->error ?? "Urinishlar tugadi."));
 
         $ids = FiscalReceipt::where('status', FiscalReceiptStatus::PENDING->value)
+            ->where('created_at', '>=', $since)
             ->where('attempts', '<', $max)
             ->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', now()))
             ->orderBy('next_attempt_at')
@@ -243,6 +277,14 @@ class FiscalService implements FiscalIssuer
         return $attempted;
     }
 
+    /**
+     * How far back the sweep looks (days): a pending receipt older than this is failed, not retried.
+     */
+    public function maxAgeDays(): int
+    {
+        return max(1, (int) config('fiscal.retry.max_age_days', 30));
+    }
+
     public function maxAttempts(): int
     {
         return max(1, (int) config('fiscal.retry.max_attempts', 12));
@@ -258,9 +300,36 @@ class FiscalService implements FiscalIssuer
         return $store;
     }
 
-    private function existing(FiscalDocument $document): ?FiscalReceipt
+    /**
+     * The receipt stored under the document's (store, key), found through fiscal_receipt_keys: one index probe there
+     * and one in the receipt's own month (no probe per partition). A key whose receipt is in an archived month throws
+     * (a second receipt is never written under it). $thorough (under the lock, before an insert): a key missing from
+     * fiscal_receipt_keys is also looked for in fiscal_receipts itself, for a database where the trigger was missing
+     * for a while (PartitionConverter --rollback).
+     */
+    private function existing(FiscalDocument $document, bool $thorough = false): ?FiscalReceipt
     {
-        return FiscalReceipt::where('store_id', $document->storeId)->where('idempotency_key', $document->idempotencyKey)->first();
+        $key = DB::table('fiscal_receipt_keys')->where('store_id', $document->storeId)->where('idempotency_key', $document->idempotencyKey)->first();
+        if ($key !== null) {
+            return $this->stored($key) ?? throw FiscalException::keyArchived((string) $key->uuid, $this->month($key));
+        }
+
+        return $thorough
+            ? FiscalReceipt::where('store_id', $document->storeId)->where('idempotency_key', $document->idempotencyKey)->first()
+            : null;
+    }
+
+    /**
+     * The receipt a fiscal_receipt_keys row names, read in its month only; null when that month is archived.
+     */
+    private function stored(object $key): ?FiscalReceipt
+    {
+        return FiscalReceipt::whereKey((int) $key->receipt_id)->where('created_at', $key->receipt_created_at)->first();
+    }
+
+    private function month(object $key): string
+    {
+        return substr((string) $key->receipt_created_at, 0, 7);
     }
 
     /**
@@ -288,7 +357,22 @@ class FiscalService implements FiscalIssuer
             return null;
         }
 
-        $original = preg_match('/^[0-9a-f-]{36}$/i', $document->originalReceiptUuid)
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $document->originalReceiptUuid)) {
+            return $lenient ? null : throw FiscalException::originalReceipt('Asl chek topilmadi.');
+        }
+
+        // M3: through fiscal_receipt_keys (global UNIQUE uuid), then the receipt's own month; the row is gone when its
+        // month is archived (a refund needs its status, total and earlier refunds: refused with a clear message)
+        $key = DB::table('fiscal_receipt_keys')->where('uuid', $document->originalReceiptUuid)->first();
+        if ($key !== null && (int) $key->store_id === $document->storeId) {
+            $original = $this->stored($key);
+            if ($original === null && !$lenient) {
+                throw FiscalException::originalArchived($this->month($key));
+            }
+
+            return $original;
+        }
+        $original = $key === null
             ? FiscalReceipt::where('store_id', $document->storeId)->where('uuid', $document->originalReceiptUuid)->first()
             : null;
         if ($original === null && !$lenient) {
@@ -299,36 +383,57 @@ class FiscalService implements FiscalIssuer
     }
 
     /**
-     * Writes the receipt; under a concurrent issue with the same key, the row the other request wrote. The insert
-     * runs in its own (nested) transaction, so a unique violation never aborts the caller's transaction.
+     * Writes the receipt, or returns the one stored under the same key (wasRecentlyCreated false). M3: in one
+     * transaction (its own, or a savepoint of the caller's): the advisory lock on (store, key) (FiscalReceiptLock),
+     * for a refund also on the refunded receipt (two refunds of one sale are validated one after the other), then the
+     * lookup, then $validate, then the insert. The lock is held until the caller's outer transaction ends; a unique
+     * violation (fiscal_receipt_keys) rolls back only the savepoint, never the caller's transaction.
      *
      * @param  array<string, mixed>  $attributes
+     * @param  (\Closure(): void)|null  $validate
      */
-    private function create(FiscalDocument $document, Store $store, ?FiscalReceipt $original, array $attributes): FiscalReceipt
+    private function create(FiscalDocument $document, Store $store, ?FiscalReceipt $original, array $attributes, ?\Closure $validate = null): FiscalReceipt
     {
         $regime = TaxRegime::ofStore($store->tax_regime);
         $vatTotal = array_reduce($document->lines, fn ($sum, FiscalLine $line) => $sum->plus($line->vatAmount), \App\Support\Money::zero());
+        $storeId = (int) $store->id;
 
         try {
-            return DB::transaction(fn () => FiscalReceipt::create($attributes + [
-                'store_id' => $store->id,
-                'branch_id' => $document->branchId,
-                'device_id' => $document->deviceId,
-                'type' => $document->type,
-                'payment_form' => FiscalSnapshot::paymentForm($document->payments),
-                'idempotency_key' => $document->idempotencyKey,
-                'subject_type' => $document->subjectType,
-                'subject_id' => $document->subjectId,
-                'tax_regime' => $regime->value,
-                'total' => $document->total->toString(),
-                'vat_total' => $vatTotal->toString(),
-                'lines' => FiscalSnapshot::lines($document->lines, $regime),
-                'payments' => FiscalSnapshot::payments($document->payments),
-                'original_receipt_id' => $original?->id,
-                'sold_at' => $document->soldAt,
-            ]));
+            return DB::transaction(function () use ($document, $store, $original, $attributes, $validate, $regime, $vatTotal, $storeId) {
+                FiscalReceiptLock::acquire($storeId, $document->idempotencyKey);
+                if ($original !== null && $document->type === FiscalReceiptType::REFUND) {
+                    FiscalReceiptLock::acquireRefundsOf((int) $original->id);
+                }
+
+                $existing = $this->existing($document, thorough: true);
+                if ($existing !== null) {
+                    return $existing;
+                }
+                if ($validate !== null) {
+                    $validate();
+                }
+
+                return FiscalReceiptLock::writing($storeId, $document->idempotencyKey, fn () => FiscalReceipt::create($attributes + [
+                    'store_id' => $store->id,
+                    'branch_id' => $document->branchId,
+                    'device_id' => $document->deviceId,
+                    'type' => $document->type,
+                    'payment_form' => FiscalSnapshot::paymentForm($document->payments),
+                    'idempotency_key' => $document->idempotencyKey,
+                    'subject_type' => $document->subjectType,
+                    'subject_id' => $document->subjectId,
+                    'tax_regime' => $regime->value,
+                    'total' => $document->total->toString(),
+                    'vat_total' => $vatTotal->toString(),
+                    'lines' => FiscalSnapshot::lines($document->lines, $regime),
+                    'payments' => FiscalSnapshot::payments($document->payments),
+                    'original_receipt_id' => $original?->id,
+                    'sold_at' => $document->soldAt,
+                ]));
+            });
         } catch (UniqueConstraintViolationException $e) {
-            return $this->existing($document) ?? throw $e;
+            // Only a path without the lock (or a uuid collision) gets here: the receipt that holds the key
+            return $this->existing($document, thorough: true) ?? throw $e;
         }
     }
 

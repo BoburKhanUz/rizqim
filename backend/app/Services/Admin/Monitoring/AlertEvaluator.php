@@ -33,6 +33,8 @@ class AlertEvaluator
     public function run(): array
     {
         $totals = ['opened' => 0, 'updated' => 0, 'resolved' => 0];
+        // One evaluation's Telegram time budget starts now (AlertNotifier)
+        $this->notifier->startRun();
 
         foreach (AlertRule::ensureAll() as $rule) {
             try {
@@ -110,15 +112,23 @@ class AlertEvaluator
             $existing = $unresolved[$finding->subjectKey] ?? null;
 
             if ($existing !== null) {
+                $severity = $finding->severity ?? $kind->severity();
+                $escalated = self::rank($severity) > self::rank($existing->severity);
                 // Not when a member resolved it since the list was read: a resolved alert stays as it was closed
                 $touched = Alert::query()->whereKey($existing->getKey())->where('state', '<>', AlertState::RESOLVED->value)->update([
                     'title' => mb_substr($finding->title, 0, 200),
                     'details' => json_encode($finding->details),
+                    // A problem that got worse is raised (a warning that became critical); one that eased keeps its level
+                    'severity' => $escalated ? $severity : $existing->severity,
                     'last_seen_at' => now(),
                     'count' => DB::raw('"count" + 1'),
                     'updated_at' => now(),
                 ]);
                 $result['updated'] += $touched;
+                if ($touched === 1 && $escalated) {
+                    $existing->forceFill(['severity' => $severity, 'title' => mb_substr($finding->title, 0, 200)])->syncOriginal();
+                    $this->notifier->escalated($existing, $rule);
+                }
 
                 continue;
             }
@@ -128,7 +138,7 @@ class AlertEvaluator
                     'alert_rule_id' => $rule->id,
                     'kind' => $kind->value,
                     'subject_key' => $finding->subjectKey,
-                    'severity' => $kind->severity(),
+                    'severity' => $finding->severity ?? $kind->severity(),
                     'state' => AlertState::OPEN->value,
                     'title' => mb_substr($finding->title, 0, 200),
                     'details' => $finding->details,
@@ -154,6 +164,15 @@ class AlertEvaluator
         }
 
         return $result;
+    }
+
+    private static function rank(?string $severity): int
+    {
+        return match ($severity) {
+            'critical' => 3,
+            'warning' => 2,
+            default => 1,
+        };
     }
 
     /**

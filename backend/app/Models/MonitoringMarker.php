@@ -15,6 +15,12 @@ class MonitoringMarker extends Model
 {
     public const BACKUP = 'backup';
 
+    /** M3: pgBackRest info + pg_stat_archiver, written every 5 minutes by the backup service (scripts/backup.sh). */
+    public const PITR = 'pitr';
+
+    /** M3: the data filesystem, pg_wal and the archive spool, written with `pitr`. */
+    public const DISK = 'disk';
+
     public $timestamps = false;
 
     protected $primaryKey = 'key';

@@ -1925,6 +1925,16 @@ export interface paths {
          *     `backup`: `ok`, `stale` (older than the backup rule's hours) or `missing` (the backup service never reported).
          *     `app` (version, commit), `sentry` (`configured`, link to the project from the config; no Sentry API calls) and
          *     `alerts` (open, acknowledged, critical unresolved counts).
+         *
+         *     M3, the server: `postgres` (`ok`, `warning` or `unknown`: connections against max_connections, the longest open
+         *     transaction, sessions waiting on a lock, the WAL archiver). `pitr`, the continuous backup: `off` (not switched
+         *     on), `missing` (the backup service never reported), `stale` (it stopped reporting), `fail`, `warning` (no working
+         *     off-site copy) or `ok`, with the last backups, the last WAL sent and `offsite` (`on`, `off`, `no_cipher`,
+         *     `partial`, `bad_endpoint`). `drill`, the last restore drill: `off`, `never`, `failed`, `stale`, `ok` or `unknown`,
+         *     with its restore time and data loss window in seconds. `partitions`: the journals' months (`ok`, `warning`,
+         *     `fail`, `unknown`) with the problems in plain words. `disk` (`ok`, `warning`, `fail`, `stale`, `missing`) and
+         *     `redis.memory` (null when Redis is not used or not readable; `max_bytes` null = no cap). `queue.worker`: the
+         *     age of the queue worker's last heartbeat.
          */
         get: operations["admin.monitoring.health"];
         put?: never;
@@ -1945,7 +1955,10 @@ export interface paths {
         /**
          * Alert rules
          * @description One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
-         *     backup_stale, scheduler_stale). `fields` says what each threshold means (label, unit, allowed range) and is null
+         *     backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
+         *     pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
+         *     partitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+         *     kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
          *     for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
          *     (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
          */
@@ -19258,7 +19271,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "active" | "all" | "open" | "acknowledged" | "resolved" | null;
-                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | null;
+                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | null;
                 severity?: "critical" | "warning" | "info" | null;
                 store_id?: number | null;
                 per_page?: number | null;
@@ -19729,6 +19742,12 @@ export interface operations {
                             redis: {
                                 status: string;
                                 latency_ms?: number;
+                                memory: {
+                                    used_bytes: number;
+                                    max_bytes: number | null;
+                                    percent: number | null;
+                                    policy: string | null;
+                                } | null;
                             };
                             queue: {
                                 status: string;
@@ -19737,6 +19756,10 @@ export interface operations {
                                     size: number | null;
                                     oldest_age_seconds: number | null;
                                 }[];
+                                worker: {
+                                    last_heartbeat_age_seconds: number | null;
+                                    max_age_seconds: number;
+                                };
                                 failed_jobs: {
                                     total: number;
                                     last_24h: number;
@@ -19757,6 +19780,92 @@ export interface operations {
                                 last_backup_at: string | null;
                                 age_hours: number | null;
                                 max_age_hours: number;
+                            };
+                            postgres: {
+                                status: string;
+                                connections: {
+                                    used: number;
+                                    max: number;
+                                    percent: number;
+                                } | null;
+                                longest_transaction_seconds: number | null;
+                                idle_transaction_seconds: number | null;
+                                lock_waits: number | null;
+                                archiver: {
+                                    archive_mode: string;
+                                    last_archived_wal: string | null;
+                                    last_archived_at: string | null;
+                                    last_failed_at: string | null;
+                                    failing: boolean;
+                                    ready_wal: number | null;
+                                } | null;
+                            };
+                            pitr: {
+                                status: string;
+                                enabled: boolean;
+                                marker_at: string | null;
+                                marker_age_seconds: number | null;
+                                message: string | null;
+                                last_backup_at: string | null;
+                                last_backup_type: string | null;
+                                last_backup_age_seconds: number | null;
+                                last_full_at: string | null;
+                                last_wal_archived_at: string | null;
+                                wal_archived_age_seconds: number | null;
+                                archive_failing: boolean | null;
+                                ready_wal: number | null;
+                                offsite: string | null;
+                                offsite_note: string | null;
+                                max_backup_age_hours: number;
+                                max_marker_age_minutes: number;
+                            };
+                            drill: {
+                                status: string;
+                                last_at: string | null;
+                                last_status: string | null;
+                                restore_seconds: number | null;
+                                data_loss_seconds: number | null;
+                                reached_time: string | null;
+                                backup_label: string | null;
+                                error: string | null;
+                                last_ok_at: string | null;
+                                max_age_days: number;
+                            };
+                            partitions: {
+                                status: string;
+                                months_ahead: number | null;
+                                min_months_ahead: number;
+                                default_rows: number;
+                                archive_failed: number;
+                                archive_stale: number;
+                                problems: {
+                                    table: string | null;
+                                    code: string;
+                                    message: string;
+                                }[];
+                                tables: {
+                                    table: string;
+                                    partitioned: boolean;
+                                    future_months: number;
+                                    default_rows: number;
+                                    oldest_month: string | null;
+                                    newest_month: string | null;
+                                }[];
+                            };
+                            disk: {
+                                status: string;
+                                recorded_at: string | null;
+                                age_seconds: number | null;
+                                used_percent: number | null;
+                                avail_bytes: number | null;
+                                total_bytes: number | null;
+                                pg_wal_bytes: number | null;
+                                spool_bytes: number | null;
+                                db_bytes: number | null;
+                                repo_used_percent: number | null;
+                                repo_avail_bytes: number | null;
+                                warn_percent: number;
+                                critical_percent: number;
                             };
                             app: {
                                 version: string | null;
@@ -19802,6 +19911,7 @@ export interface operations {
                                 kind: string;
                                 label: string;
                                 description: string;
+                                action: string;
                                 severity: string;
                                 enabled: boolean;
                                 telegram: boolean;
@@ -19864,6 +19974,7 @@ export interface operations {
                                 kind: string;
                                 label: string;
                                 description: string;
+                                action: string;
                                 severity: string;
                                 enabled: boolean;
                                 telegram: boolean;

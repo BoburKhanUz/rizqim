@@ -69,6 +69,32 @@ class FiscalException extends RuntimeException
         return new self(self::ORIGINAL_RECEIPT, $message);
     }
 
+    /**
+     * Wave M3: the original receipt is in a month taken offline (archived after config partitions.tables
+     * .fiscal_receipts.online_months): its row, status and earlier refunds are not in the database any more.
+     */
+    public static function originalArchived(string $month): self
+    {
+        return new self(
+            self::ORIGINAL_RECEIPT,
+            "Asl chek {$month} oyida berilgan va arxivga o'tkazilgan: uni tizim orqali qaytarib bo'lmaydi. Qaytarishni fiskal provayder kabinetida yoki buxgalter bilan qo'lda rasmiylashtiring.",
+            ['archived_month' => $month],
+        );
+    }
+
+    /**
+     * Wave M3: the idempotency key belongs to a receipt in an archived month; a second receipt is never written under
+     * it.
+     */
+    public static function keyArchived(string $receiptUuid, string $month): self
+    {
+        return new self(
+            self::IDEMPOTENCY_CONFLICT,
+            "Bu kalit bilan chek {$month} oyida berilgan va arxivga o'tkazilgan: ikkinchi chek yozilmaydi.",
+            ['receipt_uuid' => $receiptUuid, 'archived_month' => $month],
+        );
+    }
+
     public static function unknownCharge(string $charge): self
     {
         return new self(self::UNKNOWN_CHARGE, "Noma'lum xizmat turi: {$charge}.", ['charge' => $charge]);

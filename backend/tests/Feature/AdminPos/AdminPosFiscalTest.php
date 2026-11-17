@@ -30,7 +30,7 @@ class AdminPosFiscalTest extends TestCase
      */
     private function makeReceipt(string $status, array $attributes = []): FiscalReceipt
     {
-        return FiscalReceipt::forceCreate(array_merge([
+        return \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => FiscalReceipt::forceCreate(array_merge([
             'store_id' => $this->store->id,
             'branch_id' => $this->branch->id,
             'type' => 'sale',
@@ -43,7 +43,7 @@ class AdminPosFiscalTest extends TestCase
             'payments' => [],
             'error' => null,
             'attempts' => 0,
-        ], $attributes));
+        ], $attributes)));
     }
 
     public function test_the_list_shows_open_receipts_with_reasons_and_the_errors_per_provider(): void

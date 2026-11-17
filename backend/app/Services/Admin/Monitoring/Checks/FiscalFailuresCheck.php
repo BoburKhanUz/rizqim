@@ -23,17 +23,29 @@ class FiscalFailuresCheck implements AlertCheck
 
         $count = (clone $failed)->count();
         if ($count < $rule->threshold) {
-            return [];
+            return $this->pendingBeyondRetry($rule);
         }
 
         $stores = (clone $failed)->selectRaw('store_id, count(*) as failures')->groupBy('store_id')->orderByDesc('failures')->limit(5)->get();
         $names = Store::query()->whereIn('id', $stores->pluck('store_id'))->pluck('name', 'id');
 
-        return [new AlertFinding('global', "Oxirgi {$window} daqiqada {$count} ta fiskal chek yiqildi", [
+        return array_merge([new AlertFinding('global', "Oxirgi {$window} daqiqada {$count} ta fiskal chek yiqildi", [
             'count' => $count,
             'window_minutes' => $window,
             'threshold' => $rule->threshold,
             'stores' => $stores->map(fn ($row) => ['store_id' => (int) $row->store_id, 'name' => $names[$row->store_id] ?? null, 'failures' => (int) $row->getAttribute('failures')])->all(),
-        ])];
+        ])], $this->pendingBeyondRetry($rule));
+    }
+
+    /**
+     * M3 extension point (not measured yet): receipts still `pending` after the fiscal retry window
+     * (config fiscal.retry) are as lost to the tax office as failed ones. The fiscal domain decides what "beyond the
+     * retry window" means; it returns its findings here under its own subject key (e.g. `pending`), never `global`.
+     *
+     * @return list<AlertFinding>
+     */
+    protected function pendingBeyondRetry(AlertRule $rule): array
+    {
+        return [];
     }
 }

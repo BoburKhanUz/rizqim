@@ -54,6 +54,11 @@ x-backend-environment: &backend-environment
   REVERB_PORT: 8080
   REVERB_SCHEME: http
   REVERB_ALLOWED_ORIGINS: ${REVERB_ALLOWED_ORIGINS:-*}
+  # M3 monitoring: PITR o'chiq bo'lsa (bo'sh/0) WAL, PITR va tiklash mashqi ogohlantirishlari jim, Monitoring «o'chiq» deydi.
+  # HEALTHCHECKS_PING_URL: healthchecks.io (yoki shunga o'xshash) manzili; scheduler har daqiqalik tekshiruvdan keyin unga
+  # so'rov yuboradi: so'rovlar to'xtasa (server, scheduler yoki baza ishlamasa) o'sha xizmat egaga xabar beradi. Bo'sh = yo'q.
+  PITR_ENABLED: ${PITR_ENABLED:-0}
+  HEALTHCHECKS_PING_URL: ${HEALTHCHECKS_PING_URL:-}
 
 # M3 uzluksiz zaxira (PITR, pgBackRest): `postgres` (arxiv buyrug'i, WAL'ni yuboradi) va `backup` (to'liq/farq zaxiralari,
 # tiklash, tiklash mashqi) bir xil sozlamani oladi (infra/postgres/pitr-env.sh). Hammasi ildiz .env dan; bo'sh = o'chiq.

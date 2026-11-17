@@ -17,14 +17,101 @@ export interface QueueRow {
   oldest_age_seconds: number | null;
 }
 
+// M3: the server blocks. A value that could not be measured is null and its block says unknown / missing / stale, never ok.
+export interface PostgresHealth {
+  // ok | warning | unknown
+  status: Verdict;
+  connections: { used: number; max: number; percent: number } | null;
+  longest_transaction_seconds: number | null;
+  idle_transaction_seconds: number | null;
+  lock_waits: number | null;
+  archiver: {
+    archive_mode: string;
+    last_archived_wal: string | null;
+    last_archived_at: string | null;
+    last_failed_at: string | null;
+    failing: boolean;
+    ready_wal: number | null;
+  } | null;
+}
+
+// on | off | no_cipher | partial | bad_endpoint
+export type Offsite = 'on' | 'off' | 'no_cipher' | 'partial' | 'bad_endpoint';
+
+export interface PitrHealth {
+  // off | missing | stale | fail | warning | ok
+  status: Verdict;
+  enabled: boolean;
+  marker_at: string | null;
+  marker_age_seconds: number | null;
+  message: string | null;
+  last_backup_at: string | null;
+  last_backup_type: string | null;
+  last_backup_age_seconds: number | null;
+  last_full_at: string | null;
+  last_wal_archived_at: string | null;
+  wal_archived_age_seconds: number | null;
+  archive_failing: boolean | null;
+  ready_wal: number | null;
+  offsite: Offsite | string | null;
+  offsite_note: string | null;
+  max_backup_age_hours: number;
+  max_marker_age_minutes: number;
+}
+
+export interface DrillHealth {
+  // off | never | failed | stale | ok | unknown
+  status: Verdict;
+  last_at: string | null;
+  last_status: 'ok' | 'failed' | string | null;
+  restore_seconds: number | null;
+  data_loss_seconds: number | null;
+  reached_time: string | null;
+  backup_label: string | null;
+  error: string | null;
+  last_ok_at: string | null;
+  max_age_days: number;
+}
+
+export interface PartitionsHealth {
+  // ok | warning | fail | unknown
+  status: Verdict;
+  months_ahead: number | null;
+  min_months_ahead: number;
+  default_rows: number;
+  archive_failed: number;
+  archive_stale: number;
+  problems: Array<{ table: string | null; code: string; message: string }>;
+  tables: Array<{ table: string; partitioned: boolean; future_months: number; default_rows: number; oldest_month: string | null; newest_month: string | null }>;
+}
+
+export interface DiskHealth {
+  // ok | warning | fail | stale | missing
+  status: Verdict;
+  recorded_at: string | null;
+  age_seconds: number | null;
+  used_percent: number | null;
+  avail_bytes: number | null;
+  total_bytes: number | null;
+  pg_wal_bytes: number | null;
+  spool_bytes: number | null;
+  db_bytes: number | null;
+  repo_used_percent: number | null;
+  repo_avail_bytes: number | null;
+  warn_percent: number;
+  critical_percent: number;
+}
+
 export interface MonitoringHealth {
   status: Verdict;
   checked_at: string;
   database: { status: Verdict; latency_ms?: number };
-  redis: { status: Verdict; latency_ms?: number };
+  // memory: null when Redis is not used or not readable; max_bytes null = no cap
+  redis: { status: Verdict; latency_ms?: number; memory?: { used_bytes: number; max_bytes: number | null; percent: number | null; policy: string | null } | null };
   queue: {
     status: Verdict;
     queues: QueueRow[];
+    worker?: { last_heartbeat_age_seconds: number | null; max_age_seconds: number };
     failed_jobs: { total: number; last_24h: number; latest_failed_at: string | null };
   };
   scheduler: { status: Verdict; last_heartbeat_age_seconds: number | null; max_age_seconds: number };
@@ -33,6 +120,12 @@ export interface MonitoringHealth {
   app: { version: string | null; commit: string | null; environment: string };
   sentry: { configured: boolean; environment: string | null; project_url: string | null };
   alerts: { open: number; acknowledged: number; critical_unresolved: number };
+  // M3; optional so an older backend still renders
+  postgres?: PostgresHealth;
+  pitr?: PitrHealth;
+  drill?: DrillHealth;
+  partitions?: PartitionsHealth;
+  disk?: DiskHealth;
 }
 
 export type AlertState = 'open' | 'acknowledged' | 'resolved';
@@ -121,6 +214,8 @@ export interface AlertRule {
   kind: string;
   label: string;
   description: string;
+  // M3: what to do when it fires, one sentence
+  action?: string;
   severity: Severity;
   enabled: boolean;
   telegram: boolean;

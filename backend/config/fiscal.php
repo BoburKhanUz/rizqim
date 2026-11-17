@@ -28,6 +28,15 @@ return [
         // How long an attempt holds a receipt: a worker that died mid-call is picked up again after this
         'lease_seconds' => (int) env('FISCAL_RETRY_LEASE_SECONDS', 120),
         'queue' => env('FISCAL_QUEUE', 'default'),
+        // Wave M3: the sweep looks this many days back (partition pruning); a receipt still pending after that is
+        // marked failed ("Qayta yuborish" by hand), never left pending for ever
+        'max_age_days' => (int) env('FISCAL_RETRY_MAX_AGE_DAYS', 30),
+    ],
+
+    // Wave M3: a second request with the same receipt key waits at most this long for the first one's transaction
+    // (FiscalReceiptLock), then fails as a transient database error (lock_not_available) and is retried
+    'idempotency' => [
+        'lock_timeout_ms' => (int) env('FISCAL_IDEMPOTENCY_LOCK_TIMEOUT_MS', 5000),
     ],
 
     'sandbox' => [

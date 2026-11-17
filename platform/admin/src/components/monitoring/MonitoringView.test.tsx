@@ -218,6 +218,88 @@ describe('Monitoring: Holat', () => {
     expect(screen.getByText('Ulanish bor (4.2 ms)')).toBeInTheDocument();
   });
 
+  it('shows the continuous backup, the restore drill, the disk and the journals in plain words', async () => {
+    setup({
+      'GET /monitoring/health': () =>
+        ok(
+          health({
+            database: { status: 'ok', latency_ms: 1.4 },
+            postgres: { status: 'ok', connections: { used: 23, max: 100, percent: 23 }, longest_transaction_seconds: 4, idle_transaction_seconds: 0, lock_waits: 0, archiver: null },
+            redis: { status: 'ok', latency_ms: 0.8, memory: { used_bytes: 850 * 1024 ** 2, max_bytes: 1024 ** 3, percent: 83, policy: 'noeviction' } },
+            pitr: {
+              status: 'ok', enabled: true, marker_at: minutesAgo(2), marker_age_seconds: 120, message: null,
+              last_backup_at: minutesAgo(5 * 60), last_backup_type: 'diff', last_backup_age_seconds: 18000, last_full_at: minutesAgo(3 * 24 * 60),
+              last_wal_archived_at: minutesAgo(1), wal_archived_age_seconds: 60, archive_failing: false, ready_wal: 0, offsite: 'on', offsite_note: null,
+              max_backup_age_hours: 26, max_marker_age_minutes: 15,
+            },
+            drill: { status: 'ok', last_at: minutesAgo(3 * 24 * 60), last_status: 'ok', restore_seconds: 252, data_loss_seconds: 38, reached_time: minutesAgo(3 * 24 * 60), backup_label: 'F', error: null, last_ok_at: minutesAgo(3 * 24 * 60), max_age_days: 35 },
+            disk: { status: 'ok', recorded_at: minutesAgo(3), age_seconds: 180, used_percent: 42.5, avail_bytes: 57 * 1024 ** 3, total_bytes: 100 * 1024 ** 3, pg_wal_bytes: 300 * 1024 ** 2, spool_bytes: 0, db_bytes: 12 * 1024 ** 3, repo_used_percent: 42.5, repo_avail_bytes: 57 * 1024 ** 3, warn_percent: 80, critical_percent: 90 },
+            partitions: { status: 'ok', months_ahead: 3, min_months_ahead: 2, default_rows: 0, archive_failed: 0, archive_stale: 0, problems: [], tables: [] },
+          }),
+        ),
+    }, VIEW);
+    const tile = async (name: string) => within((await screen.findByRole('heading', { name })).closest('li') as HTMLElement);
+
+    const pitr = await tile('Uzluksiz zaxira (istalgan daqiqaga tiklash)');
+    expect(pitr.getByText('Ishlayapti')).toBeInTheDocument();
+    expect(pitr.getByText(/^Oxirgi nusxa: 5 soat oldin/)).toBeInTheDocument();
+    expect(pitr.getByText("Oxirgi to'liq nusxa: 3 kun oldin")).toBeInTheDocument();
+    expect(pitr.getByText("Oxirgi o'zgarishlar omborga 1 daqiqa oldin yuborildi")).toBeInTheDocument();
+    expect(pitr.getByText('Tashqi nusxa (S3): yoqiq')).toBeInTheDocument();
+
+    const drill = await tile('Tiklash mashqi');
+    expect(drill.getByText(/^Oxirgi mashq: .* \(3 kun oldin\)$/)).toBeInTheDocument();
+    expect(drill.getByText('Tiklash vaqti: 4 daqiqa 12 soniya')).toBeInTheDocument();
+    expect(drill.getByText("Ma'lumot yo'qotish oynasi: 38 soniya")).toBeInTheDocument();
+
+    const disk = await tile('Disk');
+    expect(disk.getByText("Band: 43 %, bo'sh joy 57 GB (100 GB dan)")).toBeInTheDocument();
+    expect(disk.getByText('Baza hajmi: 12 GB')).toBeInTheDocument();
+    expect(disk.getByText("Yuborilmagan o'zgarishlar (pg_wal): 300 MB")).toBeInTheDocument();
+
+    const journals = await tile('Jurnallar (oylik qismlar)');
+    expect(journals.getByText('Oldindan tayyor: 3 oy (kamida 2 kerak)')).toBeInTheDocument();
+    expect(journals.getByText("Muammo yo'q.")).toBeInTheDocument();
+
+    const redis = await tile('Redis');
+    expect(redis.getByText("E'tibor kerak")).toBeInTheDocument();
+    expect(redis.getByText('Xotira: 850 MB / 1.0 GB band (83 %)')).toBeInTheDocument();
+    expect((await tile("Ma'lumotlar bazasi")).getByText('Ulanishlar: 23 / 100 (23 %)')).toBeInTheDocument();
+  });
+
+  it('says "off" on a fresh install and names what to do when the backup service is silent or a drill failed', async () => {
+    const off = {
+      status: 'off', enabled: false, marker_at: null, marker_age_seconds: null, message: null, last_backup_at: null, last_backup_type: null, last_backup_age_seconds: null,
+      last_full_at: null, last_wal_archived_at: null, wal_archived_age_seconds: null, archive_failing: null, ready_wal: null, offsite: null, offsite_note: null, max_backup_age_hours: 26, max_marker_age_minutes: 15,
+    };
+    const noDrill = { status: 'off', last_at: null, last_status: null, restore_seconds: null, data_loss_seconds: null, reached_time: null, backup_label: null, error: null, last_ok_at: null, max_age_days: 35 };
+    const noDisk = { status: 'missing', recorded_at: null, age_seconds: null, used_percent: null, avail_bytes: null, total_bytes: null, pg_wal_bytes: null, spool_bytes: null, db_bytes: null, repo_used_percent: null, repo_avail_bytes: null, warn_percent: 80, critical_percent: 90 };
+    let answer: Record<string, unknown> = { pitr: off, drill: noDrill, disk: noDisk };
+    const { user } = setup({ 'GET /monitoring/health': () => ok(health(answer)) }, VIEW);
+    const tile = async (name: string) => within((await screen.findByRole('heading', { name })).closest('li') as HTMLElement);
+
+    const pitr = await tile('Uzluksiz zaxira (istalgan daqiqaga tiklash)');
+    expect(pitr.getByText("O'chiq")).toBeInTheDocument();
+    expect(pitr.getByText(/PITR_ENABLED=1/)).toBeInTheDocument();
+    expect((await tile('Tiklash mashqi')).getByText("Uzluksiz zaxira o'chiq: tiklash mashqi o'tkazilmaydi.")).toBeInTheDocument();
+    expect((await tile('Disk')).getByText("Noma'lum")).toBeInTheDocument();
+
+    answer = {
+      pitr: { ...off, status: 'stale', enabled: true, marker_age_seconds: 20 * 60, last_backup_at: minutesAgo(120), offsite: 'off' },
+      drill: { ...noDrill, status: 'failed', last_at: minutesAgo(60), last_status: 'failed', error: 'probe token missing' },
+      disk: { ...noDisk, status: 'stale', age_seconds: 20 * 60, used_percent: 40 },
+    };
+    await user.click(screen.getByRole('button', { name: 'Yangilash' }));
+    const stale = await tile('Uzluksiz zaxira (istalgan daqiqaga tiklash)');
+    expect(await stale.findByText(/Zaxira xizmati 20 daqiqa davomida holatini yozmadi/)).toBeInTheDocument();
+    expect(stale.getByText("Tashqi nusxa (S3): yo'q. Server yo'qolsa, nusxalar ham yo'qoladi.")).toBeInTheDocument();
+    const drill = await tile('Tiklash mashqi');
+    expect(drill.getByText('Muvaffaqiyatsiz')).toBeInTheDocument();
+    expect(drill.getByText('Oxirgi mashq muvaffaqiyatsiz: zaxiradan tiklash ishlamasligi mumkin.')).toBeInTheDocument();
+    expect(drill.getByText('probe token missing')).toBeInTheDocument();
+    expect((await tile('Disk')).getByText(/Zaxira xizmati 20 daqiqa davomida disk holatini yozmadi/)).toBeInTheDocument();
+  });
+
   it('says when the database is down', async () => {
     setup({ 'GET /monitoring/health': () => ok(health({ status: 'fail', database: { status: 'fail' } })) }, VIEW);
     expect(await screen.findByText('Tizim ishlamayapti', { selector: 'p' })).toBeInTheDocument();

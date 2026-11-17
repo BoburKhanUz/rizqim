@@ -218,11 +218,11 @@ class PosBillsTest extends TestCase
     public function test_an_order_already_receipted_by_an_online_payment_is_not_billed_again(): void
     {
         $order = $this->posOrder([['Osh', '1', '50000']]);
-        \App\Models\FiscalReceipt::create([
+        \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => \App\Models\FiscalReceipt::create([
             'store_id' => $this->store->id, 'type' => 'sale', 'payment_form' => 'card', 'status' => 'issued', 'driver' => 'external',
             'provider' => 'payme', 'idempotency_key' => 'payme:1', 'subject_type' => 'order', 'subject_id' => $order->id,
             'total' => '50000', 'lines' => [], 'payments' => [],
-        ]);
+        ]));
 
         $this->bill($order)->assertStatus(409)->assertJsonPath('data.reason', 'order_receipted_online');
         $this->assertSame(0, OrderBill::count());

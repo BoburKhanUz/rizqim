@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -70,11 +71,25 @@ class AdminMonitoringEvaluatorTest extends TestCase
     {
         config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => $chat]);
         Bus::fake();
+        // M3: ops alerts are sent at once (AlertNotifier), not queued
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
     }
 
+    /**
+     * The ops messages that went to Telegram, in order (chat id => text pairs via sentTo()).
+     */
     private function sentTexts(): array
     {
-        return Bus::dispatched(SendTelegramRequest::class)->map(fn ($job) => $job->params['text'])->values()->all();
+        return array_column($this->sentTo(), 'text');
+    }
+
+    /**
+     * @return list<array{chat_id: string, text: string}>
+     */
+    private function sentTo(): array
+    {
+        return Http::recorded(fn ($request) => str_contains($request->url(), 'api.telegram.org'))
+            ->map(fn ($pair) => ['chat_id' => (string) $pair[0]['chat_id'], 'text' => (string) $pair[0]['text']])->values()->all();
     }
 
     // --- open, dedupe, resolve --------------------------------------------------------------------------------------
@@ -337,7 +352,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $rule = $this->onlyRule(AlertKind::SCHEDULER_STALE);
         $this->run_();
         $this->assertSame('open', $this->alerts()->sole()->state);
-        Bus::assertDispatchedTimes(SendTelegramRequest::class, 1);
+        $this->assertCount(1, $this->sentTexts());
 
         $rule->forceFill(['enabled' => false])->save();
         $this->assertSame(1, $this->run_()['resolved']);
@@ -346,7 +361,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $this->assertSame('resolved', $alert->state);
         $this->assertSame('rule_disabled', $alert->resolution);
         $this->assertSame("Qoida o'chirildi", $alert->resolve_note);
-        Bus::assertDispatchedTimes(SendTelegramRequest::class, 1);
+        $this->assertCount(1, $this->sentTexts());
 
         // Off stays off
         $this->assertSame(['opened' => 0, 'updated' => 0, 'resolved' => 0], $this->run_());
@@ -441,7 +456,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
         $this->run_();
         $this->assertCount(1, $this->sentTexts());
-        Bus::assertDispatched(SendTelegramRequest::class, fn ($job) => $job->method === 'sendMessage' && $job->params['chat_id'] === '-100777');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/sendMessage') && $request['chat_id'] === '-100777');
         $text = $this->sentTexts()[0];
         $this->assertStringStartsWith('[KRITIK] Scheduler yurak urishi topilmadi', $text);
         $this->assertStringContainsString("Scheduler to'xtagan", $text);
@@ -464,19 +479,20 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
     public function test_the_ops_chat_falls_back_to_the_superadmin_chat_and_without_either_nothing_is_sent(): void
     {
-        config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => '', 'services.telegram.superadmin_chat_id' => '-100555']);
-        Bus::fake();
+        $this->telegramOn('');
+        config(['services.telegram.superadmin_chat_id' => '-100555']);
         $this->onlyRule(AlertKind::SCHEDULER_STALE);
 
         $this->run_();
-        Bus::assertDispatched(SendTelegramRequest::class, fn ($job) => $job->params['chat_id'] === '-100555');
+        $this->assertSame(['-100555'], array_column($this->sentTo(), 'chat_id'));
 
-        Bus::fake();
+        $this->telegramOn('');
         config(['services.telegram.superadmin_chat_id' => '']);
         HealthReport::beat();
         $this->run_(); // resolves
         Cache::forget(HealthReport::HEARTBEAT_KEY);
         $this->run_(); // opens again
+        $this->assertSame([], $this->sentTexts());
         Bus::assertNotDispatched(SendTelegramRequest::class);
         $this->assertCount(2, $this->alerts());
     }
@@ -490,6 +506,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         HealthReport::beat();
         $this->run_();
 
+        $this->assertSame([], $this->sentTexts());
         Bus::assertNotDispatched(SendTelegramRequest::class);
         $this->assertSame('resolved', $this->alerts()->sole()->state);
     }

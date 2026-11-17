@@ -92,6 +92,9 @@ class RevisionMapCoverageTest extends TestCase
             // M2 review R3-1: ledger rows, one per settled order; only the owner finance pages (read live, not
             // revision-gated) show them, and the debt lock they lead to is decided on the stores row (NARROW_COLUMNS)
             'store_transactions', 'store_wallet_transactions',
+            // M3 A2: written only by the fiscal_receipts trigger, read only by FiscalService (no screen shows it); the
+            // receipt row itself is BRANCH-tracked
+            'fiscal_receipt_keys',
         ];
         foreach (RevisionMap::TABLES as $table => $rules) {
             if ($rules[0][0] !== RevisionMap::NONE) {
