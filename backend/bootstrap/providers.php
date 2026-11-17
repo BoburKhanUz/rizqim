@@ -48,6 +48,8 @@ return [
     App\Domain\Pos\Brands\PosBrandsServiceProvider::class,
     // P4-15: Monitoring: open-alerts attention source, alert evaluator schedule
     App\Providers\AdminMonitoringServiceProvider::class,
+    // M3: the journal tables' monthly partitions: ensure / archive schedules (App\Support\Partitions)
+    App\Providers\PartitionsServiceProvider::class,
     // P4-13: Bugun: attention sources (settlements, payouts, top-ups, invoices, terminals, fiscal), stats refresh
     App\Providers\AdminTodayServiceProvider::class,
     // P4-14: Buyurtmalar: order attention sources (unaccepted, late, no courier), platform.ops order events

@@ -3,7 +3,9 @@
 namespace App\Domain\Integrations;
 
 use Database\Factories\Integrations\IntegrationEventFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
@@ -38,6 +40,7 @@ class IntegrationEvent extends Model
 {
     /** @use HasFactory<IntegrationEventFactory> */
     use HasFactory;
+    use MassPrunable;
 
     // Order pushes (`order.push`) are what "Qotib qolgan buyurtmalar" watches
     public const TYPE_ORDER_PUSH = 'order.push';
@@ -49,6 +52,19 @@ class IntegrationEvent extends Model
         static::creating(function (self $event): void {
             $event->uuid ??= (string) Str::uuid();
         });
+    }
+
+    /**
+     * M3: finished calls (confirmed by the other side, or dead: out of retries) older than 90 days are deleted daily by
+     * `php artisan model:prune --model=...IntegrationEvent` (App\Providers\PartitionsServiceProvider: this model is
+     * outside app/Models, which the plain model:prune scans). Pending, sent and failed (still retried) calls are kept.
+     *
+     * @return Builder<IntegrationEvent>
+     */
+    public function prunable(): Builder
+    {
+        return static::whereIn('status', [IntegrationEventStatus::ACKNOWLEDGED->value, IntegrationEventStatus::DEAD->value])
+            ->where('created_at', '<', now()->subDays(90));
     }
 
     protected static function newFactory(): IntegrationEventFactory
