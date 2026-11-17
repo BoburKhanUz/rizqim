@@ -125,6 +125,8 @@ else
     DB_PASS=$(openssl rand -hex 12)
     s3_key=ci$(openssl rand -hex 6)
     s3_secret=$(openssl rand -hex 20)
+    # the gap grace time of the daemon (.env) and of this script's waits and calls must be the same
+    export PITR_GAP_GRACE=20
     cat >>.env <<ENV
 DB_DATABASE=$DB_NAME
 DB_USERNAME=$DB_USER
@@ -132,7 +134,7 @@ DB_PASSWORD=$DB_PASS
 PITR_ENABLED=1
 PITR_CIPHER_PASS=$(openssl rand -hex 24)
 PITR_ARCHIVE_QUEUE_MAX=48MB
-PITR_GAP_GRACE=20
+PITR_GAP_GRACE=$PITR_GAP_GRACE
 PITR_S3_ENDPOINT=https://minio:9000
 PITR_S3_BUCKET=rizqim-pitr
 PITR_S3_ACCESS_KEY=$s3_key
