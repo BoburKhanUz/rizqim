@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { channelsOfScope, isNextToken, revOf, RevisionTracker, withRevisionCapture } from './revision';
+import { channelsOfScope, isNextToken, noteResponseRevision, revOf, RevisionTracker, withRevisionCapture } from './revision';
 
 function tracker(start = 1_000_000) {
   let now = start;
@@ -220,5 +220,41 @@ describe('withRevisionCapture', () => {
     await withRevisionCapture(async () => new Response('{}', { status: 200, headers }), revisions)(new Request('https://api.test/x', { method: 'POST' }));
     await withRevisionCapture(async () => new Response('{}', { status: 200 }), revisions)(new Request('https://api.test/x'));
     expect(revisions.heldToken('pos-branch.4')).toBeNull();
+  });
+});
+
+describe('review SR-1/SR-3: what may vouch for a scope', () => {
+  const ORDER = 'https://api.test/api/v1/staff/orders/3f2b8c1e-1d2a-4b5c-8d9e-0a1b2c3d4e5f';
+  const capture = (revisions: RevisionTracker, url: string, token: string) =>
+    withRevisionCapture(async () => new Response('{}', { status: 200, headers: { 'X-Revision': token, 'X-Revision-Scope': 'branch:5' } }), revisions)(new Request(url));
+
+  it('a single-order read does not vouch: a lost event is still caught by the heartbeat', async () => {
+    const { revisions } = tracker();
+    await capture(revisions, 'https://api.test/api/v1/staff/orders?scope=active&branch_id=5', '100');
+    expect(revisions.onEvent('pos-branch.5', '101')).toBe('next'); // order A, read on its own
+    // commit 102 (order B) lost; A's read is taken after it
+    await capture(revisions, ORDER, '102');
+    // the event accounted for 101; nothing proves 102 is on the board
+    expect(revisions.onHeartbeat('pos-branch.5', '101')).toBe('fine');
+    expect(revisions.onHeartbeat('pos-branch.5', '102')).toBe('reread');
+  });
+
+  it("a late event equal to a single-order read's token is not 'same'", async () => {
+    const { revisions } = tracker();
+    await capture(revisions, ORDER, '102');
+    expect(revisions.onEvent('pos-branch.5', '102')).not.toBe('same');
+    // also through the axios path (the Mini App's customer client)
+    noteResponseRevision(revisions, `GET ${ORDER}/bills`, (name) => (name === 'x-revision' ? '103' : name === 'x-revision-scope' ? 'branch:5' : null));
+    expect(revisions.heldToken('pos-branch.5')).toBeNull();
+  });
+
+  it('an older event delivered late does not replace the newest event token', () => {
+    const { revisions } = tracker();
+    revisions.noteRead('branch:5', '700', 'GET /staff/orders?branch_id=5');
+    expect(revisions.onEvent('pos-branch.5', '702')).toBe('missed');
+    expect(revisions.onEvent('pos-branch.5', '701')).toBe('next');
+    // 703 follows the newest event (702), not the late 701
+    expect(revisions.onEvent('pos-branch.5', '703')).toBe('next');
+    expect(revisions.onHeartbeat('pos-branch.5', '703')).toBe('fine');
   });
 });

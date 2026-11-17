@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
-import { StaffApiProvider, useStaffOrders } from '@rizqim/staff';
+import { StaffApiProvider, useStaffOrder, useStaffOrders } from '@rizqim/staff';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../AuthProvider';
 import { I18nProvider } from '../I18nProvider';
@@ -74,6 +74,12 @@ function OpenList() {
   return <p data-testid="open">{open.data?.orders.length ?? '-'}</p>;
 }
 
+// The drawer of one order (GET /staff/orders/{uuid})
+function Drawer({ uuid }: { uuid: string }) {
+  const detail = useStaffOrder(uuid, { refetchInterval: false, retry: false });
+  return <p data-testid="drawer">{detail.data?.status ?? '-'}</p>;
+}
+
 function setup({
   role = 'owner',
   branch = { id: null as number | null, scoped: false },
@@ -81,6 +87,10 @@ function setup({
   status = null as RealtimeStatus | null,
   pacing = FAST,
   withOpenList = false,
+  branchIds = [5],
+  // the scope a single-order read names (the backend names the order's branch even on a store-wide board)
+  detailScope = null as string | null,
+  withDrawer = null as string | null,
 } = {}) {
   const state = {
     orders: [] as TestOrder[],
@@ -88,6 +98,8 @@ function setup({
     // the answer of GET /staff/orders/{uuid} by status (200 by default: the order as it is in `orders`, or `details`)
     detailStatus: {} as Record<string, number>,
     details: {} as Record<string, TestOrder>,
+    // a held answer of GET /staff/orders/{uuid} (released by the test)
+    detailGate: {} as Record<string, Promise<void> | undefined>,
   };
   const withRevision = (response: Response) => {
     // Wave M2: a single-branch read names its change token (when the backend exposes the header)
@@ -97,11 +109,11 @@ function setup({
     }
     return response;
   };
-  const routes: Record<string, (request: Request) => Response> = {
+  const routes: Record<string, (request: Request) => Response | Promise<Response>> = {
     'POST /api/session/refresh': () => json({ access_token: 'a', expires_at: new Date(Date.now() + 900_000).toISOString(), user: { id: 1, name: 'A', role } }),
     'GET /api/v1/me/permissions': () =>
       ok({ role, store_id: 3, branch_id: branch.id, branch_scoped: branch.scoped, permissions: ['orders.view', 'orders.manage'], device_uuid: null }),
-    'GET /api/v1/owner/branches': () => ok([{ id: 5, name: 'Chilonzor', working_hours: { timezone: 'Asia/Tashkent' } }]),
+    'GET /api/v1/owner/branches': () => ok(branchIds.map((id) => ({ id, name: `Filial ${id}`, working_hours: { timezone: 'Asia/Tashkent' } }))),
     'GET /api/v1/staff/orders': (request) => {
       const wanted = new URL(request.url).searchParams.get('status');
       const orders = state.orders.filter((order) => !wanted || wanted.split(',').includes(order.status)).map(full);
@@ -119,7 +131,14 @@ function setup({
         if (code !== 200) return json({ success: false, message: 'no', errors: {} }, code);
         const order = state.details[uuid] ?? state.orders.find((candidate) => candidate.uuid === uuid);
         if (!order) return json({ success: false, message: 'Topilmadi', errors: {} }, 404);
-        return withRevision(ok({ ...full(order), status_history: [] }));
+        const body = { ...full(order), status_history: [] };
+        const response = withRevision(ok(body));
+        if (detailScope !== null && state.revision !== null) {
+          response.headers.set('X-Revision', state.revision);
+          response.headers.set('X-Revision-Scope', detailScope);
+        }
+        const gate = state.detailGate[uuid];
+        return gate ? gate.then(() => response) : response;
       };
     },
   });
@@ -140,6 +159,7 @@ function setup({
                   <LiveOrdersProvider connect={connect} chime={chime} loadStatus={loadStatus} pacing={pacing}>
                     <Probe />
                     {withOpenList ? <OpenList /> : null}
+                    {withDrawer ? <Drawer uuid={withDrawer} /> : null}
                   </LiveOrdersProvider>
                 </BranchScopeProvider>
               </AuthProvider>
@@ -503,6 +523,80 @@ describe('LiveOrdersProvider', () => {
       await pause(300);
       expect(ordersCalls()).toBe(settled + 1);
       await waitFor(() => expect(ordersCalls()).toBe(settled + 2), { timeout: 2000 });
+    });
+  });
+  describe('review fixes', () => {
+    it('SR-1: a late event whose token a single-order read already named is still read (store-wide view)', async () => {
+      const { state, echo, orderCalls } = setup({ role: 'cashier', branchIds: [5, 6], status: STATUS, withOpenList: true, detailScope: 'branch:5' });
+      // real uuids: a single-order read is told apart by its path
+      const A = 'aaaaaaaa-0000-4000-8000-000000000001';
+      const B = 'bbbbbbbb-0000-4000-8000-000000000002';
+      state.revision = '100';
+      await waitFor(() => expect(echo.channels.map((channel) => channel.name)).toEqual(['pos-branch.5', 'pos-branch.6']));
+      echo.connectAll();
+      await waitFor(() => expect(screen.getByTestId('open')).toHaveTextContent('0'));
+      await pause(500);
+      // commit 101: order A; commit 102: order B, whose event is still in the queue when A's read is answered
+      state.orders = [
+        { uuid: A, status: 'accepted' },
+        { uuid: B, status: 'new' },
+      ];
+      state.revision = '102';
+      echo.channel('pos-branch.5').emit('order.status_changed', { order: { uuid: A, status: 'accepted' }, rev: { 'pos-branch.5': '101' } });
+      await waitFor(() => expect(orderCalls(A)).toBe(1));
+      await pause(100);
+      echo.channel('pos-branch.5').emit('order.created', { order: { uuid: B, status: 'new' }, rev: { 'pos-branch.5': '102' } });
+      await waitFor(() => expect(orderCalls(B)).toBe(1));
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent(/ 1$/));
+    });
+
+    it('SR-3: an event after a gap reads its own order at once, not after the list window', async () => {
+      const { state, echo, listCalls, orderCalls } = setup({
+        role: 'cook',
+        branch: { id: 5, scoped: true },
+        status: STATUS,
+        withOpenList: true,
+        pacing: { order: { windowMs: 300, spreadMs: 0 }, list: { windowMs: 8_000, spreadMs: 0 } },
+      });
+      state.revision = '700';
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(revisions.heldToken('pos-branch.5')).toBe('700'));
+      await pause(500);
+      const settled = listCalls('');
+      const channel = echo.channel('pos-branch.5');
+      // delivered out of order by the queue workers: 702, then 701
+      state.revision = '702';
+      state.orders = [
+        { uuid: 'a', status: 'accepted' },
+        { uuid: 'c', status: 'accepted' },
+      ];
+      channel.emit('order.status_changed', { order: { uuid: 'c', status: 'accepted' }, rev: { 'pos-branch.5': '702' } });
+      channel.emit('order.status_changed', { order: { uuid: 'a', status: 'accepted' }, rev: { 'pos-branch.5': '701' } });
+      await waitFor(() => expect(listCalls('')).toBe(settled + 1));
+      // inside the list window: b changes (704) before 703's event
+      state.revision = '704';
+      state.orders = [...state.orders, { uuid: 'b', status: 'accepted' }];
+      channel.emit('order.status_changed', { order: { uuid: 'b', status: 'accepted' }, rev: { 'pos-branch.5': '704' } });
+      await waitFor(() => expect(orderCalls('b')).toBe(1));
+      await waitFor(() => expect(screen.getByTestId('open')).toHaveTextContent('3'));
+      expect(listCalls('')).toBe(settled + 1);
+    });
+
+    it('SR-4: the read of an event is a new request, not the drawer read already under way', async () => {
+      const { state, echo, orderCalls } = setup({ withDrawer: 'd1' });
+      let release = () => {};
+      state.detailGate.d1 = new Promise<void>((resolve) => (release = resolve));
+      state.orders = [{ uuid: 'd1', status: 'new' }];
+      await waitFor(() => expect(echo.channels).toHaveLength(1));
+      echo.connectAll();
+      await waitFor(() => expect(orderCalls('d1')).toBe(1)); // the drawer's read, held
+      state.orders = [{ uuid: 'd1', status: 'accepted' }];
+      state.detailGate.d1 = undefined;
+      echo.channel('store.3').emit('order.status_changed', { order: { uuid: 'd1', status: 'accepted' } });
+      await waitFor(() => expect(orderCalls('d1')).toBe(2));
+      release();
+      await waitFor(() => expect(screen.getByTestId('drawer')).toHaveTextContent('accepted'));
     });
   });
 });

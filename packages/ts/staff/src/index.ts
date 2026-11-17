@@ -175,6 +175,8 @@ export {
   channelsOfScope,
   DEFAULT_READ_TTL_MS,
   isNextToken,
+  isOlderToken,
+  isSingleRecordRead,
   isToken,
   noteResponseRevision,
   revOf,

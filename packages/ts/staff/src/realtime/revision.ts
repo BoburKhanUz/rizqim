@@ -33,6 +33,26 @@ export function isNextToken(a: string, b: string): boolean {
   return isToken(a) && isToken(b) && BigInt(a) + BigInt(1) === BigInt(b);
 }
 
+// How far below the newest token a late event may be and still count as late (beyond it: the base jumped, a Redis
+// flush, and the new token is taken as it is)
+const LATE_WINDOW = BigInt(100_000);
+
+// `rev` is a little below `than`: an event delivered late, after a newer one
+export function isOlderToken(rev: string, than: string | undefined): boolean {
+  if (than === undefined || !isToken(rev) || !isToken(than)) return false;
+  const behind = BigInt(than) - BigInt(rev);
+  return behind > BigInt(0) && behind <= LATE_WINDOW;
+}
+
+// A read of one record (a path segment is a uuid: GET /staff/orders/{uuid}, /pos/orders/{uuid}/bills) names its scope's
+// token too, but it shows only that record: it must not vouch that every change up to that token is on the screen
+// (review SR-1: an order read taken after another order's commit made that other order's late event 'same', and a
+// lost event's heartbeat 'fine'). Only reads of the scope (lists) and the events themselves vouch.
+const UUID_SEGMENT = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/|$|\?)/i;
+export function isSingleRecordRead(url: string): boolean {
+  return UUID_SEGMENT.test(url.split('#')[0] ?? url);
+}
+
 // The channel names (without the "private-" prefix, as `rev` keys them) a read scope feeds: a branch read
 // ("branch:5") feeds both branch channels, "user:9" the customer's channel, "store:3" the store's.
 export function channelsOfScope(scope: string): string[] {
@@ -131,7 +151,9 @@ export class RevisionTracker {
   onEvent(channel: string, rev: string | null): RevisionVerdict {
     const state = this.state(channel);
     const verdict = this.classify(state, rev);
-    if (rev !== null) {
+    // An event the queue delivered after a newer one (review SR-3) does not move the tokens back: the next event follows
+    // the newest one, not the late one
+    if (rev !== null && !isOlderToken(rev, state.lastEvent)) {
       state.lastEvent = rev;
       state.lastHeard = rev;
       state.latest = rev;
@@ -193,6 +215,7 @@ export function withRevisionCapture(send: (request: Request) => Promise<Response
 
 // Shared by the fetch wrapper above and an axios interceptor: `header` reads a response header by its lower-case name
 export function noteResponseRevision(tracker: RevisionTracker, key: string, header: (name: string) => string | null | undefined): void {
+  if (isSingleRecordRead(key)) return;
   const scope = header('x-revision-scope');
   const token = header('x-revision');
   if (scope && token) tracker.noteRead(scope, token, key);

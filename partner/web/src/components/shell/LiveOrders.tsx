@@ -206,7 +206,9 @@ export function LiveOrdersProvider({
   const readOrder = useCallback(
     async (uuid: string): Promise<boolean> => {
       try {
-        const order = await queryClient.fetchQuery({ queryKey: boardKeys.detail(uuid), queryFn: () => fetchStaffOrder(api, uuid), staleTime: 0, retry: false });
+        // A request started now, never a read of the drawer already under way (its answer may predate the event,
+        // review SR-4); applyBoardOrder puts the answer into the drawer too
+        const order = await fetchStaffOrder(api, uuid);
         applyBoardOrder(queryClient, order, { timeZone: timeZone.current });
         return true;
       } catch (error) {
@@ -272,8 +274,10 @@ export function LiveOrdersProvider({
             // Every event feeds the tokens, also the ones the board does not read for
             const verdict = revisions.onEvent(event.channel, revOf(event.payload, event.channel));
             const relevant = isBoardRelevant(event.name, event.payload);
+            // A gap: the open list heals whatever was missed, paced; the event's own order is still read like any
+            // other (review SR-3: it showed only with the list read, up to 30 + 5 s later)
             if (verdict === 'missed') listThrottle.request();
-            else if (event.name === KITCHEN_ITEM_EVENT) applyKitchenEvent(queryClient, event.payload);
+            if (event.name === KITCHEN_ITEM_EVENT) applyKitchenEvent(queryClient, event.payload);
             else if (relevant && verdict === 'same') markStale();
             else if (relevant) {
               if (event.uuid === null) listThrottle.request();
