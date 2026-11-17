@@ -27,10 +27,28 @@ x-staging-environment: &staging-environment
   SENTRY_ENVIRONMENT: staging
 
 services:
+  # `command` asosiy fayldagini butunlay almashtiradi: M3 PITR bayroqlari (docker-compose.yml, postgres) shu yerda takrorlangan
   postgres:
     mem_limit: 512m
     cpus: 1.0
-    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=50
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/usr/local/bin/pgbackrest-archive.sh %p
+      - -c
+      - archive_timeout=60
+      - -c
+      - wal_compression=lz4
+      - -c
+      - max_wal_size=1GB
 
   # max_connections=50: pul 20 + to'g'ridan-to'g'ri xizmatlar (~15) + 3 superuser zaxirasi = 38 < 50 (docs/OPERATIONS.md, «Bazaga ulanishlar puli»)
   pgbouncer:
@@ -100,13 +118,25 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
+  # M3: tiklash mashqi shu konteyner ichida ikkinchi Postgres'ni ishga tushiradi (shared_buffers 32MB) va pgBackRest
+  # zaxirani 2 jarayonda siqadi: 128m yetmaydi
   backup:
-    mem_limit: 128m
-    cpus: 0.25
+    mem_limit: 384m
+    cpus: 0.5
+    environment:
+      PITR_DRILL_SHARED_BUFFERS: 32MB
 
 volumes:
   postgres_data:
     name: rizqim_staging_postgres_data
+  pgbackrest_repo:
+    name: rizqim_staging_pgbackrest_repo
+  pgbackrest_spool:
+    name: rizqim_staging_pgbackrest_spool
+  pg_run:
+    name: rizqim_staging_pg_run
+  pitr_restore:
+    name: rizqim_staging_pitr_restore
   redis_data:
     name: rizqim_staging_redis_data
   backend_storage:

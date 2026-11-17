@@ -6,6 +6,16 @@
 #   scripts/backup.sh --daemon   har kuni BACKUP_TIME (UTC) da zaxira oladi; docker-compose.yml dagi `backup` xizmati shuni ishlatadi
 #   scripts/backup.sh --list-remote          S3 dagi zaxiralar ro'yxati (BACKUP_S3_* kerak)
 #   scripts/backup.sh --fetch <fayl.dump>    S3 dan dump va .sha256 ni BACKUP_DIR ga yuklab oladi (tiklashdan oldin; restore.sh tekshiradi)
+#   scripts/backup.sh --pitr-backup [full|diff]   PITR (pgBackRest) zaxirasini hozir oladi (repo1, S3 sozlangan bo'lsa repo2 ham) + expire
+#   scripts/backup.sh --pitr-init                 stanza-create + check (+ to'liq zaxira yo'q bo'lsa oladi); demon buni o'zi qiladi
+#   scripts/backup.sh --markers                   monitoring_markers dagi `pitr` va `disk` belgilarini hozir yozadi
+#
+# M3 demon (--daemon) tartibi: ishga tushganda (PITR_ENABLED=1 bo'lsa) stanza-create + check, to'liq zaxira yo'q bo'lsa
+# darhol oladi; har kuni BACKUP_TIME (UTC) da ketma-ket: PITR zaxirasi (yakshanba to'liq, boshqa kunlar farq) va expire,
+# so'ng pg_dump (--load-via-partition-root), so'ng jurnallar arxivi (archive-partitions.sh); har PITR_MARKER_INTERVAL
+# (300 s) da `pitr` va `disk` belgilari; har oy birinchi yakshanba PITR_DRILL_TIME (23:00 UTC) da tiklash mashqi
+# (PITR_DRILL_MONTHLY=0 o'chiradi); arxivlash PITR_GAP_FULL_AFTER (1800 s) dan uzoq ishlamay qolib tiklansa, PITR
+# zanjirida uzilish bo'lishi mumkin: demon o'zi yangi to'liq zaxira oladi.
 #
 # Sozlamalar (env; docker compose'da ildizdagi .env dan):
 #   BACKUP_DIR             papka (standart: <loyiha>/backups; `backup` konteynerida /backups)
@@ -36,6 +46,17 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 
 log() { printf '%s backup: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
 die() { log "XATO: $*"; exit 1; }
+
+# M3 PITR helpers (scripts/pitr.sh; in the container mounted next to this file)
+PITR_SCRIPT_DIR=$SCRIPT_DIR
+PITR_LOG_TAG=backup
+if [ -f "$SCRIPT_DIR/pitr.sh" ]; then
+    # shellcheck source=scripts/pitr.sh
+    . "$SCRIPT_DIR/pitr.sh"
+    HAVE_PITR_LIB=1
+else
+    HAVE_PITR_LIB=0
+fi
 
 # backend/.env dan bitta qiymat (qo'shtirnoqsiz); fayl yoki kalit bo'lmasa bo'sh
 dotenv_get() {
@@ -174,7 +195,8 @@ run_backup() {
 
     log "$PGDATABASE ($PGHOST:$PGPORT) -> $final"
     # --no-owner/--no-privileges: boshqa foydalanuvchi nomli bazaga ham tiklash mumkin bo'lsin
-    if ! pg_dump --format=custom --compress=6 --no-owner --no-privileges --file="$partial"; then
+    # --load-via-partition-root: rows of the M3 partitioned journals restore through their parent, into any partition layout
+    if ! pg_dump --format=custom --compress=6 --no-owner --no-privileges --load-via-partition-root --file="$partial"; then
         rm -f "$partial"
         log "XATO: pg_dump bajarilmadi"
         return 1
@@ -222,35 +244,254 @@ run_backup() {
     return "$status"
 }
 
-# Sekundlar: keyingi BACKUP_TIME (UTC) gacha
-seconds_until_next() {
-    strip() { v=${1#0}; printf '%s' "${v:-0}"; }
-    h=$(strip "${BACKUP_TIME%%:*}"); m=$(strip "${BACKUP_TIME##*:}")
-    now=$(date -u +%H:%M:%S)
-    nh=$(strip "${now%%:*}"); rest=${now#*:}; nm=$(strip "${rest%%:*}"); ns=$(strip "${rest##*:}")
-    target=$((h * 3600 + m * 60))
-    current=$((nh * 3600 + nm * 60 + ns))
-    wait_for=$((target - current))
-    [ "$wait_for" -gt 0 ] || wait_for=$((wait_for + 86400))
-    printf '%s' "$wait_for"
+# --- M3: PITR (pgBackRest) and the 5-minute markers ---------------------------------------------------------------
+PITR_MARKER_INTERVAL=${PITR_MARKER_INTERVAL:-300}
+PITR_GAP_FULL_AFTER=${PITR_GAP_FULL_AFTER:-1800}
+PITR_DRILL_MONTHLY=${PITR_DRILL_MONTHLY:-1}
+PITR_DRILL_TIME=${PITR_DRILL_TIME:-23:00}
+PITR_STATE_DIR=${PITR_STATE_DIR:-$BACKUP_DIR/.pitr}
+
+pitr_require_lib() { [ "$HAVE_PITR_LIB" = "1" ] || die "scripts/pitr.sh topilmadi (docker-compose.yml dagi backup volume'larini yangilang)"; }
+
+pitr_has_full() { # pitr_has_full <repo>
+    pgbr info --repo="$1" --output=json 2>/dev/null | grep -q '"type":"full"'
+}
+
+pitr_ping() {
+    [ -n "${PITR_PING_URL:-}" ] || return 0
+    wget -q -T 10 -O /dev/null "$PITR_PING_URL" 2>/dev/null || log "OGOHLANTIRISH: PITR_PING_URL ga ping yuborilmadi"
+}
+
+# One backup run: repo1, then repo2 (S3) if configured, then expire. $1: full | diff | auto (Sunday or no full yet or
+# after an archive outage = full, else diff). pgBackRest itself turns a diff without a prior full into a full.
+pitr_backup() {
+    pitr_require_lib
+    pitr_enabled || { log "PITR o'chiq (PITR_ENABLED=1 emas): pgBackRest zaxirasi olinmadi"; return 0; }
+    pitr_load
+    type=$1
+    if [ "$type" = "auto" ]; then
+        type="diff"
+        if [ "$(date -u +%u)" = "7" ] || [ -f "$PITR_STATE_DIR/full-needed" ] || ! pitr_has_full 1; then type=full; fi
+    fi
+    rc=0
+    log "PITR: $type zaxira, repo1 (shu server)"
+    pgbr backup --repo=1 --type="$type" || { log "XATO: PITR zaxirasi (repo1) bajarilmadi"; rc=1; }
+    if [ "$PITR_REPO2" = "on" ]; then
+        type2=$type
+        pitr_has_full 2 || type2=full
+        log "PITR: $type2 zaxira, repo2 (S3)"
+        pgbr backup --repo=2 --type="$type2" || { log "XATO: PITR zaxirasi (repo2, S3) bajarilmadi"; rc=1; }
+    elif [ -n "$PITR_REPO2_NOTE" ]; then
+        log "OGOHLANTIRISH: $PITR_REPO2_NOTE"
+    fi
+    pgbr expire || { log "XATO: pgbackrest expire bajarilmadi"; rc=1; }
+    if [ "$rc" -eq 0 ]; then
+        rm -f "$PITR_STATE_DIR/full-needed"
+        log "PITR: zaxira tayyor"
+        pitr_ping
+    fi
+    write_markers || true
+    return "$rc"
+}
+
+# On daemon start: stanza (idempotent; also adds repo2 once S3 is configured), check, a first full backup
+pitr_init() {
+    pitr_require_lib
+    pitr_enabled || { log "PITR o'chiq (PITR_ENABLED bo'sh): faqat kunlik pg_dump"; return 0; }
+    pitr_load
+    mkdir -p "$PITR_STATE_DIR"
+    log "PITR yoqiq: stanza $PGBACKREST_STANZA, repo1 $PGBACKREST_REPO1_PATH, repo2 (S3): $PITR_REPO2"
+    [ -z "$PITR_REPO2_NOTE" ] || log "OGOHLANTIRISH: $PITR_REPO2_NOTE"
+    i=0
+    until pgbr stanza-create; do
+        i=$((i + 1))
+        [ "$i" -lt "${PITR_INIT_TRIES:-10}" ] || { log "XATO: pgbackrest stanza-create bajarilmadi (Postgres ishlayaptimi? postgres obrazi yangilanganmi: docker compose up -d --build postgres)"; return 1; }
+        sleep 15
+    done
+    if ! pgbr check; then
+        log "XATO: pgbackrest check o'tmadi: WAL arxivga tushmayapti (postgres xizmatida PITR_ENABLED=1 va docker compose up -d --build postgres bajarilganmi?)"
+        return 1
+    fi
+    if ! pitr_has_full 1; then
+        log "PITR: hali to'liq zaxira yo'q, hozir olinadi"
+        pitr_backup full || return 1
+    fi
+    return 0
+}
+
+# monitoring_markers `pitr` (pgBackRest info + pg_stat_archiver) and `disk` (data filesystem, pg_wal, spool).
+# Read by the control center checks pitr_backup_stale and disk_usage (M3 A3).
+write_markers() {
+    [ "$HAVE_PITR_LIB" = "1" ] || return 0
+    command -v psql >/dev/null 2>&1 || return 0
+    if pitr_enabled; then
+        pitr_load
+        info=$(pgbr info --output=json 2>"$PITR_STATE_DIR/info.err") || info='[]'
+        [ -n "$info" ] || info='[]'
+        lasterr=$(tail -n 1 "$PITR_STATE_DIR/info.err" 2>/dev/null || true)
+        outage=
+        [ ! -f "$PITR_STATE_DIR/outage-since" ] || outage=$(cat "$PITR_STATE_DIR/outage-since")
+        iso="'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'"
+        pitr_marker pitr "WITH s AS (SELECT (:'info')::jsonb -> 0 AS s),
+              b AS (SELECT e FROM s, jsonb_array_elements(coalesce(s.s -> 'backup', '[]'::jsonb)) e),
+              a AS (SELECT * FROM pg_stat_archiver)
+            SELECT json_build_object(
+              'enabled', true,
+              'stanza', :'stanza',
+              'status', CASE WHEN (SELECT (s -> 'status' ->> 'code')::int FROM s) = 0 THEN 'ok' ELSE 'error' END,
+              'message', coalesce((SELECT s -> 'status' ->> 'message' FROM s), nullif(:'lasterr', '')),
+              'repo2', :'repo2',
+              'repo2_note', nullif(:'repo2note', ''),
+              'backups', (SELECT count(*) FROM b),
+              'last_full_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b WHERE e ->> 'type' = 'full'),
+              'last_backup_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b),
+              'last_backup_type', (SELECT e ->> 'type' FROM b ORDER BY (e -> 'timestamp' ->> 'stop')::bigint DESC LIMIT 1),
+              'last_backup_label', (SELECT e ->> 'label' FROM b ORDER BY (e -> 'timestamp' ->> 'stop')::bigint DESC LIMIT 1),
+              'repos', (SELECT coalesce(json_agg(json_build_object(
+                    'key', (r ->> 'key')::int,
+                    'status', CASE WHEN (r -> 'status' ->> 'code')::int = 0 THEN 'ok' ELSE 'error' END,
+                    'message', r -> 'status' ->> 'message',
+                    'last_full_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b WHERE e ->> 'type' = 'full' AND e -> 'database' ->> 'repo-key' = r ->> 'key'),
+                    'last_backup_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b WHERE e -> 'database' ->> 'repo-key' = r ->> 'key')
+                  ) ORDER BY (r ->> 'key')::int), '[]'::json) FROM s, jsonb_array_elements(coalesce(s.s -> 'repo', '[]'::jsonb)) r),
+              'wal_min', (SELECT s -> 'archive' -> 0 ->> 'min' FROM s),
+              'wal_max', (SELECT s -> 'archive' -> 0 ->> 'max' FROM s),
+              'archived_wal', (SELECT last_archived_wal FROM a),
+              'archived_at', (SELECT to_char(last_archived_time AT TIME ZONE 'UTC', $iso) FROM a),
+              'failed_wal', (SELECT last_failed_wal FROM a),
+              'failed_at', (SELECT to_char(last_failed_time AT TIME ZONE 'UTC', $iso) FROM a),
+              'failed_count', (SELECT failed_count FROM a),
+              'archive_failing', (SELECT coalesce(last_failed_time > coalesce(last_archived_time, '-infinity'::timestamptz), false) FROM a),
+              'ready_wal', (SELECT count(*) FROM pg_ls_archive_statusdir() WHERE name LIKE '%.ready'),
+              'outage_since', to_char(to_timestamp(nullif(:'outage', '')::bigint) AT TIME ZONE 'UTC', $iso)
+            )" -v "info=$info" -v "stanza=$PGBACKREST_STANZA" -v "repo2=$PITR_REPO2" -v "repo2note=$PITR_REPO2_NOTE" \
+            -v "lasterr=$lasterr" -v "outage=$outage" || true
+        track_outage
+    else
+        pitr_marker pitr "json_build_object('enabled', false)" || true
+    fi
+    data=${PITR_PGDATA:-${PGDATA:-/var/lib/postgresql/data}}
+    # df -Pk: total, used, available (KiB) of the filesystem that holds the data directory
+    fs=$(df -Pk "$data" 2>/dev/null | awk 'NR == 2 { print $2 " " $3 " " $4 }')
+    repofs=$(df -Pk "${PITR_REPO1_PATH:-/var/lib/pgbackrest}" 2>/dev/null | awk 'NR == 2 { print $2 " " $3 " " $4 }')
+    spool_kb=$(du -sk "${PITR_SPOOL_MEASURE_PATH:-/var/spool/pgbackrest}" 2>/dev/null | cut -f1)
+    # shellcheck disable=SC2086
+    set -- ${fs:-0 0 0} ${repofs:-0 0 0}
+    pitr_marker disk "json_build_object(
+          'data_path', :'dpath',
+          'fs_total_bytes', :'t'::bigint * 1024, 'fs_used_bytes', :'u'::bigint * 1024, 'fs_avail_bytes', :'a'::bigint * 1024,
+          'used_percent', CASE WHEN :'u'::bigint + :'a'::bigint > 0 THEN round(100.0 * :'u'::bigint / (:'u'::bigint + :'a'::bigint), 1) END,
+          'repo_used_percent', CASE WHEN :'ru'::bigint + :'ra'::bigint > 0 THEN round(100.0 * :'ru'::bigint / (:'ru'::bigint + :'ra'::bigint), 1) END,
+          'repo_avail_bytes', :'ra'::bigint * 1024,
+          'pg_wal_bytes', (SELECT coalesce(sum(size), 0) FROM pg_ls_waldir()),
+          'spool_bytes', :'spool'::bigint * 1024,
+          'db_bytes', (SELECT sum(pg_database_size(datname)) FROM pg_database WHERE datallowconn)
+        )" -v "dpath=$data" -v "t=$1" -v "u=$2" -v "a=$3" -v "ru=$5" -v "ra=$6" -v "spool=${spool_kb:-0}" || true
+}
+
+# Archive outage bookkeeping (pg_stat_archiver): an outage longer than PITR_GAP_FULL_AFTER may have dropped WAL
+# (spool cap): the main loop then takes a new full backup once archiving works again.
+track_outage() {
+    failing=$(pitr_val "SELECT coalesce(last_failed_time > coalesce(last_archived_time, '-infinity'::timestamptz), false) FROM pg_stat_archiver")
+    if [ "$failing" = "t" ]; then
+        [ -f "$PITR_STATE_DIR/outage-since" ] || { date -u +%s >"$PITR_STATE_DIR/outage-since"; log "OGOHLANTIRISH: WAL arxivlash ishlamayapti (pg_stat_archiver): PITR nusxasi eskirmoqda"; }
+    elif [ "$failing" = "f" ] && [ -f "$PITR_STATE_DIR/outage-since" ]; then
+        since=$(cat "$PITR_STATE_DIR/outage-since")
+        lasted=$(($(date -u +%s) - since))
+        rm -f "$PITR_STATE_DIR/outage-since"
+        log "WAL arxivlash tiklandi ($lasted s ishlamagan)"
+        if [ "$lasted" -ge "$PITR_GAP_FULL_AFTER" ]; then
+            : >"$PITR_STATE_DIR/full-needed"
+            log "OGOHLANTIRISH: arxivlash uzoq to'xtagan: PITR zanjirida uzilish bo'lishi mumkin, yangi to'liq zaxira olinadi"
+        fi
+    fi
+}
+
+marker_loop() {
+    while :; do
+        write_markers || true
+        sleep "$PITR_MARKER_INTERVAL"
+    done
+}
+
+# HH:MM >= HH:MM
+hm_reached() { # hm_reached <now HH:MM> <target HH:MM>
+    n=$(( $(printf '%s' "${1%%:*}" | sed 's/^0//') * 60 + $(printf '%s' "${1##*:}" | sed 's/^0//') ))
+    t=$(( $(printf '%s' "${2%%:*}" | sed 's/^0//') * 60 + $(printf '%s' "${2##*:}" | sed 's/^0//') ))
+    [ "$n" -ge "$t" ]
+}
+
+# The nightly chain: PITR backup + expire, pg_dump, partition archive
+nightly() {
+    if [ "$HAVE_PITR_LIB" = "1" ] && pitr_enabled; then pitr_backup auto || true; fi
+    run_backup || true
+    if [ -f "$SCRIPT_DIR/archive-partitions.sh" ]; then
+        sh "$SCRIPT_DIR/archive-partitions.sh" --local || log "OGOHLANTIRISH: jurnallar arxivi xato bilan tugadi (keyingi kecha qayta urinadi)"
+    fi
+}
+
+daemon() {
+    validate
+    case "$PITR_DRILL_TIME" in [0-2][0-9]:[0-5][0-9]) ;; *) die "PITR_DRILL_TIME HH:MM ko'rinishida bo'lishi kerak: $PITR_DRILL_TIME" ;; esac
+    mkdir -p "$BACKUP_DIR" "$PITR_STATE_DIR"
+    marker_pid=
+    trap 'log "to'"'"'xtatildi"; [ -z "$marker_pid" ] || kill "$marker_pid" 2>/dev/null; exit 0' TERM INT
+    log "demon: har kuni $BACKUP_TIME UTC (PITR zaxirasi, pg_dump, jurnallar arxivi), $BACKUP_RETENTION_DAYS kun saqlanadi, papka $BACKUP_DIR"
+    if [ "$HAVE_PITR_LIB" = "1" ]; then pitr_init || log "OGOHLANTIRISH: PITR tayyor emas (yuqoridagi xato); demon ishlashda davom etadi va keyingi kecha qayta urinadi"; fi
+    if [ "$BACKUP_RUN_ON_START" = "1" ]; then run_backup || true; fi
+    if [ "$HAVE_PITR_LIB" = "1" ]; then
+        marker_loop &
+        marker_pid=$!
+    fi
+    today=$(date -u +%F)
+    last_nightly=
+    last_drill=
+    if hm_reached "$(date -u +%H:%M)" "$BACKUP_TIME"; then last_nightly=$today; fi
+    if hm_reached "$(date -u +%H:%M)" "$PITR_DRILL_TIME"; then last_drill=$today; fi
+    while true; do
+        sleep 60 &
+        wait $! || true
+        today=$(date -u +%F)
+        now_hm=$(date -u +%H:%M)
+        if [ "$last_nightly" != "$today" ] && hm_reached "$now_hm" "$BACKUP_TIME"; then
+            last_nightly=$today
+            nightly
+        fi
+        if [ "$HAVE_PITR_LIB" = "1" ] && pitr_enabled && [ "$PITR_DRILL_MONTHLY" = "1" ] && [ "$last_drill" != "$today" ] \
+            && [ "$(date -u +%u)" = "7" ] && [ "$(date -u +%d)" -le 7 ] && hm_reached "$now_hm" "$PITR_DRILL_TIME"; then
+            last_drill=$today
+            log "oylik tiklash mashqi boshlandi"
+            sh "$SCRIPT_DIR/pitr-drill.sh" run || log "OGOHLANTIRISH: oylik tiklash mashqi muvaffaqiyatsiz (natija restore_drills da, Monitoring ogohlantiradi)"
+        fi
+        if [ "$HAVE_PITR_LIB" = "1" ] && pitr_enabled && [ -f "$PITR_STATE_DIR/full-needed" ] && [ ! -f "$PITR_STATE_DIR/outage-since" ]; then
+            pitr_load
+            if pgbr check >/dev/null 2>&1; then pitr_backup full || true; fi
+        fi
+    done
 }
 
 case "${1:-}" in
     -h | --help)
-        sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,39p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     --daemon)
+        daemon
+        ;;
+    --pitr-backup)
         validate
-        trap 'log "to'"'"'xtatildi"; exit 0' TERM INT
-        log "demon: har kuni $BACKUP_TIME UTC, $BACKUP_RETENTION_DAYS kun saqlanadi, papka $BACKUP_DIR"
-        if [ "$BACKUP_RUN_ON_START" = "1" ]; then run_backup || true; fi
-        while true; do
-            delay=$(seconds_until_next)
-            log "keyingi zaxira $delay soniyadan keyin"
-            sleep "$delay" &
-            wait $! || true
-            run_backup || true
-        done
+        mkdir -p "$PITR_STATE_DIR"
+        case "${2:-auto}" in full | diff | incr | auto) ;; *) die "foydalanish: backup.sh --pitr-backup [full|diff|auto]" ;; esac
+        pitr_enabled || die "PITR o'chiq: ildiz .env da PITR_ENABLED=1, so'ng docker compose up -d --build"
+        pitr_backup "${2:-auto}"
+        ;;
+    --pitr-init)
+        validate
+        pitr_enabled || die "PITR o'chiq: ildiz .env da PITR_ENABLED=1, so'ng docker compose up -d --build"
+        pitr_init
+        ;;
+    --markers)
+        mkdir -p "$PITR_STATE_DIR"
+        write_markers
         ;;
     --list-remote)
         s3_require
@@ -275,6 +516,6 @@ case "${1:-}" in
         run_backup
         ;;
     *)
-        die "noma'lum argument: $1 (--daemon, --list-remote, --fetch yoki --help)"
+        die "noma'lum argument: $1 (--daemon, --list-remote, --fetch, --pitr-backup, --pitr-init, --markers yoki --help)"
         ;;
 esac

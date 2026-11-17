@@ -36,6 +36,8 @@ jobs:
       pospkg: ${{ steps.filter.outputs.pospkg }}
       # P3-33: the POS stack end-to-end test (pos-stack-e2e job)
       posstack: ${{ steps.filter.outputs.posstack }}
+      # M3: PITR end to end in the compose topology (pitr-drill job)
+      pitr: ${{ steps.filter.outputs.pitr }}
       # P6 hardware: the Android builds of the POS apps (android-build job; Kotlin is compiled only there). The same
       # paths gate the Windows builds (windows-build job: pos/** and packages/dart/**)
       android: ${{ steps.filter.outputs.android }}
@@ -160,6 +162,20 @@ jobs:
               - 'e2e/pos/**'
               - 'scripts/pos-e2e.sh'
               - 'pubspec*'
+              - '.github/workflows/ci.yml'
+            # M3: the PITR images, the compose services they run in, the backup/restore scripts and the migrations the
+            # drill restores and checks (pitr-drill job)
+            pitr:
+              - 'infra/postgres/**'
+              - 'infra/backup/**'
+              - 'infra/ci/**'
+              - 'docker-compose.yml'
+              - '.env.example'
+              - 'scripts/backup.sh'
+              - 'scripts/pitr*.sh'
+              - 'scripts/restore-drill.sh'
+              - 'scripts/archive-*.sh'
+              - 'backend/database/migrations/**'
               - '.github/workflows/ci.yml'
 
   backend-tests:
@@ -402,7 +418,7 @@ jobs:
 
       - name: Shellcheck
         run: |
-          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh scripts/scale-test/pgbouncer.sh scripts/scale-test/server.sh scripts/scale-test/env.sh
+          shellcheck scripts/*.sh backend/docker/entrypoint.sh backend/docker/pools.sh infra/staging/*.sh infra/pgbouncer/*.sh infra/postgres/*.sh scripts/scale-test/pgbouncer.sh scripts/scale-test/server.sh scripts/scale-test/env.sh
 
       # Guards of the POS stack script (live pid file, --stop); needs no backend or Dart
       - name: pos-e2e.sh guards
@@ -477,10 +493,31 @@ jobs:
           docker run --rm --entrypoint sh -e DB_DATABASE=ci -e DB_USERNAME=ci -e DB_PASSWORD='p"w' rizqim-pgbouncer:ci -c \
             'sed "s/^exec pgbouncer /exit 0 #/" /usr/local/bin/pgbouncer-entrypoint.sh > /tmp/e.sh && sh /tmp/e.sh && grep -qx "pool_mode = transaction" /tmp/pgbouncer/pgbouncer.ini && grep -qx "\"ci\" \"p\"\"w\"" /tmp/pgbouncer/userlist.txt && { pgbouncer /tmp/pgbouncer/pgbouncer.ini & p=$!; sleep 2; kill -0 $p && kill $p; }'
 
-      - name: Backup image has pg_dump 17 and rclone
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: infra/postgres/Dockerfile
+          failure-threshold: error
+
+      # Build context ./infra like docker-compose.yml (the PITR helpers come from infra/postgres)
+      - name: Backup image has pg_dump 17, rclone and pgBackRest
         run: |
-          docker build -t rizqim-backup:ci infra/backup
-          docker run --rm rizqim-backup:ci sh -c 'pg_dump --version | grep -q "(PostgreSQL) 17" && rclone version'
+          docker build -f infra/backup/Dockerfile -t rizqim-backup:ci infra
+          docker run --rm rizqim-backup:ci sh -c 'pg_dump --version | grep -q "(PostgreSQL) 17" && rclone version && pgbackrest version'
+
+      # M3: the postgres image is the official server plus pgBackRest; both images must run the SAME pgBackRest
+      # (archive-push in one container, backup/restore in the other), and with PITR_ENABLED unset the archive command
+      # is a no-op (existing installs)
+      - name: Postgres image (pgBackRest) matches the backup image
+        run: |
+          docker build -t rizqim-postgres:ci infra/postgres
+          a=$(docker run --rm --entrypoint pgbackrest rizqim-postgres:ci version)
+          b=$(docker run --rm --entrypoint pgbackrest rizqim-backup:ci version)
+          echo "postgres: $a / backup: $b"
+          test -n "$a" && test "$a" = "$b"
+          docker run --rm --entrypoint sh rizqim-postgres:ci -c 'test "$(command -v postgres)" = /usr/local/bin/postgres && postgres --version | grep -q "(PostgreSQL) 17" && /usr/local/bin/pgbackrest-archive.sh pg_wal/000000010000000000000001'
+          if timeout 120 docker run --rm --entrypoint sh -e PITR_ENABLED=1 -e PITR_ARCHIVE_ASYNC=n rizqim-postgres:ci -c '/usr/local/bin/pgbackrest-archive.sh pg_wal/000000010000000000000001' 2>/dev/null; then
+            echo "archive command succeeded without a stanza: it must fail so Postgres keeps the WAL" >&2; exit 1
+          fi
 
       # Built from the repository root like docker-compose.yml does; BuildKit takes the files from the Dockerfile's own
       # <Dockerfile>.dockerignore (an allow-list), not from the root .dockerignore
@@ -938,6 +975,71 @@ jobs:
           path: |
             e2e/pos/.run/*.log
           retention-days: 7
+
+  # --- M3 PITR drill (runs when the pitr paths changed, see the `pitr` filter) -------------------------------------
+  # The production postgres and backup services (docker-compose.yml, images built from infra/postgres and infra/backup)
+  # with MinIO over TLS as the S3 repository (infra/ci/docker-compose.pitr.yml): the daemon's stanza-create, check and
+  # first full backup; batches A / full backup / B / T / C; scripts/restore-drill.sh --target-time T restores into a new
+  # directory inside the backup container and must find A and B but not C; then the archive target goes down and comes
+  # back. RESTORE_SECONDS, RECOVERY_POINT and DATA_LOSS_SECONDS go to the step summary. scripts/pitr-ci.sh does all of it
+  # (scripts/pitr-ci.sh --local runs the same steps without Docker). No secrets: every credential is generated per run.
+  pitr-drill:
+    name: PITR drill (pgBackRest, compose topology)
+    needs: changes
+    if: needs.changes.outputs.pitr == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, redis, intl, gd, bcmath, zip
+          coverage: none
+
+      - name: Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.3-
+
+      # Migrations and the app smoke run from the runner against the containers (everything else by environment)
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Build, start, drill
+        run: scripts/pitr-ci.sh
+
+      - name: Collect the containers' logs
+        if: failure()
+        run: |
+          mkdir -p pitr-ci-logs
+          docker compose -f docker-compose.yml -f infra/ci/docker-compose.pitr.yml ps -a > pitr-ci-logs/ps.txt 2>&1 || true
+          for s in postgres backup minio; do
+            docker compose -f docker-compose.yml -f infra/ci/docker-compose.pitr.yml logs --no-color --timestamps "$s" > "pitr-ci-logs/$s.log" 2>&1 || true
+          done
+          docker compose -f docker-compose.yml -f infra/ci/docker-compose.pitr.yml exec -T backup sh -c 'ls -la /restore; tail -n 200 /restore/*.log' > pitr-ci-logs/restore.txt 2>&1 || true
+          cp "${TMPDIR:-/tmp}"/pitr-ci-migrate.log pitr-ci-logs/ 2>/dev/null || true
+
+      - name: Upload the containers' logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitr-drill-logs
+          path: pitr-ci-logs
+          retention-days: 7
+
+      - name: Stop the stack
+        if: always()
+        run: scripts/pitr-ci.sh --down || true
 
   # --- P2-13 Staff package (runs when packages/ts/staff or what it builds on changed, see the `staffpkg` filter) ---
   staff-package:
