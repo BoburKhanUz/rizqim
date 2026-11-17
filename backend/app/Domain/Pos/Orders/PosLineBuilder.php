@@ -114,6 +114,8 @@ class PosLineBuilder
         $store = $order->store;
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
 
+        // Review M2 (40P01): the variants (with the combos' part variants), then the batches, in id order (StockLocks)
+        app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, array_map(fn (array $line) => (string) $line['variant_uuid'], $lines));
         $variants = ProductVariant::with('product')
             ->whereIn('uuid', array_values(array_unique(array_map(fn (array $line) => $line['variant_uuid'], $lines))))
             ->where('is_active', true)
@@ -271,6 +273,8 @@ class PosLineBuilder
         $lines = \App\Domain\Pos\Takeaway\ScheduledPickup::prepare($order, $lines); // P6-34
 
         $channelMenu = ChannelMenu::for((int) $order->store_id, $order->channel);
+        // Review M2 (40P01): the variants (with the combos' part variants), then the batches, in id order (StockLocks)
+        app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, array_map(fn (array $line) => (string) $line['variant_uuid'], $lines));
         $variants = ProductVariant::withTrashed()
             ->with(['product' => fn ($query) => $query->withTrashed()])
             ->whereIn('uuid', array_values(array_unique(array_map(fn (array $line) => $line['variant_uuid'], $lines))))

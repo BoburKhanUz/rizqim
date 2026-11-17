@@ -220,6 +220,10 @@ class CreateOrderAction
                 $requestedQuantities[$uuid] = ($requestedQuantities[$uuid] ?? Quantity::zero())->plus($line['quantity']);
             }
 
+            // Review M2 (40P01): every variant the order may touch (its combos' part variants too: their kitchen lines'
+            // foreign keys share-lock them) and then its open batches, each table in one statement in id order (StockLocks)
+            app(\App\Services\Catalog\StockLocks::class)->lock((int) $branch->id, array_keys($requestedQuantities));
+
             // Fetch variants securely by uuid for the active store, locked in id order so concurrent orders can't oversell or deadlock
             $variants = ProductVariant::with('product')
                 ->whereIn('uuid', array_keys($requestedQuantities))

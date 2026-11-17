@@ -253,14 +253,17 @@ class OrderController extends Controller
             $payload['channel'] = $this->channelOf($request);
 
             // The Idempotency-Key is marked used in the order's own transaction, so the order and the key commit
-            // together: a retry can never place it a second time (IdempotencyService::markApplied)
+            // together: a retry can never place it a second time (IdempotencyService::markApplied).
+            // Review M2: a deadlock or serialization failure (40P01/40001) re-runs the whole transaction, at most 3
+            // attempts. Safe: everything the attempt did is rolled back with it (order, stock, batches, keshbek, promo,
+            // the key's mark), and its announcements wait for the commit (DB::afterCommit, ShouldDispatchAfterCommit).
             $order = DB::transaction(function () use ($request, $payload) {
                 // Its "new" status history row is written by the action itself
                 $order = $this->createOrderAction->execute($request->user(), $request->items, $payload);
                 $this->idempotency->markApplied($request);
 
                 return $order;
-            });
+            }, 3);
 
             $this->alerts->newOrder($order);
 
