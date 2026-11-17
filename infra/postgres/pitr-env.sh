@@ -33,7 +33,7 @@
 #                           S3 copies unreadable: keep it outside the server.
 #
 # After pitr_env: PITR_REPO2 is one of on, off (no S3 configured), no_cipher, bad_endpoint, partial; PITR_REPO2_NOTE
-# holds the Uzbek explanation for the operator when it is not "on" or "off".
+# holds the Uzbek explanation for the operator whenever it is not "on" (also "off": a local-only copy is a standing risk).
 
 pitr_env() {
     PGBACKREST_STANZA=${PITR_STANZA:-rizqim}
@@ -56,11 +56,12 @@ pitr_env() {
     PGBACKREST_COMPRESS_TYPE=${PITR_COMPRESS_TYPE:-zst}
     PGBACKREST_PROCESS_MAX=${PITR_PROCESS_MAX:-2}
     PGBACKREST_START_FAST=y
+    PGBACKREST_EXPIRE_AUTO=${PITR_EXPIRE_AUTO:-y}
     export PGBACKREST_STANZA PGBACKREST_PG1_PATH PGBACKREST_PG1_SOCKET_PATH PGBACKREST_PG1_PORT PGBACKREST_PG1_USER \
         PGBACKREST_PG1_DATABASE PGBACKREST_REPO1_PATH PGBACKREST_REPO1_RETENTION_FULL PGBACKREST_SPOOL_PATH \
         PGBACKREST_LOCK_PATH PGBACKREST_LOG_PATH PGBACKREST_LOG_LEVEL_FILE PGBACKREST_LOG_LEVEL_CONSOLE \
         PGBACKREST_LOG_LEVEL_STDERR PGBACKREST_ARCHIVE_ASYNC PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX PGBACKREST_ARCHIVE_TIMEOUT \
-        PGBACKREST_COMPRESS_TYPE PGBACKREST_PROCESS_MAX PGBACKREST_START_FAST
+        PGBACKREST_COMPRESS_TYPE PGBACKREST_PROCESS_MAX PGBACKREST_START_FAST PGBACKREST_EXPIRE_AUTO
 
     # repo2 (S3) is configured only when complete; a half-filled set never reaches pgBackRest
     unset PGBACKREST_REPO2_TYPE PGBACKREST_REPO2_PATH PGBACKREST_REPO2_S3_ENDPOINT PGBACKREST_REPO2_STORAGE_PORT \
@@ -68,7 +69,7 @@ pitr_env() {
         PGBACKREST_REPO2_S3_URI_STYLE PGBACKREST_REPO2_STORAGE_VERIFY_TLS PGBACKREST_REPO2_RETENTION_FULL \
         PGBACKREST_REPO2_CIPHER_TYPE PGBACKREST_REPO2_CIPHER_PASS
     PITR_REPO2=off
-    PITR_REPO2_NOTE=
+    PITR_REPO2_NOTE="S3 sozlanmagan: uzluksiz zaxira faqat shu serverda (disk yoki server yo'qolsa nusxalar ham yo'qoladi). PITR_S3_* yoki BACKUP_S3_* ni to'ldiring"
     _pe_endpoint=${PITR_S3_ENDPOINT:-${BACKUP_S3_ENDPOINT:-}}
     _pe_bucket=${PITR_S3_BUCKET:-${BACKUP_S3_BUCKET:-}}
     _pe_key=${PITR_S3_ACCESS_KEY:-${BACKUP_S3_ACCESS_KEY:-}}

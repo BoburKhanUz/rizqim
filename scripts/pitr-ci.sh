@@ -74,13 +74,16 @@ if [ "$MODE" = "local" ]; then
     cp "$ROOT_DIR/infra/postgres/archive.sh" "$W/bin/pgbackrest-archive.sh"
     chmod 0755 "$W/bin" "$W/bin/pgbackrest-archive.sh"
 
+    # The live cluster's flags, also used by pitr-switch.sh --local to start a switched-to copy
+    export PITR_LOCAL_PG_OPTS="-p $LIVE_PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=$W/s -c wal_level=replica -c archive_mode=on -c archive_command='$W/bin/pgbackrest-archive.sh %p' -c archive_timeout=$ARCHIVE_TIMEOUT -c wal_compression=on -c max_wal_size=1GB"
+    SWITCH="sh $SCRIPT_DIR/pitr-switch.sh --local"
     log "initdb live cluster ($W/live, port $LIVE_PORT)"
     as_pg initdb -D "$W/live" -U "$DB_USER" --auth=trust -E UTF8 --locale=C.UTF-8 >"$W/initdb.log" 2>&1 || { cat "$W/initdb.log" >&2; die "initdb"; }
     # Same flags as the compose `postgres` command (archive_timeout shortened for a quick local run)
     as_pg env PATH="$PATH" PITR_ENABLED=1 PITR_ENV_FILE="$PITR_ENV_FILE" PITR_PGDATA="$PITR_PGDATA" PITR_SOCKET_DIR="$PITR_SOCKET_DIR" \
         PITR_PG_PORT="$LIVE_PORT" PITR_PG_USER="$DB_USER" PITR_PG_DATABASE="$DB_NAME" PITR_REPO1_PATH="$PITR_REPO1_PATH" \
         PITR_SPOOL_PATH="$PITR_SPOOL_PATH" PITR_LOCK_PATH="$W/lock-push" PITR_LOG_PATH="$PITR_LOG_PATH" \
-        pg_ctl -D "$W/live" -l "$W/live.log" -w -o "-p $LIVE_PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=$W/s -c wal_level=replica -c archive_mode=on -c archive_command='$W/bin/pgbackrest-archive.sh %p' -c archive_timeout=$ARCHIVE_TIMEOUT -c wal_compression=on -c max_wal_size=1GB" start >/dev/null
+        pg_ctl -D "$W/live" -l "$W/live.log" -w -o "$PITR_LOCAL_PG_OPTS" start >/dev/null
     createdb "$DB_NAME"
 
     live_sql() { psql -X -A -t -q -v ON_ERROR_STOP=1 -c "$1"; }
@@ -153,6 +156,7 @@ ENV
     BACKUP_SH="in_backup sh /usr/local/bin/backup.sh"
     DRILL="sh $SCRIPT_DIR/restore-drill.sh"
     PITR_RESTORE_SH="sh $SCRIPT_DIR/pitr-restore.sh"
+    SWITCH="sh $SCRIPT_DIR/pitr-switch.sh"
     MIG_HOST=127.0.0.1; MIG_PORT=$PG_PORT; MIG_PASS=$DB_PASS
     SMOKE_PORT=${PITR_CI_RESTORE_PORT:-55499}
     target_down() { $DC stop minio; }
@@ -244,11 +248,14 @@ else
     summary "restore_drills row: skipped (table not present in this migration set)"
 fi
 RESTORE_SECONDS=$(val RESTORE_SECONDS); RECOVERY_POINT=$(val RECOVERY_POINT); DATA_LOSS_SECONDS=$(val DATA_LOSS_SECONDS)
+if (cd "$ROOT_DIR/backend" && php artisan help db:restore-smoke >/dev/null 2>&1); then
+    [ "$(val CHECK_app_smoke)" = "ok" ] || die "the app smoke (db:restore-smoke) did not pass on the restored copy"
+fi
+[ "$(val TRIGGER)" = "manual" ] || die "a restore-drill.sh run must record trigger=manual"
 summary "restore to T: A+B present, C absent, probe token present, smoke: $(val CHECK_app_smoke)"
 summary "RESTORE_SECONDS=$RESTORE_SECONDS"
 summary "RECOVERY_POINT=$RECOVERY_POINT (T = $T)"
 summary "DATA_LOSS_SECONDS=$DATA_LOSS_SECONDS"
-rm -f "$out"
 
 # --- 4. archive target down, then back ------------------------------------------------------------------------------
 before=$(live_sql "SELECT failed_count FROM pg_stat_archiver")
@@ -276,6 +283,43 @@ summary "target back: archiving caught up in $(($(date -u +%s) - down_at)) s"
 $BACKUP_SH --markers || true
 [ "$(live_sql "SELECT pg_postmaster_start_time()")" = "$started" ] || die "the live server restarted during the run (crash-restart? see the postgres log)"
 summary "live server never restarted: ok"
+
+# --- 5. switch-over rehearsal: the restored copy at T becomes the live database, then back --------------------------
+counts() { live_sql "SELECT string_agg(batch || '=' || n, ' ' ORDER BY batch) FROM (SELECT batch, count(*) n FROM pitr_ci_rows GROUP BY batch) x"; }
+before=$(counts)
+log "switch rehearsal: restore to T into 'switchtest', stop it, make it live, then back (live before: $before)"
+$PITR_RESTORE_SH "$T+00" --into switchtest || die "pitr-restore.sh --into switchtest"
+$PITR_RESTORE_SH --stop switchtest || die "pitr-restore.sh --stop switchtest"
+# migrate:status (nothing pending) and db:restore-smoke against the live database once it is the copy
+export PITR_SWITCH_APP_CMD="cd '$ROOT_DIR/backend' && export APP_ENV=pitr-ci APP_KEY='base64:$smoke_key' DB_CONNECTION=pgsql DB_HOST='$MIG_HOST' DB_PORT='$MIG_PORT' DB_DATABASE='$DB_NAME' DB_USERNAME='$DB_USER' DB_PASSWORD='$MIG_PASS' DB_URL= DB_POOLER=direct CACHE_STORE=array QUEUE_CONNECTION=sync SESSION_DRIVER=array BROADCAST_CONNECTION=null LOG_CHANNEL=stderr && ! php artisan migrate:status | grep -q Pending && { php artisan help db:restore-smoke >/dev/null 2>&1 || exit 0; } && php artisan db:restore-smoke"
+$SWITCH switchtest --confirm "$DB_NAME" || die "pitr-switch.sh switchtest"
+# Local mode: the live data path is now the copy (compose mounts whatever it is at the same path)
+[ "$MODE" != "local" ] || export PITR_PGDATA="$W/restore/switchtest"
+after=$(counts)
+[ "$after" = "A=$ROWS B=$ROWS" ] || die "after the switch the live database should hold A and B only, it holds: $after"
+[ "$(live_sql "SELECT pg_is_in_recovery()")" = "f" ] || die "switched database still in recovery"
+[ "$(live_sql "SELECT timeline_id FROM pg_control_checkpoint()")" -ge 2 ] || die "switched database is not on a new timeline"
+summary "switch-over: the copy at T is live ($after, timeline $(live_sql "SELECT timeline_id FROM pg_control_checkpoint()")), full backup taken"
+batch E
+$PITR_RESTORE_SH --drop switchtest 2>/dev/null && die "pitr-restore.sh dropped the copy that is the live database"
+$SWITCH --back --confirm "$DB_NAME" || die "pitr-switch.sh --back"
+[ "$MODE" != "local" ] || export PITR_PGDATA="$W/live"
+[ "$(counts)" = "$before" ] || die "after --back the live database should be as before ($before), it holds: $(counts)"
+seg=$(live_sql "SELECT pg_walfile_name(pg_current_wal_lsn())")
+live_sql "SELECT pg_switch_wal()" >/dev/null
+i=0
+until [ "$(live_sql "SELECT last_archived_wal ~ '^[0-9A-F]{24}\$' AND last_archived_wal >= '$seg' FROM pg_stat_archiver")" = "t" ]; do
+    i=$((i + 1)); [ "$i" -lt 180 ] || die "archiving does not work after switching back"
+    sleep 1
+done
+$PITR_RESTORE_SH --drop switchtest || die "pitr-restore.sh --drop switchtest"
+summary "switch back: original data again ($before), archiving works"
+# The PITR chain must survive the switch-back (a restore right after it uses the newest backup, on the old timeline)
+unset PITR_DRILL_EXTRA_CHECK_SQL PITR_DRILL_EXTRA_CHECK_EXPECT
+$DRILL --ci >"$out" || { cat "$out"; die "drill after the switch-back failed"; }
+[ "$(val DRILL_STATUS)" = "ok" ] || { cat "$out"; die "drill after the switch-back failed"; }
+summary "drill after the switch-back: ok (restore $(val RESTORE_SECONDS) s, smoke $(val CHECK_app_smoke))"
+rm -f "$out"
 
 printf '%s' "$results" >&2
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then

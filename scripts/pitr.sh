@@ -160,10 +160,13 @@ pitr_restore_to() { # pitr_restore_to <dir> <target-time> <log> [repo]
     if [ "$(id -u)" = "0" ]; then chown postgres:postgres "$1"; fi
     chmod 0700 "$1"
     _rt_repo=${4:-1}
-    # --archive-mode=off: the restored copy must never push its new timeline into the live stanza
+    # --archive-mode=off: the restored copy must never push its new timeline into the live stanza.
+    # --target-timeline=current: stay on the timeline of the chosen backup. Postgres' default ("latest") would follow
+    # the newest timeline in the archive, and after a switch-over and back (scripts/pitr-switch.sh --back) that is a
+    # branch the backup is not on: the restore then fails with "could not locate required checkpoint record"
     ( pitr_scratch_env "$1"
       pgbr restore --repo="$_rt_repo" --pg1-path="$1" --type=time --target="$2" --target-action=promote \
-          --archive-mode=off --log-level-console=info ) >"$3" 2>&1
+          --target-timeline=current --archive-mode=off --log-level-console=info ) >"$3" 2>&1
 }
 
 # Starts a scratch Postgres on a restored directory (no archiving, no hot standby: it accepts connections once
@@ -217,25 +220,43 @@ pitr_backup_label() { # pitr_backup_label <restore-log>
     sed -n 's/.*restore backup set \([0-9A-Za-z_-]*\).*/\1/p' "$1" | tail -n 1
 }
 
-# --- rclone (S3 for partition archives; same remote "offsite" and keys as backup.sh) -------------------------------
+# --- rclone (S3 for the journal archive) ---------------------------------------------------------------------------
+# ARCHIVE_S3_* (each falling back to the BACKUP_S3_* key of the nightly dump). The archive must never be deletable:
+# the safe layout is its own bucket (Object Lock / versioning) or at least its own key WITHOUT delete permission,
+# while pgBackRest (PITR_S3_*) needs delete permission to expire old backups. Remote name "archive", env only.
+pitr_archive_s3_load() {
+    AR_ENDPOINT=${ARCHIVE_S3_ENDPOINT:-${BACKUP_S3_ENDPOINT:-}}
+    AR_BUCKET=${ARCHIVE_S3_BUCKET:-${BACKUP_S3_BUCKET:-}}
+    AR_KEY=${ARCHIVE_S3_ACCESS_KEY:-${BACKUP_S3_ACCESS_KEY:-}}
+    AR_SECRET=${ARCHIVE_S3_SECRET:-${BACKUP_S3_SECRET:-}}
+    AR_REGION=${ARCHIVE_S3_REGION:-${BACKUP_S3_REGION:-}}
+    AR_PREFIX=$(printf '%s' "${ARCHIVE_S3_PREFIX:-${BACKUP_S3_PREFIX:-}}" | sed -e 's#^/*##' -e 's#/*$##')
+}
+
 pitr_s3_configured() {
-    [ -n "${BACKUP_S3_ENDPOINT:-}" ] && [ -n "${BACKUP_S3_BUCKET:-}" ] && [ -n "${BACKUP_S3_ACCESS_KEY:-}" ] && [ -n "${BACKUP_S3_SECRET:-}" ]
+    pitr_archive_s3_load
+    [ -n "$AR_ENDPOINT" ] && [ -n "$AR_BUCKET" ] && [ -n "$AR_KEY" ] && [ -n "$AR_SECRET" ]
 }
 
 pitr_rclone_env() {
-    export RCLONE_CONFIG_OFFSITE_TYPE=s3
-    export RCLONE_CONFIG_OFFSITE_PROVIDER=Other
-    export RCLONE_CONFIG_OFFSITE_ENDPOINT="$BACKUP_S3_ENDPOINT"
-    export RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY"
-    export RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET"
-    export RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET=true
-    if [ -n "${BACKUP_S3_REGION:-}" ]; then export RCLONE_CONFIG_OFFSITE_REGION="$BACKUP_S3_REGION"; fi
+    pitr_archive_s3_load
+    export RCLONE_CONFIG_ARCHIVE_TYPE=s3
+    export RCLONE_CONFIG_ARCHIVE_PROVIDER=Other
+    export RCLONE_CONFIG_ARCHIVE_ENDPOINT="$AR_ENDPOINT"
+    export RCLONE_CONFIG_ARCHIVE_ACCESS_KEY_ID="$AR_KEY"
+    export RCLONE_CONFIG_ARCHIVE_SECRET_ACCESS_KEY="$AR_SECRET"
+    export RCLONE_CONFIG_ARCHIVE_NO_CHECK_BUCKET=true
+    if [ -n "$AR_REGION" ]; then export RCLONE_CONFIG_ARCHIVE_REGION="$AR_REGION"; fi
 }
 
+# archive:<bucket>[/<prefix>]/archive (no trailing slash)
 pitr_s3_target() {
-    _st_prefix=$(printf '%s' "${BACKUP_S3_PREFIX:-}" | sed -e 's#^/*##' -e 's#/*$##')
-    if [ -n "$_st_prefix" ]; then printf 'offsite:%s/%s' "$BACKUP_S3_BUCKET" "$_st_prefix"; else printf 'offsite:%s' "$BACKUP_S3_BUCKET"; fi
+    pitr_archive_s3_load
+    printf 'archive:%s/%sarchive' "$AR_BUCKET" "${AR_PREFIX:+$AR_PREFIX/}"
 }
+
+# s3://<bucket>/[<prefix>/]archive/<rest>
+pitr_s3_uri() { pitr_archive_s3_load; printf 's3://%s/%sarchive/%s' "$AR_BUCKET" "${AR_PREFIX:+$AR_PREFIX/}" "$1"; }
 
 # Live connection settings like backup.sh: PG*, then DB_*, then backend/.env
 pitr_resolve_conn() {

@@ -5,7 +5,7 @@
 #
 # Har partition_archives qatori uchun (status detached, uploaded yoki failed; jadvalni `php artisan db:partitions:archive`
 # to'ldiradi): pg_dump -Fc --no-owner -t public.<bo'lak> -> /backups/archive/<jadval>/<YYYY-MM>.dump, sha256, pg_restore
-# --list bilan tekshiruv; S3 (BACKUP_S3_*) bo'lsa <prefix>/archive/<jadval>/ ga yuklaydi (--immutable: bor faylni
+# --list bilan tekshiruv; S3 (ARCHIVE_S3_*, bo'sh bo'lsa BACKUP_S3_*) bo'lsa <prefix>/archive/<jadval>/ ga yuklaydi (--immutable: bor faylni
 # hech qachon almashtirmaydi), QAYTA YUKLAB OLIB sha256 va pg_restore --list ni tekshiradi, so'ng `verified`. Faqat
 # `verified` qatorni bazadan o'chirish mumkin (buni keyingi db:partitions:archive bajaradi, 3 kundan keyin).
 # S3 bo'lmasa: fayl faqat shu serverda, status `uploaded`; bunday bo'lak faqat backend/.env da ARCHIVE_ALLOW_LOCAL_ONLY=1
@@ -52,6 +52,28 @@ if pitr_s3_configured; then
     command -v rclone >/dev/null 2>&1 || pitr_die "rclone topilmadi (backup obrazida bor: infra/backup/Dockerfile)"
     pitr_rclone_env
     s3=1
+    # The archive must not be deletable with the key that writes it. Cheap check, once per run: put a tiny probe object
+    # and try to delete it. Deleted = the key has delete permission (with Object Lock/versioning the data would still
+    # survive, but say it loudly). The result goes to the `archive` marker for the control center.
+    probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/rizqim-archive-probe.XXXXXX")
+    printf 'rizqim archive delete-permission probe\n' >"$probe_dir/.rizqim-delete-probe"
+    delete_allowed=unknown
+    if rclone copyto --retries 1 "$probe_dir/.rizqim-delete-probe" "$(pitr_s3_target)/.rizqim-delete-probe" >/dev/null 2>&1; then
+        if rclone deletefile --retries 1 "$(pitr_s3_target)/.rizqim-delete-probe" >/dev/null 2>&1; then
+            delete_allowed=true
+            pitr_log "DIQQAT: arxiv kaliti S3 dan O'CHIRA OLADI ($(pitr_s3_uri '')). Fiskal va audit arxivi o'chmasligi kerak: arxiv uchun o'chirish huquqisiz alohida kalit bering (ARCHIVE_S3_ACCESS_KEY/SECRET) yoki bucket'da Object Lock / versiyalashni yoqing"
+        else
+            delete_allowed=false
+        fi
+    fi
+    rm -rf "$probe_dir"
+    if [ "${PITR_S3_ACCESS_KEY:-}" != "" ] && [ "${PITR_S3_ACCESS_KEY:-}" = "$AR_KEY" ]; then
+        pitr_log "DIQQAT: PITR (pgBackRest) va arxiv bir xil S3 kaliti bilan yozilmoqda: pgBackRest'ga o'chirish huquqi kerak, arxivga esa bo'lmasligi kerak. Arxiv uchun alohida kalit bering (ARCHIVE_S3_*)"
+    fi
+    pitr_marker archive "json_build_object('offsite', true, 'delete_allowed', CASE :'d' WHEN 'true' THEN true WHEN 'false' THEN false END, 'target', :'t')" \
+        -v "d=$delete_allowed" -v "t=$(pitr_s3_uri '')" || true
+else
+    pitr_marker archive "json_build_object('offsite', false, 'delete_allowed', NULL, 'target', NULL)" || true
 fi
 
 # uploaded rows are retried only when S3 is now configured (a local-only copy waiting for an off-site one)
@@ -109,9 +131,8 @@ for row in $rows; do
     bytes=$(wc -c <"$file" | tr -d ' ')
 
     if [ "$s3" = "1" ]; then
-        remote="$(pitr_s3_target)/archive/$table"
-        prefix=$(printf '%s' "${BACKUP_S3_PREFIX:-}" | sed -e 's#^/*##' -e 's#/*$##')
-        uri="s3://$BACKUP_S3_BUCKET/${prefix:+$prefix/}archive/$table/$name"
+        remote="$(pitr_s3_target)/$table"
+        uri=$(pitr_s3_uri "$table/$name")
         # --immutable: an existing object with other content is an error, never overwritten
         if ! rclone copyto --immutable --retries 3 --low-level-retries 5 "$file" "$remote/$name" \
             || ! rclone copyto --immutable --retries 3 --low-level-retries 5 "$file.sha256" "$remote/$name.sha256"; then
@@ -135,7 +156,7 @@ for row in $rows; do
         pitr_log "$part: S3 da tekshirildi (verified), $bytes bayt"
     else
         set_row "$id" "status = 'uploaded', bytes = $bytes, sha256 = $(pitr_sqlq "$sha"), storage_uri = $(pitr_sqlq "file://$file"), uploaded_at = now() AT TIME ZONE 'UTC', error = NULL"
-        pitr_log "$part: faqat shu serverda saqlandi (S3 yo'q, status uploaded): bazadan O'CHIRILMAYDI (backend/.env da ARCHIVE_ALLOW_LOCAL_ONLY=1 bo'lmasa). S3 ni sozlang (BACKUP_S3_*)"
+        pitr_log "$part: faqat shu serverda saqlandi (S3 yo'q, status uploaded): bazadan O'CHIRILMAYDI (backend/.env da ARCHIVE_ALLOW_LOCAL_ONLY=1 bo'lmasa). S3 ni sozlang (ARCHIVE_S3_* yoki BACKUP_S3_*)"
     fi
     done_count=$((done_count + 1))
     IFS=$tab

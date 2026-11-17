@@ -57,15 +57,16 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 |---|---|---|---|
 | ildiz `.env` | `PITR_ENABLED` | bo'sh (o'chiq) | `1` = uzluksiz zaxira (PITR, pgBackRest) yoqiq; yoqilgach Postgres bir marta qayta ishga tushadi |
 | ildiz `.env` | `PITR_CIPHER_PASS` | bo'sh | S3 dagi PITR nusxasining shifrlash paroli. S3 uchun shart; **yo'qolsa S3 nusxalari o'qilmaydi: server tashqarisida saqlang**; keyin o'zgartirmang; `$` bo'lmasin |
-| ildiz `.env` | `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` | bo'sh = `BACKUP_S3_*` | PITR uchun S3 (`https://`). Bo'sh bo'lsa `BACKUP_S3_*` ishlatiladi (`<prefiks>/pitr` papkasi). Kalitda o'chirish huquqi kerak |
+| ildiz `.env` | `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` | bo'sh = `BACKUP_S3_*` | PITR uchun S3 (`https://`). Bo'sh bo'lsa `BACKUP_S3_*` ishlatiladi (`<prefiks>/pitr` papkasi). Kalitda o'chirish huquqi kerak: shuning uchun PITR uchun alohida kalit (yaxshisi alohida bucket) bering |
 | ildiz `.env` | `PITR_S3_REGION`, `PITR_S3_PREFIX`, `PITR_S3_URI_STYLE`, `PITR_S3_VERIFY_TLS` | `us-east-1` (yoki `BACKUP_S3_REGION`), bo'sh, `path`, `y` | ixtiyoriy S3 tafsilotlari |
 | ildiz `.env` | `PITR_REPO1_RETENTION_FULL`, `PITR_S3_RETENTION_FULL` | `2`, `4` | saqlanadigan to'liq (haftalik) nusxalar: shu serverda ~14 kun, S3 da ~28 kun |
 | ildiz `.env` | `PITR_ARCHIVE_QUEUE_MAX` | `4GiB` | S3 ishlamasa WAL shu hajmgacha kutadi; oshsa tashlanadi (disk to'lmaydi, PITR zanjiri uziladi) |
 | ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC. `0` = faqat qo'lda |
+| ildiz `.env` | `ARCHIVE_S3_ENDPOINT`, `ARCHIVE_S3_BUCKET`, `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, `ARCHIVE_S3_REGION`, `ARCHIVE_S3_PREFIX` | bo'sh = `BACKUP_S3_*` | jurnallar arxivi uchun S3 (`<prefiks>/archive`). Arxiv hech qachon o'chmasligi kerak: o'chirish huquqi **yo'q** kalit, imkon bo'lsa Object Lock'li alohida bucket |
 | ildiz `.env` | `PITR_PING_URL` | bo'sh | healthchecks.io manzili: har muvaffaqiyatli PITR nusxasidan keyin so'rov yuboriladi |
 | ildiz `.env` | `HEALTHCHECKS_PING_URL` | bo'sh | healthchecks.io manzili: scheduler har daqiqalik tekshiruvdan keyin so'rov yuboradi (server jim bo'lsa tashqi xizmat xabar beradi) |
 | ildiz `.env` | `BACKUP_TIME` | `21:30` (UTC = Toshkent 02:30; M3 gacha `03:00`) | ketma-ket: PITR nusxasi, `pg_dump`, jurnallar arxivi. Eski `.env` da `03:00` yozilgan bo'lsa o'zgarmaydi |
-| ildiz `.env` | `POSTGRES_DATA_VOLUME` | bo'sh = `postgres_data` | faqat PITR bilan tiklangan nusxani ish bazasi qilishda (OPERATIONS.md, 18-bo'lim, 5-qadam): serverdagi mutlaq papka yo'li. Boshqa vaqtda tegmang |
+| ildiz `.env` | `POSTGRES_DATA_VOLUME` | bo'sh = `postgres_data` | faqat PITR bilan tiklangan nusxani ish bazasi qilishda: uni `scripts/pitr-switch.sh` o'zi yozadi va `--back` o'chiradi (OPERATIONS.md, 18-bo'lim, 5-qadam). Qo'lda tegmang |
 | `backend/.env` | `TELEGRAM_OPS_CHAT_ID` | bo'sh = `TELEGRAM_SUPERADMIN_CHAT_ID` | ogohlantirishlar guruhi (egasi va texnik yordamchi) |
 | `backend/.env` | `ARCHIVE_AUDIT_MONTHS`, `ARCHIVE_FISCAL_MONTHS`, `ARCHIVE_NOTIFICATION_MONTHS` | `7`, `13`, `6` | jurnallar bazada necha oy (joriy oy bilan) turadi; eskisi arxivlanadi (xabarnomalar o'chiriladi) |
 | `backend/.env` | `ARCHIVE_ALLOW_LOCAL_ONLY` | `false` | `1` = S3 siz ham eski oy bazadan o'chadi. **Tavsiya etilmaydi** |
@@ -322,7 +323,7 @@ Bu repodagi migratsiyalardan ehtiyot talab qiladiganlari (qolganlarining `down()
 - `add_non_negative_stock_check_to_product_variants_table` manfiy zaxirani 0 ga tenglashtirgan (qaytmaydi); `down()` faqat `CHECK` cheklovini olib tashlaydi.
 - `copy_order_status_logs_into_order_status_histories` `down()` da ko'chirilgan qatorlar va `order_status_log_id` ustunini o'chiradi; asl `order_status_logs` jadvali o'zgarmaydi.
 - `add_promo_code_id_to_orders_table` indekslarni `CREATE INDEX CONCURRENTLY` bilan tranzaksiyasiz quradi: yarim yo'lda to'xtasa `INVALID` indeks qolishi mumkin (`\d orders`), uni `DROP INDEX CONCURRENTLY <nom>` bilan o'chirib qayta yurgizing. `add_non_negative_stock_check_...` ham tranzaksiyasiz (`NOT VALID`, so'ng `VALIDATE`), uni qayta yurgizish xavfsiz.
-- `partition_journals` (M3): `audit_logs`, `fiscal_receipts` va `notification_logs` oylik bo'linmalarga o'tadi. `down()` faqat kichik jadvalda (200 000 qatorgacha) joyida ishlaydi; kattasi uchun konversiyadan keyin 7 kun ichida `php artisan db:partitions:convert <jadval> --rollback` (OPERATIONS.md, 20-bo'lim). Arxivlangan va bazadan o'chirilgan oylar `down()` bilan qaytmaydi: `scripts/archive-restore.sh`.
+- `partition_journals` (M3): `audit_logs`, `fiscal_receipts` va `notification_logs` oylik bo'linmalarga o'tadi. `down()` faqat kichik jadvalda (200 000 qatorgacha) joyida ishlaydi; kattasi uchun konversiyadan keyin 7 kun ichida `scripts/partitions-convert.sh <jadval> --rollback` (OPERATIONS.md, 20-bo'lim). Arxivlangan va bazadan o'chirilgan oylar `down()` bilan qaytmaydi: `scripts/archive-restore.sh`.
 - Eng ishonchli yo'l — `pg_dump` zaxirasidan tiklash (yoki uzluksiz zaxira yoqilgan bo'lsa, vaqtga qaytarib tiklash: OPERATIONS.md, 18-bo'lim).
 
 **To'lov tizimlari (P4 wave 3 migratsiyasidan keyin).** `2026_11_06_300200_add_mode_to_payment_providers_table` hamma

@@ -579,7 +579,7 @@ Dizayn va sabablar: [scale/M3_DESIGN.md](scale/M3_DESIGN.md), 6-bo'lim. Sozlamal
    PITR_ENABLED=1
    PITR_CIPHER_PASS=<1-qadamdagi parol>
    ```
-3. S3-mos xotira (AWS S3, Cloudflare R2, Backblaze B2, MinIO). 4-bo'limdagi `BACKUP_S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET` allaqachon to'ldirilgan bo'lsa PITR ham shu bucket'ga yozadi (`<BACKUP_S3_PREFIX>/pitr` papkasiga). Alohida bucket kerak bo'lsa `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` (ixtiyoriy `PITR_S3_REGION`, `PITR_S3_PREFIX`) ni yozing. Manzil faqat `https://` bilan boshlansin: pgBackRest `http://` ga yozmaydi. Bucket oldindan yaratilgan bo'lsin. **Kalitda o'chirish huquqi ham bo'lishi shart** (pgBackRest eski nusxalarni o'zi o'chiradi), `pitr/` papkasiga bucket lifecycle qoidasi yoki Object Lock qo'ymang: saqlash muddatini `PITR_REPO1_RETENTION_FULL` va `PITR_S3_RETENTION_FULL` boshqaradi. Shuning uchun eng toza yo'l: PITR uchun alohida bucket va alohida kalit.
+3. S3-mos xotira (AWS S3, Cloudflare R2, Backblaze B2, MinIO). 4-bo'limdagi `BACKUP_S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET` allaqachon to'ldirilgan bo'lsa PITR ham shu bucket'ga yozadi (`<BACKUP_S3_PREFIX>/pitr` papkasiga). Alohida bucket kerak bo'lsa `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` (ixtiyoriy `PITR_S3_REGION`, `PITR_S3_PREFIX`) ni yozing. Manzil faqat `https://` bilan boshlansin: pgBackRest `http://` ga yozmaydi. Bucket oldindan yaratilgan bo'lsin. **Kalitda o'chirish huquqi ham bo'lishi shart** (pgBackRest eski nusxalarni o'zi o'chiradi), `pitr/` papkasiga bucket lifecycle qoidasi yoki Object Lock qo'ymang: saqlash muddatini `PITR_REPO1_RETENTION_FULL` va `PITR_S3_RETENTION_FULL` boshqaradi. Shuning uchun eng toza yo'l: PITR uchun alohida bucket va alohida kalit (`PITR_S3_*`), jurnallar arxivi uchun esa o'chirish huquqi **yo'q** boshqa kalit (`ARCHIVE_S3_*`, 20-bo'lim): bitta kalit bilan yozilsa, `backup` logida `DIQQAT: PITR (pgBackRest) va arxiv bir xil S3 kaliti bilan` chiqadi.
 4. Ishga tushiring (obrazlar qayta yig'iladi):
    ```bash
    docker compose up -d --build
@@ -633,7 +633,7 @@ Bu bo'lim «14:05 da ma'lumot yo'qoldi yoki buzildi» holati uchun. Shartlar: uz
 | `scripts/pitr-restore.sh "vaqt"` (tiklash va 5499 portida ochish) | Yo'q: yangi joyga, alohida Postgres, faqat Docker tarmog'ida |
 | Tiklangan nusxaga `psql` bilan qarash, kerakli qatorlarni fayl qilib olish | Yo'q (o'qiydi) |
 | `--stop`, `--drop` | Faqat tiklangan nusxani to'xtatadi/o'chiradi |
-| `.env` da `POSTGRES_DATA_VOLUME` ni o'zgartirib `docker compose up -d` | **ISH BAZASINI ALMASHTIRADI** (5-qadam) |
+| `scripts/pitr-switch.sh <nom>` | **ISH BAZASINI ALMASHTIRADI** (5-qadam; baza nomini yozib tasdiqlash so'raladi, `--back` bilan qaytadi) |
 | `restore.sh --allow-live` (4-bo'lim, kunlik dump) | Almashtiradi: baza nomini yozib tasdiqlash so'raladi |
 
 **Kimga qo'ng'iroq qilish.** 1–3-qadamlarni egasi o'zi bajara oladi (hech narsa buzilmaydi). 4–5-qadamlar (qatorlarni qaytarish va ish bazasini almashtirish) texnik yordamchi bilan bajariladi: ikkalasi birga ko'rib, keyin qaror qiladi. Telefon raqamlarini shu yerga yozib qo'ying: texnik yordamchi: ______, hosting provayderi: ______.
@@ -644,7 +644,7 @@ Bu bo'lim «14:05 da ma'lumot yo'qoldi yoki buzildi» holati uchun. Shartlar: uz
 ```bash
 scripts/pitr-restore.sh --info
 ```
-Chiqishda zaxiralar va `wal archive min / max` (tiklash mumkin bo'lgan oraliq, UTC) ko'rinadi. Siz tanlagan vaqt shu oraliqda bo'lishi shart; `max` dan keyingi vaqtga tiklab bo'lmaydi.
+Avval «Qisqa xulosa» chiqadi: holat, har ombor (`repo1` shu server, `repo2` S3) bo'yicha oxirgi to'liq va oxirgi nusxa, «Tiklash mumkin: <vaqt> dan oxirgi arxivlangan WAL gacha» va «Oxirgi WAL arxivga: <vaqt>» (UTC). Siz tanlagan vaqt shu oraliqda bo'lishi shart. Pastda pgBackRest'ning to'liq ro'yxati.
 
 **3. Yangi joyga tiklang va oching** (ish bazasiga tegmaydi):
 ```bash
@@ -658,9 +658,9 @@ scripts/pitr-restore.sh "2026-12-01 14:04"
 - S3 dagi nusxadan (shu serverdagi nusxa buzilgan bo'lsa): `--repo 2` qo'shing: `scripts/pitr-restore.sh --repo 2 "2026-12-01 14:04"`. Server yoki disk butunlay yo'qolgan holat (yangi serverda `.env`, jumladan `PITR_CIPHER_PASS` va S3 kalitlari bilan tiklash) haqiqiy serverda hali mashq qilinmagan: texnik yordamchi bilan va hosting provayderi bilan rejalashtiring.
 
 **4. Ma'lumotni ko'ring va kerakli qismini qaytaring (xavfsiz yo'l).**
-Tiklangan nusxaga ulanish (3-qadam oxirida shu buyruq chiqadi):
+Tiklangan nusxaga ulanish:
 ```bash
-docker compose exec backup psql -h /restore/restore-socket -p 5499
+scripts/pitr-restore.sh --psql
 ```
 Masalan, `select count(*) from orders;` yoki `select id, name from products where store_id = 12;`: yo'qolgan ma'lumot shu yerda bormi, ko'ring. Faqat kerakli qatorlarni olish kerak bo'lsa (ish bazasi boshqa qismlarda to'g'ri bo'lib turgan paytda; **bu 90 % hollarda eng yaxshi yo'l**), ularni faylga oling (fayl serverdagi `backups/` papkasiga tushadi):
 ```bash
@@ -668,22 +668,20 @@ docker compose exec backup psql -h /restore/restore-socket -p 5499 -c "\copy (se
 ```
 Faylni ish bazasiga yuklashni texnik yordamchi bajaradi: avval vaqtinchalik jadvalga, ko'rib chiqib, keyin asosiy jadvalga (id lar to'qnashmasin). Shu yo'l bilan ish bazasi to'xtamaydi va tiklash nuqtasidan keyingi yangi buyurtmalar yo'qolmaydi.
 
-**5. Butun bazani tiklangan nusxaga almashtirish (faqat haqiqiy avariyada; ISH BAZASINI ALMASHTIRADI).** Bunda 14:04 dan keyin yozilgan HAMMA narsa (buyurtmalar, to'lovlar) yangi bazada bo'lmaydi. Eski ish bazasi `postgres_data` volume'ida o'zgarmay qoladi: orqaga qaytish mumkin. *Bu yo'l haqiqiy serverda hali to'liq mashq qilinmagan: birinchi marta texnik yordamchi bilan va kam yuk paytida bajaring; avval staging'da sinab ko'ring.* Skript tasdiq so'ramaydi, shuning uchun qaror ikki kishi tomonidan og'zaki tasdiqlansin.
+**5. Butun bazani tiklangan nusxaga almashtirish (faqat haqiqiy avariyada; ISH BAZASINI ALMASHTIRADI).** Bunda 14:04 dan keyin yozilgan HAMMA narsa (buyurtmalar, to'lovlar) yangi bazada bo'lmaydi. Eski ish bazasi o'zgarmay qoladi: orqaga qaytish mumkin. *Bu yo'l CI da kichik bazada mashq qilinadi, haqiqiy serverda hali yo'q: birinchi marta texnik yordamchi bilan va kam yuk paytida bajaring; avval staging'da sinab ko'ring.* Qaror ikki kishi tomonidan og'zaki tasdiqlansin.
 ```bash
-# a) Nusxani serverdagi YANGI (bo'sh yoki yo'q) papkaga tiklang; server ochilmaydi. Bazaning hajmicha joy kerak
-scripts/pitr-restore.sh "2026-12-01 14:04" --into /srv/rizqim/pgdata-20261201
-# b) Ilovani to'xtating
-docker compose stop backend queue queue-reports scheduler reverb frontend
-# c) Ildizdagi .env ga yozing (to'liq yo'l): POSTGRES_DATA_VOLUME=/srv/rizqim/pgdata-20261201
-# d) Postgres va backup yangi papkani oladi, qolganlari ko'tariladi (deploy qadamlari o'zi bajariladi)
-docker compose up -d
-# e) Tekshiring va darhol yangi to'liq nusxa oling (baza tarixi shu nuqtadan yangi yo'nalishda davom etadi)
-curl -fsS http://127.0.0.1:8000/health
-docker compose exec backup sh /usr/local/bin/backup.sh --pitr-backup full
+# a) 3-qadamdagi nusxa (masalan pitr-202612011404) yopiq bo'lsin
+scripts/pitr-restore.sh --stop pitr-202612011404
+# b) Almashtirish: bitta buyruq, baza nomini yozib tasdiqlashni so'raydi
+scripts/pitr-switch.sh pitr-202612011404
 ```
-Papka bo'sh bo'lmasa yoki ish bazasining o'ziga o'xshasa skript rad etadi. Orqaga qaytish: `.env` dagi `POSTGRES_DATA_VOLUME` qatorini o'chirib `docker compose up -d`. Tiklash nuqtasidan keyingi yo'qotilgan to'lovlarni Click/Payme kabinetidan solishtiring (4-bo'lim, 3-band).
+Skript nima qiladi (har qadam ekranda raqamlangan, `1/8` ... `8/8`): nusxa toza yopilganini va joy yetishini tekshiradi; ilovani, `backup` va `postgres` ni to'xtatadi; ildiz `.env` ga `POSTGRES_DATA_VOLUME=<nusxa papkasi>` yozadi (eski `.env` nusxasi `.env.before-pitr-switch-<vaqt>` bo'lib qoladi); Postgres'ni ko'tarib `pg_is_in_recovery = f` va asosiy jadvallar sonini ko'rsatadi; hamma xizmatni ko'taradi, `migrate:status` va `db:restore-smoke` bilan tekshiradi; **yangi to'liq PITR nusxa oladi** (baza tarixi yangi yo'nalishda davom etadi). Bazaning hajmiga qarab daqiqalar (to'liq nusxa eng uzun qismi). Oxirida `TAYYOR` va orqaga qaytish buyrug'i chiqadi. Xato bo'lsa skript `XATO:` bilan qaysi qadamda to'xtaganini aytadi.
 
-**6. Tozalash.** Tiklangan nusxa kerak bo'lmagach: `scripts/pitr-restore.sh --stop pitr-202612011404`, so'ng `scripts/pitr-restore.sh --drop pitr-202612011404`. 5-qadamda ishlatilgan eski papka va `postgres_data` ni kamida bir hafta saqlang, so'ng texnik yordamchi o'chiradi.
+Server o'zi yo'qolgan bo'lsa yoki nusxa boshqa diskda bo'lishi kerak bo'lsa: `scripts/pitr-restore.sh "2026-12-01 14:04" --into-dir /srv/rizqim/pgdata-20261201` (xostdagi yangi papka, server ochilmaydi), so'ng `scripts/pitr-switch.sh --dir /srv/rizqim/pgdata-20261201` (birinchi ishga tushishda WAL qo'llanadi va promote bo'ladi).
+
+Orqaga qaytish (almashtirishdan keyin yangi bazaga yozilganlar YO'QOLADI): `scripts/pitr-switch.sh --back` (xuddi shunday tasdiq so'raydi). Tiklash nuqtasidan keyingi yo'qotilgan to'lovlarni Click/Payme kabinetidan solishtiring (4-bo'lim, 3-band).
+
+**6. Tozalash.** Tiklangan nusxa kerak bo'lmagach: `scripts/pitr-restore.sh --stop pitr-202612011404`, so'ng `scripts/pitr-restore.sh --drop pitr-202612011404` (ish bazasi bo'lib qolgan nusxani skript o'chirmaydi). 5-qadamdan keyin eski `postgres_data` ni kamida bir hafta saqlang, so'ng texnik yordamchi o'chiradi.
 
 ## 19. Tiklash mashqi
 
@@ -693,7 +691,7 @@ scripts/restore-drill.sh
 ```
 Nima qiladi: ish bazasiga belgi yozadi, uning arxivga yetishini kutadi, zaxiradan shu daqiqaga **yangi joyga** tiklaydi, ikkinchi Postgres'ni 5499 portida ochib tekshiradi (belgilar, jadvallar soni, migratsiyalar, bo'linmalar, indekslar), ilova tekshiruvini (`db:restore-smoke`) bajaradi, natijani yozadi va nusxani o'chiradi. Ish bazasi va ilova to'xtamaydi; faqat disk va protsessorga vaqtincha yuk tushadi. Bazaning 1,2 baravari bo'sh joy kerak. Davomiyligi baza hajmiga qarab: kichik bazada soniyalar, kattasida daqiqalar-soatlar (haqiqiy serverda hali o'lchanmagan: birinchi mashq o'lchaydi). Tugashi: `TIKLASH MASHQI: MUVAFFAQIYATLI` va chiqish kodi 0. S3 dagi nusxani sinash: `scripts/restore-drill.sh --repo 2`.
 
-**Qachon o'zi ishlaydi.** `backup` xizmati har oyning **birinchi yakshanbasida `PITR_DRILL_TIME` (standart 23:00 UTC = dushanba 04:00 Toshkent)** da mashq qiladi. O'chirish: `PITR_DRILL_MONTHLY=0` (ildiz `.env`). Avtomatik mashq bazani tekshiradi, ilova tekshiruvini (`db:restore-smoke`, hisobotda `app_smoke`) esa faqat qo'lda `scripts/restore-drill.sh` bajaradi. **PITR ni yoqqach darhol birinchi mashqni qo'lda bajaring** (birinchi to'liq nusxa tugagandan keyin): shu mashq haqiqiy tiklash vaqtini o'lchaydi va 18-bo'limdagi vaqtlarni rejalashtirishga asos bo'ladi.
+**Qachon o'zi ishlaydi.** `backup` xizmati har oyning **birinchi yakshanbasida `PITR_DRILL_TIME` (standart 23:00 UTC = dushanba 04:00 Toshkent)** da mashq qiladi. O'chirish: `PITR_DRILL_MONTHLY=0` (ildiz `.env`). Avtomatik mashq bazani tekshiradi, lekin ilova tekshiruvini bajara olmaydi (`backup` konteynerida PHP yo'q): uning hisobotida `app_smoke: o'tkazib yuborildi` va `restore_drills.checks` da `"trigger": "auto"` turadi. To'liq tekshirilgan mashq (`app_smoke: to'g'ri`, `"trigger": "manual"`) faqat qo'lda `scripts/restore-drill.sh`: uni kamida har chorakda bajaring. **PITR ni yoqqach darhol birinchi mashqni qo'lda bajaring** (birinchi to'liq nusxa tugagandan keyin): shu mashq haqiqiy tiklash vaqtini o'lchaydi va 18-bo'limdagi vaqtlarni rejalashtirishga asos bo'ladi.
 
 **Hisobot qatorlari** (vaqtlar UTC):
 
@@ -724,13 +722,13 @@ CI dagi kichik sinov bazasida natija: tiklash 2 s, yo'qotish oynasi 61 s edi. **
 | `fiscal_receipts` | 13 oy | `ARCHIVE_FISCAL_MONTHS` | xuddi shunday (arxiv fayli hech qachon o'chirilmaydi) |
 | `notification_logs` | 6 oy | `ARCHIVE_NOTIFICATION_MONTHS` | arxivlanmaydi, o'chiriladi (eski xabarnomalar kerak emas) |
 
-Qolgan ixtiyoriy sozlamalar (standart qiymatlar yaxshi, `backend/.env.example` da yo'q; kerak bo'lsa `backend/.env` ga qo'shing): `PARTITIONS_FIRST_MONTH` (2026-01, migratsiya yaratadigan birinchi oy), `PARTITIONS_INLINE_MAX_ROWS` (200000, undan katta jadval onlayn ko'chiriladi, pastga qarang), `PARTITIONS_LOCK_TIMEOUT` (2s), `PARTITIONS_DETACH_LOCK_TIMEOUT` (3s), `ARCHIVE_ALLOW_LOCAL_ONLY` (standart o'chiq, pastga qarang). O'zgartirgandan keyin: `docker compose up -d --force-recreate backend queue queue-reports scheduler`.
+Qolgan ixtiyoriy sozlamalar (standart qiymatlar yaxshi; `backend/.env.example` da izoh sifatida turibdi, kerak bo'lsa `backend/.env` ga ko'chiring): `PARTITIONS_FIRST_MONTH` (2026-01, migratsiya yaratadigan birinchi oy), `PARTITIONS_INLINE_MAX_ROWS` (200000, undan katta jadval onlayn ko'chiriladi, pastga qarang), `PARTITIONS_LOCK_TIMEOUT` (2s), `PARTITIONS_DETACH_LOCK_TIMEOUT` (3s), `ARCHIVE_ALLOW_LOCAL_ONLY` (standart o'chiq, pastga qarang). O'zgartirgandan keyin: `docker compose up -d --force-recreate backend queue queue-reports scheduler`.
 
 **Har kecha nima bo'ladi** (UTC; Toshkent = +5):
 1. **00:40 (05:40)** `db:partitions:ensure`: kelgusi 3 oy uchun bo'laklarni tayyorlaydi va «zaxira» (DEFAULT) bo'lakka tushib qolgan qatorlarni o'z oyiga ko'chiradi.
-2. **21:30 (02:30)** `backup` xizmati kunlik `pg_dump` dan keyin `archive-partitions.sh` ni ishga tushiradi: avval ajratilgan oylarni (`detached`) `pg_dump -Fc` bilan faylga oladi (`backups/archive/<jadval>/<YYYY-MM>.dump`), `sha256` hisoblaydi, S3 ga yuklaydi (`<prefiks>/archive/<jadval>/`), **faylni S3 dan qayta yuklab oladi**, `sha256` va `pg_restore --list` ni tekshiradi; shundagina holat `verified` bo'ladi.
+2. **21:30 (02:30)** `backup` xizmati kunlik `pg_dump` dan keyin `archive-partitions.sh` ni ishga tushiradi: avval ajratilgan oylarni (`detached`) `pg_dump -Fc` bilan faylga oladi (`backups/archive/<jadval>/<YYYY-MM>.dump`), `sha256` hisoblaydi, S3 ga yuklaydi (`ARCHIVE_S3_*`, bo'sh bo'lsa `BACKUP_S3_*`; `<prefiks>/archive/<jadval>/`), **faylni S3 dan qayta yuklab oladi**, `sha256` va `pg_restore --list` ni tekshiradi; shundagina holat `verified` bo'ladi.
 3. **22:40 (03:40)** `db:partitions:archive`: (a) bazadagi eng eski oylar (jadvalning «bazada saqlanadi» chegarasidan eskilari) asosiy jadvaldan **ajratiladi** (o'chirilmaydi; holat `detached`); (b) tasdiqlanganiga (`verified`) 3 kundan ko'p bo'lgan oylar bazadan o'chiriladi (`dropped`).
-Natijada eski oy avval ajratiladi, keyingi kecha faylga olinib S3 da tekshiriladi, kamida 3 kundan keyin o'chadi. **Tasdiqlangan tashqi nusxasiz hech narsa o'chirilmaydi.** Arxiv fayllariga bucket'da lifecycle (muddatli o'chirish) qo'ymang; imkon bo'lsa Object Lock yoki versiyalash yoqing.
+Natijada eski oy avval ajratiladi, keyingi kecha faylga olinib S3 da tekshiriladi, kamida 3 kundan keyin o'chadi. **Tasdiqlangan tashqi nusxasiz hech narsa o'chirilmaydi.** Arxiv fayllariga bucket'da lifecycle (muddatli o'chirish) qo'ymang; imkon bo'lsa Object Lock yoki versiyalash yoqing. Arxiv uchun o'chirish huquqi **yo'q** alohida kalit bering (ildiz `.env` da `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, kerak bo'lsa alohida `ARCHIVE_S3_BUCKET`). Skript har kecha kichik sinov fayli bilan kalit o'chira oladimi tekshiradi: o'chira olsa logda `DIQQAT: arxiv kaliti S3 dan O'CHIRA OLADI` chiqadi (natija `monitoring_markers` dagi `archive` belgisida). `BACKUP_S3_RETENTION_DAYS` faqat prefiks ildizidagi `rizqim-*.dump` fayllarini o'chiradi, `pitr/` va `archive/` ga tegmaydi.
 
 **S3 bo'lmasa.** Arxiv fayli faqat serverdagi `backups/archive/` da qoladi (holat `uploaded`), bazadan **hech narsa o'chirilmaydi** va jurnallar bazada o'sishda davom etadi (`notification_logs` bundan mustasno: u arxivsiz o'chiriladi). `backend/.env` da `ARCHIVE_ALLOW_LOCAL_ONLY=1` bo'lsa mahalliy nusxa yetarli hisoblanib bo'lak o'chiriladi: **tavsiya etilmaydi**, server yo'qolsa arxiv ham yo'qoladi.
 
@@ -757,13 +755,13 @@ Hammasi 200000 dan kam bo'lsa hech narsa qilish shart emas (DEPLOY.md, 7-bo'lim 
 git pull && docker compose build backend postgres backup             # yangi kod obrazlari (hali ko'tarilmaydi)
 docker compose exec backup sh /usr/local/bin/backup.sh               # zaxira
 # 1) Ko'chirish: ilova ishlab turadi; to'xtatsangiz (Ctrl+C) qayta bajarilganda davom etadi
-docker compose run --rm --no-deps -e RUN_MIGRATIONS=false -e DB_POOLER=direct backend php artisan db:partitions:convert <jadval>
+scripts/partitions-convert.sh <jadval>
 # 2) Almashtirish: yozuvlar bir necha soniya kutadi (tunda)
-docker compose run --rm --no-deps -e RUN_MIGRATIONS=false -e DB_POOLER=direct backend php artisan db:partitions:convert <jadval> --finish
+scripts/partitions-convert.sh <jadval> --finish
 # 3) Hamma katta jadval almashtirilgach yangi kodni ko'taring: migratsiya bu jadvallarni o'tkazib yuboradi
 docker compose up -d --build
 ```
-Ko'chirish hajmga qarab daqiqalardan soatlargacha davom etadi (o'lchanmagan taxmin; yozuvlar shu paytda ketaveradi), yo'l-yo'lakay `... id N gacha (X%)` yoziladi; oxirida `tayyor ... Endi: ... --finish`. Almashtirishdan keyin eski jadval `<jadval>_m3_old` nomi bilan **7 kun** saqlanadi: muammo chiqsa `... db:partitions:convert <jadval> --rollback` (7 kun ichida, hech narsa yo'qolmaydi). 7 kundan keyin hammasi joyida bo'lsa: `... db:partitions:convert <jadval> --drop-old` (qatorlar mosligini tekshirib o'chiradi; mos kelmasa hech narsa o'chirmaydi). Bitta jadval uchun bir vaqtda faqat bitta ko'chirish jarayoni ishlaydi. Ko'chirish WAL ga katta hajmda yozadi: PITR yoqilgan bo'lsa shu kecha disk va S3 ga yuk oshadi (17-bo'limning disk qoidalari) va oxirida yangi to'liq nusxa olgan ma'qul.
+Ko'chirish hajmga qarab daqiqalardan soatlargacha davom etadi (o'lchanmagan taxmin; yozuvlar shu paytda ketaveradi), yo'l-yo'lakay `... id N gacha (X%)` yoziladi; oxirida `tayyor ... Endi: ... --finish`. Almashtirishdan keyin eski jadval `<jadval>_m3_old` nomi bilan **7 kun** saqlanadi: muammo chiqsa `scripts/partitions-convert.sh <jadval> --rollback` (7 kun ichida, hech narsa yo'qolmaydi). 7 kundan keyin hammasi joyida bo'lsa: `scripts/partitions-convert.sh <jadval> --drop-old` (qatorlar mosligini tekshirib o'chiradi; mos kelmasa hech narsa o'chirmaydi). Bitta jadval uchun bir vaqtda faqat bitta ko'chirish jarayoni ishlaydi. Ko'chirish WAL ga katta hajmda yozadi: PITR yoqilgan bo'lsa shu kecha disk va S3 ga yuk oshadi (17-bo'limning disk qoidalari) va oxirida yangi to'liq nusxa olgan ma'qul.
 
 ## 21. Ogohlantirishlar
 

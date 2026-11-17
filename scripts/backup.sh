@@ -20,7 +20,7 @@
 # Sozlamalar (env; docker compose'da ildizdagi .env dan):
 #   BACKUP_DIR             papka (standart: <loyiha>/backups; `backup` konteynerida /backups)
 #   BACKUP_RETENTION_DAYS  shu kundan eski zaxiralar o'chiriladi (standart 14)
-#   BACKUP_TIME            --daemon uchun HH:MM, UTC (standart 03:00)
+#   BACKUP_TIME            --daemon uchun HH:MM, UTC (standart 21:30 = Toshkent 02:30)
 #   BACKUP_RUN_ON_START    --daemon ishga tushganda darhol bir marta (standart 1)
 #   BACKUP_OFFSITE_CMD     ixtiyoriy: zaxiradan keyin `sh -c` bilan bajariladi, fayl yo'li $BACKUP_FILE da.
 #                          Masalan: rclone copy "$BACKUP_FILE" remote:rizqim-backups
@@ -82,7 +82,7 @@ PGDATABASE=$(resolve PGDATABASE DB_DATABASE); export PGDATABASE
 
 BACKUP_DIR=${BACKUP_DIR:-$ROOT_DIR/backups}
 BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-14}
-BACKUP_TIME=${BACKUP_TIME:-03:00}
+BACKUP_TIME=${BACKUP_TIME:-21:30}
 BACKUP_RUN_ON_START=${BACKUP_RUN_ON_START:-1}
 BACKUP_OFFSITE_CMD=${BACKUP_OFFSITE_CMD:-}
 BACKUP_S3_ENDPOINT=${BACKUP_S3_ENDPOINT:-}
@@ -154,7 +154,9 @@ s3_upload() { # s3_upload <fayl-nomi>
     fi
     log "S3: yuklandi"
     if [ -n "$BACKUP_S3_RETENTION_DAYS" ]; then
-        if ! rclone delete --min-age "${BACKUP_S3_RETENTION_DAYS}d" --include 'rizqim-*.dump' --include 'rizqim-*.dump.sha256' "$target"; then
+        # Only the dumps at the top of the prefix: --max-depth 1 and anchored names, so the PITR repository (<prefix>/pitr)
+        # and the journal archive (<prefix>/archive, never deleted) are out of reach whatever the prefixes are
+        if ! rclone delete --max-depth 1 --min-age "${BACKUP_S3_RETENTION_DAYS}d" --include '/rizqim-*.dump' --include '/rizqim-*.dump.sha256' "$target"; then
             log "OGOHLANTIRISH: S3 dagi eski zaxiralarni o'chirib bo'lmadi (kalitda o'chirish huquqi yo'qmi?)"
         fi
     fi
@@ -284,7 +286,9 @@ pitr_backup() {
     elif [ -n "$PITR_REPO2_NOTE" ]; then
         log "OGOHLANTIRISH: $PITR_REPO2_NOTE"
     fi
-    pgbr expire || { log "XATO: pgbackrest expire bajarilmadi"; rc=1; }
+    if [ "${PITR_SKIP_EXPIRE:-0}" != "1" ]; then
+        pgbr expire || { log "XATO: pgbackrest expire bajarilmadi"; rc=1; }
+    fi
     if [ "$rc" -eq 0 ]; then
         rm -f "$PITR_STATE_DIR/full-needed"
         log "PITR: zaxira tayyor"
@@ -292,6 +296,31 @@ pitr_backup() {
     fi
     write_markers || true
     return "$rc"
+}
+
+# After scripts/pitr-switch.sh --back: the database is again on the older timeline, but the repository still holds
+# backups taken on the abandoned (switched-to) timeline. pgBackRest's expire assumes timelines only grow: with such a
+# backup as the oldest retained one it deletes the WAL the newer backup on the old timeline needs. So the backups whose
+# WAL starts on the abandoned timeline are expired explicitly (expire --set), then the normal expire runs.
+pitr_forget_timeline() { # pitr_forget_timeline <timeline id, decimal>
+    pitr_require_lib
+    pitr_load
+    tli_hex=$(printf '%08X' "$1")
+    for repo in 1 2; do
+        [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
+        info=$(pgbr info --repo="$repo" --output=json 2>/dev/null) || info='[]'
+        labels=$(psql -X -A -t -q -v ON_ERROR_STOP=1 -v "info=$info" -v "tli=$tli_hex" <<'SQL'
+SELECT coalesce(string_agg(e ->> 'label', ' ' ORDER BY e ->> 'label' DESC), '')
+FROM jsonb_array_elements(coalesce((:'info')::jsonb -> 0 -> 'backup', '[]'::jsonb)) e
+WHERE substr(e -> 'archive' ->> 'start', 1, 8) = :'tli'
+SQL
+)
+        for label in $labels; do
+            log "PITR: repo$repo dagi tashlab ketilgan timeline $1 nusxasi o'chirilmoqda: $label"
+            pgbr expire --repo="$repo" --set="$label" || log "XATO: expire --set=$label (repo$repo) bajarilmadi"
+        done
+    done
+    pgbr expire
 }
 
 # On daemon start: stanza (idempotent; also adds repo2 once S3 is configured), check, a first full backup
@@ -342,6 +371,7 @@ write_markers() {
               'message', coalesce((SELECT s -> 'status' ->> 'message' FROM s), nullif(:'lasterr', '')),
               'repo2', :'repo2',
               'repo2_note', nullif(:'repo2note', ''),
+              'offsite', :'repo2' = 'on',
               'backups', (SELECT count(*) FROM b),
               'last_full_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b WHERE e ->> 'type' = 'full'),
               'last_backup_at', (SELECT to_char(to_timestamp(max((e -> 'timestamp' ->> 'stop')::bigint)) AT TIME ZONE 'UTC', $iso) FROM b),
@@ -488,6 +518,11 @@ case "${1:-}" in
         validate
         pitr_enabled || die "PITR o'chiq: ildiz .env da PITR_ENABLED=1, so'ng docker compose up -d --build"
         pitr_init
+        ;;
+    --pitr-forget-timeline)
+        validate
+        case "${2:-}" in '' | *[!0-9]*) die "foydalanish: backup.sh --pitr-forget-timeline <timeline raqami>" ;; esac
+        pitr_forget_timeline "$2"
         ;;
     --markers)
         mkdir -p "$PITR_STATE_DIR"

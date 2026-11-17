@@ -981,7 +981,9 @@ jobs:
   # with MinIO over TLS as the S3 repository (infra/ci/docker-compose.pitr.yml): the daemon's stanza-create, check and
   # first full backup; batches A / full backup / B / T / C; scripts/restore-drill.sh --target-time T restores into a new
   # directory inside the backup container and must find A and B but not C; then the archive target goes down and comes
-  # back. RESTORE_SECONDS, RECOVERY_POINT and DATA_LOSS_SECONDS go to the step summary. scripts/pitr-ci.sh does all of it
+  # back; then the switch-over rehearsal: the copy at T is made the live database by scripts/pitr-switch.sh (A and B
+  # only), switched back (--back), and a second drill proves the PITR chain survived it. db:restore-smoke must pass on
+  # the restored copy. RESTORE_SECONDS, RECOVERY_POINT and DATA_LOSS_SECONDS go to the step summary. scripts/pitr-ci.sh does all of it
   # (scripts/pitr-ci.sh --local runs the same steps without Docker). No secrets: every credential is generated per run.
   pitr-drill:
     name: PITR drill (pgBackRest, compose topology)

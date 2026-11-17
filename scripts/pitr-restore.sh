@@ -3,20 +3,23 @@
 # bazasining papkasiga (yoki uning volume'iga) tiklashni rad etadi.
 #
 # Foydalanish (serverda, loyiha papkasida):
-#   scripts/pitr-restore.sh --info                         qaysi vaqtlarga tiklash mumkin (zaxiralar, WAL oralig'i)
+#   scripts/pitr-restore.sh --info                         qisqa xulosa (oxirgi nusxalar, qaysi vaqtlarga tiklash mumkin)
+#                                                          va pgBackRest'ning to'liq ro'yxati (faqat o'qiydi)
 #   scripts/pitr-restore.sh "2026-12-01 14:05"             shu daqiqaga tiklab, ikkinchi Postgres'ni `backup` konteynerida
 #                                                          5499 portida ochadi (ko'rish, kerakli qatorlarni olish)
-#   scripts/pitr-restore.sh "2026-12-01 14:05" --into nom  papka nomi (pitr_restore volume'ida, standart pitr-<vaqt>)
-#   scripts/pitr-restore.sh "2026-12-01 14:05" --into /srv/rizqim/pgdata-0105
+#   scripts/pitr-restore.sh "2026-12-01 14:05" --into nom  nusxa nomi (pitr_restore volume'ida; standart pitr-<vaqt>)
+#   scripts/pitr-restore.sh "2026-12-01 14:05" --into-dir /srv/rizqim/pgdata-0105
 #                                                          xostdagi YANGI papkaga (bo'sh yoki yo'q bo'lishi shart), server
-#                                                          ochilmaydi: ish bazasi qilish runbook'i uchun (docs/OPERATIONS.md)
+#                                                          ochilmaydi (birinchi ishga tushganda tiklanib bo'ladi)
 #   --repo 2                                               S3 dagi nusxadan (standart 1: shu serverdagi)
 #   --no-start                                             tiklaydi, lekin serverni ochmaydi
-#   scripts/pitr-restore.sh --list | --stop <nom> | --drop <nom>   tiklangan nusxalar: ro'yxat, serverni to'xtatish, o'chirish
+#   scripts/pitr-restore.sh --list                         tiklangan nusxalar ro'yxati
+#   scripts/pitr-restore.sh --psql [nom]                   ochiq nusxaga psql (5499 portidagi)
+#   scripts/pitr-restore.sh --start <nom> | --stop <nom> | --drop <nom>   nusxani ochish, to'xtatish, o'chirish
 #
 # Vaqt: vaqt zonasi yozilmasa TOSHKENT vaqti (+05) deb olinadi; UTC uchun oxiriga +00 yozing ("2026-12-01 09:05+00").
-# Tiklangan nusxani ish bazasi qilish alohida, tasdiqli runbook (ilovani to'xtatish, POSTGRES_DATA_VOLUME, ishga
-# tushirish): docs/OPERATIONS.md, «Uzluksiz zaxira (PITR)». --local: Docker'siz (scripts/pitr-ci.sh --local).
+# Tiklangan nusxani ish bazasi qilish: scripts/pitr-switch.sh <nom> (tasdiq so'raydi, orqaga qaytish mumkin;
+# docs/OPERATIONS.md, 18-bo'lim). --local: Docker'siz (scripts/pitr-ci.sh --local).
 
 set -eu
 umask 077
@@ -30,7 +33,7 @@ ROOT=${PITR_RESTORE_ROOT:-/restore}
 PORT=${PITR_RESTORE_PORT:-5499}
 SOCK=${PITR_RESTORE_SOCKET_DIR:-$ROOT/restore-socket}
 
-usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; }
 
 LOCAL=0
 INNER=0
@@ -43,29 +46,40 @@ if [ "${RIZQIM_BACKUP_CONTAINER:-0}" = "1" ]; then INNER=1; fi
 if [ "$LOCAL" = "0" ] && [ "$INNER" = "0" ]; then
     command -v docker >/dev/null 2>&1 || pitr_die "docker topilmadi (buyruqni serverda, loyiha papkasida bajaring)"
     cd "$PITR_SCRIPT_DIR/.."
-    into=
+    into_dir=
     prev=
     for a in "$@"; do
-        [ "$prev" != "--into" ] || into=$a
+        [ "$prev" != "--into-dir" ] || into_dir=$a
+        if [ "$prev" = "--into" ]; then
+            case "$a" in /*) into_dir=$a; pitr_log "eslatma: mutlaq yo'l uchun --into-dir ishlating (--into <nom> pitr_restore volume'idagi nom)" ;; esac
+        fi
         prev=$a
     done
-    case "$into" in
-        /*)
-            [ ! -e "$into" ] || [ -z "$(ls -A "$into" 2>/dev/null)" ] || pitr_die "$into bo'sh emas: faqat YANGI (bo'sh) papkaga tiklanadi"
-            live=$(sed -n 's/^POSTGRES_DATA_VOLUME=//p' .env 2>/dev/null | tail -n 1)
-            [ "${live%/}" != "${into%/}" ] || pitr_die "$into ish bazasining papkasi (POSTGRES_DATA_VOLUME): RAD ETILDI"
-            mkdir -p "$into"
-            # A one-off backup container with the new directory mounted; it also mounts the live data read-only, so the
-            # inner guard compares the two by device and inode
-            set -- "$@" __end__
-            while [ "$1" != "__end__" ]; do
-                a=$1; shift
-                if [ "$a" = "$into" ]; then set -- "$@" /restore/target; else set -- "$@" "$a"; fi
-            done
-            shift
-            exec docker compose run --rm --no-deps -v "$into:/restore/target" backup sh /usr/local/bin/pitr-restore.sh --inner --no-start "$@"
-            ;;
-    esac
+    if [ -n "$into_dir" ]; then
+        case "$into_dir" in /*) ;; *) pitr_die "--into-dir mutlaq yo'l bo'lishi kerak (masalan /srv/rizqim/pgdata-0105): $into_dir" ;; esac
+        [ ! -e "$into_dir" ] || [ -z "$(ls -A "$into_dir" 2>/dev/null)" ] || pitr_die "$into_dir bo'sh emas: faqat YANGI (bo'sh) papkaga tiklanadi"
+        live=$(sed -n 's/^POSTGRES_DATA_VOLUME=//p' .env 2>/dev/null | tail -n 1)
+        [ "${live%/}" != "${into_dir%/}" ] || pitr_die "$into_dir ish bazasining papkasi (POSTGRES_DATA_VOLUME): RAD ETILDI"
+        mkdir -p "$into_dir"
+        # A one-off backup container with the new directory mounted; it also mounts the live data read-only, so the
+        # inner guard compares the two by device and inode
+        set -- "$@" __end__
+        prev=
+        while [ "$1" != "__end__" ]; do
+            a=$1; shift
+            if [ "$prev" = "--into" ] || [ "$prev" = "--into-dir" ]; then set -- "$@" /restore/target
+            elif [ "$a" = "--into" ]; then set -- "$@" --into-dir
+            else set -- "$@" "$a"; fi
+            prev=$a
+        done
+        shift
+        exec docker compose run --rm --no-deps -v "$into_dir:/restore/target" backup sh /usr/local/bin/pitr-restore.sh --inner --no-start "$@"
+    fi
+    for a in "$@"; do
+        if [ "$a" = "--psql" ] && [ -t 0 ]; then
+            exec docker compose exec backup sh /usr/local/bin/pitr-restore.sh --inner "$@"
+        fi
+    done
     docker compose ps --status running --services 2>/dev/null | grep -qx backup || pitr_die "backup xizmati ishlamayapti: docker compose up -d backup"
     exec docker compose exec -T backup sh /usr/local/bin/pitr-restore.sh --inner "$@"
 fi
@@ -85,6 +99,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --local | --inner) shift ;;
         --into) into=${2:-}; shift 2 ;;
+        --into-dir) into=${2:-}; case "$into" in /*) ;; *) pitr_die "--into-dir mutlaq yo'l bo'lishi kerak: $into" ;; esac; shift 2 ;;
+        --psql) action=psql; case "${2:-}" in '' | -*) shift ;; *) name_arg=$2; shift 2 ;; esac ;;
+        --start) action=start; name_arg=${2:-}; shift 2 ;;
+        --check-copy) action=check; name_arg=${2:-}; shift 2 ;;
         --repo) repo=${2:-1}; shift 2 ;;
         --no-start) start=0; shift ;;
         --info) action=info; shift ;;
@@ -102,9 +120,42 @@ check_name() {
     [ "$1" != "drill" ] || pitr_die "'drill' nomi tiklash mashqiniki"
 }
 
+live_dir=${PGBACKREST_PG1_PATH:-/var/lib/postgresql/data}
+# The live data directory: the same inode as the live mount, or a server running on it on another port than ours
+is_live() {
+    if [ -d "$live_dir" ] && [ -d "$1" ] && [ "$(stat -c %d:%i "$live_dir")" = "$(stat -c %d:%i "$1")" ]; then return 0; fi
+    [ -f "$1/postmaster.pid" ] && [ "$(sed -n 4p "$1/postmaster.pid")" != "$PORT" ]
+}
+
+# Short Uzbek summary of `pgbackrest info` (text output, one stanza): newest/oldest backups per repository and the
+# window a restore can reach (oldest backup end .. newest archived WAL)
+info_summary() {
+    pgbr info >"$1" 2>&1 || true
+    awk '
+        /^stanza:/ { next }
+        /^    status:/ { sub(/^    status: */, ""); status = $0 }
+        /wal archive min\/max/ { split($NF, w, "/"); walmin = w[1]; walmax = w[2] }
+        /^        (full|diff|incr) backup:/ { type = $1; label = $3; n++ }
+        /timestamp start\/stop:/ { stop = $(NF-1) " " $NF; sub(/\+00$/, "", stop); stops[n] = stop; types[n] = type; labels[n] = label }
+        /^            repo[0-9]+: backup/ { r = $1; sub(/:$/, "", r); repos[n] = r; cnt[r]++ ; if (type == "full") lastfull[r] = stop; last[r] = stop; if (!(r in first)) first[r] = stop }
+        END {
+            printf "Holat: %s\n", (status == "" ? "nomaʼlum (pgBackRest javob bermadi)" : status)
+            if (n == 0) { print "Hali hech qanday nusxa yoʻq: birinchi toʻliq nusxa tugaguncha tiklab boʻlmaydi"; exit }
+            for (r in cnt) printf "%s: %d ta nusxa; oxirgi toʻliq: %s; oxirgi nusxa: %s; eng eskisi: %s (UTC)\n", r, cnt[r], (r in lastfull ? lastfull[r] : "yoʻq"), last[r], first[r]
+            printf "Tiklash mumkin: %s (UTC, eng eski nusxa tugagan vaqt) dan oxirgi arxivlangan WAL gacha (%s)\n", stops[1], walmax
+        }' "$1"
+}
+
 case "$action" in
     info)
-        pgbr info
+        tmp=$(mktemp "${TMPDIR:-/tmp}/pitr-info.XXXXXX")
+        echo "=== Qisqa xulosa ==="
+        info_summary "$tmp"
+        last_arch=$(pitr_val "SELECT to_char(last_archived_time AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS') FROM pg_stat_archiver" || true)
+        [ -z "$last_arch" ] || echo "Oxirgi WAL arxivga: $last_arch (UTC): shu daqiqagacha tiklash mumkin"
+        echo "=== pgBackRest ==="
+        cat "$tmp"
+        rm -f "$tmp"
         exit 0
         ;;
     list)
@@ -113,15 +164,63 @@ case "$action" in
             n=$(basename "$d")
             st="to'xtatilgan"
             [ ! -f "$d/postmaster.pid" ] || st="ishlayapti (port $PORT)"
+            ! is_live "$d" || st="ISH BAZASI (pitr-switch.sh bilan almashtirilgan)"
             echo "$n: $st, $(du -sh "$d" 2>/dev/null | cut -f1)"
         done
+        exit 0
+        ;;
+    psql)
+        if [ -n "$name_arg" ]; then
+            check_name "$name_arg"
+            [ -f "$ROOT/$name_arg/postmaster.pid" ] || pitr_die "$name_arg ochiq emas: avval scripts/pitr-restore.sh --start $name_arg"
+        fi
+        psql -X -A -t -q -h "$SOCK" -p "$PORT" -c 'select 1' >/dev/null 2>&1 || pitr_die "5499 portida ochiq nusxa yo'q (--list, --start <nom>)"
+        exec psql -h "$SOCK" -p "$PORT"
+        ;;
+    start)
+        check_name "$name_arg"
+        dir="$ROOT/$name_arg"
+        [ -f "$dir/PG_VERSION" ] || pitr_die "$dir yo'q (--list)"
+        ! is_live "$dir" || pitr_die "$name_arg hozir ISH BAZASI: uni bu yerda ochib bo'lmaydi"
+        [ ! -f "$dir/postmaster.pid" ] || pitr_die "$name_arg allaqachon ochiq"
+        psql -X -A -t -q -h "$SOCK" -p "$PORT" -c 'select 1' >/dev/null 2>&1 && pitr_die "port $PORT band: avval boshqa nusxani --stop qiling"
+        slog="$ROOT/$name_arg.server.log"
+        pitr_start_scratch "$dir" "$PORT" "$SOCK" "$slog" || pitr_die "Postgres ishga tushmadi (log: $slog)"
+        pitr_wait_promoted "$dir" "$PORT" "$SOCK" "${PITR_RESTORE_TIMEOUT:-7200}" "$slog" || pitr_die "nusxa tayyor bo'lmadi (log: $slog)"
+        pitr_log "ochildi: $name_arg (port $PORT). psql: scripts/pitr-restore.sh --psql"
         exit 0
         ;;
     stop | drop)
         check_name "$name_arg"
         [ -d "$ROOT/$name_arg" ] || pitr_die "$ROOT/$name_arg yo'q (--list)"
+        ! is_live "$ROOT/$name_arg" || pitr_die "$name_arg hozir ISH BAZASI (pitr-switch.sh): uni to'xtatib yoki o'chirib bo'lmaydi"
         pitr_stop_scratch "$ROOT/$name_arg"
         if [ "$action" = "drop" ]; then rm -rf "${ROOT:?}/$name_arg"; pitr_log "o'chirildi: $name_arg"; else pitr_log "to'xtatildi: $name_arg"; fi
+        exit 0
+        ;;
+    check)
+        # Preflight for scripts/pitr-switch.sh: may this copy become the live data directory?
+        case "$name_arg" in /*) dir=$name_arg ;; *) check_name "$name_arg"; dir="$ROOT/$name_arg" ;; esac
+        [ -f "$dir/PG_VERSION" ] || pitr_die "$dir da Postgres nusxasi yo'q"
+        ! is_live "$dir" || pitr_die "$dir allaqachon ish bazasi"
+        [ ! -f "$dir/postmaster.pid" ] || pitr_die "$dir ochiq (port $PORT): avval scripts/pitr-restore.sh --stop $(basename "$dir")"
+        state=$(pitr_as_pg pg_controldata "$dir" 2>/dev/null | sed -n 's/^Database cluster state: *//p')
+        tli=$(pitr_as_pg pg_controldata "$dir" 2>/dev/null | sed -n "s/^Latest checkpoint's TimeLineID: *//p")
+        ckpt=$(pitr_as_pg pg_controldata "$dir" 2>/dev/null | sed -n 's/^Time of latest checkpoint: *//p')
+        case "$state" in
+            "shut down") kind=promoted ;;
+            *) if [ -f "$dir/recovery.signal" ]; then kind=pending; else pitr_die "$dir holati '$state': toza to'xtatilmagan nusxa. Uni --start bilan ochib, --stop bilan yoping"; fi ;;
+        esac
+        size_kb=$(du -sk "$dir" | cut -f1)
+        free_kb=$(df -Pk "$dir" | awk 'NR == 2 { print $4 }')
+        need_kb=$((size_kb / 10 + 2097152))
+        [ "$free_kb" -ge "$need_kb" ] || pitr_die "joy kam: $((free_kb / 1024)) MB bo'sh, kamida $((need_kb / 1024)) MB kerak (yangi WAL uchun)"
+        echo "COPY_KIND=$kind"
+        echo "COPY_STATE=$state"
+        echo "COPY_TIMELINE=$tli"
+        echo "COPY_CHECKPOINT=$ckpt"
+        echo "COPY_SIZE_MB=$((size_kb / 1024))"
+        echo "FREE_MB=$((free_kb / 1024))"
         exit 0
         ;;
 esac

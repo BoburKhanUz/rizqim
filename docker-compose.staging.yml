@@ -25,6 +25,8 @@ x-staging-environment: &staging-environment
   MAIL_MAILER: log
   SMS_DRIVER: log
   SENTRY_ENVIRONMENT: staging
+  # = pgbouncer'ning staging chegarasi (db_connections qoidasi uchun)
+  PGBOUNCER_MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-20}
 
 services:
   # `command` asosiy fayldagini butunlay almashtiradi: M3 PITR bayroqlari (docker-compose.yml, postgres) shu yerda takrorlangan

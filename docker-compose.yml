@@ -59,6 +59,8 @@ x-backend-environment: &backend-environment
   # so'rov yuboradi: so'rovlar to'xtasa (server, scheduler yoki baza ishlamasa) o'sha xizmat egaga xabar beradi. Bo'sh = yo'q.
   PITR_ENABLED: ${PITR_ENABLED:-0}
   HEALTHCHECKS_PING_URL: ${HEALTHCHECKS_PING_URL:-}
+  # db_connections qoidasi PgBouncer'ning chegarasini pgbouncer xizmati bilan bir xil qiymatdan oladi
+  PGBOUNCER_MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
 
 # M3 uzluksiz zaxira (PITR, pgBackRest): `postgres` (arxiv buyrug'i, WAL'ni yuboradi) va `backup` (to'liq/farq zaxiralari,
 # tiklash, tiklash mashqi) bir xil sozlamani oladi (infra/postgres/pitr-env.sh). Hammasi ildiz .env dan; bo'sh = o'chiq.
@@ -445,6 +447,14 @@ services:
       PITR_DRILL_MONTHLY: ${PITR_DRILL_MONTHLY:-1}
       PITR_DRILL_TIME: ${PITR_DRILL_TIME:-23:00}
       PITR_PING_URL: ${PITR_PING_URL:-}
+      # Jurnallar arxivi uchun S3 (bo'sh = BACKUP_S3_*). Arxiv o'chmasligi kerak: o'chirish huquqisiz alohida kalit yoki
+      # Object Lock'li alohida bucket (scripts/archive-partitions.sh har kecha tekshiradi va ogohlantiradi)
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY: ${ARCHIVE_S3_ACCESS_KEY:-}
+      ARCHIVE_S3_SECRET: ${ARCHIVE_S3_SECRET:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-}
       PGHOST: postgres
       PGPORT: 5432
       PGUSER: ${DB_USERNAME:-rizqimbot}

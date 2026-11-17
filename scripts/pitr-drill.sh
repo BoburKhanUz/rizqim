@@ -47,11 +47,11 @@ MANIFEST_TABLES="orders order_items payments fiscal_receipts audit_logs notifica
 
 # --- state (survives between `run --keep` and `finish`) ---------------------------------------------------------------
 STARTED_AT=; TARGET_TIME=; REACHED=; RESTORE_SECONDS=; DATA_LOSS_SECONDS=; BACKUP_LABEL=; REPO=1; CHECKS=; ERRORS=
-WAL_RESTORED=; PROBE_TOKEN=
+WAL_RESTORED=; PROBE_TOKEN=; TRIGGER=auto
 
 save_state() {
     {
-        for v in STARTED_AT TARGET_TIME REACHED RESTORE_SECONDS DATA_LOSS_SECONDS BACKUP_LABEL REPO CHECKS ERRORS WAL_RESTORED PROBE_TOKEN; do
+        for v in STARTED_AT TARGET_TIME REACHED RESTORE_SECONDS DATA_LOSS_SECONDS BACKUP_LABEL REPO CHECKS ERRORS WAL_RESTORED PROBE_TOKEN TRIGGER; do
             eval "val=\${$v}"
             # shellcheck disable=SC2154
             printf "%s='%s'\n" "$v" "$(printf '%s' "$val" | sed "s/'/'\\\\''/g")"
@@ -62,9 +62,11 @@ save_state() {
 add_check() { CHECKS="${CHECKS:+$CHECKS }$1=$2"; }
 add_error() { ERRORS="${ERRORS:+$ERRORS; }$1"; }
 
+# {"probe": "ok", ..., "app_smoke": "ok|failed|skipped", "trigger": "manual|auto"}. trigger = auto: the monthly drill
+# of the backup daemon, which has no PHP: app_smoke is always "skipped" there (only scripts/restore-drill.sh runs it)
 checks_json() {
-    out='{'
-    sep=
+    out="{\"trigger\":\"$TRIGGER\""
+    sep=,
     for c in $CHECKS; do
         out="$out$sep\"${c%%=*}\":\"${c#*=}\""
         sep=,
@@ -111,6 +113,7 @@ report() { # report <status>
     {
         echo "=============================================================="
         if [ "$1" = "ok" ]; then echo "TIKLASH MASHQI: MUVAFFAQIYATLI"; else echo "TIKLASH MASHQI: MUVAFFAQIYATSIZ"; fi
+        [ "$TRIGGER" != "auto" ] || echo "(avtomatik mashq: ilova tekshiruvi bajarilmadi, uni faqat scripts/restore-drill.sh bajaradi)"
         echo "Tiklash vaqti: $(pitr_human_seconds "${RESTORE_SECONDS:-}")"
         echo "Qaytarilgan nuqta: ${REACHED:--} (UTC)"
         echo "Ma'lumot yo'qotish oynasi: $loss"
@@ -129,6 +132,7 @@ report() { # report <status>
     echo "TARGET_TIME=${TARGET_TIME%+00}"
     echo "BACKUP_LABEL=${BACKUP_LABEL:-}"
     echo "PROBE_TOKEN=${PROBE_TOKEN:-}"
+    echo "TRIGGER=$TRIGGER"
     for c in $CHECKS; do echo "CHECK_${c%%=*}=${c#*=}"; done
 }
 
@@ -156,7 +160,7 @@ run() {
             --target-time) target=${2:-}; shift 2 ;;
             --expect-token) token1=${2:-}; shift 2 ;;
             --repo) REPO=${2:-1}; shift 2 ;;
-            --keep) keep=1; shift ;;
+            --keep) keep=1; TRIGGER=manual; shift ;;
             --ci) shift ;;
             *) pitr_die "noma'lum argument: $1" ;;
         esac
@@ -304,6 +308,8 @@ run() {
         echo "TARGET_TIME=${TARGET_TIME%+00}"
         return 0
     fi
+    # Not kept open for scripts/restore-drill.sh: nobody runs the app smoke against this copy
+    add_check app_smoke skipped
     if all_ok; then finish ok; else finish failed; fi
 }
 

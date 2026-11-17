@@ -9,7 +9,7 @@
 #   --attach [--yes]   FAQAT MUTAXASSIS UCHUN: bo'lakni ISH bazasiga qaytarib, asosiy jadvalga qayta ulaydi va katalog
 #                      qatorini `held` qiladi (arxiv jarayoni uni boshqa o'chirmaydi). Tasdiq uchun bo'lak nomini yozish
 #                      so'raladi. Tashqi kalitlar (FK) qayta qo'shilmaydi.
-# Sozlamalar: ARCHIVE_RESTORE_DB (standart rizqim_archive), BACKUP_DIR, BACKUP_S3_* (backup.sh bilan bir xil).
+# Sozlamalar: ARCHIVE_RESTORE_DB (standart rizqim_archive), BACKUP_DIR, ARCHIVE_S3_* (bo'sh bo'lsa BACKUP_S3_*).
 
 set -eu
 umask 077
@@ -65,11 +65,11 @@ dir="$BACKUP_DIR/archive/$table"
 file="$dir/$month.dump"
 mkdir -p "$dir"
 if [ ! -s "$file" ]; then
-    pitr_s3_configured || pitr_die "$file shu serverda yo'q va S3 sozlanmagan (BACKUP_S3_*): fayl $uri"
+    pitr_s3_configured || pitr_die "$file shu serverda yo'q va S3 sozlanmagan (ARCHIVE_S3_* / BACKUP_S3_*): fayl $uri"
     command -v rclone >/dev/null 2>&1 || pitr_die "rclone topilmadi"
     pitr_rclone_env
     pitr_log "S3 dan olinmoqda: $uri"
-    rclone copyto --retries 3 "$(pitr_s3_target)/archive/$table/$month.dump" "$file.partial" || pitr_die "S3 dan yuklab bo'lmadi: $uri"
+    rclone copyto --retries 3 "$(pitr_s3_target)/$table/$month.dump" "$file.partial" || pitr_die "S3 dan yuklab bo'lmadi: $uri"
     mv "$file.partial" "$file"
 fi
 got=$(sha256sum "$file" | cut -d' ' -f1)
