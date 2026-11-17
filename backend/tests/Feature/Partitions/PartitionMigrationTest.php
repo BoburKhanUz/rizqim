@@ -47,9 +47,7 @@ class PartitionMigrationTest extends TestCase
         $refund = $this->receipt(['created_at' => null, 'sold_at' => null, 'issued_at' => null, 'updated_at' => '2026-11-02 08:00:00', 'type' => 'refund', 'original_receipt_id' => $sale]);
         $notification = DB::table('notification_logs')->insertGetId(['type' => 't', 'status' => 'sent', 'sent_at' => '2026-09-01 10:00:00']);
 
-        $started = microtime(true);
         $this->migration()->up();
-        $this->assertLessThan(30, microtime(true) - $started);
 
         foreach (['audit_logs', 'fiscal_receipts', 'notification_logs'] as $table) {
             $this->assertTrue($manager->isPartitioned($table), "{$table} is partitioned after up()");

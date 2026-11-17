@@ -102,29 +102,45 @@ class PartitionConvertOnlineTest extends TestCase
         $first = (int) DB::table('notification_logs')->min('id');
         $this->artisan('db:partitions:convert', ['table' => 'notification_logs', '--batch' => 500])->assertSuccessful();
 
-        // A second connection (psql): 1 500 inserts, each committed, and an update of every 10th seed row
-        $writes = 1500;
+        // A second connection (psql) writes until told to stop (a row it polls; hard cap 120 s): each turn one insert
+        // and one update of a seed row (every 10th, cycling over 300), committed. It reports how many inserts it made.
+        DB::statement('DROP TABLE IF EXISTS m3_writer_control');
+        DB::statement('CREATE TABLE m3_writer_control (stop boolean NOT NULL)');
+        DB::table('m3_writer_control')->insert(['stop' => false]);
         $sql = sprintf(
-            "DO \$\$ BEGIN FOR i IN 1..%d LOOP INSERT INTO notification_logs (type, status) VALUES ('writer', 'sent'); "
-            . "UPDATE notification_logs SET is_read = true, read_at = now() WHERE id = %d + (i %% 300) * 10; COMMIT; PERFORM pg_sleep(0.004); END LOOP; END \$\$;",
-            $writes, $first,
+            "DO \$\$ DECLARE n int := 0; started timestamptz := clock_timestamp(); BEGIN LOOP "
+            . "INSERT INTO notification_logs (type, status) VALUES ('writer', 'sent'); "
+            . "UPDATE notification_logs SET is_read = true, read_at = now() WHERE id = %d + (n %% 300) * 10; COMMIT; n := n + 1; "
+            . "EXIT WHEN n >= 300 AND (SELECT stop FROM m3_writer_control); "
+            . "IF clock_timestamp() - started > interval '120 seconds' THEN RAISE EXCEPTION 'writer: not stopped within 120 s'; END IF; "
+            . "PERFORM pg_sleep(0.002); END LOOP; RAISE NOTICE 'written=%%', n; END \$\$;",
+            $first,
         );
         $writer = $this->psql($sql);
 
-        // Start the switch-over once the writer is busy
-        $deadline = microtime(true) + 20;
-        while ((int) DB::table('notification_logs')->where('type', 'writer')->count() < 100 && microtime(true) < $deadline) {
-            usleep(20_000);
+        try {
+            // The switch-over starts once the writer is demonstrably busy...
+            $this->waitFor(fn () => DB::table('notification_logs')->where('type', 'writer')->count() >= 100, 'the writer did not start');
+            $this->artisan('db:partitions:convert', ['table' => 'notification_logs', '--finish' => true])->assertSuccessful();
+            // ...and the writer goes on writing into the new table after the swap
+            $oldMax = (int) DB::table('notification_logs_m3_old')->max('id');
+            $this->waitFor(fn () => DB::table('notification_logs')->where('type', 'writer')->where('id', '>', $oldMax)->count() >= 100, 'the writer did not write after the swap');
+        } finally {
+            DB::table('m3_writer_control')->update(['stop' => true]);
+            $exit = $this->wait($writer);
+            DB::statement('DROP TABLE IF EXISTS m3_writer_control');
         }
-        $this->artisan('db:partitions:convert', ['table' => 'notification_logs', '--finish' => true])->assertSuccessful();
-        $exit = $this->wait($writer);
         $this->assertSame(0, $exit['code'], $exit['stderr']);
+        $this->assertSame(1, preg_match('/written=(\d+)/', $exit['stderr'], $m), $exit['stderr']);
+        $writes = (int) $m[1];
 
         $this->assertTrue(app(PartitionManager::class)->isPartitioned('notification_logs'));
         $inOld = (int) DB::table('notification_logs_m3_old')->where('type', 'writer')->count();
+        $afterSwap = (int) DB::table('notification_logs')->where('type', 'writer')->where('id', '>', $oldMax)->count();
         $this->assertGreaterThan(0, $inOld, 'the writer wrote before the swap');
-        $this->assertLessThan($writes, $inOld, 'and after it: the swap happened while it was writing');
+        $this->assertGreaterThan(0, $afterSwap, 'and after it: the swap happened while it was writing');
         $this->assertSame($writes, (int) DB::table('notification_logs')->where('type', 'writer')->count(), 'no insert lost');
+        $this->assertSame($inOld, (int) DB::table('notification_logs')->where('type', 'writer')->where('id', '<=', $oldMax)->count(), 'every pre-swap insert is in the new table');
         $this->assertSame(3000 + $writes, DB::table('notification_logs')->count());
         $this->assertSame(300, (int) DB::table('notification_logs')->where('type', 'seed')->where('is_read', true)->count(), 'no update lost');
         $this->assertSame(1, count(array_unique(DB::table('notification_logs')->pluck('id')->countBy()->values()->all())), 'no id twice');
@@ -158,6 +174,17 @@ class PartitionConvertOnlineTest extends TestCase
         $this->artisan('db:partitions:convert', ['table' => 'audit_logs'])->assertSuccessful();
         $this->artisan('db:partitions:convert', ['table' => 'audit_logs', '--finish' => true])->assertSuccessful();
         $this->assertSame(803, DB::table('audit_logs')->count());
+    }
+
+    private function waitFor(callable $condition, string $message, int $seconds = 60): void
+    {
+        $deadline = microtime(true) + $seconds;
+        while (!$condition()) {
+            if (microtime(true) > $deadline) {
+                $this->fail($message . " within {$seconds} s");
+            }
+            usleep(20_000);
+        }
     }
 
     /**

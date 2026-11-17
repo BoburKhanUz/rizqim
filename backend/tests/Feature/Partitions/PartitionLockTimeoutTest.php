@@ -51,25 +51,33 @@ class PartitionLockTimeoutTest extends TestCase
         $db = config('database.connections.pgsql');
         $holder = proc_open(
             ['psql', '-X', '-q', '-h', (string) $db['host'], '-p', (string) $db['port'], '-U', (string) $db['username'], '-d', (string) $db['database'],
-                '-c', 'BEGIN; LOCK TABLE notification_logs_default IN ROW EXCLUSIVE MODE; SELECT pg_sleep(4); COMMIT;'],
+                '-c', "BEGIN; SET LOCAL application_name = 'm3_lock_holder'; LOCK TABLE notification_logs_default IN ROW EXCLUSIVE MODE; SELECT pg_sleep(120); COMMIT;"],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             null,
             ['PGPASSWORD' => (string) $db['password'], 'PATH' => (string) getenv('PATH')],
         );
         $this->assertIsResource($holder);
-        $deadline = microtime(true) + 10;
-        while (!DB::selectOne("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE relation = 'notification_logs_default'::regclass AND mode = 'RowExclusiveLock' AND granted AND pid <> pg_backend_pid()) AS e")->e && microtime(true) < $deadline) {
+        // The holder keeps its lock until this test ends it (hard cap 120 s): no assumption about relative speeds
+        $held = fn (): bool => (bool) DB::selectOne("SELECT EXISTS (SELECT 1 FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE l.relation = 'notification_logs_default'::regclass AND l.mode = 'RowExclusiveLock' AND l.granted AND a.application_name = 'm3_lock_holder') AS e")->e;
+        $deadline = microtime(true) + 60;
+        while (!$held()) {
+            if (microtime(true) > $deadline) {
+                $this->fail('the lock holder did not start within 60 s');
+            }
             usleep(20_000);
         }
 
-        $started = microtime(true);
-        $this->artisan('db:partitions:ensure')->expectsOutputToContain('notification_logs: bajarilmadi')->assertFailed();
-        $waited = microtime(true) - $started;
-        $this->assertLessThan(2.5, $waited, 'two attempts of 150 ms plus a 0.5 s pause, not the 4 s the lock is held');
-
-        stream_get_contents($pipes[1]);
-        proc_close($holder);
+        try {
+            $this->artisan('db:partitions:ensure')->expectsOutputToContain('notification_logs: bajarilmadi')->assertFailed();
+            // ensure gave up (lock_timeout x retries) while the lock was still held: it did not queue behind it
+            $this->assertTrue($held(), 'ensure returned while the till-like transaction still held its lock');
+        } finally {
+            DB::statement("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'm3_lock_holder'");
+            stream_get_contents($pipes[1]);
+            stream_get_contents($pipes[2]);
+            proc_close($holder);
+        }
 
         $this->artisan('db:partitions:ensure')->assertSuccessful();
         $this->assertContains(PartitionManager::monthName('notification_logs', PartitionManager::monthStart(now())->addMonths(3)), array_column(app(PartitionManager::class)->partitions('notification_logs'), 'name'));
