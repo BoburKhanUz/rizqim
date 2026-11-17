@@ -7,8 +7,10 @@
 # bazasiga TEGMAYDI. Oxirida qatorlar soni va tayyor psql buyrug'i chiqadi. Bo'lak o'z nomini saqlaydi (audit_logs_2026_03).
 #
 #   --attach [--yes]   FAQAT MUTAXASSIS UCHUN: bo'lakni ISH bazasiga qaytarib, asosiy jadvalga qayta ulaydi va katalog
-#                      qatorini `held` qiladi (arxiv jarayoni uni boshqa o'chirmaydi). Tasdiq uchun bo'lak nomini yozish
-#                      so'raladi. Tashqi kalitlar (FK) qayta qo'shilmaydi.
+#                      qatorini `held` qiladi (arxiv jarayoni uni boshqa o'chirmaydi). Bo'lak hali ish bazasida (ajratilgan)
+#                      bo'lsa fayl kerak emas. Bo'lakdagi asosiy jadval triggerlarining nusxalari olib tashlanib, ulanganda
+#                      asosiy jadvalniki qo'yiladi. Tasdiq uchun bo'lak nomini yozish so'raladi. Tashqi kalitlar (FK)
+#                      qayta qo'shilmaydi. Yon bazaga (rizqim_archive) triggerlarsiz tiklanadi.
 # Sozlamalar: ARCHIVE_RESTORE_DB (standart rizqim_archive), BACKUP_DIR, ARCHIVE_S3_* (bo'sh bo'lsa BACKUP_S3_*).
 
 set -eu
@@ -19,7 +21,7 @@ PITR_LOG_TAG=archive-restore
 # shellcheck source=scripts/pitr.sh
 . "$PITR_SCRIPT_DIR/pitr.sh"
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; }
 
 if [ "${RIZQIM_BACKUP_CONTAINER:-0}" != "1" ] && [ "${1:-}" != "--local" ] && command -v docker >/dev/null 2>&1; then
     cd "$PITR_SCRIPT_DIR/.."
@@ -59,6 +61,44 @@ IFS='|' read -r id part status sha uri rfrom rto <<EOF
 $row
 EOF
 case "$part" in *[!a-z0-9_]*) pitr_die "katalogdagi bo'lak nomi noto'g'ri: $part" ;; esac
+
+# Re-attach (expert): one transaction with a lock timeout: drop from the month table exactly the user triggers the
+# parent also has (a detached month keeps copies of them, and ATTACH clones the parent's own: same name = "already
+# exists"), attach, then check the partition's triggers are the parent's clones. ATTACH fires no row trigger: the
+# fiscal_receipt_keys rows of a fiscal month (never archived, never deleted) are neither inserted again nor touched.
+attach_now() {
+    PGOPTIONS='-c lock_timeout=3s -c statement_timeout=60s' psql -X -q -v ON_ERROR_STOP=1 -v "parent=public.$table" -v "part=public.$part" <<SQL || return 1
+BEGIN;
+SELECT format('DROP TRIGGER %I ON %s', c.tgname, :'part') AS stmt
+FROM pg_trigger c
+WHERE c.tgrelid = :'part'::regclass AND NOT c.tgisinternal
+  AND c.tgname IN (SELECT p.tgname FROM pg_trigger p WHERE p.tgrelid = :'parent'::regclass AND NOT p.tgisinternal)
+\gexec
+ALTER TABLE public.$table ATTACH PARTITION public.$part FOR VALUES FROM ('$rfrom') TO ('$rto');
+COMMIT;
+SQL
+    got=$(pitr_val "SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal")
+    want=$(pitr_val "SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') FROM pg_trigger WHERE tgrelid = 'public.$table'::regclass AND NOT tgisinternal")
+    [ "$got" = "$want" ] || { pitr_log "XATO: $part triggerlari ($got) asosiy jadvalnikiga ($want) mos emas"; return 1; }
+    clones=$(pitr_val "SELECT count(*) FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal AND tgparentid = 0")
+    [ "$clones" = "0" ] || { pitr_log "XATO: $part da asosiy jadvalga bog'lanmagan trigger qoldi"; return 1; }
+    pitr_psql -c "UPDATE partition_archives SET status = 'held', error = NULL WHERE id = $id" >/dev/null || pitr_log "OGOHLANTIRISH: katalog qatorini held qilib bo'lmadi"
+    pitr_log "TAYYOR: $part $table ga ulandi (triggerlar: $got; katalog: held)"
+}
+confirm_attach() {
+    if [ "$yes" != "1" ]; then
+        printf 'DIQQAT: %s ish bazasiga qaytariladi va %s ga ulanadi. Tasdiqlash uchun bo'"'"'lak nomini yozing: ' "$part" "$table" >&2
+        read -r answer || answer=
+        [ "$answer" = "$part" ] || pitr_die "tasdiqlanmadi, hech narsa o'zgarmadi"
+    fi
+}
+if [ "$attach" = "1" ] && [ "$(pitr_val "SELECT to_regclass('public.$part') IS NOT NULL")" = "t" ]; then
+    # still in the live database (detached, not yet dropped): no file needed
+    [ "$(pitr_val "SELECT count(*) FROM pg_inherits WHERE inhrelid = 'public.$part'::regclass")" = "0" ] || pitr_die "$part allaqachon $table ga ulangan"
+    confirm_attach
+    attach_now || pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q): hech narsa o'zgarmadi, $part alohida jadval bo'lib qoldi"
+    exit 0
+fi
 case "$status" in uploaded | verified | dropped | held) ;; *) pitr_die "$part holati '$status': arxiv fayli hali tayyor emas (archive-partitions.sh)" ;; esac
 
 dir="$BACKUP_DIR/archive/$table"
@@ -82,19 +122,16 @@ fi
 pg_restore --list "$file" >/dev/null 2>&1 || pitr_die "$file o'qilmaydi (pg_restore --list)"
 pitr_log "fayl tekshirildi: $file (sha256 to'g'ri)"
 
+# The dump without its triggers: they name functions the side database does not have, and on a re-attach the
+# partition gets the parent's own clones anyway. Table, data, indexes and constraints are restored as dumped.
+toc=$(mktemp "${TMPDIR:-/tmp}/rizqim-archive-toc.XXXXXX")
+trap 'rm -f "$toc"' EXIT
+pg_restore -l "$file" | grep -v ' TRIGGER ' >"$toc"
+
 if [ "$attach" = "1" ]; then
-    [ "$(pitr_val "SELECT to_regclass('public.$part') IS NULL")" = "t" ] || pitr_die "$part ish bazasida allaqachon bor"
-    if [ "$yes" != "1" ]; then
-        printf 'DIQQAT: %s ish bazasiga qaytariladi va %s ga ulanadi. Tasdiqlash uchun bo'"'"'lak nomini yozing: ' "$part" "$table" >&2
-        read -r answer || answer=
-        [ "$answer" = "$part" ] || pitr_die "tasdiqlanmadi, hech narsa o'zgarmadi"
-    fi
-    pg_restore --no-owner --no-privileges --exit-on-error -d "$PGDATABASE" "$file" || pitr_die "ish bazasiga tiklab bo'lmadi"
-    if ! pitr_psql -c "SET lock_timeout = '3s'; ALTER TABLE public.$table ATTACH PARTITION public.$part FOR VALUES FROM ('$rfrom') TO ('$rto')"; then
-        pitr_die "ATTACH bajarilmadi (qulf band yoki DEFAULT bo'lakda shu oy qatorlari bor). $part ish bazasida alohida jadval bo'lib qoldi"
-    fi
-    pitr_psql -c "UPDATE partition_archives SET status = 'held', error = NULL WHERE id = $id" >/dev/null || pitr_log "OGOHLANTIRISH: katalog qatorini held qilib bo'lmadi"
-    pitr_log "TAYYOR: $part ish bazasiga qaytarildi va $table ga ulandi (katalog: held)"
+    confirm_attach
+    pg_restore --no-owner --no-privileges --exit-on-error -L "$toc" -d "$PGDATABASE" "$file" || pitr_die "ish bazasiga tiklab bo'lmadi"
+    attach_now || pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q). $part ish bazasida alohida jadval bo'lib qoldi"
     exit 0
 fi
 
@@ -110,7 +147,7 @@ else
     for seq in $(pg_restore -f - "$file" 2>/dev/null | sed -n "s/.*nextval('public\.\([a-z0-9_]*\)'.*/\1/p" | sort -u); do
         PGDATABASE=$ADB pitr_psql -c "CREATE SEQUENCE IF NOT EXISTS public.$seq" >/dev/null || pitr_die "$ADB da $seq yaratib bo'lmadi"
     done
-    PGDATABASE=$ADB pg_restore --no-owner --no-privileges --exit-on-error -d "$ADB" "$file" || pitr_die "$ADB ga tiklab bo'lmadi"
+    PGDATABASE=$ADB pg_restore --no-owner --no-privileges --exit-on-error -L "$toc" -d "$ADB" "$file" || pitr_die "$ADB ga tiklab bo'lmadi"
 fi
 count=$(PGDATABASE=$ADB pitr_val "SELECT count(*) FROM public.$part")
 pitr_log "TAYYOR: $part ($rfrom .. $rto), $count qator, baza $ADB"

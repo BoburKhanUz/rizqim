@@ -490,6 +490,41 @@ $DRILL --ci >"$out" || { cat "$out"; die "R2-2/R2-4: drill after two switch-over
 summary "R2-2: cleanup failure left expire suspended (marker error), then cleaned; R2-4: verify ok, history $(sed -n 's/^repo1 timeline tarixi: //p' "${TMPDIR:-/tmp}/pitr-ci-verify.txt"); drill ok"
 rm -f "$out"
 
+# --- journal archive: a detached month keeps the parent's triggers (real ones, from the migrations) ----------------
+log "archive: side-database restore without the triggers' functions, re-attach of a month that carries the parent's triggers"
+if [ "$MODE" = "local" ]; then ARCH_P="sh $SCRIPT_DIR/archive-partitions.sh --local"; ARCH_R="sh $SCRIPT_DIR/archive-restore.sh --local"; else
+    ARCH_P="sh $SCRIPT_DIR/archive-partitions.sh"; ARCH_R="sh $SCRIPT_DIR/archive-restore.sh"; fi
+mk_month() { # mk_month <table> <YYYY_MM> <from> <to>: a detached month as db:partitions:archive leaves it
+    live_sql "CREATE TABLE public.$1_$2 (LIKE public.$1 INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)" >/dev/null
+    live_sql "SELECT replace(pg_get_triggerdef(oid), ' ON public.$1 ', ' ON public.$1_$2 ') FROM pg_trigger WHERE tgrelid = 'public.$1'::regclass AND NOT tgisinternal" \
+        | while read -r def; do live_sql "$def" >/dev/null; done
+    live_sql "INSERT INTO partition_archives (table_name, partition_name, range_from, range_to, status, detached_at, created_at, updated_at) VALUES ('$1', '$1_$2', '$3', '$4', 'detached', now() AT TIME ZONE 'UTC', now(), now())" >/dev/null
+}
+trig() { live_sql "SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') FROM pg_trigger WHERE tgrelid = 'public.$1'::regclass AND NOT tgisinternal"; }
+mk_month fiscal_receipts 2025_06 2025-06-01 2025-07-01
+store=$(live_sql "INSERT INTO stores (uuid, name, slug) VALUES (gen_random_uuid(), 'pitr-ci', 'pitr-ci-' || floor(random() * 1e9)::bigint) RETURNING id")
+live_sql "INSERT INTO public.fiscal_receipts_2025_06 (uuid, store_id, type, payment_form, driver, idempotency_key, total, lines, payments, created_at, updated_at) SELECT gen_random_uuid(), $store, 'sale', 'cash', 'sandbox', 'pitr-ci-' || g, 1, '[]', '[]', '2025-06-15', '2025-06-15' FROM generate_series(1, 3) g" >/dev/null
+mk_month audit_logs 2025_06 2025-06-01 2025-07-01
+live_sql "INSERT INTO public.audit_logs_2025_06 (action, created_at) SELECT 'pitr-ci', '2025-06-15' FROM generate_series(1, 30) g" >/dev/null
+[ -n "$(trig fiscal_receipts_2025_06)" ] || die "archive: the test month has no triggers (migrations without fiscal_receipt_keys?)"
+keys_before=$(live_sql "SELECT count(*) FROM fiscal_receipt_keys")
+$ARCH_P || die "archive-partitions.sh"
+# side database: no fiscal_receipt_keys_insert() there, the restore must not need it
+$ARCH_R fiscal_receipts 2025-06 || die "archive: side-database restore of a month with triggers"
+[ "$(PGDATABASE=rizqim_archive live_sql "SELECT count(*) FROM fiscal_receipts_2025_06")" = "3" ] || die "archive: side database should hold 3 receipts"
+# re-attach while the month is still in the live database (detached, not dropped)
+$ARCH_R fiscal_receipts 2025-06 --attach --yes || die "archive: --attach of a month carrying the parent's triggers"
+[ "$(trig fiscal_receipts_2025_06)" = "$(trig fiscal_receipts)" ] || die "archive: re-attached fiscal month triggers $(trig fiscal_receipts_2025_06) != parent $(trig fiscal_receipts)"
+[ "$(live_sql "SELECT count(*) FROM fiscal_receipt_keys")" = "$keys_before" ] || die "archive: ATTACH changed fiscal_receipt_keys"
+[ "$(live_sql "SELECT count(*) FROM fiscal_receipts WHERE idempotency_key LIKE 'pitr-ci-%'")" = "3" ] || die "archive: re-attached receipts not visible through the parent"
+# re-attach after the month was dropped: restored from the archive file, then attached
+live_sql "DROP TABLE public.audit_logs_2025_06" >/dev/null
+$ARCH_R audit_logs 2025-06 --attach --yes || die "archive: --attach of a dropped audit month from its file"
+[ "$(trig audit_logs_2025_06)" = "$(trig audit_logs)" ] || die "archive: re-attached audit month triggers differ from the parent's"
+[ "$(live_sql "SELECT count(*) FROM audit_logs WHERE action = 'pitr-ci'")" = "30" ] || die "archive: re-attached audit rows not visible"
+if live_sql "DELETE FROM audit_logs WHERE action = 'pitr-ci'" >/dev/null 2>&1; then die "archive: the re-attached audit month is not append-only"; fi
+summary "archive: side restore without trigger functions ok; re-attach (live table and from file) has exactly the parent's triggers ($(trig fiscal_receipts)); fiscal_receipt_keys unchanged; audit stays append-only"
+
 printf '%s' "$results" >&2
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
