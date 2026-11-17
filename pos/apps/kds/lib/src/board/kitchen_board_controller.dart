@@ -62,6 +62,7 @@ class KitchenBoardController extends ChangeNotifier {
     this.recentMax = 12,
     this.newBadgeFor = const Duration(minutes: 1),
     this.eventDebounce = const Duration(milliseconds: 300),
+    this.pacing = RefreshPacing.kitchen,
   }) : _clock = clock ?? DateTime.now;
 
   final KitchenService service;
@@ -92,7 +93,12 @@ class KitchenBoardController extends ChangeNotifier {
   final Duration recentWindow;
   final int recentMax;
   final Duration newBadgeFor;
+
+  /// The cook's own action (bump, recall, ready, assembled) re-reads after this, not paced.
   final Duration eventDebounce;
+
+  /// M2 fix round 2: how event and heartbeat reads are paced (a kitchen ticket within ~2.5 s).
+  final RefreshPacing pacing;
 
   // --- holat ------------------------------------------------------------------------------------------------------
 
@@ -160,17 +166,21 @@ class KitchenBoardController extends ChangeNotifier {
   bool _wasLive = false;
   bool _disposed = false;
 
-  /// M2: the board's revision on the branch channel (`null` without realtime).
-  ChannelRevision? _revision;
+  /// M2 fix round 2: events and heartbeats of the branch channel (`null` without realtime): every event feeds the
+  /// board's revision, only kitchen ones read ([ScreenRelevance.kitchen]), paced ([pacing]).
+  PacedRefresh? _paced;
 
   /// M2: poll time since the last read sent without `If-None-Match` (counted by the poll timer, not by a clock).
   Duration _sinceUnconditional = Duration.zero;
   bool _unconditionalNext = false;
 
   /// M2: the board's revision state (tests).
-  ChannelRevision? get revision => _revision;
+  ChannelRevision? get revision => _paced?.revision;
 
-  /// M2: events not re-read because their `rev` was already on the board (tests).
+  /// M2 fix round 2: the paced reads (tests).
+  PacedRefresh? get paced => _paced;
+
+  /// M2: kitchen events not re-read because their `rev` was already on the board or already asked for (tests).
   int skippedEvents = 0;
 
   /// M2: reads sent without `If-None-Match` (tests).
@@ -324,20 +334,25 @@ class KitchenBoardController extends ChangeNotifier {
     unawaited(loadStations());
     final BranchRealtime? rt = realtime;
     if (rt != null) {
-      final ChannelRevision revision = ChannelRevision(rt.channel);
-      _revision = revision;
-      // M2: an event whose `rev` the board already read changes nothing; the next one (N+1) or any doubt re-reads
+      final PacedRefresh paced = PacedRefresh(
+        channel: rt.channel,
+        pacing: pacing,
+        onRead: (PacedReason _) => unawaited(refresh()),
+      );
+      _paced = paced;
+      // M2 fix round 2: every event feeds the board's revision; only kitchen changes read (not bills, payments,
+      // fiscal, shift, bookings ...: ScreenRelevance.kitchen keeps the table), paced
       _eventSub = rt.events.listen((RealtimeEvent e) {
-        if (revision.event(e.data) == RevisionVerdict.same) {
-          skippedEvents++;
-          return;
-        }
-        _scheduleEventRefresh();
+        final PacedVerdict v = paced.event(
+          e.data,
+          relevant: ScreenRelevance.kitchen(e.event),
+        );
+        if (v == PacedVerdict.skipped) skippedEvents++;
       });
-      // A heartbeat whose `rev` differs from what the board read: an event was missed
-      _heartbeatSub = rt.heartbeats.listen((RealtimeEvent e) {
-        if (revision.heartbeat(e.data)) unawaited(refresh());
-      });
+      // A heartbeat ahead of what the board accounted for (an event was missed), or doubt: a paced read
+      _heartbeatSub = rt.heartbeats.listen(
+        (RealtimeEvent e) => paced.heartbeat(e.data),
+      );
       // Obuna (qayta) tasdiqlandi: uzilish paytidagi hodisalar yo'qolgan, ro'yxat to'liq qayta yuklanadi
       _resubSub = rt.resubscribed.listen((_) => unawaited(refresh()));
       _wasLive = rt.isLive;
@@ -403,6 +418,9 @@ class KitchenBoardController extends ChangeNotifier {
     final bool unconditional = _unconditionalNext;
     _unconditionalNext = false;
     if (unconditional) unconditionalReads++;
+    final PacedRefresh? paced = _paced;
+    // Every full read shows what was asked so far: a paced read still due for it is dropped when covered
+    paced?.readStarted();
     try {
       // M2: a conditional GET (a 304 keeps the body and its receive time); the capture proves which revision the
       // board now shows
@@ -416,9 +434,8 @@ class KitchenBoardController extends ChangeNotifier {
             unconditional: unconditional,
           );
       if (_disposed) return;
-      final ChannelRevision? revision = _revision;
-      final String? scope = revision?.scope;
-      revision?.read(scope == null ? null : captured.reads.revisionFor(scope));
+      final String? scope = paced?.revision?.scope;
+      paced?.readDone(scope == null ? null : captured.reads.revisionFor(scope));
       final KitchenTicketList list = captured.value;
       final DateTime now = _clock();
       final List<KitchenTicket> live = <KitchenTicket>[
@@ -509,7 +526,7 @@ class KitchenBoardController extends ChangeNotifier {
       if (_stationsRetry) unawaited(loadStations());
     } on ApiException catch (e) {
       if (_disposed) return;
-      _revision?.forget();
+      paced?.readFailed();
       _error = e;
     }
     _pruneRecent();
@@ -634,6 +651,7 @@ class KitchenBoardController extends ChangeNotifier {
     return cue;
   }
 
+  /// The cook's own action: re-read shortly (not paced).
   void _scheduleEventRefresh() {
     _debounce?.cancel();
     _debounce = Timer(eventDebounce, () => unawaited(refresh()));
@@ -900,6 +918,7 @@ class KitchenBoardController extends ChangeNotifier {
     selection?.removeListener(_onSelection);
     _pollTimer?.cancel();
     _debounce?.cancel();
+    _paced?.dispose();
     unawaited(_eventSub?.cancel());
     unawaited(_heartbeatSub?.cancel());
     unawaited(_resubSub?.cancel());

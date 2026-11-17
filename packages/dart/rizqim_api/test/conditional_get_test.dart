@@ -344,53 +344,55 @@ void main() {
       'rev': <String, Object?>{'pos-branch.5': token},
     };
 
-    test('next, same, gap and unknown', () {
+    test('relevant events: skip only what a read proved; everything else reads and settles S', () {
       final ChannelRevision r = ChannelRevision('private-pos-branch.5');
       expect(r.channelKey, 'pos-branch.5');
       expect(r.scope, 'branch:5');
-      // Unknown N: re-read
-      expect(r.event(rev('100')), RevisionVerdict.reread);
+      // Nothing proven: read
+      expect(r.event(rev('100')), RevisionVerdict.read);
       r.read(BigInt.from(100));
-      expect(r.event(rev('101')), RevisionVerdict.next);
-      expect(r.known, BigInt.from(101));
-      expect(r.event(rev('101')), RevisionVerdict.same);
-      // A gap: re-read and forget
-      expect(r.event(rev('103')), RevisionVerdict.reread);
-      expect(r.known, isNull);
-      // An older token (Redis flushed: a random new base): re-read
-      r.read(BigInt.from(500));
-      expect(r.event(rev('7')), RevisionVerdict.reread);
-      // No rev (an old server, a LAN event): re-read
-      r.read(BigInt.from(500));
-      expect(r.event(const <String, Object?>{}), RevisionVerdict.reread);
-      // Another channel's rev only
-      r.read(BigInt.from(500));
+      expect(r.known, BigInt.from(100));
+      expect(r.settled, BigInt.from(100));
+      expect(r.event(rev('100')), RevisionVerdict.skip);
+      expect(r.event(rev('101')), RevisionVerdict.read);
+      expect(r.nextCount, 1);
+      expect(r.settled, BigInt.from(101));
+      expect(r.known, BigInt.from(100), reason: 'only a read moves R');
+      // A gap: still a read (a full one), counted as such
+      expect(r.event(rev('103')), RevisionVerdict.read);
+      expect(r.rereadCount, 2);
+      // No rev (an old server, a LAN event), another channel's rev only: read
+      expect(r.event(const <String, Object?>{}), RevisionVerdict.read);
       expect(
         r.event(<String, Object?>{
-          'rev': <String, Object?>{'store.3': '501'},
+          'rev': <String, Object?>{'store.3': '100'},
         }),
-        RevisionVerdict.reread,
+        RevisionVerdict.read,
       );
     });
 
     test('tokens beyond 2^53 compare exactly', () {
       final ChannelRevision r = ChannelRevision('private-pos-branch.5')
         ..read(BigInt.parse('9007199254740993'));
-      expect(r.event(rev('9007199254740994')), RevisionVerdict.next);
-      expect(r.event(rev('9007199254740994')), RevisionVerdict.same);
-      expect(r.event(rev('9007199254740996')), RevisionVerdict.reread);
+      expect(r.event(rev('9007199254740993')), RevisionVerdict.skip);
+      expect(r.event(rev('9007199254740994')), RevisionVerdict.read);
+      expect(r.nextCount, 1);
       expect(parseRevision('12a'), isNull);
       expect(parseRevision('-1'), isNull);
     });
 
-    test('heartbeat: re-read only when its rev differs from a known N; never adopts it', () {
+    test('heartbeat: missed when its rev is not S; never adopts it', () {
       final ChannelRevision r = ChannelRevision('private-pos-branch.5');
-      expect(r.heartbeat(rev('100')), isFalse, reason: 'unknown N');
-      expect(r.known, isNull);
+      expect(
+        r.heartbeat(rev('100')),
+        HeartbeatVerdict.fine,
+        reason: 'nothing known',
+      );
       r.read(BigInt.from(100));
-      expect(r.heartbeat(rev('100')), isFalse);
-      expect(r.heartbeat(rev('101')), isTrue, reason: 'an event was missed');
-      expect(r.known, isNull);
+      expect(r.heartbeat(rev('100')), HeartbeatVerdict.fine);
+      expect(r.heartbeat(rev('101')), HeartbeatVerdict.missed);
+      expect(r.settled, BigInt.from(100));
+      expect(r.heartbeatRereads, 1);
     });
 
     test('scopes of the channels', () {
@@ -405,7 +407,7 @@ void main() {
         store.event(<String, Object?>{
           'rev': <String, Object?>{'store.3': '7'},
         }),
-        RevisionVerdict.reread,
+        RevisionVerdict.read,
         reason: 'a same store token never skips a re-read',
       );
       expect(ChannelRevision.scopeOfChannel('user.9'), 'user:9');

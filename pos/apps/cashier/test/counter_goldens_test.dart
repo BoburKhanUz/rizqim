@@ -129,6 +129,8 @@ void main() {
       await tester.pumpAndSettle();
       await sell(tester, <int>[oshId, oshId, colaId]);
       q.markReady(q.uuidOf(1));
+      // The banner and the sound come from the event at once; the list read is paced (one pickup window, M2 fix)
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey<String>('ready-announcement')),

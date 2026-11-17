@@ -89,16 +89,10 @@ class RoomsController extends ChangeNotifier {
       realtime: realtime,
       pollInterval: pollInterval,
       livePollInterval: livePollInterval,
-      eventFilter: (PosEvent e) =>
-          e is PosOrderEvent ||
-          e is PosOrderItemsChanged ||
-          e is PosOrderBillChanged ||
-          e is PosOrderBillRequested ||
-          e is PosKitchenItemChanged ||
-          e is PosBookingChanged ||
-          // P6-24/P6-26: a table handed to another waiter, a table marked as being cleaned
-          e is PosOrderTransferred ||
-          e is PosTableStateChanged,
+      // M2 fix round 2: the floors' table (P6-24/P6-26 hand-overs and cleaning marks included; not payment or fiscal
+      // bill changes), paced
+      eventFilter: PosRelevance.floor,
+      pacing: RefreshPacing.floor,
       onRefresh: (PosRefreshReason _) => load(),
       // P6: the hub's events in `lan` mode
       localEvents: data.lanEvents,

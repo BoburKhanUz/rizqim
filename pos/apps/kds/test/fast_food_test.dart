@@ -45,8 +45,9 @@ KdsHarness fastFood({Map<String, Object?>? stations, bool withExpo = true}) {
   return h;
 }
 
+/// An event's paced read: within one KDS pacing window (M2 fix round 2; the harness has no random spread).
 Future<void> event(WidgetTester tester) async {
-  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 2100));
   await tester.pumpAndSettle();
 }
 

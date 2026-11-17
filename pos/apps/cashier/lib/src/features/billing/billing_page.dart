@@ -61,6 +61,9 @@ class _BillingPageState extends State<BillingPage> with RefreshingState {
       startRefreshing(
         _scope.realtime,
         filter: (PosEvent e) => e.orderUuid == widget.orderUuid,
+        // M2 fix round 2: one order's events, briefly paced; a payment never waits for it (it sends what is on screen
+        // and the server checks the bill's version)
+        pacing: RefreshPacing.order,
         offline: _scope.data.offline,
         orderRef: widget.orderUuid,
         onSynced: _priceChanged,

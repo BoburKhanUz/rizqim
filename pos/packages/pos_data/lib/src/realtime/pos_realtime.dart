@@ -226,18 +226,32 @@ enum PosRefreshReason {
   resume,
 }
 
+/// Wave M2 fix round 2: the floors' event table (cashier floor, waiter rooms), by event name ([ScreenRelevance.floor]
+/// keeps the table: each event, where the backend dispatches it, and why each omission is safe).
+abstract final class PosRelevance {
+  /// `order.*` (a bill change only when it is not `payment` or `fiscal`), `kitchen.item_status_changed`,
+  /// `kitchen.order_assembled`, `booking.changed`, `table.state_changed`, and names this build does not know.
+  static bool floor(PosEvent e) => ScreenRelevance.floor(e.name, e.data);
+
+  /// The till's pickup board: `queue.*` and `order.created` / `status_changed` / `assigned`.
+  static bool pickup(PosEvent e) => ScreenRelevance.pickup(e.name);
+}
+
 /// Polling zaxirasi: real-time bo'lmasa yoki jonli bo'lmasa har [pollInterval], jonli bo'lsa ham har
-/// [livePollInterval] da, obuna qayta tasdiqlanganda darhol va [eventFilter] ga mos hodisada ([debounce] bilan)
+/// [livePollInterval] da, obuna qayta tasdiqlanganda darhol va [eventFilter] ga mos hodisada ([pacing] bilan)
 /// [onRefresh] ni chaqiradi. Bir vaqtda bitta yuklash (davomida yana so'ralsa — tugagach bir marta qayta).
 ///
 /// M2 (docs/API.md 8, "M2: `rev`, heartbeat, holat"):
 /// * Har yuklash [ReadTracking.capture] ichida: uning GET'laridan (bitta doirali javobning `X-Revision`) ekran qaysi
-///   tokenni ko'rsatayotgani isbotlansa, u [revision] da saqlanadi (N). Isbotlanmasa (o'qish xatosi, do'kon bo'ylab
-///   ro'yxat, aralash o'qishlar) — N noma'lum.
-/// * Mos hodisa: `rev == N+1` — avvalgidek (debounce bilan yuklash), N := N+1; `rev == N` — hech narsa (shu holat
-///   allaqachon o'qilgan yoki o'qilish navbatida); boshqa har qanday qiymat, `rev` yo'q yoki N noma'lum — to'liq qayta
-///   o'qish. Mos bo'lmagan hodisa N ga tegmaydi. Lokal ko'prik hodisalari ([localEvents]) har doim yuklaydi.
-/// * Heartbeat: `rev` N dan farq qilsa — qayta o'qish ([PosRefreshReason.heartbeat]).
+///   tokenni ko'rsatayotgani isbotlansa, u R bo'ladi ([ChannelRevision]). Isbotlanmasa (o'qish xatosi, do'kon bo'ylab
+///   ro'yxat, aralash o'qishlar) — R noma'lum.
+/// * Hodisalar va heartbeat [PacedRefresh] orqali: HAR hodisa (mos yoki mos emas) S ni yuritadi; mos hodisa `rev == R`
+///   bo'lsa yoki xuddi shu `rev` uchun o'qish kutilayotgan bo'lsa — hech narsa, aks holda [pacing] bilan o'qish
+///   (birinchisi U(0, spread) dan keyin, oyna ichidagilar oyna oxirida bitta o'qishga yig'iladi). Heartbeat: `rev != S`
+///   yoki shubha bor — [pacing] bilan o'qish ([PosRefreshReason.heartbeat]). Lokal ko'prik hodisalari ([localEvents])
+///   `rev` siz: mos bo'lsa har doim (pacing bilan) yuklaydi.
+/// * Pacing faqat hodisa va heartbeat o'qishlariga: [refreshNow] (xodimning o'z amali), resync, polling (ehtiyot
+///   so'rovi ham), jimlik va ilova qaytishi darhol o'qiydi.
 /// * Polling so'rovlari shartli (`If-None-Match`, `304`), lekin har [unconditionalEvery] da kamida bir marta
 ///   `If-None-Match` siz (serverda yo'qolgan "touch" ekranni eskirgan holda ushlab turolmaydi).
 /// * Ilova oldingi planga qaytganda ([AppResume]) darhol qayta o'qiydi.
@@ -245,7 +259,8 @@ enum PosRefreshReason {
 /// ```dart
 /// final scheduler = PosRefreshScheduler(
 ///   realtime: realtime,
-///   eventFilter: (e) => e is PosOrderEvent || e is PosOrderItemsChanged,
+///   eventFilter: PosRelevance.floor,
+///   pacing: RefreshPacing.floor,
 ///   onRefresh: (_) => floorController.reload(),
 /// )..start();
 /// ```
@@ -256,7 +271,7 @@ class PosRefreshScheduler {
     this.eventFilter,
     this.pollInterval = const Duration(seconds: 15),
     this.livePollInterval = const Duration(seconds: 60),
-    this.debounce = const Duration(milliseconds: 300),
+    this.pacing = RefreshPacing.list,
     this.unconditionalEvery = const Duration(seconds: 110),
     this.localEvents,
     Stream<void>? resumed,
@@ -274,7 +289,9 @@ class PosRefreshScheduler {
 
   /// `Duration.zero` — jonli paytda polling yo'q.
   final Duration livePollInterval;
-  final Duration debounce;
+
+  /// M2 fix round 2: how event and heartbeat reads are paced ([RefreshPacing]).
+  final RefreshPacing pacing;
 
   /// M2: polling so'rovlari shu vaqtda kamida bir marta `If-None-Match` siz yuboriladi (2 daqiqadan kam).
   final Duration unconditionalEvery;
@@ -283,12 +300,11 @@ class PosRefreshScheduler {
   final List<StreamSubscription<Object?>> _subs =
       <StreamSubscription<Object?>>[];
   Timer? _poll;
-  Timer? _debounce;
   bool _running = false;
   PosRefreshReason? _pending;
   bool _started = false;
   bool _disposed = false;
-  ChannelRevision? _revision;
+  PacedRefresh? _paced;
 
   /// Polling vaqti oxirgi shartsiz o'qishdan beri (taymer bo'yicha sanaladi, soatga bog'liq emas).
   Duration _sinceUnconditional = Duration.zero;
@@ -297,53 +313,56 @@ class PosRefreshScheduler {
   /// Necha marta yuklandi (testlar).
   int refreshes = 0;
 
-  /// `rev == N` bo'lgani uchun yuklanmagan hodisalar (testlar).
+  /// Mos, lekin o'qilmagan hodisalar: `rev == R` yoki shu `rev` uchun o'qish allaqachon so'ralgan (testlar).
   int skippedEvents = 0;
 
   /// `If-None-Match` siz yuborilgan polling yuklashlari (testlar).
   int unconditionalRefreshes = 0;
 
   /// M2: this screen's revision state on the realtime channel (`null` without realtime).
-  ChannelRevision? get revision => _revision;
+  ChannelRevision? get revision => _paced?.revision;
+
+  /// M2 fix round 2: the paced reads (tests).
+  PacedRefresh? get paced => _paced;
+
+  bool _relevant(PosEvent e) => eventFilter?.call(e) ?? false;
+
+  void _onEvent(PosEvent e) {
+    final PacedRefresh? p = _paced;
+    if (p == null) return;
+    if (p.event(e.data, relevant: _relevant(e)) == PacedVerdict.skipped) {
+      skippedEvents++;
+    }
+  }
 
   void start() {
     if (_started) return;
     _started = true;
-    void onEvent(PosEvent e) {
-      final bool Function(PosEvent)? filter = eventFilter;
-      if (filter == null || !filter(e)) return;
-      final ChannelRevision? rev = _revision;
-      if (rev != null && rev.event(e.data) == RevisionVerdict.same) {
-        skippedEvents++;
-        return;
-      }
-      _scheduleEvent();
-    }
-
     final PosRealtime? rt = realtime;
+    _paced = PacedRefresh(
+      channel: rt?.channel,
+      pacing: pacing,
+      onRead: (PacedReason r) => unawaited(
+        _trigger(
+          r == PacedReason.heartbeat
+              ? PosRefreshReason.heartbeat
+              : PosRefreshReason.event,
+        ),
+      ),
+    );
     if (rt != null) {
-      _revision = ChannelRevision(rt.channel);
       _subs
         ..add(rt.states.listen((_) => _arm()))
         ..add(rt.resubscribed.listen((_) => _trigger(PosRefreshReason.resync)))
-        ..add(rt.events.listen(onEvent))
+        ..add(rt.events.listen(_onEvent))
         ..add(
-          rt.heartbeats.listen((PosHeartbeat h) {
-            if (_revision?.heartbeat(h.data) ?? false) {
-              unawaited(_trigger(PosRefreshReason.heartbeat));
-            }
-          }),
+          rt.heartbeats.listen((PosHeartbeat h) => _paced?.heartbeat(h.data)),
         );
     }
     final Stream<PosEvent>? local = localEvents;
     if (local != null) {
-      _subs.add(
-        local.listen((PosEvent e) {
-          final bool Function(PosEvent)? filter = eventFilter;
-          if (filter == null || !filter(e)) return;
-          _scheduleEvent();
-        }),
-      );
+      // The hub's events carry no `rev` of the server channel: a relevant one always reads (paced)
+      _subs.add(local.listen(_onEvent));
     }
     _subs.add(
       _resumedSource.listen(
@@ -353,12 +372,7 @@ class PosRefreshScheduler {
     _arm();
   }
 
-  void _scheduleEvent() {
-    _debounce?.cancel();
-    _debounce = Timer(debounce, () => _trigger(PosRefreshReason.event));
-  }
-
-  /// Hozir yuklash (masalan, ekran ochilganda yoki "Yangilash" bosilganda).
+  /// Hozir yuklash (masalan, ekran ochilganda, "Yangilash" bosilganda yoki xodimning o'z amalidan keyin): pacing yo'q.
   Future<void> refreshNow() => _trigger(PosRefreshReason.manual);
 
   void _arm() {
@@ -398,19 +412,21 @@ class PosRefreshScheduler {
           _nextUnconditional = false;
           unconditionalRefreshes++;
         }
+        final PacedRefresh? paced = _paced;
+        // Every full read shows what was asked so far: a paced read still due for it is dropped when covered
+        paced?.readStarted();
         try {
           final CapturedRead<void> captured = await ReadTracking.capture<void>(
             () => onRefresh(next),
             unconditional: unconditional,
           );
-          final ChannelRevision? rev = _revision;
-          if (rev != null) {
-            final String? scope = rev.scope;
-            rev.read(scope == null ? null : captured.reads.revisionFor(scope));
-          }
+          final String? scope = paced?.revision?.scope;
+          paced?.readDone(
+            scope == null ? null : captured.reads.revisionFor(scope),
+          );
         } on Object {
           // Yuklash xatosi chaqiruvchida ko'rsatiladi; jadval to'xtamaydi. Ekran nimani ko'rsatayotgani noma'lum
-          _revision?.forget();
+          paced?.readFailed();
         }
         final PosRefreshReason? again = _pending;
         _pending = null;
@@ -425,7 +441,7 @@ class PosRefreshScheduler {
   Future<void> dispose() async {
     _disposed = true;
     _poll?.cancel();
-    _debounce?.cancel();
+    _paced?.dispose();
     for (final StreamSubscription<Object?> s in _subs) {
       await s.cancel();
     }

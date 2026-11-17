@@ -6,7 +6,8 @@
 /// * oshxona ekrani ([KitchenService], [KitchenTicket]) yaratilgan klient ustida;
 /// * real-time: Reverb/Pusher klienti ([PusherClient]) va private kanal imzosi ([ChannelAuth]);
 /// * M2: shartli GET'lar ([EtagStore], [ConditionalGetInterceptor]), o'qishlarni kuzatish ([ReadTracking]), kanal
-///   reviziyasi ([ChannelRevision]), `GET /v1/realtime` ([RealtimeConfig]) va kanal holati ([LiveChannel]).
+///   reviziyasi ([ChannelRevision]), hodisa o'qishlarini taqsimlash ([PacedRefresh], [RefreshPacing],
+///   [ScreenRelevance]), `GET /v1/realtime` ([RealtimeConfig]) va kanal holati ([LiveChannel]).
 ///
 /// OpenAPI'dan yaratilgan klient sinflari va modellari (`OrderStatus`, `Product`, ...) bu yerdan chiqarilmaydi: ularning
 /// nomlari `rizqim_core` bilan to'qnashadi. Kerak bo'lsa `import 'package:rizqim_api/generated.dart' as gen;`.
@@ -37,3 +38,5 @@ export 'src/sync/app_resume.dart';
 export 'src/sync/channel_revision.dart';
 export 'src/sync/conditional_get.dart';
 export 'src/sync/read_tracking.dart';
+export 'src/sync/refresh_pacing.dart';
+export 'src/sync/screen_relevance.dart';

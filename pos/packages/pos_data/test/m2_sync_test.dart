@@ -11,6 +11,8 @@ import 'support/harness.dart';
 /// Wave M2 in the POS data layer: conditional GETs through the repositories, the revision-aware scheduler, heartbeat
 /// and silence, the unconditional safety poll, app resume.
 void main() {
+  // M2 fix round 2: no random spread in tests (the pacing window still applies)
+  setUp(() => RefreshThrottle.defaultRandom = () => 0);
   group('conditional GETs through PosHttp', () {
     late Harness h;
 
@@ -248,6 +250,254 @@ void main() {
         });
       },
     );
+
+    group('M2 fix round 2: paced event reads', () {
+      /// [open] with the floor's pacing and table.
+      void openFloor(FakeAsync async) {
+        h = Harness();
+        hub = FakePosRealtimeHub();
+        h.state.onEvent = hub.broadcast;
+        unawaited(h.signIn());
+        async.elapse(const Duration(seconds: 1));
+        rt = PosRealtime.create(
+          client: h.client,
+          terminal: h.client.auth.terminal!,
+          apiBaseUrl: 'https://api.test/api',
+          appKey: FakePosState.realtimeKey,
+          connector: hub.connect,
+        )!;
+        reasons = <PosRefreshReason>[];
+        resumed = StreamController<void>.broadcast(sync: true);
+        s = PosRefreshScheduler(
+          realtime: rt,
+          resumed: resumed.stream,
+          eventFilter: PosRelevance.floor,
+          pacing: RefreshPacing.floor,
+          onRefresh: (PosRefreshReason r) async {
+            reasons.add(r);
+            await h.pos.floor.load();
+          },
+        )..start();
+        rt.start();
+        async.elapse(const Duration(milliseconds: 50));
+        reasons.clear();
+      }
+
+      void commit(String name, Map<String, Object?> data) =>
+          h.state.emit(name, data);
+
+      test('the first event after quiet reads promptly; a burst in the window is ONE trailing read', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          commit('order.created', order('a'));
+          async.elapse(const Duration(milliseconds: 10));
+          expect(reasons, <PosRefreshReason>[PosRefreshReason.event]);
+          for (var i = 0; i < 6; i++) {
+            async.elapse(const Duration(milliseconds: 500));
+            commit('order.items_changed', <String, Object?>{
+              ...order('a'),
+              'change': 'sent',
+            });
+          }
+          async.elapse(const Duration(milliseconds: 1500));
+          expect(reasons, hasLength(1), reason: 'still inside the 5 s window');
+          async.elapse(const Duration(seconds: 2));
+          expect(reasons, <PosRefreshReason>[
+            PosRefreshReason.event,
+            PosRefreshReason.event,
+          ]);
+          async.elapse(const Duration(seconds: 20));
+          expect(reasons, hasLength(2));
+          close(async);
+        });
+      });
+
+      test('the spread: the first read waits U(0, 1.5 s)', () {
+        RefreshThrottle.defaultRandom = () => 0.5;
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          commit('order.created', order('b'));
+          async.elapse(const Duration(milliseconds: 740));
+          expect(reasons, isEmpty);
+          async.elapse(const Duration(milliseconds: 20));
+          expect(reasons, <PosRefreshReason>[PosRefreshReason.event]);
+          close(async);
+        });
+      });
+
+      test('an own action reads at once inside the window; the trailing read it covers is dropped', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          commit('order.created', order('c'));
+          async.elapse(const Duration(milliseconds: 10));
+          commit('order.status_changed', order('c'));
+          unawaited(s.refreshNow());
+          async.flushMicrotasks();
+          expect(reasons, <PosRefreshReason>[
+            PosRefreshReason.event,
+            PosRefreshReason.manual,
+          ]);
+          async.elapse(const Duration(seconds: 10));
+          expect(reasons, hasLength(2));
+          close(async);
+        });
+      });
+
+      test('ignored events feed S: the next relevant event is N+1, a heartbeat at S reads nothing', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          commit('shift.changed', <String, Object?>{
+            'shift': <String, Object?>{'id': 1},
+          });
+          commit('fiscal.receipt_updated', <String, Object?>{
+            'receipt': <String, Object?>{},
+          });
+          hub.heartbeat(h.state.heartbeatBody());
+          async.elapse(const Duration(seconds: 1));
+          expect(reasons, isEmpty);
+          expect(s.revision!.ignoredCount, 2);
+          commit('order.created', order('d'));
+          async.elapse(const Duration(seconds: 1));
+          expect(reasons, <PosRefreshReason>[PosRefreshReason.event]);
+          expect(s.revision!.nextCount, 1);
+          expect(s.revision!.rereadCount, 0);
+          close(async);
+        });
+      });
+
+      test('an ignored event that jumps (one lost before it) leaves doubt: the heartbeat at S reads', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          h.state.revision++; // a commit whose event never arrived
+          commit('shift.changed', <String, Object?>{
+            'shift': <String, Object?>{'id': 1},
+          });
+          async.elapse(const Duration(seconds: 1));
+          expect(reasons, isEmpty);
+          expect(s.revision!.doubt, isTrue);
+          hub.heartbeat(h.state.heartbeatBody());
+          async.elapse(const Duration(seconds: 2));
+          expect(reasons, <PosRefreshReason>[PosRefreshReason.heartbeat]);
+          expect(s.revision!.doubt, isFalse, reason: 'the read proved S');
+          hub.heartbeat(h.state.heartbeatBody());
+          async.elapse(const Duration(seconds: 6));
+          expect(reasons, hasLength(1));
+          close(async);
+        });
+      });
+
+      test('a payment or fiscal bill change does not re-read the floor; a printed bill does', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          Map<String, Object?> bill(String change) => <String, Object?>{
+            ...order('e'),
+            'bill': <String, Object?>{'uuid': 'b1', 'status': 'issued'},
+            'change': change,
+          };
+          commit('order.bill_changed', bill('payment'));
+          commit('order.bill_changed', bill('fiscal'));
+          async.elapse(const Duration(seconds: 1));
+          expect(reasons, isEmpty);
+          commit('order.bill_changed', bill('printed'));
+          async.elapse(const Duration(seconds: 1));
+          expect(reasons, <PosRefreshReason>[PosRefreshReason.event]);
+          expect(
+            s.revision!.rereadCount,
+            0,
+            reason: 'S followed the ignored events',
+          );
+          close(async);
+        });
+      });
+
+      test('polls, resync and the app coming back are never paced', () {
+        fakeAsync((FakeAsync async) {
+          openFloor(async);
+          commit('order.created', order('f'));
+          async.elapse(const Duration(milliseconds: 10));
+          resumed.add(null);
+          async.flushMicrotasks();
+          expect(reasons, <PosRefreshReason>[
+            PosRefreshReason.event,
+            PosRefreshReason.resume,
+          ]);
+          reasons.clear();
+          async.elapse(const Duration(seconds: 60));
+          expect(reasons, contains(PosRefreshReason.safetyPoll));
+          close(async);
+        });
+      });
+    });
+
+    group('PosRelevance', () {
+      PosEvent ev(String name, [Map<String, Object?>? extra]) =>
+          PosEvent.fromWire(name, <String, Object?>{...order('o'), ...?extra});
+
+      test('floor: order and table state, kitchen, bookings', () {
+        for (final String n in <String>[
+          'order.created',
+          'order.status_changed',
+          'order.items_changed',
+          'order.bill_requested',
+          'order.transferred',
+          'kitchen.item_status_changed',
+          'kitchen.order_assembled',
+          'booking.changed',
+          'table.state_changed',
+        ]) {
+          expect(PosRelevance.floor(ev(n)), isTrue, reason: n);
+        }
+      });
+
+      test('floor: not fiscal, shift, queue, waitlist, QR, menu, cart', () {
+        for (final String n in <String>[
+          'fiscal.receipt_updated',
+          'shift.changed',
+          'queue.ready',
+          'waitlist.changed',
+          'qr.paid',
+          'menu.availability_changed',
+          'display.cart',
+          'pos.lan_changed',
+        ]) {
+          expect(PosRelevance.floor(ev(n)), isFalse, reason: n);
+        }
+      });
+
+      test('floor: a bill change unless payment or fiscal', () {
+        expect(
+          PosRelevance.floor(
+            ev('order.bill_changed', <String, Object?>{'change': 'printed'}),
+          ),
+          isTrue,
+        );
+        expect(
+          PosRelevance.floor(
+            ev('order.bill_changed', <String, Object?>{'change': 'created'}),
+          ),
+          isTrue,
+        );
+        expect(
+          PosRelevance.floor(
+            ev('order.bill_changed', <String, Object?>{'change': 'payment'}),
+          ),
+          isFalse,
+        );
+        expect(
+          PosRelevance.floor(
+            ev('order.bill_changed', <String, Object?>{'change': 'fiscal'}),
+          ),
+          isFalse,
+        );
+      });
+
+      test('pickup board: queue and the order moves', () {
+        expect(PosRelevance.pickup(ev('queue.handed')), isTrue);
+        expect(PosRelevance.pickup(ev('order.assigned')), isTrue);
+        expect(PosRelevance.pickup(ev('order.items_changed')), isFalse);
+        expect(PosRelevance.pickup(ev('order.bill_changed')), isFalse);
+      });
+    });
 
     test('the live safety poll goes without If-None-Match at least every 2 minutes; the others are conditional', () {
       fakeAsync((FakeAsync async) {

@@ -4,12 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pos_data/pos_data.dart';
 import 'package:pos_lan/pos_lan.dart';
 import 'package:rizqim_api/rizqim_api.dart'
-    show
-        AppResume,
-        CapturedRead,
-        ChannelRevision,
-        ReadTracking,
-        RevisionVerdict;
+    show AppResume, CapturedRead, ChannelRevision, ReadTracking;
 
 import '../app_config.dart';
 import '../lan/display_lan.dart';
@@ -71,8 +66,10 @@ class ReadyAnnouncement {
 /// Mijoz ekranining holati: kassa cheki (`display.cart` hodisasi va so'rov), "Tayyorlanmoqda / Tayyor" taxtasi
 /// (`queue.*` hodisalari va so'rov), aloqa va ovoz.
 ///
-/// * **Tezlik:** hodisa kelsa o'sha zahoti qayta o'qiladi (kutmasdan); tayyor raqam ovozi va yirik ko'rsatish hodisaning
-///   o'zidan, so'rovni kutmasdan. Real-time bo'lmasa yoki uzilsa — [pollInterval] da so'raladi, jonli bo'lsa ham ehtiyot
+/// * **Tezlik:** o'z kassasining `display.cart` va `queue.*` hodisasida qisqa taqsimlash bilan ([pacing]: birinchisi
+///   0-250 ms ichida, 300 ms oynadagilar bitta o'qishga) qayta o'qiladi; tayyor raqam ovozi va yirik ko'rsatish
+///   hodisaning o'zidan, so'rovni kutmasdan. Boshqa hodisalar faqat reviziyani yuritadi (M2 fix round 2); heartbeat
+///   faqat hodisa o'tkazib yuborilganda o'qitadi (shubhada emas: 30 s ehtiyot so'rovi bor). Real-time bo'lmasa yoki uzilsa — [pollInterval] da so'raladi, jonli bo'lsa ham ehtiyot
 ///   uchun [livePollInterval] da; obuna (qayta) tasdiqlanganda darhol.
 /// * **Aloqa uzilsa** oxirgi ma'lum chek va raqamlar turadi, burchakda "Aloqa yo'q"; tiklanganda o'zi yangilanadi.
 /// * **Chek:** "Rahmat" [paidHold] turadi, kassa unutgan chek [staleCart] dan keyin salomlashishga qaytadi.
@@ -92,6 +89,7 @@ class DisplayController extends ChangeNotifier {
     this.staleCart = AppConfig.staleCart,
     this.announceHold = AppConfig.announceHold,
     this.lan,
+    this.pacing = RefreshPacing.display,
   }) : _clock = clock ?? DateTime.now;
 
   final PosDisplayRepository repository;
@@ -107,6 +105,9 @@ class DisplayController extends ChangeNotifier {
 
   /// P6 lokal ko'prik; `null` — yo'q.
   final DisplayLan? lan;
+
+  /// M2 fix round 2: how event and heartbeat reads are paced.
+  final RefreshPacing pacing;
 
   PosDisplayState? _state;
   PosQueueBoard? _board;
@@ -133,8 +134,9 @@ class DisplayController extends ChangeNotifier {
   StreamSubscription<void>? _resumeSub;
   StreamSubscription<LanEvent>? _lanSub;
 
-  /// M2: the screen's revision on the branch channel (`null` without realtime).
-  ChannelRevision? _revision;
+  /// M2 fix round 2: events and heartbeats of the branch channel (`null` without realtime): every event feeds the
+  /// screen's revision, only its till's cart and the queue read ([ScreenRelevance.display]), paced.
+  PacedRefresh? _paced;
 
   /// M2: poll time since the last read without `If-None-Match` (counted by the poll timer).
   Duration _sinceUnconditional = Duration.zero;
@@ -150,7 +152,10 @@ class DisplayController extends ChangeNotifier {
   int unconditionalReads = 0;
 
   /// M2: the revision state (tests).
-  ChannelRevision? get revision => _revision;
+  ChannelRevision? get revision => _paced?.revision;
+
+  /// M2 fix round 2: the paced reads (tests).
+  PacedRefresh? get paced => _paced;
   bool _viaHub = false;
 
   // The till's last cart over the LAN (its run and number): an older one that arrives late is dropped
@@ -267,12 +272,18 @@ class DisplayController extends ChangeNotifier {
     settings.addListener(_notify);
     final PosRealtime? rt = realtime;
     if (rt != null) {
-      _revision = ChannelRevision(rt.channel);
+      _paced = PacedRefresh(
+        channel: rt.channel,
+        pacing: pacing,
+        // The display never reads on doubt alone: its safety poll covers it
+        readOnDoubt: false,
+        onRead: (PacedReason _) => unawaited(refresh()),
+      );
       _eventSub = rt.events.listen(_onEvent);
-      // A heartbeat whose `rev` differs from what the screen read: an event was missed
-      _heartbeatSub = rt.heartbeats.listen((PosHeartbeat h) {
-        if (_revision?.heartbeat(h.data) ?? false) unawaited(refresh());
-      });
+      // A heartbeat ahead of what the screen accounted for: an event was missed
+      _heartbeatSub = rt.heartbeats.listen(
+        (PosHeartbeat h) => _paced?.heartbeat(h.data),
+      );
       _liveSub = rt.states.listen((_) {
         _armPoll();
         _notify();
@@ -329,6 +340,9 @@ class DisplayController extends ChangeNotifier {
     final bool unconditional = _unconditionalNext;
     _unconditionalNext = false;
     if (unconditional) unconditionalReads++;
+    final PacedRefresh? paced = _paced;
+    // Every full read shows what was asked so far: a paced read still due for it is dropped when covered
+    paced?.readStarted();
     try {
       // M2: conditional reads; the capture proves the revision the screen shows and keeps the receive time of a body
       // answered after a 304 (the cart's age counts from its original 200)
@@ -337,15 +351,14 @@ class DisplayController extends ChangeNotifier {
         unconditional: unconditional,
       );
       if (_disposed || !all.value) return;
-      final ChannelRevision? revision = _revision;
-      final String? scope = revision?.scope;
-      revision?.read(scope == null ? null : all.reads.revisionFor(scope));
+      final String? scope = paced?.revision?.scope;
+      paced?.readDone(scope == null ? null : all.reads.revisionFor(scope));
     } on PosNetworkException {
-      _revision?.forget();
+      paced?.readFailed();
       _offline = true;
       lan?.reportCloud(false);
     } on PosException catch (e) {
-      _revision?.forget();
+      paced?.readFailed();
       // Server javob berdi, lekin rad etdi: tarmoq muammosi emas
       if (e.isNetworkError) {
         _offline = true;
@@ -355,7 +368,7 @@ class DisplayController extends ChangeNotifier {
         _error = e.message;
       }
     } on Object catch (e) {
-      _revision?.forget();
+      paced?.readFailed();
       _offline = true;
       if (kDebugMode) debugPrint('display refresh failed: $e');
     }
@@ -398,32 +411,23 @@ class DisplayController extends ChangeNotifier {
 
   void _onEvent(PosEvent e) {
     if (_disposed) return;
-    switch (e) {
-      case PosDisplayCartChanged():
-        final String? till = _state?.tillUuid;
-        if (till != null && e.terminal != null && e.terminal != till) return;
-        if (_alreadyShown(e)) return;
-        unawaited(refresh());
-      case PosQueueEvent():
-        final int? number = e.number;
-        if (number != null && e.name == 'queue.ready') {
-          // Ovoz va yirik raqam hodisaning o'zidan: so'rov javobini kutmaymiz
-          _announce(number, callCount: e.callCount, again: e.called);
-        }
-        if (_alreadyShown(e)) return;
-        unawaited(refresh());
-      default:
-        break;
+    if (e is PosQueueEvent) {
+      final int? number = e.number;
+      if (number != null && e.name == 'queue.ready') {
+        // Ovoz va yirik raqam hodisaning o'zidan: so'rov javobini kutmaymiz
+        _announce(number, callCount: e.callCount, again: e.called);
+      }
     }
-  }
-
-  /// M2: the event's `rev` is the token the screen last read: nothing new to read (the announcement above still
-  /// plays). The next token (N+1) or anything doubtful re-reads.
-  bool _alreadyShown(PosEvent e) {
-    final ChannelRevision? r = _revision;
-    if (r == null || r.event(e.data) != RevisionVerdict.same) return false;
-    skippedEvents++;
-    return true;
+    // M2 fix round 2: every event feeds the revision (an ignored one too, so the next relevant event or heartbeat is
+    // not taken for a gap); only this till's cart and the queue read, paced. A `rev` already on screen (or already
+    // asked for) reads nothing: the announcement above still plays.
+    final PacedRefresh? paced = _paced;
+    if (paced == null) return;
+    final PacedVerdict v = paced.event(
+      e.data,
+      relevant: ScreenRelevance.display(e.name, e.data, _state?.tillUuid),
+    );
+    if (v == PacedVerdict.skipped) skippedEvents++;
   }
 
   // --- P6: markaz kassa hodisalari ----------------------------------------------------------------------------
@@ -740,6 +744,7 @@ class DisplayController extends ChangeNotifier {
       t.cancel();
     }
     settings.removeListener(_notify);
+    _paced?.dispose();
     unawaited(_eventSub?.cancel());
     unawaited(_liveSub?.cancel());
     unawaited(_resubSub?.cancel());

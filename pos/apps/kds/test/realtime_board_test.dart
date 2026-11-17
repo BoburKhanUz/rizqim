@@ -342,6 +342,75 @@ void main() {
     );
 
     testWidgets(
+      'M2 fix: bill, payment, fiscal and shift events read nothing but feed the revision (the heartbeat after them is fine)',
+      (WidgetTester tester) async {
+        final KdsHarness h = live();
+        await pumpBoard(tester, h);
+        await tester.pumpAndSettle();
+        final int before = ticketFetches(h);
+        Map<String, Object?> next(Map<String, Object?> body) {
+          h.state.revision++;
+          return <String, Object?>{...body, 'rev': h.state.revMap};
+        }
+
+        h.hub
+          ..broadcast(
+            'order.bill_changed',
+            next(<String, Object?>{...orderEvent(h), 'change': 'payment'}),
+          )
+          ..broadcast(
+            'fiscal.receipt_updated',
+            next(<String, Object?>{'receipt': <String, Object?>{}}),
+          )
+          ..broadcast(
+            'shift.changed',
+            next(<String, Object?>{
+              'shift': <String, Object?>{'id': 1},
+            }),
+          )
+          ..broadcast('order.bill_requested', next(orderEvent(h)));
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+        expect(ticketFetches(h), before);
+        h.hub.heartbeat(<String, Object?>{'rev': h.state.revMap});
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+        expect(ticketFetches(h), before, reason: 'S followed every event');
+
+        // A kitchen event right after them is the next token, not a gap
+        h.state.addOrder();
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pumpAndSettle();
+        expect(ticketFetches(h), before + 1);
+        expect(find.text('2 ta chipta'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'M2 fix: a burst of kitchen events is one prompt read and one at the end of the 2 s window',
+      (WidgetTester tester) async {
+        final KdsHarness h = live();
+        await pumpBoard(tester, h);
+        await tester.pumpAndSettle();
+        final int before = ticketFetches(h);
+        h.state.addOrder();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(ticketFetches(h), before + 1, reason: 'the first one at once');
+        for (var i = 0; i < 3; i++) {
+          h.state.addOrder();
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+        expect(ticketFetches(h), before + 1);
+        await tester.pump(const Duration(milliseconds: 700));
+        expect(ticketFetches(h), before + 2, reason: 'one at the window end');
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        expect(ticketFetches(h), before + 2);
+        expect(find.text('5 ta chipta'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'while live the 15 s polls are conditional (304), and at least every 2 minutes one goes without If-None-Match',
       (WidgetTester tester) async {
         final KdsHarness h = live();

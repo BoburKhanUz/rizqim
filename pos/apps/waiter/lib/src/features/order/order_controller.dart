@@ -125,6 +125,8 @@ class OrderController extends ChangeNotifier {
       pollInterval: pollInterval,
       livePollInterval: livePollInterval,
       eventFilter: (PosEvent e) => e.orderUuid == uuid,
+      // M2 fix round 2: this order's events only, briefly paced (the waiter's own actions read at once)
+      pacing: RefreshPacing.order,
       onRefresh: (PosRefreshReason _) => load(silent: true),
       // P6: the hub's events in `lan` mode
       localEvents: data.lanEvents,

@@ -105,4 +105,79 @@ void main() {
       expect(find.text('Manti'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'M2 fix: order events and another till\'s cart read nothing but feed the token: the heartbeat after them is fine',
+    (WidgetTester tester) async {
+      final DisplayHarness h = DisplayHarness();
+      h.backend
+        ..queueCalling = false
+        ..tillUuid = 'till-1';
+      await h.pump(tester);
+      final int calls = h.backend.stateCalls;
+      Map<String, Object?> next(Map<String, Object?> body) {
+        h.backend.revision += 1;
+        return <String, Object?>{...body, 'rev': h.backend.revMap};
+      }
+
+      final Map<String, Object?> order = <String, Object?>{
+        'order': <String, Object?>{'uuid': 'o-1', 'status': 'accepted'},
+      };
+      h.hub
+        ..broadcast('order.created', next(order))
+        ..broadcast(
+          'order.bill_changed',
+          next(<String, Object?>{...order, 'change': 'payment'}),
+        )
+        ..broadcast(
+          'display.cart',
+          next(<String, Object?>{
+            'terminal': 'till-2',
+            'seq': 1,
+            'state': 'cart',
+          }),
+        );
+      await h.advance(tester, const Duration(seconds: 1));
+      expect(h.backend.stateCalls, calls);
+      h.backend.heartbeat();
+      await h.advance(tester, const Duration(seconds: 1));
+      expect(
+        h.backend.stateCalls,
+        calls,
+        reason: 'the heartbeat matches S: no read',
+      );
+    },
+  );
+
+  testWidgets(
+    'M2 fix: doubt alone (an ignored event jumped) is left to the safety poll; a cart burst is one paced read',
+    (WidgetTester tester) async {
+      final DisplayHarness h = DisplayHarness();
+      h.backend.queueCalling = false;
+      await h.pump(tester);
+      final int calls = h.backend.stateCalls;
+      h.backend.revision += 2; // one commit's event lost before this one
+      h.hub.broadcast('order.created', <String, Object?>{
+        'order': <String, Object?>{'uuid': 'o-2', 'status': 'accepted'},
+        'rev': h.backend.revMap,
+      });
+      h.backend.heartbeat();
+      await h.advance(tester, const Duration(seconds: 1));
+      expect(h.backend.stateCalls, calls, reason: 'no heartbeat read on doubt');
+
+      for (var i = 0; i < 3; i++) {
+        h.backend.publish(
+          lines: <Map<String, Object?>>[
+            FakeDisplayBackend.line('Somsa', price: '9000.00'),
+          ],
+          total: '${9000 * (i + 1)}.00',
+        );
+      }
+      await h.advance(tester, const Duration(milliseconds: 100));
+      expect(h.backend.stateCalls, calls + 1, reason: 'the first one at once');
+      await h.advance(tester, const Duration(milliseconds: 400));
+      expect(h.backend.stateCalls, lessThanOrEqualTo(calls + 2));
+      expect(find.text('Somsa'), findsOneWidget);
+    },
+  );
 }

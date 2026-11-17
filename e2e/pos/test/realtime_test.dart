@@ -140,7 +140,11 @@ void main() {
         refreshes.add(reason);
         seenByWaiter2 = await waiter2.pos.floor.load();
       },
-      debounce: const Duration(milliseconds: 100),
+      // M2 fix round 2: the app paces floors (RefreshPacing.floor); a short window keeps the test quick
+      pacing: const RefreshPacing(
+        window: Duration(milliseconds: 100),
+        spread: Duration.zero,
+      ),
     )..start();
     addTearDown(scheduler.dispose);
 

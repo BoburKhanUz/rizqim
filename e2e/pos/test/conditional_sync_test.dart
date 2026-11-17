@@ -57,10 +57,39 @@ class WireLog extends Interceptor {
       ];
 }
 
-/// The screen's socket, with the test deciding what of it reaches the screen ([dropHeartbeats]).
+/// The screen's socket, with the test deciding what of it reaches the screen ([dropHeartbeats], [dropEvents]).
 class SocketGate {
   bool dropHeartbeats = false;
   int droppedHeartbeats = 0;
+
+  /// M2 fix round 2: drop every channel event (not the heartbeat, not the protocol's own messages). An event a screen
+  /// ignores still counts for its revision now, so a "missed" event must never reach the screen at all.
+  bool dropEvents = false;
+  int droppedEvents = 0;
+
+  /// Also drop every channel event whose `rev` for [channelKey] is at most this (a late event of a missed commit, sent
+  /// by the queue after the till already heard the first one).
+  BigInt? dropAtOrBelow;
+  String channelKey = '';
+
+  bool _late(Map<dynamic, dynamic> m) {
+    final BigInt? limit = dropAtOrBelow;
+    if (limit == null) return false;
+    Object? data = m['data'];
+    if (data is String) {
+      try {
+        data = jsonDecode(data);
+      } on FormatException {
+        return false;
+      }
+    }
+    if (data is! Map) return false;
+    final BigInt? rev = ChannelRevision.revisionIn(
+      data.cast<String, Object?>(),
+      channelKey,
+    );
+    return rev != null && rev <= limit;
+  }
 
   Future<RealtimeSocket> connect(Uri uri, Map<String, String> headers) async =>
       _GatedSocket(await ioRealtimeConnector(uri, headers), this);
@@ -74,10 +103,24 @@ class _GatedSocket implements RealtimeSocket {
 
   @override
   Stream<String> get messages => _inner.messages.where((String raw) {
-    if (!_gate.dropHeartbeats || !raw.contains(heartbeatEvent)) return true;
+    if (!_gate.dropHeartbeats &&
+        !_gate.dropEvents &&
+        _gate.dropAtOrBelow == null) {
+      return true;
+    }
     final Object? m = jsonDecode(raw);
-    if (m is Map && m['event'] == heartbeatEvent) {
+    if (m is! Map) return true;
+    final Object? event = m['event'];
+    if (event == heartbeatEvent) {
+      if (!_gate.dropHeartbeats) return true;
       _gate.droppedHeartbeats++;
+      return false;
+    }
+    if ((_gate.dropEvents || _gate._late(m)) &&
+        event is String &&
+        !event.startsWith('pusher:') &&
+        !event.startsWith('pusher_internal:')) {
+      _gate.droppedEvents++;
       return false;
     }
     return true;
@@ -288,6 +331,14 @@ void main() {
     )!;
     addTearDown(rt.dispose);
     final List<PosRefreshReason> reasons = <PosRefreshReason>[];
+    // What reached the screen (for the failure messages)
+    final List<String> got = <String>[];
+    final StreamSubscription<PosEvent> gotSub = rt.events.listen(
+      (PosEvent e) => got.add(
+        '${e.name}@${ChannelRevision.revisionIn(e.data, channelKey)}',
+      ),
+    );
+    addTearDown(gotSub.cancel);
     late PosFloor shown;
     final PosRefreshScheduler screen = PosRefreshScheduler(
       realtime: rt,
@@ -300,11 +351,12 @@ void main() {
         // After the read: a test waiting for the reason then sees the floor it brought
         reasons.add(r);
       },
-      debounce: const Duration(milliseconds: 100),
+      pacing: const RefreshPacing(
+        window: Duration(milliseconds: 100),
+        spread: Duration.zero,
+      ),
     )..start();
     addTearDown(screen.dispose);
-    final EventLog heard = EventLog(rt);
-    addTearDown(heard.dispose);
     gate.dropHeartbeats = true;
     rt.start();
     await rt.states
@@ -321,19 +373,51 @@ void main() {
       expect(reasons, contains(r));
     }
 
-    // 1. The gap: order.created is missed (filtered), so the round's items_changed is N+2 for this screen
+    /// The events of [commit] never reach the screen: dropped at its socket while the till's own socket hears them.
+    Future<T> missed<T>(
+      Future<T> Function() commit,
+      bool Function(T value, PosEvent e) heardBy,
+      String what,
+    ) async {
+      gate
+        ..channelKey = channelKey
+        ..dropEvents = true;
+      try {
+        final T value = await commit();
+        final HeardEvent first = await till.log!.waitFor(
+          (PosEvent e) => heardBy(value, e),
+          what: what,
+        );
+        // The commit's other events may be sent later by the queue: anything up to its token stays out
+        final BigInt? rev = ChannelRevision.revisionIn(
+          first.event.data,
+          channelKey,
+        );
+        if (rev != null) {
+          final BigInt? was = gate.dropAtOrBelow;
+          gate.dropAtOrBelow = was == null || rev > was ? rev : was;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        return value;
+      } finally {
+        gate.dropEvents = false;
+      }
+    }
+
+    // 1. The gap: order.created is missed (dropped at the socket), so the round's items_changed is N+2 for this screen
     final int table = freeTable(await floorOf(till));
-    final PosOrder order = await waiter.pos.orders.open(
-      channel: PosChannel.hall,
-      tableId: table,
-      guestsCount: 2,
-      waiterId: config.seed.staff('waiter1').id,
+    final PosOrder order = await missed(
+      () => waiter.pos.orders.open(
+        channel: PosChannel.hall,
+        tableId: table,
+        guestsCount: 2,
+        waiterId: config.seed.staff('waiter1').id,
+      ),
+      (PosOrder o, PosEvent e) => e is PosOrderEvent && e.orderUuid == o.uuid,
+      'order.created on the till',
     );
     opened.add(order);
-    await heard.waitFor(
-      (PosEvent e) => e is PosOrderEvent && e.orderUuid == order.uuid,
-      what: 'order.created on the gated socket',
-    );
+    expect(gate.droppedEvents, greaterThan(0));
     reasons.clear();
     final int rereadsBefore = screen.revision!.rereadCount;
     final int heartbeatsBefore = screen.revision!.heartbeatRereads;
@@ -348,7 +432,8 @@ void main() {
       screen.revision!.rereadCount,
       greaterThan(rereadsBefore),
       reason:
-          'the first relevant event after a missed one is a re-read, not N+1',
+          'the first relevant event after a missed one is a re-read, not N+1 '
+          '(R ${screen.revision!.known}, S ${screen.revision!.settled}, got $got)',
     );
     expect(screen.revision!.heartbeatRereads, heartbeatsBefore);
     expect(reasons.toSet(), <PosRefreshReason>{PosRefreshReason.event});
@@ -360,23 +445,23 @@ void main() {
       contains(order.uuid),
     );
 
-    // 2. Lost entirely: a change whose only event this screen ignores; heartbeats are still held at the gate
+    // 2. Lost entirely: a change whose events never reach the screen; heartbeats are still held at the gate
     await screen.refreshNow();
     final BigInt? n = screen.revision!.known;
     reasons.clear();
     final int table2 = freeTable(await floorOf(till));
-    final PosOrder lost = await waiter.pos.orders.open(
-      channel: PosChannel.hall,
-      tableId: table2,
-      guestsCount: 2,
-      waiterId: config.seed.staff('waiter1').id,
+    final PosOrder lost = await missed(
+      () => waiter.pos.orders.open(
+        channel: PosChannel.hall,
+        tableId: table2,
+        guestsCount: 2,
+        waiterId: config.seed.staff('waiter1').id,
+      ),
+      (PosOrder o, PosEvent e) => e is PosOrderEvent && e.orderUuid == o.uuid,
+      'order.created (never reaching the screen)',
     );
     opened.add(lost);
-    await heard.waitFor(
-      (PosEvent e) => e is PosOrderEvent && e.orderUuid == lost.uuid,
-      what: 'order.created (ignored by the screen)',
-    );
-    expect(reasons, isEmpty, reason: 'the screen did not get it');
+    expect(reasons, isEmpty, reason: 'the screen did not get them');
     expect(screen.revision!.known, n, reason: 'N did not move');
     // Heartbeats through again, and one sent now: whichever arrives first (this one or the stack's own) is stamped
     // after the change, so its token differs from N

@@ -11,6 +11,8 @@ import 'package:test/test.dart';
 import 'support/harness.dart';
 
 void main() {
+  // M2 fix round 2: no random spread in tests (the pacing window still applies)
+  setUp(() => RefreshThrottle.defaultRandom = () => 0);
   group('PosEvent parsing', () {
     const Map<String, Object?> order = <String, Object?>{
       'uuid': 'o1',
