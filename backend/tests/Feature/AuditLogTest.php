@@ -178,6 +178,34 @@ class AuditLogTest extends TestCase
         $this->assertSame($terminal['device']->id, $log->device_id);
     }
 
+    /**
+     * Four entries around 10 November in Tashkent: 23:30 on the 9th, 00:30 and 23:30 on the 10th, 00:30 on the 11th.
+     *
+     * @return array<string, int> local time => id
+     */
+    private function dayEntries(?int $storeId): array
+    {
+        $ids = [];
+        foreach (['2026-11-09 23:30', '2026-11-10 00:30', '2026-11-10 23:30', '2026-11-11 00:30'] as $local) {
+            $ids[$local] = (int) \App\Models\AuditLog::forceCreate(['action' => 'test.day', 'store_id' => $storeId, 'created_at' => \Illuminate\Support\Carbon::parse($local, 'Asia/Tashkent')->utc()])->id;
+        }
+
+        return $ids;
+    }
+
+    public function test_owner_date_filters_are_the_stores_days_and_datetimes_are_exact(): void
+    {
+        $ids = $this->dayEntries((int) $this->owner->store_id);
+        $found = fn (string $query) => collect($this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs?action=test.day&' . $query)->assertOk()->json('data.data'))
+            ->pluck('id')->sort()->values()->all();
+
+        // A plain date: the store's (Tashkent) calendar day, `to` inclusive of the whole day
+        $this->assertSame([$ids['2026-11-10 00:30'], $ids['2026-11-10 23:30']], $found('from=2026-11-10&to=2026-11-10'));
+        $this->assertSame([$ids['2026-11-09 23:30']], $found('to=2026-11-09'));
+        // A datetime with its offset: that exact moment
+        $this->assertSame([$ids['2026-11-10 00:30']], $found('from=' . urlencode('2026-11-10T00:00:00+05:00') . '&to=' . urlencode('2026-11-10T23:00:00+05:00')));
+    }
+
     public function test_owners_read_only_their_own_store_log_with_filters(): void
     {
         $foreignStore = $this->makeStore('Foreign Grill');
@@ -195,7 +223,7 @@ class AuditLogTest extends TestCase
         $this->assertSame(1, $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs?action=order.cancelled')->json('data.total'));
         $this->assertSame(2, $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs?action=order.*')->json('data.total'));
         $this->assertSame(1, $this->actingAs($this->owner, 'sanctum')->getJson("/api/v1/owner/audit-logs?user_id={$this->manager->id}")->json('data.total'));
-        $this->assertSame(0, $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs?from=' . now()->addDay()->toDateString())->json('data.total'));
+        $this->assertSame(0, $this->actingAs($this->owner, 'sanctum')->getJson('/api/v1/owner/audit-logs?from=' . now('Asia/Tashkent')->addDay()->toDateString())->json('data.total'));
 
         $this->assertSame(1, $this->actingAs($foreignOwner, 'sanctum')->getJson('/api/v1/owner/audit-logs')->json('data.total'));
 

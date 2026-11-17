@@ -162,6 +162,33 @@ class AdminAuditTest extends TestCase
         $this->assertSame('admin.test_linked', AuditLog::find($linked->id)->action);
     }
 
+    /**
+     * Four entries around 10 November in Tashkent: 23:30 on the 9th, 00:30 and 23:30 on the 10th, 00:30 on the 11th.
+     *
+     * @return array<string, int> local time => id
+     */
+    private function dayEntries(?int $storeId): array
+    {
+        $ids = [];
+        foreach (['2026-11-09 23:30', '2026-11-10 00:30', '2026-11-10 23:30', '2026-11-11 00:30'] as $local) {
+            $ids[$local] = (int) \App\Models\AuditLog::forceCreate(['action' => 'test.day', 'store_id' => $storeId, 'created_at' => \Illuminate\Support\Carbon::parse($local, 'Asia/Tashkent')->utc()])->id;
+        }
+
+        return $ids;
+    }
+
+    public function test_the_platform_log_dates_are_tashkent_days_and_datetimes_are_exact(): void
+    {
+        $ids = $this->dayEntries(null);
+        $token = $this->signIn($this->makeMember());
+        $found = fn (string $query) => collect($this->adminJson('GET', '/audit-logs?action=test.day&' . $query, $token)->assertOk()->json('data.data'))
+            ->pluck('id')->sort()->values()->all();
+
+        $this->assertSame([$ids['2026-11-10 00:30'], $ids['2026-11-10 23:30']], $found('from=2026-11-10&to=2026-11-10'));
+        $this->assertSame([$ids['2026-11-11 00:30']], $found('from=2026-11-11'));
+        $this->assertSame([$ids['2026-11-10 23:30']], $found('from=' . urlencode('2026-11-10T18:00:00Z') . '&to=' . urlencode('2026-11-10T18:30:00Z')));
+    }
+
     public function test_the_platform_log_lists_every_store_with_filters_and_cursor_pages(): void
     {
         $this->setUpLifecycleStore();

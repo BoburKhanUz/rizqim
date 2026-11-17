@@ -3,6 +3,7 @@
 namespace App\Domain\Pos\Banquet;
 
 use App\Domain\Pos\Booking\BookingStatus;
+use App\Domain\Pos\Shifts\BusinessDay;
 use App\Models\BanquetEvent;
 use App\Models\BanquetPackage;
 use App\Models\BanquetPayment;
@@ -55,7 +56,7 @@ class BanquetEventService
 
             $slot = BanquetSlot::from((string) $data['slot']);
             $date = (string) $data['event_date'];
-            $this->assertDate((int) $branch->store_id, $date);
+            $this->assertDate($branch, $date);
             [$start, $end] = $this->settings->instants((int) $branch->store_id, $date, $slot, $data['start_time'] ?? null, $data['end_time'] ?? null);
             $hallIds = $this->resolveHalls($branch, (array) ($data['hall_ids'] ?? []));
             $this->assertFree((int) $branch->id, $hallIds, $start, $end, null);
@@ -130,7 +131,7 @@ class BanquetEventService
                     $startTime = $endTime = null;
                 }
                 if (array_key_exists('event_date', $data)) {
-                    $this->assertDate((int) $event->store_id, $date);
+                    $this->assertDate($branch, $date);
                 }
                 [$start, $end] = $this->settings->instants((int) $event->store_id, $date, $slot, $startTime, $endTime);
                 $hallIds = array_key_exists('hall_ids', $data)
@@ -418,13 +419,14 @@ class BanquetEventService
     }
 
     /**
-     * Booking months ahead is normal; the past is not (the store's local date).
+     * Booking months ahead is normal; the past is not. Wave M3: "today" is the branch's business day (as event dates
+     * are read everywhere else), so between local midnight and the day start (05:00) tonight's date can still be booked.
      */
-    private function assertDate(int $storeId, string $date): void
+    private function assertDate(Branch $branch, string $date): void
     {
-        $tz = StoreTimezone::of(Store::find($storeId));
+        $tz = StoreTimezone::of(Store::find($branch->store_id));
         $day = Carbon::createFromFormat('Y-m-d', $date, $tz)->startOfDay();
-        $today = Carbon::now($tz)->startOfDay();
+        $today = Carbon::createFromFormat('Y-m-d', BusinessDay::of($branch), $tz)->startOfDay();
         if ($day->lessThan($today)) {
             throw new BanquetException("O'tgan kunga tadbir yozib bo'lmaydi.", 'event_in_past', 422);
         }

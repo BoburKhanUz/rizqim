@@ -74,8 +74,8 @@ export interface paths {
          * Audit log (whole platform)
          * @description Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,
          *     `action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,
-         *     `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action
-         *     and its details, at least 2 characters).
+         *     `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive, Asia/Tashkent days; a
+         *     datetime with its offset is that exact moment), `q` (text in the action and its details, at least 2 characters).
          */
         get: operations["admin.audit_logs"];
         put?: never;
@@ -4636,7 +4636,8 @@ export interface paths {
          * Audit log
          * @description The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a
          *     prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`
-         *     (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
+         *     (a date is the store's calendar day, `to` inclusive; a datetime with its offset is that exact moment). PINs,
+         *     tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
          *     `ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,
          *     subject and before/after, but its actor is `{id: null, name: "RIZQIM jamoasi", role: "platform"}`, without the
          *     member's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.

@@ -8,7 +8,6 @@ use App\Services\Admin\Export\ExportCells;
 use App\Services\Admin\Export\ExportDataset;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 
 /**
  * P4-31: Tizim → Harakatlar jurnali → Excel. The log's filters (actor, action prefix, store, subject, from/to, q) as the
@@ -67,8 +66,8 @@ final class AuditLogsExport extends ExportDataset
             ->when(filled($filters['store_id'] ?? null), fn (Builder $query) => $query->where('store_id', (int) $filters['store_id']))
             ->when(filled($filters['subject_type'] ?? null), fn (Builder $query) => $query->where('model_type', 'App\\Models\\' . ucfirst((string) $filters['subject_type'])))
             ->when(filled($filters['subject_id'] ?? null), fn (Builder $query) => $query->where('model_id', (int) $filters['subject_id']))
-            ->when(filled($filters['from'] ?? null), fn (Builder $query) => $query->where('created_at', '>=', Carbon::parse((string) $filters['from'])->startOfDay()))
-            ->when(filled($filters['to'] ?? null), fn (Builder $query) => $query->where('created_at', '<=', Carbon::parse((string) $filters['to'])->endOfDay()))
+            // Wave M3: the list's rule (AdminAuditLogController): Asia/Tashkent days, a datetime exact
+            ->tap(fn (Builder $query) => \App\Support\DayBounds::apply($query, 'created_at', $filters['from'] ?? null, $filters['to'] ?? null, \App\Services\Admin\Today\PlatformStats::TIMEZONE))
             ->when(filled($filters['q'] ?? null), function (Builder $query) use ($filters, $like) {
                 $text = '%' . $like(mb_strtolower((string) $filters['q'])) . '%';
                 $query->where(fn (Builder $q) => $q

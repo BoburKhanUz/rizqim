@@ -774,7 +774,7 @@
         "/v1/admin/audit-logs": {
             "get": {
                 "operationId": "admin.audit_logs",
-                "description": "Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,\n`action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,\n`subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action\nand its details, at least 2 characters).",
+                "description": "Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,\n`action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,\n`subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive, Asia/Tashkent days; a\ndatetime with its offset is that exact moment), `q` (text in the action and its details, at least 2 characters).",
                 "summary": "Audit log (whole platform)",
                 "tags": [
                     "Admin"
@@ -41138,7 +41138,7 @@
         "/v1/owner/audit-logs": {
             "get": {
                 "operationId": "auditLog.index",
-                "description": "The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a\nprefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`\n(dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);\n`ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,\nsubject and before/after, but its actor is `{id: null, name: \"RIZQIM jamoasi\", role: \"platform\"}`, without the\nmember's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.",
+                "description": "The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a\nprefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`\n(a date is the store's calendar day, `to` inclusive; a datetime with its offset is that exact moment). PINs,\ntokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);\n`ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,\nsubject and before/after, but its actor is `{id: null, name: \"RIZQIM jamoasi\", role: \"platform\"}`, without the\nmember's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.",
                 "summary": "Audit log",
                 "tags": [
                     "Owner: audit log"
