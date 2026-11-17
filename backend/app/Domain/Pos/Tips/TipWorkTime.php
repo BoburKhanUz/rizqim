@@ -58,17 +58,23 @@ final class TipWorkTime
         };
 
         if (Schema::hasTable('staff_work_sessions')) {
+            // Wave M3: by overlap with the period, not by the session's business date (its clock-in day): a session
+            // across the day start (04:00-07:00) counts its hour before 05:00 in that day and the rest in the next,
+            // where selecting by date lost the hours after the day start in every pool
             $sessions = DB::table('staff_work_sessions')->where('branch_id', $branch->id)->whereNull('abandoned_at')
-                ->when($shift === null, fn ($query) => $query->whereDate('business_date', $date))
-                ->when($shift !== null, fn ($query) => $query->where('clock_in_at', '<', $to)->where(fn ($query) => $query->whereNull('clock_out_at')->orWhere('clock_out_at', '>', $from)))
+                // still open: its own business day only (a forgotten one must not fill every later day until set aside)
+                ->where('clock_in_at', '<', $to)->where(fn ($query) => $query->where('clock_out_at', '>', $from)
+                    ->orWhere(fn ($query) => $query->whereNull('clock_out_at')->when($shift === null, fn ($query) => $query->whereDate('business_date', $date))))
                 ->get(['user_id', 'clock_in_at', 'clock_out_at']);
             foreach ($sessions as $session) {
                 $clip((int) $session->user_id, $session->clock_in_at, $session->clock_out_at ?? $now);
             }
         }
 
+        // The till shifts the same way (a shift opened at 23:00 and closed at 06:00 gives the next day its last hour)
         $shifts = PosShift::where('branch_id', $branch->id)->whereNotNull('opened_by')
-            ->when($shift === null, fn ($query) => $query->whereDate('business_date', $date))
+            ->when($shift === null, fn ($query) => $query->where('opened_at', '<', $to)->where(fn ($query) => $query->where('closed_at', '>', $from)
+                ->orWhere(fn ($query) => $query->whereNull('closed_at')->whereDate('business_date', $date))))
             ->when($shift !== null, fn ($query) => $query->whereKey($shift->id))
             ->get(['opened_by', 'opened_at', 'closed_at']);
         foreach ($shifts as $row) {

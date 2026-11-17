@@ -266,12 +266,14 @@ class VouchersController extends ManagementController
             'to' => 'nullable|date_format:Y-m-d',
         ]);
         // Wave M3: the entries are booked by business day (VoucherEntry.business_date), so is the default: the branch's,
-        // store-wide the earliest of the branches' (the report's `as_of`), not the store's calendar date, which runs
-        // ahead from local midnight to the day start and showed an empty "today" all night
+        // store-wide from the earliest of the branches' (the report's `as_of`) to the latest (a branch starting its day
+        // at 00:00 is already on the next one at 03:00: nothing sold today is hidden), not the store's calendar date,
+        // which runs ahead from local midnight to the day start and showed an empty "today" all night
         [$days, $storeToday] = \App\Domain\Pos\Vouchers\VoucherState::todays($this->storeId($request), $branch?->id);
         $today = $days !== [] ? min($days) : $storeToday;
+        $latest = $days !== [] ? max($days) : $storeToday;
         $from = (string) ($request->input('from') ?: $request->input('to') ?: $today);
-        $to = (string) ($request->input('to') ?: max($from, $today));
+        $to = (string) ($request->input('to') ?: max($from, $latest));
         if ($to < $from) {
             throw ValidationException::withMessages(['to' => "Oxirgi kun birinchi kundan oldin bo'lmasin."]);
         }

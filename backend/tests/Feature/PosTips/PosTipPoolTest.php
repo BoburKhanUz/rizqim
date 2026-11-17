@@ -29,6 +29,9 @@ class PosTipPoolTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Wave M3: midday in Tashkent: the sessions and shifts below start "now" and run for hours, which after local
+        // midnight would cross the 05:00 day start and (rightly) leave part of them to the next business day
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-17 12:00', 'Asia/Tashkent'));
 
         $this->setUpTips();
     }
@@ -92,6 +95,36 @@ class PosTipPoolTest extends TestCase
         $this->assertSame([$this->cashier->id, $this->waiter->id, $this->waiter2->id], $lines->pluck('staff_id')->sort()->values()->all());
         $this->assertSame('30001.00', Money::sum(...$lines->pluck('amount')->all())->toString());
         $this->assertSame(3, PosTipDistributionLine::count()); // recomputing replaced the lines
+    }
+
+    public function test_hours_are_counted_once_across_the_business_day_start(): void
+    {
+        // Wave M3: a session from 04:00 to 07:00 local is dated the 16th (clock-in before the 05:00 day start); its
+        // hour before 05:00 is the 16th's pool and its two hours after are the 17th's, never lost. Same for a till shift
+        // opened at 23:00 and closed at 06:00.
+        $local = fn (string $at) => \Illuminate\Support\Carbon::parse($at, 'Asia/Tashkent')->utc();
+        $this->travelTo($local('2026-11-17 12:00'));
+        DB::table('staff_work_sessions')->insert([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'user_id' => $this->waiter->id,
+            'business_date' => '2026-11-16', 'clock_in_at' => $local('2026-11-17 04:00'), 'clock_out_at' => $local('2026-11-17 07:00'),
+            'source' => 'manual', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        PosShift::create([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'device_id' => $this->till['device']->id,
+            'opened_by' => $this->waiter2->id, 'business_date' => '2026-11-16', 'opened_at' => $local('2026-11-16 23:00'), 'closed_at' => $local('2026-11-17 06:00'),
+            'status' => 'closed', 'opening_cash' => '0',
+        ]);
+        // A session left open since the 16th's evening counts in the 16th only, not in every later day
+        $cook = $this->makeStaff(UserRole::COOK, $this->branch);
+        DB::table('staff_work_sessions')->insert([
+            'uuid' => (string) Str::uuid(), 'store_id' => $this->store->id, 'branch_id' => $this->branch->id, 'user_id' => $cook->id,
+            'business_date' => '2026-11-16', 'clock_in_at' => $local('2026-11-16 22:00'), 'clock_out_at' => null,
+            'source' => 'manual', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $minutes = fn (string $date) => app(\App\Domain\Pos\Tips\TipWorkTime::class)->minutes($this->branch, $date, null);
+
+        $this->assertSame([$this->waiter->id => 60, $this->waiter2->id => 360, $cook->id => 420], $minutes('2026-11-16'));
+        $this->assertSame([$this->waiter->id => 120, $this->waiter2->id => 60], $minutes('2026-11-17'));
     }
 
     public function test_hours_from_clock_in_sessions_sales_from_paid_bills_and_role_weights(): void

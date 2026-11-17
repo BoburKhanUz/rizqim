@@ -70,6 +70,27 @@ class PosVoucherReportDayTest extends TestCase
         $this->assertSame(['count' => 2, 'amount' => '150000.00'], $report['outstanding']);
     }
 
+    public function test_store_wide_the_period_runs_from_the_earliest_to_the_latest_branch_day(): void
+    {
+        // The till's branch starts its day at midnight, the other one at 05:00
+        $this->branch->forceFill(['business_day_starts_at' => '00:00'])->save();
+        $this->at('2026-11-17 23:30');
+        $this->openShift();
+        $this->sell('100000')->assertCreated();
+
+        // 03:00 on the 18th: the till's branch is on the 18th, the other still on the 17th
+        $this->at('2026-11-18 03:00');
+        $this->sell('50000', 'card', ['card_type' => 'humo', 'transaction_id' => 'T3'])->assertCreated();
+        $report = $this->report();
+        $this->assertSame(['2026-11-17', '2026-11-18', '2026-11-17'], [$report['from'], $report['to'], $report['as_of']]);
+        $this->assertSame(['count' => 2, 'amount' => '150000.00'], array_intersect_key($report['sold'], ['count' => 1, 'amount' => 1]));
+        $this->assertSame('Sertifikatlar hisoboti: 2026-11-17 — 2026-11-18', $this->exportReportSheet()[0][0]);
+        // The branch alone: its own day
+        $branch = $this->report("?branch_id={$this->branch->id}");
+        $this->assertSame(['2026-11-18', '2026-11-18', 1], [$branch['from'], $branch['to'], $branch['sold']['count']]);
+        $this->assertSame('2026-11-17', $this->report("?branch_id={$this->otherBranch->id}")['from']);
+    }
+
     public function test_midday_report_is_the_calendar_day(): void
     {
         $this->at('2026-11-17 17:00'); // 12:00 UTC
