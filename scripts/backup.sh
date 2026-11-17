@@ -6,11 +6,10 @@
 #   scripts/backup.sh --daemon   har kuni BACKUP_TIME (UTC) da zaxira oladi; docker-compose.yml dagi `backup` xizmati shuni ishlatadi
 #   scripts/backup.sh --list-remote          S3 dagi zaxiralar ro'yxati (BACKUP_S3_* kerak)
 #   scripts/backup.sh --fetch <fayl.dump>    S3 dan dump va .sha256 ni BACKUP_DIR ga yuklab oladi (tiklashdan oldin; restore.sh tekshiradi)
-#   scripts/backup.sh --pitr-backup [full|diff]   PITR (pgBackRest) zaxirasini hozir oladi (repo1, S3 sozlangan bo'lsa repo2 ham) + expire
+#   scripts/backup.sh --pitr-backup [full|diff] [1|2]   PITR (pgBackRest) zaxirasi hozir (repo1, S3 bo'lsa repo2 ham; yoki faqat bittasi) + expire
 #   scripts/backup.sh --pitr-init                 stanza-create + check (+ to'liq zaxira yo'q bo'lsa oladi); demon buni o'zi qiladi
 #   scripts/backup.sh --markers                   monitoring_markers dagi `pitr` va `disk` belgilarini hozir yozadi
 #   scripts/backup.sh --pitr-heal                 WAL zanjirida uzilish yoki uzoq to'xtashdan keyin kerak bo'lsa to'liq nusxa
-#   scripts/backup.sh --pitr-forget-timeline [N]  pitr-switch.sh --back dan keyingi tozalashni (qayta) bajaradi
 #
 # M3 demon (--daemon) tartibi: ishga tushganda (PITR_ENABLED=1 bo'lsa) stanza-create + check, to'liq zaxira yo'q bo'lsa
 # darhol oladi; har kuni BACKUP_TIME (UTC) da ketma-ket: PITR zaxirasi (yakshanba to'liq, boshqa kunlar farq) va expire,
@@ -266,59 +265,81 @@ pitr_ping() {
     wget -q -T 10 -O /dev/null "$PITR_PING_URL" 2>/dev/null || log "OGOHLANTIRISH: PITR_PING_URL ga ping yuborilmadi"
 }
 
-# Repositories whose expire is suspended until the backups of an abandoned timeline are forgotten (pitr-switch.sh --back
-# writes the flags BEFORE it changes anything): "repo1:2 repo2:2"
-forget_pending_list() { # sets FORGET_LIST and FORGET_MSG
-    FORGET_LIST=
-    FORGET_MSG=
-    for repo in 1 2; do
-        f="$PITR_STATE_DIR/forget-pending-repo$repo"
-        [ -f "$f" ] || continue
-        FORGET_LIST="${FORGET_LIST:+$FORGET_LIST }repo$repo:$(cat "$f")"
-    done
-    if [ -n "$FORGET_LIST" ]; then
-        FORGET_MSG="Orqaga qaytishdan keyingi tozalash tugamagan ($FORGET_LIST): eski nusxalarni o'chirish (expire) to'xtatilgan. Bajaring: docker compose exec backup sh /usr/local/bin/backup.sh --pitr-forget-timeline"
+# --- "a new full backup is needed" (after a WAL gap or a long archive outage), per repository --------------------------
+# need-full-repo<N> holds the reason (gap | outage). It is cleared only when THAT repository's full backup succeeded (or,
+# for a gap, when the hole closed by itself). The old single flag full-needed is read as "both repositories".
+need_set() { # need_set <repo> <reason>
+    [ -f "$PITR_STATE_DIR/need-full-repo$1" ] || log "PITR: repo$1 uchun yangi to'liq nusxa kerak ($2)"
+    printf '%s' "$2" >"$PITR_STATE_DIR/need-full-repo$1"
+}
+need_get() { # prints the reason, empty = not needed (the old single flag is converted on first sight)
+    if [ -f "$PITR_STATE_DIR/full-needed" ]; then
+        printf 'outage' >"$PITR_STATE_DIR/need-full-repo1"
+        [ "$PITR_REPO2" != "on" ] || printf 'outage' >"$PITR_STATE_DIR/need-full-repo2"
+        rm -f "$PITR_STATE_DIR/full-needed"
     fi
+    if [ -f "$PITR_STATE_DIR/need-full-repo$1" ]; then cat "$PITR_STATE_DIR/need-full-repo$1"; fi
+}
+need_clear() { rm -f "$PITR_STATE_DIR/need-full-repo$1"; }
+need_list() { # "repo1 repo2" of the repositories that need a full backup
+    nl=
+    for repo in 1 2; do
+        [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
+        [ -z "$(need_get "$repo")" ] || nl="${nl:+$nl }repo$repo"
+    done
+    printf '%s' "$nl"
 }
 
-# One backup run: repo1, then repo2 (S3) if configured, then expire. $1: full | diff | auto (Sunday or no full yet or
-# after an archive outage or a WAL gap = full, else diff). pgBackRest itself turns a diff without a prior full into a full.
-# A pending "forget timeline" (see pitr_forget_timeline) is retried first; while it stays pending for a repository, that
-# repository is never expired (neither by the backup's auto-expire nor by the expire below).
+# One backup run, per repository: repo1, then repo2 (S3) if configured. $1: full | diff | auto (Sunday, no full yet, or
+# this repository needs one = full, else diff); $2: only this repository (optional). A repository that needs a full
+# backup (an incident is open) gets one WITHOUT expire: heal backups never rotate out the history from before the
+# incident; the next ordinary backup expires as usual. Test hooks: PITR_TEST_BACKUP_FAIL, PITR_TEST_EXPIRE_FAIL (1|2).
 pitr_backup() {
     pitr_require_lib
     pitr_enabled || { log "PITR o'chiq (PITR_ENABLED=1 emas): pgBackRest zaxirasi olinmadi"; return 0; }
     pitr_load
-    forget_pending_list
-    if [ -n "$FORGET_LIST" ]; then pitr_forget_timeline || true; fi
-    type=$1
-    if [ "$type" = "auto" ]; then
-        type="diff"
-        if [ "$(date -u +%u)" = "7" ] || [ -f "$PITR_STATE_DIR/full-needed" ] || ! pitr_has_full 1; then type=full; fi
-    fi
     rc=0
     for repo in 1 2; do
-        if [ "$repo" = "2" ]; then
-            if [ "$PITR_REPO2" != "on" ]; then
-                [ -z "$PITR_REPO2_NOTE" ] || log "OGOHLANTIRISH: $PITR_REPO2_NOTE"
-                continue
-            fi
+        [ -z "${2:-}" ] || [ "$2" = "$repo" ] || continue
+        if [ "$repo" = "2" ] && [ "$PITR_REPO2" != "on" ]; then
+            [ -z "$PITR_REPO2_NOTE" ] || log "OGOHLANTIRISH: $PITR_REPO2_NOTE"
+            continue
         fi
-        rtype=$type
-        [ "$repo" = "1" ] || pitr_has_full 2 || rtype=full
+        need=$(need_get "$repo")
+        rtype=$1
+        if [ "$rtype" = "auto" ]; then
+            rtype="diff"
+            if [ "$(date -u +%u)" = "7" ] || [ -n "$need" ] || ! pitr_has_full "$repo"; then rtype=full; fi
+        fi
+        [ "$rtype" = "full" ] || pitr_has_full "$repo" || rtype=full
         noexp=
-        if [ -f "$PITR_STATE_DIR/forget-pending-repo$repo" ] || [ "${PITR_SKIP_EXPIRE:-0}" = "1" ]; then noexp=--no-expire-auto; fi
+        if [ -n "$need" ] || [ "${PITR_SKIP_EXPIRE:-0}" = "1" ]; then noexp=--no-expire-auto; fi
         where=" (S3)"; [ "$repo" = "2" ] || where=" (shu server)"
-        [ -z "$noexp" ] || where="$where, expire to'xtatilgan"
+        [ -z "$noexp" ] || where="$where, expire yo'q"
         log "PITR: $rtype zaxira, repo$repo$where"
-        # shellcheck disable=SC2086
-        pgbr backup --repo="$repo" --type="$rtype" $noexp || { log "XATO: PITR zaxirasi (repo$repo) bajarilmadi"; rc=1; }
+        brc=0
+        if [ "${PITR_TEST_BACKUP_FAIL:-}" = "$repo" ]; then log "XATO: (sinov) repo$repo zaxirasi bajarilmadi"; brc=1
+        else
+            # shellcheck disable=SC2086
+            pgbr backup --repo="$repo" --type="$rtype" $noexp || brc=1
+        fi
+        if [ "$brc" != "0" ]; then
+            log "XATO: PITR zaxirasi (repo$repo) bajarilmadi"
+            rc=1
+            continue
+        fi
+        if [ -n "$need" ] && [ "$rtype" = "full" ]; then
+            need_clear "$repo"
+            log "PITR: repo$repo: yangi to'liq nusxa olindi, zanjir shu nuqtadan davom etadi"
+        fi
         if [ -z "$noexp" ]; then
-            pgbr expire --repo="$repo" || { log "XATO: pgbackrest expire (repo$repo) bajarilmadi"; rc=1; }
+            if [ "${PITR_TEST_EXPIRE_FAIL:-}" = "$repo" ] || ! pgbr expire --repo="$repo"; then
+                log "XATO: pgbackrest expire (repo$repo) bajarilmadi (kalitda o'chirish huquqi bormi?)"
+                rc=1
+            fi
         fi
     done
     if [ "$rc" -eq 0 ]; then
-        rm -f "$PITR_STATE_DIR/full-needed"
         log "PITR: zaxira tayyor"
         pitr_ping
     fi
@@ -326,65 +347,29 @@ pitr_backup() {
     return "$rc"
 }
 
-# After scripts/pitr-switch.sh --back: the database is again on the older timeline, but the repository still holds
-# backups taken on the abandoned (switched-to) timeline. pgBackRest's expire assumes timelines only grow: with such a
-# backup as the oldest retained one it deletes the WAL the newer backup on the old timeline needs. So the backups whose
-# WAL starts on the abandoned timeline are expired explicitly (expire --set), then the normal expire runs, per
-# repository: repo1 is cleaned even when repo2 (S3) fails. The flag of a repository is removed only when its cleanup
-# succeeded; until then nothing expires it (pitr_backup). Without an argument: the pending flags' timeline.
-pitr_forget_timeline() { # pitr_forget_timeline [timeline id, decimal]
-    pitr_require_lib
-    pitr_load
-    frc=0
-    for repo in 1 2; do
-        [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
-        flag="$PITR_STATE_DIR/forget-pending-repo$repo"
-        tli=${1:-}
-        [ -n "$tli" ] || tli=$(cat "$flag" 2>/dev/null || true)
-        [ -n "$tli" ] || continue
-        if [ "${PITR_TEST_FORGET_FAIL:-0}" = "1" ]; then log "XATO: (sinov) repo$repo tozalanmadi"; frc=1; continue; fi
-        tli_hex=$(printf '%08X' "$tli")
-        info=$(pgbr info --repo="$repo" --output=json 2>/dev/null) || { log "XATO: repo$repo info o'qilmadi"; frc=1; continue; }
-        labels=$(psql -X -A -t -q -v ON_ERROR_STOP=1 -v "info=$info" -v "tli=$tli_hex" <<'SQL'
-SELECT coalesce(string_agg(e ->> 'label', ' ' ORDER BY e ->> 'label' DESC), '')
-FROM jsonb_array_elements(coalesce((:'info')::jsonb -> 0 -> 'backup', '[]'::jsonb)) e
-WHERE substr(e -> 'archive' ->> 'start', 1, 8) = :'tli'
-SQL
-) || { log "XATO: repo$repo nusxalar ro'yxati o'qilmadi"; frc=1; continue; }
-        ok=1
-        for label in $labels; do
-            log "PITR: repo$repo dagi tashlab ketilgan timeline $tli nusxasi o'chirilmoqda: $label"
-            pgbr expire --repo="$repo" --set="$label" || { log "XATO: expire --set=$label (repo$repo) bajarilmadi"; ok=0; }
-        done
-        if [ "$ok" = "1" ] && pgbr expire --repo="$repo"; then
-            rm -f "$flag"
-            log "PITR: repo$repo tozalandi (timeline $tli)"
-        else
-            frc=1
-            log "XATO: repo$repo tozalanmadi: expire to'xtatilgan holda qoladi; qayta: backup.sh --pitr-forget-timeline"
-        fi
-    done
-    return "$frc"
-}
-
-pitr_forget_pending() { # pitr_forget_pending <timeline>: suspend expire until pitr_forget_timeline succeeds
-    pitr_require_lib
-    pitr_load
-    mkdir -p "$PITR_STATE_DIR"
-    for repo in 1 2; do
-        [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
-        printf '%s' "$1" >"$PITR_STATE_DIR/forget-pending-repo$repo"
-    done
-    log "PITR: timeline $1 nusxalarini tozalash kutilmoqda: expire to'xtatildi"
-}
-
-# The main loop's repair step, also callable once (--pitr-heal): a full backup when one is needed (after a long
-# outage or a WAL gap) and archiving works again
+# The main loop's repair step, also callable once (--pitr-heal): a full backup for every repository that needs one,
+# once archiving works again, at most once per PITR_HEAL_INTERVAL (6 h; the last attempt is kept in heal-last).
 pitr_heal() {
-    [ "$HAVE_PITR_LIB" = "1" ] && pitr_enabled || return 0
-    [ -f "$PITR_STATE_DIR/full-needed" ] && [ ! -f "$PITR_STATE_DIR/outage-since" ] || return 0
+    [ "$HAVE_PITR_LIB" = "1" ] || return 0
+    pitr_enabled || return 0
     pitr_load
-    if pgbr check >/dev/null 2>&1; then pitr_backup full; else log "OGOHLANTIRISH: to'liq nusxa kerak, lekin pgbackrest check o'tmayapti"; return 1; fi
+    needed=$(need_list)
+    [ -n "$needed" ] || return 0
+    [ ! -f "$PITR_STATE_DIR/outage-since" ] || return 0
+    now=$(date -u +%s)
+    last=$(cat "$PITR_STATE_DIR/heal-last" 2>/dev/null || echo 0)
+    if [ $((now - last)) -lt "${PITR_HEAL_INTERVAL:-21600}" ]; then
+        return 0
+    fi
+    pgbr check >/dev/null 2>&1 || { log "OGOHLANTIRISH: to'liq nusxa kerak ($needed), lekin pgbackrest check o'tmayapti"; return 1; }
+    printf '%s' "$now" >"$PITR_STATE_DIR/heal-last"
+    hrc=0
+    for r in $needed; do
+        pitr_backup full "${r#repo}" || hrc=1
+    done
+    # the back-off is for an incident that keeps failing; once healed, the next incident is healed at once
+    [ -n "$(need_list)" ] || rm -f "$PITR_STATE_DIR/heal-last"
+    return "$hrc"
 }
 
 # On daemon start: stanza (idempotent; also adds repo2 once S3 is configured), check, a first full backup
@@ -425,8 +410,10 @@ write_markers() {
         outage=
         [ ! -f "$PITR_STATE_DIR/outage-since" ] || outage=$(cat "$PITR_STATE_DIR/outage-since")
         check_gaps
-        forget_pending_list
-        forget=$FORGET_LIST
+        needed=$(need_list)
+        heal_last=$(cat "$PITR_STATE_DIR/heal-last" 2>/dev/null || true)
+        heal_msg=
+        [ -z "$needed" ] || heal_msg="Yangi to'liq nusxa kerak ($needed): avtomatik olinadi (eng ko'pi har ${PITR_HEAL_INTERVAL:-21600} s da bir urinish)"
         iso="'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'"
         pitr_marker pitr "WITH s AS (SELECT (:'info')::jsonb -> 0 AS s),
               b AS (SELECT e FROM s, jsonb_array_elements(coalesce(s.s -> 'backup', '[]'::jsonb)) e),
@@ -434,8 +421,8 @@ write_markers() {
             SELECT json_build_object(
               'enabled', true,
               'stanza', :'stanza',
-              'status', CASE WHEN (SELECT (s -> 'status' ->> 'code')::int FROM s) = 0 AND :'gapopen' = '0' AND :'forget' = '' THEN 'ok' ELSE 'error' END,
-              'message', coalesce(nullif(:'gapmsg', ''), nullif(:'forgetmsg', ''), (SELECT s -> 'status' ->> 'message' FROM s), nullif(:'lasterr', '')),
+              'status', CASE WHEN (SELECT (s -> 'status' ->> 'code')::int FROM s) = 0 AND :'gapopen' = '0' AND :'needed' = '' THEN 'ok' ELSE 'error' END,
+              'message', coalesce(nullif(:'gapmsg', ''), nullif(:'healmsg', ''), (SELECT s -> 'status' ->> 'message' FROM s), nullif(:'lasterr', '')),
               'gap', CASE WHEN :'gap' = '1' THEN json_build_object(
                     'detected', true,
                     'repo', :'gaprepo'::int,
@@ -447,7 +434,10 @@ write_markers() {
                     'backup_after', nullif(:'gapbackup', ''),
                     'restorable_from', to_char(to_timestamp(nullif(:'gapfrom', '')::bigint) AT TIME ZONE 'UTC', $iso),
                     'message', :'gapnote') END,
-              'forget_pending', CASE WHEN :'forget' = '' THEN NULL ELSE to_json(string_to_array(:'forget', ' ')) END,
+              'heal', CASE WHEN :'needed' = '' THEN NULL ELSE json_build_object(
+                    'needed', to_json(string_to_array(:'needed', ' ')),
+                    'last_attempt_at', to_char(to_timestamp(nullif(:'heallast', '')::bigint) AT TIME ZONE 'UTC', $iso),
+                    'next_attempt_at', to_char(to_timestamp(coalesce(nullif(:'heallast', '')::bigint, 0) + :'healint'::bigint) AT TIME ZONE 'UTC', $iso)) END,
               'repo2', :'repo2',
               'repo2_note', nullif(:'repo2note', ''),
               'offsite', :'repo2' = 'on',
@@ -477,7 +467,8 @@ write_markers() {
             -v "lasterr=$lasterr" -v "outage=$outage" -v "gap=$GAP" -v "gapopen=$GAP_OPEN" -v "gaprepo=${GAP_REPO:-0}" \
             -v "gaptli=${GAP_TLI:-0}" -v "gapafter=$GAP_AFTER" -v "gapaftert=$GAP_AFTER_TIME" -v "gapbefore=$GAP_BEFORE" \
             -v "gapbeforet=$GAP_BEFORE_TIME" -v "gapbackup=$GAP_BACKUP" -v "gapfrom=$GAP_FROM" -v "gapmsg=$GAP_MSG" \
-            -v "gapnote=$GAP_NOTE" -v "forget=$forget" -v "forgetmsg=$FORGET_MSG" || true
+            -v "gapnote=$GAP_NOTE" -v "needed=$needed" -v "healmsg=$heal_msg" -v "heallast=$heal_last" \
+            -v "healint=${PITR_HEAL_INTERVAL:-21600}" || true
         track_outage
     else
         pitr_marker pitr "json_build_object('enabled', false)" || true
@@ -502,38 +493,57 @@ write_markers() {
 }
 
 # WAL continuity per repository (pitr_wal_report): a hole in the archived WAL of the live timeline = the PITR chain is
-# broken there, whatever pg_stat_archiver says (a spool overflow drops WAL and reports success). Sets GAP* for the
-# marker; an open gap (no backup after it yet) asks the main loop for a full backup at once (full-needed).
+# broken there, whatever pg_stat_archiver says (a spool overflow drops WAL and reports success). Every repository is
+# checked; the marker reports the worst one (an open gap, then a healed one). A hole counts only after a grace time:
+# the segment after it must have been archived PITR_GAP_GRACE (600 s) ago (async pushes can arrive out of order).
+# An open gap sets "a full backup is needed" for that repository; a need set for a hole that has since closed is
+# cleared. repo2 (S3) is listed at most every PITR_GAP_S3_INTERVAL (3600 s; the result is cached), repo1 every run.
 check_gaps() {
     GAP=0; GAP_OPEN=0; GAP_REPO=; GAP_TLI=; GAP_AFTER=; GAP_AFTER_TIME=; GAP_BEFORE=; GAP_BEFORE_TIME=; GAP_BACKUP=
     GAP_FROM=; GAP_MSG=; GAP_NOTE=
     live_tli=$(pitr_val "SELECT timeline_id FROM pg_control_checkpoint()")
+    seg_size=$(pitr_val "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'")
+    now=$(date -u +%s)
+    worst=0
     for repo in 1 2; do
         [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
-        report=$(pitr_wal_report "$repo" "$live_tli") || continue
-        [ "$(printf '%s\n' "$report" | sed -n 's/^GAP=//p')" = "1" ] || continue
-        GAP=1; GAP_REPO=$repo
-        GAP_TLI=$(printf '%s\n' "$report" | sed -n 's/^TLI=//p')
-        GAP_AFTER=$(printf '%s\n' "$report" | sed -n 's/^GAP_AFTER=//p')
-        GAP_AFTER_TIME=$(printf '%s\n' "$report" | sed -n 's/^GAP_AFTER_TIME=//p')
-        GAP_BEFORE=$(printf '%s\n' "$report" | sed -n 's/^GAP_BEFORE=//p')
-        GAP_BEFORE_TIME=$(printf '%s\n' "$report" | sed -n 's/^GAP_BEFORE_TIME=//p')
-        GAP_BACKUP=$(printf '%s\n' "$report" | sed -n 's/^BACKUP_IN_LAST_RUN=//p')
-        GAP_FROM=$(printf '%s\n' "$report" | sed -n 's/^WINDOW_FROM=//p')
+        cache="$PITR_STATE_DIR/gap-report-repo$repo"
+        if [ "$repo" = "2" ] && [ "${PGBACKREST_REPO2_TYPE:-}" = "s3" ] && [ -f "$cache" ] && [ $((now - $(sed -n 's/^AT=//p' "$cache" 2>/dev/null || echo 0))) -lt "${PITR_GAP_S3_INTERVAL:-3600}" ]; then
+            report=$(cat "$cache")
+        else
+            report=$(pitr_wal_report "$repo" "$live_tli" "$seg_size") || continue
+            { echo "AT=$now"; printf '%s\n' "$report"; } >"$cache"
+        fi
+        sev=0
+        if [ "$(rv GAP)" = "1" ] && [ $((now - $(rv GAP_BEFORE_TIME))) -ge "${PITR_GAP_GRACE:-600}" ]; then
+            if [ -z "$(rv BACKUP_IN_LAST_RUN)" ]; then sev=2; else sev=1; fi
+        fi
+        if [ "$sev" = "2" ]; then
+            need_set "$repo" gap
+        elif [ "$(need_get "$repo")" = "gap" ]; then
+            need_clear "$repo"
+            log "PITR: repo$repo dagi uzilish yopildi yoki undan keyin to'liq nusxa bor: yangi to'liq nusxa endi kerak emas"
+        fi
+        [ "$sev" -gt "$worst" ] || continue
+        worst=$sev
+        GAP=1; GAP_REPO=$repo; GAP_TLI=$(rv TLI)
+        GAP_AFTER=$(rv GAP_AFTER); GAP_AFTER_TIME=$(rv GAP_AFTER_TIME)
+        GAP_BEFORE=$(rv GAP_BEFORE); GAP_BEFORE_TIME=$(rv GAP_BEFORE_TIME)
+        GAP_BACKUP=$(rv BACKUP_IN_LAST_RUN); GAP_FROM=$(rv WINDOW_FROM)
         after_h=$(pitr_epoch_utc "$GAP_AFTER_TIME")
-        if [ -z "$GAP_BACKUP" ]; then
+        if [ "$sev" = "2" ]; then
             GAP_OPEN=1
             GAP_MSG="Zaxira zanjiri uzilgan (repo$repo): $after_h (UTC) dan keyingi daqiqalarga qaytarib bo'lmaydi (WAL $GAP_AFTER va $GAP_BEFORE orasidagi fayllar yo'q). Yangi to'liq nusxa olinmoqda"
             GAP_NOTE=$GAP_MSG
-            if [ ! -f "$PITR_STATE_DIR/full-needed" ]; then
-                : >"$PITR_STATE_DIR/full-needed"
-                log "XATO: $GAP_MSG"
-            fi
         else
+            GAP_MSG=
             GAP_NOTE="Zaxira zanjirida uzilish bor (repo$repo): $after_h dan $(pitr_epoch_utc "$GAP_FROM") gacha (UTC) bo'lgan daqiqalarga qaytarib bo'lmaydi; $(pitr_epoch_utc "$GAP_FROM") dan keyin tiklash mumkin (to'liq nusxa $GAP_BACKUP)"
         fi
-        break
     done
+    if [ "$GAP_OPEN" = "1" ] && [ "$(cat "$PITR_STATE_DIR/gap-logged" 2>/dev/null)" != "$GAP_REPO:$GAP_AFTER" ]; then
+        log "XATO: $GAP_MSG"
+        printf '%s' "$GAP_REPO:$GAP_AFTER" >"$PITR_STATE_DIR/gap-logged"
+    fi
     # Every growth of failed_count is logged once (the gap check above is what decides)
     fc=$(pitr_val "SELECT failed_count FROM pg_stat_archiver")
     prev_fc=$(cat "$PITR_STATE_DIR/failed-count" 2>/dev/null || echo "")
@@ -542,6 +552,7 @@ check_gaps() {
         printf '%s' "$fc" >"$PITR_STATE_DIR/failed-count"
     fi
 }
+rv() { printf '%s\n' "$report" | sed -n "s/^$1=//p"; }
 
 # Archive outage bookkeeping (pg_stat_archiver): an outage longer than PITR_GAP_FULL_AFTER may have dropped WAL
 # (spool cap): the main loop then takes a new full backup once archiving works again.
@@ -555,7 +566,8 @@ track_outage() {
         rm -f "$PITR_STATE_DIR/outage-since"
         log "WAL arxivlash tiklandi ($lasted s ishlamagan)"
         if [ "$lasted" -ge "$PITR_GAP_FULL_AFTER" ]; then
-            : >"$PITR_STATE_DIR/full-needed"
+            need_set 1 outage
+            [ "$PITR_REPO2" != "on" ] || need_set 2 outage
             log "OGOHLANTIRISH: arxivlash uzoq to'xtagan: PITR zanjirida uzilish bo'lishi mumkin, yangi to'liq zaxira olinadi"
         fi
     fi
@@ -623,7 +635,7 @@ daemon() {
 
 case "${1:-}" in
     -h | --help)
-        sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     --daemon)
         daemon
@@ -631,25 +643,15 @@ case "${1:-}" in
     --pitr-backup)
         validate
         mkdir -p "$PITR_STATE_DIR"
-        case "${2:-auto}" in full | diff | incr | auto) ;; *) die "foydalanish: backup.sh --pitr-backup [full|diff|auto]" ;; esac
+        case "${2:-auto}" in full | diff | incr | auto) ;; *) die "foydalanish: backup.sh --pitr-backup [full|diff|auto] [1|2]" ;; esac
+        case "${3:-}" in '' | 1 | 2) ;; *) die "ombor 1 yoki 2 bo'lishi kerak: $3" ;; esac
         pitr_enabled || die "PITR o'chiq: ildiz .env da PITR_ENABLED=1, so'ng docker compose up -d --build"
-        pitr_backup "${2:-auto}"
+        pitr_backup "${2:-auto}" "${3:-}"
         ;;
     --pitr-init)
         validate
         pitr_enabled || die "PITR o'chiq: ildiz .env da PITR_ENABLED=1, so'ng docker compose up -d --build"
         pitr_init
-        ;;
-    --pitr-forget-timeline)
-        validate
-        mkdir -p "$PITR_STATE_DIR"
-        case "${2:-}" in *[!0-9]*) die "foydalanish: backup.sh --pitr-forget-timeline [timeline raqami]" ;; esac
-        pitr_forget_timeline "${2:-}"
-        ;;
-    --pitr-forget-pending)
-        validate
-        case "${2:-}" in '' | *[!0-9]*) die "foydalanish: backup.sh --pitr-forget-pending <timeline raqami>" ;; esac
-        pitr_forget_pending "$2"
         ;;
     --pitr-verify)
         # pgbackrest verify of every repository (checksums of the archived WAL and the backups) plus the timeline
@@ -667,11 +669,6 @@ case "${1:-}" in
             echo "repo$repo timeline tarixi: $(pgbr repo-ls --repo="$repo" --recurse "archive/$PGBACKREST_STANZA" 2>/dev/null | grep -o '[0-9A-F]\{8\}\.history' | sort -u | tr '\n' ' ')"
         done
         exit "$vrc"
-        ;;
-    --pitr-forget-clear)
-        mkdir -p "$PITR_STATE_DIR"
-        rm -f "$PITR_STATE_DIR/forget-pending-repo1" "$PITR_STATE_DIR/forget-pending-repo2"
-        log "PITR: tozalash belgisi olib tashlandi"
         ;;
     --pitr-heal)
         validate

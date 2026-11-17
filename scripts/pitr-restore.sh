@@ -18,8 +18,9 @@
 #   scripts/pitr-restore.sh --start <nom> | --stop <nom> | --drop <nom>   nusxani ochish, to'xtatish, o'chirish
 #
 # Vaqt: vaqt zonasi yozilmasa TOSHKENT vaqti (+05) deb olinadi; UTC uchun oxiriga +00 yozing ("2026-12-01 09:05+00").
-# Tiklangan nusxani ish bazasi qilish: scripts/pitr-switch.sh <nom> (tasdiq so'raydi, orqaga qaytish mumkin;
-# docs/OPERATIONS.md, 18-bo'lim). --local: Docker'siz (scripts/pitr-ci.sh --local).
+# Tiklangan nusxani ish bazasi qilish: scripts/pitr-switch.sh <nom> (tasdiq so'raydi; faqat oldinga: boshqa vaqtga
+# o'tish uchun yana yangi nusxa tiklanadi; docs/OPERATIONS.md, 18-bo'lim). Avvalgi ish bazasi --list da
+# "avvalgi baza (saqlab qo'yilgan)"; --drop uni faqat nomini yozib tasdiqlagandan keyin o'chiradi (--confirm <nom>). --local: Docker'siz (scripts/pitr-ci.sh --local).
 
 set -eu
 umask 077
@@ -79,14 +80,14 @@ if [ "$LOCAL" = "0" ] && [ "$INNER" = "0" ]; then
     for a in "$@"; do
         if [ "$prev" = "--drop" ] || [ "$prev" = "--stop" ]; then
             f=.pitr-switch/switch.state
-            if [ -f "$f" ] && sed -n 's/^\(PREVIOUS\|CURRENT\)=//p' "$f" | grep -q "/$a\$"; then
-                pitr_die "$a oxirgi almashtirishning ish bazasi yoki orqaga qaytish nuqtasi (scripts/pitr-switch.sh): avval --back yoki --finalize"
+            if [ -f "$f" ] && sed -n 's/^\(PREVIOUS\|TARGET\)=//p' "$f" | grep -q "/$a\$"; then
+                pitr_die "$a hozir davom etayotgan (yoki to'xtab qolgan) almashtirishda ishlatilmoqda: avval u tugasin yoki scripts/pitr-switch.sh --recover"
             fi
         fi
         prev=$a
     done
     for a in "$@"; do
-        if [ "$a" = "--psql" ] && [ -t 0 ]; then
+        if { [ "$a" = "--psql" ] || [ "$a" = "--drop" ]; } && [ -t 0 ]; then
             exec docker compose exec backup sh /usr/local/bin/pitr-restore.sh --inner "$@"
         fi
     done
@@ -104,6 +105,7 @@ into=
 repo=1
 start=1
 promote_stop=0
+drop_confirm=
 action=restore
 name_arg=
 while [ $# -gt 0 ]; do
@@ -117,6 +119,7 @@ while [ $# -gt 0 ]; do
         --repo) repo=${2:-1}; shift 2 ;;
         --no-start) start=0; shift ;;
         --promote-and-stop) promote_stop=1; shift ;;
+        --confirm) drop_confirm=${2:-}; shift 2 ;;
         --info) action=info; shift ;;
         --list) action=list; shift ;;
         --stop) action=stop; name_arg=${2:-}; shift 2 ;;
@@ -166,7 +169,7 @@ case "$action" in
         live_tli=$(pitr_val "SELECT timeline_id FROM pg_control_checkpoint()" || true)
         for repo in 1 2; do
             [ "$repo" = "1" ] || [ "$PITR_REPO2" = "on" ] || continue
-            report=$(pitr_wal_report "$repo" "$live_tli") || { echo "repo$repo: WAL ro'yxatini o'qib bo'lmadi"; continue; }
+            report=$(pitr_wal_report "$repo" "$live_tli" "$(pitr_val "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" || true)") || { echo "repo$repo: WAL ro'yxatini o'qib bo'lmadi"; continue; }
             tli=$(printf '%s\n' "$report" | sed -n 's/^TLI=//p')
             windows=$(printf '%s\n' "$report" | sed -n 's/^WINDOWS=//p')
             if [ -z "$windows" ]; then echo "repo$repo: timeline $tli da tiklanadigan oraliq yo'q (bu timeline'da to'liq nusxa yo'q)"; continue; fi
@@ -193,6 +196,7 @@ case "$action" in
             n=$(basename "$d")
             st="to'xtatilgan"
             [ ! -f "$d/postmaster.pid" ] || st="ishlayapti (port $PORT)"
+            [ ! -f "$d/.rizqim-previous-live" ] || st="avvalgi baza (saqlab qo'yilgan; qayta ishga tushirilmaydi)"
             ! is_live "$d" || st="ISH BAZASI (pitr-switch.sh bilan almashtirilgan)"
             echo "$n: $st, $(du -sh "$d" 2>/dev/null | cut -f1)"
         done
@@ -211,6 +215,7 @@ case "$action" in
         dir="$ROOT/$name_arg"
         [ -f "$dir/PG_VERSION" ] || pitr_die "$dir yo'q (--list)"
         ! is_live "$dir" || pitr_die "$name_arg hozir ISH BAZASI: uni bu yerda ochib bo'lmaydi"
+        [ ! -f "$dir/.rizqim-previous-live" ] || pitr_die "$name_arg avvalgi ish bazasi: u qayta ishga tushirilmaydi (o'qish uchun kerakli vaqtga yangi nusxa tiklang)"
         [ ! -f "$dir/postmaster.pid" ] || pitr_die "$name_arg allaqachon ochiq"
         psql -X -A -t -q -h "$SOCK" -p "$PORT" -c 'select 1' >/dev/null 2>&1 && pitr_die "port $PORT band: avval boshqa nusxani --stop qiling"
         slog="$ROOT/$name_arg.server.log"
@@ -223,11 +228,19 @@ case "$action" in
         check_name "$name_arg"
         [ -d "$ROOT/$name_arg" ] || pitr_die "$ROOT/$name_arg yo'q (--list)"
         sf=${PITR_STATE_DIR:-/nonexistent}/switch.state
-        if [ "$LOCAL" = "1" ] && [ -f "$sf" ] && sed -n 's/^\(PREVIOUS\|CURRENT\)=//p' "$sf" | grep -q "/$name_arg\$"; then
-            pitr_die "$name_arg oxirgi almashtirishning ish bazasi yoki orqaga qaytish nuqtasi (scripts/pitr-switch.sh): avval --back yoki --finalize"
+        if [ "$LOCAL" = "1" ] && [ -f "$sf" ] && sed -n 's/^\(PREVIOUS\|TARGET\)=//p' "$sf" | grep -q "/$name_arg\$"; then
+            pitr_die "$name_arg hozir davom etayotgan (yoki to'xtab qolgan) almashtirishda ishlatilmoqda: avval u tugasin yoki scripts/pitr-switch.sh --recover"
         fi
         ! is_live "$ROOT/$name_arg" || pitr_die "$name_arg hozir ISH BAZASI (pitr-switch.sh): uni to'xtatib yoki o'chirib bo'lmaydi"
         pitr_stop_scratch "$ROOT/$name_arg"
+        if [ "$action" = "drop" ] && [ -f "$ROOT/$name_arg/.rizqim-previous-live" ]; then
+            # the database that was live before a switch: a last-resort artefact, removed only on purpose
+            if [ "$drop_confirm" != "$name_arg" ] && [ -t 0 ]; then
+                printf "DIQQAT: %s avvalgi ish bazasi (%s). Butunlay o'chirish uchun nomini yozing: " "$name_arg" "$(head -n 1 "$ROOT/$name_arg/.rizqim-previous-live")" >&2
+                read -r drop_confirm || drop_confirm=
+            fi
+            [ "$drop_confirm" = "$name_arg" ] || pitr_die "$name_arg avvalgi ish bazasi: o'chirish uchun nomini yozib tasdiqlang (yoki --confirm $name_arg). Hech narsa o'chirilmadi"
+        fi
         if [ "$action" = "drop" ]; then rm -rf "${ROOT:?}/$name_arg"; pitr_log "o'chirildi: $name_arg"; else pitr_log "to'xtatildi: $name_arg"; fi
         exit 0
         ;;
@@ -250,6 +263,25 @@ case "$action" in
         fi
         [ "$state" = "shut down" ] || pitr_die "$dir holati '$state': toza yopilmagan nusxa. scripts/pitr-restore.sh --start $(basename "$dir") va --stop $(basename "$dir") qiling"
         kind=promoted
+        # The copy's timeline must be its own: two copies promoted before either was switched to choose the same
+        # timeline, and their WAL would collide in the repository. Refused when the live database is already on it,
+        # or the repository holds a DIFFERENT history file for it (the same file = this copy's own earlier attempt)
+        live_tli=$(pitr_val "SELECT timeline_id FROM pg_control_checkpoint()" || true)
+        stale=
+        if [ -n "$live_tli" ] && [ -n "$tli" ] && [ "$tli" -le "$live_tli" ]; then stale="ish bazasi timeline $live_tli da"; fi
+        hist=$(printf '%08X' "${tli:-0}").history
+        if [ -z "$stale" ] && [ -f "$dir/pg_wal/$hist" ] && pgbr repo-ls --recurse "archive/$PGBACKREST_STANZA" 2>/dev/null | grep -q "$hist"; then
+            tmp_hist=$(mktemp "${TMPDIR:-/tmp}/rizqim-hist.XXXXXX")
+            rm -f "$tmp_hist"
+            if (pitr_scratch_env "$dir"; cd /tmp && pgbr archive-get "$hist" "$tmp_hist") >/dev/null 2>&1 && ! cmp -s "$tmp_hist" "$dir/pg_wal/$hist"; then
+                stale="zaxira omborida timeline $tli ning boshqa tarixi bor (boshqa nusxa undan oldin ish bazasi bo'lgan)"
+            fi
+            rm -f "$tmp_hist"
+        fi
+        [ -z "$stale" ] || pitr_die "$dir timeline $tli da, $stale: bu nusxa eskirgan. Kerakli vaqtga qaytadan tiklang: scripts/pitr-restore.sh \"<vaqt>\" --into <yangi nom>"
+        if [ -f "$dir/.rizqim-previous-live" ]; then
+            pitr_die "$dir avvalgi ish bazasi ($(head -n 1 "$dir/.rizqim-previous-live")): uni qayta ishga tushirib bo'lmaydi. Kerakli vaqtga yangi nusxa tiklang: scripts/pitr-restore.sh \"<vaqt>\" --into <nom>"
+        fi
         # The copy's timeline history was written while archive_mode was off: queue it for the archiver, so the
         # repository knows the timeline (later promotions then choose a new one, segment names never collide)
         for h in "$dir"/pg_wal/*.history; do

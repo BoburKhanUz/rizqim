@@ -67,6 +67,7 @@ case "$part" in *[!a-z0-9_]*) pitr_die "katalogdagi bo'lak nomi noto'g'ri: $part
 # exists"), attach, then check the partition's triggers are the parent's clones. ATTACH fires no row trigger: the
 # fiscal_receipt_keys rows of a fiscal month (never archived, never deleted) are neither inserted again nor touched.
 attach_now() {
+    # the trigger check runs INSIDE the transaction: a mismatch rolls the ATTACH back, so "nothing changed" is true
     PGOPTIONS='-c lock_timeout=3s -c statement_timeout=60s' psql -X -q -v ON_ERROR_STOP=1 -v "parent=public.$table" -v "part=public.$part" <<SQL || return 1
 BEGIN;
 SELECT format('DROP TRIGGER %I ON %s', c.tgname, :'part') AS stmt
@@ -75,15 +76,21 @@ WHERE c.tgrelid = :'part'::regclass AND NOT c.tgisinternal
   AND c.tgname IN (SELECT p.tgname FROM pg_trigger p WHERE p.tgrelid = :'parent'::regclass AND NOT p.tgisinternal)
 \gexec
 ALTER TABLE public.$table ATTACH PARTITION public.$part FOR VALUES FROM ('$rfrom') TO ('$rto');
+DO \$check\$
+DECLARE got text; want text; loose int;
+BEGIN
+    SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') INTO got FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal;
+    SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') INTO want FROM pg_trigger WHERE tgrelid = 'public.$table'::regclass AND NOT tgisinternal;
+    SELECT count(*) INTO loose FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal AND tgparentid = 0;
+    IF got IS DISTINCT FROM want OR loose > 0 THEN
+        RAISE EXCEPTION 'triggers of $part (%) are not the clones of $table (%)', got, want;
+    END IF;
+END
+\$check\$;
+UPDATE partition_archives SET status = 'held', error = NULL WHERE id = $id;
 COMMIT;
 SQL
-    got=$(pitr_val "SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal")
-    want=$(pitr_val "SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') FROM pg_trigger WHERE tgrelid = 'public.$table'::regclass AND NOT tgisinternal")
-    [ "$got" = "$want" ] || { pitr_log "XATO: $part triggerlari ($got) asosiy jadvalnikiga ($want) mos emas"; return 1; }
-    clones=$(pitr_val "SELECT count(*) FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal AND tgparentid = 0")
-    [ "$clones" = "0" ] || { pitr_log "XATO: $part da asosiy jadvalga bog'lanmagan trigger qoldi"; return 1; }
-    pitr_psql -c "UPDATE partition_archives SET status = 'held', error = NULL WHERE id = $id" >/dev/null || pitr_log "OGOHLANTIRISH: katalog qatorini held qilib bo'lmadi"
-    pitr_log "TAYYOR: $part $table ga ulandi (triggerlar: $got; katalog: held)"
+    pitr_log "TAYYOR: $part $table ga ulandi (triggerlar: $(pitr_val "SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal"); katalog: held)"
 }
 confirm_attach() {
     if [ "$yes" != "1" ]; then
@@ -126,12 +133,19 @@ pitr_log "fayl tekshirildi: $file (sha256 to'g'ri)"
 # partition gets the parent's own clones anyway. Table, data, indexes and constraints are restored as dumped.
 toc=$(mktemp "${TMPDIR:-/tmp}/rizqim-archive-toc.XXXXXX")
 trap 'rm -f "$toc"' EXIT
-pg_restore -l "$file" | grep -v ' TRIGGER ' >"$toc"
+# foreign keys too: a month dumped before its foreign keys were dropped would fail in the side database (and on a
+# re-attach the partition gets the parent's own)
+pg_restore -l "$file" | grep -v -e ' TRIGGER ' -e ' FK CONSTRAINT ' >"$toc"
 
 if [ "$attach" = "1" ]; then
     confirm_attach
-    pg_restore --no-owner --no-privileges --exit-on-error -L "$toc" -d "$PGDATABASE" "$file" || pitr_die "ish bazasiga tiklab bo'lmadi"
-    attach_now || pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q). $part ish bazasida alohida jadval bo'lib qoldi"
+    # one transaction: a failed restore leaves no half-filled table that a rerun would then attach
+    pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -L "$toc" -d "$PGDATABASE" "$file" || pitr_die "ish bazasiga tiklab bo'lmadi (hech narsa o'zgarmadi)"
+    if ! attach_now; then
+        # the restored table must not stay behind as a lookalike of the archived month
+        pitr_psql -c "DROP TABLE IF EXISTS public.$part" >/dev/null 2>&1 || true
+        pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q): hech narsa o'zgarmadi (tiklangan jadval olib tashlandi)"
+    fi
     exit 0
 fi
 
@@ -147,7 +161,7 @@ else
     for seq in $(pg_restore -f - "$file" 2>/dev/null | sed -n "s/.*nextval('public\.\([a-z0-9_]*\)'.*/\1/p" | sort -u); do
         PGDATABASE=$ADB pitr_psql -c "CREATE SEQUENCE IF NOT EXISTS public.$seq" >/dev/null || pitr_die "$ADB da $seq yaratib bo'lmadi"
     done
-    PGDATABASE=$ADB pg_restore --no-owner --no-privileges --exit-on-error -L "$toc" -d "$ADB" "$file" || pitr_die "$ADB ga tiklab bo'lmadi"
+    PGDATABASE=$ADB pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -L "$toc" -d "$ADB" "$file" || pitr_die "$ADB ga tiklab bo'lmadi (hech narsa o'zgarmadi)"
 fi
 count=$(PGDATABASE=$ADB pitr_val "SELECT count(*) FROM public.$part")
 pitr_log "TAYYOR: $part ($rfrom .. $rto), $count qator, baza $ADB"

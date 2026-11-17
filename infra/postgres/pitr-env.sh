@@ -74,7 +74,15 @@ pitr_env() {
     _pe_bucket=${PITR_S3_BUCKET:-${BACKUP_S3_BUCKET:-}}
     _pe_key=${PITR_S3_ACCESS_KEY:-${BACKUP_S3_ACCESS_KEY:-}}
     _pe_secret=${PITR_S3_SECRET:-${BACKUP_S3_SECRET:-}}
-    if [ -n "$_pe_endpoint$_pe_bucket$_pe_key$_pe_secret" ]; then
+    if [ -n "${PITR_TEST_REPO2_PATH:-}" ]; then
+        # scripts/pitr-ci.sh --local only: a second, posix repository stands in for S3 (two-repository logic without S3)
+        PGBACKREST_REPO2_TYPE=posix
+        PGBACKREST_REPO2_PATH=$PITR_TEST_REPO2_PATH
+        PGBACKREST_REPO2_RETENTION_FULL=${PITR_S3_RETENTION_FULL:-4}
+        export PGBACKREST_REPO2_TYPE PGBACKREST_REPO2_PATH PGBACKREST_REPO2_RETENTION_FULL
+        PITR_REPO2=on
+        PITR_REPO2_NOTE=
+    elif [ -n "$_pe_endpoint$_pe_bucket$_pe_key$_pe_secret" ]; then
         if [ -z "$_pe_endpoint" ] || [ -z "$_pe_bucket" ] || [ -z "$_pe_key" ] || [ -z "$_pe_secret" ]; then
             PITR_REPO2=partial
             PITR_REPO2_NOTE="S3 sozlamasi to'liq emas (endpoint, bucket, kalit, maxfiy kalit): PITR faqat shu serverda"

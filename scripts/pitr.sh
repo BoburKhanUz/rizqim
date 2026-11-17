@@ -162,8 +162,9 @@ pitr_restore_to() { # pitr_restore_to <dir> <target-time> <log> [repo]
     _rt_repo=${4:-1}
     # --archive-mode=off: the restored copy must never push its new timeline into the live stanza.
     # --target-timeline=current: stay on the timeline of the chosen backup. Postgres' default ("latest") would follow
-    # the newest timeline in the archive, and after a switch-over and back (scripts/pitr-switch.sh --back) that is a
-    # branch the backup is not on: the restore then fails with "could not locate required checkpoint record"
+    # the newest timeline in the archive, which after a switch-over (or a failed, rolled-back attempt that archived its
+    # history) is a branch the chosen backup is not on: the restore then fails with "could not locate required
+    # checkpoint record"
     ( pitr_scratch_env "$1"
       pgbr restore --repo="$_rt_repo" --pg1-path="$1" --type=time --target="$2" --target-action=promote \
           --target-timeline=current --archive-mode=off --log-level-console=info ) >"$3" 2>&1
@@ -230,8 +231,8 @@ pitr_backup_label() { # pitr_backup_label <restore-log>
 #   the newest hole), GAP_AFTER_TIME/GAP_BEFORE_TIME (epochs), BACKUP_IN_LAST_RUN (label of the oldest backup whose WAL
 #   starts in the newest run, empty = none: nothing after the hole is restorable yet), WINDOW_FROM (stop epoch of that
 #   backup) and WINDOWS (all restorable windows "from_epoch-to_epoch,...", oldest first)
-# 16 MB segments assumed (the Postgres default; 256 per log id).
-pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal]
+# The segment size comes from the live server (wal_segment_size, bytes); 16 MB when unknown.
+pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal] [wal_segment_size bytes]
     _wr_json=$(pgbr repo-ls --repo="$1" --recurse --output=json "archive/$PGBACKREST_STANZA" 2>/dev/null) || return 1
     _wr_info=$(pgbr info --repo="$1" --output=json 2>/dev/null) || return 1
     {
@@ -239,9 +240,9 @@ pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal]
             | sed -n 's/^"[^"]*\/\([0-9A-F]\{24\}\)-[0-9a-f]*\(\.[a-z0-9]*\)\{0,1\}":{"type":"file","size":[0-9]*,"time":\([0-9]*\)}.*/S \1 \3/p'
         printf '%s' "$_wr_info" | sed 's/"archive":{"start":"/\n@/g' \
             | sed -n 's/^@\([0-9A-F]\{24\}\)".*"label":"\([^"]*\)".*"timestamp":{"start":[0-9]*,"stop":\([0-9]*\)}.*/B \1 \3 \2/p'
-    } | sort -k2,2 | awk -v want="${2:-}" '
+    } | sort -k2,2 | awk -v want="${2:-}" -v perlog="$((4294967296 / ${3:-16777216}))" '
         function hex(s,   i, v) { v = 0; for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789ABCDEF", substr(s, i, 1)) - 1; return v }
-        function idx(n) { return hex(substr(n, 9, 8)) * 256 + hex(substr(n, 17, 8)) }
+        function idx(n) { return hex(substr(n, 9, 8)) * perlog + hex(substr(n, 17, 8)) }
         $1 == "S" { ns++; sn[ns] = $2; st[ns] = $3; tl = hex(substr($2, 1, 8)); if (tl > maxtl) maxtl = tl }
         $1 == "B" { nb++; bs[nb] = $2; bt[nb] = $3; bl[nb] = $4 }
         END {

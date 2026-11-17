@@ -449,6 +449,11 @@ services:
       PITR_DRILL_MONTHLY: ${PITR_DRILL_MONTHLY:-1}
       PITR_DRILL_TIME: ${PITR_DRILL_TIME:-23:00}
       PITR_PING_URL: ${PITR_PING_URL:-}
+      # WAL zanjiridagi uzilish shuncha soniyadan keyin hisoblanadi (kechikib kelgan segmentlar uchun), S3 ro'yxati shuncha
+      # soniyada bir (narx), uzilishdan keyingi avtomatik to'liq nusxa eng ko'pi shuncha soniyada bir urinish
+      PITR_GAP_GRACE: ${PITR_GAP_GRACE:-600}
+      PITR_GAP_S3_INTERVAL: ${PITR_GAP_S3_INTERVAL:-3600}
+      PITR_HEAL_INTERVAL: ${PITR_HEAL_INTERVAL:-21600}
       # Jurnallar arxivi uchun S3 (bo'sh = BACKUP_S3_*). Arxiv o'chmasligi kerak: o'chirish huquqisiz alohida kalit yoki
       # Object Lock'li alohida bucket (scripts/archive-partitions.sh har kecha tekshiradi va ogohlantiradi)
       ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}

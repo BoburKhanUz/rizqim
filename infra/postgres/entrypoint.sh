@@ -6,7 +6,12 @@
 # EMPTY database that the backend then migrates and serves as if nothing happened. Refuse instead.
 data=${PGDATA:-/var/lib/postgresql/data}
 if [ -n "${RIZQIM_DATA_SOURCE:-}" ] && [ ! -s "$data/PG_VERSION" ]; then
-    echo "rizqim-postgres: XATO: POSTGRES_DATA_VOLUME=$RIZQIM_DATA_SOURCE da Postgres ma'lumoti yo'q (papka bo'sh, yo'q yoki yo'l noto'g'ri). Bo'sh baza YARATILMAYDI. Ildiz .env dagi POSTGRES_DATA_VOLUME ni tekshiring yoki oldingi bazaga qayting: scripts/pitr-switch.sh --back" >&2
+    echo "rizqim-postgres: XATO: POSTGRES_DATA_VOLUME=$RIZQIM_DATA_SOURCE da Postgres ma'lumoti yo'q (papka bo'sh, yo'q yoki yo'l noto'g'ri). Bo'sh baza YARATILMAYDI. Ildiz .env dagi POSTGRES_DATA_VOLUME ni tekshiring (to'xtab qolgan almashtirish bo'lsa: scripts/pitr-switch.sh --recover)" >&2
+    exit 78
+fi
+# A data directory a switch-over left behind (scripts/pitr-switch.sh) is never started again: its timeline is abandoned
+if [ -f "$data/.rizqim-previous-live" ]; then
+    echo "rizqim-postgres: XATO: $data avvalgi ish bazasi ($(head -n 1 "$data/.rizqim-previous-live")): u qayta ishga tushirilmaydi. Ildiz .env dagi POSTGRES_DATA_VOLUME ni tekshiring (docs/OPERATIONS.md, 18-bo'lim)" >&2
     exit 78
 fi
 exec docker-entrypoint.sh "$@"
