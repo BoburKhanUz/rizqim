@@ -141,6 +141,22 @@ return Application::configure(basePath: dirname(__DIR__))
             ], $e->status);
         });
 
+        // Review M2 (LR-4): a deadlock or serialization failure (40P01/40001) that outlived its retries is a retryable
+        // answer for every API client (the Mini App, the tills), never a 500 or SQL text: 503 server_busy with
+        // Retry-After. It is still reported (logged with its SQL) like any other error.
+        $exceptions->render(function (\Throwable $e, Request $request) {
+            if (!$request->is('api/*') || !\App\Support\ConcurrencyFailure::is($e)) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Server hozir band. Bir necha soniyadan so'ng qayta urinib ko'ring.",
+                'code' => 'server_busy',
+                'data' => ['reason' => 'server_busy'],
+            ], 503, ['Retry-After' => '2']);
+        });
+
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
             if (!$request->is('api/*')) {
                 return null;

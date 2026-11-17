@@ -16,9 +16,21 @@ use Illuminate\Support\Facades\DB;
  *
  * The callers' own lock statements that follow (the same rows) return at once, so their prices, checks and errors are
  * unchanged. Rows are only locked, never written here.
+ *
+ * Review M2 (LR-1): stock rows are locked FOR NO KEY UPDATE (mode()), here and in every caller's own lock of them. Two
+ * stock lockers still exclude each other (and a DELETE or soft delete still waits), but a foreign key's FOR KEY SHARE
+ * (an order line, a combo part line, a kazan write-off row referencing the variant or batch) no longer waits on them,
+ * so such an insert, in whatever order, cannot close a cycle with a sale. Every statement relying on these locks only
+ * writes non-key columns (stock, quantity_left, sold_out_at...). Other databases: a plain FOR UPDATE.
  */
 final class StockLocks
 {
+    /** The lock of a stock row, for ->lock(): FOR NO KEY UPDATE on PostgreSQL, FOR UPDATE elsewhere */
+    public static function mode(): string|bool
+    {
+        return DB::connection()->getDriverName() === 'pgsql' ? 'for no key update' : true;
+    }
+
     /**
      * @param  list<string>  $uuids  the lines' variant uuids
      * @param  list<int>  $variantIds  variants known by id (a cancel's lines)
@@ -51,7 +63,7 @@ final class StockLocks
 
             $ids = $rows->pluck('id')->merge($partIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
             if ($ids !== []) {
-                DB::table('product_variants')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->pluck('id');
+                DB::table('product_variants')->whereIn('id', $ids)->orderBy('id')->lock(self::mode())->pluck('id');
             }
         }
 
@@ -67,7 +79,7 @@ final class StockLocks
                     }
                 })
                 ->orderBy('id')
-                ->lockForUpdate()
+                ->lock(self::mode())
                 ->pluck('id');
         }
     }

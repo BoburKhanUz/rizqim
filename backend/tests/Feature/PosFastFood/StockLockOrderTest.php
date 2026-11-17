@@ -69,15 +69,20 @@ class StockLockOrderTest extends TestCase
                 return;
             }
             $sql = $query->sql;
+            $locks = preg_match('/ for (no key )?update$/', $sql) === 1;
+            // LR-1: a stock row is locked FOR NO KEY UPDATE, which a foreign key's KEY SHARE does not wait on
+            if (str_ends_with($sql, ' for update') && (str_contains($sql, 'from "product_variants"') || str_contains($sql, 'from "menu_batches"'))) {
+                $transactions[$current][] = 'FOR UPDATE';
+            }
             $bindings = array_values($query->bindings);
             $touched = [];
 
-            if (str_contains($sql, '"menu_batches"') && (str_ends_with($sql, 'for update') || str_starts_with($sql, 'update'))) {
+            if (str_contains($sql, '"menu_batches"') && ($locks || str_starts_with($sql, 'update'))) {
                 $transactions[$current][] = 'B';
 
                 return;
             }
-            if (str_starts_with($sql, 'select') && str_contains($sql, 'from "product_variants"') && str_ends_with($sql, 'for update')) {
+            if (str_starts_with($sql, 'select') && str_contains($sql, 'from "product_variants"') && $locks) {
                 $byUuid = str_contains($sql, '"uuid" in');
                 foreach ($bindings as $binding) {
                     if ($byUuid && is_string($binding) && isset($ids[strtolower($binding)])) {
@@ -117,6 +122,7 @@ class StockLockOrderTest extends TestCase
             $last = 0;
             $batch = false;
             foreach ($sequence as $touch) {
+                $this->assertNotSame('FOR UPDATE', $touch, "{$what}: a stock row locked FOR UPDATE, not FOR NO KEY UPDATE");
                 if ($touch === 'B') {
                     $batch = true;
 

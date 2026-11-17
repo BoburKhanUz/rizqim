@@ -282,6 +282,16 @@ class OrderController extends Controller
         } catch (\Symfony\Component\HttpKernel\Exception\ConflictHttpException $e) {
             // The Idempotency-Key's claim was taken over by a retry: this attempt was rolled back
             return $this->error($e->getMessage(), [], 409);
+        } catch (\PDOException $e) {
+            // Review M2 (LR-4): a database error never reaches the app as SQL text. A deadlock or serialization
+            // failure left after the retries is the retryable 503 server_busy (bootstrap/app.php); anything else is
+            // logged and answered with a plain message
+            if (\App\Support\ConcurrencyFailure::is($e)) {
+                throw $e;
+            }
+            \Illuminate\Support\Facades\Log::error('Order could not be created', ['user_id' => $request->user()?->id, 'error' => $e->getMessage()]);
+
+            return $this->error("Buyurtmani saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.", [], 500);
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), [], 400);
         }

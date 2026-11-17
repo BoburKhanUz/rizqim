@@ -232,7 +232,7 @@ class CreateOrderAction
                     $q->where('store_id', $storeId)->where('status', 'active');
                 })
                 ->orderBy('id')
-                ->lockForUpdate()
+                ->lock(\App\Services\Catalog\StockLocks::mode())
                 ->get()
                 ->keyBy(fn ($variant) => strtolower($variant->uuid));
 
@@ -638,7 +638,7 @@ class CreateOrderAction
             ->whereIn('product_id', $productIds)
             ->open()
             ->orderBy('id')
-            ->lockForUpdate()
+            ->lock(\App\Services\Catalog\StockLocks::mode())
             ->get();
 
         $lineBatches = [];
