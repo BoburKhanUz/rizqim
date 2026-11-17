@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -709,5 +710,41 @@ void main() {
     final SyncOperation op = h.offline.store.pending.single;
     expect(op.type, SyncOpType.orderRound);
     expect(op.payload['idempotency_key'], 'key-1');
+  });
+
+  test('"send now" while the automatic attempt that left offline is still on its way back: the sale reaches the '
+      'server in this call, no failure or wait is left (the bridge_test race on Windows)', () async {
+    await h.warmUp();
+    await h.goOffline();
+    final Completer<void> back = Completer<void>();
+    h.adapter.holdOffline = back;
+    await h.pos.orders.open(
+      channel: PosChannel.takeaway,
+      items: <PosLineInput>[line(1, '1')],
+    );
+    for (var i = 0; i < 50 && h.adapter.to('POST', '/pos/sync').isEmpty; i++) {
+      await pumpEventQueue();
+    }
+    expect(
+      h.adapter.to('POST', '/pos/sync'),
+      hasLength(1),
+      reason: 'the automatic attempt left offline',
+    );
+    expect(h.offline.sender.syncing, isTrue);
+
+    h.adapter.offline = false;
+    final Future<SyncDrainResult> now = h.offline.syncNow();
+    back.complete();
+    final SyncDrainResult result = await now;
+    await pumpEventQueue();
+
+    expect(result.drained, isTrue);
+    expect(sync.received.map((Map<String, Object?> o) => o['type']), <String>[
+      SyncOpType.orderOpen,
+    ]);
+    expect(h.offline.store.pendingCount, 0);
+    expect(h.offline.sender.failures, 0);
+    expect(h.offline.sender.nextRetryAt, isNull);
+    expect(h.offline.status.lastSyncError, isNull);
   });
 }

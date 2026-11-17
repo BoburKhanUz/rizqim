@@ -153,6 +153,12 @@ class SyncSender {
 
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Future<SyncDrainResult>? _running;
+
+  /// The running attempt was started for an explicit request ([drain], [nudge]), not by the queue or the timer.
+  bool _runningExplicit = false;
+
+  /// An explicit request that came while an older attempt was on the wire: it waits for that one, then sends afresh.
+  Future<SyncDrainResult>? _fresh;
   Timer? _retry;
   StreamSubscription<void>? _storeSub;
   bool _started = false;
@@ -166,13 +172,77 @@ class SyncSender {
 
   Stream<void> get changes => _changes.stream;
 
-  bool get syncing => _running != null;
+  bool get syncing => _running != null || _fresh != null;
 
-  /// Navbatni hozir yuboradi (yuborish ketayotgan bo'lsa — o'shaning natijasi).
-  Future<SyncDrainResult> drain() => _running ??= _drain().whenComplete(() {
-    _running = null;
+  /// Navbatni hozir yuboradi va shu urinishning natijasini qaytaradi ("Yuborish" tugmasi).
+  ///
+  /// An attempt the queue or the retry timer started earlier may have left while the network was down and still be on
+  /// its way back with that failure: the answer to this call is not that one. It waits for it (one send at a time, in
+  /// order) and, if the queue is not empty then, sends once more at once, without the backoff. An attempt started for
+  /// an earlier explicit request is joined.
+  Future<SyncDrainResult> drain() {
+    final Future<SyncDrainResult>? running = _running;
+    if (running == null || _runningExplicit) return _join(explicit: true);
+    return _fresh ??= _after(running);
+  }
+
+  Future<SyncDrainResult> _after(Future<SyncDrainResult> running) async {
+    SyncDrainResult? before;
+    try {
+      before = await running;
+    } on Object {
+      // That attempt's own caller sees its error; this one sends afresh
+    } finally {
+      _fresh = null;
+    }
+    if (!store.hasPending) {
+      // Nothing left to send: a wait set before this request is moot
+      if (!syncing) _cancelRetry();
+      return before != null && before.drained
+          ? before
+          : SyncDrainResult(sent: before?.sent ?? 0, left: 0);
+    }
+    return _join(explicit: true);
+  }
+
+  Future<SyncDrainResult> _join({bool explicit = false}) {
+    final Future<SyncDrainResult>? running = _running;
+    if (running != null) return running;
+    _runningExplicit = explicit;
+    return _running = _attempt();
+  }
+
+  Future<SyncDrainResult> _attempt() async {
+    final SyncDrainResult r;
+    try {
+      r = await _drain();
+    } finally {
+      _running = null;
+      _runningExplicit = false;
+    }
+    _settle(r);
     _emit();
-  });
+    return r;
+  }
+
+  /// After an attempt: a wait before the next one if it failed (unless a fresh one is already asked for), none if the
+  /// queue is empty; what was queued while the server state was being reloaded goes at once.
+  void _settle(SyncDrainResult r) {
+    if (r.drained) {
+      if (_fresh != null) return;
+      _cancelRetry();
+      if (_started && store.hasPending) unawaited(_auto());
+      return;
+    }
+    if (!_started || r.left == 0 || _fresh != null || _retry != null) return;
+    final Duration wait = backoff.delay(max(1, failures), _random);
+    nextRetryAt = _clock().add(wait);
+    _retry = Timer(wait, () {
+      _retry = null;
+      nextRetryAt = null;
+      if (_started) unawaited(_auto());
+    });
+  }
 
   /// Avtomatik rejim: navbatga amal tushsa yoki xatodan keyin kutish tugasa — yuboradi.
   void start() {
@@ -184,18 +254,15 @@ class SyncSender {
     if (store.hasPending) unawaited(_auto());
   }
 
-  /// Aloqa qaytdi: kutmasdan darhol urinish.
+  /// Aloqa qaytdi: kutmasdan darhol urinish (oldin chiqqan urinish yo'lda bo'lsa — u tugagach, bir marta yangidan).
   void nudge() {
-    _retry?.cancel();
-    _retry = null;
-    nextRetryAt = null;
-    if (_started && store.hasPending) unawaited(_auto());
+    _cancelRetry();
+    if (_started && store.hasPending) unawaited(_auto(explicit: true));
   }
 
   Future<void> stop() async {
     _started = false;
-    _retry?.cancel();
-    _retry = null;
+    _cancelRetry();
     await _storeSub?.cancel();
     _storeSub = null;
   }
@@ -205,18 +272,14 @@ class SyncSender {
     unawaited(_changes.close());
   }
 
-  Future<void> _auto() async {
-    final SyncDrainResult r = await drain();
-    if (!_started || r.drained || r.left == 0) return;
-    final Duration wait = backoff.delay(max(1, failures), _random);
-    nextRetryAt = _clock().add(wait);
+  void _cancelRetry() {
     _retry?.cancel();
-    _retry = Timer(wait, () {
-      _retry = null;
-      nextRetryAt = null;
-      if (_started) unawaited(_auto());
-    });
-    _emit();
+    _retry = null;
+    nextRetryAt = null;
+  }
+
+  Future<void> _auto({bool explicit = false}) async {
+    await (explicit ? drain() : _join());
   }
 
   Future<SyncDrainResult> _drain() async {

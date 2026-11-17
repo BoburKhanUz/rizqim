@@ -24,6 +24,10 @@ class FakePosAdapter implements HttpClientAdapter {
   /// Berilsa, o'zgartiruvchi so'rovlar shu tugaguncha javob kutadi (yuklanish holatini ko'rish uchun).
   Completer<void>? hold;
 
+  /// Berilsa, [offline] paytida chiqqan so'rov xatosi shu tugaguncha qaytmaydi (dio interceptorlari ushlab turgandek: so'rov
+  /// internetsiz chiqdi, javobi hali yo'lda).
+  Completer<void>? holdOffline;
+
   Iterable<RequestOptions> to(String method, Pattern path) => requests.where(
     (RequestOptions r) => r.method == method && r.uri.path.contains(path),
   );
@@ -36,6 +40,8 @@ class FakePosAdapter implements HttpClientAdapter {
   ) async {
     requests.add(options);
     if (offline) {
+      final Completer<void>? back = holdOffline;
+      if (back != null) await back.future;
       throw DioException.connectionError(
         requestOptions: options,
         reason: 'offline',

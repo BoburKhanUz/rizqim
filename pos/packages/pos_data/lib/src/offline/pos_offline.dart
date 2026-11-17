@@ -868,7 +868,8 @@ class PosOffline {
     body: <String, Object?>{'resolution': resolution, 'note': ?note},
   );
 
-  /// Hozir yuborish (aloqa qaytgan bo'lsa).
+  /// Hozir yuborish (aloqa qaytgan bo'lsa). The answer is that of an attempt made for this call: one that left earlier,
+  /// while the network was down, is waited for and the queue sent afresh ([SyncSender.drain]).
   Future<SyncDrainResult> syncNow() {
     sender.nudge();
     return sender.drain();

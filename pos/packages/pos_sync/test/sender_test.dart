@@ -215,6 +215,85 @@ void main() {
     });
   });
 
+  test('"send now" while an attempt that left offline is still on its way back: the queue goes in a fresh attempt, '
+      'the button gets that answer, and no failure or backoff is left behind', () async {
+    final _Held net = _Held(server);
+    final SyncSender sender = SyncSender(
+      store: store,
+      transport: net,
+      backoff: const SyncBackoff(jitter: 0),
+    );
+    addTearDown(sender.dispose);
+    sender.start();
+    await queue(1);
+    await pumpEventQueue();
+    expect(
+      net.held,
+      hasLength(1),
+      reason: 'the automatic attempt left offline and waits',
+    );
+    expect(sender.syncing, isTrue);
+
+    // The internet is back; the cashier presses "send now" (PosOffline.syncNow)
+    net.offline = false;
+    sender.nudge();
+    final Future<SyncDrainResult> now = sender.drain();
+    net.held.single.complete();
+    final SyncDrainResult r = await now;
+    await pumpEventQueue();
+
+    expect(r.drained, isTrue);
+    expect(server.appliedSeqs, <int>[1]);
+    expect(store.pendingCount, 0);
+    expect(net.calls, 2);
+    expect(net.maxInFlight, 1, reason: 'never two sends at once');
+    expect(sender.failures, 0);
+    expect(sender.lastError, isNull);
+    expect(sender.nextRetryAt, isNull);
+  });
+
+  test('really offline: "send now" over a running attempt reruns once, then waits the normal backoff', () async {
+    final _Held net = _Held(server);
+    final SyncSender sender = SyncSender(
+      store: store,
+      transport: net,
+      backoff: const SyncBackoff(jitter: 0),
+    );
+    addTearDown(sender.dispose);
+    sender.start();
+    await queue(1);
+    await pumpEventQueue();
+    expect(net.held, hasLength(1));
+
+    sender.nudge();
+    final Future<SyncDrainResult> now = sender.drain();
+    net.held.single.complete();
+    final SyncDrainResult r = await now;
+    await pumpEventQueue();
+
+    expect(r.drained, isFalse);
+    expect(r.error, isA<SyncUnreachable>());
+    expect(
+      net.calls,
+      2,
+      reason: 'the attempt on the wire and one rerun, no loop',
+    );
+    expect(net.maxInFlight, 1);
+    expect(sender.failures, 2);
+    expect(
+      sender.nextRetryAt,
+      isNotNull,
+      reason: 'the normal backoff takes over',
+    );
+
+    // Nothing running: "send now" is exactly one attempt
+    sender.nudge();
+    await sender.drain();
+    await pumpEventQueue();
+    expect(net.calls, 3);
+    expect(sender.nextRetryAt, isNotNull);
+  });
+
   test('the backoff is capped', () {
     const SyncBackoff b = SyncBackoff(
       base: Duration(seconds: 2),
@@ -244,6 +323,40 @@ void main() {
       expect((body['queue']! as Map<String, Object?>)['size'], 3);
     },
   );
+}
+
+/// The network as the till sees it: a request decides "offline" when it leaves, and the failure can be held on its
+/// way back ([holdNext]), as dio's interceptor hops hold it for a few event-loop turns.
+class _Held implements SyncTransport {
+  _Held(this.inner);
+
+  final FakeServer inner;
+  bool offline = true;
+  bool holdNext = true;
+  final List<Completer<void>> held = <Completer<void>>[];
+  int calls = 0;
+  int inFlight = 0;
+  int maxInFlight = 0;
+
+  @override
+  Future<SyncBatchResponse> send(SyncBatchRequest request) async {
+    calls++;
+    inFlight++;
+    maxInFlight = max(maxInFlight, inFlight);
+    try {
+      final bool leftOffline = offline;
+      if (holdNext) {
+        holdNext = false;
+        final Completer<void> c = Completer<void>();
+        held.add(c);
+        await c.future;
+      }
+      if (leftOffline) throw const SyncUnreachable('offline');
+      return await inner.send(request);
+    } finally {
+      inFlight--;
+    }
+  }
 }
 
 class _Recording implements SyncTransport {
