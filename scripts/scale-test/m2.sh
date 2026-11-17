@@ -5,7 +5,8 @@
 #   <label>.json/.txt (load.mjs), .pgss.txt, .fpm.txt (logstats.mjs: pools, 304 share, PHP CPU and bytes per endpoint),
 #   .pgbouncer.txt, .redis.txt. Waits (up to 3 min) for the 1-min load average to drop under 1.0 before starting.
 # Presets (the M2 report): see the `case` below, e.g. ./m2.sh L1_m1mode m1-L1; m1-P / m2-P = the polling fleet only
-# (no lunch writes: off-peak); DEBOUNCE_MS (300) = the screens' event debounce in the m2 presets
+# (no lunch writes: off-peak); DEBOUNCE_MS (300) = the screens' event debounce in the m2 presets; m2b-L1 / m2b-L3 / m2b-P
+# = the fix round 2 clients (paced, relevant re-reads; RT=1; TILL=alt|stack)
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 LABEL=${1:?label}; CFG=${2:?cfg json or preset}
@@ -15,6 +16,7 @@ OLDPOLL='"poll":{"web_s":15}'
 LIVEPOLL='"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60}'
 FALLPOLL='"poll":{"till_s":15,"kds_s":15,"display_s":5,"web_s":15}'
 COND="\"client\":{\"cond\":true,\"unconditional_s\":110,\"debounce_ms\":${DEBOUNCE_MS:-300}"
+PACED="\"client\":{\"cond\":true,\"unconditional_s\":110,\"rules\":\"paced\",\"till\":\"${TILL:-alt}\",\"refresh\":\"ws\""
 case $CFG in
   m1-L1) CFG="{$LUNCH,$OLDPOLL}";;
   m1-L3) CFG="{$LUNCH,$OLDPOLL,\"market\":{$SPIKE}}";;
@@ -25,6 +27,11 @@ case $CFG in
   m1-P) CFG="{$OLDPOLL}";;
   m2-P) CFG="{$LIVEPOLL,$COND,\"refresh\":\"${REFRESH:-ws}\"}}";;
   m2-L1-down) CFG="{$LUNCH,$FALLPOLL,$COND}}";;
+  # M2 fix round 2 clients (load.mjs rules 'paced'; RT=1): TILL=alt (default, the m1/m2 till model) or stack (floor
+  # screen alive under the order page, as the app's Navigator.push)
+  m2b-L1) CFG="{$LUNCH,$LIVEPOLL,$PACED}}";;
+  m2b-L3) CFG="{$LUNCH,$LIVEPOLL,$PACED},\"market\":{$SPIKE,\"mode\":\"m2\",\"orders_s\":60}}";;
+  m2b-P) CFG="{$LIVEPOLL,$PACED}}";;
   probe304) CFG='{"probe304":{"reps":40}}';;
 esac
 export SERVER=fpm DB_POOLER=pgbouncer DB_DATABASE=${DB_DATABASE:-scale_m2}

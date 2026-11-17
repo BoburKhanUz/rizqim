@@ -70,7 +70,7 @@ async function call(group, label, method, path, token, body, xff, cc) {
     status = -1; errors[`${label} EXC ${e.name}`] = (errors[`${label} EXC ${e.name}`] || 0) + 1;
   }
   samples.push([now(), label, performance.now() - s, status, group, bytes, sentCond]);
-  return { status, data: json?.data, json, rev, scope };
+  return { status, data: json?.data, json, rev, scope, bytes };
 }
 function pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] : null; }
 function summarize(list, seconds) {
@@ -148,7 +148,7 @@ async function lunchTill(s, till, ti, c) {
       : { channel: 'pos_takeaway', items: clean(items(s, 2 + Math.floor(Math.random() * 3))) };
     let r = await call('pos', 'POST /pos/orders', 'POST', '/pos/orders', till.staff_token, body);
     if (r.status !== 201) { await sleep(5000); continue; }
-    const uuid = r.data.uuid; let v = r.data.version; tillState.set(till.device_uuid, uuid); simEvent(s, uuid);
+    const uuid = r.data.uuid; let v = r.data.version; tillState.set(till.device_uuid, uuid); tillHook(till, uuid); simEvent(s, uuid);
     await think();
     r = await call('pos', 'POST /pos/orders/:id/rounds', 'POST', `/pos/orders/${uuid}/rounds`, till.staff_token, { version: v, items: clean(items(s, 1 + Math.floor(Math.random() * 2))) });
     v = r.data?.version ?? v; simEvent(s, uuid); await think();
@@ -162,7 +162,7 @@ async function lunchTill(s, till, ti, c) {
       v = r.data?.order?.version ?? v; simEvent(s, uuid);
       await call('pos', 'POST /pos/orders/:id/close', 'POST', `/pos/orders/${uuid}/close`, till.staff_token, { version: v });
     }
-    tillState.delete(till.device_uuid); simEvent(s, uuid);
+    tillState.delete(till.device_uuid); tillHook(till, null); simEvent(s, uuid);
     await sleep(rnd(...(c.gap_s || [30, 60])) * 1000);
   }
 }
@@ -193,7 +193,10 @@ function pollStore(s, c) {
 //    of the branch, 50-250 ms after it): `rev` N+1 or unknown -> one debounced (300 ms) conditional read; rev == N -> none.
 //  - one read at a time; asked again while reading -> one more read after it.
 const devs = []; const devsByBranch = new Map(); const devsByStore = new Map();
-const rt = { sockets: 0, subscribed: 0, auth_fail: 0, ws_errors: 0, ws_closed: 0, events: 0, heartbeats: 0, skipped_same: 0, event_reads: 0, heartbeat_reads: 0, poll_reads: 0, full_reads: 0 };
+const rt = { sockets: 0, subscribed: 0, auth_fail: 0, ws_errors: 0, ws_closed: 0, events: 0, heartbeats: 0, skipped_same: 0, event_reads: 0, heartbeat_reads: 0, poll_reads: 0, full_reads: 0,
+  // m2b (rules 'paced'): relevant events that asked a read, skipped as already asked, ignored (fed S only), due reads dropped as covered by R, heartbeats that asked, owner board gaps / kitchen events applied from the payload, floor reads on return from an order (till 'stack')
+  asked: 0, skipped_asked: 0, ignored: 0, dropped: 0, retries: 0, heartbeat_asks: 0, board_gap: 0, board_applied: 0, return_reads: 0 };
+const readsByKind = {}; // m2b: reads per screen kind and cause
 class Dev {
   constructor(group, kind, sec, read, { uncond_s, filter, scoped } = {}) {
     Object.assign(this, { group, kind, sec, read, uncond_s: uncond_s ?? 110, filter: filter || (() => true), scoped: scoped !== false });
@@ -272,6 +275,237 @@ function simEvent(s, uuid) {
   if (cfg.client?.refresh !== 'sim') return;
   for (const d of [...(devsByBranch.get(s.branch_id) || []), ...(devsByStore.get(s.store_id) || [])]) setTimeout(() => { rt.events++; d.event({ order: { uuid } }, null, 'order.status_changed'); }, rnd(50, 250));
 }
+// b3) M2 fix round 2 client (cfg.client.rules = 'paced', the `m2b` presets), modelled on rizqim_api
+// sync/{refresh_pacing,screen_relevance,channel_revision}.dart, pos_data PosRefreshScheduler, the KDS / display
+// controllers and, for the owner board, @rizqim/staff realtime/{throttle,revision,boardCache}.ts + partner/web
+// LiveOrders.tsx / lib/realtime.ts:
+//  - Throttle: a request with nothing pending fires after U(0, spread); the window W starts when it fires; requests
+//    during W collapse into ONE fire at its end + a new U(0, spread). Flutter: a fire that reads nothing opens no window.
+//  - Flutter screens: R (token a read proved, X-Revision of the screen's scope), S (accounted for), doubt; every event
+//    of the channel feeds S; a relevant one reads (paced) unless rev == R or == the latest rev already asked for; a
+//    heartbeat reads when rev != S, or rev == S with doubt (tills, KDS; never the display); a due read whose asks are
+//    all covered by R is dropped. Every read (poll too) clears what was asked.
+//  - KDS 2 s / 0-500 ms (kitchen events), floor 5 s / 0-1.5 s (floor events), open order 1 s / 0-300 ms (its order),
+//    display 300 / 0-250 ms (display.cart, queue.*: the driver emits none). Polls are not paced: till 60 s periodic
+//    (no If-None-Match every 110 s of polls, polls only), display 30 s periodic, KDS 15 s AFTER ITS LAST READ (the
+//    controller re-arms its timer after every read); KDS and display send the full read on the next read of any cause.
+//  - Owner board: every event feeds the RevisionTracker; relevant (order.created/status_changed/assigned/items_changed,
+//    bill_changed payment/voided/none) -> GET /staff/orders/{uuid} paced 3 s / 0-1 s, distinct uuids once per batch,
+//    > 5 uuids -> one open-list read; kitchen.item_status_changed applied from the payload; gap / heartbeat ahead ->
+//    one open-list read (GET /staff/orders?scope=active) paced 30 s / 0-5 s; safety poll of the open list every web_s
+//    (60 s), always If-None-Match (browser); no ?status=new poll (the badge is derived from the open list).
+//  - cfg.client.till: 'alt' (default; as the m1/m2 driver: the floor screen does not read while an order page is open,
+//    it only feeds its S) or 'stack' (as the app's Navigator.push: the floor stays mounted and reads under the order
+//    page, and reads again at once when the order page closes, floor_page.dart refreshNow).
+//  - cfg.client.pacing overrides {kds, floor, order, display, board_order, board_list: [window_ms, spread_ms]}.
+const PACING = { kds: [2000, 500], floor: [5000, 1500], order: [1000, 300], display: [300, 250], board_order: [3000, 1000], board_list: [30000, 5000], ...(cfg.client?.pacing || {}) };
+const REV_WINDOW = 100000n;
+const below = (a, b) => { const d = b - a; return d > 0n && d <= REV_WINDOW; };
+const covers = (b, a) => a === b || below(a, b);
+const big = (v) => { try { return v === undefined || v === null || v === '' ? null : BigInt(v); } catch { return null; } };
+const rtk = (kind, cause) => { const o = (readsByKind[kind] ||= {}); o[cause] = (o[cause] || 0) + 1; };
+class Throttle {
+  constructor([windowMs, spreadMs], onFire, alwaysWindow) { Object.assign(this, { windowMs, spreadMs, onFire, alwaysWindow }); this.lead = null; this.win = null; this.trailing = false; this.off = false; }
+  request() { if (this.off || this.lead) return; if (this.win) { this.trailing = true; return; } this.lead = setTimeout(() => this.fire(), rnd(0, this.spreadMs)); }
+  fire() { this.lead = null; if (this.off) return; const started = this.onFire(); if ((started || this.alwaysWindow) && this.windowMs > 0) this.win = setTimeout(() => this.endWindow(), this.windowMs); }
+  endWindow() { this.win = null; if (this.off || !this.trailing) return; this.trailing = false; this.lead = setTimeout(() => this.fire(), rnd(0, this.spreadMs)); }
+  cancel() { clearTimeout(this.lead); clearTimeout(this.win); this.lead = this.win = null; this.trailing = false; }
+  dispose() { this.off = true; this.cancel(); }
+}
+const KNOWN_BRANCH_EVENTS = new Set(['order.created', 'order.status_changed', 'order.assigned', 'order.items_changed', 'order.bill_changed', 'order.bill_requested', 'order.course_ready', 'order.transferred', 'kitchen.item_status_changed', 'kitchen.order_assembled', 'queue.preparing', 'queue.ready', 'queue.handed', 'queue.canceled', 'qr.paid', 'qr.cancelled', 'qr.expired', 'qr.pending', 'bill.print_requested', 'booking.changed', 'table.state_changed', 'waitlist.changed', 'shift.changed', 'fiscal.receipt_updated', 'menu.availability_changed', 'display.cart', 'pos.lan_changed']);
+const Relevance = {
+  kitchen: (name) => name.startsWith('queue.') || ['order.created', 'order.status_changed', 'order.assigned', 'order.items_changed', 'kitchen.item_status_changed', 'kitchen.order_assembled'].includes(name) || !KNOWN_BRANCH_EVENTS.has(name),
+  floor: (name, data) => { if (name === 'order.bill_changed') return data?.change !== 'payment' && data?.change !== 'fiscal'; if (name.startsWith('order.')) return true; return ['kitchen.item_status_changed', 'kitchen.order_assembled', 'booking.changed', 'table.state_changed'].includes(name) || !KNOWN_BRANCH_EVENTS.has(name); },
+  display: (name) => name.startsWith('queue.') || name === 'display.cart', // the driver has one till's cart per display: every cart
+  board: (name, data) => ['order.created', 'order.status_changed', 'order.assigned', 'order.items_changed'].includes(name) || (name === 'order.bill_changed' && (typeof data?.change !== 'string' || data.change === '' || ['payment', 'voided'].includes(data.change))),
+};
+// One Flutter screen: PacedRefresh + ChannelRevision + its own single-flight read and poll timer
+class PacedScreen {
+  constructor({ kind, pollS, pollAfterRead, uncondAnyRead, filter, pacing, readOnDoubt, read, etags, scope }) {
+    Object.assign(this, { kind, pollS, pollAfterRead: !!pollAfterRead, uncondAnyRead: !!uncondAnyRead, filter, readOnDoubt: readOnDoubt !== false, read, etags, scope });
+    this.R = null; this.S = null; this.doubt = false; this.asked = null; this.pending = []; this.pendingEvent = false; this.pendingDoubt = false; this.pendingFresh = false; this.inFlightFresh = false;
+    this.busy = false; this.again = null; this.since = 0; this.nextFull = false; this.active = true; this.disposed = false; this.pollTimer = null;
+    this.throttle = new Throttle(pacing, () => this.due(), false);
+  }
+  readStarted() { this.inFlightFresh = this.pendingFresh; this.pending = []; this.pendingEvent = false; this.pendingDoubt = false; this.pendingFresh = false; }
+  readDone(proven) {
+    this.inFlightFresh = false;
+    if (proven === null) this.R = null;
+    else { this.R = proven; if (this.S === null || !below(proven, this.S)) { this.S = proven; this.doubt = false; } }
+    if (this.asked !== null && proven !== null && covers(proven, this.asked)) this.asked = null;
+  }
+  // a failed read that had taken fresh asks asks again ONCE, paced (review SR-2)
+  readFailed() { this.R = null; if (this.S !== null) this.doubt = true; this.asked = null; const retry = this.inFlightFresh; this.inFlightFresh = false; if (!retry || this.disposed) return; rt.retries++; this.pending.push(null); this.pendingEvent = true; this.throttle.request(); }
+  ignored(rev) {
+    rt.ignored++;
+    if (rev === null || this.S === null) return;
+    if (rev === this.S || rev === this.S + 1n) this.S = rev; else if (below(rev, this.S)) { /* late, accounted for */ } else { this.S = rev; this.doubt = true; }
+  }
+  event(data, chKey, name) {
+    if (this.disposed) return;
+    const rev = big(data?.rev?.[chKey]);
+    if (!this.active || !this.filter(name, data)) { this.ignored(rev); return; }
+    if (rev !== null && rev === this.asked) { rt.skipped_asked++; return; }
+    if (rev !== null && this.R !== null && rev === this.R) { rt.skipped_same++; return; }
+    if (rev !== null && (this.S === null || !below(rev, this.S))) this.S = rev;
+    if (rev !== null) this.asked = rev;
+    this.pending.push(rev); this.pendingEvent = true; this.pendingFresh = true; rt.asked++;
+    this.throttle.request();
+  }
+  heartbeat(data, chKey) {
+    if (this.disposed || !this.active) return;
+    const rev = big(data?.rev?.[chKey]);
+    if (rev === null || this.S === null) return;
+    if (rev !== this.S) { this.pending.push(rev); rtk(this.kind, 'hb_missed'); }
+    else if (!this.doubt || !this.readOnDoubt) return;
+    else { this.pending.push(rev); this.pendingDoubt = true; rtk(this.kind, 'hb_doubt'); }
+    rt.heartbeat_asks++; this.pendingFresh = true;
+    this.throttle.request();
+  }
+  due() {
+    if (this.disposed || !this.pending.length) { rtk(this.kind, 'due_nothing'); return false; }
+    if (this.R !== null && !(this.pendingDoubt && this.doubt) && this.pending.every((t) => t !== null && covers(this.R, t))) { rt.dropped++; rtk(this.kind, 'due_dropped'); this.readStarted(); return false; }
+    this.trigger(this.pendingEvent ? 'event' : 'heartbeat');
+    return true;
+  }
+  async trigger(reason) {
+    if (this.disposed || !running()) return;
+    if (this.busy) { this.again = reason; return; }
+    this.busy = true;
+    try {
+      let next = reason;
+      while (next && running() && !this.disposed) {
+        const full = this.nextFull && (this.uncondAnyRead || next === 'poll');
+        if (full) { this.nextFull = false; rt.full_reads++; }
+        rt[next + '_reads'] = (rt[next + '_reads'] || 0) + 1; rtk(this.kind, next);
+        this.readStarted();
+        const r = await this.read({ etags: this.etags, uncond: full });
+        if (r && (r.status === 200 || r.status === 304)) this.readDone(r.scope === this.scope ? big(r.rev) : null); else this.readFailed();
+        next = this.again; this.again = null;
+      }
+    } finally { this.busy = false; }
+    if (this.pollAfterRead) this.armAfterRead();
+  }
+  tick() { this.since += this.pollS; if (this.since >= 110) { this.since = 0; this.nextFull = true; } if (this.active) this.trigger('poll'); }
+  armAfterRead() { clearTimeout(this.pollTimer); if (this.disposed || !running()) return; this.pollTimer = setTimeout(() => this.tick(), this.pollS * 1000); }
+  // periodic (Timer.periodic: fixed schedule, not delayed by the reads) or, for the KDS, re-armed after each read
+  start(firstMs = rnd(0, this.pollS) * 1000) {
+    if (this.pollAfterRead) { this.pollTimer = setTimeout(() => this.tick(), firstMs); return; }
+    const t0 = Date.now() + firstMs; let k = 0;
+    const step = () => { if (this.disposed || !running()) return; this.tick(); k++; this.pollTimer = setTimeout(step, Math.max(0, t0 + k * this.pollS * 1000 - Date.now())); };
+    this.pollTimer = setTimeout(step, firstMs);
+  }
+  dispose() { this.disposed = true; this.throttle.dispose(); clearTimeout(this.pollTimer); this.pending = []; }
+}
+// A till app: one socket (PosRealtime), the floor screen and, while an order is open, its order page
+class TillApp {
+  constructor(s, till, c) {
+    Object.assign(this, { s, till, c, group: 'poll', kind: 'till', token: till.staff_token, channel: `private-pos-branch.${s.branch_id}` });
+    this.etags = new Map(); this.stack = cfg.client.till === 'stack'; this.order = null;
+    this.floor = new PacedScreen({ kind: 'floor', pollS: c.till_s ?? 60, filter: Relevance.floor, pacing: PACING.floor, etags: this.etags, scope: `branch:${s.branch_id}`,
+      read: (cc) => call('poll', 'GET /pos/floor', 'GET', '/pos/floor', till.staff_token, undefined, undefined, cc) });
+  }
+  open(uuid) {
+    this.order?.dispose();
+    const o = new PacedScreen({ kind: 'order', pollS: this.c.till_s ?? 60, filter: (name, data) => data?.order?.uuid === uuid, pacing: PACING.order, etags: this.etags, scope: `branch:${this.s.branch_id}`,
+      read: (cc) => call('poll', 'GET /pos/orders/:id', 'GET', `/pos/orders/${uuid}`, this.till.staff_token, undefined, undefined, cc) });
+    o.start((this.c.till_s ?? 60) * 1000); this.order = o;
+    if (!this.stack) this.floor.active = false;
+  }
+  close() {
+    this.order?.dispose(); this.order = null;
+    if (!this.stack) this.floor.active = true; else this.floor.trigger('return');
+  }
+  event(data, chKey, name) { this.floor.event(data, chKey, name); this.order?.event(data, chKey, name); }
+  heartbeat(data, chKey) { this.floor.heartbeat(data, chKey); this.order?.heartbeat(data, chKey); }
+  start() { this.floor.start(); return sleep(Math.max(0, DURATION - rel())); }
+}
+// Port of @rizqim/staff RevisionTracker (readTtlMs 150 s)
+class RevisionTracker {
+  constructor() { this.ch = new Map(); }
+  st(c) { let s = this.ch.get(c); if (!s) this.ch.set(c, (s = { reads: new Map(), everRead: false, lastEvent: undefined, lastHeard: undefined, latest: undefined })); return s; }
+  fresh(s) { const old = Date.now() - 150000; const out = []; for (const [k, r] of s.reads) { if (r.at < old) s.reads.delete(k); else out.push(r.token); } return out; }
+  noteRead(scope, token, key) {
+    const m = /^(branch|store|user):(\d+)$/.exec(scope || ''); if (!m || !/^\d{1,30}$/.test(token || '')) return;
+    for (const c of m[1] === 'branch' ? [`pos-branch.${m[2]}`, `branch.${m[2]}`] : [`${m[1]}.${m[2]}`]) { const s = this.st(c); s.everRead = true; s.reads.set(key, { token, at: Date.now() }); s.latest = token; }
+  }
+  onEvent(c, rev) {
+    const s = this.st(c); const v = this.classify(s, rev);
+    const late = rev !== null && s.lastEvent !== undefined && BigInt(s.lastEvent) - BigInt(rev) > 0n && BigInt(s.lastEvent) - BigInt(rev) <= REV_WINDOW;
+    if (rev !== null && !late) { s.lastEvent = rev; s.lastHeard = rev; s.latest = rev; }
+    return v;
+  }
+  classify(s, rev) {
+    const next = (a, b) => BigInt(a) + 1n === BigInt(b);
+    if (!s.everRead || rev === null) return 'untracked';
+    const reads = this.fresh(s);
+    if (reads.length && reads.every((t) => t === rev)) return 'same';
+    if (s.lastEvent !== undefined && (s.lastEvent === rev || next(s.lastEvent, rev))) return 'next';
+    if (reads.length && reads.every((t) => t === rev || next(t, rev))) return 'next';
+    if (!reads.length && s.lastEvent === undefined) return 'untracked';
+    return 'missed';
+  }
+  onHeartbeat(c, rev) {
+    if (rev === null) return 'fine';
+    const s = this.st(c); const heard = s.lastHeard; s.lastHeard = rev;
+    if (!s.everRead) return heard !== undefined && heard !== rev ? 'reread' : 'fine';
+    const reads = this.fresh(s);
+    if (reads.length && reads.every((t) => t === rev)) return 'fine';
+    if (s.lastEvent === rev || s.latest === rev) return 'fine';
+    if (!reads.length && s.lastEvent === undefined) return heard !== undefined && heard !== rev ? 'reread' : 'fine';
+    return 'reread';
+  }
+}
+// The owner's board tab (LiveOrders + the board page): store-wide channel for an owner
+class OwnerBoard {
+  constructor(s, c) {
+    Object.assign(this, { s, c, group: 'poll', kind: 'owner', token: s.owner, channel: `private-store.${s.store_id}` });
+    this.etags = new Map(); this.tracker = new RevisionTracker(); this.uuids = new Set();
+    this.list = new Throttle(PACING.board_list, () => { this.readList('gap_or_heartbeat'); return true; }, true);
+    this.orderT = new Throttle(PACING.board_order, () => {
+      const u = [...this.uuids]; this.uuids.clear();
+      if (!u.length) return true;
+      if (u.length > 5) { this.readList('batch'); return true; }
+      Promise.all(u.map((x) => this.get('GET /staff/orders/:id', `/staff/orders/${x}`, 'event'))).then((rs) => { if (rs.some((r) => !(r.status === 200 || r.status === 304 || r.status === 404 || r.status === 403))) this.list.request(); });
+      return true;
+    }, true);
+  }
+  async get(label, path, cause) {
+    if (!running()) return { status: 0 };
+    rt[(cause === 'event' || cause === 'batch' ? 'event' : cause === 'poll' ? 'poll' : 'heartbeat') + '_reads']++; rtk('owner', cause === 'event' ? 'order' : 'list_' + cause);
+    const r = await call('poll', label, 'GET', path, this.token, undefined, undefined, { etags: this.etags, uncond: false });
+    // a single-record read (a uuid in the path) never vouches for the scope (review SR-1)
+    if ((r.status === 200 || r.status === 304) && r.scope && r.rev && !/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/|$|\?)/i.test(path)) this.tracker.noteRead(r.scope, r.rev, path);
+    return r;
+  }
+  readList(cause) { return this.get('GET /staff/orders?scope=active', '/staff/orders?scope=active', cause); }
+  event(data, chKey, name) {
+    const rev = data?.rev?.[chKey] !== undefined ? String(data.rev[chKey]) : null;
+    const v = this.tracker.onEvent(chKey, rev); const relevant = Relevance.board(name, data);
+    if (v === 'missed') { rt.board_gap++; this.list.request(); }
+    if (name === 'kitchen.item_status_changed') rt.board_applied++;
+    else if (relevant && v === 'same') rt.skipped_same++;
+    else if (relevant) { const u = data?.order?.uuid; if (typeof u !== 'string') this.list.request(); else { if (this.uuids.size < 50) this.uuids.add(u); this.orderT.request(); } rt.asked++; }
+    else rt.ignored++;
+  }
+  heartbeat(data, chKey) { const rev = data?.rev?.[chKey] !== undefined ? String(data.rev[chKey]) : null; if (this.tracker.onHeartbeat(chKey, rev) === 'reread') { rt.heartbeat_asks++; this.list.request(); } }
+  start() { return every(this.c.web_s ?? 60, () => this.readList('poll')); }
+}
+const tillApps = new Map(); // device_uuid -> TillApp (m2b)
+function pollStoreM2b(s, c) {
+  for (const till of s.tills) { const a = new TillApp(s, till, c); tillApps.set(till.device_uuid, a); devs.push(a); }
+  const mk = (kind, pollS, opts, path, label, token) => {
+    const scr = new PacedScreen({ kind, pollS, etags: new Map(), scope: `branch:${s.branch_id}`, read: (cc) => call('poll', label, 'GET', path, token, undefined, undefined, cc), ...opts });
+    Object.assign(scr, { group: 'poll', token, channel: `private-pos-branch.${s.branch_id}` });
+    const start = scr.start.bind(scr); scr.start = () => { start(); return sleep(Math.max(0, DURATION - rel())); };
+    devs.push(scr);
+  };
+  if (s.kds) mk('kds', c.kds_s ?? 15, { pollAfterRead: true, uncondAnyRead: true, filter: Relevance.kitchen, pacing: PACING.kds }, '/staff/kitchen/tickets', 'GET /staff/kitchen/tickets', s.kds);
+  if (s.display) mk('display', c.display_s ?? 30, { uncondAnyRead: true, readOnDoubt: false, filter: Relevance.display, pacing: PACING.display }, '/pos/display/state', 'GET /pos/display/state', s.display);
+  if (s.owner && c.web_s) devs.push(new OwnerBoard(s, c));
+}
+const tillHook = (till, uuid) => { const a = tillApps.get(till.device_uuid); if (!a) return; if (uuid) a.open(uuid); else a.close(); };
+
 // 'ws' refresh: a real Pusher-protocol socket per screen (Node 22 WebSocket), subscribed with POST /api/broadcasting/auth
 const RV = { port: process.env.REVERB_PORT || 18580, key: process.env.REVERB_APP_KEY || '' };
 function openSocket(d) {
@@ -499,6 +733,7 @@ async function probe304(c) {
     ['GET /pos/floor', '/pos/floor', till.staff_token], ['GET /pos/orders/:id', `/pos/orders/${o.data?.uuid}`, till.staff_token],
     ['GET /staff/kitchen/tickets', '/staff/kitchen/tickets', s.kds], ['GET /pos/display/state', '/pos/display/state', s.display],
     ['GET /staff/orders', '/staff/orders', s.owner], ['GET /staff/orders?status=new', '/staff/orders?status=new', s.owner],
+    ['GET /staff/orders?scope=active', '/staff/orders?scope=active', s.owner], ['GET /staff/orders/:id', `/staff/orders/${o.data?.uuid}`, s.owner],
     ['GET /notifications (owner)', '/notifications', s.owner], ['GET /notifications', '/notifications', cust], ['GET /orders?scope=active', '/orders?scope=active', cust],
     ['GET /stores?geo&page', `/stores?${loc}&page=1&per_page=10`, cust], ['GET /catalog?geo&view=cards', `/catalog?${loc}&view=cards&limit=50`, cust],
     ['GET /catalog?store_id', `/catalog?store_id=${m.store_uuid}`, cust], ['GET /catalog/availability', `/catalog/availability?store_id=${m.store_id}`, cust],
@@ -512,13 +747,14 @@ async function probe304(c) {
       cc.uncond = mode === '200';
       await call('probe', label, 'GET', path, tok, undefined, undefined, cc); // warm (and the ETag for the 304 batch)
       await sleep(1000);
-      const p0 = await calls(), c0 = await cpuSnap(); const lat = [], st = {};
-      // market-pool paths share nginx's per-client 5 r/s + 20 burst: those go at ~4 r/s (the gap is idle time, not CPU)
-      const gap = /^\/(stores|catalog|orders|notifications)/.test(path) ? 250 : 0;
-      for (let k = 0; k < reps; k++) { if (gap) await sleep(gap); const t = performance.now(); const r = await call('probe', `${label} [${mode}]`, 'GET', path, tok, undefined, undefined, cc); lat.push(performance.now() - t); st[r.status] = (st[r.status] || 0) + 1; }
+      const p0 = await calls(), c0 = await cpuSnap(); const lat = [], st = {}; let bytes = 0;
+      // market-pool paths share nginx's per-client 5 r/s + 20 burst: those go at ~4 r/s (the gap is idle time, not CPU);
+      // the owner's board reads too (Laravel's `api` limiter: 300 per minute per user, and the owner reads 5 of them in a row)
+      const gap = /^\/(stores|catalog|orders|notifications|staff\/orders)/.test(path) ? 250 : 0;
+      for (let k = 0; k < reps; k++) { if (gap) await sleep(gap); const t = performance.now(); const r = await call('probe', `${label} [${mode}]`, 'GET', path, tok, undefined, undefined, cc); lat.push(performance.now() - t); st[r.status] = (st[r.status] || 0) + 1; bytes += r.bytes || 0; }
       const c1 = await cpuSnap(), p1 = await calls();
       lat.sort((a, b) => a - b);
-      row[mode] = { status: st, stmts: +((p1 - p0) / reps).toFixed(1), php_ms: +(((c1.php - c0.php) * 10) / reps).toFixed(1), pg_ms: +(((c1.postgres - c0.postgres) * 10) / reps).toFixed(1), pgb_ms: +(((c1.pgbouncer - c0.pgbouncer) * 10) / reps).toFixed(2), redis_ms: +(((c1.redis - c0.redis) * 10) / reps).toFixed(2), p50: +pct(lat, 50).toFixed(1) };
+      row[mode] = { status: st, stmts: +((p1 - p0) / reps).toFixed(1), php_ms: +(((c1.php - c0.php) * 10) / reps).toFixed(1), pg_ms: +(((c1.postgres - c0.postgres) * 10) / reps).toFixed(1), pgb_ms: +(((c1.pgbouncer - c0.pgbouncer) * 10) / reps).toFixed(2), redis_ms: +(((c1.redis - c0.redis) * 10) / reps).toFixed(2), p50: +pct(lat, 50).toFixed(1), body_bytes: Math.round(bytes / reps) };
     }
     probe304Out[label] = row;
   }
@@ -541,7 +777,7 @@ if (args.pgss) await psql('select pg_stat_statements_reset()');
 const setup = [...needShift].flatMap((s) => s.tills);
 for (let i = 0; i < setup.length; i += 6) await Promise.all(setup.slice(i, i + 6).map(ensureShift));
 // M2 screens: register them, open their sockets (cfg.client.refresh = 'ws') during setup, outside the stats window
-if (cfg.poll && cfg.client?.cond) pollStores.forEach((s) => pollStoreM2(s, cfg.poll));
+if (cfg.poll && cfg.client?.cond) pollStores.forEach((s) => (cfg.client.rules === 'paced' ? pollStoreM2b : pollStoreM2)(s, cfg.poll));
 if (cfg.client?.refresh === 'ws') for (let i = 0; i < devs.length; i += 10) await Promise.all(devs.slice(i, i + 10).map(openSocket));
 const rtSetup = { ...rt };
 const redis0 = await redisStats();
@@ -577,7 +813,7 @@ const res = {
   cpu_s: Object.fromEntries(Object.keys(cpu1).map((k) => [k, +((cpu1[k] - cpu0[k]) / hz).toFixed(2)])),
   postgres_rt_s: rtPgS,
   redis: { commands: redis1.cmds - redis0.cmds, cmd_per_s: +((redis1.cmds - redis0.cmds) / wall).toFixed(1), net_in: redis1.in - redis0.in, net_out: redis1.out - redis0.out, top: Object.fromEntries(Object.entries(redis1.by).map(([k, v]) => [k, v - (redis0.by[k] || 0)]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 12)) },
-  realtime: cfg.client ? { event_names: eventNames, setup: rtSetup, run: Object.fromEntries(Object.entries(rt).map(([k, v]) => [k, v - (rtSetup[k] || 0)])), screens: devs.length } : undefined,
+  realtime: cfg.client ? { rules: cfg.client.rules || 'm2', till: cfg.client.rules === 'paced' ? cfg.client.till || 'alt' : undefined, event_names: eventNames, setup: rtSetup, run: Object.fromEntries(Object.entries(rt).map(([k, v]) => [k, v - (rtSetup[k] || 0)])), reads_by_kind: cfg.client.rules === 'paced' ? readsByKind : undefined, screens: devs.length } : undefined,
   probe304: probe304Out,
   db: Object.fromEntries(['xacts', 'tup_ins', 'tup_upd', 'tup_del', 'tup_returned', 'tup_fetched', 'blks_hit', 'blks_read'].map((k, i) => [k, db1[i] - db0[i]])),
   activity: activity.length ? { samples: activity.length, max_conn: Math.max(...activity.map((a) => a[1])), max_active: Math.max(...activity.map((a) => a[2])), lock_wait_samples: activity.filter((a) => a[3] > 0).length, max_idle_in_tx: Math.max(...activity.map((a) => a[4])) } : undefined,

@@ -30,6 +30,13 @@ if (rts.length) {
   console.log('|---|---|---|---|---|---|---|');
   for (const [n, r] of rts) { const s = r.realtime.setup, x = r.realtime.run; console.log(`| ${n} | ${r.realtime.screens} | ${s.subscribed}/${s.sockets} | ${x.events} / ${x.heartbeats} | ${x.poll_reads} / ${x.event_reads} / ${x.heartbeat_reads} | ${x.skipped_same} | ${x.full_reads} |`); }
 }
+// m2b (rules 'paced'): reads per screen and cause, and what happened to the events
+const pz = runs.filter(([, r]) => r.realtime?.reads_by_kind);
+if (pz.length) {
+  console.log('\n| run (till model) | events asked / skipped (rev = R / already asked) / ignored | heartbeats asked | due reads dropped (covered) | return reads | reads by screen: cause n |');
+  console.log('|---|---|---|---|---|---|');
+  for (const [n, r] of pz) { const x = r.realtime.run; const k = Object.entries(r.realtime.reads_by_kind).map(([kind, o]) => `${kind}: ${Object.entries(o).map(([c, v]) => `${c} ${v}`).join(', ')}`).join('; '); console.log(`| ${n} (${r.realtime.till}) | ${x.asked} / ${x.skipped_same} / ${x.skipped_asked} / ${x.ignored} | ${x.heartbeat_asks} | ${x.dropped} | ${x.return_reads || 0} | ${k} |`); }
+}
 // phases
 const ph = runs.filter(([, r]) => r.phases);
 if (ph.length) {
