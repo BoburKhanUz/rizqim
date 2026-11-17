@@ -1541,6 +1541,8 @@ void main() {
 
     test('the fryer falls behind: its lines turn late on the display while the other stations keep up', () async {
       crew.paused.add(stationIds['fryer']!);
+      // A failure here must not leave the fryer paused for the tests after it
+      addTearDown(() => crew.paused.remove(stationIds['fryer']!));
       final List<Sale> c = <Sale>[
         for (var i = 0; i < 6; i++)
           plan(
@@ -1569,7 +1571,9 @@ void main() {
               .every((LineSeen l) => l.lateSeen),
         ),
         what: 'every waiting fryer line late on the display',
-        timeout: const Duration(seconds: 60),
+        // The nuggets turn late 30 s after they were sent: the display sees it at its next read, not after an
+        // incidental write elsewhere in the branch moved the token (a conditional read replays the old body)
+        timeout: const Duration(seconds: 45),
       );
       final List<LineSeen> fryerLines = crew.lines.values
           .where(

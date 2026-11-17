@@ -286,7 +286,7 @@ void main() {
       });
     });
 
-    test('a failed read forgets R and doubts: the next heartbeat re-reads', () {
+    test('a failed read forgets R, doubts and asks again ONCE (paced); a failed retry leaves it to the heartbeat', () {
       fakeAsync((FakeAsync async) {
         open();
         p.event(rev('101'), relevant: true);
@@ -294,9 +294,23 @@ void main() {
         p.readStarted();
         p.readFailed();
         expect(p.revision!.known, isNull);
+        expect(p.revision!.doubt, isTrue);
+        expect(p.retries, 1);
+        // The retry waits for the end of the window
+        async.elapse(const Duration(seconds: 4));
+        expect(reads, hasLength(1));
+        async.elapse(const Duration(seconds: 2));
+        expect(reads, <PacedReason>[PacedReason.event, PacedReason.event]);
+        // The retry fails too: no further retry (no loop while offline)
+        p.readStarted();
+        p.readFailed();
+        expect(p.retries, 1);
+        async.elapse(const Duration(seconds: 20));
+        expect(reads, hasLength(2));
+        // The heartbeat at S with doubt re-reads
         expect(p.heartbeat(rev('101')), isTrue);
-        async.elapse(const Duration(seconds: 6));
-        expect(reads, <PacedReason>[PacedReason.event, PacedReason.heartbeat]);
+        async.elapse(Duration.zero);
+        expect(reads.last, PacedReason.heartbeat);
         p.dispose();
       });
     });

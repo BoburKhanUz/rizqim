@@ -215,6 +215,12 @@ class PacedRefresh {
   bool _pendingEvent = false;
   bool _pendingDoubt = false;
 
+  /// The pending entries include fresh asks (not only a retry of a failed read).
+  bool _pendingFresh = false;
+
+  /// The read running now took fresh asks: if it fails, they are asked again ONCE ([readFailed]).
+  bool _inFlightFresh = false;
+
   /// The latest relevant `rev` asked for and not yet proven (pending or being read).
   BigInt? _asked;
   bool _disposed = false;
@@ -224,6 +230,9 @@ class PacedRefresh {
 
   /// Paced reads that ran (tests).
   int paced = 0;
+
+  /// Paced retries after a failed read (tests).
+  int retries = 0;
 
   /// A paced read is waiting.
   bool get pending => _pending.isNotEmpty;
@@ -249,6 +258,7 @@ class PacedRefresh {
     if (token != null) _asked = token;
     _pending.add(token);
     _pendingEvent = true;
+    _pendingFresh = true;
     _throttle.request();
     return PacedVerdict.asked;
   }
@@ -268,19 +278,23 @@ class PacedRefresh {
         _pending.add(rev.revOf(data));
         _pendingDoubt = true;
     }
+    _pendingFresh = true;
     _throttle.request();
     return true;
   }
 
   /// A full read of the screen is about to start (paced or not): it will show everything asked so far.
   void readStarted() {
+    _inFlightFresh = _pendingFresh;
     _pending.clear();
     _pendingEvent = false;
     _pendingDoubt = false;
+    _pendingFresh = false;
   }
 
   /// The read finished; [proven] is the token [ReadCapture.revisionFor] proved for [ChannelRevision.scope].
   void readDone(BigInt? proven) {
+    _inFlightFresh = false;
     revision?.read(proven);
     final BigInt? asked = _asked;
     if (asked != null &&
@@ -290,10 +304,20 @@ class PacedRefresh {
     }
   }
 
-  /// The read failed: R is forgotten and doubt set (the next heartbeat re-reads on tills and the KDS; polls go on).
+  /// The read failed (also when the screen's loader swallowed the error: the read capture tells): R is forgotten and
+  /// doubt set, so the next heartbeat re-reads on tills and the KDS. When the read had taken events or heartbeats that
+  /// asked for it, they are asked again ONCE, paced (about one window later); a retry that fails is not retried again
+  /// (no loop while offline: doubt, the heartbeat and the polls take over).
   void readFailed() {
     revision?.forget();
     _asked = null;
+    final bool retry = _inFlightFresh;
+    _inFlightFresh = false;
+    if (!retry || _disposed) return;
+    retries++;
+    _pending.add(null);
+    _pendingEvent = true;
+    _throttle.request();
   }
 
   bool _due() {

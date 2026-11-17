@@ -420,10 +420,16 @@ class PosRefreshScheduler {
             () => onRefresh(next),
             unconditional: unconditional,
           );
-          final String? scope = paced?.revision?.scope;
-          paced?.readDone(
-            scope == null ? null : captured.reads.revisionFor(scope),
-          );
+          // Review SR-2: a page whose loader catches its own errors (the cashier floor, the waiter rooms) still made
+          // a failed GET: the capture tells, and it counts as a failed read (doubt, one paced retry)
+          if (captured.reads.failed) {
+            paced?.readFailed();
+          } else {
+            final String? scope = paced?.revision?.scope;
+            paced?.readDone(
+              scope == null ? null : captured.reads.revisionFor(scope),
+            );
+          }
         } on Object {
           // Yuklash xatosi chaqiruvchida ko'rsatiladi; jadval to'xtamaydi. Ekran nimani ko'rsatayotgani noma'lum
           paced?.readFailed();
