@@ -11,7 +11,6 @@ import 'package:pos_data/pos_data.dart';
 import 'package:pos_hardware/src/tspl/label_grid.dart';
 import 'package:pos_hardware/src/tspl/tspl_builder.dart';
 import 'package:pos_hardware/testing.dart';
-import 'package:rizqim_api/rizqim_api.dart' show CapturedRead, ReadTracking;
 
 import 'stack.dart';
 
@@ -466,21 +465,13 @@ class KitchenCrew {
         (status == 'pending' && line['fire_mode'] == null);
   }
 
-  ///
-  /// Always a full read (no If-None-Match): the crew checks the server's clock-only fields (`late`), which a 304 would
-  /// replay from the last 200 until some write in the branch moves its token or the ETag's 120 s life ends. The app's
-  /// own display does not depend on them (it times each line from `sent_at` and `target_seconds` itself).
+  /// A conditional read like the apps' own (If-None-Match; a 304 replays the last body): the server ends the tickets'
+  /// ETag at the moment a line turns `late` by the clock alone, so the crew sees `late` as soon as a full read would.
   Future<List<Map<String, Object?>>> fetch({bool includeReady = false}) async {
-    final CapturedRead<Response<Object?>> read = await ReadTracking.capture(
-      () => kds.client.dio.get<Object?>(
-        '/v1/staff/kitchen/tickets',
-        queryParameters: <String, Object?>{
-          if (includeReady) 'include_ready': 1,
-        },
-      ),
-      unconditional: true,
+    final Response<Object?> r = await kds.client.dio.get<Object?>(
+      '/v1/staff/kitchen/tickets',
+      queryParameters: <String, Object?>{if (includeReady) 'include_ready': 1},
     );
-    final Response<Object?> r = read.value;
     return asList(asMap(r.data)['data']);
   }
 

@@ -81,6 +81,8 @@ class PosDisplayController extends Controller
             return $this->noBranch();
         }
         $this->modules->assertEnabled($branch, PosModule::QUEUE_CALLING);
+        // Wave M2: the board is the business day's: it empties at the next day start with no write
+        \App\Http\Middleware\ConditionalGet::validUntil($request, \App\Domain\Pos\Shifts\BusinessDay::nextStart($branch));
 
         return $this->success(PosQueueController::boardOf($branch));
     }

@@ -44,6 +44,12 @@ class PosFloorController extends PosHallController
         // P3-26: the guest's name and phone of a reservation for staff who seat or serve them
         $withContact = $this->permissions->allows($user, Permission::ORDERS_MANAGE, $branch) || $this->permissions->allows($user, Permission::BOOKINGS_MANAGE, $branch);
 
-        return $this->success($floor->forBranch($branch, null, $withContact));
+        $state = $floor->forBranch($branch, null, $withContact);
+        // Wave M2: an order turning overdue, a booking entering or leaving "reserved soon": the ETag ends then
+        if (($at = $floor->changesAt()) !== null) {
+            \App\Http\Middleware\ConditionalGet::validUntil($request, $at);
+        }
+
+        return $this->success($state);
     }
 }

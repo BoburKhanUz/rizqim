@@ -10,6 +10,7 @@ use App\Models\Hall;
 use App\Models\Order;
 use App\Services\Order\OrderQueryService;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,12 @@ use Illuminate\Support\Facades\DB;
 class FloorState
 {
     public const RESERVED_SOON_MINUTES = 60;
+
+    /** Wave M2: how far past the reserved-soon window the next booking is looked for (beyond any ETag's max-age). */
+    private const LOOKAHEAD_MINUTES = 10;
+
+    /** Wave M2: the first moment the last forBranch() body changes by the clock alone (null: none known). */
+    private ?CarbonInterface $changesAt = null;
 
     public const DEFAULT_OVERDUE_HOURS = 6;
 
@@ -59,13 +66,35 @@ class FloorState
             ->orderBy('id')
             ->get();
         $counts = $this->lineCounts($open->pluck('id')->all());
+        // Wave M2: an open order turns overdue by the clock alone (reserved bookings below)
+        $this->changesAt = null;
+        foreach ($open as $order) {
+            $overdueAt = $order->created_at?->copy()->addHours($overdueHours);
+            if ($overdueAt !== null && $overdueAt->greaterThan($now)) {
+                $this->changeAt($overdueAt);
+            }
+        }
         $byTable = $open->whereNotNull('table_id')->groupBy('table_id');
 
         $halls = Hall::where('branch_id', $branch->id)->orderBy('sort_order')->orderBy('id')->get();
         $tables = DiningTable::where('branch_id', $branch->id)->orderBy('sort_order')->orderBy('id')->get()->groupBy('hall_id');
 
         $tableIds = $tables->flatten()->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $reserved = $this->reservations->upcoming((int) $branch->id, $tableIds, $now->copy()->subMinutes(30), $now->copy()->addMinutes(self::RESERVED_SOON_MINUTES));
+        // Wave M2: read a little past the window so the next booking to enter it is known (the earliest booking of a
+        // table in the wider read is the earliest in the window when it has one: both start at now − 30 min)
+        $soon = $now->copy()->addMinutes(self::RESERVED_SOON_MINUTES);
+        $reserved = [];
+        foreach ($this->reservations->upcoming((int) $branch->id, $tableIds, $now->copy()->subMinutes(30), $soon->copy()->addMinutes(self::LOOKAHEAD_MINUTES)) as $tableId => $reservation) {
+            $startsAt = Carbon::parse($reservation['starts_at']);
+            if ($startsAt->greaterThan($soon)) {
+                // Not in the window yet: the table turns reserved_soon an hour before it, with no write
+                $this->changeAt($startsAt->copy()->subMinutes(self::RESERVED_SOON_MINUTES));
+                continue;
+            }
+            // In the window: it leaves 30 minutes after its start (the next booking, or free, then)
+            $this->changeAt($startsAt->copy()->addMinutes(30));
+            $reserved[$tableId] = $reservation;
+        }
         if (!$withContact) {
             $reserved = array_map(fn (array $reservation) => array_merge($reservation, ['contact_name' => null, 'contact_phone' => null]), $reserved);
         }
@@ -106,6 +135,22 @@ class FloorState
             'halls' => $result,
             'untabled_orders' => $open->whereNull('table_id')->values()->map(fn (Order $order) => $this->order($order, $counts, $now, $overdueHours))->all(),
         ];
+    }
+
+    /**
+     * Wave M2: the first moment the body of the last forBranch() changes by the clock alone: an open order turning
+     * overdue, a booking entering or leaving the reserved-soon window. GET /pos/floor ends its ETag then.
+     */
+    public function changesAt(): ?CarbonInterface
+    {
+        return $this->changesAt;
+    }
+
+    private function changeAt(CarbonInterface $at): void
+    {
+        if ($this->changesAt === null || $at->lessThan($this->changesAt)) {
+            $this->changesAt = $at;
+        }
     }
 
     /**

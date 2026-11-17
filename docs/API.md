@@ -256,12 +256,12 @@ sxemasi o'zgarmagan; `If-None-Match` yubormagan klient avvalgidek har safar `200
 
 | Endpoint | `ETag` qaysi tokenlarga bog'liq | Vaqt bo'yicha eng ko'p kechikish |
 |---|---|---|
-| `GET /pos/floor`, `GET /pos/orders`, `GET /pos/queue` | so'rov filiali (`branch_id` yoki terminal/xodim filiali) | 120 s (`overdue`, "bron yaqin", ish kuni almashishi) |
-| `GET /pos/orders/{uuid}`, `GET /pos/orders/{uuid}/bills` | buyurtma filiali | 120 s |
-| `GET /pos/display/state`, `GET /pos/display/queue` | qurilma filiali + qurilmaning o'zi | 120 s |
-| `GET /staff/kitchen/tickets` | filial (filialsiz egada: do'kon + barcha filiallar) | 120 s; keyinga olingan buyurtma oshxona vaqtida darhol |
+| `GET /pos/floor`, `GET /pos/orders`, `GET /pos/queue` | so'rov filiali (`branch_id` yoki terminal/xodim filiali) | darhol: `overdue`, "bron yaqin" (kirishi va chiqishi), ish kuni almashishi (navbat, `scope=closed`), `pickup.waiting` tugashi; qolgani 120 s |
+| `GET /pos/orders/{uuid}`, `GET /pos/orders/{uuid}/bills` | buyurtma filiali | darhol: `pickup.waiting` tugashi; qolgani 120 s |
+| `GET /pos/display/state`, `GET /pos/display/queue` | qurilma filiali + qurilmaning o'zi | navbat: ish kuni almashishida darhol; qolgani 120 s |
+| `GET /staff/kitchen/tickets` | filial (filialsiz egada: do'kon + barcha filiallar) | darhol: qator `late` bo'lishi (`sent_at` + maqsad), keyinga olingan buyurtma oshxona vaqti, yopilgan kassa raqamining `ORDERS_KDS_CLOSED_COUNTER_MINUTES` oynasi tugashi, `canceled_within` dan chiqishi; qolgani 120 s |
 | `GET /staff/orders`, `GET /staff/orders/{uuid}` | filial yoki do'kon + barcha filiallar / buyurtma filiali | 120 s |
-| `GET /owner/ingredients` | filial yoki do'kon + barcha filiallar | 120 s |
+| `GET /owner/ingredients` | filial yoki do'kon + barcha filiallar | darhol: stop `until` tugashi; qolgani 120 s |
 | `GET /orders` | mijoz: o'zi; ega/menejer: filial yoki do'kon; kuryer: o'zi + do'kon | 300 s (taom nomi kabi menyu o'zgarishlari tarixda) |
 | `GET /notifications` | foydalanuvchining o'zi | 300 s |
 

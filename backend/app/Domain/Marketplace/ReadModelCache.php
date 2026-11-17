@@ -3,6 +3,7 @@
 namespace App\Domain\Marketplace;
 
 use Closure;
+use Illuminate\Cache\DatabaseStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -22,7 +23,8 @@ use Throwable;
  *   arrive meanwhile wait up to `lock_wait_seconds` for it and then read it; if the lock is not freed in time they
  *   build it themselves (more load, never an error).
  * - Documents are stored compressed (zlib level 1 of the PHP serialization: a 60-dish menu is about 210 KB as is,
- *   10 KB compressed).
+ *   10 KB compressed); on a store with a text column (the `database` store) the compressed form is base64 (a third
+ *   larger, about 13 KB), so PostgreSQL accepts it. A copy that cannot be read is a miss, rebuilt, never an error.
  * - When the cache store fails, the document is built from the database for this request (slower, never wrong) and
  *   the store is skipped for a few seconds, so a dead Redis costs one timeout, not one per document.
  */
@@ -54,13 +56,14 @@ final class ReadModelCache
 
         $key = $family.':'.$this->deploy().':'.$version;
         $ttl = $this->ttl($kind);
-        $encoded = function () use ($store, $family, $key, $build, $ttl) {
+        $text = !self::binarySafe($store);
+        $encoded = function () use ($store, $family, $key, $build, $ttl, $text) {
             if ($this->depth === 0) {
-                return self::encode($build()); // deferred refresh: already under flexible's lock
+                return self::encode($build(), $text); // deferred refresh: already under flexible's lock
             }
 
             // Cold path (synchronous, inside flexible): one builder; the previous version is dropped
-            $blob = $this->buildLocked($store, $key, fn () => self::encode($build()));
+            $blob = $this->buildLocked($store, $key, fn () => self::encode($build(), $text));
             $this->replaceVersion($store, $family, $key, $ttl[1]);
 
             return $blob;
@@ -77,7 +80,14 @@ final class ReadModelCache
             $this->depth--;
         }
 
-        return self::decode($blob);
+        try {
+            return self::decode($blob);
+        } catch (\UnexpectedValueException $e) {
+            // A copy this code cannot read (another format, a damaged value) is a miss, never an error
+            $this->forgetUnreadable($store, $key, $e);
+
+            return $build();
+        }
     }
 
     /**
@@ -96,7 +106,7 @@ final class ReadModelCache
             $created = $store->get('illuminate:cache:flexible:created:'.$key);
             $left = is_numeric($created) ? (int) $created + $this->ttl($kind)[1] - now()->getTimestamp() : 0;
             if ($left > 0) {
-                $store->put($key, self::encode($value), $left);
+                $store->put($key, self::encode($value, !self::binarySafe($store)), $left);
             }
         } catch (Throwable $e) {
             $this->markDown($e);
@@ -127,12 +137,19 @@ final class ReadModelCache
 
         $key = $family.':'.$this->deploy().':'.$version;
         $built = null;
+        $text = !self::binarySafe($store);
         try {
-            $blob = $this->buildLocked($store, $key, function () use ($build, &$built) {
+            $blob = $this->buildLocked($store, $key, function () use ($build, &$built, $text) {
                 $built = $build();
 
-                return self::encode($built);
-            }, fn (string $existing) => $current(self::decode($existing)));
+                return self::encode($built, $text);
+            }, function (string $existing) use ($current) {
+                try {
+                    return $current(self::decode($existing));
+                } catch (\UnexpectedValueException) {
+                    return false; // unreadable: rebuilt
+                }
+            });
             if ($built === null) {
                 return self::decode($blob); // another request rebuilt it meanwhile
             }
@@ -189,13 +206,28 @@ final class ReadModelCache
     }
 
     /**
-     * The stored form of a document.
+     * The stored form of a document: `z` + the raw deflate stream (binary: Redis, Memcached, file, array), or with
+     * $text `b` + its base64 (a store that keeps values in a text column: the `database` store, whose PostgreSQL column
+     * rejects bytes that are not UTF-8). `s` + the plain serialization when deflate fails.
      */
-    public static function encode(mixed $value): string
+    public static function encode(mixed $value, bool $text = false): string
     {
         $compressed = gzdeflate(serialize($value), 1);
+        if ($compressed === false) {
+            return 's'.serialize($value);
+        }
 
-        return $compressed === false ? 's'.serialize($value) : 'z'.$compressed;
+        return $text ? 'b'.base64_encode($compressed) : 'z'.$compressed;
+    }
+
+    /**
+     * Whether the store keeps any bytes as they are. The `database` store writes the value into a text column, and
+     * Laravel only base64-encodes it there when it holds a NUL byte: a deflate stream without one but with other
+     * non-UTF-8 bytes is refused by PostgreSQL.
+     */
+    public static function binarySafe(Repository $store): bool
+    {
+        return !$store->getStore() instanceof DatabaseStore;
     }
 
     /**
@@ -206,7 +238,12 @@ final class ReadModelCache
         if (!is_string($blob) || $blob === '') {
             return $blob;
         }
-        $body = $blob[0] === 'z' ? gzinflate(substr($blob, 1)) : ($blob[0] === 's' ? substr($blob, 1) : false);
+        $body = match ($blob[0]) {
+            'z' => @gzinflate(substr($blob, 1)),
+            'b' => ($raw = base64_decode(substr($blob, 1), true)) === false ? false : @gzinflate($raw),
+            's' => substr($blob, 1),
+            default => false,
+        };
         if ($body === false) {
             throw new \UnexpectedValueException('Marketplace read model: an unreadable document');
         }
@@ -284,6 +321,17 @@ final class ReadModelCache
     private function lockSeconds(): int
     {
         return max(1, (int) config('marketplace.lock_seconds', 10));
+    }
+
+    private function forgetUnreadable(Repository $store, string $key, Throwable $e): void
+    {
+        Log::warning('Marketplace read model: an unreadable cached document, rebuilt', ['key' => $key, 'error' => $e->getMessage()]);
+        try {
+            $store->forget($key);
+            $store->forget('illuminate:cache:flexible:created:'.$key);
+        } catch (Throwable) {
+            // best effort: it expires with its TTL
+        }
     }
 
     private function markDown(Throwable $e): void

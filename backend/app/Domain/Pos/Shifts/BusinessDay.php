@@ -24,4 +24,20 @@ final class BusinessDay
             PosSettings::timeOf($branch->getAttribute('business_day_starts_at')),
         );
     }
+
+    /**
+     * Wave M2: the moment the business day after the one $at belongs to starts (the branch's day start, local time):
+     * what follows the business day (today's queue numbers, the till's closed orders) changes then by the clock alone.
+     */
+    public static function nextStart(Branch $branch, ?\DateTimeInterface $at = null): \Carbon\CarbonImmutable
+    {
+        $store = $branch->relationLoaded('store') ? $branch->store : Store::find($branch->store_id);
+        $timezone = new \DateTimeZone(StoreTimezone::of($store));
+        [$hour, $minute] = array_map('intval', explode(':', PosSettings::timeOf($branch->getAttribute('business_day_starts_at'))));
+        $today = self::of($branch, $at);
+
+        $day = \Carbon\CarbonImmutable::createFromFormat('!Y-m-d', $today, $timezone);
+
+        return $day ? $day->addDay()->setTime($hour, $minute) : \Carbon\CarbonImmutable::instance($at ?? now())->addDay();
+    }
 }

@@ -202,6 +202,24 @@ class KitchenTargets
     }
 
     /**
+     * Wave M2: the moment after which annotate() turns this line's `late` on by the clock alone (started + target: a
+     * line still cooking, with a target, not late yet at $now). Null when nothing about the line changes with the
+     * clock (no target, done, void, late already).
+     */
+    public function turnsLateAt(OrderItem $item, Order $order, ?CarbonInterface $acceptedAt, ?Carbon $now = null): ?CarbonInterface
+    {
+        $target = $this->targetOf($item, $order->branch_id !== null ? (int) $order->branch_id : null);
+        $started = self::startedAt($item, $order, $acceptedAt);
+        if ($target === null || $started === null || $item->isVoid()
+            || in_array($item->kitchen_status->value, KitchenItemStatus::doneValues(), true)
+            || $started->diffInSeconds($now ?? now(), false) > $target) {
+            return null;
+        }
+
+        return Carbon::instance($started)->addSeconds($target);
+    }
+
+    /**
      * @return array{product_id: int|null, category_id: int|null, target: int|null, name: string|null}
      */
     private function dish(int $variantId): array

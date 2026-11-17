@@ -391,6 +391,20 @@ final class ScheduledPickup
     }
 
     /**
+     * Wave M2: the moment `pickup.waiting` (present()) turns false by the clock alone (its kitchen time, before the
+     * scheduler fires it); null when it is not waiting on a time.
+     */
+    public static function waitingEndsAt(Order $order, ?CarbonInterface $now = null): ?CarbonImmutable
+    {
+        $fireAt = $order->getAttribute('kitchen_fire_at');
+        if ($fireAt === null || !self::waiting($order, $now)) {
+            return null;
+        }
+
+        return CarbonImmutable::parse($fireAt);
+    }
+
+    /**
      * A POS order's pickup lines are held while it waits (PosLineBuilder, with the course rule).
      *
      * @param  list<array<string, mixed>>  $lines
