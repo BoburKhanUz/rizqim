@@ -12,6 +12,25 @@ source "$(dirname "$0")/env.sh"
 SERVER=${SERVER:-serve}
 FPM_DIR=$SCALE_WORK/cache/fpm
 FPM_BIN=${FPM_BIN:-$(command -v php-fpm8.3 || command -v php-fpm || true)}
+# The kit stops ONLY what it started (other stacks on the machine, e.g. the POS e2e's Reverb, run the same commands):
+# every background process it starts writes its pid into $PIDS, and a stop kills that pid (and its children) only
+# while its command line still holds the expected text (no stale pid of another process). nginx and php-fpm have
+# their own pid files in cache/fpm, the kit's Redis is found by its own port, PgBouncer (pgbouncer.sh) by its own config.
+PIDS=$SCALE_WORK/cache/pids
+killtree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do killtree "$c"; done; kill "$1" 2>/dev/null; }
+# stop_pid <pid file> <text its command line must contain> [master]: the pid and its children (master: the pid only,
+# a daemon master such as nginx or php-fpm stops its own workers)
+stop_pid() {
+  local f=$1 want=$2 how=${3:-tree} pid
+  [ -f "$f" ] || return 0
+  pid=$(cat "$f" 2>/dev/null); rm -f "$f"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+  tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qF -- "$want" || return 0
+  if [ "$how" = master ]; then kill "$pid" 2>/dev/null; else killtree "$pid"; fi
+  return 0
+}
+# bg <name> <command...>: start in the background (logs/<name>.log), pid into $PIDS/<name>.pid
+bg() { local n=$1; shift; mkdir -p "$PIDS"; (cd "$BACKEND" && exec "$@") > "$SCALE_WORK/logs/$n.log" 2>&1 < /dev/null & echo $! > "$PIDS/$n.pid"; }
 
 start_fpm() {
   [ -n "$FPM_BIN" ] || { echo "php-fpm not found: apt-get install php8.3-fpm" >&2; exit 1; }
@@ -64,9 +83,8 @@ EOF
 }
 
 stop_fpm() {
-  [ -f "$FPM_DIR/nginx.pid" ] && kill "$(cat "$FPM_DIR/nginx.pid")" 2>/dev/null
-  [ -f "$FPM_DIR/php-fpm.pid" ] && kill "$(cat "$FPM_DIR/php-fpm.pid")" 2>/dev/null
-  rm -f "$FPM_DIR/nginx.pid" "$FPM_DIR/php-fpm.pid"
+  stop_pid "$FPM_DIR/nginx.pid" "$FPM_DIR/nginx.conf" master
+  stop_pid "$FPM_DIR/php-fpm.pid" "$FPM_DIR/php-fpm.conf" master
 }
 
 # RT=1 (env.sh): Reverb + one queue worker + the scheduler, logs in logs/; stopped by `stop` whatever RT says
@@ -79,14 +97,15 @@ start_rt() {
         -c "ALTER ROLE scale_rt PASSWORD '$rtpw'" >/dev/null
   export APP_CONFIG_CACHE=$SCALE_WORK/cache/config-rt.php
   (cd "$BACKEND" && DB_POOLER=direct DB_HOST=127.0.0.1 DB_PORT=5432 DB_USERNAME=scale_rt DB_PASSWORD=$rtpw php artisan config:cache -q)
-  (cd "$BACKEND" && exec php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT") > "$SCALE_WORK/logs/reverb.log" 2>&1 < /dev/null &
-  (cd "$BACKEND" && exec php artisan queue:work redis --queue=default,broadcasts --tries=3 --sleep=1) > "$SCALE_WORK/logs/queue.log" 2>&1 < /dev/null &
-  if [ "${RT_SCHEDULER:-heartbeat}" = full ]; then (cd "$BACKEND" && exec php artisan schedule:work) > "$SCALE_WORK/logs/scheduler.log" 2>&1 < /dev/null &
-  else (cd "$BACKEND" && exec php "$SC/php/rt/heartbeat.php" schedule:heartbeat) > "$SCALE_WORK/logs/scheduler.log" 2>&1 < /dev/null & fi
+  bg reverb php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT"
+  bg queue php artisan queue:work redis --queue=default,broadcasts --tries=3 --sleep=1
+  if [ "${RT_SCHEDULER:-heartbeat}" = full ]; then bg scheduler php artisan schedule:work
+  else bg scheduler php "$SC/php/rt/heartbeat.php" schedule:heartbeat; fi
   for _ in $(seq 1 40); do (echo > "/dev/tcp/127.0.0.1/$REVERB_PORT") 2>/dev/null && break; sleep 0.25; done
   echo "real-time on: reverb :$REVERB_PORT, queue worker, scheduler"
 }
-stop_rt() { pkill -f "artisan reverb:start --host=127.0.0.1" ; pkill -f "artisan queue:work redis --queue=default,broadcasts"; pkill -f "artisan schedule:work"; pkill -f "artisan schedule:run"; pkill -f "rt/heartbeat.php schedule:heartbeat"; true; }
+# the scheduler's schedule:run children go with it (killtree)
+stop_rt() { stop_pid "$PIDS/reverb.pid" "reverb:start"; stop_pid "$PIDS/queue.pid" "queue:work"; stop_pid "$PIDS/scheduler.pid" "schedule:"; }
 
 case "$1" in
 start)
@@ -99,7 +118,8 @@ start)
   if [ "$SERVER" = fpm ]; then
     stop_fpm; start_fpm
   else
-    (cd "$BACKEND" && PHP_CLI_SERVER_WORKERS=$W exec php artisan serve --host=127.0.0.1 --port="$APP_PORT" --no-reload) > "$SCALE_WORK/logs/server.log" 2>&1 < /dev/null &
+    stop_pid "$PIDS/server.pid" "artisan serve"
+    PHP_CLI_SERVER_WORKERS=$W bg server php artisan serve --host=127.0.0.1 --port="$APP_PORT" --no-reload
   fi
   for _ in $(seq 1 40); do curl -s -o /dev/null "http://127.0.0.1:$APP_PORT/up" && break; sleep 0.25; done
   if [ "$SERVER" = fpm ]; then echo "server (nginx + php-fpm) up on $APP_PORT"; else echo "server up on $APP_PORT with $W workers"; fi
@@ -107,6 +127,8 @@ start)
 drop-rt-role)
   $PSQL -c "DROP ROLE IF EXISTS scale_rt" && echo "role scale_rt dropped";;
 stop)
-  stop_rt; stop_fpm
-  pkill -f "artisan serve --host=127.0.0.1 --port=$APP_PORT"; pkill -f "127.0.0.1:$APP_PORT"; sleep 1; echo stopped;;
+  stop_rt; stop_fpm; stop_pid "$PIDS/server.pid" "artisan serve"
+  # the kit's own Redis, by its own port (it is flushed at every start anyway)
+  if pgrep -f "redis-server 127.0.0.1:$REDIS_PORT( |\$)" >/dev/null; then redis-cli -p "$REDIS_PORT" shutdown nosave >/dev/null 2>&1; fi
+  sleep 1; echo stopped;;
 esac
