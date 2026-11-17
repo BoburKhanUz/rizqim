@@ -101,6 +101,10 @@ services:
     build:
       context: ./infra/postgres
     restart: unless-stopped
+    # PID 1 = Docker's tini, not the postmaster: pgBackRest's async archive-push detaches a worker; orphaned, it would be
+    # reparented to PID 1, and a postmaster that reaps an unknown child exiting non-zero treats it as a crashed backend
+    # and restarts the whole cluster (seen in CI). tini reaps it instead; signals still reach postgres
+    init: true
     command:
       - postgres
       - -c

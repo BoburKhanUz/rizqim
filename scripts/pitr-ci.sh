@@ -196,6 +196,8 @@ else
     $BACKUP_SH --pitr-init || die "backup.sh --pitr-init"
 fi
 summary "stanza + check + first full backup: ok"
+# The server must never restart under the archiver (a crash-restart once came from pgBackRest's async worker)
+started=$(live_sql "SELECT pg_postmaster_start_time()")
 
 batch() { live_sql "INSERT INTO pitr_ci_rows (batch, n) SELECT '$1', g FROM generate_series(1, $ROWS) g" >/dev/null; }
 live_sql "CREATE TABLE IF NOT EXISTS pitr_ci_rows (id bigserial PRIMARY KEY, batch text NOT NULL, n int NOT NULL, created_at timestamptz NOT NULL DEFAULT clock_timestamp())" >/dev/null
@@ -235,7 +237,12 @@ val() { sed -n "s/^$1=//p" "$out" | tail -n 1; }
 if [ "$rc" != "0" ] || [ "$(val DRILL_STATUS)" != "ok" ]; then die "drill failed (exit $rc)"; fi
 [ "$(val CHECK_extra)" = "ok" ] || die "A+B present / C absent check failed"
 [ "$(val CHECK_probe)" = "ok" ] || die "probe token check failed"
-[ "$(live_sql "SELECT count(*) FROM restore_drills WHERE status = 'ok'")" -ge 1 ] || die "no restore_drills row"
+if [ "$(live_sql "SELECT to_regclass('public.restore_drills') IS NOT NULL")" = "t" ]; then
+    [ "$(live_sql "SELECT count(*) FROM restore_drills WHERE status = 'ok'")" -ge 1 ] || die "no restore_drills row"
+    summary "restore_drills row: ok"
+else
+    summary "restore_drills row: skipped (table not present in this migration set)"
+fi
 RESTORE_SECONDS=$(val RESTORE_SECONDS); RECOVERY_POINT=$(val RECOVERY_POINT); DATA_LOSS_SECONDS=$(val DATA_LOSS_SECONDS)
 summary "restore to T: A+B present, C absent, probe token present, smoke: $(val CHECK_app_smoke)"
 summary "RESTORE_SECONDS=$RESTORE_SECONDS"
@@ -267,7 +274,8 @@ until [ "$(live_sql "SELECT last_archived_wal ~ '^[0-9A-F]{24}\$' AND last_archi
 done
 summary "target back: archiving caught up in $(($(date -u +%s) - down_at)) s"
 $BACKUP_SH --markers || true
-in_backup sh -c 'true' >/dev/null 2>&1 || true
+[ "$(live_sql "SELECT pg_postmaster_start_time()")" = "$started" ] || die "the live server restarted during the run (crash-restart? see the postgres log)"
+summary "live server never restarted: ok"
 
 printf '%s' "$results" >&2
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
