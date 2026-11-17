@@ -108,6 +108,12 @@ class PartitionArchiverTest extends TestCase
         // The store's foreign key (ON DELETE CASCADE) is gone from the detached month: a store delete cannot erase it
         $this->assertSame(0, (int) DB::selectOne("SELECT count(*) AS n FROM pg_constraint WHERE conrelid = 'fiscal_receipts_2026_02'::regclass AND contype = 'f'")->n);
         $this->assertSame($receipt, (int) DB::table('fiscal_receipts_2026_02')->value('id'));
+        // The parent's triggers stay on the detached month (the key guards: id, store, key and uuid never change)
+        $this->assertSame(
+            array_keys(app(PartitionManager::class)->userTriggers('fiscal_receipts')),
+            array_keys(app(PartitionManager::class)->userTriggers('fiscal_receipts_2026_02')),
+        );
+        $this->assertContains('fiscal_receipt_keys_update', array_keys(app(PartitionManager::class)->userTriggers('fiscal_receipts_2026_02')));
 
         // S3 not configured: the script leaves it uploaded; months later it is still in the database
         $this->catalogue('fiscal_receipts_2026_02', ['status' => 'uploaded', 'sha256' => str_repeat('e', 64), 'storage_uri' => '/backups/archive/fiscal_receipts/2026-02.dump', 'uploaded_at' => now()]);

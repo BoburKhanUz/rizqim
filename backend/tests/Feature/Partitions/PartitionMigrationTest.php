@@ -29,6 +29,9 @@ class PartitionMigrationTest extends TestCase
     {
         $this->setUpLifecycleStore();
         $manager = app(PartitionManager::class);
+        // A database from before M3: the later fiscal keys migration (2026_11_25_100300) is not there either (its key
+        // trigger needs created_at, which the pre-M3 rows below lack)
+        (require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php'))->down();
         $this->migration()->down();
         foreach (['audit_logs', 'fiscal_receipts', 'notification_logs'] as $table) {
             $this->assertSame('r', $manager->relkind($table), "{$table} is a plain table after down()");
@@ -96,6 +99,37 @@ class PartitionMigrationTest extends TestCase
         $this->assertTrue(app(PartitionManager::class)->isPartitioned('notification_logs'));
         $this->assertSame('r', app(PartitionManager::class)->relkind('audit_logs'));
         $this->assertSame(3, DB::table('audit_logs')->count());
+    }
+
+    public function test_every_user_trigger_follows_the_table_and_a_swap_that_cannot_keep_one_is_refused(): void
+    {
+        $manager = app(PartitionManager::class);
+        $converter = app(\App\Support\Partitions\PartitionConverter::class);
+        $converter->revertInline('notification_logs');
+        DB::unprepared("CREATE FUNCTION m3_probe_trigger() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RETURN NEW; END \$\$");
+        // A trigger the converter does not know by name, one disabled: both follow, with their state
+        DB::statement('CREATE TRIGGER m3_probe BEFORE UPDATE OF is_read ON notification_logs FOR EACH ROW WHEN (NEW.is_read) EXECUTE FUNCTION m3_probe_trigger()');
+        DB::statement('CREATE TRIGGER m3_probe_off AFTER INSERT ON notification_logs FOR EACH ROW EXECUTE FUNCTION m3_probe_trigger()');
+        DB::statement('ALTER TABLE notification_logs DISABLE TRIGGER m3_probe_off');
+        $before = $manager->userTriggers('notification_logs');
+
+        $converter->convertInline('notification_logs');
+        $this->assertTrue($manager->isPartitioned('notification_logs'));
+        $this->assertSame($before, $manager->userTriggers('notification_logs'));
+        $converter->revertInline('notification_logs');
+        $this->assertSame($before, $manager->userTriggers('notification_logs'));
+
+        // A row trigger with a transition table cannot exist on a partitioned table: the conversion is refused whole
+        DB::statement('CREATE TRIGGER m3_probe_transition AFTER INSERT ON notification_logs REFERENCING NEW TABLE AS fresh FOR EACH ROW EXECUTE FUNCTION m3_probe_trigger()');
+        try {
+            $converter->convertInline('notification_logs');
+            $this->fail('the swap must be refused');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString("m3_probe_transition triggerini yangi jadvalda yaratib bo'lmadi", $e->getMessage());
+        }
+        $this->assertSame('r', $manager->relkind('notification_logs'), 'nothing changed');
+        $this->assertArrayHasKey('m3_probe_transition', $manager->userTriggers('notification_logs'));
+        $this->assertFalse($manager->exists('notification_logs_m3_new'));
     }
 
     /**

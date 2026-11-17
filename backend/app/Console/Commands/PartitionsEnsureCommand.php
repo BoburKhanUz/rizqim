@@ -28,6 +28,9 @@ class PartitionsEnsureCommand extends Command
 
                 continue;
             }
+            if ($report['repaired'] !== []) {
+                $this->info("{$table}: himoya triggeri tiklandi: " . implode(', ', $report['repaired']));
+            }
             if (!$report['partitioned']) {
                 $this->warn("{$table}: hali oylarga bo'linmagan, o'tkazib yuborildi (`php artisan db:partitions:status`)");
 

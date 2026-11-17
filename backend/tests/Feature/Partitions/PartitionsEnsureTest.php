@@ -124,7 +124,7 @@ class PartitionsEnsureTest extends TestCase
         $this->assertSame(['audit_logs', 'fiscal_receipts', 'notification_logs'], array_column($json['tables'], 'table'));
         $this->assertSame([
             'table', 'column', 'partitioned', 'conversion', 'online_months', 'archive', 'partitions', 'oldest_month', 'newest_month',
-            'current_month_attached', 'future_months', 'default_rows', 'due_for_archive', 'bytes',
+            'current_month_attached', 'future_months', 'default_rows', 'due_for_archive', 'bytes', 'missing_triggers',
         ], array_keys($json['tables'][0]));
         $this->assertSame(3, $json['tables'][0]['future_months']);
         $this->assertSame(['detached', 'uploaded', 'verified', 'dropped', 'failed', 'held', 'stale_detached', 'oldest_detached_at', 'local_only_allowed'], array_keys($json['archives']));

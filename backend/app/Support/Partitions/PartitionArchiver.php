@@ -62,15 +62,15 @@ final class PartitionArchiver
     {
         $name = $partition['name'];
         $this->manager->withLockRetry(function () use ($table, $name, $partition) {
+            $triggers = $this->manager->userTriggers($table, [$table . '_m3_capture']);
             // Not CONCURRENTLY: refused while a DEFAULT partition exists. AccessExclusive on the parent for milliseconds
             DB::statement(sprintf('ALTER TABLE %s DETACH PARTITION %s', $table, $name));
             foreach (DB::select("SELECT conname FROM pg_constraint WHERE conrelid = ?::regclass AND contype = 'f'", [$name]) as $fk) {
                 DB::statement(sprintf('ALTER TABLE %s DROP CONSTRAINT %s', $name, $fk->conname));
             }
-            // DETACH removes the cloned triggers: the month stays append-only until it is dropped (DROP fires none)
-            foreach (PartitionConverter::DEFINITIONS[$table]['triggers'] as $trigger => $sql) {
-                DB::statement(sprintf('CREATE TRIGGER %s ' . $sql, $trigger, $name));
-            }
+            // DETACH removes the cloned triggers: the parent's are put back on the month (append-only audit, the fiscal
+            // key guards) until it is dropped (DROP fires none)
+            $this->manager->copyTriggers($triggers, $name);
             $now = now();
             DB::table('partition_archives')->updateOrInsert(['partition_name' => $name], [
                 'table_name' => $table,

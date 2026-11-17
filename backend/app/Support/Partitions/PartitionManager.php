@@ -152,12 +152,15 @@ final class PartitionManager
      * $relation is the partitioned table to work on (the online converter passes `<table>_m3_new`); partition names
      * always use the table's own name.
      *
-     * @return array{table: string, partitioned: bool, created: list<string>, moved: int, skipped: list<string>}
+     * @return array{table: string, partitioned: bool, created: list<string>, moved: int, skipped: list<string>, repaired: list<string>}
      */
     public function ensure(string $base, ?string $relation = null): array
     {
         $relation ??= $base;
-        $report = ['table' => $base, 'partitioned' => false, 'created' => [], 'moved' => 0, 'skipped' => []];
+        $report = ['table' => $base, 'partitioned' => false, 'created' => [], 'moved' => 0, 'skipped' => [], 'repaired' => []];
+        if ($relation === $base) {
+            $report['repaired'] = $this->repairTriggers($base);
+        }
         if (!$this->isPartitioned($relation)) {
             return $report;
         }
@@ -219,7 +222,7 @@ final class PartitionManager
     }
 
     /**
-     * @return list<array{table: string, partitioned: bool, created: list<string>, moved: int, skipped: list<string>}>
+     * @return list<array{table: string, partitioned: bool, created: list<string>, moved: int, skipped: list<string>, repaired: list<string>}>
      */
     public function ensureAll(): array
     {
@@ -250,16 +253,30 @@ final class PartitionManager
             $hasDefault = $this->exists($default);
             if ($hasDefault && DB::selectOne(sprintf('SELECT EXISTS (SELECT 1 FROM %s WHERE %s >= ? AND %s < ?) AS e', $default, $column, $column), [$from, $to])->e) {
                 // The cloned append-only trigger refuses DELETE: off for this move only (DDL is transactional, no
-                // other session ever sees it disabled)
-                DB::statement(sprintf('ALTER TABLE %s DISABLE TRIGGER USER', $default));
+                // other session ever sees it disabled); only the enabled ones, so a disabled one stays disabled
+                $enabled = array_column(DB::select("SELECT tgname FROM pg_trigger WHERE tgrelid = ?::regclass AND NOT tgisinternal AND tgenabled <> 'D'", [$default]), 'tgname');
+                foreach ($enabled as $trigger) {
+                    DB::statement(sprintf('ALTER TABLE %s DISABLE TRIGGER %s', $default, $trigger));
+                }
                 $moved = DB::affectingStatement(sprintf(
                     'WITH moved AS (DELETE FROM %1$s WHERE %3$s >= ? AND %3$s < ? RETURNING *) INSERT INTO %2$s SELECT * FROM moved',
                     $default, $name, $column,
                 ), [$from, $to]);
-                DB::statement(sprintf('ALTER TABLE %s ENABLE TRIGGER USER', $default));
+                foreach ($enabled as $trigger) {
+                    DB::statement(sprintf('ALTER TABLE %s ENABLE TRIGGER %s', $default, $trigger));
+                }
             }
 
             DB::statement(sprintf("ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM ('%s') TO ('%s')", $relation, $name, $from, $to));
+            // Postgres clones every row trigger of the parent onto the new month: checked, never assumed
+            $missing = DB::selectOne(
+                'SELECT count(*) AS n FROM pg_trigger p WHERE p.tgrelid = ?::regclass AND NOT p.tgisinternal AND p.tgparentid = 0
+                 AND NOT EXISTS (SELECT 1 FROM pg_trigger c WHERE c.tgrelid = ?::regclass AND c.tgparentid = p.oid)',
+                [$relation, $name],
+            )->n;
+            if ((int) $missing > 0) {
+                throw new RuntimeException("{$name}: ota jadvalning {$missing} ta triggeri yangi oyga o'tmadi: oy qo'shilmadi");
+            }
 
             return $moved;
         });
@@ -301,6 +318,153 @@ final class PartitionManager
         }
 
         return $due;
+    }
+
+    /**
+     * Triggers the schema relies on, with what repairs them when missing (`db:partitions:ensure`, status code
+     * trigger_missing). 'migration' is the migration that created them: a missing trigger is a problem only once it
+     * has run; its up() is idempotent and is re-run as the repair (the keys migration also backfills missing key rows).
+     * 'sql' repairs by one statement instead.
+     */
+    public const REQUIRED_TRIGGERS = [
+        'audit_logs' => [
+            'audit_logs_append_only' => [
+                'migration' => '2026_11_01_100600_make_audit_logs_append_only',
+                'sql' => 'CREATE TRIGGER audit_logs_append_only BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW EXECUTE FUNCTION audit_logs_append_only()',
+            ],
+        ],
+        'fiscal_receipts' => [
+            'fiscal_receipt_keys_insert' => ['migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table', 'sql' => null],
+            'fiscal_receipt_keys_update' => ['migration' => '2026_11_25_100300_create_fiscal_receipt_keys_table', 'sql' => null],
+        ],
+    ];
+
+    /**
+     * The user triggers defined on this relation itself (not internal foreign key triggers, not the clones Postgres
+     * keeps on partitions), name => definition with the table written as {table}, and the enabled state.
+     *
+     * @param  list<string>  $exclude  trigger names to leave out (the converter's own change capture)
+     * @return array<string, array{definition: string, enabled: string}>
+     */
+    public function userTriggers(string $relation, array $exclude = []): array
+    {
+        $triggers = [];
+        foreach (DB::select(
+            'SELECT tgname, pg_get_triggerdef(oid) AS def, tgenabled FROM pg_trigger WHERE tgrelid = ?::regclass AND NOT tgisinternal AND tgparentid = 0 ORDER BY tgname',
+            [$relation],
+        ) as $row) {
+            if (in_array($row->tgname, $exclude, true)) {
+                continue;
+            }
+            $definition = preg_replace('/^(CREATE (?:CONSTRAINT )?TRIGGER \S+ .+? ON )(\S+)( .*)$/s', '$1{table}$3', (string) $row->def, 1, $count);
+            if ($count !== 1) {
+                throw new RuntimeException("{$relation}: trigger {$row->tgname} ta'rifini o'qib bo'lmadi, jadval almashtirilmaydi: {$row->def}");
+            }
+            $triggers[(string) $row->tgname] = ['definition' => (string) $definition, 'enabled' => (string) $row->tgenabled];
+        }
+
+        return $triggers;
+    }
+
+    /**
+     * Re-creates triggers read by userTriggers() on $target (a same-named trigger there is replaced), with their enabled
+     * state, then checks the target has exactly them: a table is never swapped in without the triggers of the one it
+     * replaces (the caller's transaction rolls the swap back).
+     *
+     * @param  array<string, array{definition: string, enabled: string}>  $triggers
+     * @param  list<string>  $exclude
+     */
+    public function copyTriggers(array $triggers, string $target, array $exclude = []): void
+    {
+        foreach ($triggers as $name => $trigger) {
+            DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $name, $target));
+            try {
+                DB::statement(str_replace('{table}', $target, $trigger['definition']));
+            } catch (QueryException $e) {
+                throw new RuntimeException("{$target}: {$name} triggerini yangi jadvalda yaratib bo'lmadi ({$e->getPrevious()?->getMessage()}): almashtirish bekor qilindi, hech narsa o'zgarmadi. Triggerni moslang yoki texnik mutaxassisga ko'rsating.", 0, $e);
+            }
+            $state = match ($trigger['enabled']) {
+                'D' => 'DISABLE TRIGGER',
+                'R' => 'ENABLE REPLICA TRIGGER',
+                'A' => 'ENABLE ALWAYS TRIGGER',
+                default => null,
+            };
+            if ($state !== null) {
+                DB::statement(sprintf('ALTER TABLE %s %s %s', $target, $state, $name));
+            }
+        }
+        $this->assertTriggers($triggers, $target, $exclude);
+    }
+
+    /**
+     * @param  array<string, array{definition: string, enabled: string}>  $expected
+     * @param  list<string>  $exclude
+     */
+    public function assertTriggers(array $expected, string $relation, array $exclude = []): void
+    {
+        $actual = $this->userTriggers($relation, $exclude);
+        ksort($expected);
+        if ($actual !== $expected) {
+            $missing = array_keys(array_diff_key($expected, $actual));
+            $extra = array_keys(array_diff_key($actual, $expected));
+            throw new RuntimeException(sprintf(
+                "%s: triggerlar asl jadvaldagidek emas (yo'q: %s; ortiqcha: %s; yoki ta'rifi farq qiladi): almashtirish bekor qilindi, hech narsa o'zgarmadi",
+                $relation, implode(', ', $missing) ?: '-', implode(', ', $extra) ?: '-',
+            ));
+        }
+    }
+
+    /**
+     * Required triggers (REQUIRED_TRIGGERS) that are missing or disabled on a table whose creating migration has run.
+     *
+     * @return list<string>
+     */
+    public function missingTriggers(string $base): array
+    {
+        $required = self::REQUIRED_TRIGGERS[$base] ?? [];
+        if ($required === [] || !$this->exists($base)) {
+            return [];
+        }
+        $present = array_column(DB::select("SELECT tgname FROM pg_trigger WHERE tgrelid = ?::regclass AND NOT tgisinternal AND tgparentid = 0 AND tgenabled <> 'D'", [$base]), 'tgname');
+        $ran = $this->exists('migrations')
+            ? DB::table('migrations')->whereIn('migration', array_unique(array_column($required, 'migration')))->pluck('migration')->all()
+            : [];
+        $missing = [];
+        foreach ($required as $name => $spec) {
+            if (!in_array($name, $present, true) && in_array($spec['migration'], $ran, true)) {
+                $missing[] = $name;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Puts missing required triggers back: by their statement, or by re-running their (idempotent) migration.
+     *
+     * @return list<string> the repaired trigger names
+     */
+    public function repairTriggers(string $base): array
+    {
+        $missing = $this->missingTriggers($base);
+        $migrations = [];
+        foreach ($missing as $name) {
+            $spec = self::REQUIRED_TRIGGERS[$base][$name];
+            if ($spec['sql'] !== null) {
+                $this->withLockRetry(fn () => DB::statement($spec['sql']));
+            } else {
+                $migrations[$spec['migration']] = true;
+            }
+        }
+        foreach (array_keys($migrations) as $migration) {
+            (require database_path("migrations/{$migration}.php"))->up();
+        }
+        $left = $this->missingTriggers($base);
+        if ($left !== []) {
+            throw new RuntimeException("{$base}: triggerlarni tiklab bo'lmadi: " . implode(', ', $left));
+        }
+
+        return $missing;
     }
 
     /**
@@ -390,6 +554,11 @@ final class PartitionManager
                 if ($row['default_rows'] > 0) {
                     $problems[] = ['table' => $base, 'code' => 'default_rows', 'message' => "{$base}: {$row['default_rows']} qator zaxira (DEFAULT) bo'limda: `php artisan db:partitions:ensure` ularni o'z oyiga ko'chiradi"];
                 }
+            }
+            $missingTriggers = $kind === null ? [] : $this->missingTriggers($base);
+            $row['missing_triggers'] = $missingTriggers;
+            if ($missingTriggers !== []) {
+                $problems[] = ['table' => $base, 'code' => 'trigger_missing', 'message' => "{$base}: himoya triggeri yo'q (" . implode(', ', $missingTriggers) . '): takroriy yoki o\'zgartirilgan yozuvlardan himoya ishlamayapti. `php artisan db:partitions:ensure` bajaring (triggerni tiklaydi)'];
             }
             if ($conversion !== 'none') {
                 $problems[] = ['table' => $base, 'code' => 'conversion_pending', 'message' => match ($conversion) {

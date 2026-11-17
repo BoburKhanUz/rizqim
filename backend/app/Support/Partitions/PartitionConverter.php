@@ -47,8 +47,6 @@ final class PartitionConverter
                 'audit_logs_store_id_foreign' => 'FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE SET NULL',
                 'audit_logs_user_id_foreign' => 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL',
             ],
-            // Migration 2026_11_01_100600: the function is unchanged; on the parent it is cloned to every partition
-            'triggers' => ['audit_logs_append_only' => 'BEFORE UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE FUNCTION audit_logs_append_only()'],
             'not_null' => [],
             'plain' => [
                 'pk' => ['audit_logs_pkey', '(id)'],
@@ -88,7 +86,6 @@ final class PartitionConverter
                 'fiscal_receipts_device_id_foreign' => 'FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL',
                 'fiscal_receipts_store_id_foreign' => 'FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE',
             ],
-            'triggers' => [],
             // created_at was nullable: backfilled from sold_at / issued_at / updated_at / now while copying
             'not_null' => ['created_at' => 'coalesce(created_at, sold_at, issued_at, updated_at, (now() AT TIME ZONE \'UTC\')::timestamp(0))'],
             'plain' => [
@@ -125,7 +122,6 @@ final class PartitionConverter
                 'notification_logs_order_id_foreign' => 'FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL',
                 'notification_logs_user_id_foreign' => 'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL',
             ],
-            'triggers' => [],
             'not_null' => [],
             'plain' => [
                 'pk' => ['notification_logs_pkey', '(id)'],
@@ -199,10 +195,13 @@ final class PartitionConverter
             // EXCLUSIVE: reads go on, writes wait for the whole conversion (measured: 1.3 s for 190 000 audit rows)
             DB::statement("LOCK TABLE {$table} IN EXCLUSIVE MODE");
             $this->dropLeftovers($table);
+            // Every user trigger of the plain table follows it (read now, created after the copy: a BEFORE INSERT
+            // trigger such as fiscal_receipt_keys_insert must not fire for the rows being moved)
+            $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
             $this->createPartitionedTable($table, $this->startMonth($table, exact: true));
             $this->copyAll($table, $table . self::NEW);
             $this->buildPartitionedIndexes($table, perPartitionForeignKeys: false);
-            $this->swapIn($table);
+            $this->swapIn($table, $triggers);
             DB::statement(sprintf('DROP TABLE %s', $table . self::OLD));
         }, '5s');
 
@@ -226,6 +225,7 @@ final class PartitionConverter
             DB::statement("LOCK TABLE {$table} IN EXCLUSIVE MODE");
             $plain = $table . '_m3_plain';
             $definition = self::definition($table);
+            $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
             DB::statement(sprintf('DROP TABLE IF EXISTS %s', $plain));
             DB::statement(sprintf('CREATE TABLE %s (LIKE %s INCLUDING DEFAULTS INCLUDING STORAGE INCLUDING COMMENTS)', $plain, $table));
             foreach ($definition['plain']['nullable'] as $column) {
@@ -239,9 +239,8 @@ final class PartitionConverter
             DB::statement(sprintf('DROP TABLE %s', $table));
             DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $plain, $table));
             $this->renameConstraints($table, $definition['plain'], '_m3plain', '');
-            foreach ($definition['triggers'] as $name => $sql) {
-                DB::statement(sprintf('CREATE TRIGGER %s ' . $sql, $name, $table));
-            }
+            // After the copy, as in convertInline(): the triggers of the partitioned table, checked
+            $this->manager->copyTriggers($triggers, $table);
         }, '5s');
 
         return true;
@@ -378,7 +377,7 @@ final class PartitionConverter
             $this->assertSameMaxId($table, $new);
 
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
-            $this->swapIn($table);
+            $this->swapIn($table, $this->manager->userTriggers($table, [$table . self::CAPTURE]));
             DB::statement(sprintf("COMMENT ON TABLE %s IS 'M3 swapped_at=%s'", $table . self::OLD, now()->utc()->toIso8601ZuluString()));
             // --rollback copies back what is written from now on
             $this->createCaptureTrigger($table, $table . self::CHANGES);
@@ -419,11 +418,19 @@ final class PartitionConverter
             $this->assertSameMaxId($table, $old);
 
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
+            // The live table's triggers are the truth (e.g. fiscal_receipt_keys_* added after --finish): the plain
+            // table gets exactly them, after its rows are in step (with them on, the keys insert trigger would refuse
+            // every re-copied row, whose key row already exists)
+            $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
+            foreach (array_keys($this->manager->userTriggers($old)) as $stale) {
+                DB::statement(sprintf('DROP TRIGGER %s ON %s', $stale, $old));
+            }
             $this->renameConstraints($table, $definition, '', '_m3new');
             DB::statement(sprintf('ALTER SEQUENCE %s_id_seq OWNED BY %s.id', $table, $old));
             DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $table, $table . self::NEW));
             DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $old, $table));
             $this->renameConstraints($table, $definition['plain'], '_m3old', '');
+            $this->manager->copyTriggers($triggers, $table);
             DB::statement(sprintf('COMMENT ON TABLE %s IS NULL', $table));
         }, (string) config('partitions.detach_lock_timeout', '3s'));
 
@@ -470,8 +477,10 @@ final class PartitionConverter
         }
 
         $this->manager->withLockRetry(function () use ($table, $old) {
+            $triggers = $this->manager->userTriggers($table, [$table . self::CAPTURE]);
             DB::statement(sprintf('DROP TRIGGER IF EXISTS %s ON %s', $table . self::CAPTURE, $table));
             DB::statement(sprintf('DROP TABLE %s', $old));
+            $this->manager->assertTriggers($triggers, $table);
             DB::statement(sprintf('DROP TABLE IF EXISTS %s', $table . self::CHANGES));
         }, (string) config('partitions.detach_lock_timeout', '3s'));
         $result['dropped'] = true;
@@ -581,9 +590,13 @@ final class PartitionConverter
 
     /**
      * The swap (inside the caller's transaction, the live table locked): the plain table's names get `_m3old`, the
-     * sequence moves to the new table, the tables trade names, the new names lose `_m3new`, the triggers follow.
+     * sequence moves to the new table, the tables trade names, the new names lose `_m3new`, and EVERY user trigger of
+     * the replaced table ($triggers, read from pg_trigger) is created on the new one and checked: on a partitioned
+     * parent Postgres clones them to every partition, also to months attached later.
+     *
+     * @param  array<string, array{definition: string, enabled: string}>  $triggers
      */
-    private function swapIn(string $table): void
+    private function swapIn(string $table, array $triggers): void
     {
         $definition = self::definition($table);
         $new = $table . self::NEW;
@@ -593,9 +606,7 @@ final class PartitionConverter
         DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $table, $old));
         DB::statement(sprintf('ALTER TABLE %s RENAME TO %s', $new, $table));
         $this->renameConstraints($table, $definition, '_m3new', '');
-        foreach ($definition['triggers'] as $name => $sql) {
-            DB::statement(sprintf('CREATE TRIGGER %s ' . $sql, $name, $table));
-        }
+        $this->manager->copyTriggers($triggers, $table);
     }
 
     /**
