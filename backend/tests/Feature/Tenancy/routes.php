@@ -19,6 +19,7 @@
  *   'soft' => [key, ...]                 keys the route may ignore and replace (a branch-bound caller's branch_id is its own
  *                                        branch; an unknown variant id is a new variant): B's value alone may be answered 2xx,
  *                                        B unchanged and nothing of B shown,
+ *   'logs_request' => [table => why]     tables where B's call may leave a log of exactly what it sent (ids it named),
  *   'filter' => true                     the ids are a list's filter: B's call may answer 2xx with A's own (or no) rows,
  *   'refused' => fn (array $json) => bool   a batch answering 200 refuses per item: whether B's call was refused,
  * ]
@@ -134,6 +135,8 @@ $pos = [
     'POST api/v1/pos/bills/{uuid}/fiscal-retry' => ['params' => fn (array $s) => ['uuid' => $s['paid_bill']->uuid], 'ok' => $o(200)],
     'POST api/v1/pos/bills/{uuid}/payments' => [
         'params' => fn (array $s) => ['uuid' => $s['bill']->uuid],
+        // the tender pays the bill's total: B's amount, not a reference to a record of B
+        'soft' => ['tenders'],
         'body' => fn (array $s) => ['tenders' => [['tender' => 'cash', 'amount' => (string) $s['bill']->fresh()->total]]],
         'ok' => $o(409, 409, 200),
     ],
@@ -446,6 +449,7 @@ $pos = [
             'payload' => ['order' => '7a2e3d4c-5b6a-4f20-8b9c-1d2e3f4a5b6c', 'local_number' => 'K1-001', 'channel' => 'pos_hall', 'table_id' => $s['free_table']->id, 'guests_count' => 2,
                 'items' => [['line_id' => '8b3f4e5d-6c7b-4031-9cad-2e3f4a5b6c7d', 'variant_id' => $s['tea']->uuid, 'quantity' => '1', 'unit_price' => '5000']]],
         ]]],
+        'logs_request' => ['pos_sync_operations' => 'a rejected operation is kept as the till sent it (payload with the ids it named; staff_id only when the staff member is of this store, M4 fix T-1)'],
         'refused' => fn (array $json) => collect($json['data']['results'] ?? [])->every(fn ($result) => !in_array($result['status'] ?? null, ['applied', 'duplicate'], true)),
         'ok' => ['device' => 200],
     ],
