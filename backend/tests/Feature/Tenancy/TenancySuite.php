@@ -107,9 +107,10 @@ trait TenancySuite
             $expected = $extra ? [$positive['status']] : (array) $ok[$actor];
             $label = "{$key} as {$actor}";
             // M4 stage 2: a route with the `tenant` middleware (TenantMiddlewareCoverageTest: every tenant route but
-            // NOT_BOUND) ran bound to A's store, once; a staff route refuses a terminal's token before that
+            // NOT_BOUND) ran bound to A's store only (again for a streamed body); a staff route refuses a terminal's
+            // token before that
             $tenant = $actor !== 'terminal' && in_array('tenant', $middleware, true) ? [(int) $this->world['A']['store']->id] : [];
-            if ($positive['tenant'] !== $tenant) {
+            if (array_values(array_unique($positive['tenant'])) !== $tenant) {
                 $failures[] = "{$label}: bound to store(s) [" . implode(', ', $positive['tenant']) . '], expected [' . implode(', ', $tenant) . ']';
             }
             if ($actor === 'terminal' && $positive['status'] < 400) {

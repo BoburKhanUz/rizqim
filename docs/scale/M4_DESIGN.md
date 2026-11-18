@@ -63,7 +63,7 @@ the request without first resolving the parent, **except `payments`**: refunds t
 store_id bigint` 0.9 ms; backfill `UPDATE payments p SET store_id = o.store_id FROM orders o WHERE o.id = p.order_id` in
 batches of 50 000 ids, 0.68 s per batch (13.5 µs/row, row locks only on the batch); `ADD CONSTRAINT ... CHECK (store_id IS
 NOT NULL) NOT VALID` 5.7 ms, `VALIDATE` 171 ms (SHARE UPDATE EXCLUSIVE, writes continue), then `SET NOT NULL` 0.5 ms (uses
-the validated check); `CREATE INDEX CONCURRENTLY (store_id)` 0.44 s. Writes: 8 creation sites [F grep `Payment::create`:
+the validated check). **Built (stage 2): no index on `store_id`**: EXPLAIN on 1 M payments (an order's payments, a shift's report, the finance-history list for the largest and the smallest store, by uuid) shows the store predicate only as a filter on the existing order/shift/uuid/pkey index paths, never slower; the index (`CREATE INDEX CONCURRENTLY`, 0.44 s) waits for a query that needs it, and stage 3 re-measures with the RLS policy on. Writes: 8 creation sites [F grep `Payment::create`:
 CreateOrderAction, PaymentService, PosSyncApplier, BookingDepositService, BanquetSchedule ×2, Click and Payme webhooks];
 a `BEFORE INSERT` trigger `payments_fill_store` sets `NEW.store_id` from `orders` (or from `pos_shifts` when
 `order_id` is NULL: `payments.order_id` is nullable [V]; the implementer counts such rows on the pilot first) and raises
@@ -215,6 +215,17 @@ written by hand; nothing enumerates routes, so a new route without its isolation
 - M2's `RevisionQueryBuilder` (`app/Domain/Realtime/RevisionQueryBuilder.php`) sees every write and could assert
   "written rows belong to the bound store". Not done: it resolves scope columns only for tracked tables and does an
   extra read for updates; stage 3 gives the same check in Postgres for free on the tables that matter.
+- [F, stage 2 as built] The binding lasts while the middleware's `runAs` runs: a streamed body (`streamDownload`,
+  `response()->stream`) is written after it, so a tenant route that streams binds the store again inside its callback
+  (`ReportController::export`); work after the response (`terminating`, `dispatchAfterResponse`) runs unbound. Queued
+  jobs and queued listeners run unbound also on the sync queue (`QueuedJobsRunUnbound`: forgotten from `JobProcessing`,
+  put back when the job is done), so tests see what the worker sees; a job that is not ShouldQueue run by
+  `dispatchSync`, inline listeners and `DB::afterCommit` callbacks are part of the request and stay bound.
+- Known limits: `BindTenant` binds a courier to `users.store_id`; couriers serve only their own store's orders today
+  (`OrderStatusService.php:262-264`). A platform fleet courier (`CourierType` FLEET) acting across stores would get 404
+  on other stores' orders under the scope and needs its own binding decision before that phase. `exists:` rules go
+  through the base query builder and still see every store: the scoped load after them must handle null (the stage 1
+  suite sends B's id for every reference key and refuses any 5xx).
 Rejected: explicit scoping + guard test only (no automatic filter: LAUNCH_PLAN asks for it and it costs nothing at the DB);
 a scope active for every staff actor (breaks the marketplace for owners); route-model binding (169 `{uuid}` + 123 `{id}`
 routes rewritten for no extra guarantee over the suite).

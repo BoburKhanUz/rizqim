@@ -118,12 +118,16 @@ class StoreScopeInventoryTest extends TestCase
         foreach ((new Finder())->files()->in(app_path())->name('*.php') as $file) {
             $lines = explode("\n", $file->getContents());
             foreach ($lines as $i => $line) {
-                if (!preg_match('/withoutGlobalScope\(\s*\\\\?(App\\\\Support\\\\Tenancy\\\\)?StoreScope::class/', $line)) {
+                // The store scope by name, every global scope (plural), or a query built without them. Not listed:
+                // ->toBase() applies the global scopes (Eloquent\Builder::toBase = applyScopes()->getQuery()); a base
+                // builder from getQuery() or DB::table() never had them (raw queries: the route suite covers them)
+                if (!preg_match('/withoutGlobalScope\(\s*\\\\?(App\\\\Support\\\\Tenancy\\\\)?StoreScope::class|withoutGlobalScopes\(|newQueryWithoutScopes\(/', $line)) {
                     continue;
                 }
                 $found++;
                 $previous = trim($lines[$i - 1] ?? '');
-                $commented = str_contains(substr($line, (int) strpos($line, 'withoutGlobalScope')), '//')
+                $at = (int) (preg_match('/withoutGlobalScope|newQueryWithoutScopes/', $line, $hit, PREG_OFFSET_CAPTURE) ? $hit[0][1] : 0);
+                $commented = str_contains(substr($line, $at), '//')
                     || str_starts_with($previous, '//') || str_starts_with($previous, '*') || str_starts_with($previous, '/*');
                 if (!$commented) {
                     $problems[] = $file->getRelativePathname() . ':' . ($i + 1) . ': say why on this or the previous line';

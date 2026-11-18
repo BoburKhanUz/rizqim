@@ -24,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
 
         // M4 stage 2: the tenant request's store (BindTenant binds it per request; scoped: forgotten between jobs)
         $this->app->scoped(\App\Support\Tenancy\TenantContext::class);
+        $this->app->scoped(\App\Support\Tenancy\QueuedJobsRunUnbound::class);
     }
 
     /**
@@ -31,6 +32,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // M4 stage 2: queued jobs and queued listeners run without a tenant, also on the sync queue
+        \App\Support\Tenancy\QueuedJobsRunUnbound::register($this->app['events']);
+
         if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
             \Illuminate\Support\Facades\URL::forceScheme('https');
         }

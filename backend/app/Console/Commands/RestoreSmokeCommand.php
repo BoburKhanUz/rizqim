@@ -102,6 +102,7 @@ class RestoreSmokeCommand extends Command
 
     private function order(): string
     {
+        // The restored database's newest row of any store (a console command: no tenant, every scope off)
         $order = Order::query()->withoutGlobalScopes()->orderByDesc('id')->first();
         if ($order === null) {
             return "buyurtma: bazada buyurtma yo'q (yangi o'rnatish), o'qish ishladi";
@@ -114,6 +115,7 @@ class RestoreSmokeCommand extends Command
 
     private function fiscalReceipt(): string
     {
+        // The restored database's newest row of any store (a console command: no tenant, every scope off)
         $receipt = FiscalReceipt::query()->withoutGlobalScopes()->orderByDesc('id')->first();
         if ($receipt === null) {
             return "fiskal chek: bazada chek yo'q, o'qish ishladi";
@@ -125,6 +127,7 @@ class RestoreSmokeCommand extends Command
 
     private function audit(): string
     {
+        // The restored database's newest row of any store (a console command: no tenant, every scope off)
         $row = AuditLog::query()->withoutGlobalScopes()->orderByDesc('id')->first();
         if ($row === null) {
             return "audit jurnali: yozuv yo'q, o'qish ishladi";
