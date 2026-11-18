@@ -74,6 +74,8 @@ class IntegrationDataModelTest extends TestCase
         IntegrationEvent::factory()->create(['integration_connection_id' => $event->integration_connection_id, 'idempotency_key' => 'eats-123']);
     }
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migrations_go_back_and_forth_and_orders_start_without_fiscalized_by(): void
     {
         IntegrationConnection::factory()->create();

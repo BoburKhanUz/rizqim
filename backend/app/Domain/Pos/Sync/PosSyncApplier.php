@@ -138,6 +138,12 @@ final class PosSyncApplier
             $base['origin_device_id'] = (int) $acting->id !== (int) $device->id ? (int) $acting->id : null;
             $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
         } catch (PosSyncException $e) {
+            // Wave M4 T-1: the row links only a user of this store (the error list shows the linked user's name); an id
+            // of anybody else stays only in what the till sent
+            if ($base['staff_id'] !== null && !User::where('store_id', $device->store_id)->whereKey($base['staff_id'])->exists()) {
+                $base['staff_id'] = null;
+            }
+
             // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied,
             // money included
             return $this->rejected($base, $e->reason, $e->getMessage(), $origin !== null ? ['origin_device' => $origin] : null);

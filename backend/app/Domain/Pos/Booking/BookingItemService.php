@@ -142,7 +142,10 @@ class BookingItemService
             // OrderLineBuilder takes modifiers by uuid; the POS sends their ids
             $chosen = [];
             $requested = $data['modifiers'] ?? [];
-            $uuids = Modifier::whereIn('id', array_map(fn (array $choice) => (int) $choice['modifier_id'], $requested))->pluck('uuid', 'id');
+            // Only the booking's store's modifiers (wave M4): another store's id is "not found" before any rule or price
+            $uuids = Modifier::whereIn('id', array_map(fn (array $choice) => (int) $choice['modifier_id'], $requested))
+                ->whereHas('group', fn ($query) => $query->where('store_id', $booking->store_id))
+                ->pluck('uuid', 'id');
             foreach ($requested as $choice) {
                 $uuid = $uuids[(int) $choice['modifier_id']] ?? null;
                 if ($uuid === null) {

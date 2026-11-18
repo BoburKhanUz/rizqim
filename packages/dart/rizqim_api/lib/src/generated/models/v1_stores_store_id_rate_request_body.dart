@@ -10,8 +10,8 @@ part 'v1_stores_store_id_rate_request_body.g.dart';
 class V1StoresStoreIdRateRequestBody {
   const V1StoresStoreIdRateRequestBody({
     required this.rating,
+    required this.orderId,
     this.comment,
-    this.orderId,
   });
 
   factory V1StoresStoreIdRateRequestBody.fromJson(Map<String, Object?> json) =>
@@ -20,7 +20,7 @@ class V1StoresStoreIdRateRequestBody {
   final int rating;
   final String? comment;
   @JsonKey(name: 'order_id')
-  final int? orderId;
+  final int orderId;
 
   Map<String, Object?> toJson() => _$V1StoresStoreIdRateRequestBodyToJson(this);
 }

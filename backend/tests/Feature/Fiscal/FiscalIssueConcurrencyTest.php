@@ -46,7 +46,7 @@ class FiscalIssueConcurrencyTest extends TestCase
 
     protected function tearDown(): void
     {
-        DB::unprepared('ALTER TABLE fiscal_receipts ENABLE TRIGGER fiscal_receipt_keys_insert');
+        $this->asSchemaOwner('ALTER TABLE fiscal_receipts ENABLE TRIGGER fiscal_receipt_keys_insert');
         if (isset($this->store)) {
             $this->withoutAuditLogGuard(fn () => AuditLog::where('store_id', $this->store->id)->delete());
             // The store's receipts go with it (ON DELETE CASCADE); their keys have no foreign key
@@ -146,7 +146,7 @@ class FiscalIssueConcurrencyTest extends TestCase
     public function test_the_advisory_lock_alone_keeps_one_receipt_across_midnight(): void
     {
         // Without the database guard: only FiscalService's lock and lookup stand between the two requests
-        DB::unprepared('ALTER TABLE fiscal_receipts DISABLE TRIGGER fiscal_receipt_keys_insert');
+        $this->asSchemaOwner('ALTER TABLE fiscal_receipts DISABLE TRIGGER fiscal_receipt_keys_insert');
 
         $results = $this->issueAcrossMidnight('pos-bill:lock-only:sale');
 

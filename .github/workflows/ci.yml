@@ -54,6 +54,8 @@ jobs:
               - 'backend/**'
               # P1-11: the committed OpenAPI spec is checked against the code in backend-tests
               - 'packages/api-spec/**'
+              # M4: the roles the tests-app-role job runs under
+              - 'scripts/db-roles.sh'
               - '.github/workflows/ci.yml'
             miniapp:
               - 'customer/miniapp/**'
@@ -176,6 +178,9 @@ jobs:
               - 'scripts/pitr*.sh'
               - 'scripts/restore-drill.sh'
               - 'scripts/archive-*.sh'
+              # M4: the drill runs with the roles split (db-roles service, PgBouncer as the app role)
+              - 'scripts/db-roles.sh'
+              - 'infra/pgbouncer/**'
               - 'backend/database/migrations/**'
               - '.github/workflows/ci.yml'
 
@@ -259,6 +264,105 @@ jobs:
             git diff -U2 -- ../packages/api-spec/openapi.json | head -300
             exit 1
           fi
+
+  # M4 (docs/scale/M4_DESIGN.md section 5): the whole suite with the roles split as in production: the bootstrap
+  # superuser only creates the roles (scripts/db-roles.sh), migrations run as rizqim_owner, every test connects as
+  # rizqim_app (DML only). A runtime path that needs ownership fails here; tests that do DDL themselves declare
+  # Tests\Concerns\UsesOwnerConnection and RefreshDatabase migrates on pgsql_owner (tests/TestCase.php).
+  tests-app-role:
+    name: Backend tests as the app role
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d testing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_USERNAME: rizqim_app
+      DB_PASSWORD: rizqim_app_ci
+      DB_OWNER_USERNAME: rizqim_owner
+      DB_OWNER_PASSWORD: rizqim_owner_ci
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql, redis, intl, gd, bcmath, zip
+          coverage: none
+
+      - name: Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.3-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.3-
+
+      - name: Prepare .env
+        run: |
+          cp .env.example .env
+          sed -i \
+            -e 's/^APP_ENV=.*/APP_ENV=testing/' \
+            -e 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/' \
+            -e 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' \
+            -e 's/^DB_PORT=.*/DB_PORT=5432/' \
+            -e 's/^DB_DATABASE=.*/DB_DATABASE=testing/' \
+            -e 's/^DB_USERNAME=.*/DB_USERNAME=rizqim_app/' \
+            -e 's/^DB_PASSWORD=.*/DB_PASSWORD=rizqim_app_ci/' \
+            .env
+
+      - name: Roles (scripts/db-roles.sh as the bootstrap superuser)
+        working-directory: .
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          DB_DATABASE: testing
+        run: sh scripts/db-roles.sh
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Generate APP_KEY
+        run: php artisan key:generate --ansi
+
+      - name: Migrate as the owner
+        # As the entrypoint does it in production. Under APP_ENV=testing Laravel does not dispatch console command
+        # events, so the switch to the owner connection would not happen (the tests pass --database themselves).
+        env:
+          APP_ENV: production
+        run: php artisan migrate --force --no-interaction
+
+      - name: The roles are split
+        env:
+          PGPASSWORD: rizqim_app_ci
+        run: |
+          got=$(psql -X -h 127.0.0.1 -U rizqim_app -d testing -Atc "select current_user, (select rolsuper from pg_roles where rolname = current_user), (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and pg_get_userbyid(c.relowner) <> 'rizqim_owner'), (select pg_get_userbyid(relowner) from pg_class where oid = 'migrations'::regclass)")
+          echo "$got"
+          [ "$got" = "rizqim_app|f|0|rizqim_owner" ] || { echo "::error::migrations must run as rizqim_owner and the app must connect as rizqim_app (not a superuser)"; exit 1; }
+
+      - name: Run tests as rizqim_app
+        run: php artisan test
 
   backend-static-analysis:
     name: Backend static analysis (PHPStan)

@@ -11,6 +11,8 @@ use Tests\TestCase;
  */
 class MigrationsRollbackTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     public function test_every_migration_rolls_back_and_runs_again(): void
     {
         $this->artisan('migrate', ['--force' => true])->assertSuccessful();

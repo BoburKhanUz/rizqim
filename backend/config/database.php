@@ -116,6 +116,29 @@ return [
             ] : [],
         ],
 
+        // M4 (docs/scale/M4_DESIGN.md section 5): the role that owns the schema (rizqim_owner) for migrations and the
+        // partition commands; the application itself runs as DB_USERNAME (DML only). Always direct, never the pooler.
+        // No credentials here on purpose: `config:cache` would write them into bootstrap/cache/config.php, which every
+        // php-fpm worker reads. App\Support\Database\OwnerConnection::prepare() fills username and password from the
+        // process environment (DB_OWNER_USERNAME / DB_OWNER_PASSWORD) when such a command starts. Unset = one role.
+        'pgsql_owner' => [
+            'driver' => 'pgsql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'laravel'),
+            'username' => null,
+            'password' => null,
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'pooler' => 'direct',
+            // pdo_pgsql passes ATTR_TIMEOUT as libpq connect_timeout: the monitoring check that logs in as the owner
+            // every minute (PartitionsCheck) never waits long for a server that does not answer
+            'options' => extension_loaded('pdo_pgsql') ? [PDO::ATTR_TIMEOUT => 5] : [],
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

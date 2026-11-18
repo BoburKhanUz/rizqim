@@ -244,6 +244,8 @@ class PosQueueReviewFixesTest extends TestCase
 
     // --- C#L7: the unique index migration with duplicates ------------------------------------------------------------
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_unique_index_migration_renumbers_duplicate_numbers(): void
     {
         $migration = require database_path('migrations/2026_11_10_200200_add_pickup_columns_to_orders_table.php');

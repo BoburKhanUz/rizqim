@@ -211,6 +211,8 @@ class FiscalReceiptIdempotencyTest extends TestCase
         $this->assertSame('2026-10-30 23:59:59', $queries[0]->bindings[1] instanceof \DateTimeInterface ? $queries[0]->bindings[1]->format('Y-m-d H:i:s') : (string) $queries[0]->bindings[1]);
     }
 
+    // M4: does DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_a_refund_of_a_receipt_in_an_archived_month_fails_with_a_clear_message_and_never_crashes(): void
     {
         $this->travelTo('2026-01-15 12:00:00');
@@ -280,6 +282,8 @@ class FiscalReceiptIdempotencyTest extends TestCase
         $this->assertSame(FiscalReceiptStatus::ISSUED, app(FiscalService::class)->retryNow($old)->status);
     }
 
+    // M4: does DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_backfills_the_keys_of_receipts_written_before_it_and_can_run_again(): void
     {
         $this->travelTo('2026-03-10 10:00:00');

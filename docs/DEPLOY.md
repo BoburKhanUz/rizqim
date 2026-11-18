@@ -34,6 +34,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `APP_URL` | `https://<domen>` |
 | `TELEGRAM_ALLOW_MOCK_AUTH`, `SMS_EXPOSE_CODE_IN_RESPONSE` | `false`, `false` |
 | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL (qiymatlarni ildizdagi `.env` beradi, `postgres` konteyneri bazani va foydalanuvchini shundan o'zi yaratadi) |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DB_OWNER_USERNAME`, `DB_OWNER_PASSWORD` (M4, faqat ildizdagi `.env`) | Baza rollari (OPERATIONS.md, 22-bo'lim). Bo'sh = bitta rol, avvalgidek. Ajratilganda: `POSTGRES_*` = bootstrap superuser (yangi o'rnatishda o'zingiz tanlaysiz, mavjudida eski `DB_USERNAME`/`DB_PASSWORD`; postgres, backup, db-roles), `DB_USERNAME`/`DB_PASSWORD` = `rizqim_app` (ilova, PgBouncer), `DB_OWNER_*` = `rizqim_owner` (migratsiyalar, `db:partitions:*`; faqat backend va scheduler oladi). Uchala parol har xil |
 | `CACHE_STORE`, `QUEUE_CONNECTION`, `SESSION_DRIVER` | `redis` |
 | `REDIS_CLIENT`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | `phpredis`, Redis manzili (`redis`, `6379` va parolni compose o'zi beradi) |
 | `REDIS_DB`, `REDIS_CACHE_DB` | `0`, `1` (farqli bo'lsin; `REDIS_URL` ni o'rnatmang) |
@@ -49,7 +50,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `MARKETPLACE_READ_MODEL` (`true`), `MARKETPLACE_CACHE_STORE` (bo'sh = `CACHE_STORE`), `MARKETPLACE_CELL_DEGREES` (`0.05`), `MARKETPLACE_FEED_POOL` (`120`), `MARKETPLACE_REACHABILITY` (`false`) | M2 market o'qish modeli: `/stores`, `/catalog` Redis'dagi hujjatlardan ([OPERATIONS.md](OPERATIONS.md) 15). `READ_MODEL=false` = bazadan (qaytarish yo'li). `REACHABILITY` — terminal bilan aloqa qoidasi, standart o'chiq. Migratsiya: `stores.marketplace_offline_minutes` |
 | `LOG_LEVEL` | `warning` tavsiya etiladi: Click, Payme va Telegram webhook payload'lari `info` darajasida to'liq logga yoziladi (shaxsiy ma'lumot bo'lishi mumkin) |
 
-**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `BACKEND_BIND` (standart `127.0.0.1`: backend portiga faqat shu serverdagi tashqi proksi ulanadi), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, `VITE_PARTNER_WEB_URL` (Mini App xodim ekranlaridagi "Web panelda tahrirlash" havolasi — hamkor paneli manzili, `https://panel.<domen>`; bo'sh = havolasiz; build vaqtida, o'zgartirgach `docker compose up -d --build frontend`), real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
+**Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi; M4 rollari ajratilsa `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DB_OWNER_USERNAME`, `DB_OWNER_PASSWORD` ham shu yerda), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `BACKEND_BIND` (standart `127.0.0.1`: backend portiga faqat shu serverdagi tashqi proksi ulanadi), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, `VITE_PARTNER_WEB_URL` (Mini App xodim ekranlaridagi "Web panelda tahrirlash" havolasi — hamkor paneli manzili, `https://panel.<domen>`; bo'sh = havolasiz; build vaqtida, o'zgartirgach `docker compose up -d --build frontend`), real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
 **Zaxira va ishonchlilik sozlamalari (M3).** Hammasi ixtiyoriy: bo'sh qiymat = funksiya o'chiq, ilova avvalgidek ishlaydi. Ma'nosi va tartibi: [OPERATIONS.md](OPERATIONS.md), 17–21-bo'limlar.
 
@@ -61,7 +62,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | ildiz `.env` | `PITR_S3_REGION`, `PITR_S3_PREFIX`, `PITR_S3_URI_STYLE`, `PITR_S3_VERIFY_TLS` | `us-east-1` (yoki `BACKUP_S3_REGION`), bo'sh, `path`, `y` | ixtiyoriy S3 tafsilotlari |
 | ildiz `.env` | `PITR_REPO1_RETENTION_FULL`, `PITR_S3_RETENTION_FULL` | `2`, `4` | saqlanadigan to'liq (haftalik) nusxalar: shu serverda ~14 kun, S3 da ~28 kun |
 | ildiz `.env` | `PITR_ARCHIVE_QUEUE_MAX` | `4GiB` | S3 ishlamasa WAL shu hajmgacha kutadi; oshsa tashlanadi (disk to'lmaydi, PITR zanjiri uziladi) |
-| ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC. `0` = faqat qo'lda |
+| ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC (23:00 UTC = Toshkentda dushanba 04:00). `0` = faqat qo'lda |
 | ildiz `.env` | `ARCHIVE_S3_ENDPOINT`, `ARCHIVE_S3_BUCKET`, `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, `ARCHIVE_S3_REGION`, `ARCHIVE_S3_PREFIX` | bo'sh = `BACKUP_S3_*` | jurnallar arxivi uchun S3 (`<prefiks>/archive`). Arxiv hech qachon o'chmasligi kerak: o'chirish huquqi **yo'q** kalit, imkon bo'lsa Object Lock'li alohida bucket |
 | ildiz `.env` | `PITR_PING_URL` | bo'sh | healthchecks.io manzili: har muvaffaqiyatli PITR nusxasidan keyin so'rov yuboriladi |
 | ildiz `.env` | `HEALTHCHECKS_PING_URL` | bo'sh | healthchecks.io manzili: scheduler har daqiqalik tekshiruvdan keyin so'rov yuboradi (server jim bo'lsa tashqi xizmat xabar beradi) |
@@ -86,7 +87,7 @@ beradi (Docker'siz o'rnatishda `DB_POOLER` bo'sh = to'g'ridan-to'g'ri). O'lchaml
 (backend ishga tushganda tekshiradi; aks holda bozor yuki kassalarning bazaga ulanishini olib qo'yardi). Pul bilan
 `DB_SSLMODE=require`/`verify-*` ishlamaydi (PgBouncer'da php-fpm tomonga TLS yo'q): backend darhol xato beradi. Postgres yoki
 PgBouncer `STARTUP_WAIT_SECONDS` (120) ichida javob bermasa, konteyner xato bilan to'xtaydi (osilib qolmaydi). Sessiya holati kerak bo'lgan qo'lda `artisan` ishini
-(`migrate:rollback` ham) `queue` konteynerida bajaring: `docker compose exec -u www-data queue php artisan ...` (u to'g'ridan-to'g'ri ulanadi).
+(`migrate:rollback` ham) `scheduler` konteynerida bajaring: `docker compose exec -u www-data scheduler php artisan ...` (u to'g'ridan-to'g'ri ulanadi va M4 rollari ajratilganda jadvallar egasining `DB_OWNER_*` kalitlari ham unda bor; `queue` da ular yo'q, u yerda migratsiya «must be owner» bilan yiqiladi). `docker compose exec` konteynerning compose'dagi muhitini oladi: `backend` da ham `DB_OWNER_*` bor (entrypoint ularni faqat php-fpm uchun o'chiradi), lekin u pul orqali ulanadi, shuning uchun sessiya kerak bo'lgan ish uchun `scheduler`.
 
 **So'rov va baza gigiyenasi (M1, ixtiyoriy, `backend/.env`).** Standartlari qavsda; sozlamasangiz shular ishlaydi:
 `SANCTUM_LAST_USED_AT_THROTTLE_MINUTES` (5; token `last_used_at` ko'pi bilan shuncha daqiqada bir yoziladi, `0` = har so'rovda),
@@ -309,6 +310,13 @@ scripts/pitr-restore.sh --info
 scripts/restore-drill.sh                            # birinchi mashq: tiklash vaqtini o'lchaydi
 ```
 Staging'da avval sinab ko'ring (10-bo'lim). Bu zanjir (`backup` xizmati umumiy soket orqali nusxa oladi, S3, `init: true`) CI da kichik bazada va MinIO bilan sinalgan, haqiqiy serverda hali yo'q. Qaytarish: `.env` da `PITR_ENABLED` ni bo'sh qiling va `docker compose up -d`: arxiv buyrug'i yana hech narsa qilmaydi; kunlik `pg_dump` o'zgarmay ishlayveradi. Migratsiyalar eski kodga to'sqinlik qilishi mumkin (jurnallar bo'linmalarga o'tgan): orqaga qaytishdan oldin pastdagi ro'yxatga qarang.
+
+**M4 ga o'tish: baza rollari (mavjud o'rnatish, ixtiyoriy, tinch soatda).** Tartib: (1) zaxira; (2) ildizdagi `.env`: eski
+`DB_USERNAME`/`DB_PASSWORD` ni `POSTGRES_USER`/`POSTGRES_PASSWORD` ga ko'chiring, `DB_USERNAME=rizqim_app` va yangi `DB_PASSWORD`,
+`DB_OWNER_USERNAME=rizqim_owner` va yangi `DB_OWNER_PASSWORD`; (3) `git pull && docker compose up -d --build`: `db-roles` rollarni
+yaratadi va egalikni ko'chiradi, keyin PgBouncer, backend (migratsiya egasi bilan), queue, scheduler, reverb; (4)
+`docker compose logs db-roles` va `app:check-production`. Batafsil, parolni almashtirish va qaytarish: OPERATIONS.md, 22-bo'lim.
+Kalitlarsiz yangilash avvalgidek bitta rol bilan ishlaydi.
 
 **Orqaga qaytarish.** Kod orqaga qaytsa ham migratsiyalar o'z-o'zidan qaytmaydi. Yangi migratsiya eski kodga to'sqinlik qilsa, `down()` yangi kodda bo'lgani uchun avval migratsiyani **yangi kod bilan** qaytaring, keyin kodni almashtiring:
 

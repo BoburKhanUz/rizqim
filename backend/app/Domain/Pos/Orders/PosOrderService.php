@@ -1519,7 +1519,10 @@ class PosOrderService implements PosOrderOpener
                 $modifierIds[] = (int) $modifier['modifier_id'];
             }
         }
-        $modifierUuids = $modifierIds === [] ? collect() : Modifier::whereIn('id', $modifierIds)->pluck('uuid', 'id');
+        // Only this store's modifiers (wave M4): another store's id is "not found" here, before any rule or price sees it
+        $modifierUuids = $modifierIds === [] ? collect() : Modifier::whereIn('id', $modifierIds)
+            ->whereHas('group', fn ($query) => $query->where('store_id', $branch->store_id))
+            ->pluck('uuid', 'id');
 
         $lines = [];
         foreach ($items as $index => $item) {

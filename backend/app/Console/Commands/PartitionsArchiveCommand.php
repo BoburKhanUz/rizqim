@@ -2,13 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Database\OwnerConnection;
 use App\Support\Partitions\PartitionArchiver;
+use App\Support\Partitions\PartitionManager;
 use Illuminate\Console\Command;
 
 /**
  * Wave M3: old journal months leave the live database (App\Support\Partitions\PartitionArchiver). Scheduled daily
  * 22:40 UTC (03:40 Tashkent). Audit and fiscal months are only detached here; scripts/archive-partitions.sh dumps,
  * uploads and verifies them, and a later run drops a month only once its off-site copy is verified.
+ * M4: runs as the schema owner when it is configured, refuses to start when its role cannot do the DDL (as ensure).
  */
 class PartitionsArchiveCommand extends Command
 {
@@ -16,8 +19,19 @@ class PartitionsArchiveCommand extends Command
 
     protected $description = "Eski oylarni jurnal jadvallaridan ajratadi (arxivga) va tashqi nusxasi tasdiqlanganlarini o'chiradi";
 
-    public function handle(PartitionArchiver $archiver): int
+    public function handle(PartitionArchiver $archiver, PartitionManager $partitions): int
     {
+        return OwnerConnection::run(fn () => $this->archive($archiver, $partitions));
+    }
+
+    private function archive(PartitionArchiver $archiver, PartitionManager $partitions): int
+    {
+        $problem = $partitions->maintenanceRoleProblem();
+        if ($problem !== null) {
+            $this->error(PartitionsEnsureCommand::roleRefusal($problem));
+
+            return self::FAILURE;
+        }
         $report = $archiver->run();
 
         foreach ($report['dropped'] as $name) {

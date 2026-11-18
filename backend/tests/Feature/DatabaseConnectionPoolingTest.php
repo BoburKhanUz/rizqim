@@ -31,6 +31,11 @@ class DatabaseConnectionPoolingTest extends TestCase
         }
 
         $base = config('database.connections.pgsql');
+        // M4: the probe creates a table: with split roles it logs in as the schema owner (bindings do not depend on it)
+        if (\App\Support\Database\OwnerConnection::prepare()) {
+            $owner = config('database.connections.' . \App\Support\Database\OwnerConnection::NAME);
+            $base = array_merge($base, ['username' => $owner['username'], 'password' => $owner['password']]);
+        }
         config(['database.connections.' . self::CONNECTION => array_merge($base, [
             'options' => [self::disablePreparesAttribute() => true] + ($base['options'] ?? []),
         ])]);

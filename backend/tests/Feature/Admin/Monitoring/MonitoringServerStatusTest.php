@@ -204,6 +204,8 @@ class MonitoringServerStatusTest extends TestCase
         $this->assertSame(0, $writes, 'the smoke check never writes');
     }
 
+    // M4: does DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_restore_smoke_fails_with_one_line_per_broken_check(): void
     {
         $last = DB::table('migrations')->orderByDesc('id')->value('migration');

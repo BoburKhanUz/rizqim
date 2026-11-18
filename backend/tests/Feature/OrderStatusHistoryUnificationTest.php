@@ -104,6 +104,8 @@ class OrderStatusHistoryUnificationTest extends TestCase
         $this->assertSame('accepted', $history['status']);
     }
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_logs_without_a_history_twin_are_copied_once_and_down_removes_only_the_copies(): void
     {
         $order = $this->makeOrder(OrderStatus::DELIVERED);
