@@ -22,8 +22,6 @@ class StoreScopeInventoryTest extends TestCase
     public const EXCEPTIONS = [
         \App\Models\StoreCrmProfile::class => 'RIZQIM CRM row about a store, read by the admin panel only and never shown to the store',
         \App\Models\StoreHealthScore::class => 'RIZQIM CRM row about a store, read by the admin panel only and never shown to the store',
-        // TODO(M4 stage 2): remove once payments.store_id (agent B) is committed and Payment uses BelongsToStore
-        \App\Models\Payment::class => 'payments.store_id is new in stage 2: scoped in a second step, after the column has landed',
     ];
 
     /** Tables with a NOT NULL store_id and no model (nothing to scope: raw queries, covered by the route suite). */

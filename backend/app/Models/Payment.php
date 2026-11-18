@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Enums\PaymentStatus;
@@ -33,6 +34,7 @@ use App\Enums\PaymentStatus;
  */
 class Payment extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
