@@ -23,8 +23,8 @@ class AdminAuditLogController extends AdminController
      *
      * Newest first, cursor pages (`cursor` from `next_cursor`, `per_page` 1–100, default 50). Filters: `actor_id`,
      * `action` (a prefix: `admin.team` or `admin.team.*`; an exact action matches itself), `store_id`,
-     * `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive), `q` (text in the action
-     * and its details, at least 2 characters).
+     * `subject_type` (Order, User, Store...) + `subject_id`, `from` / `to` (dates, inclusive, Asia/Tashkent days; a
+     * datetime with its offset is that exact moment), `q` (text in the action and its details, at least 2 characters).
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{data: list<array{id: int, action: string, actor: array{id: int, name: string, role: string, platform_role: string|null}|null, store: array{id: int, name: string}|null, branch_id: int|null, device: array{uuid: string, name: string|null, type: string}|null, subject_type: string|null, subject_id: int|null, before: array<string, mixed>|null, after: array<string, mixed>|null, meta: array<string, mixed>|null, reason: string|null, ip: string|null, user_agent: string|null, created_at: string}>, next_cursor: string|null, prev_cursor: string|null, per_page: int}}')]
     public function index(Request $request): JsonResponse
@@ -54,8 +54,8 @@ class AdminAuditLogController extends AdminController
             ->when($request->filled('store_id'), fn (Builder $query) => $query->where('store_id', $request->integer('store_id')))
             ->when($request->filled('subject_type'), fn (Builder $query) => $query->where('model_type', 'App\\Models\\' . ucfirst((string) $request->input('subject_type'))))
             ->when($request->filled('subject_id'), fn (Builder $query) => $query->where('model_id', $request->integer('subject_id')))
-            ->when($request->filled('from'), fn (Builder $query) => $query->where('created_at', '>=', $request->date('from')?->startOfDay()))
-            ->when($request->filled('to'), fn (Builder $query) => $query->where('created_at', '<=', $request->date('to')?->endOfDay()))
+            // Wave M3: a plain date is the platform's (Asia/Tashkent) calendar day, as the other admin filters read it
+            ->tap(fn (Builder $query) => \App\Support\DayBounds::apply($query, 'created_at', $request->input('from'), $request->input('to'), \App\Services\Admin\Today\PlatformStats::TIMEZONE))
             ->when($request->filled('q'), function (Builder $query) use ($request) {
                 $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], mb_strtolower((string) $request->input('q'))) . '%';
                 $query->where(fn (Builder $q) => $q

@@ -2,13 +2,9 @@
 
 namespace App\Domain\Pos\Vouchers;
 
-use App\Domain\Pos\Shifts\BusinessDay;
-use App\Models\Branch;
-use App\Models\Store;
 use App\Models\Voucher;
 use App\Models\VoucherEntry;
 use App\Support\Money;
-use App\Support\StoreTimezone;
 
 /**
  * P6-43: the owner's certificate report for business days `from`..`to` (one branch, or the whole store): what was
@@ -44,24 +40,13 @@ final class VoucherReport
 
         // The liability today: certificates sold in the branch (or anywhere in the store). Review C4: "today" is each
         // branch's business day (VoucherState: 00:00–05:00 still the day before), the store's date for one sold nowhere
-        $storeToday = now()->setTimezone(StoreTimezone::of(Store::find($storeId)))->toDateString();
-        $days = Branch::where('store_id', $storeId)->when($branchId !== null, fn ($query) => $query->whereKey($branchId))->get()
-            ->mapWithKeys(fn (Branch $branch) => [(int) $branch->id => BusinessDay::of($branch)])->all();
+        [$days, $storeToday] = VoucherState::todays($storeId, $branchId);
         $today = $days !== [] ? min($days) : $storeToday;
         $vouchers = Voucher::where('store_id', $storeId)->where('kind', VoucherKind::GIFT->value)
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('balance', '>', 0);
         // Past its last day on the business day of the branch it was sold in
-        $pastDue = function ($query) use ($days, $storeToday, $branchId) {
-            $query->where(function ($query) use ($days, $storeToday, $branchId) {
-                foreach ($days as $id => $day) {
-                    $query->orWhere(fn ($query) => $query->where('branch_id', $id)->where('valid_until', '<', $day));
-                }
-                if ($branchId === null) {
-                    $query->orWhere(fn ($query) => $query->whereNull('branch_id')->where('valid_until', '<', $storeToday));
-                }
-            });
-        };
+        $pastDue = VoucherState::pastDue($days, $storeToday, $branchId);
         $live = (clone $vouchers)->where('status', VoucherStatus::ACTIVE->value)->where(fn ($query) => $query->whereNull('valid_until')->orWhereNot($pastDue));
         $expired = (clone $vouchers)->where(fn ($query) => $query->where('status', VoucherStatus::EXPIRED->value)
             ->orWhere(fn ($query) => $query->where('status', VoucherStatus::ACTIVE->value)->whereNotNull('valid_until')->where($pastDue)));

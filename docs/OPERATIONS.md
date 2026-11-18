@@ -2,6 +2,8 @@
 
 Deploy: `docs/DEPLOY.md`. Bu hujjat ishlab turgan tizimni kuzatish va tiklash haqida. Hamma sozlamalar env orqali; qiymat bo'sh bo'lsa tegishli funksiya o'chiq turadi va ilova odatdagidek ishlaydi.
 
+M3 («Ishonchlilik») bo'limlari: 17 (uzluksiz zaxira, PITR), 18 (vaqtga qaytarib tiklash), 19 (tiklash mashqi), 20 (jurnallar arxivi), 21 (ogohlantirishlar va tashqi kuzatuvchilar). Zaxira ikki qatlamli: uzluksiz zaxira (17) va kunlik `pg_dump` (4-bo'lim, ikkinchi himoya qatori).
+
 ## 1. Sentry (xatolar monitoringi)
 
 | Qayerda | O'zgaruvchi | Fayl |
@@ -70,9 +72,9 @@ Eslatmalar:
 
 ## 4. Zaxira nusxa va tiklash
 
-**Nima zaxiralanadi.** PostgreSQL (barcha buyurtmalar, moliya, foydalanuvchilar) `pg_dump --format=custom` bilan (siqilgan, `.dump`), yonida `.sha256`. Yuklangan rasmlar (`backend_storage` volume) alohida (pastda). Redis'dagi narsa (kesh, sessiya, navbat) zaxiralanmaydi: tiklash shart emas.
+**Nima zaxiralanadi.** Bu bo'lim kunlik `pg_dump` haqida: u M3 dan keyin ham ikkinchi himoya qatori bo'lib qoladi (jismoniy buzilish, PITR ishlamay qolgan holat, Postgres versiyasi almashganda). Bazani istalgan daqiqaga qaytarish uchun 17–18-bo'limlarga qarang. PostgreSQL (barcha buyurtmalar, moliya, foydalanuvchilar) `pg_dump --format=custom` bilan (siqilgan, `.dump`), yonida `.sha256`. Yuklangan rasmlar (`backend_storage` volume) alohida (pastda). Redis'dagi narsa (kesh, sessiya, navbat) zaxiralanmaydi: tiklash shart emas.
 
-**Avtomatik zaxira.** `backup` xizmati `docker compose up -d` bilan ishga tushadi: har kuni `BACKUP_TIME` (UTC, standart 03:00) da va xizmat ishga tushganda dump oladi, `BACKUP_HOST_DIR` (standart `./backups`) ga yozadi, `BACKUP_RETENTION_DAYS` (14) kundan eskilarini o'chiradi. Sozlamalar ildizdagi `.env` da. Log: `docker compose logs backup`.
+**Avtomatik zaxira.** `backup` xizmati `docker compose up -d` bilan ishga tushadi: har kuni `BACKUP_TIME` (UTC, standart 21:30 = Toshkent 02:30; M3 gacha 03:00 edi) da va xizmat ishga tushganda dump oladi, `BACKUP_HOST_DIR` (standart `./backups`) ga yozadi, `BACKUP_RETENTION_DAYS` (14) kundan eskilarini o'chiradi. Sozlamalar ildizdagi `.env` da. Log: `docker compose logs backup`. **Mavjud o'rnatishlar:** ildizdagi `.env` eski `.env.example` dan nusxalangan bo'lsa unda `BACKUP_TIME=03:00` yozilgan va u o'zgarmaydi (03:00 UTC = Toshkent 08:00: savdo boshlanayotgan payt). Ko'chirish: `.env` da `BACKUP_TIME=21:30` qiling va `docker compose up -d backup`. Shu vaqtda ketma-ket: uzluksiz zaxira (yoqilgan bo'lsa), `pg_dump` (endi `--load-via-partition-root` bilan: oylik jurnallar istalgan bo'linma tuzilmasiga tiklanadi), jurnallar arxivi (20-bo'lim).
 
 **Qo'lda zaxira.** Deploy/migratsiya oldidan ham bitta oling (`backup` xizmati shu konteynerda, bazaga o'zi ulanadi):
 ```bash
@@ -92,7 +94,7 @@ docker compose exec backup sh /usr/local/bin/backup.sh
 
 Yuklash xato bersa (tarmoq, noto'g'ri kalit) mahalliy zaxira saqlanadi va skript `2` kodi bilan tugaydi (`docker compose logs backup` da `XATO: S3 ga yuklash`); to'rt asosiy qiymatdan faqat bir qismi berilsa ham shunday (S3 o'chiq, ogohlantirish chiqadi). Mahalliy aylanish (`BACKUP_RETENTION_DAYS`) va `sha256` tekshiruvi o'zgarmagan. Yoqqandan keyin tekshiring: `docker compose up -d --build backup`, so'ng `docker compose exec backup sh /usr/local/bin/backup.sh` va `docker compose exec backup sh /usr/local/bin/backup.sh --list-remote`.
 
-**S3 dagi eski nusxalarni o'chirish (retention).** Eng xavfsiz yo'l: bucket'ning **lifecycle qoidasi** (masalan, 30–90 kundan keyin o'chirish; AWS S3: Management > Lifecycle rules, R2: Settings > Object lifecycle rules, B2: Lifecycle Settings). Shunda `BACKUP_S3_ACCESS_KEY` ga o'chirish huquqi kerak emas: server buzilsa ham tajovuzkor tashqi nusxalarni o'chira olmaydi (faqat yozish va o'qish huquqi yetadi; ransomware'dan himoya). Bucket versiyalash (versioning) yoqilgan bo'lsa, eski versiyalar uchun ham qoida qo'ying. `BACKUP_S3_RETENTION_DAYS` faqat lifecycle imkoni bo'lmagan provayderlar uchun; u kalitga o'chirish huquqini talab qiladi. Tashqi saqlash muddati mahalliydan uzun bo'lsin (masalan, mahalliy 14 kun, S3 da 60 kun).
+**S3 dagi eski nusxalarni o'chirish (retention).** *M3 dan keyin muhim:* kunlik dump'lar, jurnallar arxivi (`archive/`, 20-bo'lim) va uzluksiz zaxira (`pitr/`, 17-bo'lim) bitta `BACKUP_S3_PREFIX` ostida turishi mumkin. **Butun bucket yoki prefiksga lifecycle o'chirish qoidasi qo'ymang**: u `archive/` (hech qachon o'chirilmasligi kerak) va `pitr/` (pgBackRest o'zi boshqaradi) fayllarini ham o'chirib yuboradi. Uzluksiz zaxira uchun alohida bucket oching (`PITR_S3_*`, kalitda o'chirish huquqi bilan: pgBackRest eski nusxalarni o'zi o'chiradi). Kunlik dump'lar uchun lifecycle qoidasini faqat `archive/` papkasini qamramaydigan qilib qo'yish mumkin bo'lsa qo'ying; bo'lmasa `BACKUP_S3_RETENTION_DAYS` ishlating (u faqat `rizqim-*.dump` fayllarini o'chiradi, lekin kalitga o'chirish huquqini talab qiladi). Quyidagi tavsiya shu shartlar bajarilganda amal qiladi: eng xavfsiz yo'l bucket'ning **lifecycle qoidasi** (masalan, 30–90 kundan keyin o'chirish; AWS S3: Management > Lifecycle rules, R2: Settings > Object lifecycle rules, B2: Lifecycle Settings). Shunda `BACKUP_S3_ACCESS_KEY` ga o'chirish huquqi kerak emas: server buzilsa ham tajovuzkor tashqi nusxalarni o'chira olmaydi (faqat yozish va o'qish huquqi yetadi; ransomware'dan himoya). Bucket versiyalash (versioning) yoqilgan bo'lsa, eski versiyalar uchun ham qoida qo'ying. `BACKUP_S3_RETENTION_DAYS` faqat lifecycle imkoni bo'lmagan provayderlar uchun; u kalitga o'chirish huquqini talab qiladi. Tashqi saqlash muddati mahalliydan uzun bo'lsin (masalan, mahalliy 14 kun, S3 da 60 kun).
 
 **S3 dan tiklash.** Dump'ni olib, odatdagi tartibda tiklang (`restore.sh` `.sha256` ni tekshiradi):
 ```bash
@@ -124,9 +126,9 @@ docker compose exec -T backend tar czf - -C /var/www/html/storage/app . > backup
    docker compose up -d
    ```
    `up` deploy qadamlarini (migratsiya, `queue:restart`) o'zi bajaradi. Zaxira koddan eski bo'lsa migratsiyalar yetishmagan qismini qo'llaydi.
-3. **Zaxiradan keyingi yo'qotish.** Dump olingandan keyingi buyurtmalar/to'lovlar tiklanmaydi: Click/Payme kabinetidan shu oraliqdagi to'lovlarni solishtiring, kerak bo'lsa qo'lda kiriting. Telegram webhook qayta o'rnatiladi (`up` da avtomatik).
+3. **Zaxiradan keyingi yo'qotish.** (Uzluksiz zaxira yoqilgan bo'lsa yo'qotish ~1–2 daqiqa va aniq vaqtga qaytarish mumkin: 18-bo'lim.) Dump olingandan keyingi buyurtmalar/to'lovlar tiklanmaydi: Click/Payme kabinetidan shu oraliqdagi to'lovlarni solishtiring, kerak bo'lsa qo'lda kiriting. Telegram webhook qayta o'rnatiladi (`up` da avtomatik).
 
-**Oyiga bir marta mashq qiling:** eng yangi dump'ni `..._restore` bazasiga tiklab, jadvallardagi qatorlar sonini ish bazasi bilan solishtiring, so'ng `drop database` qiling. Tiklanmaydigan zaxira zaxira emas.
+**Oyiga bir marta mashq qiling:** uzluksiz zaxira mashqi o'zi ishlaydi (19-bo'lim); kunlik dump'ni esa qo'lda sinang: eng yangi dump'ni `..._restore` bazasiga tiklab, jadvallardagi qatorlar sonini ish bazasi bilan solishtiring, so'ng `drop database` qiling. Tiklanmaydigan zaxira zaxira emas.
 
 ## 5. Nimani kuzatish kerak
 
@@ -142,9 +144,13 @@ docker compose exec -T backend tar czf - -C /var/www/html/storage/app . > backup
 | Redis xotira | `docker compose exec redis redis-cli info memory` (parol bo'lsa `-a`) | `used_memory` konteyner xotirasiga yaqinlashsa. `maxmemory-policy` ni `allkeys-*` qilmang (navbat kalitlari o'chadi) |
 | Konteynerlar | `docker compose ps` (`unhealthy`, qayta ishga tushish soni) | Har qanday `unhealthy` |
 | Real-time (Reverb) | `docker compose ps reverb` (healthcheck `GET /up`); `failed_jobs` dagi `Illuminate\Broadcasting\BroadcastEvent` | `reverb` `unhealthy`; `BroadcastEvent` joblari muvaffaqiyatsiz (6-bo'lim) |
+| Uzluksiz zaxira (PITR) | Markaz: Monitoring → Holat → «Uzluksiz zaxira»; `scripts/pitr-restore.sh --info` (17-bo'lim) | Oxirgi o'zgarishlar omborga 5 daqiqadan eski; `wal_archive` ogohlantirishi |
+| Tiklash mashqi | Markaz: «Tiklash mashqi» kartasi; oyiga bir marta o'zi ishlaydi (19-bo'lim) | Mashq 35 kundan beri o'tmagan yoki muvaffaqiyatsiz |
+| Jurnallar bo'limlari | `php artisan db:partitions:status` (20-bo'lim) | Oldinda 2 oydan kam; `Hammasi joyida.` emas |
+| Server butunlay o'chgan | Tashqi kuzatuvchilar: UptimeRobot va healthchecks.io (21-bo'lim) | Ichkaridan hech narsa ogohlantirmaydi: ikkalasini ulang |
 | Sertifikat | Reverse proxy'dagi TLS muddati (Telegram webhook va Mini App faqat HTTPS) | 14 kun qolganda |
 
-**Birinchi yordam.** Hamma narsa to'xtagan bo'lsa: `curl -i https://<domen>/api/v1/health` > `fail` bo'lsa `database`/`redis` qaysi biri; `docker compose ps`; `docker compose logs --tail=200 backend`. Bazani buzgan deploy bo'lsa: kodni qaytaring (`docs/DEPLOY.md`, 7-bo'lim), kerak bo'lsa 4-bo'limdagi tiklash.
+**Birinchi yordam.** Hamma narsa to'xtagan bo'lsa: `curl -i https://<domen>/api/v1/health` > `fail` bo'lsa `database`/`redis` qaysi biri; `docker compose ps`; `docker compose logs --tail=200 backend`. Bazani buzgan deploy bo'lsa: kodni qaytaring (`docs/DEPLOY.md`, 7-bo'lim), kerak bo'lsa 4-bo'limdagi tiklash. Ma'lumot yo'qolgan yoki buzilgan bo'lsa: 18-bo'lim (istalgan daqiqaga qaytarib tiklash).
 
 ## 6. Real-time (Laravel Reverb)
 
@@ -180,7 +186,7 @@ Loglar: `docker compose logs -f reverb` (ulanishlar sonini ko'rish uchun vaqtinc
 
 ## 7. PostgreSQL versiyasi (17)
 
-Hamma joyda bir xil major versiya: `docker-compose.yml` (`postgres`, `backup`: `postgres:17-alpine`), `infra/backup/Dockerfile` va CI (`postgres:17`). `pg_dump` server versiyasidan eski bo'lmasligi kerak, shuning uchun `backup` obrazi har doim `postgres` bilan bir xil major versiyada bo'lsin; versiyani oshirsangiz to'rttasini birga o'zgartiring.
+Hamma joyda bir xil major versiya: `docker-compose.yml` (`postgres` obrazi `infra/postgres/Dockerfile` da `FROM postgres:17-alpine`, `backup`: `postgres:17-alpine`), `infra/backup/Dockerfile` va CI (`postgres:17`). `pg_dump` server versiyasidan eski bo'lmasligi kerak, shuning uchun `backup` obrazi har doim `postgres` bilan bir xil major versiyada bo'lsin; versiyani oshirsangiz to'rttasini birga o'zgartiring. 16 dan 17 ga o'tish (pastda) uzluksiz zaxirani (17-bo'lim) yoqishdan **oldin** bajariladi: PITR yoqilgandan keyin major versiya almashsa pgBackRest'da `stanza-upgrade` kerak bo'ladi: bu yo'l M3 da mashq qilinmagan, texnik yordamchi bilan rejalashtiring.
 
 **Mavjud deployment (16 yoki undan eski) 17 ga o'tishi.** Docker `postgres_data` volume'idagi fayllar major versiyalar orasida mos emas: eski volume bilan `postgres:17` ishga tushmaydi (`database files are incompatible with server`). `docker compose pull`/`up --build` dan **oldin** quyidagini bajaring (dump/restore; ma'lumot hajmi kichik va o'rta bo'lsa eng sodda va ishonchli yo'l):
 
@@ -288,7 +294,7 @@ bitta joyga yig'adi va ularga ogohlantirish qoidalarini qo'shadi.
 
 - **Ops guruhi.** `backend/.env` da `TELEGRAM_OPS_CHAT_ID` (bo'sh bo'lsa `TELEGRAM_SUPERADMIN_CHAT_ID`) — ogohlantirishlar
   ochilganda va hal bo'lganda xabar boradigan guruh. Botni guruhga qo'shing. Bir xil muammo `MONITORING_TELEGRAM_COOLDOWN`
-  (15) daqiqada bir martadan ko'p, jami soatiga `MONITORING_TELEGRAM_HOURLY_LIMIT` (20) tadan ortiq yuborilmaydi.
+  (15) daqiqada bir martadan ko'p, jami soatiga `MONITORING_TELEGRAM_HOURLY_LIMIT` (20) tadan ortiq yuborilmaydi. Hamma qoidalar, chegaralar va har ogohlantirishda nima qilish: 21-bo'lim.
 - **Qoidalar har daqiqada tekshiriladi** (`EvaluateAlertsJob`, scheduler). Chegaralarni markazdan o'zgartirasiz (Monitoring →
   Qoidalar), env kerak emas. Scheduler butunlay to'xtasa qoidalar ham to'xtaydi: shuning uchun 5-bo'limdagi tashqi uptime
   monitor (`/health`) baribir kerak.
@@ -553,3 +559,270 @@ so'rovda ~12,8 ms → ~9,7 ms PHP CPU, POS yozuvlari 9–18 % kam.
   konteynerda: `PHP_OPCACHE_VALIDATE_TIMESTAMPS=1` (preload ham o'chadi).
 - **JIT** standart o'chiq (`PHP_OPCACHE_JIT_BUFFER_SIZE=0`). `64M` bilan yana ~4 % CPU tejaladi (o'lchangan), lekin PHP
   8.3 dagi tracing JIT eng kam sinalgan qism: avval staging'da, segfault'larni (`php-fpm` logida `SIGSEGV`) kuzating.
+
+## 17. Uzluksiz zaxira (PITR)
+
+Dizayn va sabablar: [scale/M3_DESIGN.md](scale/M3_DESIGN.md), 6-bo'lim. Sozlamalar ro'yxati: [DEPLOY.md](DEPLOY.md), 2-bo'lim.
+
+**Nimadan himoya qiladi.** Kunlik `pg_dump` (4-bo'lim) bazani kechasi bir marta oladi, shuning uchun u o'chib qolsa yoki buzilsa, oxirgi zaxiradan keyingi bir kungacha ma'lumot yo'qolishi mumkin. Uzluksiz zaxira (PITR) bazadagi har o'zgarishni taxminan bir daqiqada tashqariga saqlab boradi: server o'chsa ~1–2 daqiqalik ma'lumot yo'qoladi, noto'g'ri o'chirish bo'lsa bazani kerakli daqiqaga (masalan, 14:04 ga) qaytarib tiklash mumkin (18-bo'lim).
+
+| Himoya | Yo'qotish oynasi | Qancha orqaga | Qachon kerak |
+|---|---|---|---|
+| Uzluksiz zaxira (PITR) | ~1–2 daqiqa | shu serverda ~14 kun (2 ta haftalik to'liq nusxa), S3 da ~28 kun (4 ta) | ma'lumot buzildi yoki xato o'chirildi; server yoki disk yo'qoldi (S3 dan) |
+| Kunlik `pg_dump` (4-bo'lim) | 24 soatgacha | `BACKUP_RETENTION_DAYS` (14) kun, S3 da ham | PITR ishlamasa; jismoniy buzilish; Postgres versiyasi almashganda. **Ikkinchi himoya qatori: o'chirmang** |
+
+**Yoqish (bir marta, kechasi, texnik yordamchi bilan).**
+
+1. **Shifrlash parolini yarating va server tashqarisida saqlang.** Serverda: `openssl rand -base64 48`. Chiqqan qatorni parol menejeriga (yoki ikki joyga: egasining va texnik yordamchining) yozing. **Parol yo'qolsa S3 dagi PITR nusxalarini hech kim o'qiy olmaydi**; server o'chib, mahalliy nusxa ham yo'qolsa, uzluksiz zaxiradan tiklab bo'lmaydi. Parolni keyin o'zgartirmang (eski nusxalar eski parol bilan shifrlangan). Parolda `$` bo'lmasin. `.env` fayliga faqat egasi va texnik yordamchi kira olsin: `chmod 600 .env`.
+2. Ildizdagi `.env` ga yozing:
+   ```bash
+   PITR_ENABLED=1
+   PITR_CIPHER_PASS=<1-qadamdagi parol>
+   ```
+3. S3-mos xotira (AWS S3, Cloudflare R2, Backblaze B2, MinIO). 4-bo'limdagi `BACKUP_S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET` allaqachon to'ldirilgan bo'lsa PITR ham shu bucket'ga yozadi (`<BACKUP_S3_PREFIX>/pitr` papkasiga). Alohida bucket kerak bo'lsa `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` (ixtiyoriy `PITR_S3_REGION`, `PITR_S3_PREFIX`) ni yozing. Manzil faqat `https://` bilan boshlansin: pgBackRest `http://` ga yozmaydi. Bucket oldindan yaratilgan bo'lsin. **Kalitda o'chirish huquqi ham bo'lishi shart** (pgBackRest eski nusxalarni o'zi o'chiradi), `pitr/` papkasiga bucket lifecycle qoidasi yoki Object Lock qo'ymang: saqlash muddatini `PITR_REPO1_RETENTION_FULL` va `PITR_S3_RETENTION_FULL` boshqaradi. Shuning uchun eng toza yo'l: PITR uchun alohida bucket va alohida kalit (`PITR_S3_*`), jurnallar arxivi uchun esa o'chirish huquqi **yo'q** boshqa kalit (`ARCHIVE_S3_*`, 20-bo'lim): bitta kalit bilan yozilsa, `backup` logida `DIQQAT: PITR (pgBackRest) va arxiv bir xil S3 kaliti bilan` chiqadi.
+4. Ishga tushiring (obrazlar qayta yig'iladi):
+   ```bash
+   docker compose up -d --build
+   ```
+
+**Birinchi ishga tushishda nima bo'ladi.**
+- `postgres` obrazi qayta yig'iladi: asosi o'sha `postgres:17-alpine`, ichiga pgBackRest qo'shilgan. Ma'lumotlar (`postgres_data` volume) o'zgarmaydi.
+- **Postgres bir marta qayta ishga tushadi** (WAL arxivlashni yoqish uchun). Shu paytda ilova bazaga bir necha soniyadan 1–2 daqiqagacha ulana olmaydi (xato javoblari bo'lishi mumkin; taxmin, haqiqiy serverda o'lchanmagan), keyin o'zi tiklanadi. Shuning uchun kechasi bajaring. Keyingi deploy'larda bu qayta ishga tushish takrorlanmaydi.
+- `docker-compose.yml` da `postgres` xizmatida `init: true` turadi: tegmang. Uzluksiz arxivlash yordamchi jarayon ochadi, `init` bo'lmasa Postgres uni xato deb o'ylab butun bazani o'zi qayta ishga tushirishi mumkin (CI da shunday ko'rilgan va tuzatilgan).
+- `backup` xizmati ishga tushganda zaxira omborini yaratadi, tekshiradi (`check`) va to'liq nusxa hali yo'q bo'lsa **darhol birinchi to'liq nusxani oladi**. Baza hajmiga qarab bir necha daqiqadan soatgacha davom etadi, ilova shu paytda ishlayveradi (diskka va protsessorga yuk tushadi). **Birinchi to'liq nusxa tugamaguncha istalgan daqiqaga tiklab bo'lmaydi.** Tugaganini logdan ko'ring: `docker compose logs -f backup` (`PITR: zaxira tayyor`).
+- Shundan keyin: har kuni `BACKUP_TIME` da (standart 21:30 UTC = Toshkent 02:30) yakshanba kuni to'liq, boshqa kunlari farq nusxa; so'ng kunlik `pg_dump`; so'ng jurnallar arxivi (20-bo'lim).
+
+*Tekshirilmaganlar:* bu zanjir (`backup` xizmati `postgres_data` ni faqat o'qish uchun ochib, umumiy soket orqali nusxa oladi, S3 ga yozadi) CI da kichik bazada va MinIO bilan sinalgan; haqiqiy serverda va boshqa S3 provayderlarda hali sinalmagan. Birinchi yoqishni texnik yordamchi bilan, kechasi bajaring.
+
+**Ishlayotganini tekshirish.**
+```bash
+docker compose logs --tail=30 backup                                   # "PITR: zaxira tayyor" qatori
+scripts/pitr-restore.sh --info                                         # nusxalar ro'yxati va tiklash mumkin bo'lgan oraliq (faqat o'qiydi)
+docker compose exec backup sh /usr/local/bin/backup.sh --pitr-init     # zaxira omborini va WAL yuborilishini qayta tekshiradi
+```
+Bir necha soniya davom etadi; muvaffaqiyatli bo'lsa xato chiqmaydi, `--info` da `status: ok` va kamida bitta `full backup` ko'rinadi. Xato bo'lsa, matni xatoning sababini aytadi (ko'pincha S3 manzili, kalit yoki `PITR_CIPHER_PASS`).
+
+Boshqaruv markazida: **Monitoring → Holat → «Uzluksiz zaxira (istalgan daqiqaga tiklash)»**. Normal ko'rinish: «Oxirgi nusxa: … oldin», «Oxirgi o'zgarishlar omborga … oldin yuborildi» (bir-ikki daqiqadan oshmasligi kerak), «Tashqi nusxa (S3): yoqiq». «O'chiq» chiqsa `PITR_ENABLED=1` yozilmagan; «Yoqilgan, lekin zaxira xizmati hali holatini yozmagan» chiqsa `docker compose up -d --build backup` qiling. Holatni darhol yangilash: `docker compose exec backup sh /usr/local/bin/backup.sh --markers` (aks holda har 5 daqiqada yangilanadi).
+
+**Qo'lda nusxa olish** (masalan, katta o'zgarishdan oldin): `docker compose exec backup sh /usr/local/bin/backup.sh --pitr-backup full` (to'liq; `diff` ham mumkin). Bazaning hajmiga qarab daqiqalar; tugagach logda `PITR: zaxira tayyor`.
+
+**S3 bo'lmasa.** Hammasi baribir ishlaydi, lekin nusxalar faqat shu serverda turadi: server yoki disk yo'qolsa, ular ham yo'qoladi. Markazda «Tashqi nusxa (S3): yo'q. Server yo'qolsa, nusxalar ham yo'qoladi» yozuvi doimiy turadi (Telegram ogohlantirishi faqat S3 sozlamasi chala, parol yo'q yoki manzil noto'g'ri bo'lsa keladi). Bazadan hech narsa o'chirilmaydi: jurnallar arxivi ham S3 siz bo'laklarni o'chirmaydi (20-bo'lim). S3 ni imkon qadar tez ulang. `PITR_CIPHER_PASS` bo'lmasa S3 ga PITR yozilmaydi (`BACKUP_S3_*` dagi kunlik dump esa yuklanaveradi).
+
+**Disk qoidalari.**
+- Mahalliy nusxalar (`pgbackrest_repo` volume'i) bazaning o'zi turgan diskda bo'ladi: 2 ta to'liq nusxa (siqilgan, har biri bazaning taxminan 0,3 qismi: taxmin, o'lchanmagan) va ~14 kunlik WAL. Pilotda (10 ta ovqatxona) WAL kuniga 100 MB dan kam bo'lishi kutiladi (taxmin); 1000 ovqatxonada kuniga bir necha GB. Haqiqiy hajmni birinchi haftada `docker system df -v` va markazdagi «Disk» kartasidan o'lchang.
+- Disk 80 % to'lsa markaz «DIQQAT», 90 % da «KRITIK» ogohlantirish beradi (21-bo'lim). Tiklash mashqi (19-bo'lim) bazaning 1,2 baravari bo'sh joy talab qiladi, aks holda to'xtaydi.
+- **S3 yoki tarmoq ishlamasa** hosil bo'lgan WAL fayllari navbatda kutadi. Navbat `PITR_ARCHIVE_QUEUE_MAX` (4 GiB) dan oshsa pgBackRest WAL ni **tashlaydi**: disk to'lib, baza to'xtab qolmasin deb. Bunda uzluksiz zaxira zanjirida uzilish bo'ladi (ish bazasi zarar ko'rmaydi), va Postgres arxivlash «ishlayapti» deb ko'rsatadi. Shuning uchun `backup` xizmati har 5 daqiqada zaxira omborining o'zini tekshiradi (arxivlangan WAL fayllari uzluksizmi): uzilish (10 daqiqadan eski bo'lsa: kechikib kelayotgan fayllar uzilish hisoblanmaydi) topilsa markazda PITR holati **xato** bo'ladi, matni `Zaxira zanjiri uzilgan (repo1): <vaqt> (UTC) dan keyingi daqiqalarga qaytarib bo'lmaydi`, va **darhol shu omborga yangi to'liq nusxa olinadi** (u eski nusxalarni o'chirmaydi; olinmasa 6 soatda bir qayta uriniladi). Ikkala ombor (shu server va S3) alohida tekshiriladi; S3 ro'yxati soatiga bir marta o'qiladi (28 kunlik WAL da oyiga ~30 ming ro'yxat so'rovi, bir necha sent). Shundan keyin tiklash oralig'i ikkiga bo'linadi: uzilishgacha (eski nusxalardan) va yangi to'liq nusxa tugagan vaqtdan hozirgacha; orasidagi daqiqalarga qaytarib bo'lmaydi (`scripts/pitr-restore.sh --info` ikkala oraliqni ham ko'rsatadi).
+
+**Ogohlantirish: «WAL … arxivga yuborilmayapti» (`wal_archive`).**
+1. Nima bo'lgan: bazaning o'zgarishlari zaxira omboriga ketmayapti, uzluksiz zaxira eskirib bormoqda. Ilova ishlayveradi.
+2. Sababni toping: `docker compose logs --tail=100 postgres` (arxiv xatosi shu yerda) va `docker compose logs --tail=100 backup`. Odatiy sabablar: S3 ga ulanib bo'lmadi, kalit yoki bucket noto'g'ri/o'chirilgan, `PITR_CIPHER_PASS` o'zgargan, disk to'lgan.
+3. Sababni tuzating (`.env` ni o'zgartirgan bo'lsangiz: `docker compose up -d`). Arxivlash o'zi davom etadi: navbatdagi WAL ketadi.
+4. 5–10 daqiqadan keyin Monitoring → Holat da «Oxirgi o'zgarishlar omborga … oldin yuborildi» qayta yangilanganini ko'ring; ogohlantirish o'zi yopiladi. WAL tashlangan bo'lsa (navbat to'lib) markaz «Zaxira zanjiri uzilgan» deydi va yangi to'liq nusxa o'zi olinadi: tugaguncha kuting (`scripts/pitr-restore.sh --info` da yangi oraliq; qo'lda: `docker compose exec backup sh /usr/local/bin/backup.sh --pitr-heal`).
+5. «PITR yoqilgan, lekin Postgres'da archive_mode o'chiq» chiqsa: `docker compose up -d --build postgres` (Postgres qayta ishga tushadi, kechasi).
+6. Bir necha soatda tuzatib bo'lmasa texnik yordamchiga qo'ng'iroq qiling va navbat 4 GiB ga yetmasidan oldin `docker compose exec backup sh /usr/local/bin/backup.sh` (kunlik dump) olib qo'ying.
+
+## 18. Vaqtga qaytarib tiklash
+
+Bu bo'lim «14:05 da ma'lumot yo'qoldi yoki buzildi» holati uchun. Shartlar: uzluksiz zaxira yoqilgan (17-bo'lim) va birinchi to'liq nusxa olingan. Yoqilmagan bo'lsa: 4-bo'limdagi `pg_dump` tiklash yo'li.
+
+**Asosiy qoida: `scripts/pitr-restore.sh` ish bazasining ustiga HECH QACHON o'zi yozmaydi.** U har doim bazaning yangi nusxasini alohida joyga tiklaydi va ish bazasining papkasiga tiklashni rad etadi. Ish bazasini almashtirish alohida, qo'lda, ongli qadam (pastda, 5-qadam).
+
+| Qadam | Ish bazasiga ta'siri |
+|---|---|
+| `scripts/pitr-restore.sh --info` | Yo'q (faqat o'qiydi) |
+| `scripts/pitr-restore.sh "vaqt"` (tiklash va 5499 portida ochish) | Yo'q: yangi joyga, alohida Postgres, faqat Docker tarmog'ida |
+| Tiklangan nusxaga `psql` bilan qarash, kerakli qatorlarni fayl qilib olish | Yo'q (o'qiydi) |
+| `--stop`, `--drop` | Faqat tiklangan nusxani to'xtatadi/o'chiradi |
+| `scripts/pitr-switch.sh <nom>` | **ISH BAZASINI ALMASHTIRADI** (5-qadam; baza nomini yozib tasdiqlash so'raladi; faqat oldinga) |
+| `restore.sh --allow-live` (4-bo'lim, kunlik dump) | Almashtiradi: baza nomini yozib tasdiqlash so'raladi |
+
+**Kimga qo'ng'iroq qilish.** 1–3-qadamlarni egasi o'zi bajara oladi (hech narsa buzilmaydi). 4–5-qadamlar (qatorlarni qaytarish va ish bazasini almashtirish) texnik yordamchi bilan bajariladi: ikkalasi birga ko'rib, keyin qaror qiladi. Telefon raqamlarini shu yerga yozib qo'ying: texnik yordamchi: ______, hosting provayderi: ______.
+
+**1. Vaqtni aniqlang va hech narsani qayta ishga tushirmang.** Buzilish aynan qachon boshlanganini yozib oling (masalan, 14:05). Tiklash nuqtasi shundan **biroz oldin** bo'lsin (14:04). Vaqt zonasi yozilmasa **Toshkent vaqti** (+05) deb olinadi; UTC kerak bo'lsa oxiriga `+00` yozing. Buzilish davom etayotgan bo'lsa (masalan, noto'g'ri skript yozyapti), avval uni to'xtating; kerak bo'lsa ilovani to'xtating: `docker compose stop backend queue queue-reports scheduler reverb`.
+
+**2. Qaysi vaqtlarga tiklash mumkinligini ko'ring** (bir necha soniya, hech narsaga tegmaydi):
+```bash
+scripts/pitr-restore.sh --info
+```
+Avval «Qisqa xulosa» chiqadi: holat, har ombor (`repo1` shu server, `repo2` S3) bo'yicha oxirgi to'liq va oxirgi nusxa, «Tiklash mumkin: <vaqt> dan oxirgi arxivlangan WAL gacha» va «Oxirgi WAL arxivga: <vaqt>» (UTC). Siz tanlagan vaqt shu oraliqda bo'lishi shart. Pastda pgBackRest'ning to'liq ro'yxati.
+
+**3. Yangi joyga tiklang va oching** (ish bazasiga tegmaydi):
+```bash
+scripts/pitr-restore.sh "2026-12-01 14:04"
+```
+- Nima qiladi: pgBackRest eng yaqin to'liq nusxani va kerakli WAL larni olib, `pitr_restore` volume'idagi yangi papkaga (`pitr-202612011404`) tiklaydi va ikkinchi Postgres'ni `backup` konteynerida **5499** portida ochadi. Ilova bu nusxani ko'rmaydi.
+- Qancha vaqt: **baza hajmiga bog'liq va hajm bilan o'sadi.** CI dagi kichik sinov bazasida 2 soniya bo'ldi; bu haqiqiy son emas. Haqiqiy serverdagi vaqtni birinchi tiklash mashqi (19-bo'lim) o'lchaydi: rejalashtirishda shu mashq hisobotidagi `Tiklash vaqti` ni oling.
+- Joy: bazaning taxminan bir hajmicha bo'sh joy kerak (`pitr_restore` volume'i Docker diskida). Tekshiring: `df -h` va `docker system df`.
+- Tugaganini bilish: oxirgi qatorlarda `TAYYOR. Qaytarilgan nuqta (oxirgi tranzaksiya): <vaqt>` va ulanish buyrug'i chiqadi. Xato bo'lsa `XATO:` qatori sababni aytadi (ko'pincha: vaqt eng birinchi nusxadan oldin yoki oraliqdan tashqari: `--info` bilan solishtiring; joy yetmadi).
+- Faqat bitta tiklangan nusxa ochiq tura oladi (port 5499). Ikkinchisini ochishdan oldin: `scripts/pitr-restore.sh --stop <nom>`. Ochiq nusxa xotira va disk egallaydi, ishingiz tugagach o'chiring (6-qadam). Ro'yxat: `scripts/pitr-restore.sh --list`.
+- S3 dagi nusxadan (shu serverdagi nusxa buzilgan bo'lsa): `--repo 2` qo'shing: `scripts/pitr-restore.sh --repo 2 "2026-12-01 14:04"`. Server yoki disk butunlay yo'qolgan holat (yangi serverda `.env`, jumladan `PITR_CIPHER_PASS` va S3 kalitlari bilan tiklash) haqiqiy serverda hali mashq qilinmagan: texnik yordamchi bilan va hosting provayderi bilan rejalashtiring.
+
+**4. Ma'lumotni ko'ring va kerakli qismini qaytaring (xavfsiz yo'l).**
+Tiklangan nusxaga ulanish:
+```bash
+scripts/pitr-restore.sh --psql
+```
+Masalan, `select count(*) from orders;` yoki `select id, name from products where store_id = 12;`: yo'qolgan ma'lumot shu yerda bormi, ko'ring. Faqat kerakli qatorlarni olish kerak bo'lsa (ish bazasi boshqa qismlarda to'g'ri bo'lib turgan paytda; **bu 90 % hollarda eng yaxshi yo'l**), ularni faylga oling (fayl serverdagi `backups/` papkasiga tushadi):
+```bash
+docker compose exec backup psql -h /restore/restore-socket -p 5499 -c "\copy (select * from products where store_id = 12) to '/backups/products-12.csv' csv header"
+```
+Faylni ish bazasiga yuklashni texnik yordamchi bajaradi: avval vaqtinchalik jadvalga, ko'rib chiqib, keyin asosiy jadvalga (id lar to'qnashmasin). Shu yo'l bilan ish bazasi to'xtamaydi va tiklash nuqtasidan keyingi yangi buyurtmalar yo'qolmaydi.
+
+**5. Butun bazani tiklangan nusxaga almashtirish (faqat haqiqiy avariyada; ISH BAZASINI ALMASHTIRADI).** Bunda 14:04 dan keyin yozilgan HAMMA narsa (buyurtmalar, to'lovlar) yangi bazada bo'lmaydi. Eski ish bazasi o'zgarmay qoladi: orqaga qaytish mumkin. *Bu yo'l CI da kichik bazada mashq qilinadi, haqiqiy serverda hali yo'q: birinchi marta texnik yordamchi bilan va kam yuk paytida bajaring; avval staging'da sinab ko'ring.* Qaror ikki kishi tomonidan og'zaki tasdiqlansin.
+```bash
+# a) 3-qadamdagi nusxa (masalan pitr-202612011404) yopiq bo'lsin
+scripts/pitr-restore.sh --stop pitr-202612011404
+# b) Almashtirish: bitta buyruq, baza nomini yozib tasdiqlashni so'raydi
+scripts/pitr-switch.sh pitr-202612011404
+```
+Skript nima qiladi (har qadam ekranda raqamlangan, `1/8` ... `8/8`): nusxa to'liq tiklanib (promote bo'lib) toza yopilganini va joy yetishini tekshiradi (hali ochilmagan yoki xato bilan to'xtagan nusxani rad etadi va nima qilishni aytadi: `--start <nom>`, so'ng `--stop <nom>`); qaytarish uchun kerak narsalarni yozib qo'yadi; ilovani, `backup` va `postgres` ni to'xtatadi; ildiz `.env` ga `POSTGRES_DATA_VOLUME=<nusxa papkasi>` yozadi (eski `.env` nusxasi `.env.before-pitr-switch-<vaqt>` bo'lib qoladi); Postgres'ni ko'tarib `pg_is_in_recovery = f` va asosiy jadvallar sonini ko'rsatadi; `migrate:status` va `db:restore-smoke` bilan tekshiradi; **yangi timeline'da to'liq PITR nusxa oladi** (shu serverda, repo1); shundan keyingina ilovani ko'taradi va S3 ga ham to'liq nusxa oladi. Ilova to'liq nusxa tugaguncha to'xtab turadi (baza hajmiga qarab daqiqalar). Oxirida `TAYYOR`.
+
+Repo1 ga to'liq nusxa olinmaguncha har qanday xato, Ctrl-C yoki SSH uzilishida skript **oldingi bazani o'zi qaytaradi** (`QAYTARILDI: ...`; oldingi baza o'zgarmagan). Server yoki skript butunlay to'xtab qolgan bo'lsa (elektr, `kill -9`): `scripts/pitr-switch.sh --recover`. S3 ga nusxa olinmasa almashtirish baribir tugaydi, lekin `DIQQAT` yoziladi va markaz S3 nusxasi eskirganini ko'rsatadi.
+
+**Almashtirish faqat oldinga.** Boshqa daqiqaga o'tish kerak bo'lsa (masalan, noto'g'ri vaqt tanlangan), xuddi shu yo'l qayta bajariladi: `scripts/pitr-restore.sh "<to'g'ri vaqt>" --into <yangi nom>`, so'ng `scripts/pitr-switch.sh <yangi nom>`. Har almashtirish yangi timeline oladi, zaxiralar odatdagidek davom etadi.
+
+**Avvalgi ish bazasi** diskda saqlab qo'yiladi: `scripts/pitr-restore.sh --list` da «avvalgi baza (saqlab qo'yilgan)». U qayta ishga tushirilmaydi va ish bazasi qilinmaydi (skript va `postgres` buni rad etadi): bu texnik yordamchi uchun oxirgi chora, orqaga qaytish yo'li emas. O'chirish: `scripts/pitr-restore.sh --drop <nom>` (nomini yozib tasdiqlanadi). Birinchi almashtirishdan keyin avvalgi baza `postgres_data` volume'ida qoladi; uni texnik yordamchi kamida bir hafta o'tib o'chiradi.
+
+Server o'zi yo'qolgan bo'lsa yoki nusxa boshqa diskda bo'lishi kerak bo'lsa: `scripts/pitr-restore.sh "2026-12-01 14:04" --into-dir /srv/rizqim/pgdata-20261201` (xostdagi yangi papka: tiklaydi, promote qiladi va toza yopadi), so'ng `scripts/pitr-switch.sh --dir /srv/rizqim/pgdata-20261201`. Tiklash nuqtasidan keyingi yo'qotilgan to'lovlarni Click/Payme kabinetidan solishtiring (4-bo'lim, 3-band).
+
+**6. Tozalash.** Tiklangan nusxa kerak bo'lmagach: `scripts/pitr-restore.sh --stop pitr-202612011404`, so'ng `scripts/pitr-restore.sh --drop pitr-202612011404` (ish bazasi bo'lib turgan nusxani skript o'chirmaydi).
+
+## 19. Tiklash mashqi
+
+Zaxira tiklanishini faqat tiklab ko'rib bilasiz. Bitta buyruq (serverda, loyiha papkasida):
+```bash
+scripts/restore-drill.sh
+```
+Nima qiladi: ish bazasiga belgi yozadi, uning arxivga yetishini kutadi, zaxiradan shu daqiqaga **yangi joyga** tiklaydi, ikkinchi Postgres'ni 5499 portida ochib tekshiradi (belgilar, jadvallar soni, migratsiyalar, bo'linmalar, indekslar), ilova tekshiruvini (`db:restore-smoke`) bajaradi, natijani yozadi va nusxani o'chiradi. Ish bazasi va ilova to'xtamaydi; faqat disk va protsessorga vaqtincha yuk tushadi. Bazaning 1,2 baravari bo'sh joy kerak. Davomiyligi baza hajmiga qarab: kichik bazada soniyalar, kattasida daqiqalar-soatlar (haqiqiy serverda hali o'lchanmagan: birinchi mashq o'lchaydi). Tugashi: `TIKLASH MASHQI: MUVAFFAQIYATLI` va chiqish kodi 0. S3 dagi nusxani sinash: `scripts/restore-drill.sh --repo 2`.
+
+**Qachon o'zi ishlaydi.** `backup` xizmati har oyning **birinchi yakshanbasida `PITR_DRILL_TIME` (standart 23:00 UTC = dushanba 04:00 Toshkent)** da mashq qiladi. O'chirish: `PITR_DRILL_MONTHLY=0` (ildiz `.env`). Avtomatik mashq bazani tekshiradi, lekin ilova tekshiruvini bajara olmaydi (`backup` konteynerida PHP yo'q): uning hisobotida `app_smoke: o'tkazib yuborildi` va `restore_drills.checks` da `"trigger": "auto"` turadi. To'liq tekshirilgan mashq (`app_smoke: to'g'ri`, `"trigger": "manual"`) faqat qo'lda `scripts/restore-drill.sh`: uni kamida har chorakda bajaring. **PITR ni yoqqach darhol birinchi mashqni qo'lda bajaring** (birinchi to'liq nusxa tugagandan keyin): shu mashq haqiqiy tiklash vaqtini o'lchaydi va 18-bo'limdagi vaqtlarni rejalashtirishga asos bo'ladi.
+
+**Hisobot qatorlari** (vaqtlar UTC):
+
+| Qator | Ma'nosi |
+|---|---|
+| `Tiklash vaqti: 4 daq 12 s` | Tiklash boshlanganidan nusxa ishga tayyor bo'lguncha o'tgan vaqt: haqiqiy avariyada ma'lumot shuncha vaqtda qaytadi (+ sizning qo'l bilan qadamlaringiz). Baza kattalashgani sari o'sadi |
+| `Qaytarilgan nuqta: 2026-12-06 23:00:41 (UTC)` | Tiklangan nusxadagi oxirgi tranzaksiya vaqti: shu daqiqagacha ma'lumot bor |
+| `Ma'lumot yo'qotish oynasi: 38 s` | Yozuv bazada paydo bo'lganidan arxivga yetgunicha o'tgan vaqt: server shu paytda o'chsa, shuncha so'nggi ma'lumot yo'qolardi. Kutilgan qiymat 1–2 daqiqadan kam |
+| `tekshiruv <nom>: to'g'ri / o'tkazib yuborildi / XATO` | `probe` (belgi: T dan oldingisi bor, keyingisi yo'q), `manifest` (jadvallardagi qatorlar soni ish bazasi bilan bir xil), `migrations`, `partitions` (oylik bo'linmalar va `audit_logs_append_only` trigger), `amcheck` (indekslar butunligi), `app_smoke` (ilova tekshiruvi) |
+
+CI dagi kichik sinov bazasida natija: tiklash 2 s, yo'qotish oynasi 61 s edi. **Bu productionning sonlari emas**; haqiqiy vaqtni birinchi mashq beradi.
+
+**Natija qayerda.** Har mashq ish bazasidagi `restore_drills` jadvaliga yoziladi. Boshqaruv markazida: **Monitoring → Holat → «Tiklash mashqi»** (oxirgi mashq, tiklash vaqti, yo'qotish oynasi). Mashq 35 kundan beri o'tmagan bo'lsa «DIQQAT», oxirgisi muvaffaqiyatsiz bo'lsa «KRITIK» ogohlantirish keladi (21-bo'lim).
+
+**Mashq muvaffaqiyatsiz bo'lsa.**
+1. Hisobotdagi `Xatolar:` qatoriga qarang va `docker compose logs --tail=100 backup`.
+2. Ko'p uchraydigan sabablar: «joy yetmaydi» (diskni bo'shating); «WAL … s ichida arxivga yetmadi» (arxivlash ishlamayapti: 17-bo'limdagi `wal_archive` ro'yxati); `pgbackrest check o'tmadi`; `pgbackrest restore xato berdi` (zaxira buzilgan yoki parol/S3 xatosi); «PITR o'chiq».
+3. Sababni tuzatib, buyruqni qayta bajaring. Muvaffaqiyatli mashq chiqquncha uzluksiz zaxiraga ishonmang: qo'lda `docker compose exec backup sh /usr/local/bin/backup.sh` bilan dump oling va 4-bo'limdagi tiklash yo'lini sinab ko'ring (kunlik `pg_dump` ikkinchi himoya qatori).
+4. Ochiq qolgan mashq nusxasi bo'lsa (xato tufayli to'xtagan): `docker compose exec backup sh /usr/local/bin/pitr-drill.sh cleanup`.
+
+## 20. Jurnallar arxivi
+
+**Nima va nima uchun.** Uchta jurnal jadvali oylar bo'yicha bo'lingan (har oy alohida bo'lak): `audit_logs` (harakatlar jurnali), `fiscal_receipts` (fiskal cheklar) va `notification_logs` (xabarnomalar). Ular tinimsiz o'sadi; eski oyni qatorma-qator o'chirish sekin va bazani shishiradi, butun oy bo'lagini ajratib olish esa bir lahzada bajariladi. Buyurtmalar, to'lovlar va hisob-kitob jadvallari bo'linmaydi va bu mexanizm ularga tegmaydi.
+
+| Jadval | Bazada saqlanadi (joriy oy bilan) | Sozlama (`backend/.env`) | Eski oy bilan nima bo'ladi |
+|---|---|---|---|
+| `audit_logs` | 7 oy | `ARCHIVE_AUDIT_MONTHS` | faylga olinadi, S3 da tasdiqlangach bazadan o'chadi; arxiv fayli **hech qachon o'chirilmaydi** |
+| `fiscal_receipts` | 13 oy | `ARCHIVE_FISCAL_MONTHS` | xuddi shunday (arxiv fayli hech qachon o'chirilmaydi) |
+| `notification_logs` | 6 oy | `ARCHIVE_NOTIFICATION_MONTHS` | arxivlanmaydi, o'chiriladi (eski xabarnomalar kerak emas) |
+
+Qolgan ixtiyoriy sozlamalar (standart qiymatlar yaxshi; `backend/.env.example` da izoh sifatida turibdi, kerak bo'lsa `backend/.env` ga ko'chiring): `PARTITIONS_FIRST_MONTH` (2026-01, migratsiya yaratadigan birinchi oy), `PARTITIONS_INLINE_MAX_ROWS` (200000, undan katta jadval onlayn ko'chiriladi, pastga qarang), `PARTITIONS_LOCK_TIMEOUT` (2s), `PARTITIONS_DETACH_LOCK_TIMEOUT` (3s), `ARCHIVE_ALLOW_LOCAL_ONLY` (standart o'chiq, pastga qarang). O'zgartirgandan keyin: `docker compose up -d --force-recreate backend queue queue-reports scheduler`.
+
+**Har kecha nima bo'ladi** (UTC; Toshkent = +5):
+1. **00:40 (05:40)** `db:partitions:ensure`: kelgusi 3 oy uchun bo'laklarni tayyorlaydi va «zaxira» (DEFAULT) bo'lakka tushib qolgan qatorlarni o'z oyiga ko'chiradi.
+2. **21:30 (02:30)** `backup` xizmati kunlik `pg_dump` dan keyin `archive-partitions.sh` ni ishga tushiradi: avval ajratilgan oylarni (`detached`) `pg_dump -Fc` bilan faylga oladi (`backups/archive/<jadval>/<YYYY-MM>.dump`), `sha256` hisoblaydi, S3 ga yuklaydi (`ARCHIVE_S3_*`, bo'sh bo'lsa `BACKUP_S3_*`; `<prefiks>/archive/<jadval>/`), **faylni S3 dan qayta yuklab oladi**, `sha256` va `pg_restore --list` ni tekshiradi; shundagina holat `verified` bo'ladi.
+3. **22:40 (03:40)** `db:partitions:archive`: (a) bazadagi eng eski oylar (jadvalning «bazada saqlanadi» chegarasidan eskilari) asosiy jadvaldan **ajratiladi** (o'chirilmaydi; holat `detached`); (b) tasdiqlanganiga (`verified`) 3 kundan ko'p bo'lgan oylar bazadan o'chiriladi (`dropped`).
+Natijada eski oy avval ajratiladi, keyingi kecha faylga olinib S3 da tekshiriladi, kamida 3 kundan keyin o'chadi. **Tasdiqlangan tashqi nusxasiz hech narsa o'chirilmaydi.** Arxiv fayllariga bucket'da lifecycle (muddatli o'chirish) qo'ymang; imkon bo'lsa Object Lock yoki versiyalash yoqing. Arxiv uchun o'chirish huquqi **yo'q** alohida kalit bering (ildiz `.env` da `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, kerak bo'lsa alohida `ARCHIVE_S3_BUCKET`). Skript har kecha kichik sinov fayli bilan kalit o'chira oladimi tekshiradi: o'chira olsa logda `DIQQAT: arxiv kaliti S3 dan O'CHIRA OLADI` chiqadi (natija `monitoring_markers` dagi `archive` belgisida). `BACKUP_S3_RETENTION_DAYS` faqat prefiks ildizidagi `rizqim-*.dump` fayllarini o'chiradi, `pitr/` va `archive/` ga tegmaydi.
+
+**S3 bo'lmasa.** Arxiv fayli faqat serverdagi `backups/archive/` da qoladi (holat `uploaded`), bazadan **hech narsa o'chirilmaydi** va jurnallar bazada o'sishda davom etadi (`notification_logs` bundan mustasno: u arxivsiz o'chiriladi). `backend/.env` da `ARCHIVE_ALLOW_LOCAL_ONLY=1` bo'lsa mahalliy nusxa yetarli hisoblanib bo'lak o'chiriladi: **tavsiya etilmaydi**, server yo'qolsa arxiv ham yo'qoladi.
+
+**Arxivlangan oyni qayta o'qish (bitta buyruq):**
+```bash
+scripts/archive-restore.sh audit_logs 2026-03
+```
+Fayl serverda bo'lmasa S3 dan oladi, `sha256` ni katalog bilan solishtiradi va oyni **alohida** `rizqim_archive` bazasiga tiklaydi (ish bazasiga tegmaydi). Oxirida qatorlar soni va tayyor buyruq chiqadi, masalan: `docker compose exec backup psql -d rizqim_archive -c 'SELECT * FROM audit_logs_2026_03 ORDER BY id DESC LIMIT 20'`. Fayl hajmiga qarab soniyalar-daqiqalar. Fiskal cheklar uchun jadval nomi `fiscal_receipts`. Xato `XATO:` qatori bilan chiqadi (oy katalogda yo'q, fayl buzilgan, S3 ga ulanib bo'lmadi). `--attach` (bo'lakni ish bazasiga qaytarib ulash) faqat mutaxassis uchun va tasdiq uchun bo'lak nomini yozishni so'raydi.
+
+**Ogohlantirish: oldinda oylar yetishmaydi (`partitions`).** Odatda scheduler har kuni 05:40 da kelgusi oylarni o'zi tayyorlaydi; ogohlantirish kelsa, scheduler ishlamayotgan bo'lishi mumkin (`docker compose ps scheduler`). Tuzatish — bitta buyruq:
+```bash
+docker compose exec -u www-data backend php artisan db:partitions:ensure
+```
+Bir necha soniya. Holatni ko'rish: `docker compose exec -u www-data backend php artisan db:partitions:status` (jadval; `Hammasi joyida.` chiqsa muammo yo'q, aks holda chiqish kodi 1 va nima qilish yozilgan). Ogohlantirish kelguncha ham hech narsa yo'qolmaydi: oy bo'lagi bo'lmasa qatorlar «zaxira» bo'lakka yoziladi va `ensure` ularni o'z oyiga ko'chiradi. «Arxivlashda N ta xato» yoki «N ta ajratilgan bo'lim 3 kundan beri yuklanmagan» chiqsa: `docker compose logs backup` da `XATO:` qatorini o'qing, S3 sozlamasini tuzating va `scripts/archive-partitions.sh` ni qo'lda ishga tushiring (qayta urinadi).
+
+**Pilot paytida: bazasida ma'lumot bor o'rnatish.** Migratsiya har bir jadvalni bitta tranzaksiyada o'zi bo'ladi: shu vaqt ichida shu jadvalga **yozish to'xtaydi** (o'qish davom etadi), taxminan har 140 000 qatorga 1 soniya (o'lchangan: 190 000 qator 1,3 soniya; 5 000 000 qator taxminan 36 soniya). Nusxa asl jadval bilan qator-qator solishtiriladi; farq bo'lsa hech narsa o'zgarmaydi. Jadvalda `PARTITIONS_INLINE_MAX_ROWS` (200 000) dan ko'p qator bo'lsa migratsiya to'xtaydi va qatorlar sonini, necha soniya yozish to'xtashini va bajariladigan buyruqni aytadi; to'xtab qolgan deploy ilovani ko'tarmaydi. Unda **kechasi**, tinch vaqtda, texnik yordamchi bilan:
+```bash
+docker compose exec backup sh /usr/local/bin/backup.sh                                       # zaxira
+docker compose exec -u www-data -e PARTITIONS_INLINE_MAX_ROWS=<xabardagi son> backend php artisan migrate --force
+```
+Shu soniyalarda kassalar oflayn rejimda sotishda davom etadi, yozuvlar keyin yuboriladi. Jadval band bo'lsa (uzoq davom etayotgan tranzaksiya) migratsiya kutib turmaydi: bir necha soniyadan keyin xato beradi; birozdan keyin qayta bajaring. Boshqa yo'l (onlayn ko'chirish) yo'q.
+
+## 21. Ogohlantirishlar
+
+Boshqaruv markazi har daqiqada (`scheduler` ichida) 20 ta qoidani tekshiradi (11-bo'lim). Ogohlantirish **Telegram**'ga `TELEGRAM_OPS_CHAT_ID` guruhiga (bo'sh bo'lsa `TELEGRAM_SUPERADMIN_CHAT_ID` ga) keladi: botni shu guruhga qo'shing, guruhga egasi va texnik yordamchi a'zo bo'lsin. Xabar ko'rinishi:
+```
+[KRITIK] Baza turgan disk 91 % to'lgan, bo'sh joy 12.3 GB
+Disk to'lib bormoqda
+Nima qilish kerak: Keraksiz fayllarni o'chiring yoki diskni kengaytiring; pg_wal katta bo'lsa WAL yuborilishini tekshiring.
+Boshlangan: 02.12.2026 14:05
+<markazdagi havola>
+```
+Muammo hal bo'lganda ham xabar keladi. Yuborish qoidalari:
+- Hali yuborilmagan ochiq ogohlantirish har daqiqada qayta taklif qilinadi: chegara, Telegram yoki Redis ishlamay turgani faqat kechiktiradi, yo'qotmaydi. KRITIK'lar birinchi ketadi.
+- Bir qoidadan bir vaqtda 3 tadan ko'p ogohlantirish bo'lsa (masalan internet uzilib 100 ta kassa oflayn), ular **bitta** xabar bo'lib keladi: «Ish vaqtida oflayn kassa: 100 ta: ... va yana 97 ta». Tiklanganda ham bitta: «30 tasi tiklandi». Qoidalar navbat bilan yuboriladi: bitta shovqinli qoida boshqalarini to'sib qo'ymaydi.
+- DIQQAT darajasidagilar: soatiga ko'pi bilan 20 ta xabar (guruh xabari bitta hisoblanadi). KRITIK'lar bu songa kirmaydi (har qoida uchun soatiga 10 ta xabargacha, faqat cheksiz takrorlanishdan himoya). Chegaradan oshganlari jim qolmaydi: soatiga bitta «Yana N ta ogohlantirish ochiq: ...» xabari keladi, chegara bo'shagach hali ochiq turganlari yuboriladi.
+- «HAL QILINDI» xabari har doim yuboriladi. Muammo «HAL QILINDI» dan keyin qaytsa, darhol yana yuboriladi. DIQQAT KRITIK'ka aylansa, qayta yuboriladi.
+- Telegram javob bermasa xabar navbatga qo'yiladi; navbat ishchisi uni 10 daqiqada yubormasa, scheduler o'zi to'g'ridan-to'g'ri yuboradi.
+- Shunday qilib soatiga ko'pi bilan: 20 ta DIQQAT xabari + har qoida uchun 10 ta KRITIK xabari + «HAL QILINDI» xabarlari (ko'p bo'lsa qoida bo'yicha bitta) + 1 ta umumiy xabar.
+
+**Chegaralarni o'zgartirish.** Boshqaruv markazi → **Monitoring → Qoidalar**: har qoidaning chegarasi, oynasi va Telegram'ga yuborilishi shu yerda o'zgaradi (env va qayta ishga tushirish kerak emas). Quyidagi jadvaldagi chegaralar standart qiymatlar.
+
+| Qoida (markazda) | Nimani bildiradi | Standart chegara | Daraja | Nima qilish (Telegram'dagi matn) |
+|---|---|---|---|---|
+| Yiqilgan vazifalar ko'payishi | Oxirgi daqiqalarda yiqilgan fon vazifalari soni oshdi | 10 ta / 15 daqiqa | DIQQAT | Monitoring → Yiqilgan vazifalar bo'limida xatoni o'qing va sababini tuzatib, vazifani qayta yuboring. |
+| Navbat to'planishi | Navbatda vazifalar to'planib qoldi yoki eng eskisi uzoq kutmoqda | 500 ta; eng eskisi 10 daqiqa | DIQQAT | Navbat ishchisi ishlayotganini tekshiring (`docker compose ps queue`) va kerak bo'lsa qayta ishga tushiring. |
+| Ish vaqtida oflayn kassa | Ish vaqtida kassa yoki oshxona ekrani aloqada emas | 15 daqiqa | DIQQAT | Ovqatxonaga qo'ng'iroq qilib kassaning interneti va ilovasini tekshirtiring. |
+| Fiskal cheklar yiqilishi | Fiskal chek soliq tizimida ro'yxatdan o'tmadi | 1 ta / 60 daqiqa | KRITIK | Yiqilgan cheklarni Kassalar bo'limida ko'ring va xato sababini (STIR, kassa raqami, OFD) tuzating. |
+| Hisob-kitob xatolari | Yetkazilgan buyurtma puli hisobga yozilmadi | 1 ta | KRITIK | Moliya bo'limida hisobga yozilmagan buyurtmalarni ko'ring; tizim ularni har 10 daqiqada qayta urinadi. |
+| Zaxira nusxa eskirgan | Kunlik `pg_dump` zaxirasi eski | 26 soat | KRITIK | `backup` xizmatini tekshiring: `docker compose logs backup`; so'ng `docker compose exec backup sh /usr/local/bin/backup.sh` bilan zaxira oling. |
+| Scheduler to'xtagan | Rejalashtirilgan ishlar ishlamayapti | 180 soniya | KRITIK | `scheduler` xizmatini tekshiring va qayta ishga tushiring: `docker compose restart scheduler`. |
+| Bazaga ulanishlar ko'p | Postgres'ga ochiq ulanishlar ruxsat etilganning ulushidan oshdi: yangi so'rovlar ulana olmay qolishi mumkin | 80 % | KRITIK | Tafsilotlarda qaysi manzil ko'p ulanish ochganini ko'ring va o'sha xizmatni qayta ishga tushiring. |
+| Uzoq davom etayotgan tranzaksiya | Bazada bitta tranzaksiya juda uzoq ochiq: tozalashni to'xtatadi, boshqalarni qulflashi mumkin | 300 soniya ishlayotgan; 60 soniya ochiq qolib turgan | DIQQAT | Tafsilotlardagi jarayon (pid) nima ekanini aniqlang; osilib qolgan bo'lsa `SELECT pg_terminate_backend(pid)` bilan to'xtating. |
+| Bazada qulf kutayotgan so'rovlar | Bir nechta so'rov boshqasining qulfini uzoq kutmoqda: kassalar sekinlashadi | 3 ta so'rov, 30 soniya | DIQQAT | Qulfni ushlab turgan uzoq tranzaksiyani toping (Uzoq davom etayotgan tranzaksiya ogohlantirishi) va uni to'xtating. |
+| Uzluksiz zaxira (WAL) yuborilmayapti | Bazaning o'zgarishlari zaxira omboriga ketmayapti: PITR zanjiri uzilmoqda | 10 ta fayl kutmoqda yoki 5 daqiqa xato | KRITIK | Zaxira omborini (S3) va `backup` xizmati logini tekshiring; ishlay boshlagach to'liq zaxira o'zi olinadi (17-bo'lim). |
+| Uzluksiz zaxira (PITR) eskirgan | Oxirgi nusxa eski yoki zaxira xizmati holatni yozmayapti; S3 sozlamasi chala | har qanday nusxa 26 soat; to'liq 8 kun; holat 15 daqiqa | KRITIK | `backup` xizmati ishlayotganini tekshiring (`docker compose logs backup`), so'ng `docker compose exec backup sh /usr/local/bin/backup.sh --pitr-backup` bajaring. |
+| Tiklash mashqi | Mashq uzoq o'tkazilmagan yoki oxirgisi muvaffaqiyatsiz | 35 kun (DIQQAT); oxirgisi xato (KRITIK) | DIQQAT / KRITIK | Serverda `scripts/restore-drill.sh` ni ishga tushiring va hisobotdagi xato qatorini o'qing (19-bo'lim). |
+| Disk to'lib bormoqda | Baza yoki zaxira ombori turgan disk to'lib bormoqda | 80 % DIQQAT; 90 % KRITIK | DIQQAT / KRITIK | Keraksiz fayllarni o'chiring yoki diskni kengaytiring; `pg_wal` katta bo'lsa WAL yuborilishini tekshiring. |
+| Redis xotirasi to'lib bormoqda | Redis xotirasi chegaraga yaqin: to'lsa navbatga vazifa qo'shilmaydi | 80 % DIQQAT; 90 % KRITIK | DIQQAT / KRITIK | Navbatda to'planib qolgan vazifalar bormi ko'ring (navbat ishchisi), yoki Redis `maxmemory` ni oshiring. |
+| Navbat ishchisi to'xtagan | Ishchi har daqiqalik tekshiruv vazifasini bajarmadi: Telegram xabarlari va fon vazifalari ketmayapti | 180 soniya | KRITIK | `queue` xizmatini qayta ishga tushiring: `docker compose restart queue`; logida xato bo'lsa uni tuzating. |
+| Real vaqt (Reverb) ishlamayapti | Real vaqt yangilanishlari ishonchsiz; ilovalar tezroq so'rov bilan ishlaydi, buyurtmalar yo'qolmaydi | 3 daqiqa | DIQQAT | `reverb` va `queue` xizmatlarini tekshiring: `docker compose ps reverb queue`; kerak bo'lsa qayta ishga tushiring (6-bo'lim). |
+| Jadvallarda o'lik qatorlar ko'p | Asosiy jadvallarda o'chirilgan, lekin tozalanmagan qatorlar ko'p yoki uzoq tozalanmagan | 20 % (va 100 000 dan ko'p qator); 24 soat tozalanmagan | DIQQAT | Kechasi o'sha jadvalga `VACUUM (ANALYZE)` bajaring; takrorlansa `autovacuum` sozlamasini ko'rib chiqing. |
+| Jurnallarning oylik bo'limlari | Oldindagi oylar tayyor emas, «zaxira» bo'limda qatorlar bor yoki arxivlashda xato | oldinda kamida 2 oy; zaxira bo'limda 0 qator | KRITIK (oylar yetishmasa) / DIQQAT | `php artisan db:partitions:ensure` bajaring; xabar boshqa buyruqni aytsa, o'shani bajaring (20-bo'lim). |
+| Ma'lumotlar bazasi javob bermayapti (qoida emas, har doim yoqiq) | Baza ishlamayapti: ilova va qolgan ogohlantirishlar ham ishlamaydi. Scheduler bazaga murojaat qilmasdan to'g'ridan-to'g'ri Telegram'ga yozadi; baza uzilib-ulanib tursa ham 15 daqiqada bitta xabar (necha marta uzilgani bilan); baza 3 daqiqa barqaror ishlagach «yana javob bermoqda» xabari keladi. Disk to'lgan bo'lsa ham takrorlanib ketmaydi (holat xotirada saqlanadi; u ham bo'lmasa soatda bir marta) | har 15 daqiqada bir marta | KRITIK | Serverda `docker compose ps postgres`, `docker compose logs --tail=50 postgres`; disk to'lmaganini tekshiring (`df -h`). |
+| Redis xotirasi to'lib bormoqda: Redis javob bermayapti | Redis ishlamayapti: navbat (Telegram xabarlari, fon vazifalari), kesh va real vaqt to'xtagan. Bu vaqtda scheduler va navbat ishchisi qoidalari «noma'lum» deydi (ular Redis'da yozadi), xabar bitta: Redis | javob yo'q | KRITIK | `docker compose ps redis`, `docker compose logs --tail=50 redis`; kerak bo'lsa `docker compose restart redis`. |
+| HTTPS sertifikati muddati tugayapti | Sertifikat tugashiga oz qoldi: tugasa mijozlar ilovani ocholmaydi | 14 kun DIQQAT; 3 kun KRITIK | DIQQAT / KRITIK | Sertifikatni yangilang (masalan `certbot renew`) va proksi serverni qayta yuklang. |
+| Fiskal cheklar yiqilishi: 30 kundan eski chek | Savdoning fiskal cheki qayta urinish muddati (`FISCAL_RETRY_MAX_AGE_DAYS`, 30 kun) ichida ro'yxatdan o'tmadi: savdo soliqda ko'rinmaydi va chek endi o'zi qayta yuborilmaydi. Chek `failed` holatidan chiqmaguncha (qo'lda qayta yuborilib ro'yxatdan o'tmaguncha) ogohlantirish ochiq turadi; matnda soni va eng eski sana | 1 ta | KRITIK | Kassalar bo'limida yiqilgan cheklarni ko'ring va «Qayta yuborish» bilan qo'lda qayta yuboring. |
+| Fiskal cheklar yiqilishi: 30 kundan ortiq kutayotgan chek | Chek 30 kundan ortiq `pending` holatida turibdi: bunday chek bo'lmasligi kerak (qayta yuborish ishi uni o'zi `failed` qiladi), demak bu ish to'xtagan | 1 ta | KRITIK | `scheduler` ishlayotganini tekshiring (`docker compose ps scheduler`) va cheklarni Kassalar bo'limida qo'lda qayta yuboring. |
+| Uzluksiz zaxira (PITR) eskirgan: tashqi nusxa yo'q | PITR yoqilgan, lekin S3 sozlanmagan: yagona nusxa baza bilan bir diskda, disk buzilsa hammasi yo'qoladi. Doimiy ogohlantirish: bir marta yuboriladi va S3 sozlanguncha markazda ochiq turadi | S3 yo'q | DIQQAT | S3 kalitlarini (`PITR_S3_*`) ildizdagi `.env` ga yozing (17-bo'lim). |
+| Tiklash mashqi: ilova tekshiruvisiz | Oylik avtomatik mashq ilova tekshiruvini (`db:restore-smoke`) o'tkazmaydi: u o'tgan hisoblanadi, lekin to'liq tekshirilmagan. Ilova tekshiruvi bilan to'liq mashq uzoq bo'lmagan | 100 kun | DIQQAT | Serverda `scripts/restore-drill.sh` ni ishga tushiring (choragida bir marta, 19-bo'lim). |
+| Jurnallarning oylik bo'limlari: himoya triggeri yo'q | `fiscal_receipt_keys_insert` yoki audit triggeri yo'qolgan: fiskal cheklar takrorlanishdan himoyasiz | trigger yo'q | KRITIK | `php artisan db:partitions:ensure` bajaring (triggerni tiklaydi); ogohlantirish yopilmasa texnik yordamga murojaat qiling. |
+| Jurnallarning oylik bo'limlari: arxiv kaliti o'chira oladi | Jurnallar arxivi yoziladigan S3 kaliti fayllarni o'chira oladi: arxiv himoyasiz | kalit o'chira oladi | DIQQAT | O'chirish huquqi yo'q alohida kalit bering (`ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`; 20-bo'lim). |
+| Jurnallarning oylik bo'limlari: arxiv faqat shu serverda | S3 yo'q: eski oylar faqat shu serverdagi faylga arxivlangan, bazadan o'chirilmaydi va disk buzilsa yo'qoladi | 1 ta oy | DIQQAT | S3 kalitlarini yozing (20-bo'lim). |
+
+Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose exec -u www-data backend ...` ichida bajariladi. PITR, tiklash mashqi va disk qoidalari uzluksiz zaxira **yoqilmagan** (`PITR_ENABLED` bo'sh) bo'lsa jim turadi: markazda «O'chiq» ko'rinadi.
+
+**Server butunlay o'chsa, ichkaridan hech narsa ogohlantirmaydi.** Shuning uchun ikkita bepul tashqi kuzatuvchi kerak (har biri ~10 daqiqa; ikkalasi ham tashqi xizmat, tugma nomlari vaqt o'tishi bilan o'zgarishi mumkin: haqiqiy hisobda tekshirilmagan).
+
+*1) UptimeRobot: «sayt javob bermayapti».*
+1. uptimerobot.com da bepul hisob oching.
+2. **Add New Monitor** → turi **Keyword**.
+3. URL: `https://<domen>/api/v1/health`; kalit so'z: `"status":"ok"`; ogohlantirish: kalit so'z **topilmasa** (Keyword does not exist).
+4. Tekshirish oralig'i: 5 daqiqa (bepul tarifda eng kami).
+5. **Alert Contacts** ga egasining Telegram'i yoki e-pochtasini qo'shing (Telegram: UptimeRobot'ning Telegram integratsiyasi) va monitorga bog'lang.
+6. Saqlang: bir daqiqadan keyin monitor «Up» bo'lishi kerak. «Down» bo'lib tursa, `curl -i https://<domen>/api/v1/health` ni serverda tekshiring (2-bo'lim).
+
+*2) healthchecks.io: «server yoki scheduler jim bo'lib qoldi» (o'lik odam kalitga o'xshash).*
+1. healthchecks.io da bepul hisob oching.
+2. Birinchi tekshiruv: **Add Check**, nomi `rizqim-scheduler`, **Period 1 minute**, **Grace Time 5 minutes**. Ko'rsatilgan ping manzilini (`https://hc-ping.com/<uuid>`) nusxalang.
+3. Ildizdagi `.env` ga yozing: `HEALTHCHECKS_PING_URL=https://hc-ping.com/<uuid>` va `docker compose up -d`. Scheduler har daqiqalik tekshiruv tugagach shu manzilga so'rov yuboradi; server, scheduler yoki baza ishlamasa so'rovlar to'xtaydi.
+4. Ikkinchi tekshiruv: `rizqim-pitr`, **Period 1 day**, **Grace Time 2 hours** (26 soatdan keyin ogohlantiradi). Uning manzilini `.env` ga `PITR_PING_URL=...` deb yozing va `docker compose up -d backup`. `backup` xizmati har muvaffaqiyatli uzluksiz zaxiradan keyin shunga so'rov yuboradi (birinchisi to'liq nusxa tugagach).
+5. **Integrations** bo'limida egasining Telegram'i yoki e-pochtasini ulang va ikkala tekshiruvga bog'lang.
+6. Tekshirish: 1–2 daqiqadan keyin `rizqim-scheduler` yashil («Up») bo'ladi. `.env` da manzil bo'sh bo'lsa hech narsa yuborilmaydi.

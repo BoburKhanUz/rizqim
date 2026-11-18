@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Domain\Pos\Sync\PosSyncStatus;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -35,6 +38,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PosSyncOperation extends Model
 {
+    use MassPrunable;
+
     // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
     // A new column must be added here, or mass assignment drops it: ModelFillableTest fails until it is.
     protected $fillable = [
@@ -42,6 +47,18 @@ class PosSyncOperation extends Model
         'reason', 'error', 'result', 'client_ref', 'order_id', 'clock_skew_seconds', 'received_at', 'applied_at',
         'resolved_at', 'resolved_by', 'resolution', 'resolution_note', 'created_at', 'updated_at', 'origin_device_id',
     ];
+
+    /**
+     * M3: an applied operation older than 12 months is deleted by the daily `php artisan model:prune`: a till never
+     * resends anything that old, and the order it made keeps its own history. Conflicts and rejected operations
+     * ("Sinxronlash xatolari") are kept.
+     *
+     * @return Builder<PosSyncOperation>
+     */
+    public function prunable(): Builder
+    {
+        return static::where('status', PosSyncStatus::APPLIED->value)->where('received_at', '<', now()->subMonths(12));
+    }
 
     protected function casts(): array
     {

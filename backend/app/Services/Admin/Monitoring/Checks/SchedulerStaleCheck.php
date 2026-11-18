@@ -13,6 +13,10 @@ class SchedulerStaleCheck implements AlertCheck
 {
     public function findings(AlertRule $rule): ?array
     {
+        // The heartbeat is in the cache: a cache that does not answer says nothing about the scheduler (RR-8)
+        if (!\App\Services\Admin\Monitoring\CacheProbe::readable()) {
+            return null;
+        }
         $age = HealthReport::heartbeatAge();
 
         if ($age !== null && $age <= $rule->threshold) {

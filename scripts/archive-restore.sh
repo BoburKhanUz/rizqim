@@ -1,0 +1,168 @@
+#!/bin/sh
+# RIZQIM: arxivlangan oyni o'qish uchun BITTA buyruq (serverda, loyiha papkasida):
+#   scripts/archive-restore.sh <jadval> <YYYY-MM>          masalan: scripts/archive-restore.sh audit_logs 2026-03
+#
+# Arxiv faylini oladi (shu serverda bo'lmasa S3 dan), sha256 ni katalog (partition_archives) bilan solishtiradi va
+# bo'lakni shu Postgres serveridagi alohida `rizqim_archive` bazasiga tiklaydi (baza bo'lmasa yaratiladi). Ish
+# bazasiga TEGMAYDI. Oxirida qatorlar soni va tayyor psql buyrug'i chiqadi. Bo'lak o'z nomini saqlaydi (audit_logs_2026_03).
+#
+#   --attach [--yes]   FAQAT MUTAXASSIS UCHUN: bo'lakni ISH bazasiga qaytarib, asosiy jadvalga qayta ulaydi va katalog
+#                      qatorini `held` qiladi (arxiv jarayoni uni boshqa o'chirmaydi). Bo'lak hali ish bazasida (ajratilgan)
+#                      bo'lsa fayl kerak emas. Bo'lakdagi asosiy jadval triggerlarining nusxalari olib tashlanib, ulanganda
+#                      asosiy jadvalniki qo'yiladi. Tasdiq uchun bo'lak nomini yozish so'raladi. Tashqi kalitlar (FK)
+#                      qayta qo'shilmaydi. Yon bazaga (rizqim_archive) triggerlarsiz tiklanadi.
+# Sozlamalar: ARCHIVE_RESTORE_DB (standart rizqim_archive), BACKUP_DIR, ARCHIVE_S3_* (bo'sh bo'lsa BACKUP_S3_*).
+
+set -eu
+umask 077
+
+PITR_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PITR_LOG_TAG=archive-restore
+# shellcheck source=scripts/pitr.sh
+. "$PITR_SCRIPT_DIR/pitr.sh"
+
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; }
+
+if [ "${RIZQIM_BACKUP_CONTAINER:-0}" != "1" ] && [ "${1:-}" != "--local" ] && command -v docker >/dev/null 2>&1; then
+    cd "$PITR_SCRIPT_DIR/.."
+    if [ -t 0 ]; then exec docker compose exec backup sh /usr/local/bin/archive-restore.sh "$@"; fi
+    exec docker compose exec -T backup sh /usr/local/bin/archive-restore.sh "$@"
+fi
+[ "${1:-}" != "--local" ] || shift
+
+table=
+month=
+attach=0
+yes=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --attach) attach=1; shift ;;
+        --yes) yes=1; shift ;;
+        -h | --help) usage; exit 0 ;;
+        -*) pitr_die "noma'lum flag: $1" ;;
+        *) if [ -z "$table" ]; then table=$1; elif [ -z "$month" ]; then month=$1; else pitr_die "ortiqcha argument: $1"; fi; shift ;;
+    esac
+done
+if [ -z "$table" ] || [ -z "$month" ]; then usage; exit 1; fi
+case "$table" in *[!a-z0-9_]*) pitr_die "jadval nomi noto'g'ri: $table" ;; esac
+case "$month" in [12][0-9][0-9][0-9]-[01][0-9]) ;; *) pitr_die "oy YYYY-MM ko'rinishida bo'lsin: $month" ;; esac
+
+PGTZ=UTC; export PGTZ
+pitr_resolve_conn
+BACKUP_DIR=${BACKUP_DIR:-/backups}
+ADB=${ARCHIVE_RESTORE_DB:-rizqim_archive}
+case "$ADB" in *[!a-z0-9_]*) pitr_die "ARCHIVE_RESTORE_DB noto'g'ri: $ADB" ;; esac
+[ "$ADB" != "$PGDATABASE" ] || pitr_die "ARCHIVE_RESTORE_DB ish bazasi bilan bir xil bo'lmasin"
+
+row=$(psql -X -A -t -q -F '|' -v ON_ERROR_STOP=1 -c "SELECT id, partition_name, status, coalesce(sha256, ''), coalesce(storage_uri, ''), range_from::date, range_to::date FROM partition_archives WHERE table_name = '$table' AND to_char(range_from, 'YYYY-MM') = '$month' ORDER BY id DESC LIMIT 1" 2>/dev/null) \
+    || pitr_die "partition_archives jadvalini o'qib bo'lmadi (M3 migratsiyasi bajarilganmi?)"
+[ -n "$row" ] || pitr_die "$table $month katalogda yo'q (arxivlanmagan yoki hali ish bazasida: php artisan db:partitions:status)"
+IFS='|' read -r id part status sha uri rfrom rto <<EOF
+$row
+EOF
+case "$part" in *[!a-z0-9_]*) pitr_die "katalogdagi bo'lak nomi noto'g'ri: $part" ;; esac
+
+# Re-attach (expert): one transaction with a lock timeout: drop from the month table exactly the user triggers the
+# parent also has (a detached month keeps copies of them, and ATTACH clones the parent's own: same name = "already
+# exists"), attach, then check the partition's triggers are the parent's clones. ATTACH fires no row trigger: the
+# fiscal_receipt_keys rows of a fiscal month (never archived, never deleted) are neither inserted again nor touched.
+attach_now() {
+    # the trigger check runs INSIDE the transaction: a mismatch rolls the ATTACH back, so "nothing changed" is true
+    PGOPTIONS='-c lock_timeout=3s -c statement_timeout=60s' psql -X -q -v ON_ERROR_STOP=1 -v "parent=public.$table" -v "part=public.$part" <<SQL || return 1
+BEGIN;
+SELECT format('DROP TRIGGER %I ON %s', c.tgname, :'part') AS stmt
+FROM pg_trigger c
+WHERE c.tgrelid = :'part'::regclass AND NOT c.tgisinternal
+  AND c.tgname IN (SELECT p.tgname FROM pg_trigger p WHERE p.tgrelid = :'parent'::regclass AND NOT p.tgisinternal)
+\gexec
+ALTER TABLE public.$table ATTACH PARTITION public.$part FOR VALUES FROM ('$rfrom') TO ('$rto');
+DO \$check\$
+DECLARE got text; want text; loose int;
+BEGIN
+    SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') INTO got FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal;
+    SELECT coalesce(string_agg(tgname, ',' ORDER BY tgname), '') INTO want FROM pg_trigger WHERE tgrelid = 'public.$table'::regclass AND NOT tgisinternal;
+    SELECT count(*) INTO loose FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal AND tgparentid = 0;
+    IF got IS DISTINCT FROM want OR loose > 0 THEN
+        RAISE EXCEPTION 'triggers of $part (%) are not the clones of $table (%)', got, want;
+    END IF;
+END
+\$check\$;
+UPDATE partition_archives SET status = 'held', error = NULL WHERE id = $id;
+COMMIT;
+SQL
+    pitr_log "TAYYOR: $part $table ga ulandi (triggerlar: $(pitr_val "SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.$part'::regclass AND NOT tgisinternal"); katalog: held)"
+}
+confirm_attach() {
+    if [ "$yes" != "1" ]; then
+        printf 'DIQQAT: %s ish bazasiga qaytariladi va %s ga ulanadi. Tasdiqlash uchun bo'"'"'lak nomini yozing: ' "$part" "$table" >&2
+        read -r answer || answer=
+        [ "$answer" = "$part" ] || pitr_die "tasdiqlanmadi, hech narsa o'zgarmadi"
+    fi
+}
+if [ "$attach" = "1" ] && [ "$(pitr_val "SELECT to_regclass('public.$part') IS NOT NULL")" = "t" ]; then
+    # still in the live database (detached, not yet dropped): no file needed
+    [ "$(pitr_val "SELECT count(*) FROM pg_inherits WHERE inhrelid = 'public.$part'::regclass")" = "0" ] || pitr_die "$part allaqachon $table ga ulangan"
+    confirm_attach
+    attach_now || pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q): hech narsa o'zgarmadi, $part alohida jadval bo'lib qoldi"
+    exit 0
+fi
+case "$status" in uploaded | verified | dropped | held) ;; *) pitr_die "$part holati '$status': arxiv fayli hali tayyor emas (archive-partitions.sh)" ;; esac
+
+dir="$BACKUP_DIR/archive/$table"
+# The catalogue names the file (one per detach: <YYYY-MM>-<detached_at>.dump; older archives: <YYYY-MM>.dump)
+fname=$(basename "${uri:-$month.dump}")
+case "$fname" in *[!A-Za-z0-9._-]* | '' ) pitr_die "katalogdagi fayl nomi noto'g'ri: $uri" ;; esac
+file="$dir/$fname"
+mkdir -p "$dir"
+if [ ! -s "$file" ]; then
+    pitr_s3_configured || pitr_die "$file shu serverda yo'q va S3 sozlanmagan (ARCHIVE_S3_* / BACKUP_S3_*): fayl $uri"
+    command -v rclone >/dev/null 2>&1 || pitr_die "rclone topilmadi"
+    pitr_rclone_env
+    pitr_log "S3 dan olinmoqda: $uri"
+    rclone copyto --retries 3 "$(pitr_s3_target)/$table/$fname" "$file.partial" || pitr_die "S3 dan yuklab bo'lmadi: $uri"
+    mv "$file.partial" "$file"
+fi
+got=$(sha256sum "$file" | cut -d' ' -f1)
+if [ -n "$sha" ] && [ "$got" != "$sha" ]; then
+    pitr_die "sha256 katalogdagiga mos emas: $file buzilgan yoki boshqa fayl (katalog $sha, fayl $got)"
+fi
+pg_restore --list "$file" >/dev/null 2>&1 || pitr_die "$file o'qilmaydi (pg_restore --list)"
+pitr_log "fayl tekshirildi: $file (sha256 to'g'ri)"
+
+# The dump without its triggers: they name functions the side database does not have, and on a re-attach the
+# partition gets the parent's own clones anyway. Table, data, indexes and constraints are restored as dumped.
+toc=$(mktemp "${TMPDIR:-/tmp}/rizqim-archive-toc.XXXXXX")
+trap 'rm -f "$toc"' EXIT
+# foreign keys too: a month dumped before its foreign keys were dropped would fail in the side database (and on a
+# re-attach the partition gets the parent's own)
+pg_restore -l "$file" | grep -v -e ' TRIGGER ' -e ' FK CONSTRAINT ' >"$toc"
+
+if [ "$attach" = "1" ]; then
+    confirm_attach
+    # one transaction: a failed restore leaves no half-filled table that a rerun would then attach
+    pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -L "$toc" -d "$PGDATABASE" "$file" || pitr_die "ish bazasiga tiklab bo'lmadi (hech narsa o'zgarmadi)"
+    if ! attach_now; then
+        # the restored table must not stay behind as a lookalike of the archived month
+        pitr_psql -c "DROP TABLE IF EXISTS public.$part" >/dev/null 2>&1 || true
+        pitr_die "ATTACH bajarilmadi (sababi yuqoridagi ERROR qatorida: qulf band, DEFAULT bo'lakda shu oy qatorlari bor yoki bo'lakdagi do'kon/filial/qurilma endi yo'q): hech narsa o'zgarmadi (tiklangan jadval olib tashlandi)"
+    fi
+    exit 0
+fi
+
+if [ "$(pitr_val "SELECT 1 FROM pg_database WHERE datname = '$ADB'")" != "1" ]; then
+    pitr_log "$ADB bazasi yaratilmoqda"
+    pitr_psql -c "CREATE DATABASE $ADB" >/dev/null
+fi
+if [ "$(PGDATABASE=$ADB pitr_val "SELECT to_regclass('public.$part') IS NOT NULL")" = "t" ]; then
+    pitr_log "$part $ADB da allaqachon tiklangan"
+else
+    # A detached partition keeps its parent's column default (nextval('public.<table>_id_seq')): the side database has
+    # no such sequence, so create the ones the dump names (empty, only to satisfy the default)
+    for seq in $(pg_restore -f - "$file" 2>/dev/null | sed -n "s/.*nextval('public\.\([a-z0-9_]*\)'.*/\1/p" | sort -u); do
+        PGDATABASE=$ADB pitr_psql -c "CREATE SEQUENCE IF NOT EXISTS public.$seq" >/dev/null || pitr_die "$ADB da $seq yaratib bo'lmadi"
+    done
+    PGDATABASE=$ADB pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -L "$toc" -d "$ADB" "$file" || pitr_die "$ADB ga tiklab bo'lmadi (hech narsa o'zgarmadi)"
+fi
+count=$(PGDATABASE=$ADB pitr_val "SELECT count(*) FROM public.$part")
+pitr_log "TAYYOR: $part ($rfrom .. $rto), $count qator, baza $ADB"
+echo "O'qish: docker compose exec backup psql -d $ADB -c 'SELECT * FROM $part ORDER BY id DESC LIMIT 20'"

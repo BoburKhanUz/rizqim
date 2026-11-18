@@ -216,7 +216,10 @@ class FiscalDocumentValidator
                 throw FiscalException::originalReceipt("Asl chek hali ro'yxatdan o'tmagan: qaytarishni keyinroq qiling.");
             }
 
+            // M3: a refund is written after its original, so only the original's month and later are read
+            // (partition pruning); a day earlier covers clock skew between app servers
             $refunded = Money::of(FiscalReceipt::where('original_receipt_id', $original->id)
+                ->when($original->created_at !== null, fn ($query) => $query->where('created_at', '>=', $original->created_at->copy()->subDay()))
                 ->where('type', FiscalReceiptType::REFUND->value)
                 ->where('status', '!=', FiscalReceiptStatus::FAILED->value)
                 ->where('idempotency_key', '!=', $document->idempotencyKey)

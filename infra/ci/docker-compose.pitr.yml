@@ -1,0 +1,37 @@
+# CI only (job `pitr-drill` in .github/workflows/ci.yml, driven by scripts/pitr-ci.sh): the production `postgres` and
+# `backup` services from docker-compose.yml, unchanged, plus an S3 target (MinIO) for repo2, so the PITR topology
+# (archive-push from postgres, backups from the sidecar over the shared socket and a read-only PGDATA, restore to a
+# time, the drill) runs exactly as on a server. Never use this file on a server.
+#   docker compose -f docker-compose.yml -f infra/ci/docker-compose.pitr.yml up -d postgres backup minio
+# Every value comes from the generated root .env (scripts/pitr-ci.sh writes random credentials there): no secrets here.
+services:
+  # Exposed on the runner's loopback only: `php artisan migrate` and the test's SQL run from the runner
+  postgres:
+    ports:
+      - "127.0.0.1:${PITR_CI_PG_PORT:-55432}:5432"
+
+  backup:
+    environment:
+      # The CI run takes its first full backup itself (scripts/pitr-ci.sh); the nightly time is never reached
+      BACKUP_RUN_ON_START: "0"
+      PITR_DRILL_MONTHLY: "0"
+      PITR_MARKER_INTERVAL: "30"
+    # The restored copy of the drill, reachable from the runner for the app smoke (php artisan db:restore-smoke)
+    ports:
+      - "127.0.0.1:${PITR_CI_RESTORE_PORT:-55499}:5499"
+    depends_on:
+      minio:
+        condition: service_started
+
+  # S3-compatible target over TLS (pgBackRest speaks only https to S3), self-signed certificate made by pitr-ci.sh.
+  # The Bitnami build of MinIO, pinned by digest (the upstream minio/minio images are no longer published); its own
+  # entrypoint scripts are bypassed: plain `minio server`, data in the container (kept across stop/start).
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20
+    entrypoint: ["/opt/bitnami/minio/bin/minio"]
+    command: ["server", "/tmp/minio-data", "--address", ":9000", "--certs-dir", "/certs"]
+    environment:
+      MINIO_ROOT_USER: ${PITR_S3_ACCESS_KEY:?pitr-ci.sh writes PITR_S3_ACCESS_KEY to .env}
+      MINIO_ROOT_PASSWORD: ${PITR_S3_SECRET:?pitr-ci.sh writes PITR_S3_SECRET to .env}
+    volumes:
+      - ${PITR_CI_CERT_DIR:?pitr-ci.sh writes PITR_CI_CERT_DIR to .env}:/certs

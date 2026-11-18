@@ -85,12 +85,15 @@ M2 dan keyin qayta o'lchandi ([scale/RESULTS_M2.md](scale/RESULTS_M2.md), 9-bo'l
 Bundan chiqadigan xulosalar: (1) 1 000 do'kon bitta serverga sig'maydi, ilova qismi bir nechta serverda ishlashi kerak
 (P bosqichiga qo'shiladi); (2) M2 so'rovlar sonini kamaytiradi, shuning uchun yadrolar soni shu jadvaldagidan kam
 bo'lishi kutiladi; (3) M3 (jurnallarni bo'lish va arxivlash) majburiy: jurnallarsiz o'sish yiliga taxminan 315 GB;
-(4) bazani bo'lish savoli 1 000 do'konda ikkinchi yilda qayta ko'riladi.
+(4) bazani bo'lish savoli 1 000 do'konda ikkinchi yilda qayta ko'riladi; (5) M3 jurnallarni cheklaydi (turg'un holatda
+taxminan 290 GB), lekin buyurtmalar va ularning qatorlari cheklanmaydi (yiliga taxminan 367 GB): 1 000 do'konda baza
+ikkinchi yil oxirida taxminan 1 TB ga yetadi, shuning uchun eski buyurtmalarni arxivlash pilot xulosasida ko'riladi.
 
 ## Holat
 
 | To'lqin | Holat |
 |---|---|
 | M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
-| M2 Jonli aloqa va kesh | Kod, tuzatishlar va qayta o'lchov tayyor (PR #25, 17.11.2026): [scale/RESULTS_M2.md](scale/RESULTS_M2.md). Market yuki 2-3 baravar kamaydi, sokin vaqtda so'rovlar 73 % kam; tushlikda kassa tezligi M1 darajasida (birinchi o'lchovda topilgan sekinlashuv tuzatildi). Merge egasining buyrug'ini kutmoqda |
-| M3–M5, P, L | Navbatda |
+| M2 Jonli aloqa va kesh | **Tugadi** (PR #25, 17.11.2026). Natija: [scale/RESULTS_M2.md](scale/RESULTS_M2.md): market yuki 2-3 baravar kam, sokin vaqtda so'rovlar 73 % kam, tushlikda kassa tezligi M1 darajasida va ekranlar 2-5 soniyada yangilanadi |
+| M3 Ishonchlilik | Kod, uch bosqichli mustaqil tekshiruv va tuzatishlar tayyor (PR #26, 18.11.2026): audit, fiskal va bildirishnoma jurnallari oylar bo'yicha bo'lingan va arxivlanadi; uzluksiz zaxira (CI sinovida yo'qotish oynasi ~1 daqiqa), vaqtga qaytarib tiklash, tiklash mashqi; 20 dan ortiq ogohlantirish. Loyiha: [scale/M3_DESIGN.md](scale/M3_DESIGN.md), qo'llanma: [OPERATIONS.md](OPERATIONS.md) 17-21-bo'limlar. Haqiqiy serverda hali sinalmagan (staging kerak). Merge egasining buyrug'ini kutmoqda |
+| M4, M5, P, L | Navbatda |

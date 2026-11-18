@@ -54,6 +54,32 @@ x-backend-environment: &backend-environment
   REVERB_PORT: 8080
   REVERB_SCHEME: http
   REVERB_ALLOWED_ORIGINS: ${REVERB_ALLOWED_ORIGINS:-*}
+  # M3 monitoring: PITR o'chiq bo'lsa (bo'sh/0) WAL, PITR va tiklash mashqi ogohlantirishlari jim, Monitoring «o'chiq» deydi.
+  # HEALTHCHECKS_PING_URL: healthchecks.io (yoki shunga o'xshash) manzili; scheduler har daqiqalik tekshiruvdan keyin unga
+  # so'rov yuboradi: so'rovlar to'xtasa (server, scheduler yoki baza ishlamasa) o'sha xizmat egaga xabar beradi. Bo'sh = yo'q.
+  PITR_ENABLED: ${PITR_ENABLED:-0}
+  HEALTHCHECKS_PING_URL: ${HEALTHCHECKS_PING_URL:-}
+  # db_connections qoidasi PgBouncer'ning chegarasini pgbouncer xizmati bilan bir xil qiymatdan oladi
+  PGBOUNCER_MAX_DB_CONNECTIONS: ${PGBOUNCER_MAX_DB_CONNECTIONS:-30}
+
+# M3 uzluksiz zaxira (PITR, pgBackRest): `postgres` (arxiv buyrug'i, WAL'ni yuboradi) va `backup` (to'liq/farq zaxiralari,
+# tiklash, tiklash mashqi) bir xil sozlamani oladi (infra/postgres/pitr-env.sh). Hammasi ildiz .env dan; bo'sh = o'chiq.
+# repo1 = shu serverdagi pgbackrest_repo volume'i; repo2 = S3 (PITR_S3_* yoki, ular bo'sh bo'lsa, BACKUP_S3_*),
+# AES-256 bilan shifrlangan: PITR_CIPHER_PASS SHART (yo'qolsa S3 dagi nusxalar o'qilmaydi, server tashqarisida saqlang).
+x-pitr-environment: &pitr-environment
+  PITR_ENABLED: ${PITR_ENABLED:-0}
+  PITR_CIPHER_PASS: ${PITR_CIPHER_PASS:-}
+  PITR_S3_ENDPOINT: ${PITR_S3_ENDPOINT:-${BACKUP_S3_ENDPOINT:-}}
+  PITR_S3_BUCKET: ${PITR_S3_BUCKET:-${BACKUP_S3_BUCKET:-}}
+  PITR_S3_ACCESS_KEY: ${PITR_S3_ACCESS_KEY:-${BACKUP_S3_ACCESS_KEY:-}}
+  PITR_S3_SECRET: ${PITR_S3_SECRET:-${BACKUP_S3_SECRET:-}}
+  PITR_S3_REGION: ${PITR_S3_REGION:-${BACKUP_S3_REGION:-}}
+  PITR_S3_PREFIX: ${PITR_S3_PREFIX:-${BACKUP_S3_PREFIX:-}}
+  PITR_S3_URI_STYLE: ${PITR_S3_URI_STYLE:-path}
+  PITR_S3_VERIFY_TLS: ${PITR_S3_VERIFY_TLS:-y}
+  PITR_REPO1_RETENTION_FULL: ${PITR_REPO1_RETENTION_FULL:-2}
+  PITR_S3_RETENTION_FULL: ${PITR_S3_RETENTION_FULL:-4}
+  PITR_ARCHIVE_QUEUE_MAX: ${PITR_ARCHIVE_QUEUE_MAX:-4GiB}
 
 # Ikkala navbat ishchisi uchun umumiy qism: backend sog'lom bo'lgach (migratsiyalar tugagach) ishga tushadi.
 # SIGTERM'da ishchi joriy jobni tugatib chiqadi; eng uzun job (SendOrderReport) 120 s, shuning uchun standart 10 s emas.
@@ -72,15 +98,49 @@ x-queue-worker: &queue-worker
   stop_grace_period: 150s
 
 services:
+  # M3: rasmiy postgres:17-alpine + pgBackRest (infra/postgres/Dockerfile). Server, ma'lumotlar papkasi va postgres_data
+  # volume'i o'zgarmagan: mavjud o'rnatish o'z ma'lumoti bilan ishga tushadi. Uzluksiz zaxira (PITR) faqat ildiz .env da
+  # PITR_ENABLED=1 bo'lsa yoqiladi; bo'lmasa arxiv buyrug'i hech narsa qilmaydi (0 bilan chiqadi), WAL avvalgidek
+  # qayta ishlatiladi. archive_mode ni yoqish uchun birinchi deploy'da Postgres BIR MARTA qayta ishga tushadi (soniyalar).
+  # archive_timeout=60: biror narsa yozilgan bo'lsa, eng ko'pi 60 s da WAL segmenti arxivga ketadi (yo'qotish oynasi).
+  # docker-compose.staging.yml `command` ni almashtiradi: u yerda ham shu bayroqlar takrorlangan. docs/OPERATIONS.md, «Uzluksiz zaxira (PITR)»
   postgres:
-    image: postgres:17-alpine
+    build:
+      context: ./infra/postgres
     restart: unless-stopped
+    # PID 1 = Docker's tini, not the postmaster: pgBackRest's async archive-push detaches a worker; orphaned, it would be
+    # reparented to PID 1, and a postmaster that reaps an unknown child exiting non-zero treats it as a crashed backend
+    # and restarts the whole cluster (seen in CI). tini reaps it instead; signals still reach postgres
+    init: true
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/usr/local/bin/pgbackrest-archive.sh %p
+      - -c
+      - archive_timeout=60
+      - -c
+      - wal_compression=lz4
+      - -c
+      - max_wal_size=2GB
     environment:
       POSTGRES_DB: ${DB_DATABASE:-rizqimbot}
       POSTGRES_USER: ${DB_USERNAME:-rizqimbot}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      # Set = the data is a host path (pitr-switch.sh): infra/postgres/entrypoint.sh then refuses to create an empty database
+      RIZQIM_DATA_SOURCE: ${POSTGRES_DATA_VOLUME:-}
+      <<: *pitr-environment
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # POSTGRES_DATA_VOLUME bo'sh = postgres_data (avvalgi volume, o'zgarmaydi). Faqat PITR tiklangan nusxani ishga
+      # tushirish runbook'ida (docs/OPERATIONS.md) xostdagi mutlaq papka yo'li beriladi; `backup` ham xuddi shu manbani o'qiydi
+      - ${POSTGRES_DATA_VOLUME:-postgres_data}:/var/lib/postgresql/data
+      - pgbackrest_repo:/var/lib/pgbackrest
+      - pgbackrest_spool:/var/spool/pgbackrest
+      # Unix soket `backup` bilan umumiy: pgBackRest zaxira olganda Postgres'ga shu soket orqali ulanadi
+      - pg_run:/var/run/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rizqimbot} -d ${DB_DATABASE:-rizqimbot}"]
       interval: 5s
@@ -360,19 +420,48 @@ services:
       retries: 3
       start_period: 20s
 
-  # PostgreSQL zaxirasi: har kuni BACKUP_TIME (UTC) da pg_dump (custom format) -> BACKUP_HOST_DIR (standart ./backups),
+  # PostgreSQL zaxirasi: har kuni BACKUP_TIME (UTC, standart 21:30 = Toshkent 02:30) da pg_dump (custom format) -> BACKUP_HOST_DIR (standart ./backups),
   # BACKUP_RETENTION_DAYS kundan eskilari o'chiriladi. Ishga tushganda ham bitta zaxira oladi. Tashqi nusxa: BACKUP_OFFSITE_CMD
   # (ildizdagi .env.example) yoki BACKUP_S3_* (rclone, obraz infra/backup/Dockerfile). Tiklash: docker compose exec -it backup restore.sh /backups/<fayl>.dump <baza>. docs/OPERATIONS.md
   # Obraz postgres bilan bir xil versiya: pg_dump server versiyasidan eski bo'lmasligi shart.
   backup:
     # postgres:17-alpine + rclone (infra/backup/Dockerfile): BACKUP_S3_* berilsa har dump S3-mos xotiraga ham yuklanadi
+    # Build context ./infra: PITR yordamchilari (infra/postgres/pitr-env.sh, archive.sh) postgres obrazi bilan bitta manbadan
     build:
-      context: ./infra/backup
+      context: ./infra
+      dockerfile: backup/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      <<: *pitr-environment
+      # M3 PITR: pgBackRest zaxirani shu konteynerdan oladi: ma'lumotlar papkasini faqat o'qiydi (:ro, yo'li serverniki
+      # bilan bir xil), Postgres'ga umumiy soket orqali ulanadi, repo1 volume'iga yozadi. Tiklash va tiklash mashqi
+      # pitr_restore volume'iga (/restore), ikkinchi Postgres 5499 portida (faqat compose tarmog'ida) ishga tushadi.
+      # Har kecha BACKUP_TIME da: pgBackRest zaxirasi (yakshanba to'liq, boshqa kunlar farq) + expire, so'ng pg_dump, so'ng
+      # jurnallar arxivi (scripts/archive-partitions.sh). Har 5 daqiqada monitoring_markers: `pitr` va `disk`.
+      # Har oy birinchi yakshanba PITR_DRILL_TIME da tiklash mashqi (PITR_DRILL_MONTHLY=0 o'chiradi).
+      RIZQIM_BACKUP_CONTAINER: "1"
+      PITR_SPOOL_PATH: /tmp/pgbackrest-spool
+      PITR_RESTORE_ROOT: /restore
+      PITR_RESTORE_PORT: 5499
+      PITR_DRILL_MONTHLY: ${PITR_DRILL_MONTHLY:-1}
+      PITR_DRILL_TIME: ${PITR_DRILL_TIME:-23:00}
+      PITR_PING_URL: ${PITR_PING_URL:-}
+      # WAL zanjiridagi uzilish shuncha soniyadan keyin hisoblanadi (kechikib kelgan segmentlar uchun), S3 ro'yxati shuncha
+      # soniyada bir (narx), uzilishdan keyingi avtomatik to'liq nusxa eng ko'pi shuncha soniyada bir urinish
+      PITR_GAP_GRACE: ${PITR_GAP_GRACE:-600}
+      PITR_GAP_S3_INTERVAL: ${PITR_GAP_S3_INTERVAL:-3600}
+      PITR_HEAL_INTERVAL: ${PITR_HEAL_INTERVAL:-21600}
+      # Jurnallar arxivi uchun S3 (bo'sh = BACKUP_S3_*). Arxiv o'chmasligi kerak: o'chirish huquqisiz alohida kalit yoki
+      # Object Lock'li alohida bucket (scripts/archive-partitions.sh har kecha tekshiradi va ogohlantiradi)
+      ARCHIVE_S3_ENDPOINT: ${ARCHIVE_S3_ENDPOINT:-}
+      ARCHIVE_S3_BUCKET: ${ARCHIVE_S3_BUCKET:-}
+      ARCHIVE_S3_ACCESS_KEY: ${ARCHIVE_S3_ACCESS_KEY:-}
+      ARCHIVE_S3_SECRET: ${ARCHIVE_S3_SECRET:-}
+      ARCHIVE_S3_REGION: ${ARCHIVE_S3_REGION:-}
+      ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-}
       PGHOST: postgres
       PGPORT: 5432
       PGUSER: ${DB_USERNAME:-rizqimbot}
@@ -380,7 +469,7 @@ services:
       PGDATABASE: ${DB_DATABASE:-rizqimbot}
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
-      BACKUP_TIME: ${BACKUP_TIME:-03:00}
+      BACKUP_TIME: ${BACKUP_TIME:-21:30}
       BACKUP_OFFSITE_CMD: ${BACKUP_OFFSITE_CMD:-}
       # Server tashqarisiga nusxa (S3-mos: AWS S3, Cloudflare R2, Backblaze B2, MinIO). Bo'sh bo'lsa hech narsa qilinmaydi;
       # endpoint, bucket, kalit va maxfiy kalit to'rttasi ham kerak. scripts/backup.sh, docs/OPERATIONS.md, 4-bo'lim
@@ -395,9 +484,26 @@ services:
       - ${BACKUP_HOST_DIR:-./backups}:/backups
       - ./scripts/backup.sh:/usr/local/bin/backup.sh:ro
       - ./scripts/restore.sh:/usr/local/bin/restore.sh:ro
+      # M3 PITR va jurnallar arxivi
+      - ./scripts/pitr.sh:/usr/local/bin/pitr.sh:ro
+      - ./scripts/pitr-drill.sh:/usr/local/bin/pitr-drill.sh:ro
+      - ./scripts/pitr-restore.sh:/usr/local/bin/pitr-restore.sh:ro
+      - ./scripts/archive-partitions.sh:/usr/local/bin/archive-partitions.sh:ro
+      - ./scripts/archive-restore.sh:/usr/local/bin/archive-restore.sh:ro
+      - ${POSTGRES_DATA_VOLUME:-postgres_data}:/var/lib/postgresql/data:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+      # Faqat o'lchash uchun (disk belgisi: navbatdagi WAL hajmi)
+      - pgbackrest_spool:/var/spool/pgbackrest:ro
+      - pg_run:/var/run/postgresql
+      - pitr_restore:/restore
     command: ["sh", "/usr/local/bin/backup.sh", "--daemon"]
 
 volumes:
   postgres_data:
+  # M3 PITR: pgBackRest repo1 (zaxiralar va arxivlangan WAL), async arxiv navbati, umumiy unix soket, tiklash joyi
+  pgbackrest_repo:
+  pgbackrest_spool:
+  pg_run:
+  pitr_restore:
   redis_data:
   backend_storage:

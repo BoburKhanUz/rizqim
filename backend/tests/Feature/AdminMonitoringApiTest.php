@@ -414,6 +414,8 @@ class AdminMonitoringApiTest extends TestCase
     public function test_resolve_records_who_works_from_both_states_and_is_audited(): void
     {
         Bus::fake();
+        // M3: ops alerts are sent at once (AlertNotifier), not queued
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
         config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => '-100777']);
         $open = $this->makeAlert(AlertKind::QUEUE_BACKLOG, ['subject_key' => 'default', 'telegram_opened_at' => now()]);
         $acknowledged = $this->makeAlert(AlertKind::QUEUE_BACKLOG, ['subject_key' => 'reports', 'state' => 'acknowledged']);
@@ -432,9 +434,10 @@ class AdminMonitoringApiTest extends TestCase
         $this->adminJson('POST', "/monitoring/alerts/{$open->id}/resolve", $token)->assertStatus(409)->assertJsonPath('code', 'alert_resolved');
 
         // The group hears it for the alert it was told about, and who closed it
-        Bus::assertDispatchedTimes(SendTelegramRequest::class, 1);
-        Bus::assertDispatched(SendTelegramRequest::class, fn ($job) => $job->params['chat_id'] === '-100777'
-            && str_contains($job->params['text'], '[HAL QILINDI]') && str_contains($job->params['text'], $operator->name));
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request['chat_id'] === '-100777'
+            && str_contains($request['text'], '[HAL QILINDI]') && str_contains($request['text'], $operator->name));
+        Bus::assertNotDispatched(SendTelegramRequest::class);
     }
 
     // --- rules ------------------------------------------------------------------------------------------------------

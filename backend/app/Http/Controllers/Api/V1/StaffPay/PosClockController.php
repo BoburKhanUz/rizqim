@@ -100,7 +100,10 @@ class PosClockController extends PosBillingController
     private function state(User $user, ?Branch $branch, WorkTime $workTime): array
     {
         $open = $workTime->current($user);
-        $today = $branch !== null ? BusinessDay::of($branch) : now()->toDateString();
+        // Wave M3: without a branch, the store's business day (its time zone, the default 05:00 day start: the
+        // fallback CorporateAccounts uses for a moment with no branch), not the UTC date
+        $today = $branch !== null ? BusinessDay::of($branch)
+            : \App\Domain\Pos\Setup\PosSettings::businessDate(now(), \App\Support\StoreTimezone::of(\App\Models\Store::find($user->store_id)), \App\Domain\Pos\Setup\PosSettings::DEFAULT_BUSINESS_DAY_START);
         $minutes = $branch !== null ? (int) StaffWorkSession::query()->where('user_id', $user->id)->where('branch_id', $branch->id)
             ->where('business_date', $today)->whereNotNull('clock_out_at')->get()->sum(fn (StaffWorkSession $session) => $session->minutes()) : 0;
 

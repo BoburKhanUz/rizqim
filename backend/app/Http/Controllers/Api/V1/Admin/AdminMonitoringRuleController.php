@@ -30,11 +30,14 @@ class AdminMonitoringRuleController extends AdminController
      * Alert rules
      *
      * One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
-     * backup_stale, scheduler_stale). `fields` says what each threshold means (label, unit, allowed range) and is null
+     * backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
+     * pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
+     * partitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+     * kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
      * for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
      * (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{rules: list<array{kind: string, label: string, description: string, severity: string, enabled: bool, telegram: bool, threshold: int, threshold_secondary: int|null, window_minutes: int|null, fields: array<string, mixed>, defaults: array<string, int|null>, unresolved_alerts: int, updated_at: string|null, updated_by: array{id: int, name: string}|null}>, telegram_configured: bool}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{rules: list<array{kind: string, label: string, description: string, action: string, severity: string, enabled: bool, telegram: bool, threshold: int, threshold_secondary: int|null, window_minutes: int|null, fields: array<string, mixed>, defaults: array<string, int|null>, unresolved_alerts: int, updated_at: string|null, updated_by: array{id: int, name: string}|null}>, telegram_configured: bool}}')]
     public function index(): JsonResponse
     {
         return $this->success($this->all());
@@ -47,7 +50,7 @@ class AdminMonitoringRuleController extends AdminController
      * uses, within its range: see `fields` in the list) plus a required `reason`. Switching a rule off resolves its
      * alerts. Needs step-up. Answers with all the rules.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{rules: list<array{kind: string, label: string, description: string, severity: string, enabled: bool, telegram: bool, threshold: int, threshold_secondary: int|null, window_minutes: int|null, fields: array<string, mixed>, defaults: array<string, int|null>, unresolved_alerts: int, updated_at: string|null, updated_by: array{id: int, name: string}|null}>, telegram_configured: bool}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{rules: list<array{kind: string, label: string, description: string, action: string, severity: string, enabled: bool, telegram: bool, threshold: int, threshold_secondary: int|null, window_minutes: int|null, fields: array<string, mixed>, defaults: array<string, int|null>, unresolved_alerts: int, updated_at: string|null, updated_by: array{id: int, name: string}|null}>, telegram_configured: bool}}')]
     #[ApiDocResponse(404, 'No such rule kind', type: 'array{success: false, message: string, code: string, data: array{reason: string}}')]
     #[ApiDocResponse(422, 'Value outside the kind\'s range, or a threshold the kind does not use', type: 'array{success: false, message: string, errors: array<string, list<string>>}')]
     public function update(Request $request, string $kind): JsonResponse
@@ -123,6 +126,7 @@ class AdminMonitoringRuleController extends AdminController
                     'kind' => $kind->value,
                     'label' => $kind->label(),
                     'description' => $kind->description(),
+                    'action' => $kind->action(),
                     'severity' => $kind->severity(),
                     'enabled' => $rule->enabled,
                     'telegram' => $rule->telegram,

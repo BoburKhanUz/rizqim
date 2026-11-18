@@ -32,7 +32,8 @@ class AuditLogController extends Controller
      *
      * The store's entries, newest first, Laravel pages (`per_page` 1–100, default 50). Filters: `action` (exact, or a
      * prefix such as `order.*`), `user_id`, `device_uuid`, `branch_id`, `subject_type` + `subject_id`, `from` / `to`
-     * (dates). PINs, tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
+     * (a date is the store's calendar day, `to` inclusive; a datetime with its offset is that exact moment). PINs,
+     * tokens, codes and card data never reach the log and phone numbers are masked (AuditRedactor);
      * `ip` is shown to the owner only. An action of the RIZQIM team on the store (Boshqaruv markazi) keeps its action,
      * subject and before/after, but its actor is `{id: null, name: "RIZQIM jamoasi", role: "platform"}`, without the
      * member's IP or the team's internal reason and notes; `user_id` never finds a team member's entries.
@@ -69,8 +70,8 @@ class AuditLogController extends Controller
             ->when($request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->integer('branch_id')))
             ->when($request->filled('subject_type'), fn ($query) => $query->where('model_type', 'App\\Models\\' . $request->input('subject_type')))
             ->when($request->filled('subject_id'), fn ($query) => $query->where('model_id', $request->integer('subject_id')))
-            ->when($request->filled('from'), fn ($query) => $query->where('created_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($query) => $query->where('created_at', '<=', $request->date('to')->endOfDay()))
+            // Wave M3: a plain date is the store's calendar day (`to` inclusive), a datetime its exact moment
+            ->tap(fn ($query) => \App\Support\DayBounds::apply($query, 'created_at', $request->input('from'), $request->input('to'), \App\Support\StoreTimezone::of(\App\Models\Store::find($user->store_id))))
             ->orderByDesc('id')
             ->paginate($request->integer('per_page', 50));
 

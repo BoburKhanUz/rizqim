@@ -115,7 +115,7 @@ trait MonitoringFixtures
 
     protected function failedReceipt(Store $store, array $attributes = []): FiscalReceipt
     {
-        return FiscalReceipt::query()->forceCreate(array_merge([
+        return \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => FiscalReceipt::query()->forceCreate(array_merge([
             'uuid' => (string) Str::uuid(),
             'store_id' => $store->id,
             'type' => 'sale',
@@ -127,6 +127,6 @@ trait MonitoringFixtures
             'lines' => [],
             'payments' => [],
             'error' => 'rejected',
-        ], $attributes));
+        ], $attributes)));
     }
 }

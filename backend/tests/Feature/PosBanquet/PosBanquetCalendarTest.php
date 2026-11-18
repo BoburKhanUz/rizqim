@@ -87,6 +87,23 @@ class PosBanquetCalendarTest extends TestCase
         $this->hold(['event_date' => '2026-11-13'])->assertStatus(422)->assertJsonPath('data.reason', 'event_in_past');
     }
 
+    public function test_the_past_is_the_branchs_business_day_not_the_calendar_date(): void
+    {
+        $at = fn (string $local) => $this->travelTo(\Illuminate\Support\Carbon::parse($local, 'Asia/Tashkent'));
+
+        // 23:30 and, after local midnight, until the 05:00 day start: the 17th is still today's business day
+        foreach (['2026-11-17 23:30', '2026-11-18 00:30', '2026-11-18 04:59'] as $i => $local) {
+            $at($local);
+            $this->hold(['event_date' => '2026-11-17', 'slot' => 'custom', 'start_time' => sprintf('%02d:00', 10 + $i), 'end_time' => sprintf('%02d:30', 10 + $i)])->assertCreated();
+        }
+        $this->hold(['event_date' => '2026-11-16'])->assertStatus(422)->assertJsonPath('data.reason', 'event_in_past');
+
+        // 05:00: a new business day, the 17th is past
+        $at('2026-11-18 05:00');
+        $this->hold(['event_date' => '2026-11-17', 'slot' => 'day'])->assertStatus(422)->assertJsonPath('data.reason', 'event_in_past');
+        $this->hold(['event_date' => '2026-11-18', 'slot' => 'day'])->assertCreated();
+    }
+
     public function test_rescheduling_keeps_the_payments_and_checks_conflicts(): void
     {
         $uuid = $this->held();

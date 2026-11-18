@@ -8,13 +8,11 @@ use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\Menu\MenuStaffController;
 use App\Models\CustomerAccount;
 use App\Models\CustomerAccountMember;
-use App\Models\Store;
 use App\Services\Admin\Export\XlsxExporter;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\PermissionService;
 use App\Support\Money;
 use App\Support\PiiMask;
-use App\Support\StoreTimezone;
 use App\Support\UzValidation;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
@@ -23,7 +21,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use OpenSpout\Common\Entity\Style\Style;
@@ -477,9 +474,11 @@ class CorporateAccountController extends MenuStaffController
         if (!$account->isCorporate()) {
             throw new HttpResponseException($this->error('Bu nasiya hisobi: xodimlar va oylik hisobot faqat korxona hisobida.', ['reason' => 'account_not_corporate'], 422));
         }
+        // Wave M3: the entries count by business date, so does the default month: on the 1st before the day start
+        // (00:00-05:00) the meals still go to the month before, the store's calendar month would show an empty one
         $month = $request->filled('month')
             ? (string) $request->input('month')
-            : Carbon::now(StoreTimezone::of(Store::find($account->store_id)))->format('Y-m');
+            : substr(app(\App\Domain\Pos\Accounts\CorporateAccounts::class)->businessDateAt($branchId, $account), 0, 7);
 
         return [$account, $month, $branchId, $this->permissions->allows($user, Permission::CUSTOMER_ACCOUNTS_MANAGE, $account)];
     }

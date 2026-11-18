@@ -23,6 +23,13 @@ test('Holat says every part of the system in words and moves to the alerts from 
   await expect(tile(page, 'Zaxira nusxa')).toContainText('Eskirgan')
   await expect(tile(page, 'Yiqilgan vazifalar')).toContainText('3 ta, oxirgi 24 soatda 2 ta')
   await expect(tile(page, 'Ilova')).toContainText('1.4.0')
+  // M3: the backups and the server, in plain words
+  await expect(tile(page, 'Uzluksiz zaxira (istalgan daqiqaga tiklash)')).toContainText('Oxirgi nusxa: 5 soat oldin')
+  await expect(tile(page, 'Uzluksiz zaxira (istalgan daqiqaga tiklash)')).toContainText("Tashqi nusxa (S3): yo'q")
+  await expect(tile(page, 'Tiklash mashqi')).toContainText('Tiklash vaqti: 4 daqiqa 12 soniya')
+  await expect(tile(page, 'Tiklash mashqi')).toContainText("Ma'lumot yo'qotish oynasi: 38 soniya")
+  await expect(tile(page, 'Disk')).toContainText("Band: 43 %, bo'sh joy 57 GB")
+  await expect(tile(page, 'Jurnallar (oylik qismlar)')).toContainText('Oldindan tayyor: 3 oy (kamida 2 kerak)')
   await expect(page.getByRole('link', { name: /Sentry'da ochish/ })).toHaveAttribute('href', /sentry\.io/)
 
   // The server comes back changed: a refresh shows it

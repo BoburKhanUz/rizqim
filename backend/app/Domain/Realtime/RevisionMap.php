@@ -258,6 +258,12 @@ final class RevisionMap
         'jobs' => [[self::NONE, 'queue bookkeeping']],
         'migrations' => [[self::NONE, 'schema bookkeeping']],
         'monitoring_markers' => [[self::NONE, 'RIZQIM team monitoring']],
+        // M3: the journal partitions' archive catalogue and the restore drill log (scripts write them with psql)
+        'partition_archives' => [[self::NONE, 'RIZQIM team operations: journal months taken offline']],
+        'restore_drills' => [[self::NONE, 'RIZQIM team operations: restore drill results']],
+        // M3 A2: the global uniqueness of the partitioned fiscal_receipts, written only by its trigger (never read by
+        // a polled endpoint; the receipt row itself bumps the branch revision)
+        'fiscal_receipt_keys' => [[self::NONE, 'fiscal receipt key and uuid registry (written by a trigger)']],
         'password_reset_tokens' => [[self::NONE, 'auth']],
         'payout_requests' => [[self::NONE, 'RIZQIM finance (admin)']],
         'personal_access_tokens' => [[self::NONE, 'auth tokens (last_used_at is written on requests)']],

@@ -50,6 +50,8 @@ Schedule::command('menu:expire-stop-list')->everyMinute()->withoutOverlapping(5)
 // P3 integration fix: every prunable model of app/Models (MassPrunable / Prunable: Idempotency-Key responses, expired
 // manager approvals of the POS, pos_approvals) is pruned daily; a new prunable model is picked up without a change here
 Schedule::command('model:prune')->daily()->withoutOverlapping(60);
+// M3: failed queue jobs are kept 30 days (Monitoring's failed_jobs_spike reads the recent ones), then pruned
+Schedule::command('queue:prune-failed', ['--hours' => 720])->daily()->withoutOverlapping(30);
 
 // P3 integration fix (R20): the owner hears once about each POS hall order open longer than its branch's
 // pos_settings.alerts.open_room_hours (App\Domain\Pos\Orders\PosOrderAlerts)

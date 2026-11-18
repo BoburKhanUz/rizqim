@@ -28,7 +28,12 @@ class RevisionMapCoverageTest extends TestCase
 
     public function test_every_table_of_the_schema_is_classified_and_no_entry_is_stale(): void
     {
-        $tables = collect(Schema::getTables())->pluck('name')->all();
+        // M3: the monthly partitions of audit_logs, fiscal_receipts and notification_logs (and their DEFAULT) are listed
+        // by Schema::getTables() too; their parent is the table the hooks see and the map classifies. Strict for every
+        // other table: only pg_class.relispartition rows are skipped
+        $partitions = collect(DB::select('SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relispartition AND n.nspname = current_schema()'))->pluck('relname')->all();
+        $this->assertNotSame([], $partitions, 'the journal tables are partitioned (migration 2026_11_25_100000): no partition found');
+        $tables = array_values(array_diff(collect(Schema::getTables())->pluck('name')->all(), $partitions));
 
         $missing = array_values(array_diff($tables, array_keys(RevisionMap::TABLES)));
         $this->assertSame([], $missing, 'Tables without a RevisionMap rule (classify them: which token does a write move, or NONE with a reason): ' . implode(', ', $missing));
@@ -87,6 +92,9 @@ class RevisionMapCoverageTest extends TestCase
             // M2 review R3-1: ledger rows, one per settled order; only the owner finance pages (read live, not
             // revision-gated) show them, and the debt lock they lead to is decided on the stores row (NARROW_COLUMNS)
             'store_transactions', 'store_wallet_transactions',
+            // M3 A2: written only by the fiscal_receipts trigger, read only by FiscalService (no screen shows it); the
+            // receipt row itself is BRANCH-tracked
+            'fiscal_receipt_keys',
         ];
         foreach (RevisionMap::TABLES as $table => $rules) {
             if ($rules[0][0] !== RevisionMap::NONE) {
@@ -135,7 +143,13 @@ class RevisionMapCoverageTest extends TestCase
     public function test_no_raw_sql_write_bypasses_the_query_builder(): void
     {
         // Raw statements are not seen by RevisionQueryBuilder: a write must use the query builder (or Eloquent)
-        $allowed = ['Support/ConcurrentIndex.php']; // index DDL in migrations only
+        $allowed = [
+            'Support/ConcurrentIndex.php', // index DDL in migrations only
+            // M3: rows moved between partitions of one journal table, or copied between its old and new table during a
+            // conversion: no row a screen shows changes (raw SQL on partition names is allowed only there)
+            'Support/Partitions/PartitionManager.php',
+            'Support/Partitions/PartitionConverter.php',
+        ];
         $offenders = [];
         $root = app_path();
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root)) as $file) {

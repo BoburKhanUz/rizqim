@@ -51,6 +51,30 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 
 **Ildizdagi `.env`** (compose o'qiydi): `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (postgres ham, backend ham shundan oladi va `backend/.env` dagilarni bekor qiladi), `REDIS_PASSWORD` (`$` belgisiz), `BACKEND_PORT` (8000), `BACKEND_BIND` (standart `127.0.0.1`: backend portiga faqat shu serverdagi tashqi proksi ulanadi), `FRONTEND_PORT` (8080), hamkor veb-panel uchun `PARTNER_WEB_PORT` (3000), `PARTNER_WEB_BIND` (standart `127.0.0.1`), `PARTNER_PUBLIC_API_BASE_URL` va `PARTNER_SESSION_COOKIE_SECURE` (4-bo'lim), `VITE_BOT_USERNAME`, `VITE_API_URL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION`, `VITE_PARTNER_WEB_URL` (Mini App xodim ekranlaridagi "Web panelda tahrirlash" havolasi — hamkor paneli manzili, `https://panel.<domen>`; bo'sh = havolasiz; build vaqtida, o'zgartirgach `docker compose up -d --build frontend`), real-time uchun `BROADCAST_CONNECTION` (standart `null`; kalitlar bilan `reverb`), `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_ALLOWED_ORIGINS` va `VITE_REVERB_*` (9-bo'lim; bular `backend/.env` dagilarni bekor qiladi). Ildizdagi `.env.example` ning pastki qismidagi `APP_ENV`, `CACHE_STORE`, `SUPERADMIN_*` kabi qatorlar faqat eslatma: konteyner ularni `backend/.env` dan o'qiydi, ildizdagi `.env` dan emas.
 
+**Zaxira va ishonchlilik sozlamalari (M3).** Hammasi ixtiyoriy: bo'sh qiymat = funksiya o'chiq, ilova avvalgidek ishlaydi. Ma'nosi va tartibi: [OPERATIONS.md](OPERATIONS.md), 17–21-bo'limlar.
+
+| Qayerda | O'zgaruvchi | Standart | Ma'nosi |
+|---|---|---|---|
+| ildiz `.env` | `PITR_ENABLED` | bo'sh (o'chiq) | `1` = uzluksiz zaxira (PITR, pgBackRest) yoqiq; yoqilgach Postgres bir marta qayta ishga tushadi |
+| ildiz `.env` | `PITR_CIPHER_PASS` | bo'sh | S3 dagi PITR nusxasining shifrlash paroli. S3 uchun shart; **yo'qolsa S3 nusxalari o'qilmaydi: server tashqarisida saqlang**; keyin o'zgartirmang; `$` bo'lmasin |
+| ildiz `.env` | `PITR_S3_ENDPOINT`, `PITR_S3_BUCKET`, `PITR_S3_ACCESS_KEY`, `PITR_S3_SECRET` | bo'sh = `BACKUP_S3_*` | PITR uchun S3 (`https://`). Bo'sh bo'lsa `BACKUP_S3_*` ishlatiladi (`<prefiks>/pitr` papkasi). Kalitda o'chirish huquqi kerak: shuning uchun PITR uchun alohida kalit (yaxshisi alohida bucket) bering |
+| ildiz `.env` | `PITR_S3_REGION`, `PITR_S3_PREFIX`, `PITR_S3_URI_STYLE`, `PITR_S3_VERIFY_TLS` | `us-east-1` (yoki `BACKUP_S3_REGION`), bo'sh, `path`, `y` | ixtiyoriy S3 tafsilotlari |
+| ildiz `.env` | `PITR_REPO1_RETENTION_FULL`, `PITR_S3_RETENTION_FULL` | `2`, `4` | saqlanadigan to'liq (haftalik) nusxalar: shu serverda ~14 kun, S3 da ~28 kun |
+| ildiz `.env` | `PITR_ARCHIVE_QUEUE_MAX` | `4GiB` | S3 ishlamasa WAL shu hajmgacha kutadi; oshsa tashlanadi (disk to'lmaydi, PITR zanjiri uziladi) |
+| ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC. `0` = faqat qo'lda |
+| ildiz `.env` | `ARCHIVE_S3_ENDPOINT`, `ARCHIVE_S3_BUCKET`, `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, `ARCHIVE_S3_REGION`, `ARCHIVE_S3_PREFIX` | bo'sh = `BACKUP_S3_*` | jurnallar arxivi uchun S3 (`<prefiks>/archive`). Arxiv hech qachon o'chmasligi kerak: o'chirish huquqi **yo'q** kalit, imkon bo'lsa Object Lock'li alohida bucket |
+| ildiz `.env` | `PITR_PING_URL` | bo'sh | healthchecks.io manzili: har muvaffaqiyatli PITR nusxasidan keyin so'rov yuboriladi |
+| ildiz `.env` | `HEALTHCHECKS_PING_URL` | bo'sh | healthchecks.io manzili: scheduler har daqiqalik tekshiruvdan keyin so'rov yuboradi (server jim bo'lsa tashqi xizmat xabar beradi) |
+| ildiz `.env` | `BACKUP_TIME` | `21:30` (UTC = Toshkent 02:30; M3 gacha `03:00`) | ketma-ket: PITR nusxasi, `pg_dump`, jurnallar arxivi. Eski `.env` da `03:00` yozilgan bo'lsa o'zgarmaydi |
+| ildiz `.env` | `POSTGRES_DATA_VOLUME` | bo'sh = `postgres_data` | faqat PITR bilan tiklangan nusxani ish bazasi qilishda: uni `scripts/pitr-switch.sh` o'zi yozadi (OPERATIONS.md, 18-bo'lim, 5-qadam). Qo'lda tegmang. Yo'l noto'g'ri yoki papka bo'sh bo'lsa `postgres` ishga tushmaydi (`Bo'sh baza YARATILMAYDI`): bo'sh yangi baza hech qachon yaratilmaydi |
+| `backend/.env` | `TELEGRAM_OPS_CHAT_ID` | bo'sh = `TELEGRAM_SUPERADMIN_CHAT_ID` | ogohlantirishlar guruhi (egasi va texnik yordamchi) |
+| `backend/.env` | `ARCHIVE_AUDIT_MONTHS`, `ARCHIVE_FISCAL_MONTHS`, `ARCHIVE_NOTIFICATION_MONTHS` | `7`, `13`, `6` | jurnallar bazada necha oy (joriy oy bilan) turadi; eskisi arxivlanadi (xabarnomalar o'chiriladi) |
+| `backend/.env` | `ARCHIVE_ALLOW_LOCAL_ONLY` | `false` | `1` = S3 siz ham eski oy bazadan o'chadi. **Tavsiya etilmaydi** |
+| `backend/.env` | `PARTITIONS_FIRST_MONTH`, `PARTITIONS_INLINE_MAX_ROWS`, `PARTITIONS_LOCK_TIMEOUT`, `PARTITIONS_DETACH_LOCK_TIMEOUT` | `2026-01`, `200000`, `2s`, `3s` | oylik bo'linmalar; standartlar yaxshi (`.env.example` da yo'q) |
+| `backend/.env` | `MONITORING_TLS_HOST` | bo'sh = `APP_URL` xosti | HTTPS sertifikati muddati tekshiriladigan xost |
+
+Yangi xizmat va volume'lar: `postgres` obrazi endi `infra/postgres/Dockerfile` dan quriladi (rasmiy `postgres:17-alpine` + pgBackRest; ma'lumotlar va `postgres_data` volume'i o'zgarmagan), `backup` obrazi ham pgBackRest bilan; volume'lar `pgbackrest_repo`, `pgbackrest_spool`, `pg_run`, `pitr_restore`. `postgres` xizmatida `init: true` turadi: olib tashlamang. **Birinchi deploy'da Postgres bir marta qayta ishga tushadi** (WAL arxivlashni yoqish uchun; `PITR_ENABLED` bo'sh bo'lsa ham `archive_mode` yoqiladi, lekin arxiv buyrug'i hech narsa qilmaydi). Kechasi bajaring; tafsilot: 7-bo'lim, «M3 ga o'tish».
+
 **Bazaga ulanishlar puli (`pgbouncer` xizmati).** `backend` konteyneridagi php-fpm Postgres'ga PgBouncer orqali (tranzaksiya
 rejimi) ulanadi: har so'rov yangi ulanish ochmaydi (~20 ms tejaladi). Migratsiyalar, `queue`, `queue-reports`, `scheduler`,
 `reverb` va `backup` to'g'ridan-to'g'ri ulanadi. Hech narsa sozlash shart emas; ildiz `.env` dagi ixtiyoriy qiymatlar
@@ -95,7 +119,7 @@ o'zgarishi faqat php-fpm qayta ishga tushganda ko'rinadi (`docker compose up -d`
 
 ## 3. Ishga tushirish
 
-Xizmatlar: `postgres` (17), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim), `platform-admin` (RIZQIM boshqaruv markazi, Next.js, 4-bo'lim, «RIZQIM boshqaruv markazi»). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend`, `partner-web` va `platform-admin` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
+Xizmatlar: `postgres` (17, M3 dan pgBackRest bilan: `infra/postgres`), `redis` (7, AOF, parol ixtiyoriy), `backend` (nginx + php-fpm, deploy qadamlarini shu bajaradi), `queue` (`--queue=default,broadcasts`: Telegram xabarlari va h.k., so'ng Reverb eventlari), `queue-reports` (`--queue=reports`: og'ir CSV hisobotlar, `SendOrderReport`), `scheduler`, `reverb` (WebSocket, 9-bo'lim), `frontend` (nginx), `partner-web` (hamkor veb-panel, Next.js, 4-bo'lim), `platform-admin` (RIZQIM boshqaruv markazi, Next.js, 4-bo'lim, «RIZQIM boshqaruv markazi»). `queue`, `queue-reports`, `scheduler`, `reverb`, `frontend`, `partner-web` va `platform-admin` `backend` healthcheck'i (`/up`) o'tgunicha kutadi.
 
 ```bash
 git clone <repo-url> rizqim && cd rizqim
@@ -111,7 +135,7 @@ curl -fsS http://127.0.0.1:8000/up
 - **`APP_KEY`ni oldindan yozing.** Entrypoint kalit yaratmaydi (`key:generate` yo'q): `APP_KEY` bo'sh bo'lsa `app:check-production` konteynerni ishga tushirmaydi. Sabab: web, queue va scheduler alohida konteynerlar, ularning har biri o'z kalitini olardi va konteyner qayta yaratilganda kalit o'zgarardi, natijada sessiyalar va shifrlangan ma'lumotlar (masalan, boshqaruv markazida kiritilgan to'lov tizimlari kalitlari) o'qilmay qolardi.
 - Konteyner `APP_ENV=production` va boshqa xavfsizlik shartlari bajarilmasa ishga tushmaydi, shuning uchun lokal ishlab chiqish uchun compose mos emas ([backend/README.md](../backend/README.md)).
 - Portlar: Mini App `FRONTEND_PORT` da (statika; `/api/` va `/storage/` ni backendga uzatadi), backend'ning o'zi (`/up`, `/health`, API) `BACKEND_PORT` da, hamkor veb-panel `PARTNER_WEB_PORT` da, boshqaruv markazi `ADMIN_WEB_PORT` da. Postgres va Redis tashqariga ochilmagan.
-- Volume'lar: `postgres_data`, `redis_data`, `backend_storage` (= `storage/app`; yuklangan rasmlar shu yerda).
+- Volume'lar: `postgres_data`, `redis_data`, `backend_storage` (= `storage/app`; yuklangan rasmlar shu yerda), M3 dan: `pgbackrest_repo` (shu serverdagi PITR nusxalari), `pgbackrest_spool`, `pg_run` (Postgres va `backup` umumiy soketi), `pitr_restore` (tiklangan nusxalar va tiklash mashqi uchun joy). `docker compose down -v` ularni ham o'chiradi.
 - Loglar: `storage/logs/laravel.log` konteyner ichida (volume emas, konteyner qayta yaratilganda yo'qoladi): `docker compose exec backend tail -f storage/logs/laravel.log`. `docker compose logs` da ko'rish uchun `backend/.env` ga `LOG_CHANNEL=stderr`.
 - Yangilash: `git pull && docker compose up -d --build`. Faqat `.env` o'zgarganda: `docker compose up -d --force-recreate` (`config:cache` konteyner ishga tushganda yig'iladi). `docker compose down -v` volume'larni, ya'ni bazani ham o'chiradi.
 - **Ops buyruqlari `www-data` nomidan:** `docker compose exec -u www-data backend php artisan ...`. `exec` standart bo'yicha root: root yaratgan `storage/logs/laravel.log` ni php-fpm (`www-data`) yoza olmaydi va logga yozadigan har bir so'rov 500 beradi. (Entrypoint o'zi `artisan` ni `www-data` bilan ishga tushiradi va konteyner qayta ishga tushganda `storage/logs`, `storage/framework`, `bootstrap/cache` egaligini tuzatadi.) `config:clear` ni ishlayotgan `backend` konteynerida bajarmang: sozlamalar konteyner ishga tushganda keshlanadi (`config:cache`), o'zgartirish uchun konteynerni qayta yarating.
@@ -253,7 +277,9 @@ Qadamlari batafsil (2FA, jamoa, rollar): [guides/boshqaruv-markazi.md](guides/bo
 | Xarita va geokodlash | Ochiq Nominatim/OSM tile serverlari faqat ishlab chiqish va kam trafik uchun: `NOMINATIM_BASE_URL`, `NOMINATIM_EMAIL`, `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` |
 | Push (Firebase) | Ixtiyoriy, `app:check-production` tekshirmaydi. Yoqilgan bo'lsa: `FIREBASE_CREDENTIALS_JSON` to'g'ri, `queue` ishchisi ishlayapti (pushlar navbat orqali ketadi), `php artisan push:test <foydalanuvchi_id>` sinov pushini yuboradi. Tafsilot: `docs/PUSH.md` |
 | SMS | `SettingSeeder` yozgan `settings` qatorlari `SMS_DRIVER`/`ESKIZ_*` env'dan ustun: SMS'ni boshqaruv markazida Tizim → Tizim sozlamalari → Sozlamalar dan yoqing |
-| Zaxira nusxa | Postgres (`pg_dump`) va yuklangan rasmlar (`backend_storage` volume); tartibi: `docs/OPERATIONS.md`, 4-bo'lim |
+| Zaxira nusxa | Postgres (`pg_dump`, ikkinchi himoya qatori) va yuklangan rasmlar (`backend_storage` volume); tartibi: `docs/OPERATIONS.md`, 4-bo'lim. S3 (`BACKUP_S3_*`) sozlangan va `backups/` da yangi dump bor |
+| Uzluksiz zaxira (PITR) | `PITR_ENABLED=1`, `PITR_CIPHER_PASS` yozilgan va **server tashqarisidagi parol menejerida saqlangan**; `scripts/pitr-restore.sh --info` da to'liq nusxa bor; birinchi `scripts/restore-drill.sh` muvaffaqiyatli o'tgan va uning `Tiklash vaqti` yozib olingan (`docs/OPERATIONS.md`, 17–19-bo'limlar) |
+| Ogohlantirishlar va tashqi kuzatuvchilar | `TELEGRAM_OPS_CHAT_ID` guruhi (bot a'zo); UptimeRobot `/api/v1/health` ga, healthchecks.io `HEALTHCHECKS_PING_URL` va `PITR_PING_URL` ga ulangan (`docs/OPERATIONS.md`, 21-bo'lim); markazda Monitoring → Holat da hammasi yashil |
 | Real-time (Reverb) | `BROADCAST_CONNECTION=reverb` va `REVERB_APP_ID`/`KEY`/`SECRET` to'ldirilgan (ildiz `.env`), `REVERB_ALLOWED_ORIGINS` = Mini App hosti, hamkor paneli hosti (`panel.<domen>`) va KDS ilovasining API hosti (`RIZQIM_API_URL` xosti; Mini App hosti bilan bir xil bo'lsa alohida yozish shart emas), vergul bilan, `docker compose ps` da `reverb` healthy, Mini App build'ida `VITE_REVERB_APP_KEY` = `REVERB_APP_KEY`. Tashqi proksi `/app/` uchun WebSocket upgrade'ni o'tkazishi shart (9-bo'lim). `app:check-production` `reverb` + bo'sh kalitni rad etadi, `REVERB_ALLOWED_ORIGINS=*` da ogohlantiradi |
 | `LocationSeeder`, `PaymentProviderSeeder` | Ikkalasi ham qayta ishga tushirish uchun xavfsiz: faqat yetishmaydigan qatorlarni qo'shadi, hech narsani o'chirmaydi va kiritilgan kalitlar hamda yoqilgan/o'chirilgan holatni saqlaydi |
 
@@ -264,6 +290,25 @@ Qadamlari batafsil (2FA, jamoa, rollar): [guides/boshqaruv-markazi.md](guides/bo
 ```bash
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup-$(date +%F).sql
 ```
+
+**M3 ga o'tish (mavjud o'rnatish uchun buyruqlar tartibi).** Birinchi marta: kechasi, kam yuk paytida, texnik yordamchi bilan. Ilova Postgres qayta ishga tushganda bir necha soniyadan 1–2 daqiqagacha bazaga ulana olmaydi (taxmin, haqiqiy serverda o'lchanmagan).
+
+```bash
+# 1. Zaxira va jurnallar hajmi (200 000 qatordan ko'p jadval bo'lsa avval OPERATIONS.md, 20-bo'lim: «Pilot paytida»)
+docker compose exec backup sh /usr/local/bin/backup.sh
+# 2. Kod; ildiz .env ga: PITR_ENABLED=1, PITR_CIPHER_PASS=<openssl rand -base64 48> (parolni parol menejeriga ham yozing),
+#    kerak bo'lsa PITR_S3_*; BACKUP_TIME=21:30 (eski .env da 03:00 bo'lsa); ixtiyoriy HEALTHCHECKS_PING_URL, PITR_PING_URL
+git pull
+# 3. Yangi obrazlar (postgres va backup endi pgBackRest bilan) yig'iladi, Postgres BIR MARTA qayta ishga tushadi,
+#    backend migratsiyada jurnallarni oylik bo'linmalarga o'tkazadi (kichik jadvallar soniyalarda)
+docker compose up -d --build
+# 4. Tekshirish
+docker compose ps
+docker compose logs --tail=50 backup               # birinchi to'liq nusxa tugaguncha kuting: "PITR: zaxira tayyor"
+scripts/pitr-restore.sh --info
+scripts/restore-drill.sh                            # birinchi mashq: tiklash vaqtini o'lchaydi
+```
+Staging'da avval sinab ko'ring (10-bo'lim). Bu zanjir (`backup` xizmati umumiy soket orqali nusxa oladi, S3, `init: true`) CI da kichik bazada va MinIO bilan sinalgan, haqiqiy serverda hali yo'q. Qaytarish: `.env` da `PITR_ENABLED` ni bo'sh qiling va `docker compose up -d`: arxiv buyrug'i yana hech narsa qilmaydi; kunlik `pg_dump` o'zgarmay ishlayveradi. Migratsiyalar eski kodga to'sqinlik qilishi mumkin (jurnallar bo'linmalarga o'tgan): orqaga qaytishdan oldin pastdagi ro'yxatga qarang.
 
 **Orqaga qaytarish.** Kod orqaga qaytsa ham migratsiyalar o'z-o'zidan qaytmaydi. Yangi migratsiya eski kodga to'sqinlik qilsa, `down()` yangi kodda bo'lgani uchun avval migratsiyani **yangi kod bilan** qaytaring, keyin kodni almashtiring:
 
@@ -278,7 +323,8 @@ Bu repodagi migratsiyalardan ehtiyot talab qiladiganlari (qolganlarining `down()
 - `add_non_negative_stock_check_to_product_variants_table` manfiy zaxirani 0 ga tenglashtirgan (qaytmaydi); `down()` faqat `CHECK` cheklovini olib tashlaydi.
 - `copy_order_status_logs_into_order_status_histories` `down()` da ko'chirilgan qatorlar va `order_status_log_id` ustunini o'chiradi; asl `order_status_logs` jadvali o'zgarmaydi.
 - `add_promo_code_id_to_orders_table` indekslarni `CREATE INDEX CONCURRENTLY` bilan tranzaksiyasiz quradi: yarim yo'lda to'xtasa `INVALID` indeks qolishi mumkin (`\d orders`), uni `DROP INDEX CONCURRENTLY <nom>` bilan o'chirib qayta yurgizing. `add_non_negative_stock_check_...` ham tranzaksiyasiz (`NOT VALID`, so'ng `VALIDATE`), uni qayta yurgizish xavfsiz.
-- Eng ishonchli yo'l — `pg_dump` zaxirasidan tiklash.
+- `partition_journals` (M3): `audit_logs`, `fiscal_receipts` va `notification_logs` oylik bo'linmalarga o'tadi. Har jadval bitta tranzaksiyada o'tkaziladi: shu jadvalga yozish taxminan har 140 000 qatorga 1 soniya to'xtaydi; 200 000 qatordan katta jadvalda migratsiya to'xtaydi va tinch vaqtda bajariladigan buyruqni aytadi (OPERATIONS.md, 20-bo'lim). `down()` ham shu qoida bilan ishlaydi va ajratilgan (arxivlanmagan) oylar bo'lsa rad etiladi. Arxivlangan va bazadan o'chirilgan oylar `down()` bilan qaytmaydi: `scripts/archive-restore.sh`.
+- Eng ishonchli yo'l — `pg_dump` zaxirasidan tiklash (yoki uzluksiz zaxira yoqilgan bo'lsa, vaqtga qaytarib tiklash: OPERATIONS.md, 18-bo'lim).
 
 **To'lov tizimlari (P4 wave 3 migratsiyasidan keyin).** `2026_11_06_300200_add_mode_to_payment_providers_table` hamma
 `payment_providers` qatorini `mode=production` va `is_active=true` qilib qo'yadi: eski panelda ikkalasi hech narsaga ta'sir
@@ -361,7 +407,7 @@ Staging production bilan **bir xil stek** (bir xil Dockerfile'lar va deploy qada
 | E-pochta / SMS | haqiqiy | `MAIL_MAILER=log`, `SMS_DRIVER=log` (compose majburlaydi): hech kimga xabar ketmaydi |
 | Qidiruv tizimlari | ochiq | `X-Robots-Tag: noindex` (Mini App va backend) va `robots.txt` `Disallow: /` |
 | Resurslar | cheklovsiz | xotira/CPU chegaralari, kichik Postgres (`shared_buffers=64MB`) |
-| Zaxira | 14 kun + S3 | 3 kun; S3 ixtiyoriy (production bucket'iga yozmang) |
+| Zaxira | 14 kun + S3; uzluksiz zaxira (PITR) | 3 kun; S3 ixtiyoriy (production bucket'iga yozmang); PITR `.env.staging.example` da yoqilgan (sinash uchun, `PITR_ENABLED=1`) |
 | Sentry | `production` | alohida loyiha yoki `staging` environment |
 
 ### Ishga tushirish (alohida serverda)

@@ -214,11 +214,11 @@ class AdminOrderListTest extends TestCase
         $this->customer->forceFill(['phone' => '+998935556677'])->save();
         $order = $this->orderWithHistory(50, ['accepted' => 49, 'preparing' => 45, 'ready' => 20, 'on_the_way' => 10], ['courier_id' => $this->courier->id]);
         $this->history($order, OrderStatus::ON_THE_WAY, OrderStatus::ON_THE_WAY, now()->subMinute(), $this->manager->id);
-        FiscalReceipt::forceCreate([
+        \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => FiscalReceipt::forceCreate([
             'store_id' => $this->store->id, 'type' => 'sale', 'payment_form' => 'card', 'status' => 'issued', 'driver' => 'external',
             'provider' => 'payme', 'idempotency_key' => 'order-' . $order->id, 'subject_type' => 'order', 'subject_id' => $order->id,
             'total' => '50000.00', 'lines' => [], 'payments' => [], 'receipt_number' => '77', 'issued_at' => now(),
-        ]);
+        ]));
 
         $operator = $this->signIn($this->makeMember(PlatformRole::OPERATOR));
         $card = $this->adminJson('GET', '/orders/' . $order->uuid, $operator)->assertOk()->json('data');

@@ -123,6 +123,23 @@ class StaffPayRulesAndClockTest extends TestCase
         $this->posAs($this->waiter, 'POST', '/clock/in')->assertForbidden()->assertJsonPath('data.reason', 'terminal_required');
     }
 
+    public function test_without_a_branch_the_clocks_business_date_is_the_stores_not_utcs(): void
+    {
+        // A store three hours ahead of UTC (not Tashkent's five), so the UTC date, the local date and the business day differ
+        $this->store->forceFill(['timezone' => 'Europe/Moscow'])->save();
+        $date = fn () => $this->posAs($this->owner, 'GET', '/clock')->assertOk()->assertJsonPath('data.today_minutes', 0)->json('data.business_date');
+
+        // 23:30 Moscow on the 14th (20:30 UTC)
+        Carbon::setTestNow(Carbon::parse('2026-11-14 20:30:00', 'UTC'));
+        $this->assertSame('2026-11-14', $date());
+        // 03:30 Moscow on the 15th (00:30 UTC on the 15th): still the 14th's business day (05:00 day start)
+        Carbon::setTestNow(Carbon::parse('2026-11-15 00:30:00', 'UTC'));
+        $this->assertSame('2026-11-14', $date());
+        // 05:00 Moscow: the 15th
+        Carbon::setTestNow(Carbon::parse('2026-11-15 02:00:00', 'UTC'));
+        $this->assertSame('2026-11-15', $date());
+    }
+
     public function test_a_forgotten_session_is_set_aside_on_the_next_day(): void
     {
         $this->pos('POST', '/clock/in', [], $this->waiterToken)->assertCreated();

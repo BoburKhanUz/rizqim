@@ -464,4 +464,28 @@ class AdminExportTest extends TestCase
             count($this->dataRows($this->export('stores', $token, ['status' => 'suspended']))),
         );
     }
+
+    /**
+     * Four entries around 10 November in Tashkent: 23:30 on the 9th, 00:30 and 23:30 on the 10th, 00:30 on the 11th.
+     *
+     * @return array<string, int> local time => id
+     */
+    private function dayEntries(?int $storeId): array
+    {
+        $ids = [];
+        foreach (['2026-11-09 23:30', '2026-11-10 00:30', '2026-11-10 23:30', '2026-11-11 00:30'] as $local) {
+            $ids[$local] = (int) \App\Models\AuditLog::forceCreate(['action' => 'test.day', 'store_id' => $storeId, 'created_at' => \Illuminate\Support\Carbon::parse($local, 'Asia/Tashkent')->utc()])->id;
+        }
+
+        return $ids;
+    }
+
+    public function test_the_audit_export_dates_are_tashkent_days(): void
+    {
+        $ids = $this->dayEntries(null);
+        $token = $this->token();
+        $rows = $this->dataRows($this->export('audit-logs', $token, ['action' => 'test.day', 'from' => '2026-11-10', 'to' => '2026-11-10'])->assertOk());
+
+        $this->assertEqualsCanonicalizing([$ids['2026-11-10 00:30'], $ids['2026-11-10 23:30']], array_map('intval', array_column($rows, 0)));
+    }
 }

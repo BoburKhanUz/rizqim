@@ -132,8 +132,9 @@ final class TipPoolDistributor
                 : "Bu kunning qozoni butun kun bo'yicha bo'lingan: smena bo'yicha bo'lib bo'lmaydi.");
         }
 
-        $minutes = $this->workTime->minutes($branch, $date, $shift);
-        $people = $this->people($branch, $participants, $minutes, $roles, $actor);
+        $work = $this->workTime->of($branch, $date, $shift);
+        $minutes = $work['minutes'];
+        $people = $this->people($branch, $participants, $minutes, $roles, $actor, $this->membersFor($rule, $work));
 
         $bases = [];
         $used = $rule;
@@ -285,16 +286,37 @@ final class TipPoolDistributor
     }
 
     /**
+     * Wave M3: who takes part when nobody names them: the period's members (TipWorkTime: a session or shift of the
+     * day, else its orders or payments); under `hours` also anyone with at least a minute in the window (a session
+     * from the day before running past the day start), never someone with 0 minutes from an overlap alone.
+     *
+     * @param  array{minutes: array<int, int>, members: list<int>}  $work
+     * @return list<int>
+     */
+    private function membersFor(TipPoolRule $rule, array $work): array
+    {
+        $ids = $work['members'];
+        if ($rule === TipPoolRule::HOURS) {
+            $ids = array_merge($ids, array_keys(array_filter($work['minutes'], fn (int $minutes) => $minutes > 0)));
+        }
+        $ids = array_values(array_unique($ids));
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
      * The people of the split: id => {role, minutes}.
      *
      * @param  list<array{staff_id: int, minutes?: int|null}>|null  $participants
      * @param  array<int, int>  $minutes
      * @param  list<string>  $roles
+     * @param  list<int>  $members  who takes part without a list (membersFor)
      * @return array<int, array{role: string|null, minutes: int}>
      *
      * @throws PosActionException 422 staff_not_found, staff_not_in_pool; 403 tips_pool_self
      */
-    private function people(Branch $branch, ?array $participants, array $minutes, array $roles, User $actor): array
+    private function people(Branch $branch, ?array $participants, array $minutes, array $roles, User $actor, array $members): array
     {
         if ($participants !== null) {
             $ids = array_values(array_unique(array_map(fn (array $person) => (int) $person['staff_id'], $participants)));
@@ -325,7 +347,7 @@ final class TipPoolDistributor
             return $people;
         }
 
-        $users = User::whereIn('id', array_keys($minutes))->where('store_id', $branch->store_id)->whereIn('role', $roles)->get(['id', 'role']);
+        $users = User::whereIn('id', $members)->where('store_id', $branch->store_id)->whereIn('role', $roles)->get(['id', 'role']);
         $people = [];
         foreach ($users as $user) {
             $people[(int) $user->id] = ['role' => $user->role->value, 'minutes' => $minutes[(int) $user->id] ?? 0];

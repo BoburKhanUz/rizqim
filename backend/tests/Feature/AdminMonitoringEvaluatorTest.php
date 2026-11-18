@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -70,11 +71,25 @@ class AdminMonitoringEvaluatorTest extends TestCase
     {
         config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => $chat]);
         Bus::fake();
+        // M3: ops alerts are sent at once (AlertNotifier), not queued
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
     }
 
+    /**
+     * The ops messages that went to Telegram, in order (chat id => text pairs via sentTo()).
+     */
     private function sentTexts(): array
     {
-        return Bus::dispatched(SendTelegramRequest::class)->map(fn ($job) => $job->params['text'])->values()->all();
+        return array_column($this->sentTo(), 'text');
+    }
+
+    /**
+     * @return list<array{chat_id: string, text: string}>
+     */
+    private function sentTo(): array
+    {
+        return Http::recorded(fn ($request) => str_contains($request->url(), 'api.telegram.org'))
+            ->map(fn ($pair) => ['chat_id' => (string) $pair[0]['chat_id'], 'text' => (string) $pair[0]['text']])->values()->all();
     }
 
     // --- open, dedupe, resolve --------------------------------------------------------------------------------------
@@ -337,7 +352,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $rule = $this->onlyRule(AlertKind::SCHEDULER_STALE);
         $this->run_();
         $this->assertSame('open', $this->alerts()->sole()->state);
-        Bus::assertDispatchedTimes(SendTelegramRequest::class, 1);
+        $this->assertCount(1, $this->sentTexts());
 
         $rule->forceFill(['enabled' => false])->save();
         $this->assertSame(1, $this->run_()['resolved']);
@@ -346,7 +361,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $this->assertSame('resolved', $alert->state);
         $this->assertSame('rule_disabled', $alert->resolution);
         $this->assertSame("Qoida o'chirildi", $alert->resolve_note);
-        Bus::assertDispatchedTimes(SendTelegramRequest::class, 1);
+        $this->assertCount(1, $this->sentTexts());
 
         // Off stays off
         $this->assertSame(['opened' => 0, 'updated' => 0, 'resolved' => 0], $this->run_());
@@ -366,7 +381,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         });
         $this->assertSame(['opened' => 0, 'updated' => 0, 'resolved' => 0], $this->run_());
         $this->assertSame('open', $existing->refresh()->state);
-        Log::shouldHaveReceived('error')->once();
+        Log::shouldHaveReceived('error')->with('Monitoring: alert rule failed', \Mockery::any())->once();
 
         $this->app->bind(FiscalFailuresCheck::class, fn () => new class implements AlertCheck {
             public function findings(AlertRule $rule): ?array
@@ -403,7 +418,24 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
         $this->assertNotNull($event);
         $this->assertSame('* * * * *', $event->expression);
-        $this->assertTrue($event->withoutOverlapping);
+        // M3 RR-8: not the cache mutex (Redis down = the evaluator would never run); the job takes a file lock
+        $this->assertFalse($event->withoutOverlapping);
+    }
+
+    public function test_a_second_evaluation_while_one_runs_is_skipped_by_the_file_lock(): void
+    {
+        $this->onlyRule(AlertKind::SCHEDULER_STALE);
+        $lock = fopen(storage_path('framework/monitoring-evaluate.lock'), 'c');
+        flock($lock, LOCK_EX);
+        try {
+            EvaluateAlertsJob::dispatchSync();
+            $this->assertSame(0, Alert::count());
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        EvaluateAlertsJob::dispatchSync();
+        $this->assertSame(1, Alert::count());
     }
 
     // --- realtime ---------------------------------------------------------------------------------------------------
@@ -441,7 +473,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
         $this->run_();
         $this->assertCount(1, $this->sentTexts());
-        Bus::assertDispatched(SendTelegramRequest::class, fn ($job) => $job->method === 'sendMessage' && $job->params['chat_id'] === '-100777');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/sendMessage') && $request['chat_id'] === '-100777');
         $text = $this->sentTexts()[0];
         $this->assertStringStartsWith('[KRITIK] Scheduler yurak urishi topilmadi', $text);
         $this->assertStringContainsString("Scheduler to'xtagan", $text);
@@ -464,19 +496,20 @@ class AdminMonitoringEvaluatorTest extends TestCase
 
     public function test_the_ops_chat_falls_back_to_the_superadmin_chat_and_without_either_nothing_is_sent(): void
     {
-        config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => '', 'services.telegram.superadmin_chat_id' => '-100555']);
-        Bus::fake();
+        $this->telegramOn('');
+        config(['services.telegram.superadmin_chat_id' => '-100555']);
         $this->onlyRule(AlertKind::SCHEDULER_STALE);
 
         $this->run_();
-        Bus::assertDispatched(SendTelegramRequest::class, fn ($job) => $job->params['chat_id'] === '-100555');
+        $this->assertSame(['-100555'], array_column($this->sentTo(), 'chat_id'));
 
-        Bus::fake();
+        $this->telegramOn('');
         config(['services.telegram.superadmin_chat_id' => '']);
         HealthReport::beat();
         $this->run_(); // resolves
         Cache::forget(HealthReport::HEARTBEAT_KEY);
         $this->run_(); // opens again
+        $this->assertSame([], $this->sentTexts());
         Bus::assertNotDispatched(SendTelegramRequest::class);
         $this->assertCount(2, $this->alerts());
     }
@@ -490,37 +523,42 @@ class AdminMonitoringEvaluatorTest extends TestCase
         HealthReport::beat();
         $this->run_();
 
+        $this->assertSame([], $this->sentTexts());
         Bus::assertNotDispatched(SendTelegramRequest::class);
         $this->assertSame('resolved', $this->alerts()->sole()->state);
     }
 
-    public function test_a_flapping_problem_is_announced_once_per_cooldown_and_never_resolved_unannounced(): void
+    public function test_a_reopen_after_the_resolve_notice_is_announced_but_one_the_group_was_not_told_ended_waits_for_the_cooldown(): void
     {
         $this->telegramOn();
         config(['monitoring.telegram.cooldown_minutes' => 15]);
-        $this->onlyRule(AlertKind::SCHEDULER_STALE);
+        $rule = $this->onlyRule(AlertKind::SCHEDULER_STALE);
 
-        // Opens (announced), resolves (announced)
+        // Opens (announced), resolves (announced), comes back 3 minutes later: announced again (M3 R3-2: the last
+        // word the group read must not be "resolved")
         $this->run_();
         HealthReport::beat();
         $this->run_();
-        $this->assertCount(2, $this->sentTexts());
-
-        // Comes back 3 minutes later: inside the cooldown, so neither the open nor its resolve is sent
         $this->travel(3)->minutes();
         Cache::forget(HealthReport::HEARTBEAT_KEY);
         $this->run_();
-        HealthReport::beat();
-        $this->run_();
-        $this->assertCount(2, $this->sentTexts());
-        $this->assertNull($this->alerts()->get(1)->telegram_opened_at);
-        $this->assertNull($this->alerts()->get(1)->telegram_resolved_at);
+        $this->assertCount(3, $this->sentTexts());
+        $this->assertStringStartsWith('[KRITIK]', $this->sentTexts()[2]);
 
-        // After the cooldown it is announced again
-        $this->travel(20)->minutes();
-        Cache::forget(HealthReport::HEARTBEAT_KEY);
+        // Switched off (resolved quietly) and on again within the cooldown: the group was never told it ended, so the
+        // new alert waits until the cooldown has passed, then goes out (it is offered again every run)
+        $rule->forceFill(['enabled' => false])->save();
+        $this->run_();
+        $rule->forceFill(['enabled' => true])->save();
+        $this->travel(1)->minutes();
         $this->run_();
         $this->assertCount(3, $this->sentTexts());
+        $this->assertNull($this->alerts()->last()->telegram_opened_at);
+
+        $this->travel(15)->minutes();
+        $this->run_();
+        $this->assertCount(4, $this->sentTexts());
+        $this->assertNotNull($this->alerts()->last()->telegram_opened_at);
     }
 
     public function test_different_subjects_are_not_held_back_by_each_others_cooldown(): void
@@ -541,7 +579,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
     public function test_at_most_the_hourly_limit_goes_out_and_one_notice_says_the_rest_were_held_back(): void
     {
         $this->telegramOn();
-        config(['monitoring.telegram.hourly_limit' => 3]);
+        config(['monitoring.telegram.hourly_limit' => 3, 'monitoring.telegram.group_size' => 100]);
         $this->onlyRule(AlertKind::POS_DEVICE_OFFLINE, ['threshold' => 15]);
         $store = $this->makeStore('Ko\'p kassa');
         $this->hours($store, '00:00:00', '00:00:00');
@@ -555,7 +593,7 @@ class AdminMonitoringEvaluatorTest extends TestCase
         $texts = $this->sentTexts();
         $this->assertCount(4, $texts); // 3 alerts + the notice
         $this->assertCount(3, array_filter($texts, fn ($text) => str_starts_with($text, '[DIQQAT]')));
-        $this->assertCount(1, array_filter($texts, fn ($text) => str_starts_with($text, 'Ogohlantirishlar ko\'p')));
+        $this->assertCount(1, array_filter($texts, fn ($text) => str_starts_with($text, 'Yana 3 ta ogohlantirish ochiq')));
         $this->assertSame(6, Alert::count());
         $this->assertSame(3, Alert::whereNotNull('telegram_opened_at')->count());
 

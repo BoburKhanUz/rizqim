@@ -64,7 +64,7 @@ class AdminTodayAttentionTest extends TestCase
 
     private function fiscal(string $status, array $attributes = []): FiscalReceipt
     {
-        return FiscalReceipt::forceCreate(array_merge([
+        return \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => FiscalReceipt::forceCreate(array_merge([
             'store_id' => $this->store->id,
             'branch_id' => $this->branch->id,
             'type' => 'sale',
@@ -76,7 +76,7 @@ class AdminTodayAttentionTest extends TestCase
             'lines' => [],
             'payments' => [],
             'error' => "Soliq serveri rad etdi: MXIK noto'g'ri\n#0 stack trace",
-        ], $attributes));
+        ], $attributes)));
     }
 
     public function test_nothing_to_show_is_an_empty_list(): void

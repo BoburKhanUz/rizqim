@@ -33,8 +33,20 @@ class AlertEvaluator
     public function run(): array
     {
         $totals = ['opened' => 0, 'updated' => 0, 'resolved' => 0];
+        // The run's Telegram budget starts with its first message (AlertNotifier), not before the checks
+        $this->notifier->startRun();
+        // The checks share a time cap (each SQL read has its own statement timeout): past it the remaining rules are
+        // skipped this minute (unknown: their alerts stay as they are) so the announcements below still go out
+        $started = microtime(true);
+        $cap = max(5, (int) config('monitoring.checks_budget_seconds', 30));
+        $skipped = [];
 
         foreach (AlertRule::ensureAll() as $rule) {
+            if ($rule->enabled && microtime(true) - $started > $cap) {
+                $skipped[] = $rule->kind;
+
+                continue;
+            }
             try {
                 $result = $rule->enabled ? $this->evaluate($rule) : $this->switchedOff($rule);
             } catch (Throwable $e) {
@@ -47,6 +59,18 @@ class AlertEvaluator
                 $totals[$key] += $count;
             }
         }
+        if ($skipped !== []) {
+            Log::warning('Monitoring: the checks took too long, rules skipped this run', ['cap_seconds' => $cap, 'skipped' => $skipped]);
+        }
+
+        // This run's resolve notices (grouped per rule), then every unresolved alert not announced yet (new ones, raised
+        // ones, ones a limit or an outage held back)
+        try {
+            $this->notifier->flushResolved();
+            $this->notifier->announcePending();
+        } catch (Throwable $e) {
+            Log::error('Monitoring: alert announcements failed', ['exception' => $e::class, 'message' => $e->getMessage()]);
+        }
 
         return $totals;
     }
@@ -58,7 +82,10 @@ class AlertEvaluator
      */
     public function resolveByMember(Alert $alert, User $member, ?string $note): bool
     {
-        return $this->resolve($alert, 'manual', $member, $note);
+        $resolved = $this->resolve($alert, 'manual', $member, $note);
+        $this->notifier->flushResolved();
+
+        return $resolved;
     }
 
     /**
@@ -110,15 +137,24 @@ class AlertEvaluator
             $existing = $unresolved[$finding->subjectKey] ?? null;
 
             if ($existing !== null) {
+                $severity = $finding->severity ?? $kind->severity();
+                $escalated = self::rank($severity) > self::rank($existing->severity);
                 // Not when a member resolved it since the list was read: a resolved alert stays as it was closed
                 $touched = Alert::query()->whereKey($existing->getKey())->where('state', '<>', AlertState::RESOLVED->value)->update([
                     'title' => mb_substr($finding->title, 0, 200),
                     'details' => json_encode($finding->details),
+                    // A problem that got worse is raised (a warning that became critical); one that eased keeps its level
+                    'severity' => $escalated ? $severity : $existing->severity,
                     'last_seen_at' => now(),
                     'count' => DB::raw('"count" + 1'),
                     'updated_at' => now(),
                 ]);
                 $result['updated'] += $touched;
+                if ($touched === 1 && $escalated) {
+                    // Announced again as what it is now (AlertNotifier::announcePending, at the end of the run); its first
+                    // announcement stays, so its resolve notice still goes out
+                    $this->notifier->markEscalated($existing);
+                }
 
                 continue;
             }
@@ -128,7 +164,7 @@ class AlertEvaluator
                     'alert_rule_id' => $rule->id,
                     'kind' => $kind->value,
                     'subject_key' => $finding->subjectKey,
-                    'severity' => $kind->severity(),
+                    'severity' => $finding->severity ?? $kind->severity(),
                     'state' => AlertState::OPEN->value,
                     'title' => mb_substr($finding->title, 0, 200),
                     'details' => $finding->details,
@@ -144,7 +180,7 @@ class AlertEvaluator
 
             $result['opened']++;
             event(new PlatformAlertBroadcast($alert, PlatformAlertBroadcast::OPENED));
-            $this->notifier->opened($alert, $rule);
+            // Announced by AlertNotifier::announcePending at the end of the run
         }
 
         foreach ($unresolved as $subject => $alert) {
@@ -154,6 +190,15 @@ class AlertEvaluator
         }
 
         return $result;
+    }
+
+    private static function rank(?string $severity): int
+    {
+        return match ($severity) {
+            'critical' => 3,
+            'warning' => 2,
+            default => 1,
+        };
     }
 
     /**

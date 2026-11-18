@@ -7,7 +7,8 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Support\StoreTimezone;
+use Carbon\CarbonImmutable;
 use App\Support\Money;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -58,8 +59,13 @@ class OrderReportService
         $query = Order::where('store_id', $storeId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
+        // Wave M3: "today" and a custom period are the store's local calendar days (as the owner's analytics read
+        // them), not UTC dates: in Asia/Tashkent a UTC date runs 05:00 to 05:00 local
+        $timezone = StoreTimezone::of(Store::find($storeId));
+        $utc = fn (CarbonInterface $at) => $at->copy()->utc()->format('Y-m-d H:i:s');
         if ($timeframe === 'today') {
-            $query->whereDate('updated_at', $asOf->toDateString());
+            $day = CarbonImmutable::instance($asOf)->setTimezone($timezone)->startOfDay();
+            $query->where('updated_at', '>=', $utc($day))->where('updated_at', '<', $utc($day->addDay()));
         } elseif ($timeframe === 'weekly') {
             $query->where('updated_at', '>=', $asOf->copy()->subDays(7));
         } elseif ($timeframe === 'monthly') {
@@ -67,9 +73,9 @@ class OrderReportService
         } elseif ($timeframe === 'yearly') {
             $query->where('updated_at', '>=', $asOf->copy()->subDays(365));
         } elseif ($timeframe === 'custom' && $startDate && $endDate) {
-            $start = Carbon::parse($startDate)->startOfDay();
-            $end = Carbon::parse($endDate)->endOfDay();
-            $query->whereBetween('updated_at', [$start, $end]);
+            $start = CarbonImmutable::parse($startDate, $timezone)->startOfDay();
+            $end = CarbonImmutable::parse($endDate, $timezone)->addDay()->startOfDay();
+            $query->where('updated_at', '>=', $utc($start))->where('updated_at', '<', $utc($end));
         }
 
         return $query;

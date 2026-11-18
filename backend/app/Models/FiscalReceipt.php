@@ -78,6 +78,15 @@ class FiscalReceipt extends Model
         'vat_total' => '0.00',
     ];
 
+    /**
+     * Wave M3: created only by FiscalService under its advisory lock (App\Domain\Fiscal\FiscalReceiptLock); a bare
+     * create(), save() of a new model, firstOrCreate() or replicate()->save() elsewhere throws.
+     */
+    protected static function booted(): void
+    {
+        static::creating(fn (FiscalReceipt $receipt) => \App\Domain\Fiscal\FiscalReceiptLock::assertMayCreate($receipt));
+    }
+
     protected function casts(): array
     {
         return [

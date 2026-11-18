@@ -31,10 +31,10 @@ class AdminPosOverviewTest extends TestCase
         $this->device(['last_seen_at' => now()]);
         $this->shift(['difference' => '-100.00']);
         $this->shift(['force_closed' => true]);
-        $receipt = fn (string $status) => \App\Models\FiscalReceipt::forceCreate([
+        $receipt = fn (string $status) => \App\Domain\Fiscal\FiscalReceiptLock::outsideIssuerForTests(fn () => \App\Models\FiscalReceipt::forceCreate([
             'store_id' => $this->store->id, 'type' => 'sale', 'payment_form' => 'cash', 'status' => $status, 'driver' => 'sandbox',
             'idempotency_key' => bin2hex(random_bytes(8)), 'total' => '1000.00', 'lines' => [], 'payments' => [],
-        ]);
+        ]));
         $receipt('failed');
         $receipt('pending');
         $this->syncOp($this->device(['name' => 'Second']), 'conflict');

@@ -13,7 +13,12 @@ import { NoteDialog } from './NoteDialog';
 import { elapsed, monitoringError, severityText, severityTone, span } from './words';
 
 const SEVERITY_ICON: Record<Severity, LucideIcon> = { critical: CircleAlert, warning: TriangleAlert, info: Info };
-const KINDS = ['failed_jobs_spike', 'queue_backlog', 'pos_device_offline', 'fiscal_failures', 'settlement_failures', 'backup_stale', 'scheduler_stale'] as const;
+const KINDS = [
+  'failed_jobs_spike', 'queue_backlog', 'pos_device_offline', 'fiscal_failures', 'settlement_failures', 'backup_stale', 'scheduler_stale',
+  // M3: the server
+  'db_connections', 'db_long_transaction', 'db_lock_waits', 'wal_archive', 'pitr_backup_stale', 'restore_drill_stale', 'disk_usage',
+  'redis_memory', 'queue_worker_stale', 'realtime_down', 'table_bloat', 'partitions', 'tls_expiry',
+] as const;
 
 // Ogohlantirishlar: open ones first (critical before the rest), each with who took it; "Faol" is open + acknowledged together,
 // the other filters read the history. A member with monitoring.manage acknowledges ("men shug'ullanyapman") and resolves, each
@@ -220,8 +225,8 @@ function AlertActionDialog({ type, alert, onClose, onDone }: { type: 'acknowledg
 }
 
 // The numbers and names the check found, as label / value pairs in words
-const TIME_KEYS = new Set(['last_seen_at', 'last_backup_at', 'oldest_failed_at']);
-const SECONDS_KEYS = new Set(['oldest_age_seconds', 'last_heartbeat_age_seconds']);
+const TIME_KEYS = new Set(['last_seen_at', 'last_backup_at', 'oldest_failed_at', 'marker_at', 'last_full_at', 'last_ok_at', 'started_at', 'expires_at', 'last_vacuum_at', 'last_archived_at', 'last_failed_at']);
+const SECONDS_KEYS = new Set(['oldest_age_seconds', 'last_heartbeat_age_seconds', 'marker_age_seconds', 'longest_seconds', 'down_seconds']);
 
 export function detailRows(details: Record<string, unknown> | null, t: Translate): Array<[string, string]> {
   if (!details) return [];

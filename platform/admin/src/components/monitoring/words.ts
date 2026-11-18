@@ -13,6 +13,32 @@ export function span(seconds: number, t: Translate): string {
   return t('monitoring_day', { n: Math.floor(value / 86400) });
 }
 
+// "4 daqiqa 12 soniya": a duration in its two biggest units (a restore time, a loss window)
+export function exact(seconds: number, t: Translate): string {
+  const value = Math.max(0, Math.round(seconds));
+  if (value < 60) return t('monitoring_sec', { n: value });
+  if (value < 3600) {
+    const rest = value % 60;
+    return rest === 0 ? t('monitoring_min', { n: Math.floor(value / 60) }) : `${t('monitoring_min', { n: Math.floor(value / 60) })} ${t('monitoring_sec', { n: rest })}`;
+  }
+  const minutes = Math.floor((value % 3600) / 60);
+  return minutes === 0 ? t('monitoring_hour', { n: Math.floor(value / 3600) }) : `${t('monitoring_hour', { n: Math.floor(value / 3600) })} ${t('monitoring_min', { n: minutes })}`;
+}
+
+// "57 GB", "300 MB": a size in the biggest unit, one decimal below 10
+export function bytes(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = Math.max(0, value);
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit++;
+  }
+  const shown = unit === 0 || size >= 10 ? Math.round(size).toString() : size.toFixed(1);
+  return `${shown} ${units[unit]}`;
+}
+
 // How long ago a moment was, as a length of time ("5 daqiqa"); the caller adds "oldin"
 export function elapsed(iso: string | null | undefined, t: Translate, now = Date.now()): string {
   if (!iso) return '—';
@@ -38,6 +64,10 @@ const VERDICT_KEYS: Record<string, MessageKey> = {
   missing: 'monitoring_verdict_missing',
   backlog: 'monitoring_verdict_backlog',
   unknown: 'monitoring_verdict_unknown',
+  off: 'monitoring_verdict_off',
+  warning: 'monitoring_verdict_warning',
+  never: 'monitoring_verdict_never',
+  failed: 'monitoring_verdict_failed',
 };
 
 export const verdictText = (status: string, t: Translate): string => t(VERDICT_KEYS[status] ?? 'monitoring_verdict_unknown');
@@ -45,8 +75,8 @@ export const verdictText = (status: string, t: Translate): string => t(VERDICT_K
 // The colour is never the only signal: the pill always carries the verdict in words (and an icon, in the tile)
 export function verdictTone(status: string): PillTone {
   if (status === 'ok') return 'success';
-  if (status === 'fail') return 'danger';
-  if (status === 'not_used' || status === 'not_configured') return 'neutral';
+  if (status === 'fail' || status === 'failed') return 'danger';
+  if (status === 'not_used' || status === 'not_configured' || status === 'off') return 'neutral';
   return 'warning';
 }
 

@@ -55,11 +55,14 @@ class AdminMonitoringReviewFixesTest extends TestCase
     {
         config(['services.telegram.bot_token' => '1:token', 'services.telegram.ops_chat_id' => '-100777']);
         Bus::fake();
+        // M3: ops alerts are sent at once (AlertNotifier), not queued
+        \Illuminate\Support\Facades\Http::fake(['api.telegram.org/*' => \Illuminate\Support\Facades\Http::response(['ok' => true])]);
     }
 
     private function sentTexts(): array
     {
-        return Bus::dispatched(SendTelegramRequest::class)->map(fn ($job) => $job->params['text'])->values()->all();
+        return \Illuminate\Support\Facades\Http::recorded(fn ($request) => str_contains($request->url(), 'api.telegram.org'))
+            ->map(fn ($pair) => (string) $pair[0]['text'])->values()->all();
     }
 
     private function openBranch(\App\Models\Store $store, ?string $open, ?string $close, string $name = 'Filial'): Branch

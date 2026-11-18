@@ -101,6 +101,7 @@ function RuleCard({ rule, onSaved }: { rule: AlertRule; onSaved: (label: string)
           {rule.unresolved_alerts > 0 && <Pill tone="warning">{t('monitoring_rules_openAlerts', { count: rule.unresolved_alerts })}</Pill>}
         </div>
         <p className="text-footnote text-fg-muted">{rule.description}</p>
+        {rule.action && <p className="text-footnote text-fg">{t('monitoring_rules_action', { action: rule.action })}</p>}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex items-center justify-between gap-3 rounded-control bg-surface-2 px-3 py-1">
