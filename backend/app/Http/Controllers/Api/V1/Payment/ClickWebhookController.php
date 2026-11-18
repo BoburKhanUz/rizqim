@@ -257,6 +257,7 @@ class ClickWebhookController extends Controller
 
             $payment ??= new Payment([
                 'order_id' => $lockedOrder->id,
+                'store_id' => $lockedOrder->store_id,
                 'provider' => 'click',
                 'provider_transaction_id' => $clickTransId,
                 'amount' => Money::of($request->input('amount'))->toString(),

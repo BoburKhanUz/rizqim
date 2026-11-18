@@ -820,6 +820,7 @@ final class PosSyncApplier
             foreach ($tenders as $tender) {
                 $payment = Payment::create([
                     'order_id' => $order->id,
+                    'store_id' => $order->store_id,
                     'bill_id' => null,
                     'shift_id' => $shift?->id,
                     'device_id' => $device->id,

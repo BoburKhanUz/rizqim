@@ -455,6 +455,7 @@ class CreateOrderAction
             // Create initial payment log for consistent transaction records
             Payment::create([
                 'order_id' => $order->id,
+                'store_id' => $order->store_id,
                 'provider' => $order->payment_method,
                 'amount' => $totalPrice->toString(),
                 'status' => $paymentStatus,
