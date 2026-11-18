@@ -51,7 +51,7 @@ use Tests\Feature\AccessFixtures;
 /**
  * M4 stage 1 (docs/scale/M4_DESIGN.md 3.1): two complete stores, A and B, built the same way from the existing fixtures
  * and, where a record only exists at the end of a flow (a paid bill, a refund, a deposit), through the store's own API
- * as its own staff. Every name and label of B starts with `ZZB-` so a response that shows B's data is found by text.
+ * as its own staff. Every name and label of B starts with `ZZB-TENANT-` so a response that shows B's data is found by text.
  *
  * $this->world['A'|'B'] maps a key (store, branch, owner, order, bill, ...) to the model or value the manifest
  * (routes.php) names; tokens: owner_token, manager_token, cashier_token (PIN session on the till), till_token,
@@ -64,7 +64,11 @@ trait TenancyWorld
     /** The clock of the whole suite: Wednesday 10.06.2026 12:00 in Tashkent (business day since 05:00). */
     public const NOW = '2026-06-10 07:00:00';
 
-    public const MARK = 'ZZB-';
+    /**
+     * B's marker: 11 characters with two hyphens. A random token (base64url, hex) contains it with a chance of about
+     * (1/32)^9 * (1/64)^2 per position (letters matched in any case), far below one in a run.
+     */
+    public const MARK = 'ZZB-TENANT-';
 
     /** @var array{A: array<string, mixed>, B: array<string, mixed>} */
     protected array $world = ['A' => [], 'B' => []];
@@ -101,9 +105,9 @@ trait TenancyWorld
     /** The side being built: B's amounts are A's plus 317, so no B amount (and no sum with one) is an A amount. */
     private string $building = 'A';
 
-    private function n(string $amount): string
+    private function n(string $amount, bool $whole = false): string
     {
-        return $this->building === 'A' ? $amount : bcadd($amount, '317', 2);
+        return $this->building === 'A' ? $amount : bcadd($amount, $whole ? '317' : '317.17', 2);
     }
 
     private function buildSide(string $side, string $p): void
@@ -449,7 +453,7 @@ trait TenancyWorld
 
         // Nasiya with a debt to repay; a blocked voucher; a fiscal receipt that failed (to retry)
         $this->own($o, 'POST', "/pos/customer-accounts/{$w['account']->uuid}/adjustments", ['amount' => $this->n('3000'), 'note' => $p . 'Qarz']);
-        $blocked = $this->own($c, 'POST', '/pos/vouchers/sell', ['face_value' => $this->n('20000'), 'tender' => 'cash'])->json('data');
+        $blocked = $this->own($c, 'POST', '/pos/vouchers/sell', ['face_value' => $this->n('20000', true), 'tender' => 'cash'])->json('data');
         $w['blocked_voucher'] = Voucher::where('uuid', $blocked['voucher']['uuid'] ?? $blocked['uuid'])->firstOrFail();
         $this->own($o, 'POST', "/owner/pos/vouchers/{$w['blocked_voucher']->uuid}/block", ['reason' => $p . 'Yo\'qoldi']);
         $w['failed_receipt'] = FiscalReceipt::where('store_id', $w['store']->id)->where('type', 'advance')->orderBy('id')->firstOrFail();
@@ -702,7 +706,7 @@ trait TenancyWorld
         $member = $this->own($o, 'POST', "/pos/customer-accounts/{$corporate}/members", ['name' => $p . 'Xodim', 'phone' => '+998901234501', 'daily_limit' => $this->n('50000')])->json('data.uuid');
         $w['member'] = CustomerAccountMember::where('uuid', $member)->firstOrFail();
 
-        $voucher = $this->own($c, 'POST', '/pos/vouchers/sell', ['face_value' => $this->n('100000'), 'tender' => 'cash', 'buyer_name' => $p . 'Xaridor'])->json('data');
+        $voucher = $this->own($c, 'POST', '/pos/vouchers/sell', ['face_value' => $this->n('100000', true), 'tender' => 'cash', 'buyer_name' => $p . 'Xaridor'])->json('data');
         $w['voucher'] = Voucher::where('uuid', $voucher['voucher']['uuid'] ?? $voucher['uuid'])->firstOrFail();
         $w['voucher_code'] = $voucher['code'] ?? $voucher['voucher']['code'];
 
@@ -736,17 +740,21 @@ trait TenancyWorld
     // range, one of B's own amounts, or an A+B total.
     // ---------------------------------------------------------------------------------------------------------------
 
-    /** B's ids: every row B's build creates; A's from A_IDS, rows created later from AFTER_IDS. */
-    public const B_IDS = [41_000_000, 41_099_999];
+    /**
+     * B's ids: every row B's build creates; A's from A_IDS, rows created later from AFTER_IDS. Nine digits on purpose:
+     * no random number the application makes has nine (OTP 6, PIN 4, sandbox receipt numbers 8, corporate member codes
+     * and change revisions 10 or more), and every id column is bigint and every id rule takes nine digits.
+     */
+    public const B_IDS = [410_000_000, 410_099_999];
 
     public const A_IDS = 2_000_000;
 
     public const AFTER_IDS = 60_000_000;
 
-    /** An 8-digit number starting like B's ids, not part of a longer number, a word, a uuid or a decimal. */
-    public const B_ID_PATTERN = '/(?<![0-9A-Za-z.\-_])410[0-9]{5}(?![0-9A-Za-z_\-]|\.[0-9])/';
+    /** A whole 9-digit number starting like B's ids: not part of a longer number, a word, a token, a uuid or a decimal. */
+    public const B_ID_PATTERN = '/(?<![0-9A-Za-z.\-_])41000[0-9]{4}(?![0-9A-Za-z_\-]|\.[0-9])/';
 
-    /** The ids B's build really used: [B_IDS[0], the highest]; a random 8-digit value lands in it ~1 time in 10^6. */
+    /** The ids B's build really used: [B_IDS[0], the highest] (a few hundred wide). */
     private array $bIds = [0, -1];
 
     private int $bLastId = 0;
@@ -869,8 +877,8 @@ trait TenancyWorld
     protected function prepareObservation(): void
     {
         $last = $this->bLastId;
-        if ($last === 0 || $last >= 41_001_000) {
-            throw new RuntimeException("Observation: B's ids end at {$last}, outside 41000000-41000999");
+        if ($last === 0 || $last >= 410_001_000) {
+            throw new RuntimeException("Observation: B's ids end at {$last}, outside 410000000-410000999");
         }
         $this->bIds = [self::B_IDS[0], $last];
         [$from, $to] = $this->bIds;
@@ -884,7 +892,7 @@ trait TenancyWorld
         $empty = [];
         foreach ($tables as $table) {
             $own = isset(self::GLOBAL_TABLES[$table]) ? null : $this->ownRows($table, $columns[$table]);
-            if ($own !== null && !DB::table($table)->whereRaw(str_replace(['BETWEEN 41000000 AND 41099999'], ["BETWEEN {$from} AND {$to}"], $own))->exists()) {
+            if ($own !== null && !DB::table($table)->whereRaw(str_replace(['BETWEEN 410000000 AND 410099999'], ["BETWEEN {$from} AND {$to}"], $own))->exists()) {
                 $empty[] = $table;
             }
         }
@@ -913,7 +921,7 @@ trait TenancyWorld
                 $quoted = '"' . $column . '"';
                 $parts[] = match ($type) {
                     'bigint', 'integer', 'smallint' => "{$quoted} BETWEEN {$from} AND {$to}",
-                    'json', 'jsonb' => "{$quoted}::text ~ '(^|[^0-9A-Za-z.\\-_])41000[0-9]{3}([^0-9A-Za-z_.\\-]|$)' OR {$quoted}::text ILIKE '%" . self::MARK . "%' OR {$quoted}::text ~* '(" . ($this->bUuids === [] ? 'x^' : implode('|', $this->bUuids)) . ")'",
+                    'json', 'jsonb' => "{$quoted}::text ~ '(^|[^0-9A-Za-z.\\-_])410000[0-9]{3}([^0-9A-Za-z_.\\-]|$)' OR {$quoted}::text ILIKE '%" . self::MARK . "%' OR {$quoted}::text ~* '(" . ($this->bUuids === [] ? 'x^' : implode('|', $this->bUuids)) . ")'",
                     'uuid' => "{$quoted}::text IN ({$uuidList})",
                     'character varying', 'text', 'character' => "{$quoted} ILIKE '%" . self::MARK . "%'",
                     default => null,
@@ -1033,7 +1041,9 @@ trait TenancyWorld
             }
         }
 
-        return array_values(array_filter(array_keys(array_diff_key($values['B'], $values['A'])), fn ($v) => strlen(str_replace('.', '', rtrim(rtrim($v, '0'), '.'))) >= 4));
+        // Only amounts with cents (B's are A's + 317.17): no random number the application makes (codes, receipt
+        // numbers, revisions) has a decimal part, and the pattern only matches a whole number with its cents
+        return array_values(array_filter(array_keys(array_diff_key($values['B'], $values['A'])), fn ($v) => str_contains($v, '.') && strlen(str_replace('.', '', $v)) >= 5));
     }
 
     private function money(string $value): string
@@ -1118,7 +1128,7 @@ trait TenancyWorld
             }
         }
         foreach ($this->bAmounts as $amount) {
-            if (preg_match('/(?<![0-9A-Za-z.\-_])' . preg_quote($amount, '/') . '(\.0+)?(?![0-9A-Za-z_]|\.?[0-9])/', $content, $m, PREG_OFFSET_CAPTURE) && !str_contains($request, $amount)) {
+            if (preg_match('/(?<![0-9A-Za-z.\-_])' . preg_quote($amount, '/') . '0*(?![0-9A-Za-z_]|\.?[0-9])/', $content, $m, PREG_OFFSET_CAPTURE) && !str_contains($request, $amount)) {
                 return "shows B's amount {$amount}: \"" . substr($content, max(0, $m[0][1] - 40), 90) . '"';
             }
         }

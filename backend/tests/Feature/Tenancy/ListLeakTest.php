@@ -11,7 +11,7 @@ use Tests\TestCase;
 /**
  * M4 stage 1 (docs/scale/M4_DESIGN.md 3.1): every tenant GET without path parameters (a list, a report, a settings
  * page, the till's bootstrap), called by each of A's actors with no query and with the manifest's query for A, shows
- * nothing of B: neither the `ZZB-` marker of B's names nor one of B's uuids. Catches a list or report that forgets the
+ * nothing of B: neither the `ZZB-TENANT-` marker of B's names nor one of B's uuids. Catches a list or report that forgets the
  * store scope, which a call with B's ids cannot. The staff lists outside the tenant prefixes (orders, notifications,
  * complaints) are scanned too.
  */

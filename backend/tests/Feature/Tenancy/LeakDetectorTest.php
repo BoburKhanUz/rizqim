@@ -70,8 +70,48 @@ class LeakDetectorTest extends TestCase
         }
 
         $this->assertSame($this->bBefore, $this->snapshotB(), 'B changed outside the isolated calls');
+        $this->assertNoChanceMatches();
         $this->assertSame([], $missed, 'leak kinds the suite does not see: ' . implode(', ', $missed));
         $this->assertCount(18, $flagged);
+    }
+
+    /**
+     * The checker reads a lot of opaque text (cursors, ETags, revisions, request ids, codes): none of it may look like
+     * B. A response, cache keys and channel names made of a few thousand such values (fixed seed, the shapes the
+     * application really makes, and the cursor that once tripped the marker in CI) give no finding.
+     */
+    private function assertNoChanceMatches(): void
+    {
+        mt_srand(20261118);
+        $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        $token = function (int $length, string $chars) {
+            $out = '';
+            for ($i = 0; $i < $length; $i++) {
+                $out .= $chars[mt_rand(0, strlen($chars) - 1)];
+            }
+
+            return $out;
+        };
+        $digits = fn (int $length) => (string) mt_rand(1, 9) . $token($length - 1, '0123456789');
+        $values = ['c2.tgem7c.b2000000.ol9yWOe58MY0ByQc.PE0NZZB-e7mpEyXyjgmypA'];
+        for ($i = 0; $i < 600; $i++) {
+            array_push($values,
+                $token(mt_rand(16, 64), $alphabet),                                                    // base64url tokens
+                'c2.' . $token(6, $alphabet) . '.b' . $digits(7) . '.' . $token(16, $alphabet) . '.' . $token(22, $alphabet), // cursors
+                'W/"' . $token(32, '0123456789abcdef') . '"',                                          // ETags
+                $token(32, '0123456789abcdef'), $token(64, '0123456789abcdef'),                       // hashes
+                implode('-', [$token(8, '0123456789abcdef'), $token(4, '0123456789abcdef'), $token(4, '0123456789abcdef'), $token(4, '0123456789abcdef'), $token(12, '0123456789abcdef')]), // request ids
+                $digits(4), $digits(6), $digits(8), $digits(10), $digits(16), $digits(19),             // PIN, OTP, receipt, member code, revisions
+                '+99890' . $digits(7), '2026-0' . mt_rand(1, 9) . '-1' . mt_rand(0, 9) . 'T0' . mt_rand(0, 9) . ':' . mt_rand(10, 59) . ':00.000000Z',
+            );
+        }
+        $json = json_encode(['data' => array_map(fn ($value, $i) => ['code' => $value, 'revision' => (int) $digits(16), 'seq' => $i], $values, array_keys($values))]);
+        $headers = implode("\n", array_map(fn ($value) => 'x-revision: ' . $value, array_slice($values, 0, 200)));
+        $found = $this->bLeakIn($headers . "\n\n" . $json);
+        $this->assertNull($found, 'random tokens look like B: ' . $found);
+        foreach ($values as $value) {
+            $this->assertFalse((fn () => $this->namesB('pos-branch.' . $value))->call($this), "a random cache key names B: {$value}");
+        }
     }
 
     /**
