@@ -201,6 +201,9 @@ class CrossTenantRouteTest extends TestCase
             foreach ($found as $failure) {
                 $failures[] = (isset($manifest['known'][$key]) ? "[known: {$manifest['known'][$key]}] " : '') . $failure;
             }
+            if ($known && $found === []) {
+                $failures[] = "{$key}: the known finding holds now: remove it from `known` in routes.php";
+            }
         }
 
         $this->assertSame($this->bBefore, $this->snapshotB(), 'B changed outside the isolated calls');
@@ -246,6 +249,9 @@ class CrossTenantRouteTest extends TestCase
                 $differing[] = ['body', $name];
             }
         }
+        $softKeys = [...self::NOT_A_RECORD, ...($entry['soft'] ?? [])];
+        // B's ids together are a store's record unless every differing key is one the route may ignore
+        $variants['B ids'][2] = $differing !== [] && array_diff(array_column($differing, 1), $softKeys) === [];
         if (count($differing) > 1) {
             foreach ($differing as [$where, $name]) {
                 $p = $params['A'];
@@ -255,7 +261,7 @@ class CrossTenantRouteTest extends TestCase
                 } else {
                     $q[$name] = $bodies['B'][$name];
                 }
-                $variants["B {$where} {$name}"] = [$p, $q, in_array($name, self::NOT_A_RECORD, true)];
+                $variants["B {$where} {$name}"] = [$p, $q, in_array($name, $softKeys, true)];
             }
         }
         if ($differing === []) {
@@ -273,7 +279,7 @@ class CrossTenantRouteTest extends TestCase
             if (!$mapped) {
                 $failures[] = "{$label} with A's ids: {$positive['status']}, manifest expects " . implode('|', $expected) . ': ' . Str::limit($positive['content'], 300);
             }
-            if ($leak = $this->bLeakIn($positive['content'])) {
+            if ($leak = $this->bLeakIn($positive['content'], $positive['request'])) {
                 $failures[] = "{$label} with A's ids LEAKS B: {$leak}";
             }
             if ($positive['after'] !== null && $positive['after'] != $this->bBefore) {
@@ -299,7 +305,7 @@ class CrossTenantRouteTest extends TestCase
                     $failures[] = "{$where}: CHANGES B in " . implode(', ', $this->changedTables($negative['after'])) . " (status {$negative['status']})";
                     $covered = false;
                 }
-                if ($leak = $this->bLeakIn($negative['content'])) {
+                if ($leak = $this->bLeakIn($negative['content'], $negative['request'])) {
                     $failures[] = "{$where}: LEAKS B: {$leak}";
                     $covered = false;
                 }

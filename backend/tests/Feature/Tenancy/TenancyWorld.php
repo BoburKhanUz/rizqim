@@ -258,6 +258,13 @@ trait TenancyWorld
         OrderItem::create(['order_id' => $w['online_order']->id, 'product_variant_id' => $w['variant']->id, 'product_name' => $p . 'Shashlik', 'quantity' => 1, 'unit' => 'piece', 'unit_price' => 18000, 'total_price' => 18000]);
         OrderStatusHistory::create(['order_id' => $w['online_order']->id, 'status' => OrderStatus::NEW->value, 'notes' => 'created']);
 
+        // A marketplace delivery ready for a courier
+        $w['delivery_order'] = Order::create([
+            'store_id' => $w['store']->id, 'branch_id' => $w['branch']->id, 'user_id' => $this->customer->id, 'status' => OrderStatus::READY,
+            'order_type' => 'delivery', 'payment_method' => 'cash', 'total_price' => 18000, 'commission_amount' => 1800,
+            'shipping_address' => ['address' => $p . 'Manzil', 'latitude' => 41.311081, 'longitude' => 69.240562],
+        ]);
+
         $this->buildFrontOfHouse($w, $p);
 
         // An offline operation the server could not apply (a round on an order it never saw): a sync error to resolve
@@ -268,6 +275,12 @@ trait TenancyWorld
         ]]]);
         $w['sync_error'] = $op;
 
+        $this->buildBackOffice($w, $p);
+
+        // The owner's phone (partner app): a user device with a push token
+        $phone = $this->own($o = $w['owner_token'], 'POST', '/devices', ['type' => 'partner_mobile', 'name' => $p . 'Telefon', 'platform' => 'android'])->json('data');
+        $w['phone'] = \App\Models\Device::where('uuid', $phone['uuid'] ?? $phone['device']['uuid'])->firstOrFail();
+
         // The manager's one-time approvals on the till (60 s; the clock stands still and every call is undone)
         $w['approval'] = [];
         foreach (\App\Domain\Pos\Billing\ManagerApprovalService::approvable() as $permission) {
@@ -275,6 +288,72 @@ trait TenancyWorld
             $response = $this->json('POST', '/api/v1/pos/approvals', ['permission' => $permission, 'user_id' => $w['manager']->id, 'pin' => '5926']);
             $w['approval'][$permission] = $response->status() === 201 ? (string) $response->json('data.token') : 'none-' . $permission;
         }
+    }
+
+    /**
+     * The owner's set-up: kitchen, printers, menu modules, zones, fees, staff pay, tips, a bank report. Made through
+     * the owner's API where the record has one, so it is exactly what the panel stores.
+     *
+     * @param  array<string, mixed>  $w
+     */
+    private function buildBackOffice(array &$w, string $p): void
+    {
+        $o = $w['owner_token'];
+        $store = $w['store'];
+        $branch = $w['branch']->id;
+        $latest = fn (string $model) => $model::where('store_id', $store->id)->orderByDesc('id')->firstOrFail();
+
+        $this->own($o, 'POST', '/owner/kitchen-stations', ['branch_id' => $branch, 'name' => $p . 'Mangal', 'kind' => 'mangal']);
+        $w['station'] = $latest(\App\Models\KitchenStation::class);
+        $this->own($o, 'PUT', '/owner/kitchen-station-routes', ['branch_id' => $branch, 'station_id' => $w['station']->id, 'product_ids' => [$w['product']->id]]);
+        $w['station_route'] = $latest(\App\Models\KitchenStationRoute::class);
+        $this->own($o, 'POST', '/owner/printers', ['branch_id' => $branch, 'name' => $p . 'Printer', 'purpose' => 'receipt', 'connection' => 'lan', 'address' => '192.168.1.50']);
+        $w['printer'] = $latest(\App\Models\Printer::class);
+
+        $w['combo_product'] = Product::create(['store_id' => $store->id, 'category_id' => $this->sharedCategory->id, 'name' => $p . 'Kombo', 'slug' => Str::slug($p . 'Kombo') . '-' . Str::random(5), 'status' => 'active']);
+        ProductVariant::create(['product_id' => $w['combo_product']->id, 'name' => $p . 'Kombo', 'price' => '30000', 'stock' => 100, 'is_active' => true]);
+        $this->own($o, 'POST', '/owner/combos', ['product_id' => $w['combo_product']->id, 'slots' => [['name' => $p . 'Ichimlik', 'options' => [['variant_id' => $w['tea']->id, 'is_default' => true]]]]]);
+        $w['combo'] = $latest(\App\Models\Combo::class);
+        $w['set_product'] = Product::create(['store_id' => $store->id, 'category_id' => $this->sharedCategory->id, 'name' => $p . 'Kompleks', 'slug' => Str::slug($p . 'Kompleks') . '-' . Str::random(5), 'status' => 'active']);
+        ProductVariant::create(['product_id' => $w['set_product']->id, 'name' => $p . 'Kompleks', 'price' => '25000', 'stock' => 100, 'is_active' => true]);
+        $this->own($o, 'POST', '/owner/meal-sets', ['product_id' => $w['set_product']->id, 'parts' => [['variant_id' => $w['tea']->id], ['variant_id' => $w['variant']->id]]]);
+        $w['meal_set'] = $latest(\App\Models\DailySet::class);
+        $this->own($o, 'PUT', '/owner/daily-menu', ['branch_id' => $branch, 'date' => '2026-06-10', 'product_ids' => [$w['tea_product']->id, $w['product']->id]]);
+
+        $this->own($o, 'POST', '/owner/batches', ['branch_id' => $branch, 'product_id' => $w['plov_product']->id, 'quantity' => '10', 'label' => $p . 'Qozon']);
+        $w['batch'] = $latest(\App\Models\MenuBatch::class);
+        $this->own($o, 'POST', '/owner/batch-plans', ['branch_id' => $branch, 'product_id' => $w['plov_product']->id, 'time' => '18:00', 'quantity' => '10', 'label' => $p . 'Kechki qozon']);
+        $w['batch_plan'] = $latest(\App\Models\MenuBatchPlan::class);
+        $this->own($o, 'POST', '/owner/stop-list', ['branch_id' => $branch, 'type' => 'product', 'id' => $w['meat_product']->id, 'reason' => $p . 'Tugadi']);
+        $w['stop_entry'] = $latest(\App\Models\StopListEntry::class);
+        $this->own($o, 'POST', '/owner/ingredients', ['name' => $p . 'Piyoz', 'unit' => 'kg']);
+        $w['ingredient'] = $latest(\App\Models\Ingredient::class);
+        $this->own($o, 'PUT', "/owner/ingredients/{$w['ingredient']->id}/products", ['links' => [['product_id' => $w['product']->id]]]);
+        $this->own($o, 'POST', '/owner/brands', ['name' => $p . 'Brend', 'short_code' => $p === 'A-' ? 'AB' : 'ZB']);
+        $w['brand'] = $latest(\App\Models\Brand::class);
+        $this->own($o, 'POST', "/owner/branches/{$branch}/packaging-rules", ['name' => $p . 'Paket', 'basis' => 'order', 'unit_price' => '1000', 'order_types' => ['takeaway']]);
+        $w['packaging_rule'] = $latest(\App\Models\BranchPackagingRule::class);
+        $this->own($o, 'POST', '/owner/delivery-zones', ['name' => $p . 'Zona', 'branch_id' => $branch, 'delivery_price' => 10000, 'min_order_amount' => 0, 'polygon' => [
+            'type' => 'Polygon', 'coordinates' => [[[69.20, 41.28], [69.30, 41.28], [69.30, 41.34], [69.20, 41.34], [69.20, 41.28]]],
+        ]]);
+        $w['zone'] = $latest(\App\Models\DeliveryZone::class);
+        $this->own($o, 'POST', '/owner/room-tariffs', ['branch_id' => $branch, 'table_kind' => 'room', 'day_type' => 'weekday', 'price' => '300000']);
+        $w['room_tariff'] = $latest(\App\Models\RoomTariff::class);
+        $this->own($o, 'POST', '/owner/auto-guest-items', ['branch_id' => $branch, 'product_variant_id' => $w['tea']->id, 'quantity_per_guest' => '0.5']);
+        $w['auto_guest_item'] = $latest(\App\Models\AutoGuestItem::class);
+
+        $this->own($o, 'POST', '/owner/staff-pay/rules', ['branch_id' => $branch, 'role' => 'waiter', 'effective_from' => '2026-06-01', 'components' => [['type' => 'shift_rate', 'amount' => '100000']]]);
+        $w['pay_rule'] = $latest(\App\Models\StaffPayRule::class);
+        $this->own($o, 'POST', '/owner/staff-pay/work-sessions', ['branch_id' => $branch, 'user_id' => $w['waiter']->id, 'clock_in_at' => '2026-06-09T09:00:00+05:00', 'clock_out_at' => '2026-06-09T18:00:00+05:00', 'reason' => $p . 'Unutdi']);
+        $w['work_session'] = $latest(\App\Models\StaffWorkSession::class);
+        $this->own($o, 'POST', '/owner/staff-pay/statements', ['branch_id' => $branch, 'date' => '2026-06-09']);
+        $w['statement'] = $latest(\App\Models\StaffPayStatement::class);
+        $w['statement_line'] = \App\Models\StaffPayStatementLine::where('statement_id', $w['statement']->id)->orderBy('id')->firstOrFail();
+
+        $this->own($o, 'POST', '/owner/pos/tips/distributions', ['branch_id' => $branch, 'business_date' => '2026-06-10']);
+        $w['tip_distribution'] = $latest(\App\Models\PosTipDistribution::class);
+        $this->own($w['cashier_token'], 'PUT', "/pos/shifts/{$w['shift']->uuid}/bank-report", ['source' => 'manual', 'bank_total' => '0', 'bank_count' => 0, 'note' => $p . 'Hisobot']);
+        $w['bank_report'] = $latest(\App\Models\BankTerminalReport::class);
     }
 
     /**
@@ -490,13 +569,14 @@ trait TenancyWorld
     /**
      * What of B a response body shows: the marker (any case: slugs are lower case) or one of B's uuids.
      */
-    protected function bLeakIn(string $content): ?string
+    protected function bLeakIn(string $content, string $request = ''): ?string
     {
-        if (($at = stripos($content, self::MARK)) !== false) {
+        if (($at = stripos($content, self::MARK)) !== false && stripos($request, self::MARK) === false) {
             return 'shows "' . substr($content, max(0, $at - 40), 100) . '"';
         }
         foreach ($this->bUuids as $uuid) {
-            if (stripos($content, $uuid) !== false) {
+            // A uuid the request itself sent (echoed in a "not found") shows nothing the caller did not know
+            if (stripos($content, $uuid) !== false && stripos($request, $uuid) === false) {
                 return "shows B's uuid {$uuid}";
             }
         }
@@ -558,7 +638,7 @@ trait TenancyWorld
             $this->app['auth']->forgetGuards();
         }
 
-        return ['status' => $response->baseResponse->getStatusCode(), 'content' => $content, 'json' => json_decode($content, true), 'after' => $after];
+        return ['status' => $response->baseResponse->getStatusCode(), 'request' => $uri . ' ' . json_encode($body), 'content' => $content, 'json' => json_decode($content, true), 'after' => $after];
     }
 
     protected function startPinSession(array $terminal, User $user, string $pin): string
