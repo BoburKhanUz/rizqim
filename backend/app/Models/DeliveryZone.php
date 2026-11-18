@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Delivery\Geometry;
 use App\Services\Audit\AuditLogger;
 use App\Support\Money;
@@ -30,6 +31,8 @@ use InvalidArgumentException;
  */
 class DeliveryZone extends Model
 {
+    use BelongsToStore;
+
     // P2-12: the zone form's limits, shared by the panel editor and the API (DeliveryZoneController)
     public const NAME_MAX = 120;
     public const AMOUNT_MAX = 99999999;

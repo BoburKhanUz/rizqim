@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,7 @@ use App\Traits\Auditable;
 
 class PayoutRequest extends Model
 {
+    use BelongsToStore;
     use Auditable;
 
     protected $guarded = ['id'];

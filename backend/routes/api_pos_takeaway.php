@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/stores/{store}/branches/{branch}/pickup-slots', [PickupSlotsController::class, 'index'])
     ->where(['store' => RowId::ROUTE_PATTERN, 'branch' => RowId::ROUTE_PATTERN])->middleware('throttle:pickup-slots');
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Web panel: settings and reports, so never from a terminal PIN session
     Route::middleware('not-staff-session')->group(function () {
         Route::get('/owner/branches/{branch}/packaging-rules', [BranchPackagingRulesController::class, 'index'])->where('branch', RowId::ROUTE_PATTERN)

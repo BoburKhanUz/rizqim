@@ -174492,6 +174492,9 @@
                             "null"
                         ]
                     },
+                    "store_id": {
+                        "type": "integer"
+                    },
                     "order": {
                         "anyOf": [
                             {
@@ -174548,7 +174551,8 @@
                     "reference",
                     "offline_paid_at",
                     "synced_at",
-                    "card_last4"
+                    "card_last4",
+                    "store_id"
                 ],
                 "title": "Payment"
             },

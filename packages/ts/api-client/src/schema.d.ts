@@ -13334,6 +13334,7 @@ export interface components {
             /** Format: date-time */
             synced_at: string | null;
             card_last4: string | null;
+            store_id: number;
             order?: components["schemas"]["Order"] | null;
             bill?: components["schemas"]["OrderBill"] | null;
             shift?: components["schemas"]["PosShift"] | null;

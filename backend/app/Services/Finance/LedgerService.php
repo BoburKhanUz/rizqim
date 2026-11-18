@@ -340,7 +340,8 @@ class LedgerService
         $delivered = \App\Enums\OrderStatus::DELIVERED->value;
         $deliveredAs = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', $delivered)->min('id');
 
-        return !\App\Models\Order::where('user_id', $order->user_id)
+        // M4: the customer's orders at every store (the platform's first delivery), also when a store's staff deliver
+        return !\App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('user_id', $order->user_id)
             ->whereKeyNot($order->id)
             ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
             ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(

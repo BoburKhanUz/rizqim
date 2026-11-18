@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Setup\KitchenStationRouter;
 use App\Enums\KitchenStationKind;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class KitchenStation extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected $casts = [

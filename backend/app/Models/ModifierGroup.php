@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\ModifierDisplayMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +23,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class ModifierGroup extends Model
 {
+    use BelongsToStore;
     use SoftDeletes;
     use \App\Traits\HasPublicUuid;
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MenuPriceHistory extends Model
 {
+    use BelongsToStore;
+
     protected $table = 'menu_price_history';
 
     public const UPDATED_AT = null;

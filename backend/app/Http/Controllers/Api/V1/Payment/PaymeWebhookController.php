@@ -277,6 +277,8 @@ class PaymeWebhookController extends Controller
             // Create new pending payment
             $payment = Payment::create([
                 'order_id' => $order?->id,
+                // M4: the order's store, or the store topping up its balance
+                'store_id' => $order->store_id ?? $topupRequest?->store_id,
                 'provider' => 'payme',
                 'provider_transaction_id' => $trxId,
                 'amount' => Money::fromTiyin($params['amount'])->toString(), // Payme sends tiyin

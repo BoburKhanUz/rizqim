@@ -15,7 +15,7 @@ use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::middleware('not-staff-session')->group(function () {
         // Brands (multi_brand)
         Route::get('/owner/brands', [BrandController::class, 'index'])->middleware(['permission:menu.view,menu.manage', 'pos.module:multi_brand']);

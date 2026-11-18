@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\StaffPay\StaffWorkSessionController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'not-staff-session', 'pos.module:staff_pay'])->prefix('owner/staff-pay')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session', 'pos.module:staff_pay'])->prefix('owner/staff-pay')->group(function () {
     $read = 'permission:staff_pay.view,staff_pay.manage';
     $manage = 'permission:staff_pay.manage';
 
@@ -44,7 +44,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'not-staff-ses
 });
 
 // The till's and the waiter app's clock-in/out: the signed-in person's own work time (every terminal role)
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'pos.module:staff_pay'])->prefix('pos/clock')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'pos.module:staff_pay'])->prefix('pos/clock')->group(function () {
     Route::get('/', [PosClockController::class, 'show']);
     Route::post('/in', [PosClockController::class, 'in'])->middleware(EnsureIdempotency::class . ':pos.clock.in');
     Route::post('/out', [PosClockController::class, 'out'])->middleware(EnsureIdempotency::class . ':pos.clock.out');

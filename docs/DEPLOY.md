@@ -318,6 +318,16 @@ yaratadi va egalikni ko'chiradi, keyin PgBouncer, backend (migratsiya egasi bila
 `docker compose logs db-roles` va `app:check-production`. Batafsil, parolni almashtirish va qaytarish: OPERATIONS.md, 22-bo'lim.
 Kalitlarsiz yangilash avvalgidek bitta rol bilan ishlaydi.
 
+**M4: `payments.store_id` migratsiyasi (`2026_11_27_100000_add_store_id_to_payments_table`).** Har to'lovga do'konini yozadi:
+eski to'lovlarni 20 000 talik bo'laklarda to'ldiradi. Narxi: taxminan **30 soniya har 1 million to'lovga** (sinov serverida
+yuk ostida o'lchangan: 1,2–1,55 mln to'lov 36–51 s); shu vaqt davomida backend so'rovlarga javob bermaydi (migratsiya php-fpm
+dan oldin yuradi), kassalar oflayn navbatga yozadi (`pos_sync`). Pilotda to'lovlar kam: soniyalar. Uzilib qolsa (konteyner
+qayta ishga tushsa) to'ldirilgan qatorlar qoladi, keyingi ishga tushish qolganidan davom etadi. Har jadval qulfini 0,5 s dan
+ortiq kutmaydi: ola olmasa migratsiya xato bilan to'xtaydi, konteyner qayta ishga tushib yana urinadi (kassa yozuvi hech
+qachon shu migratsiya sababli rad etilmaydi). **Zaxira oynasida (Toshkent 02:30–04:30) deploy qilmang:** `pg_dump` butun
+nusxa davomida `payments` jadvalini qulflab turadi, migratsiya qulfni ololmay dump tugaguncha qayta-qayta ishga tushadi.
+Do'koni topilmagan to'lovlar bo'lsa ustun NULL ga ruxsat bilan qoladi va Monitoring ogohlantiradi: OPERATIONS.md, 23-bo'lim.
+
 **Orqaga qaytarish.** Kod orqaga qaytsa ham migratsiyalar o'z-o'zidan qaytmaydi. Yangi migratsiya eski kodga to'sqinlik qilsa, `down()` yangi kodda bo'lgani uchun avval migratsiyani **yangi kod bilan** qaytaring, keyin kodni almashtiring:
 
 ```bash

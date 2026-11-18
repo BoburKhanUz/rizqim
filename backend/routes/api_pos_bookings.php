@@ -14,7 +14,7 @@ use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->prefix('pos')->group(function () {
     Route::middleware('permission:bookings.manage')->group(function () {
         Route::get('/bookings/calendar', [BookingController::class, 'calendar']);
         Route::get('/bookings', [BookingController::class, 'index']);

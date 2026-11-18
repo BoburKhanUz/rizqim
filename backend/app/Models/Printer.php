@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\PrinterConnection;
 use App\Enums\PrinterPurpose;
 use Illuminate\Database\Eloquent\Model;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Printer extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected $casts = [

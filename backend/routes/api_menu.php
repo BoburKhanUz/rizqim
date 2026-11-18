@@ -27,7 +27,10 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(functi
     // What is unavailable on a store's branches now (stop-list, sold-out batches): refetched on menu.availability_changed
     // Wave M2: the Mini App's form (no branch_id) from the read model, 304 to a matching If-None-Match (15 s at most)
     Route::get('/catalog/availability', [MenuAvailabilityController::class, 'index'])->middleware([\App\Http\Middleware\ConditionalGet::using('none', \App\Domain\Marketplace\MarketplaceEtag::AVAILABILITY_MAX_AGE), \App\Domain\Marketplace\MarketplaceBrowse::for('availability')]);
+});
 
+// The store's menu: a tenant route group (M4 stage 2: TenantContext bound to the caller's store)
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Modifier groups and modifiers of the store's menu
     Route::get('/owner/modifier-groups', [ModifierGroupController::class, 'index'])->middleware('permission:menu.view,menu.manage');
     Route::post('/owner/modifier-groups', [ModifierGroupController::class, 'store'])->middleware('permission:menu.manage');

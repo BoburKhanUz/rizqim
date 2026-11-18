@@ -96,5 +96,5 @@ ikkinchi yil oxirida taxminan 1 TB ga yetadi, shuning uchun eski buyurtmalarni a
 | M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
 | M2 Jonli aloqa va kesh | **Tugadi** (PR #25, 17.11.2026). Natija: [scale/RESULTS_M2.md](scale/RESULTS_M2.md): market yuki 2-3 baravar kam, sokin vaqtda so'rovlar 73 % kam, tushlikda kassa tezligi M1 darajasida va ekranlar 2-5 soniyada yangilanadi |
 | M3 Ishonchlilik | **Tugadi** (PR #26, 18.11.2026). Audit, fiskal va bildirishnoma jurnallari oylar bo'yicha bo'lingan va arxivlanadi; uzluksiz zaxira (CI sinovida yo'qotish oynasi ~1 daqiqa), vaqtga qaytarib tiklash, tiklash mashqi; 20 dan ortiq ogohlantirish. Loyiha: [scale/M3_DESIGN.md](scale/M3_DESIGN.md), qo'llanma: [OPERATIONS.md](OPERATIONS.md) 17-21-bo'limlar. Haqiqiy serverda sinash staging bosqichida (P) |
-| M4 Do'konlar orasidagi himoya | Boshlandi (18.11.2026) |
+| M4 Do'konlar orasidagi himoya | 1-bosqich bajarildi (PR #27, 18.11.2026): himoya sinovi, teshiklar, baza rollari. 2-bosqich (avtomatik filtr) boshlandi; 3-bosqich (RLS) navbatda |
 | M5, P, L | Navbatda |

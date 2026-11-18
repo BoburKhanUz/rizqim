@@ -79,67 +79,73 @@ Route::prefix('v1')->group(function () {
         Route::post('/notifications/read', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'markNotificationsRead']);
         // P1-21: an Idempotency-Key header makes a retried checkout return the first order instead of placing another
         Route::post('/orders', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'store'])->middleware(['throttle:orders', \App\Http\Middleware\EnsureIdempotency::class . ':orders.store']);
-        Route::post('/orders/{uuid}/complete', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'complete']);
+        Route::post('/orders/{uuid}/complete', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'complete'])->middleware('tenant');
+        // Not bound to a tenant (M4 stage 2): the caller's own order as a customer (user_id), whichever store it is at
         Route::post('/orders/{uuid}/cancel', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'cancel'])->middleware('throttle:order-cancel');
-        Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus']);
-        Route::post('/orders/{uuid}/assign-courier', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'assignCourier'])->middleware('permission:orders.assign_courier');
+        Route::post('/orders/{uuid}/status', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'updateStatus'])->middleware('tenant');
+        Route::post('/orders/{uuid}/assign-courier', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'assignCourier'])->middleware(['tenant', 'permission:orders.assign_courier']);
         // [P2-30] orders.assign_courier (owner, manager by default; the store may grant it) instead of the owner/manager roles
-        Route::get('/couriers', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'couriers'])->middleware('permission:orders.assign_courier');
-        Route::post('/reports/export', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'exportReport'])->middleware('throttle:report-export');
+        Route::get('/couriers', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'couriers'])->middleware(['tenant', 'permission:orders.assign_courier']);
+        Route::post('/reports/export', [\App\Http\Controllers\Api\V1\Order\OrderController::class, 'exportReport'])->middleware(['tenant', 'throttle:report-export']);
         Route::post('/promo/validate', [\App\Http\Controllers\Api\V1\PromoCodeController::class, 'validateCode'])->middleware('throttle:promo');
 
         // Complaints Routes
-        Route::get('/complaints', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'index']);
+        // GET is the store's list for staff (tenant) and the customer's own list (no store: not bound)
+        Route::get('/complaints', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'index'])->middleware('tenant');
         Route::post('/complaints', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'store'])->middleware('throttle:complaints');
-        Route::post('/complaints/{id}/reply', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'reply']);
+        Route::post('/complaints/{id}/reply', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'reply'])->middleware('tenant');
         Route::post('/complaints/{id}/escalate', [\App\Http\Controllers\Api\V1\Order\ComplaintController::class, 'escalate']);
 
-        // Owner Catalog Routes
-        // [P2-30] by permission, not role: menu.view reads (managers, cashiers... by default), menu.manage writes (owner)
-        Route::get('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getCategories'])->middleware('permission:menu.view');
-        Route::post('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeCategory'])->middleware('role:super_admin');
+        // The store's catalog, staff, money and settings: a tenant route group (M4 stage 2: TenantContext bound to the
+        // caller's store; /stores and /catalog above stay unbound: an owner's token sees every store there)
+        Route::middleware('tenant')->group(function () {
+            // Owner Catalog Routes
+            // [P2-30] by permission, not role: menu.view reads (managers, cashiers... by default), menu.manage writes (owner)
+            Route::get('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getCategories'])->middleware('permission:menu.view');
+            Route::post('/owner/categories', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeCategory'])->middleware('role:super_admin');
 
-        Route::get('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getProducts'])->middleware('permission:menu.view');
-        Route::middleware('permission:menu.manage')->group(function () {
-            Route::post('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeProduct']);
-            Route::post('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateProduct'])->where('id', \App\Support\RowId::ROUTE_PATTERN); // POST, not PUT: multipart/form-data
-            Route::delete('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteProduct'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
-            // [P2-30] remove the product's image (and its thumbnails)
-            Route::delete('/owner/products/{id}/image', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteImage'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
-            // [P3-26] only the fiscal fields (MXIK, package code, VAT, kind, variant receipt units): the fiscal bulk edit
-            Route::patch('/owner/products/{id}/fiscal', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateFiscal'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
+            Route::get('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'getProducts'])->middleware('permission:menu.view');
+            Route::middleware('permission:menu.manage')->group(function () {
+                Route::post('/owner/products', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'storeProduct']);
+                Route::post('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateProduct'])->where('id', \App\Support\RowId::ROUTE_PATTERN); // POST, not PUT: multipart/form-data
+                Route::delete('/owner/products/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteProduct'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
+                // [P2-30] remove the product's image (and its thumbnails)
+                Route::delete('/owner/products/{id}/image', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'deleteImage'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
+                // [P3-26] only the fiscal fields (MXIK, package code, VAT, kind, variant receipt units): the fiscal bulk edit
+                Route::patch('/owner/products/{id}/fiscal', [\App\Http\Controllers\Api\V1\Store\OwnerCatalogController::class, 'updateFiscal'])->where('id', \App\Support\RowId::ROUTE_PATTERN);
+            });
+
+            // Managers toggle availability for their own branch (enforced in the controller)
+            Route::middleware('role:owner,manager')->group(function () {
+                Route::get('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'index']);
+                Route::post('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'update']);
+            });
+
+            // [P1-14] Server-side sales aggregates for the Mini App's analytics screen (a branch manager sees their branch only)
+            Route::get('/owner/analytics', [\App\Http\Controllers\Api\V1\Store\OwnerAnalyticsController::class, 'index'])->middleware(['role:owner,manager', 'permission:reports.view']);
+
+            // Staff, money and settings: not from a staff PIN session on a terminal (docs/AUTH.md)
+            Route::middleware(['role:owner', 'not-staff-session'])->group(function () {
+                // Owner Employee Routes
+                Route::get('/owner/employees', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'index']);
+                Route::post('/owner/employees/invite', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'generateInvite']);
+                Route::post('/owner/employees/{id}/transfer', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'updateBranch']);
+                Route::delete('/owner/employees/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'destroy']);
+
+                // Owner Finance Routes (P2-30: GET /owner/finance is finance.view, below; payouts and top-up stay the owner's)
+                Route::post('/owner/payouts', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'requestPayout']);
+                Route::post('/owner/finance/top-up', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'initiateTopup']);
+
+                // Owner Settings Routes
+                Route::get('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'index']);
+                Route::post('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'update']);
+                Route::post('/owner/settings/upload', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'upload']);
+            });
+
+            // [P2-30] Balances and recent money movements: finance.view (the owner; an owner may grant it to managers), as
+            // the finance history endpoints; never from a terminal PIN session
+            Route::get('/owner/finance', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'index'])->middleware(['not-staff-session', 'permission:finance.view']);
         });
-
-        // Managers toggle availability for their own branch (enforced in the controller)
-        Route::middleware('role:owner,manager')->group(function () {
-            Route::get('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'index']);
-            Route::post('/owner/branch-variants', [\App\Http\Controllers\Api\V1\Catalog\BranchProductVariantController::class, 'update']);
-        });
-
-        // [P1-14] Server-side sales aggregates for the Mini App's analytics screen (a branch manager sees their branch only)
-        Route::get('/owner/analytics', [\App\Http\Controllers\Api\V1\Store\OwnerAnalyticsController::class, 'index'])->middleware(['role:owner,manager', 'permission:reports.view']);
-
-        // Staff, money and settings: not from a staff PIN session on a terminal (docs/AUTH.md)
-        Route::middleware(['role:owner', 'not-staff-session'])->group(function () {
-            // Owner Employee Routes
-            Route::get('/owner/employees', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'index']);
-            Route::post('/owner/employees/invite', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'generateInvite']);
-            Route::post('/owner/employees/{id}/transfer', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'updateBranch']);
-            Route::delete('/owner/employees/{id}', [\App\Http\Controllers\Api\V1\Store\OwnerEmployeeController::class, 'destroy']);
-
-            // Owner Finance Routes (P2-30: GET /owner/finance is finance.view, below; payouts and top-up stay the owner's)
-            Route::post('/owner/payouts', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'requestPayout']);
-            Route::post('/owner/finance/top-up', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'initiateTopup']);
-
-            // Owner Settings Routes
-            Route::get('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'index']);
-            Route::post('/owner/settings', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'update']);
-            Route::post('/owner/settings/upload', [\App\Http\Controllers\Api\V1\Store\OwnerSettingsController::class, 'upload']);
-        });
-
-        // [P2-30] Balances and recent money movements: finance.view (the owner; an owner may grant it to managers), as
-        // the finance history endpoints; never from a terminal PIN session
-        Route::get('/owner/finance', [\App\Http\Controllers\Api\V1\Store\OwnerFinanceController::class, 'index'])->middleware(['not-staff-session', 'permission:finance.view']);
 
         // Feature flags (Pennant) of the user's store; toggled in Superadmin > Feature flaglar
         Route::get('/features', [\App\Http\Controllers\Api\V1\FeatureController::class, 'index']);

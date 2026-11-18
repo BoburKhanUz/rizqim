@@ -58,7 +58,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'staff.store' => \App\Http\Middleware\EnsureStaffHasStore::class,
+            // M4 stage 2: binds TenantContext to the caller's store on the tenant route groups (docs/scale/M4_DESIGN.md 3.2)
+            'tenant' => \App\Http\Middleware\BindTenant::class,
         ]);
+        // Always after authentication, wherever a group lists it: it reads the authenticated caller
+        $middleware->appendToPriorityList(\Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class, \App\Http\Middleware\BindTenant::class);
 
         // The API is reached through the Mini App nginx (Docker network) or a local proxy: trust only
         // private-network hops, and only X-Forwarded-For/Proto, so per-IP rate limits see the real client.

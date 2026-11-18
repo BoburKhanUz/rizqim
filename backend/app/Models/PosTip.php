@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Tips\TipKind;
 use App\Domain\Pos\Tips\TipMethod;
 use App\Domain\Pos\Tips\TipMode;
@@ -36,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PosTip extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).

@@ -900,3 +900,34 @@ DB_OWNER_PASSWORD bering» deydi va 1 bilan chiqadi (hech narsa o'zgarmaydi); Mo
 `app:check-production` rollar ajratilgandan keyin superuser, jadvallar egasi yoki `rizqim_owner` ga `SET ROLE` qila oladigan
 `DB_USERNAME` bilan konteynerni ishga tushirmaydi. Monitoring egasi roli bilan har daqiqa ulanib tekshiradi: parol xato yoki
 jadvallar unga tegishli bo'lmasa KRITIK; boshqa rolniki bo'lib qolgan jadvallar DIQQAT.
+
+## 23. `payments.store_id` yakunlanmagan (M4)
+
+Migratsiya `2026_11_27_100000_add_store_id_to_payments_table` har to'lovga do'konini (buyurtmaniki yoki Payme orqali hisob
+to'ldirish so'rovidagi do'kon) yozadi. Do'koni topilmagan to'lov bo'lsa (amalda: buyurtmasiz Payme to'ldirish to'lovi, uning
+so'rovi do'kon qo'lda butunlay o'chirilganda yo'qolgan), migratsiya ularni taxmin qilmaydi: ustun NULL ga ruxsat bilan qoladi,
+deploy davom etadi, Monitoringda `partitions` tekshiruvi «payments.store_id hali NULL bo'lishi mumkin» DIQQAT ogohlantirishini
+sonini ko'rsatib chiqaradi (21-bo'lim; jadval katta bo'lib sanash vaqtida tugamasa, son o'rniga «sanab bo'lmadi» deb yozadi, ogohlantirish yopilmaydi). Bunday to'lovni do'konga bog'langan kassa ko'rmaydi.
+
+Egasi roli bilan (`rizqim_owner`, rollar ajratilmagan bo'lsa `DB_USERNAME`) tekshiring:
+
+```sql
+SELECT id, uuid, provider, amount, status, created_at, payload -> 'account' ->> 'order_id' AS reference
+FROM payments WHERE store_id IS NULL ORDER BY id;
+```
+
+Har birini hal qiling: do'kon ma'lum bo'lsa `UPDATE payments SET store_id = <do'kon id> WHERE id = <id>;`, keraksiz yetim
+qator bo'lsa zaxiradan keyin `DELETE FROM payments WHERE id = <id>;`. So'rov 0 qator qaytargach, NOT NULL qadamini yakunlang
+(tinch paytda; har buyruq qisqa, kassalar to'xtamaydi):
+
+```sql
+SET lock_timeout = '500ms';
+ALTER TABLE payments ADD CONSTRAINT payments_store_id_not_null CHECK (store_id IS NOT NULL) NOT VALID;
+ALTER TABLE payments VALIDATE CONSTRAINT payments_store_id_not_null;
+BEGIN;
+ALTER TABLE payments ALTER COLUMN store_id SET NOT NULL;
+ALTER TABLE payments DROP CONSTRAINT payments_store_id_not_null;
+COMMIT;
+```
+
+`lock_timeout` xatosi chiqsa, o'sha buyruqni qayta bajaring. Shundan keyin Monitoring ogohlantirishi o'zi yopiladi.

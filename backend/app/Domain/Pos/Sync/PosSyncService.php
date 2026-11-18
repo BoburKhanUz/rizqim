@@ -54,7 +54,8 @@ final class PosSyncService
             $stoppedAt = null;
             foreach ($operations as $op) {
                 $opId = strtolower((string) $op['op_id']);
-                $existing = PosSyncOperation::where('op_id', $opId)->first();
+                // M4: op_id is unique across every store: another store's id must still answer op_id_conflict below
+                $existing = PosSyncOperation::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('op_id', $opId)->first();
                 if ($existing !== null) {
                     if ((int) $existing->device_id !== (int) $device->id) {
                         // Somebody else's operation id: never shown, never applied

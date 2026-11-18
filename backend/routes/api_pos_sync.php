@@ -17,20 +17,20 @@ use App\Http\Controllers\Api\V1\Pos\PosSyncController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:device', 'throttle:pos-sync'])->prefix('pos/sync')->group(function () {
+Route::middleware(['auth:device', 'tenant', 'throttle:pos-sync'])->prefix('pos/sync')->group(function () {
     // Each operation is idempotent by its op_id; an Idempotency-Key on the batch is optional
     Route::post('/', [PosSyncController::class, 'store'])->middleware(EnsureIdempotency::class . ':pos.sync,optional');
     Route::get('/status', [PosSyncController::class, 'status']);
 });
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos/sync')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->prefix('pos/sync')->group(function () {
     Route::get('/errors', [PosSyncController::class, 'errors'])->middleware('permission:orders.view');
     Route::post('/errors/{opId}/resolve', [PosSyncController::class, 'resolve'])->whereUuid('opId')->middleware(['permission:orders.cancel', EnsureIdempotency::class . ':pos.sync.resolve,optional']);
 });
 
-Route::middleware(['auth:device', 'throttle:pos-sync'])->get('/pos/lan', [PosLanController::class, 'show']);
+Route::middleware(['auth:device', 'tenant', 'throttle:pos-sync'])->get('/pos/lan', [PosLanController::class, 'show']);
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'not-staff-session', 'permission:settings.manage'])->prefix('owner/pos/lan')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session', 'permission:settings.manage'])->prefix('owner/pos/lan')->group(function () {
     Route::get('/', [BranchLanController::class, 'show']);
     Route::put('/', [BranchLanController::class, 'update']);
     Route::post('/rotate', [BranchLanController::class, 'rotate']);

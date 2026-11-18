@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\V1\PosBilling\PosVoucherController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::prefix('pos')->group(function () {
         Route::middleware('permission:pos.take_payment')->group(function () {
             Route::post('/vouchers/sell', [PosVoucherController::class, 'sell'])->middleware(['pos.module:vouchers', EnsureIdempotency::class . ':pos.vouchers.sell']);

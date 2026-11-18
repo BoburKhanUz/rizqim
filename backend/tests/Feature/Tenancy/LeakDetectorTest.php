@@ -8,6 +8,7 @@ use App\Models\OrderBill;
 use App\Models\OrderItem;
 use App\Models\PosWaitlistEntry;
 use App\Models\Store;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -22,7 +23,9 @@ use Tests\TestCase;
  * under a tenant prefix with the real staff middleware, each leaking store B in one way, and each is put through the
  * suite's own check (TenancySuite::routeFailures with a manifest entry like routes.php's). Every kind must be flagged;
  * a correctly scoped twin must pass, so the check is not simply failing everything. A kind this test cannot see is a
- * kind the suite cannot see.
+ * kind the suite cannot see. M4 stage 2 adds routes with the `tenant` middleware that are wrong about the bound store
+ * only (a streamed body left unbound or reading before it binds again, another store bound, the binding forgotten),
+ * and their correct twin.
  */
 class LeakDetectorTest extends TestCase
 {
@@ -57,8 +60,8 @@ class LeakDetectorTest extends TestCase
         $flagged = [];
         foreach ($this->kinds() as $kind => [$key, $entry]) {
             $failures = $this->routeFailures($key, $routes[$key], $entry);
-            if ($kind === 'scoped') {
-                $this->assertSame([], $failures, "the correctly scoped route is flagged:\n" . implode("\n", $failures));
+            if (str_starts_with($kind, 'scoped')) {
+                $this->assertSame([], $failures, "the correctly scoped route ({$kind}) is flagged:\n" . implode("\n", $failures));
 
                 continue;
             }
@@ -72,7 +75,17 @@ class LeakDetectorTest extends TestCase
         $this->assertSame($this->bBefore, $this->snapshotB(), 'B changed outside the isolated calls');
         $this->assertNoChanceMatches();
         $this->assertSame([], $missed, 'leak kinds the suite does not see: ' . implode(', ', $missed));
-        $this->assertCount(18, $flagged);
+        $this->assertCount(22, $flagged);
+        // The tenant routes show and change nothing of B: each is flagged for what it does to the binding
+        foreach ([
+            'xi-a' => 'the streamed body never runs bound',
+            'xi-b' => 'the request is bound to store ' . $this->world['B']['store']->id . ' (bind)',
+            'xi-c' => 'the request is unbound in the middle (forget)',
+            'xi-d' => 'the streamed body runs a query unbound',
+        ] as $kind => $reason) {
+            $first = collect($flagged)->first(fn (string $failure, string $name) => str_starts_with($name, $kind . ' '));
+            $this->assertStringContainsString($reason, (string) $first, $kind);
+        }
     }
 
     /**
@@ -146,6 +159,12 @@ class LeakDetectorTest extends TestCase
             'viii B\'s stores row updated' => $post('/viii/{uuid}'),
             'ix a broadcast on B\'s channel' => $post('/ix/{uuid}'),
             'x a notification to B\'s staff' => $post('/x/{uuid}'),
+            // M4 stage 2: routes with the `tenant` middleware, each wrong about the bound store in one way
+            'scoped, bound: a queued job in the middle and a body bound again' => $get('/bound/{uuid}'),
+            'xi-a a streamed body written unbound' => $get('/xia/{uuid}'),
+            'xi-b another store bound after the middleware' => $post('/xib/{uuid}'),
+            'xi-c the binding forgotten in the controller' => $post('/xic/{uuid}'),
+            'xi-d a streamed body that reads before it binds again' => $get('/xid/{uuid}'),
         ];
     }
 
@@ -301,8 +320,70 @@ class LeakDetectorTest extends TestCase
                 return $mine($request, $order) ? response()->json(['data' => []]) : $refuse();
             });
         });
+        // M4 stage 2: tenant routes (the store is bound, so the scope refuses B's ids by itself); what each does wrong
+        // is only the binding, nothing of B is shown or changed
+        Route::middleware([...$middleware, 'tenant'])->prefix(self::PREFIX)->group(function () use ($find) {
+            $json = ['Content-Type' => 'application/json'];
+            $body = fn (Order $order) => function () use ($order) {
+                echo json_encode(['data' => ['uuid' => Order::whereKey($order->id)->value('uuid')]]);
+            };
+            // The twin that must pass: a queued job runs unbound in the middle (QueuedJobsRunUnbound) and the request
+            // is bound again, the streamed body binds the store again
+            Route::get('bound/{uuid}', function (string $uuid) use ($find, $body, $json) {
+                $order = $find($uuid);
+                dispatch(new QuietQueuedJob());
+                $tenant = (int) app(TenantContext::class)->storeId();
+
+                return response()->stream(fn () => app(TenantContext::class)->runAs($tenant, $body($order)), 200, $json);
+            });
+            // xi-a: the body is written after the middleware's binding is gone and does not bind again
+            Route::get('xia/{uuid}', function (string $uuid) use ($find, $json) {
+                $order = $find($uuid);
+
+                return response()->stream(function () use ($order) {
+                    echo json_encode(['data' => ['uuid' => $order->uuid]]);
+                }, 200, $json);
+            });
+            // xi-d: the body binds again, but reads before that
+            Route::get('xid/{uuid}', function (string $uuid) use ($find, $body, $json) {
+                $order = $find($uuid);
+                $tenant = (int) app(TenantContext::class)->storeId();
+
+                return response()->stream(function () use ($order, $tenant, $body) {
+                    Order::whereKey($order->id)->exists();
+                    app(TenantContext::class)->runAs($tenant, $body($order));
+                }, 200, $json);
+            });
+            // xi-b: another store bound after the middleware
+            Route::post('xib/{uuid}', function (string $uuid) use ($find) {
+                $order = $find($uuid);
+                app(TenantContext::class)->bind((int) Store::query()->where('id', '<>', $order->store_id)->max('id'));
+
+                return response()->json(['data' => ['uuid' => $order->uuid]]);
+            });
+            // xi-c: the binding forgotten in the middle of the controller
+            Route::post('xic/{uuid}', function (string $uuid) use ($find) {
+                $order = $find($uuid);
+                app(TenantContext::class)->forget();
+
+                return response()->json(['data' => ['uuid' => $order->uuid]]);
+            });
+        });
         Route::getRoutes()->refreshNameLookups();
         Route::getRoutes()->refreshActionLookups();
+    }
+}
+
+/**
+ * A queued job that touches nothing (run at once by the tests' sync queue, unbound).
+ */
+class QuietQueuedJob implements \Illuminate\Contracts\Queue\ShouldQueue
+{
+    use \Illuminate\Foundation\Bus\Dispatchable;
+
+    public function handle(): void
+    {
+        Order::query()->count();
     }
 }
 

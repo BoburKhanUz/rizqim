@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\Order\KitchenExpoController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::post('/staff/orders/{uuid}/assembled', [KitchenExpoController::class, 'assembled'])->whereUuid('uuid')
         ->middleware(['permission:kitchen.manage', 'pos.module:kds_expo', EnsureIdempotency::class . ':pos.kds.assembled,optional']);
 

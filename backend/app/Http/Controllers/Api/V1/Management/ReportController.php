@@ -11,6 +11,7 @@ use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response as ApiDocResponse;
 use Illuminate\Http\JsonResponse;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -110,7 +111,9 @@ class ReportController extends ManagementController
         $groupBy = (string) $request->input('group_by', 'day');
         $sort = (string) $request->input('sort', 'quantity');
 
-        return response()->streamDownload(function () use ($reports, $report, $store, $branchId, $first, $last, $groupBy, $sort) {
+        // M4: the body is written when the response is sent, after the `tenant` middleware's binding is gone: bind again
+        $tenant = app(TenantContext::class)->storeId();
+        $write = function () use ($reports, $report, $store, $branchId, $first, $last, $groupBy, $sort) {
             $out = fopen('php://output', 'wb');
             match ($report) {
                 'orders' => $reports->writeOrdersCsv($out, $store, $branchId, $first, $last),
@@ -118,7 +121,9 @@ class ReportController extends ManagementController
                 default => $reports->writeProductsCsv($out, $store, $branchId, $first, $last, $sort),
             };
             fclose($out);
-        }, $reports->filename($report, $first, $last), [
+        };
+
+        return response()->streamDownload(fn () => $tenant === null ? $write() : app(TenantContext::class)->runAs($tenant, $write), $reports->filename($report, $first, $last), [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store',
         ]);

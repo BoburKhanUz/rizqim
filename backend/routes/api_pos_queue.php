@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\V1\Pos\PosQueueController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->prefix('pos')->group(function () {
     $idempotent = fn (string $scope) => EnsureIdempotency::class . ':' . $scope;
 
     Route::get('/queue', [PosQueueController::class, 'board'])->middleware(['permission:orders.view', 'pos.module:queue_calling', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);

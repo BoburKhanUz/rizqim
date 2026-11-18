@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\DiningTableKind;
 use App\Enums\MinSpendMode;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class DiningTable extends Model
 {
+    use BelongsToStore;
     use SoftDeletes;
 
     protected $guarded = ['id'];

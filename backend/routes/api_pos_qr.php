@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\V1\PosBilling\PosQrPaymentController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::middleware('not-staff-session')->group(function () {
         Route::get('/owner/pos/qr-payments', [QrPaymentSettingsController::class, 'show'])->middleware('permission:settings.manage');
         Route::put('/owner/pos/qr-payments', [QrPaymentSettingsController::class, 'update'])->middleware(['permission:settings.manage', 'pos.module:qr_payments']);

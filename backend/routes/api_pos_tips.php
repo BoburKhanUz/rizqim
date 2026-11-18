@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\PosBilling\PosTipsController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::middleware('not-staff-session')->group(function () {
         // Service charge variants (by order type, large group, cover, notice) on the branch's service fee row
         Route::get('/owner/pos/service-charge-rules', [ServiceChargeRulesController::class, 'show'])->middleware('permission:settings.manage');

@@ -15,7 +15,7 @@ use App\Http\Controllers\Api\V1\PosBilling\PosShiftController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->prefix('pos')->group(function () {
     $idempotent = fn (string $scope) => EnsureIdempotency::class . ':' . $scope;
 
     // A manager's PIN on the terminal: a one-time approval for one permission (the PIN lockout applies)
@@ -57,7 +57,7 @@ Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('pos'
 
 // Review P6 hardware/LAN (C2): the till's catch-up of the waiters' bill print requests with its own token (it prints
 // them while its screen is locked too); App\Domain\Pos\Billing\BillPrintInbox
-Route::middleware(['auth:device', 'throttle:pos-sync'])->prefix('pos/bill-print-requests')->group(function () {
+Route::middleware(['auth:device', 'tenant', 'throttle:pos-sync'])->prefix('pos/bill-print-requests')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'index']);
     Route::post('/{requestId}/printed', [\App\Http\Controllers\Api\V1\PosBilling\PosBillPrintRequestController::class, 'printed'])->whereUuid('requestId')
         ->middleware(EnsureIdempotency::class . ':pos.bill_print_requests.printed,optional');

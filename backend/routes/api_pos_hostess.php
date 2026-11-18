@@ -19,7 +19,7 @@ use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Web panel: settings and reports, so never from a terminal PIN session
     Route::middleware('not-staff-session')->group(function () {
         Route::get('/owner/branches/{id}/booking-rules', [BranchBookingRulesController::class, 'show'])->where('id', RowId::ROUTE_PATTERN)

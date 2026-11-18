@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Enums\PaymentStatus;
@@ -25,9 +26,15 @@ use App\Enums\PaymentStatus;
  * P3-31: money a till took offline (App\Domain\Pos\Sync)
  * @property \Illuminate\Support\Carbon|null $offline_paid_at
  * @property \Illuminate\Support\Carbon|null $synced_at
+ *
+ * M4 stage 2: the store of the parent (orders.store_id, or the top-up request's for a store's Payme top-up). Set
+ * explicitly by every creation site; a database trigger sets it from the parent for any other writer and keeps it equal
+ * to the parent's (migration 2026_11_27_100000)
+ * @property int $store_id
  */
 class Payment extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     // Wave M1: every column but id, listed (a $guarded list made Eloquent read the table's columns once per request).
@@ -36,7 +43,7 @@ class Payment extends Model
         'uuid', 'order_id', 'provider', 'provider_transaction_id', 'amount', 'status', 'payload', 'paid_at',
         'cancelled_at', 'expired_at', 'created_at', 'updated_at', 'bill_id', 'shift_id', 'device_id', 'received_by',
         'tendered_amount', 'change_amount', 'card_type', 'transaction_id', 'reference', 'offline_paid_at',
-        'synced_at', 'card_last4',
+        'synced_at', 'card_last4', 'store_id',
     ];
 
     protected function casts(): array
@@ -56,6 +63,7 @@ class Payment extends Model
             // P3-31: money taken offline (the device's clock) and when it reached the server
             'offline_paid_at' => 'datetime',
             'synced_at' => 'datetime',
+            'store_id' => 'integer',
         ];
     }
 
