@@ -61,16 +61,16 @@ class ComplaintController extends Controller
         }
 
         $request->validate([
-            'order_id' => 'required|exists:orders,id',
+            'order_id' => 'required|integer|min:1',
             'type' => 'required|string|in:WRONG_ITEM,ORDER_NOT_RECEIVED,QUALITY_ISSUE,COURIER_ISSUE,PAYMENT_ISSUE,OTHER',
             'description' => 'required|string|max:1000',
         ]);
 
-        $order = Order::find($request->order_id);
-
-        // Ownership validation: must belong to the customer
-        if ($order->user_id !== $user->id) {
-            return $this->error('Ruxsat etilmagan buyurtma.', [], 403);
+        // Wave M4 H2: looked up among the customer's own orders only, so a missing order and somebody else's order
+        // answer the same 404 (no `exists:orders` rule telling them apart: order ids cannot be counted)
+        $order = Order::query()->whereKey($request->integer('order_id'))->where('user_id', $user->id)->first();
+        if (!$order) {
+            return $this->error('Buyurtma topilmadi.', [], 404);
         }
 
         $complaint = Complaint::create([
