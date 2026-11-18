@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\Store;
 use App\Models\User;
 use App\Support\Database\OwnerConnection;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\AuditLogCleanup;
@@ -135,7 +136,7 @@ class PaymentStoreIdConcurrencyTest extends TestCase
                 touch("{$this->dir}/batches-done");
             }
         });
-        (require database_path(self::MIGRATION))->up();
+        $this->upUntilDone();
         touch("{$this->dir}/done");
         foreach ($pids as $pid) {
             pcntl_waitpid($pid, $status);
@@ -151,6 +152,83 @@ class PaymentStoreIdConcurrencyTest extends TestCase
         $this->assertSame(0, DB::table('payments')->join('orders', 'orders.id', '=', 'payments.order_id')->whereIn('payments.order_id', [$mine->id, $theirs->id])
             ->whereColumn('payments.store_id', '!=', 'orders.store_id')->count());
         $this->assertGreaterThan(self::OLD_ROWS, DB::table('payments')->whereIn('order_id', [$mine->id, $theirs->id])->count());
+    }
+
+    /**
+     * Review M4-B HIGH: refund-shaped till transactions (a payment row locked, a pause, then a write to payments: an
+     * update as RefundRequestService and the Payme perform/cancel do, or an insert as Payme CreateTransaction does)
+     * run back to back through every step of the migration, from adding the column to SET NOT NULL. A step that
+     * upgraded a lock it held (the foreign key, then the check, in one transaction) deadlocked such a till, and
+     * PostgreSQL killed the till. Now no till fails; the migration may give up on a lock (lock_not_available) and is
+     * run again, as the entrypoint does.
+     */
+    #[\Tests\Concerns\AsSchemaOwner]
+    public function test_a_till_holding_a_payment_row_across_any_step_of_the_migration_is_never_the_one_that_fails(): void
+    {
+        [$mine, $theirs] = $this->orders;
+        $migration = require database_path(self::MIGRATION);
+        $migration->down();
+        $old = [];
+        foreach (range(1, 300) as $i) {
+            $order = $i % 2 === 0 ? $mine : $theirs;
+            $old[] = (int) DB::table('payments')->insertGetId(['uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'provider' => 'payme', 'amount' => '1000.00', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        }
+
+        $pids = [];
+        foreach (range(0, 2) as $till) {
+            $pids[] = $this->fork($till, function () use ($till, $old, $mine) {
+                $deadline = microtime(true) + 60;
+                $done = 0;
+                while (!file_exists("{$this->dir}/done") && microtime(true) < $deadline) {
+                    $id = $old[($done * 3 + $till) % count($old)];
+                    DB::transaction(function () use ($id, $done, $mine) {
+                        DB::table('payments')->where('id', $id)->lockForUpdate()->first();
+                        usleep(150_000);
+                        if ($done % 2 === 0) {
+                            DB::table('payments')->where('id', $id)->update(['status' => 'pending', 'updated_at' => now()]);
+                        } else {
+                            DB::table('payments')->insert(['uuid' => (string) Str::uuid(), 'order_id' => $mine->id, 'provider' => 'payme', 'amount' => '1000.00', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+                        }
+                    });
+                    $done++;
+                    if ($done === 1) {
+                        touch("{$this->dir}/started-{$till}");
+                    }
+                }
+                file_put_contents("{$this->dir}/written-{$till}", (string) $done);
+            });
+        }
+
+        $this->waitFor(['started-0', 'started-1', 'started-2']);
+        $timeouts = $this->upUntilDone();
+        touch("{$this->dir}/done");
+        foreach ($pids as $pid) {
+            pcntl_waitpid($pid, $status);
+        }
+
+        $statuses = array_map(fn (int $i) => @file_get_contents("{$this->dir}/status-{$i}"), [0, 1, 2]);
+        $this->assertSame(['ok', 'ok', 'ok'], $statuses, 'a till failed: ' . @file_get_contents("{$this->dir}/error-0") . @file_get_contents("{$this->dir}/error-1") . @file_get_contents("{$this->dir}/error-2"));
+        $this->assertFalse((bool) DB::selectOne("SELECT NOT attnotnull AS n FROM pg_attribute WHERE attrelid = 'payments'::regclass AND attname = 'store_id'")->n, "payments.store_id is NOT NULL (after {$timeouts} lock timeouts)");
+        $this->assertSame(0, DB::table('payments')->join('orders', 'orders.id', '=', 'payments.order_id')->whereIn('payments.order_id', [$mine->id, $theirs->id])
+            ->whereColumn('payments.store_id', '!=', 'orders.store_id')->count());
+    }
+
+    /**
+     * The migration's up() as the entrypoint runs it: again after a lock timeout. Returns how many timed out.
+     */
+    private function upUntilDone(): int
+    {
+        $timeouts = 0;
+        while (true) {
+            try {
+                (require database_path(self::MIGRATION))->up();
+
+                return $timeouts;
+            } catch (QueryException $e) {
+                $this->assertSame('55P03', $e->getCode(), 'the migration failed otherwise than on a lock timeout: ' . $e->getMessage());
+                $this->assertLessThan(50, ++$timeouts, 'the migration never got its locks');
+            }
+        }
     }
 
     /**

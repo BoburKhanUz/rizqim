@@ -65,7 +65,7 @@ class PartitionsCheck implements AlertCheck
             ], null, (self::CRITICAL_CODES[$problem['code']] ?? false) ? 'critical' : 'warning');
         }
 
-        return array_merge($findings, $this->maintenanceRole(), $this->archiveStorage($status));
+        return array_merge($findings, $this->maintenanceRole(), $this->archiveStorage($status), $this->paymentsStore());
     }
 
     /**
@@ -164,6 +164,34 @@ class PartitionsCheck implements AlertCheck
         }
 
         return $findings;
+    }
+
+    /**
+     * M4 stage 2: payments.store_id is still nullable (migration 2026_11_27_100000 found payments without a parent
+     * store and left the NOT NULL step undone; such rows are invisible to a till bound to its store). A warning with
+     * the count of rows without a store until docs/OPERATIONS.md section 23 is done. Read with plain selects as the
+     * application role; the rows are counted only while the column is nullable (no index on store_id: NOT NULL is the
+     * normal state and costs one catalog read).
+     *
+     * @return list<AlertFinding>
+     */
+    private function paymentsStore(): array
+    {
+        $state = PostgresStats::bounded(function (): ?array {
+            $nullable = DB::selectOne("SELECT NOT a.attnotnull AS nullable FROM pg_attribute a WHERE a.attrelid = to_regclass('payments') AND a.attname = 'store_id' AND NOT a.attisdropped");
+            if ($nullable === null || !$nullable->nullable) {
+                return null;
+            }
+
+            return ['missing' => (int) DB::selectOne('SELECT count(*) AS n FROM payments WHERE store_id IS NULL')->n];
+        }, 'payments_store');
+        if (!is_array($state)) {
+            return [];
+        }
+
+        return [new AlertFinding('payments_store_nullable', "payments.store_id hali NULL bo'lishi mumkin: {$state['missing']} ta to'lovning do'koni yo'q (kassa ularni ko'rmaydi). Tekshirib, NOT NULL qadamini yakunlang (docs/OPERATIONS.md, 23-bo'lim)", [
+            'missing' => $state['missing'],
+        ], null, 'warning')];
     }
 
     /**

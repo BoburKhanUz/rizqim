@@ -3,10 +3,13 @@
 namespace Tests\Feature\PaymentStore;
 
 use App\Enums\OrderStatus;
+use App\Models\AlertRule;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Store;
 use App\Models\StoreTopupRequest;
+use App\Services\Admin\Monitoring\AlertFinding;
+use App\Services\Admin\Monitoring\Checks\PartitionsCheck;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +65,7 @@ class PaymentStoreIdMigrationTest extends TestCase
         $migration->up();
         $this->assertStores($ids, ['mine' => $this->store->id, 'theirs' => $this->other->id, 'topup' => $this->other->id]);
         $this->assertComplete();
+        $this->assertNull($this->storeFinding(), 'no monitoring finding once the column is NOT NULL');
 
         $migration->up();
         $this->assertComplete();
@@ -95,6 +99,25 @@ class PaymentStoreIdMigrationTest extends TestCase
         $this->assertTrue($this->constraintValid('payments_store_id_foreign'));
         // The orphan row can still be updated (a Payme cancel of it answers instead of failing)
         DB::table('payments')->where('id', $orphan)->update(['status' => 'cancelled']);
+
+        // The state is visible in monitoring until docs/OPERATIONS.md section 23 is done
+        $finding = $this->storeFinding();
+        $this->assertNotNull($finding);
+        $this->assertSame(['warning', ['missing' => 1]], [$finding->severity, $finding->details]);
+        $this->assertStringContainsString("23-bo'lim", $finding->title);
+    }
+
+    public function test_a_temporary_table_named_orders_cannot_plant_another_store(): void
+    {
+        $mine = $this->makeOrder(OrderStatus::NEW);
+        // pg_temp is searched first for an unqualified name: the functions name the schema of their tables
+        DB::statement('CREATE TEMPORARY TABLE orders (id bigint, store_id bigint) ON COMMIT DROP');
+        DB::insert('INSERT INTO pg_temp.orders VALUES (?, ?)', [$mine->id, $this->other->id]);
+
+        // Raw SQL: the query builder's revision hooks would read the shadowed orders themselves
+        $payment = (int) DB::selectOne("INSERT INTO payments (uuid, order_id, provider, amount, status) VALUES (?, ?, 'cash', 1000, 'paid') RETURNING id", [(string) Str::uuid(), $mine->id])->id;
+
+        $this->assertSame($this->store->id, (int) DB::table('payments')->where('id', $payment)->value('store_id'));
     }
 
     public function test_a_row_written_by_code_that_does_not_know_the_column_gets_the_parent_store(): void
@@ -143,6 +166,12 @@ class PaymentStoreIdMigrationTest extends TestCase
                 $this->assertSame('23502', $e->getCode(), $e->getMessage()); // not_null_violation
             }
         }
+    }
+
+    private function storeFinding(): ?AlertFinding
+    {
+        return collect(app(PartitionsCheck::class)->findings((new AlertRule)->forceFill(['kind' => 'partitions', 'threshold' => 2])))
+            ->keyBy('subjectKey')->get('payments_store_nullable');
     }
 
     /**
