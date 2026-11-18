@@ -7,7 +7,7 @@ use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantRls;
 use Closure;
 use Illuminate\Database\PostgresConnection;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Database\QueryException;
 use Throwable;
 
 /**
@@ -18,11 +18,11 @@ use Throwable;
  * Wave M4 stage 3 (docs/scale/M4_DESIGN.md 4.3): row-level security for tenant requests. While TENANT_RLS is on and a
  * store is bound (TenantContext), the first transaction opened takes the role `rizqim_tenant` and the store in the
  * setting `app.store_id`, in one message right after BEGIN, again on every attempt of DB::transaction(..., n); a single
- * write outside a transaction is wrapped in one ("writes mode": reads outside transactions stay with the application
- * guard). Both are SET LOCAL, so they end with the transaction and nothing reaches the next client of a pooled server
- * connection (PgBouncer, transaction mode). Transactions nested in a tenant transaction (savepoints) change nothing.
- * Unbound (console, queue workers, scheduler, webhooks, admin, marketplace), with TENANT_RLS off and on the owner
- * connection nothing is switched at all.
+ * insert, update or delete of a table under the policy outside a transaction is wrapped in one ("writes mode": reads
+ * outside transactions, and writes of other tables, stay as they were). Both are SET LOCAL, so they end with the
+ * transaction and nothing reaches the next client of a pooled server connection (PgBouncer, transaction mode).
+ * Transactions nested in a tenant transaction (savepoints) change nothing. Unbound (console, queue workers, scheduler,
+ * webhooks, admin, marketplace), with TENANT_RLS off and on the owner connection nothing is switched at all.
  *
  * "The first transaction opened" is level 1 in production. It is a savepoint when the bound code starts inside a
  * transaction somebody else opened: the test suite's wrapping transaction (RefreshDatabase), or unbound code. A
@@ -39,6 +39,12 @@ class RevisionPostgresConnection extends PostgresConnection
 
     /** The transaction level whose start took the tenant role; null = the login role */
     private ?int $tenantLevel = null;
+
+    /** The store that level was entered for (what a refusal is reported with) */
+    private ?int $tenantStore = null;
+
+    /** @var array<string, true>|null TenantRls::TABLES as a set */
+    private static ?array $tenantTables = null;
 
     /** Open TenantRls::asApp() sections (and queued jobs run inline by the sync queue): the login role inside them */
     private int $appRoleDepth = 0;
@@ -109,22 +115,32 @@ class RevisionPostgresConnection extends PostgresConnection
 
     public function statement($query, $bindings = [])
     {
-        return $this->asTenantWrite(fn () => parent::statement($query, $bindings));
+        return $this->asTenantWrite($query, fn () => parent::statement($query, $bindings));
     }
 
     public function affectingStatement($query, $bindings = [])
     {
-        return $this->asTenantWrite(fn () => parent::affectingStatement($query, $bindings));
+        return $this->asTenantWrite($query, fn () => parent::affectingStatement($query, $bindings));
     }
 
     public function selectFromWriteConnection($query, $bindings = [])
     {
         // Eloquent's `insert ... returning id` comes this way (PostgresProcessor); the schema builder's reads do too
-        if (stripos(ltrim((string) $query), 'insert') !== 0) {
-            return parent::selectFromWriteConnection($query, $bindings);
+        return $this->asTenantWrite($query, fn () => parent::selectFromWriteConnection($query, $bindings));
+    }
+
+    /**
+     * PostgreSQL refused a statement for lack of privilege (SQLSTATE 42501) under row-level security: a row of another
+     * store sent by a tenant transaction. Either the protection worked or a legitimate write was refused: both must be
+     * seen at once (TenantRls::refused: a critical log line and the monitoring alert). The exception goes on as it was.
+     */
+    protected function handleQueryException(QueryException $e, $query, $bindings, Closure $callback)
+    {
+        if ($e->getCode() === '42501' && ($this->inTenantRole() || str_contains($e->getMessage(), 'row-level security'))) {
+            TenantRls::refused($e, $this->inTenantRole() ? $this->tenantStore : null);
         }
 
-        return $this->asTenantWrite(fn () => parent::selectFromWriteConnection($query, $bindings));
+        return parent::handleQueryException($e, $query, $bindings, $callback);
     }
 
     /**
@@ -162,18 +178,31 @@ class RevisionPostgresConnection extends PostgresConnection
     }
 
     /**
-     * A single insert, update or delete outside a tenant transaction, while a store is bound: in a transaction of its
-     * own, so it runs under the policies too. Inside a tenant transaction, unbound or switched off: as it is.
+     * A single insert, update or delete of a table under the policy, outside a tenant transaction while a store is
+     * bound: in a transaction of its own, so it runs under the policy too. Everything else as it is: inside a tenant
+     * transaction, unbound, switched off, and statements that write another table or do not start with the write (a
+     * CTE): those run as the login role, as before stage 3.
      */
-    private function asTenantWrite(Closure $write): mixed
+    private function asTenantWrite(mixed $query, Closure $write): mixed
     {
         $this->forgetLeftTenantLevel();
 
-        if ($this->tenantLevel !== null || $this->appRoleDepth > 0 || $this->pretending || $this->storeToEnter() === null) {
+        if ($this->tenantLevel !== null || $this->appRoleDepth > 0 || $this->pretending
+            || !self::writesTenantTable((string) $query) || $this->storeToEnter() === null) {
             return $write();
         }
 
         return $this->transaction($write);
+    }
+
+    private static function writesTenantTable(string $query): bool
+    {
+        if (preg_match('/^\s*(?:insert\s+into|update|delete\s+from)\s+(?:only\s+)?(?:"?public"?\.)?"?(\w+)/i', $query, $match) !== 1) {
+            return false;
+        }
+        self::$tenantTables ??= array_fill_keys(TenantRls::TABLES, true);
+
+        return isset(self::$tenantTables[strtolower($match[1])]);
     }
 
     /** The store to take the tenant role for: null when unbound, switched off, or on the owner's connection */
@@ -191,8 +220,9 @@ class RevisionPostgresConnection extends PostgresConnection
      *
      * A till write must never fail because the switch cannot be made (the role is missing or the login role is not its
      * member: `app:check-production` refuses such a setup at start, this is the request that meets it anyway): the
-     * transaction is started again without it and runs as the login role, as with TENANT_RLS off, with one critical
-     * log line per connection. A lost connection is not that: it fails the transaction as it would at its first query.
+     * transaction is started again without it and runs as the login role, as with TENANT_RLS off, said once per
+     * connection (TenantRls::unavailable: a critical log line and the monitoring alert). A lost connection is not
+     * that: it fails the transaction as it would at its first query.
      */
     private function enterTenantRole(int $storeId): void
     {
@@ -202,7 +232,7 @@ class RevisionPostgresConnection extends PostgresConnection
             if ($role === null) {
                 throw new \RuntimeException('database.tenant_rls.role is not a plain role name');
             }
-            $this->getPdo()->exec("SET LOCAL ROLE \"{$role}\"; SELECT set_config('app.store_id', '{$storeId}', true)");
+            $this->getPdo()->exec("SET LOCAL ROLE \"{$role}\"; SET LOCAL app.store_id = '{$storeId}'");
         } catch (Throwable $e) {
             if ($this->causedByLostConnection($e)) {
                 try {
@@ -220,16 +250,13 @@ class RevisionPostgresConnection extends PostgresConnection
                 $this->getPdo()->beginTransaction();
             }
             $this->tenantRoleUnavailable = true;
-            Log::critical('tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security (run db-roles, then app:check-production)', [
-                'role' => $role,
-                'store_id' => $storeId,
-                'error' => mb_substr($e->getMessage(), 0, 300),
-            ]);
+            TenantRls::unavailable($e, $storeId);
 
             return;
         }
 
         $this->tenantLevel = $this->transactions;
+        $this->tenantStore = $storeId;
         self::$tenantTransactions++;
     }
 
@@ -266,6 +293,6 @@ class RevisionPostgresConnection extends PostgresConnection
 
     private function resetRole(): void
     {
-        $this->getPdo()->exec("SET LOCAL ROLE NONE; SELECT set_config('app.store_id', '', true)");
+        $this->getPdo()->exec("SET LOCAL ROLE NONE; SET LOCAL app.store_id = ''");
     }
 }

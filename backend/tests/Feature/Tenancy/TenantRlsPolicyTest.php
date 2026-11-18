@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tenancy;
 
+use App\Support\Database\OwnerConnection;
 use App\Support\Tenancy\TenantRls;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -124,6 +125,66 @@ class TenantRlsPolicyTest extends TestCase
 
         $this->assertSame([], $problems);
         $this->assertSame(DB::scalar('SELECT session_user'), DB::scalar('SELECT current_user'), 'the role ended with each rollback');
+    }
+
+    /**
+     * A month created or attached after the policy was put on the parent (db:partitions:ensure every night,
+     * scripts/archive-restore.sh for an archived month) needs nothing of its own: the parent's policy binds every
+     * statement that goes through the parent, whichever partition the rows are in, and the application never names a
+     * partition. (The partition itself has no policy: named directly it would show every store's rows.)
+     *
+     * The DDL is the schema owner's and has to be committed for this session to see it: two months far in the future,
+     * created the two ways the tools do it, dropped again whatever happens.
+     */
+    public function test_a_month_created_or_attached_later_is_bound_through_its_parent(): void
+    {
+        $role = self::tenantRole();
+        if ($role === null || !OwnerConnection::prepare()) {
+            $this->markTestSkipped('Needs the tenant role and the owner connection (split roles): runs in the CI job tests-app-role.');
+        }
+        $owner = DB::connection(OwnerConnection::NAME);
+        $owner->statement("SET lock_timeout = '5s'");
+
+        try {
+            $owner->statement("CREATE TABLE audit_logs_2090_01 PARTITION OF audit_logs FOR VALUES FROM ('2090-01-01') TO ('2090-02-01')");
+            $owner->statement('CREATE TABLE audit_logs_2090_02 (LIKE audit_logs INCLUDING DEFAULTS INCLUDING CONSTRAINTS)');
+            $owner->statement("ALTER TABLE audit_logs ATTACH PARTITION audit_logs_2090_02 FOR VALUES FROM ('2090-02-01') TO ('2090-03-01')");
+            $this->assertSame(0, (int) DB::scalar("SELECT count(*) FROM pg_class WHERE relname IN ('audit_logs_2090_01', 'audit_logs_2090_02') AND relrowsecurity"));
+
+            // In a savepoint: the rows, and this session's locks on the new months, go with it before the DROP below
+            DB::beginTransaction();
+            try {
+                $a = $this->makeStore('A')->id;
+                $b = $this->makeStore('B')->id;
+                foreach ([$a, $b] as $store) {
+                    foreach (['2090-01-15 10:00:00', '2090-02-15 10:00:00'] as $at) {
+                        DB::table('audit_logs')->insert(['store_id' => $store, 'action' => 'rls.partition', 'created_at' => $at]);
+                    }
+                }
+                $this->assertSame(2, (int) DB::scalar('SELECT count(*) FROM audit_logs_2090_01'), 'the rows are in the new month');
+
+                DB::unprepared("SET LOCAL ROLE \"{$role}\"; SELECT set_config('app.store_id', '{$a}', true)");
+                $seen = DB::selectOne("SELECT count(*) AS n, count(*) FILTER (WHERE store_id IS DISTINCT FROM {$a}) AS other FROM audit_logs WHERE action = 'rls.partition'");
+                $this->assertSame([2, 0], [(int) $seen->n, (int) $seen->other], 'through the parent the tenant role reads only its own rows of the new months');
+                foreach (['2090-01-20 10:00:00', '2090-02-20 10:00:00'] as $at) {
+                    DB::beginTransaction();
+                    try {
+                        DB::table('audit_logs')->insert(['store_id' => $b, 'action' => 'rls.partition', 'created_at' => $at]);
+                        $this->fail('the tenant role of store A inserted a row of store B into a new month');
+                    } catch (QueryException $e) {
+                        $this->assertSame('42501', $e->getCode());
+                    } finally {
+                        DB::rollBack();
+                    }
+                }
+            } finally {
+                DB::rollBack();
+            }
+        } finally {
+            $owner->statement('DROP TABLE IF EXISTS audit_logs_2090_01');
+            $owner->statement('DROP TABLE IF EXISTS audit_logs_2090_02');
+            DB::disconnect(OwnerConnection::NAME);
+        }
     }
 
     /**

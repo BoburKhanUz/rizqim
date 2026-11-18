@@ -33,6 +33,12 @@ x-backend-environment: &backend-environment
   DB_POOLER: direct
   DB_POOL_HOST: pgbouncer
   DB_POOL_PORT: 6432
+  # M4 3-bosqich, qator darajasidagi himoya (RLS): TENANT_RLS=1 bo'lsa do'kon so'rovining (kassa, panel, xodim ilovasi)
+  # har tranzaksiyasi rizqim_tenant roli bilan ishlaydi va PostgreSQL boshqa do'kon qatorlarini o'zi rad etadi. Bo'sh
+  # yoki 0 = rolga o'tilmaydi, hammasi avvalgidek (qaytarish: ildiz .env da TENANT_RLS=0, so'ng docker compose up -d).
+  # Rollar ajratilgan bo'lishi shart (DB_OWNER_USERNAME). docs/OPERATIONS.md, 24-bo'lim
+  TENANT_RLS: ${TENANT_RLS:-0}
+  DB_TENANT_ROLE: ${DB_TENANT_ROLE:-rizqim_tenant}
   REDIS_CLIENT: phpredis
   REDIS_HOST: redis
   REDIS_PORT: 6379
@@ -187,7 +193,8 @@ services:
       start_period: 10s
 
   # M4: baza rollari (scripts/db-roles.sh, bir martalik): rizqim_owner (jadvallar egasi: migratsiyalar, db:partitions:*),
-  # rizqim_app (DB_USERNAME: faqat ma'lumot, pg_monitor; php-fpm, queue, scheduler, reverb, PgBouncer). Har `up` da
+  # rizqim_app (DB_USERNAME: faqat ma'lumot, pg_monitor, BYPASSRLS; php-fpm, queue, scheduler, reverb, PgBouncer),
+  # rizqim_tenant (NOLOGIN: TENANT_RLS=1 da do'kon tranzaksiyalari shu rol bilan, RLS siyosatlari unga ta'sir qiladi). Har `up` da
   # ishlaydi va qayta ishga tushirish xavfsiz: yo'q rollarni yaratadi, parollarni env'dan qo'yadi (almashtirish), huquqlar,
   # egasi rizqim_owner bo'lmagan obyektlarni ko'chiradi (lock_timeout 2s, har biri alohida). DB_OWNER_USERNAME bo'sh =
   # rollar ajratilmagan: hech narsa qilmaydi. Bootstrap superuser bilan ulanadi. docs/OPERATIONS.md, «Baza rollari»
@@ -207,6 +214,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-secret}
       DB_OWNER_USERNAME: ${DB_OWNER_USERNAME:-}
       DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:-}
+      # M4 3-bosqich: do'kon tranzaksiyasi roli (NOLOGIN; ilova unga SET LOCAL ROLE bilan o'tadi, x-backend-environment)
+      DB_TENANT_ROLE: ${DB_TENANT_ROLE:-rizqim_tenant}
     volumes:
       - ./scripts/db-roles.sh:/usr/local/bin/db-roles.sh:ro
     entrypoint: ["sh", "/usr/local/bin/db-roles.sh"]

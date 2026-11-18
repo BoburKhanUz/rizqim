@@ -227,6 +227,8 @@ final class PartitionConverter
             // Every user trigger of the plain table follows it (read now, created after the copy: a BEFORE INSERT
             // trigger such as fiscal_receipt_keys_insert must not fire for the rows being moved)
             $triggers = $this->manager->userTriggers($table);
+            // M4 stage 3: and its row-level security (the policy `tenant`), given to the table that replaces it
+            $security = $this->manager->rowSecurity($table);
             $new = $table . self::NEW;
             $this->createPartitionedTable($table, $this->monthsToCreate($table));
             [$columns, $select] = $this->columnLists($table);
@@ -236,6 +238,7 @@ final class PartitionConverter
 
             $this->manager->boundedLock('LOCK TABLE ' . implode(', ', array_merge([$table], $referenced)) . ' IN ACCESS EXCLUSIVE MODE');
             $this->swapIn($table, $triggers);
+            $this->manager->copyRowSecurity($security, $table);
             DB::statement(sprintf('DROP TABLE %s', $table . self::OLD));
         });
 
@@ -265,6 +268,7 @@ final class PartitionConverter
             $plain = $table . '_m3_plain';
             $definition = self::definition($table);
             $triggers = $this->manager->userTriggers($table);
+            $security = $this->manager->rowSecurity($table);
             DB::statement(sprintf('DROP TABLE IF EXISTS %s', $plain));
             DB::statement(sprintf('CREATE TABLE %s (LIKE %s INCLUDING DEFAULTS INCLUDING STORAGE INCLUDING COMMENTS)', $plain, $table));
             foreach ($definition['plain']['nullable'] as $column) {
@@ -283,6 +287,7 @@ final class PartitionConverter
             $this->renameConstraints($table, $definition['plain'], '_m3plain', '');
             // After the copy, as in convertInline(): the triggers of the partitioned table, checked
             $this->manager->copyTriggers($triggers, $table);
+            $this->manager->copyRowSecurity($security, $table);
         });
 
         return true;

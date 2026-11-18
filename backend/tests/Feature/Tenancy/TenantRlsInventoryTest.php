@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tenancy;
 
+use App\Support\Partitions\PartitionManager;
 use App\Support\Tenancy\TenantRls;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -165,6 +166,34 @@ class TenantRlsInventoryTest extends TestCase
     }
 
     public function test_the_policy_is_on_exactly_the_listed_tables_in_the_agreed_shape(): void
+    {
+        $this->assertPolicies();
+    }
+
+    /**
+     * The journals are rebuilt as new tables when they are converted to partitions or back (the M3 migration's up() and
+     * down(), PartitionConverter): the table that replaces one keeps its row-level security, like its triggers.
+     */
+    #[\Tests\Concerns\AsSchemaOwner]
+    public function test_a_journal_rebuilt_by_the_partition_conversion_keeps_its_policy(): void
+    {
+        $manager = app(PartitionManager::class);
+        $conversion = require database_path('migrations/2026_11_25_100000_partition_journals.php');
+        // As PartitionMigrationTest: the fiscal keys migration goes first (its trigger needs the partitioned table)
+        $keys = require database_path('migrations/2026_11_25_100300_create_fiscal_receipt_keys_table.php');
+
+        $keys->down();
+        $conversion->down();
+        $this->assertSame(['r', 'r'], [$manager->relkind('audit_logs'), $manager->relkind('fiscal_receipts')]);
+        $this->assertPolicies();
+
+        $conversion->up();
+        $keys->up();
+        $this->assertTrue($manager->isPartitioned('audit_logs') && $manager->isPartitioned('fiscal_receipts'));
+        $this->assertPolicies();
+    }
+
+    private function assertPolicies(): void
     {
         $secured = DB::select("SELECT c.relname AS name, c.relforcerowsecurity AS forced FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relrowsecurity ORDER BY c.relname");

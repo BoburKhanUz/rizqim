@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\UserRole;
 use App\Models\User;
 use App\Support\Database\OwnerConnection;
+use App\Support\Tenancy\TenantRls;
 use Illuminate\Console\Command;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\DB;
@@ -88,7 +89,7 @@ class CheckProductionConfigCommand extends Command
             $this->warn("OGOHLANTIRISH: HEALTHCHECKS_PING_URL bo'sh: server yoki scheduler to'xtasa hech kim xabar bermaydi. healthchecks.io da bepul tekshiruv ochib, manzilini ildizdagi .env ga yozing (docs/OPERATIONS.md, 21-bo'lim).");
         }
 
-        $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->accountProblems());
+        $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->tenantRlsProblems(), $this->accountProblems());
         $this->warnPaymentProviders();
 
         if ($problems !== []) {
@@ -188,6 +189,86 @@ class CheckProductionConfigCommand extends Command
         }
 
         return $problems;
+    }
+
+    /**
+     * M4 stage 3 (docs/scale/M4_DESIGN.md 4.3, docs/OPERATIONS.md section 24): row-level security.
+     *
+     * Always: the application's own role must not be bound by the policies (it is the tables' owner, or has BYPASSRLS
+     * from scripts/db-roles.sh). A bound login role sees no row of the money tables outside tenant transactions: every
+     * queue worker, webhook and report would silently work on nothing.
+     * With TENANT_RLS on: the application must be able to take the tenant role (SET LOCAL ROLE), and that role must be
+     * bound by the policies (no superuser, no BYPASSRLS, not the tables' owner or a member of it). Otherwise every
+     * tenant transaction would quietly run without the protection the setting promises (the connection's fail-open
+     * path keeps the tills working, but that is for a role lost at runtime, not for starting in that state).
+     * This runs before the migrations (backend/docker/entrypoint.sh), so tables without the policy yet are not a problem.
+     *
+     * @return list<string>
+     */
+    private function tenantRlsProblems(): array
+    {
+        $problems = [];
+        try {
+            $bound = DB::select(
+                "SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relrowsecurity AND row_security_active(c.oid)
+                  ORDER BY c.relname",
+            );
+            if ($bound !== []) {
+                $role = (string) DB::scalar('SELECT current_user');
+                $names = implode(', ', array_slice(array_map(fn (object $row) => (string) $row->name, $bound), 0, 5)) . (count($bound) > 5 ? ', ...' : '');
+                $problems[] = "Ilova roli {$role} ga qator darajasidagi himoya (RLS) ta'sir qiladi (" . count($bound) . " ta jadval: {$names}): navbat, vebhuk va hisobotlar bu jadvallarda hech narsa ko'rmaydi. Rolga BYPASSRLS bering: docker compose run --rm db-roles (docs/OPERATIONS.md, 24-bo'lim)";
+            }
+
+            if (!TenantRls::enabled()) {
+                return $problems;
+            }
+            $role = TenantRls::role();
+            if ($role === null) {
+                $problems[] = "TENANT_RLS=1, lekin DB_TENANT_ROLE noto'g'ri: rol nomi faqat kichik lotin harf, raqam va '_' dan iborat bo'lsin (standart: rizqim_tenant)";
+
+                return $problems;
+            }
+            $row = DB::selectOne(
+                "SELECT pg_has_role(current_user, r.oid, 'MEMBER') AS member,
+                        r.rolsuper OR r.rolbypassrls OR COALESCE((SELECT bool_or(pg_has_role(r.oid, c.relowner, 'USAGE')) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                            WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p')), false) AS free
+                   FROM pg_roles r WHERE r.rolname = ?",
+                [$role],
+            );
+            $fix = "Rollarni yangilang: docker compose run --rm db-roles, yoki himoyani o'chiring: TENANT_RLS=0 (docs/OPERATIONS.md, 24-bo'lim)";
+            if ($row === null) {
+                $problems[] = "TENANT_RLS=1, lekin bazada {$role} roli yo'q: do'kon tranzaksiyalari himoyasiz ishlar edi. {$fix}";
+            } elseif ($row->free) {
+                $problems[] = "TENANT_RLS=1, lekin {$role} roli himoyani chetlab o'tadi (superuser, BYPASSRLS yoki jadvallar egasi / uning a'zosi): do'kon tranzaksiyalari himoyasiz ishlar edi. {$fix}";
+            } elseif (!$row->member || !$this->canTakeRole($role)) {
+                $problems[] = "TENANT_RLS=1, lekin ilova {$role} roliga o'ta olmaydi (SET ROLE): do'kon tranzaksiyalari himoyasiz ishlar edi. {$fix}";
+            } else {
+                $this->info("Qator himoyasi (RLS): yoqilgan, do'kon so'rovlarining tranzaksiyalari {$role} roli bilan ishlaydi.");
+            }
+        } catch (\Throwable $e) {
+            $this->warn("OGOHLANTIRISH: qator darajasidagi himoyani (RLS) tekshirib bo'lmadi: " . mb_substr($e->getMessage(), 0, 200));
+        }
+
+        return $problems;
+    }
+
+    /**
+     * SET LOCAL ROLE in a transaction of its own, as a tenant request does it (PostgreSQL 16+: a membership may forbid
+     * SET while it exists).
+     */
+    private function canTakeRole(string $role): bool
+    {
+        DB::beginTransaction();
+        try {
+            DB::statement("SET LOCAL ROLE \"{$role}\"");
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        } finally {
+            DB::rollBack();
+        }
     }
 
     /**

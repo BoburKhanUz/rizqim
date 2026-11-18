@@ -52,6 +52,7 @@ class PaymentStoreIdMigrationTest extends TestCase
         $theirs = $this->makeOrder(OrderStatus::NEW, ['store_id' => $this->other->id]);
         $topup = $this->topup($this->other);
 
+        $this->rowLevelSecurity()->down();
         $migration = require database_path(self::MIGRATION);
         $migration->down();
         $this->assertFalse(Schema::hasColumn('payments', 'store_id'));
@@ -83,6 +84,7 @@ class PaymentStoreIdMigrationTest extends TestCase
     public function test_a_payment_without_a_parent_store_leaves_the_column_nullable_and_the_migration_completes(): void
     {
         $mine = $this->makeOrder(OrderStatus::NEW);
+        $this->rowLevelSecurity()->down();
         $migration = require database_path(self::MIGRATION);
         $migration->down();
         $resolved = $this->rawPayment(['order_id' => $mine->id]);
@@ -185,6 +187,15 @@ class PaymentStoreIdMigrationTest extends TestCase
                 $this->assertSame('23502', $e->getCode(), $e->getMessage()); // not_null_violation
             }
         }
+    }
+
+    /**
+     * M4 stage 3: the policy `tenant` on payments (migration 2026_11_28_100000) depends on store_id, so that migration
+     * is rolled back before this one, as `migrate:rollback` does it (in order).
+     */
+    private function rowLevelSecurity(): \Illuminate\Database\Migrations\Migration
+    {
+        return require database_path('migrations/2026_11_28_100000_enable_tenant_row_level_security.php');
     }
 
     private function storeFinding(): ?AlertFinding

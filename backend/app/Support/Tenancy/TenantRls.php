@@ -3,7 +3,10 @@
 namespace App\Support\Tenancy;
 
 use App\Domain\Realtime\RevisionPostgresConnection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * M4 stage 3 (docs/scale/M4_DESIGN.md 4.3): row-level security for tenant requests.
@@ -40,6 +43,58 @@ final class TenantRls
         $role = (string) config('database.tenant_rls.role', 'rizqim_tenant');
 
         return preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) === 1 ? $role : null;
+    }
+
+    /** Cache keys of the last problem of each kind, kept for PROBLEM_TTL (read by the monitoring check `partitions`) */
+    public const REFUSED = 'tenant_rls:refused';
+
+    public const UNAVAILABLE = 'tenant_rls:unavailable';
+
+    public const PROBLEM_TTL = 3600;
+
+    /**
+     * PostgreSQL refused a statement of a tenant transaction (SQLSTATE 42501: a row of another store on a table under
+     * the policy, or a table the tenant role may not write). The till gets the usual server error; here the refusal
+     * becomes visible at once: a critical log line (table, route, store: no row data) and a marker the monitoring
+     * check turns into an alert. Never throws.
+     */
+    public static function refused(Throwable $e, ?int $storeId): void
+    {
+        preg_match('/for (?:table|relation|sequence|function|schema) "?([\w.]+)/', $e->getMessage(), $match);
+        self::report(self::REFUSED, 'tenant_rls: PostgreSQL refused a write (row-level security)', [
+            'table' => $match[1] ?? null,
+            'store_id' => $storeId,
+        ]);
+    }
+
+    /**
+     * TENANT_RLS is on but the tenant role could not be taken (no such role, the login role is not its member): the
+     * request went on as the login role, WITHOUT row-level security. Never throws.
+     */
+    public static function unavailable(Throwable $e, int $storeId): void
+    {
+        self::report(self::UNAVAILABLE, 'tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security (run db-roles, then app:check-production)', [
+            'role' => (string) config('database.tenant_rls.role'),
+            'store_id' => $storeId,
+            'error' => mb_substr((string) preg_replace('/\s+/', ' ', $e->getMessage()), 0, 200),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private static function report(string $key, string $message, array $context): void
+    {
+        try {
+            $route = request()->route();
+            $context['route'] = $route instanceof \Illuminate\Routing\Route ? request()->method() . ' ' . $route->uri() : null;
+            Log::critical($message, $context);
+            $count = (int) (Cache::get($key)['count'] ?? 0) + 1;
+            Cache::put($key, $context + ['count' => $count, 'at' => now()->toIso8601String()], self::PROBLEM_TTL);
+        } catch (Throwable) {
+            // Reporting must not turn one failure into another (a cache kept in the database cannot be written while
+            // the failed statement's transaction is still open: the log line is then all there is)
+        }
     }
 
     /**

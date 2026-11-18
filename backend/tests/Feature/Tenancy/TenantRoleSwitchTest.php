@@ -5,9 +5,14 @@ namespace Tests\Feature\Tenancy;
 use App\Domain\Realtime\RevisionPostgresConnection;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
+use App\Models\AlertRule;
+use App\Models\AuditLog;
 use App\Models\Category;
+use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Admin\Monitoring\AlertFinding;
+use App\Services\Admin\Monitoring\Checks\PartitionsCheck;
 use App\Support\Database\OwnerConnection;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantRls;
@@ -19,6 +24,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -106,6 +112,12 @@ class TenantRoleSwitchTest extends TestCase
         $this->bearerJson('POST', $uri, ($owner ?? $this->owner)->createToken('t')->plainTextToken)->assertOk();
     }
 
+    private function finding(string $subject): ?AlertFinding
+    {
+        return collect(app(PartitionsCheck::class)->findings((new AlertRule)->forceFill(['kind' => 'partitions', 'threshold' => 2])))
+            ->keyBy('subjectKey')->get($subject);
+    }
+
     private function fakeDeadlock(): PDOException
     {
         return new PDOException('SQLSTATE[40P01]: Deadlock detected: 7 ERROR:  deadlock detected');
@@ -139,27 +151,32 @@ class TenantRoleSwitchTest extends TestCase
         $this->assertSame($before + 2, RevisionPostgresConnection::$tenantTransactions, 'one switch per outermost transaction, none for the nested ones');
     }
 
-    public function test_a_single_write_outside_a_transaction_runs_under_the_role_and_a_read_does_not(): void
+    public function test_a_single_write_of_a_table_under_the_policy_outside_a_transaction_runs_under_the_role(): void
     {
-        $who = DB::raw("current_user || '|' || current_setting('app.store_id', true)");
-        $slug = 'rls-' . Str::random(8);
-        $uri = $this->tenantRoute('single', function () use ($who, $slug) {
-            User::whereKey($this->manager->id)->update(['name' => $who]); // Eloquent mass update
-            DB::table('users')->where('id', $this->courier->id)->update(['name' => $who]); // query builder
-            Category::create(['name' => $who, 'slug' => $slug]); // insert ... returning id
-            DB::update('UPDATE stores SET name = ' . $who->getValue(DB::getQueryGrammar()) . ' WHERE id = ?', [$this->store->id]); // raw
+        $who = "current_user || '|' || coalesce(current_setting('app.store_id', true), '')";
+        $order = $this->makeOrder(OrderStatus::NEW);
+        $second = $this->makeOrder(OrderStatus::NEW);
+        $third = $this->makeOrder(OrderStatus::NEW);
+        $uri = $this->tenantRoute('single', function () use ($who, $order, $second, $third) {
+            Order::whereKey($order->id)->update(['notes' => DB::raw($who)]); // Eloquent mass update
+            DB::table('orders')->where('id', $second->id)->update(['notes' => DB::raw($who)]); // query builder
+            DB::update("UPDATE orders SET notes = {$who} WHERE id = ?", [$third->id]); // raw
+            AuditLog::create(['store_id' => $this->store->id, 'action' => DB::raw($who)]); // insert ... returning id
+            // Not under the policy: as before stage 3 (no transaction of its own, the login role)
+            User::whereKey($this->manager->id)->update(['name' => DB::raw($who)]);
             self::note('read');
         });
+        $before = RevisionPostgresConnection::$tenantTransactions;
 
         $this->asOwner($uri);
 
         $a = "{$this->tenant}|{$this->store->id}";
-        $this->assertSame($a, $this->manager->fresh()->name);
-        $this->assertSame($a, $this->courier->fresh()->name);
-        $this->assertSame($a, Category::where('slug', $slug)->value('name'));
-        $this->assertSame($a, $this->store->fresh()->name);
+        $this->assertSame([$a, $a, $a], [$order->fresh()->notes, $second->fresh()->notes, $third->fresh()->notes]);
+        $this->assertSame(1, AuditLog::where('store_id', $this->store->id)->where('action', $a)->count());
+        $this->assertSame("{$this->login}|", $this->manager->fresh()->name);
         // Writes mode: a read outside a transaction stays with the application guard
         $this->assertSame(["read={$this->login}|"], self::$seen);
+        $this->assertSame($before + 4, RevisionPostgresConnection::$tenantTransactions);
         $this->assertSame("{$this->login}|", self::probe());
     }
 
@@ -382,7 +399,7 @@ class TenantRoleSwitchTest extends TestCase
             $this->assertSame("{$this->login}|", self::probe($connection));
 
             // A single write outside a transaction: wrapped in one (nothing matches, nothing is written)
-            $this->assertSame(0, $connection->update('UPDATE stores SET name = name WHERE id = -1'));
+            $this->assertSame(0, $connection->update('UPDATE orders SET notes = notes WHERE id = -1'));
             $this->assertSame($before + 4, RevisionPostgresConnection::$tenantTransactions);
             $this->assertSame(0, $connection->transactionLevel());
             $this->assertSame("{$this->login}|", self::probe($connection));
@@ -401,6 +418,44 @@ class TenantRoleSwitchTest extends TestCase
 
         // Unbound: the same connection, no switch
         $this->assertSame("{$this->login}|", $connection->transaction(fn () => self::probe($connection)));
+    }
+
+    /**
+     * A write PostgreSQL refuses under the policy (here a forged row for another store, by raw SQL: the application
+     * guard is out of the way): the client gets the usual server error and nothing else, the log and the monitoring
+     * marker say which table, route and store, without any row data.
+     */
+    public function test_a_refused_write_is_a_server_error_for_the_client_and_loud_for_the_operator(): void
+    {
+        config(['app.debug' => false]);
+        Log::spy();
+        $uri = $this->tenantRoute('refused', fn () => DB::transaction(
+            fn () => DB::table('audit_logs')->insert(['store_id' => $this->storeB->id, 'action' => 'forged', 'created_at' => now()]),
+        ));
+
+        $this->bearerJson('POST', $uri, $this->owner->createToken('t')->plainTextToken)
+            ->assertStatus(500)
+            ->assertExactJson(['message' => 'Server Error']);
+
+        $expected = ['table' => 'audit_logs', 'store_id' => $this->store->id, 'route' => 'POST api/test-rls/refused'];
+        Log::shouldHaveReceived('critical')->once()->withArgs(
+            fn (string $message, array $context) => str_contains($message, 'tenant_rls: PostgreSQL refused a write') && $context === $expected,
+        );
+        $marker = Cache::get(TenantRls::REFUSED);
+        $this->assertSame($expected + ['count' => 1], array_diff_key($marker, ['at' => true]));
+        // The owner's alert (the monitoring check `partitions`, critical), with the way to switch it off
+        $finding = $this->finding('tenant_rls_refused');
+        $this->assertSame(['critical', $this->store->id], [$finding->severity, $finding->storeId]);
+        $this->assertStringContainsString("1 marta (oxirgisi: jadval audit_logs, yo'l POST api/test-rls/refused, do'kon {$this->store->id})", $finding->title);
+        $this->assertStringContainsString('TENANT_RLS=0', $finding->title);
+        $this->assertSame(0, DB::table('audit_logs')->where('action', 'forged')->count());
+        $this->assertSame("{$this->login}|", self::probe());
+
+        // The same single statement outside a transaction is wrapped in one and refused the same way
+        $single = $this->tenantRoute('refused-single', fn () => DB::table('audit_logs')->insert(['store_id' => $this->storeB->id, 'action' => 'forged', 'created_at' => now()]));
+        $this->bearerJson('POST', $single, $this->owner->createToken('t')->plainTextToken)->assertStatus(500);
+        $this->assertSame(2, Cache::get(TenantRls::REFUSED)['count']);
+        $this->assertSame(0, DB::table('audit_logs')->where('action', 'forged')->count());
     }
 
     /**
@@ -424,7 +479,13 @@ class TenantRoleSwitchTest extends TestCase
 
         $this->assertSame(["first={$this->login}|", "second={$this->login}|"], self::$seen);
         $this->assertTrue(Category::where('slug', $slug)->exists(), 'the transaction was started again and its work is kept');
-        Log::shouldHaveReceived('critical')->once()->withArgs(fn (string $message) => str_contains($message, 'tenant_rls'));
+        Log::shouldHaveReceived('critical')->once()->withArgs(fn (string $message) => str_contains($message, 'WITHOUT row-level security'));
+        $this->assertSame(['role' => 'rls_test_no_such_role', 'store_id' => $this->store->id, 'route' => 'POST api/test-rls/missing-role', 'count' => 1],
+            array_diff_key(Cache::get(TenantRls::UNAVAILABLE), ['error' => true, 'at' => true]));
+        $finding = $this->finding('tenant_rls_unavailable');
+        $this->assertSame('critical', $finding->severity);
+        $this->assertStringContainsString("ilova rls_test_no_such_role roliga o'ta olmadi (1 marta)", $finding->title);
+        $this->assertNull($this->finding('tenant_rls_refused'), 'nothing was refused');
 
         // The same on a real transaction (ROLLBACK, BEGIN again)
         config(['database.connections.rls_level0' => config('database.connections.pgsql')]);

@@ -67,6 +67,9 @@ class CheckProductionDatabaseRoleTest extends TestCase
 
     public function test_an_install_still_on_one_role_only_gets_a_warning(): void
     {
+        // An install on one role has no tenant role to switch to: TENANT_RLS is off there (M4 stage 3; the CI job
+        // tests-app-role runs the suite with it on, and with it on app:check-production asks for that role)
+        config(['database.tenant_rls.enabled' => false]);
         [$owner, $what] = $this->connectAsOwner();
 
         $this->withEnv(['DB_OWNER_USERNAME' => null, 'DB_OWNER_PASSWORD' => null], function () use ($owner, $what) {
