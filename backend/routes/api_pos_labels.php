@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\V1\Management\BranchLabelSettingsController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'not-staff-session'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session'])->group(function () {
     Route::get('/owner/branches/{id}/label-settings', [BranchLabelSettingsController::class, 'show'])->where('id', RowId::ROUTE_PATTERN)
         ->middleware(['permission:settings.manage', 'pos.module:labels']);
     Route::put('/owner/branches/{id}/label-settings', [BranchLabelSettingsController::class, 'update'])->where('id', RowId::ROUTE_PATTERN)

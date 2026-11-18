@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\DeviceType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class DevicePairingCode extends Model
 {
+    use BelongsToStore;
+
     protected $fillable = [
         'store_id',
         'branch_id',

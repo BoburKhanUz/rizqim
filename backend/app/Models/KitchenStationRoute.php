@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Setup\KitchenStationRouter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class KitchenStationRoute extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected static function booted(): void

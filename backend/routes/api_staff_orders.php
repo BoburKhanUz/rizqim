@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\V1\Order\StaffOrderController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->prefix('staff')->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->prefix('staff')->group(function () {
     Route::get('/orders', [StaffOrderController::class, 'index'])->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('branch', 120)]);
     Route::get('/orders/{uuid}', [StaffOrderController::class, 'show'])->whereUuid('uuid')->middleware(['permission:orders.view', \App\Http\Middleware\ConditionalGet::using('order', 120)]);
     // [P2-30] orders.assign_courier too: the dispatcher marks the assigned courier's pick-up (on_the_way)

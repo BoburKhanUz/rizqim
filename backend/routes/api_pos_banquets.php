@@ -15,7 +15,7 @@ use App\Http\Middleware\EnsureIdempotency;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::prefix('pos')->group(function () {
         Route::middleware('permission:banquets.manage,pos.take_payment')->group(function () {
             Route::get('/banquets/calendar', [BanquetController::class, 'calendar']);

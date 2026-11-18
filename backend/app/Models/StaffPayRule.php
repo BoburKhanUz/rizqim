@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class StaffPayRule extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     protected $guarded = ['id'];

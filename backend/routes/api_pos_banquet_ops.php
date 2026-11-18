@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\Pos\BanquetOpsController;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     Route::prefix('pos/banquets')->group(function () {
         // The kitchen's papers: the cook too (kitchen.manage), no customer data on them
         Route::middleware(['permission:banquets.manage,pos.take_payment,reports.view,kitchen.manage', 'pos.module:banquet'])->group(function () {

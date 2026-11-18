@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class BranchTakeawaySettings extends Model
 {
+    use BelongsToStore;
+
     protected $table = 'branch_takeaway_settings';
 
     protected $guarded = ['id'];

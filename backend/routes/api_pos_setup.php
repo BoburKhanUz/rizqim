@@ -18,7 +18,7 @@ use App\Http\Controllers\Api\V1\Pos\PosCatalogController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Everything a terminal needs to start work on its branch (a terminal PIN session or a normal staff sign-in)
     Route::get('/pos/bootstrap', [PosBootstrapController::class, 'show'])->middleware('permission:orders.view');
     // P3-26: the POS menu with a typed answer (the same as GET /catalog?channel=pos_hall|pos_takeaway)

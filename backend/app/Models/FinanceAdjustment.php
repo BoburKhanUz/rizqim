@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -36,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class FinanceAdjustment extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     public const PENDING = 'pending';

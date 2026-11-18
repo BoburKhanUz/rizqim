@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,6 +22,7 @@ use App\Traits\Auditable;
  */
 class Branch extends Model
 {
+    use BelongsToStore;
     use Auditable;
 
     protected $guarded = ['id'];

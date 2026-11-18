@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\SubscriptionStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -36,6 +37,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class StoreSubscription extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected function casts(): array

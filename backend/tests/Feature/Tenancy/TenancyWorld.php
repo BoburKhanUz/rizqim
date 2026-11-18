@@ -1270,6 +1270,21 @@ trait TenancyWorld
         $writes = $this->writeCounters();
         $this->sideEffects = [];
         $http = count(Http::recorded());
+        // M4 stage 2: every store the `tenant` middleware binds during the call (the scoped instance is fresh per call)
+        $bound = [];
+        $this->app->scoped(\App\Support\Tenancy\TenantContext::class, function () use (&$bound) {
+            return new class ($bound) extends \App\Support\Tenancy\TenantContext {
+                /** @param  list<int>  $bound */
+                public function __construct(private array &$bound) {}
+
+                public function runAs(int $storeId, callable $callback): mixed
+                {
+                    $this->bound[] = $storeId;
+
+                    return parent::runAs($storeId, $callback);
+                }
+            };
+        });
         DB::beginTransaction();
         try {
             $this->withBearer($token);
@@ -1331,6 +1346,7 @@ trait TenancyWorld
             'after' => $after,
             'side' => $side,
             'also' => $also,
+            'tenant' => $bound,
         ];
     }
 

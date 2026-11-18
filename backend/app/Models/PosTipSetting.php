@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Tips\TipMode;
 use App\Domain\Pos\Tips\TipPoolPeriod;
 use App\Domain\Pos\Tips\TipPoolRule;
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PosTipSetting extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected function casts(): array

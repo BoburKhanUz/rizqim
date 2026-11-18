@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\V1\Fiscal\FiscalReceiptController;
 use App\Http\Controllers\Api\V1\Fiscal\FiscalSettingsController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Receipts: read by finance.view or reports.view (a branch-bound caller or a terminal PIN session: their branch)
     Route::get('/owner/fiscal/receipts', [FiscalReceiptController::class, 'index'])->middleware('permission:finance.view,reports.view');
     Route::get('/owner/fiscal/receipts/{uuid}', [FiscalReceiptController::class, 'show'])->whereUuid('uuid')->middleware('permission:finance.view,reports.view');

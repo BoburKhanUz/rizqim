@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Vouchers\VoucherKind;
 use App\Domain\Pos\Vouchers\VoucherStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Voucher extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     protected $guarded = ['id'];

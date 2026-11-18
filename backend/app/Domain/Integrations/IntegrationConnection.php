@@ -2,6 +2,7 @@
 
 namespace App\Domain\Integrations;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Models\Branch;
 use App\Models\Store;
 use App\Models\User;
@@ -44,6 +45,8 @@ use Illuminate\Support\Str;
  */
 class IntegrationConnection extends Model
 {
+    use BelongsToStore;
+
     /** @use HasFactory<IntegrationConnectionFactory> */
     use HasFactory;
 

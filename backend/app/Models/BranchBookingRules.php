@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Booking\BookingDepositMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class BranchBookingRules extends Model
 {
+    use BelongsToStore;
+
     protected $table = 'branch_booking_rules';
 
     protected $guarded = ['id'];

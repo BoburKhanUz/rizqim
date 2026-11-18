@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Banquet\BanquetEventStatus;
 use App\Domain\Pos\Banquet\BanquetEventType;
 use App\Domain\Pos\Banquet\BanquetSlot;
@@ -57,6 +58,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class BanquetEvent extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     protected $guarded = ['id'];

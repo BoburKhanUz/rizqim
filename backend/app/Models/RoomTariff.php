@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\DayType;
 use App\Enums\DiningTableKind;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class RoomTariff extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected $casts = [

@@ -21,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
 
         // P4-32: the payment providers' switches, read once per request or queued job (a store list asks per store)
         $this->app->scoped(\App\Services\Payment\PaymentProviderSwitch::class);
+
+        // M4 stage 2: the tenant request's store (BindTenant binds it per request; scoped: forgotten between jobs)
+        $this->app->scoped(\App\Support\Tenancy\TenantContext::class);
     }
 
     /**

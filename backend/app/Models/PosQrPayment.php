@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\QrPayments\QrPaymentStatus;
 use App\Domain\Pos\QrPayments\QrProvider;
 use Illuminate\Database\Eloquent\Model;
@@ -40,6 +41,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PosQrPayment extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     /** The account Click (`merchant_trans_id`) and Payme (`account.order_id`) carry for a POS QR. */

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\StaffPay\StatementStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class StaffPayStatement extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     protected $guarded = ['id'];

@@ -58,7 +58,8 @@ class DevicePairingService
             // A code must not collide with another store's live code: the terminal sends nothing else
             do {
                 $code = self::generateCode();
-            } while (DevicePairingCode::where('code_hash', self::hash($code))->usable()->exists());
+            // M4: across every store (the owner's request is bound to their store): pairing finds a code by its hash alone
+            } while (DevicePairingCode::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('code_hash', self::hash($code))->usable()->exists());
 
             $expiresAt = now()->addMinutes(max(1, (int) config('auth.pairing.ttl', 10)));
             $pairing = DevicePairingCode::create([

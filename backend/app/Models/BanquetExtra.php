@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Banquet\BanquetExtraPricing;
 use Illuminate\Database\Eloquent\Model;
 
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class BanquetExtra extends Model
 {
+    use BelongsToStore;
     use \App\Traits\HasPublicUuid;
 
     protected $guarded = ['id'];

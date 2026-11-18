@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\V1\Fiscal\TerminalFlowController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api', 'not-staff-session', 'pos.module:terminal_card_flow'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api', 'not-staff-session', 'pos.module:terminal_card_flow'])->group(function () {
     Route::middleware('permission:settings.manage')->group(function () {
         Route::get('/owner/fiscal/terminal-flow', [TerminalFlowController::class, 'index']);
         Route::put('/owner/branches/{branch}/terminal-flow', [TerminalFlowController::class, 'update'])->where('branch', RowId::ROUTE_PATTERN);

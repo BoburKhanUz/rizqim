@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StoreRating extends Model
 {
+    use BelongsToStore;
+
     protected $fillable = [
         'user_id',
         'store_id',

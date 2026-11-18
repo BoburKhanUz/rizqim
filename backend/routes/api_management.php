@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\Management\StaffController;
 use App\Support\RowId;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'staff.store', 'throttle:api'])->group(function () {
+Route::middleware(['auth:sanctum', 'staff.store', 'tenant', 'throttle:api'])->group(function () {
     // Sales reports (the same figures as /owner/analytics); a CSV download is a heavier read, so it has its own limit
     Route::middleware('permission:reports.view')->group(function () {
         Route::get('/owner/reports/sales', [ReportController::class, 'sales']);

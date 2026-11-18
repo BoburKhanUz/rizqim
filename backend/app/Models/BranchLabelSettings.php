@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Domain\Pos\Labels\LabelScope;
 use App\Domain\Pos\Labels\LabelSize;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class BranchLabelSettings extends Model
 {
+    use BelongsToStore;
+
     protected $table = 'branch_label_settings';
 
     protected $guarded = ['id'];

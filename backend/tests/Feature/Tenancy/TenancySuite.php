@@ -106,6 +106,12 @@ trait TenancySuite
             $positive = $this->isolatedCall($method, self::fill($uri, $params['A']), $token, $bodies['A']);
             $expected = $extra ? [$positive['status']] : (array) $ok[$actor];
             $label = "{$key} as {$actor}";
+            // M4 stage 2: a route with the `tenant` middleware (TenantMiddlewareCoverageTest: every tenant route but
+            // NOT_BOUND) ran bound to A's store, once; a staff route refuses a terminal's token before that
+            $tenant = $actor !== 'terminal' && in_array('tenant', $middleware, true) ? [(int) $this->world['A']['store']->id] : [];
+            if ($positive['tenant'] !== $tenant) {
+                $failures[] = "{$label}: bound to store(s) [" . implode(', ', $positive['tenant']) . '], expected [' . implode(', ', $tenant) . ']';
+            }
             if ($actor === 'terminal' && $positive['status'] < 400) {
                 $failures[] = "{$label}: a terminal's own token passes a staff route ({$positive['status']})";
             }

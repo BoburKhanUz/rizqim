@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToStore;
 use App\Enums\OrderChannel;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,6 +16,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ChannelCommission extends Model
 {
+    use BelongsToStore;
+
     protected $guarded = ['id'];
 
     protected $casts = [
