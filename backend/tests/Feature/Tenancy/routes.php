@@ -22,7 +22,11 @@
  *   'logs_request' => [table => why]     tables where B's call may leave a log of exactly what it sent (ids it named),
  *   'filter' => true                     the ids are a list's filter: B's call may answer 2xx with A's own (or no) rows,
  *   'refused' => fn (array $json) => bool   a batch answering 200 refuses per item: whether B's call was refused,
+ *   'not_ref' => [key => why]            id keys of the route's request rules (API spec) that name no store's record;
+ *                                        every other `*_id`, `*_ids`, `*_uuid` key the entry does not send is sent with
+ *                                        B's value on its own (TenancySuite::idKeys) and may only be refused or ignored,
  * ]
+ * uncovered: routes no actor's own call gets through (2xx), with the reason; any other such route fails the pass.
  * not_tenant: routes outside the tenant prefixes (or under them but not tenant data), with the reason.
  * known: findings handed to the fixing agent; CrossTenantRouteTest::test_known_findings_are_fixed fails until each holds.
  */
@@ -75,9 +79,9 @@ $pos = [
         'ok' => $o(200, 200, 403),
     ],
     'PATCH api/v1/pos/banquets/{uuid}/guests' => [
-        'params' => fn (array $s) => ['uuid' => $s['banquet']->uuid],
-        'body' => fn (array $s) => ['guests_actual' => 90, 'version' => $v($s['banquet'])],
-        'ok' => $o(409, 409, 403),
+        'params' => fn (array $s) => ['uuid' => $s['banquet_live']->uuid],
+        'body' => fn (array $s) => ['guests_actual' => 90, 'version' => $v($s['banquet_live'])],
+        'ok' => $o(200, 200, 403),
     ],
     'GET api/v1/pos/banquets/{uuid}/payments' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
     'PUT api/v1/pos/banquets/{uuid}/payments' => [
@@ -105,10 +109,10 @@ $pos = [
     ],
     'GET api/v1/pos/banquets/{uuid}/production-sheet' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
     'GET api/v1/pos/banquets/{uuid}/production-sheet/export' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
-    'POST api/v1/pos/banquets/{uuid}/settle' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(409)],
+    'POST api/v1/pos/banquets/{uuid}/settle' => ['params' => fn (array $s) => ['uuid' => $s['banquet_live']->uuid], 'ok' => $o(409, 409, 200)],
     'GET api/v1/pos/banquets/{uuid}/settlement' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
     'POST api/v1/pos/banquets/{uuid}/settlement/refund-excess' => [
-        'params' => fn (array $s) => ['uuid' => $s['banquet']->uuid],
+        'params' => fn (array $s) => ['uuid' => $s['banquet_live']->uuid],
         'body' => fn (array $s) => ['tender' => 'cash'],
         'ok' => $o(404),
     ],
@@ -119,14 +123,14 @@ $pos = [
     ],
     'GET api/v1/pos/banquets/{uuid}/staff' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
     'POST api/v1/pos/banquets/{uuid}/start' => [
-        'params' => fn (array $s) => ['uuid' => $s['banquet']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['banquet'])],
-        'ok' => $o(409),
+        'params' => fn (array $s) => ['uuid' => $s['banquet_conf']->uuid],
+        'body' => fn (array $s) => ['version' => $v($s['banquet_conf'])],
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/banquets/{uuid}/unfreeze' => [
-        'params' => fn (array $s) => ['uuid' => $s['banquet']->uuid],
-        'body' => fn (array $s) => ['reason' => 'Tuzatish', 'version' => $v($s['banquet'])],
-        'ok' => $o(409, 409, 403),
+        'params' => fn (array $s) => ['uuid' => $s['banquet_frozen']->uuid],
+        'body' => fn (array $s) => ['reason' => 'Tuzatish', 'version' => $v($s['banquet_frozen'])],
+        'ok' => $o(200, 200, 403),
     ],
     'GET api/v1/pos/banquets/{uuid}/warnings' => ['params' => fn (array $s) => ['uuid' => $s['banquet']->uuid], 'ok' => $o(200)],
 
@@ -172,9 +176,9 @@ $pos = [
         'ok' => $o(200),
     ],
     'POST api/v1/pos/bookings/{uuid}/confirm' => [
-        'params' => fn (array $s) => ['uuid' => $s['booking']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['booking'])],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['booking_new']->uuid],
+        'body' => fn (array $s) => ['version' => $v($s['booking_new'])],
+        'ok' => $o(200, 200, 200),
     ],
     'GET api/v1/pos/bookings/{uuid}/confirmation' => ['params' => fn (array $s) => ['uuid' => $s['booking']->uuid], 'ok' => $o(200)],
     'POST api/v1/pos/bookings/{uuid}/confirmation/send' => [
@@ -193,9 +197,9 @@ $pos = [
         'ok' => $o(200),
     ],
     'POST api/v1/pos/bookings/{uuid}/deposits/{payment}/retain' => [
-        'params' => fn (array $s) => ['uuid' => $s['booking']->uuid, 'payment' => $s['deposit']->uuid],
+        'params' => fn (array $s) => ['uuid' => $s['booking_cancelled']->uuid, 'payment' => $s['cancelled_deposit']->uuid],
         'body' => fn (array $s) => ['reason' => 'Ushlab qolindi'],
-        'ok' => $o(422),
+        'ok' => $o(200, 200, 403),
     ],
     'POST api/v1/pos/bookings/{uuid}/items' => [
         'params' => fn (array $s) => ['uuid' => $s['booking']->uuid],
@@ -212,16 +216,16 @@ $pos = [
         'ok' => $o(200),
     ],
     'POST api/v1/pos/bookings/{uuid}/no-show' => [
-        'params' => fn (array $s) => ['uuid' => $s['booking']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['booking'])],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['booking_late']->uuid],
+        'body' => fn (array $s) => ['version' => $v($s['booking_late'])],
+        'ok' => $o(200, 200, 200),
     ],
 
     'GET api/v1/pos/bootstrap' => ['body' => $branch, 'ok' => $o(200)],
     'GET api/v1/pos/catalog' => ['body' => fn (array $s) => ['store_id' => $s['store']->id, 'branch_id' => $s['branch']->id], 'ok' => $o(200)],
     'GET api/v1/pos/clock' => ['ok' => $o(200)],
-    'POST api/v1/pos/clock/in' => ['ok' => $o(403, 403, 201)],
-    'POST api/v1/pos/clock/out' => ['ok' => $o(403, 403, 409)],
+    'POST api/v1/pos/clock/in' => ['ok' => $o(403, 403, 409)],
+    'POST api/v1/pos/clock/out' => ['ok' => $o(403, 403, 200)],
 
     'GET api/v1/pos/customer-accounts' => ['ok' => $o(200)],
     'POST api/v1/pos/customer-accounts' => [
@@ -262,7 +266,7 @@ $pos = [
     'POST api/v1/pos/customer-accounts/{uuid}/repayments' => [
         'params' => fn (array $s) => ['uuid' => $s['account']->uuid],
         'body' => fn (array $s) => ['amount' => '1000', 'tender' => 'cash'],
-        'ok' => $o(422),
+        'ok' => $o(201, 201, 201),
     ],
     'GET api/v1/pos/customer-accounts/{uuid}/statement' => ['params' => fn (array $s) => ['uuid' => $s['account']->uuid], 'ok' => $o(200)],
 
@@ -294,16 +298,16 @@ $pos = [
         'body' => fn (array $s) => ['version' => $v($s['order2']), 'mode' => 'single'],
         'ok' => $o(201),
     ],
-    'POST api/v1/pos/orders/{uuid}/call' => ['params' => fn (array $s) => ['uuid' => $s['queue_order']->uuid], 'ok' => $o(422)],
+    'POST api/v1/pos/orders/{uuid}/call' => ['params' => fn (array $s) => ['uuid' => $s['ready_order']->uuid], 'ok' => $o(200, 200, 200)],
     'POST api/v1/pos/orders/{uuid}/cancel' => [
         'params' => fn (array $s) => ['uuid' => $s['order2']->uuid],
         'body' => fn (array $s) => ['version' => $v($s['order2']), 'reason' => 'Mehmon ketdi', 'approval_token' => $s['approval']['orders.cancel']],
         'ok' => $o(200),
     ],
     'POST api/v1/pos/orders/{uuid}/charges/{charge}/restore' => [
-        'params' => fn (array $s) => ['uuid' => $s['order']->uuid, 'charge' => 'service_charge'],
-        'body' => fn (array $s) => ['version' => $v($s['order'])],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['order2']->uuid, 'charge' => 'service_charge'],
+        'body' => fn (array $s) => ['version' => $v($s['order2'])],
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/orders/{uuid}/charges/{charge}/waive' => [
         'params' => fn (array $s) => ['uuid' => $s['order']->uuid, 'charge' => 'service_charge'],
@@ -312,9 +316,9 @@ $pos = [
     ],
     'POST api/v1/pos/orders/{uuid}/close' => ['params' => fn (array $s) => ['uuid' => $s['billed_order']->uuid], 'ok' => $o(409)],
     'POST api/v1/pos/orders/{uuid}/courses/{course}/send' => [
-        'params' => fn (array $s) => ['uuid' => $s['order']->uuid, 'course' => 1],
+        'params' => fn (array $s) => ['uuid' => $s['order']->uuid, 'course' => 2],
         'body' => fn (array $s) => ['version' => $v($s['order'])],
-        'ok' => $o(422),
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/orders/{uuid}/discount' => [
         'params' => fn (array $s) => ['uuid' => $s['order']->uuid],
@@ -358,29 +362,29 @@ $pos = [
         'ok' => $o(200),
     ],
     'POST api/v1/pos/orders/{uuid}/packaging/{rule}/remove' => [
-        'params' => fn (array $s) => ['uuid' => $s['paid_order']->uuid, 'rule' => 1],
-        'body' => fn (array $s) => ['version' => $v($s['paid_order']), 'reason' => 'Kerak emas'],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['pack_order']->uuid, 'rule' => $s['packaging_rule']->id],
+        'body' => fn (array $s) => ['version' => $v($s['pack_order']), 'reason' => 'Kerak emas'],
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/orders/{uuid}/packaging/{rule}/restore' => [
-        'params' => fn (array $s) => ['uuid' => $s['paid_order']->uuid, 'rule' => 1],
-        'body' => fn (array $s) => ['version' => $v($s['paid_order'])],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['unpack_order']->uuid, 'rule' => $s['packaging_rule']->id],
+        'body' => fn (array $s) => ['version' => $v($s['unpack_order'])],
+        'ok' => $o(200, 200, 200),
     ],
     'PUT api/v1/pos/orders/{uuid}/pickup-time' => [
-        'params' => fn (array $s) => ['uuid' => $s['queue_order']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['queue_order']), 'pickup_at' => '2026-06-10T14:00:00+05:00'],
-        'ok' => $o(409),
+        'params' => fn (array $s) => ['uuid' => $s['pickup_order']->uuid],
+        'body' => fn (array $s) => ['version' => $v($s['pickup_order']), 'pickup_at' => '2026-06-10T14:00:00+05:00'],
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/orders/{uuid}/promo' => [
         'params' => fn (array $s) => ['uuid' => $s['order']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['order']), 'code' => 'YOQKOD'],
-        'ok' => $o(404),
+        'body' => fn (array $s) => ['version' => $v($s['order']), 'code' => $s['promo_code']->code],
+        'ok' => $o(200, 200, 200),
     ],
     'DELETE api/v1/pos/orders/{uuid}/promo' => [
-        'params' => fn (array $s) => ['uuid' => $s['order']->uuid],
-        'body' => fn (array $s) => ['version' => $v($s['order'])],
-        'ok' => $o(422),
+        'params' => fn (array $s) => ['uuid' => $s['promo_order']->uuid],
+        'body' => fn (array $s) => ['version' => $v($s['promo_order'])],
+        'ok' => $o(200, 200, 200),
     ],
     'POST api/v1/pos/orders/{uuid}/ready' => ['params' => fn (array $s) => ['uuid' => $s['queue_order']->uuid], 'ok' => $o(200)],
     'POST api/v1/pos/orders/{uuid}/reject' => [
@@ -416,7 +420,7 @@ $pos = [
     'GET api/v1/pos/pickup-slots' => ['body' => $branch, 'ok' => $o(200)],
     'GET api/v1/pos/qr/{uuid}' => ['params' => fn (array $s) => ['uuid' => $s['qr']->uuid], 'ok' => $o(200)],
     'DELETE api/v1/pos/qr/{uuid}' => ['params' => fn (array $s) => ['uuid' => $s['qr']->uuid], 'body' => fn (array $s) => ['reason' => 'Bekor'], 'ok' => $o(200)],
-    'POST api/v1/pos/qr/{uuid}/simulate-paid' => ['params' => fn (array $s) => ['uuid' => $s['qr']->uuid], 'ok' => $o(409)],
+    'POST api/v1/pos/qr/{uuid}/simulate-paid' => ['params' => fn (array $s) => ['uuid' => $s['qr']->uuid], 'ok' => $o(200, 200, 200)],
     'GET api/v1/pos/queue' => ['body' => $branch, 'ok' => $o(200)],
     'POST api/v1/pos/queue/blocks' => ['body' => $branch, 'self_refused' => ['owner', 'manager'], 'ok' => $o(422, 422, 200)],
     'POST api/v1/pos/refunds' => [
@@ -531,7 +535,7 @@ $owner = [
     'GET api/v1/owner/batch-writeoffs' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/batch-yield' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/batches' => ['body' => $branch, 'filter' => true, 'ok' => $o(200)],
-    'POST api/v1/owner/batches' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'product_id' => $s['plov_product']->id, 'quantity' => '5'], 'ok' => $o(422, 422, 403)],
+    'POST api/v1/owner/batches' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'product_id' => $s['plov2_product']->id, 'quantity' => '5'], 'ok' => $o(201, 201, 403)],
     'POST api/v1/owner/batches/{id}/adjust' => ['params' => $id('batch'), 'body' => fn (array $s) => ['add' => '1', 'reason' => 'Yana pishdi'], 'ok' => $o(200, 200, 403)],
     'POST api/v1/owner/batches/{id}/close' => ['params' => $id('batch'), 'ok' => $o(200, 200, 403)],
     'POST api/v1/owner/batches/{id}/write-off' => ['params' => $id('batch'), 'body' => fn (array $s) => ['quantity' => '1', 'reason' => 'spoiled'], 'ok' => $o(201, 201, 403)],
@@ -542,7 +546,7 @@ $owner = [
         'soft' => ['branch_id'], 'ok' => $o(200, 200, 403),
     ],
     'GET api/v1/owner/branches' => ['ok' => $o(200)],
-    'POST api/v1/owner/branches' => ['ok' => $o(422, 403, 403)],
+    'POST api/v1/owner/branches' => ['body' => fn (array $s) => ['name' => 'Yangi filial', 'address' => 'Chilonzor 1', 'region_id' => $s['region'], 'district_id' => $s['district'], 'latitude' => 41.3, 'longitude' => 69.2], 'ok' => $o(201, 403, 403)],
     'GET api/v1/owner/branches/{branch}/business-days' => ['params' => $id('branch', 'branch'), 'body' => fn (array $s) => ['from' => '2026-06-01', 'to' => '2026-06-10'], 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/branches/{branch}/packaging-rules' => ['params' => $id('branch', 'branch'), 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/branches/{branch}/packaging-rules' => [
@@ -561,7 +565,7 @@ $owner = [
     'PUT api/v1/owner/branches/{branch}/terminal-flow' => ['params' => $id('branch', 'branch'), 'body' => fn (array $s) => ['ask_bank_total' => true], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/branches/{id}' => ['params' => $id('branch'), 'ok' => $o(200)],
     'PATCH api/v1/owner/branches/{id}' => ['params' => $id('branch'), 'body' => fn (array $s) => ['phone' => '+998901112233'], 'ok' => $o(200, 200, 403)],
-    'DELETE api/v1/owner/branches/{id}' => ['params' => $id('branch'), 'ok' => $o(422, 403, 403)],
+    'DELETE api/v1/owner/branches/{id}' => ['params' => $id('spare_branch'), 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/branches/{id}/booking-rules' => ['params' => $id('branch'), 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/branches/{id}/booking-rules' => ['params' => $id('branch'), 'body' => fn (array $s) => ['table_slot_minutes' => 120], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/branches/{id}/label-settings' => ['params' => $id('branch'), 'ok' => $o(200, 403, 403)],
@@ -628,7 +632,7 @@ $owner = [
     'GET api/v1/owner/fiscal/readiness' => ['ok' => $o(200)],
     'GET api/v1/owner/fiscal/receipts' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/fiscal/receipts/{uuid}' => ['params' => $uuid('fiscal_receipt'), 'ok' => $o(200, 200, 403)],
-    'POST api/v1/owner/fiscal/receipts/{uuid}/retry' => ['params' => $uuid('fiscal_receipt'), 'ok' => $o(422, 403, 403)],
+    'POST api/v1/owner/fiscal/receipts/{uuid}/retry' => ['params' => $uuid('failed_receipt'), 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/fiscal/settings' => ['ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/fiscal/settings' => ['body' => fn (array $s) => ['tax_regime' => 'vat'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/fiscal/terminal-flow' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
@@ -643,7 +647,7 @@ $owner = [
     'POST api/v1/owner/ingredients/{id}/link-categories' => ['params' => $id('ingredient'), 'body' => fn (array $s) => ['category_ids' => [$s['product']->category_id]], 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/ingredients/{id}/products' => ['params' => $id('ingredient'), 'body' => fn (array $s) => ['links' => [['product_id' => $s['tea_product']->id]]], 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/ingredients/{id}/stop' => ['params' => $id('ingredient'), 'body' => $branch, 'ok' => $o(201, 201, 403)],
-    'DELETE api/v1/owner/ingredients/{id}/stop' => ['params' => $id('ingredient'), 'body' => $branch, 'ok' => $o(404, 404, 403)],
+    'DELETE api/v1/owner/ingredients/{id}/stop' => ['params' => $id('ingredient2'), 'body' => $branch, 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/invoices' => ['ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/kds/expo-scope' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'expo_scope' => 'all'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/kds/targets' => ['body' => $branch, 'ok' => $o(200, 403, 403)],
@@ -654,7 +658,7 @@ $owner = [
     'GET api/v1/owner/kitchen-stations' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/kitchen-stations' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'name' => 'Salat'], 'ok' => $o(201, 403, 403)],
     'PATCH api/v1/owner/kitchen-stations/{id}' => ['params' => $id('station'), 'body' => fn (array $s) => ['target_seconds' => 200], 'ok' => $o(200, 403, 403)],
-    'DELETE api/v1/owner/kitchen-stations/{id}' => ['params' => $id('station'), 'ok' => $o(200, 403, 403)],
+    'DELETE api/v1/owner/kitchen-stations/{id}' => ['params' => $id('station2'), 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/meal-sets' => ['ok' => $o(200)],
     'POST api/v1/owner/meal-sets' => ['body' => fn (array $s) => ['product_id' => $s['meat_product']->id, 'parts' => [['variant_id' => $s['tea']->id]]], 'ok' => $o(201, 403, 403)],
     'PUT api/v1/owner/meal-sets/{id}' => ['params' => $id('meal_set'), 'body' => fn (array $s) => ['parts' => [['variant_id' => $s['variant']->id]]], 'ok' => $o(200, 403, 403)],
@@ -665,7 +669,7 @@ $owner = [
     'DELETE api/v1/owner/modifier-groups/{id}' => ['params' => $id('modifier_group'), 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/payments' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/payouts' => ['ok' => $o(200, 403, 403)],
-    'POST api/v1/owner/payouts' => ['body' => fn (array $s) => ['amount' => 1000, 'card_number' => '8600000000000000'], 'ok' => $o(422, 403, 403)],
+    'POST api/v1/owner/payouts' => ['body' => fn (array $s) => ['amount' => 1000, 'card_number' => '8600000000000000'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/permissions' => ['ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/permissions' => ['body' => fn (array $s) => ['role' => 'waiter', 'permission' => 'orders.discount', 'allowed' => true], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/pos/banquets/export' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
@@ -709,7 +713,7 @@ $owner = [
     'GET api/v1/owner/pos/vouchers/report' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/pos/vouchers/{uuid}' => ['params' => $uuid('voucher'), 'ok' => $o(200, 200, 403)],
     'POST api/v1/owner/pos/vouchers/{uuid}/block' => ['params' => $uuid('voucher'), 'body' => fn (array $s) => ['reason' => 'Yo\'qoldi'], 'ok' => $o(200, 200, 403)],
-    'POST api/v1/owner/pos/vouchers/{uuid}/unblock' => ['params' => $uuid('voucher'), 'ok' => $o(409, 409, 403)],
+    'POST api/v1/owner/pos/vouchers/{uuid}/unblock' => ['params' => $uuid('blocked_voucher'), 'ok' => $o(200, 200, 403)],
     'GET api/v1/owner/printers' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/printers' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'name' => 'Oshxona printer', 'purpose' => 'kitchen', 'connection' => 'lan', 'address' => '192.168.1.51', 'station_id' => $s['station']->id], 'ok' => $o(201, 403, 403)],
     'PATCH api/v1/owner/printers/{id}' => ['params' => $id('printer'), 'body' => fn (array $s) => ['purpose' => 'kitchen', 'station_id' => $s['station']->id], 'ok' => $o(200, 403, 403)],
@@ -754,7 +758,7 @@ $owner = [
     'DELETE api/v1/owner/staff-pay/rules/{uuid}' => ['params' => $uuid('pay_rule'), 'ok' => $o(200, 403, 403)],
     'PUT api/v1/owner/staff-pay/settings' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'period' => 'week'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/staff-pay/statements' => ['body' => $period, 'filter' => true, 'ok' => $o(200, 200, 403)],
-    'POST api/v1/owner/staff-pay/statements' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'date' => '2026-06-08'], 'ok' => $o(409, 403, 403)],
+    'POST api/v1/owner/staff-pay/statements' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'date' => '2026-04-15'], 'ok' => $o(201, 403, 403)],
     'GET api/v1/owner/staff-pay/statements/{uuid}' => ['params' => $uuid('statement'), 'ok' => $o(200, 200, 403)],
     'DELETE api/v1/owner/staff-pay/statements/{uuid}' => ['params' => $uuid('statement'), 'ok' => $o(200, 403, 403)],
     'POST api/v1/owner/staff-pay/statements/{uuid}/close' => ['params' => $uuid('statement'), 'ok' => $o(200, 403, 403)],
@@ -764,12 +768,12 @@ $owner = [
         'ok' => $o(200, 403, 403),
     ],
     'POST api/v1/owner/staff-pay/statements/{uuid}/lines/{line}/pay' => [
-        'params' => fn (array $s) => ['uuid' => $s['statement']->uuid, 'line' => $s['statement_line']->uuid],
+        'params' => fn (array $s) => ['uuid' => $s['closed_statement']->uuid, 'line' => $s['closed_line']->uuid],
         'body' => fn (array $s) => ['method' => 'other'],
-        'ok' => $o(409, 403, 403),
+        'ok' => $o(200, 403, 403),
     ],
     'POST api/v1/owner/staff-pay/statements/{uuid}/recompute' => ['params' => $uuid('statement'), 'ok' => $o(200, 403, 403)],
-    'POST api/v1/owner/staff-pay/statements/{uuid}/reopen' => ['params' => $uuid('statement'), 'body' => fn (array $s) => ['reason' => 'Tuzatish'], 'ok' => $o(409, 403, 403)],
+    'POST api/v1/owner/staff-pay/statements/{uuid}/reopen' => ['params' => $uuid('closed_statement'), 'body' => fn (array $s) => ['reason' => 'Tuzatish'], 'ok' => $o(200, 403, 403)],
     'GET api/v1/owner/staff-pay/work-sessions' => ['body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'user_id' => $s['waiter']->id], 'filter' => true, 'ok' => $o(200, 200, 403)],
     'POST api/v1/owner/staff-pay/work-sessions' => [
         'body' => fn (array $s) => ['branch_id' => $s['branch']->id, 'user_id' => $s['cook']->id, 'clock_in_at' => '2026-06-08T09:00:00+05:00', 'clock_out_at' => '2026-06-08T17:00:00+05:00', 'reason' => 'Unutdi'],
@@ -791,9 +795,9 @@ $owner = [
 $rest = [
     'GET api/v1/couriers' => ['body' => $branch, 'filter' => true, 'ok' => $o(200, 200, 403)],
     'POST api/v1/orders/{uuid}/assign-courier' => ['params' => $uuid('delivery_order'), 'body' => fn (array $s) => ['courier_id' => $s['courier']->id], 'ok' => $o(200, 200, 403)],
-    'POST api/v1/orders/{uuid}/complete' => ['params' => $uuid('online_order'), 'ok' => $o(403, 403, 403)],
+    'POST api/v1/orders/{uuid}/complete' => ['params' => $uuid('courier_order'), 'ok' => $o(403, 403, 403)],
     'POST api/v1/orders/{uuid}/status' => ['params' => $uuid('online_order'), 'body' => fn (array $s) => ['status' => 'accepted'], 'ok' => $o(200, 200, 403)],
-    'POST api/v1/reports/export' => ['body' => fn (array $s) => ['timeframe' => 'today'], 'ok' => $o(400, 400, 403)],
+    'POST api/v1/reports/export' => ['body' => fn (array $s) => ['timeframe' => 'today'], 'ok' => $o(200, 200, 403)],
     'GET api/v1/staff/kitchen/tickets' => ['body' => $branch, 'filter' => true, 'ok' => $o(200)],
     'GET api/v1/staff/orders' => ['body' => $branch, 'filter' => true, 'ok' => $o(200)],
     'GET api/v1/staff/orders/{uuid}' => ['params' => $uuid('order'), 'ok' => $o(200)],
@@ -815,6 +819,11 @@ $rest = [
     'GET api/v1/terminal' => ['ok' => ['device' => 200]],
     'DELETE api/v1/terminal' => ['ok' => ['device' => 200]],
     'GET api/v1/terminal/staff' => ['ok' => ['device' => 200]],
+    // The staff side of complaints: the store's list and the owner's (or branch manager's) reply
+    'GET api/v1/complaints' => ['ok' => $o(200)],
+    'POST api/v1/complaints/{id}/reply' => ['params' => $id('complaint'), 'body' => fn (array $s) => ['reply' => 'Uzr so\'raymiz'], 'ok' => $o(200, 200, 403)],
+    // The customer's own cancel: a member of staff is refused for the store's own order too (the order is not theirs)
+    'POST api/v1/orders/{uuid}/cancel' => ['params' => $uuid('online_order'), 'body' => fn (array $s) => ['reason' => 'customer_request'], 'ok' => $o(403)],
 ];
 
 $notTenant = [
@@ -872,18 +881,26 @@ $notTenant = [
     'POST api/v1/promo/validate' => 'customer checkout: PromoCodeService::isValidForStore',
     'GET api/v1/orders' => 'customer and courier order lists (also scanned for B by ListLeakTest)',
     'POST api/v1/orders' => 'customer checkout: CreateOrderAction checks store, branch and variants',
-    'POST api/v1/orders/{uuid}/cancel' => 'customer: OrderController user_id check',
     'GET api/v1/notifications' => 'user-owned notifications (also scanned for B by ListLeakTest)',
     'POST api/v1/notifications/read' => 'user-owned notifications',
-    'GET api/v1/complaints' => 'customer complaints (also scanned for B by ListLeakTest)',
     'POST api/v1/complaints' => 'customer: H2, agent F (ComplaintController)',
     'POST api/v1/complaints/{id}/escalate' => 'customer: H2, agent F (ComplaintController)',
-    'POST api/v1/complaints/{id}/reply' => 'customer: H2, agent F (ComplaintController)',
     'POST api/v1/stores/{id}/rate' => 'customer: H1, agent F (StoreRatingController)',
 ];
 
 return [
     'not_tenant' => $notTenant,
     'known' => [],
+    'uncovered' => [
+        'POST api/v1/owner/categories' => 'the platform category tree: super_admin only (EnsureUserHasRole:super_admin), no store actor gets past it',
+        'POST api/v1/owner/settings/upload' => 'a multipart file upload; the harness sends JSON only',
+        'POST api/v1/pos/shifts' => 'one open shift per till: the world\'s till keeps its shift open for every payment route (A\'s call answers 409 shift already open)',
+        'POST api/v1/pos/clock/in' => 'the world clocks the cashier in so that clock/out is proved; clock in again is 409 (no ids in the route either)',
+        'POST api/v1/pos/orders/{uuid}/close' => 'paying the last bill closes the order itself; close only finishes an order whose receipt was pending (409 order_not_settled otherwise)',
+        'POST api/v1/pos/banquets/{uuid}/settlement/refund-excess' => 'needs a settled banquet paid beyond its final total (404 without a settlement)',
+        'POST api/v1/pos/bookings/{uuid}/confirmation/send' => 'needs an SMS or Telegram confirmation channel configured for the branch (422 no_channel)',
+        'POST api/v1/staff/orders/{uuid}/assembled' => 'needs an expo station and an order every station has finished (422 assembly_not_required)',
+        'POST api/v1/orders/{uuid}/cancel' => 'the customer\'s own cancel: staff of the store are refused (403) for its own orders too; the customer is not a store actor',
+    ],
     'routes' => $pos + $owner + $rest,
 ];

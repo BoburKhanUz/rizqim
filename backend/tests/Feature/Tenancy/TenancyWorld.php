@@ -76,6 +76,11 @@ trait TenancyWorld
         Carbon::setTestNow(Carbon::parse(self::NOW, 'UTC'));
         $this->sharedCategory = Category::create(['name' => 'Taomlar', 'slug' => 'taomlar-' . Str::random(5), 'is_active' => true]);
         $this->customer = $this->makeCustomer(0, ['name' => 'Mijoz']);
+        $region = (int) DB::table('regions')->insertGetId(['name_uz' => 'Toshkent', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $district = (int) DB::table('districts')->insertGetId(['region_id' => $region, 'name_uz' => 'Chilonzor', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $this->world['A'] += ['region' => $region, 'district' => $district];
+        $this->world['B'] += ['region' => $region, 'district' => $district];
+        config(['services.telegram.bot_token' => 'tenancy-test-bot']);
         foreach (['A' => 'A-', 'B' => self::MARK] as $side => $prefix) {
             $this->buildSide($side, $prefix);
         }
@@ -142,6 +147,9 @@ trait TenancyWorld
         $w['cashier_token'] = $this->startPinSession($w['till'], $w['cashier'], '4831');
         $w['owner_token'] = $w['owner']->createToken('tenancy')->plainTextToken;
         $w['manager_token'] = $w['manager']->createToken('tenancy')->plainTextToken;
+        foreach (['waiter', 'cook', 'courier', 'hostess'] as $role) {
+            $w[$role . '_token'] = $w[$role]->createToken('tenancy')->plainTextToken;
+        }
 
         $this->buildMenu($w, $p);
         $this->buildHall($w, $p);
@@ -305,6 +313,13 @@ trait TenancyWorld
         $phone = $this->own($o = $w['owner_token'], 'POST', '/devices', ['type' => 'partner_mobile', 'name' => $p . 'Telefon', 'platform' => 'android'])->json('data');
         $w['phone'] = \App\Models\Device::where('uuid', $phone['uuid'] ?? $phone['device']['uuid'])->firstOrFail();
 
+        $this->buildStates($w, $p);
+        $this->seedEmptyTables($w, $p);
+        $range = $this->building === 'A' ? [self::A_IDS, self::B_IDS[0] - 1] : self::B_IDS;
+        $w['complaint'] = \App\Models\Complaint::whereBetween('id', $range)->firstOrFail();
+        $w['banquet_line'] = \App\Models\BanquetEventLine::whereBetween('id', $range)->orderBy('id')->firstOrFail();
+        $w['combo_option'] = \App\Models\ComboSlotOption::whereBetween('id', $range)->orderBy('id')->firstOrFail();
+
         // The manager's one-time approvals on the till (60 s; the clock stands still and every call is undone)
         $w['approval'] = [];
         foreach (\App\Domain\Pos\Billing\ManagerApprovalService::approvable() as $permission) {
@@ -381,6 +396,260 @@ trait TenancyWorld
     }
 
     /**
+     * Records in the state a route needs before it can do its work (a second of a kind where one route uses up what
+     * another needs): without them A's own call is refused for the record's state and proves nothing.
+     *
+     * @param  array<string, mixed>  $w
+     */
+    private function buildStates(array &$w, string $p): void
+    {
+        $c = $w['cashier_token'];
+        $o = $w['owner_token'];
+        $at = ['store_id' => $w['store']->id, 'branch_id' => $w['branch']->id];
+        $latest = fn (string $model) => $model::where('store_id', $w['store']->id)->orderByDesc('id')->firstOrFail();
+        $open = fn (array $body) => Order::where('uuid', $this->own($c, 'POST', '/pos/orders', $body + ['branch_id' => $w['branch']->id])->json('data.uuid'))->firstOrFail();
+        $version = fn (Order $order) => (int) $order->fresh()->version;
+
+        // A branch with nothing in it (deleting the main one is refused: it has orders)
+        $w['spare_branch'] = $this->makeBranch($w['store'], $p . 'Bosh filial');
+
+        // A second ingredient on the stop-list (linked to no dish), a second batch-tracked dish (the first has its batch)
+        $this->own($o, 'POST', '/owner/ingredients', ['name' => $p . 'Sabzi', 'unit' => 'kg']);
+        $w['ingredient2'] = $latest(\App\Models\Ingredient::class);
+        $this->own($o, 'POST', "/owner/ingredients/{$w['ingredient2']->id}/stop", ['branch_id' => $w['branch']->id]);
+        $w['plov2_product'] = Product::create(['store_id' => $w['store']->id, 'category_id' => $this->sharedCategory->id, 'name' => $p . 'Somsa', 'slug' => Str::slug($p . 'Somsa') . '-' . Str::random(5), 'status' => 'active', 'batch_tracked' => true]);
+        ProductVariant::create(['product_id' => $w['plov2_product']->id, 'name' => $p . 'Dona', 'price' => $this->n('7000'), 'stock' => 100, 'is_active' => true]);
+
+        // A promo code of the store, and an order it is applied to
+        $w['promo_code'] = \App\Models\PromoCode::create(['code' => $p === 'A-' ? 'AKOD10' : 'ZZBKOD10', 'type' => 'percentage', 'value' => 10, 'store_id' => $w['store']->id, 'is_active' => true]);
+        $w['table4'] = DiningTable::create($at + ['hall_id' => $w['hall']->id, 'name' => $p . 'Stol 4', 'kind' => 'table', 'seats' => 4]);
+        $w['promo_order'] = $open(['channel' => 'pos_hall', 'table_id' => $w['table4']->id, 'guests_count' => 2, 'items' => [['variant_id' => $w['variant']->uuid, 'quantity' => 2]], 'send' => true]);
+        $this->own($c, 'POST', "/pos/orders/{$w['promo_order']->uuid}/promo", ['version' => $version($w['promo_order']), 'code' => $w['promo_code']->code]);
+
+        // A takeaway ready to be called, one not yet sent (its pickup time can move), one with packaging
+        $w['ready_order'] = $open(['channel' => 'pos_takeaway', 'items' => [['variant_id' => $w['tea']->uuid, 'quantity' => 1]], 'send' => true]);
+        $this->own($c, 'POST', "/pos/orders/{$w['ready_order']->uuid}/ready");
+        $w['pickup_order'] = $open(['channel' => 'pos_takeaway', 'items' => [['variant_id' => $w['tea']->uuid, 'quantity' => 1]], 'pickup_at' => '2026-06-10T15:00:00+05:00']);
+        $w['pack_order'] = $open(['channel' => 'pos_takeaway', 'items' => [['variant_id' => $w['variant']->uuid, 'quantity' => 1]]]);
+        $w['unpack_order'] = $open(['channel' => 'pos_takeaway', 'items' => [['variant_id' => $w['variant']->uuid, 'quantity' => 1]]]);
+        $this->own($c, 'POST', "/pos/orders/{$w['unpack_order']->uuid}/packaging/{$w['packaging_rule']->id}/remove", ['version' => $version($w['unpack_order']), 'reason' => $p . 'Kerak emas']);
+
+        // The second hall order's service charge waived (to be restored); a held second course on the first one
+        $this->own($o, 'POST', "/pos/orders/{$w['order2']->uuid}/charges/service_charge/waive", ['version' => $version($w['order2']), 'reason' => $p . 'Norozi']);
+        $this->own($c, 'POST', "/pos/orders/{$w['order']->uuid}/rounds", ['version' => $version($w['order']), 'items' => [['variant_id' => $w['tea']->uuid, 'quantity' => 1, 'course_no' => 2, 'fire_mode' => 'hold']]]);
+
+        // Bookings: one not confirmed, one that started two hours ago, one cancelled with its deposit
+        $book = fn (array $body) => \App\Models\Booking::where('uuid', $this->own($c, 'POST', '/pos/bookings', $body + ['contact_name' => $p . 'Mehmon', 'guests_planned' => 2])->json('data.uuid'))->firstOrFail();
+        $w['booking_new'] = $book(['dining_table_id' => $w['table4']->id, 'starts_at' => '2026-06-22T19:00:00+05:00']);
+        $w['booking_late'] = $book(['dining_table_id' => $w['table2']->id, 'starts_at' => '2026-06-10T10:00:00+05:00', 'confirm' => true, 'skip_lead_time' => true]);
+        $w['booking_cancelled'] = $book(['dining_table_id' => $w['table4']->id, 'starts_at' => '2026-06-23T19:00:00+05:00', 'confirm' => true]);
+        $deposit = $this->own($c, 'POST', "/pos/bookings/{$w['booking_cancelled']->uuid}/deposits", ['amount' => $this->n('20000'), 'tender' => 'cash'])->json('data.payment.uuid');
+        $w['cancelled_deposit'] = BookingPayment::where('uuid', $deposit)->firstOrFail();
+        $this->own($c, 'POST', "/pos/bookings/{$w['booking_cancelled']->uuid}/cancel", ['reason' => $p . 'Bekor']);
+
+        // Nasiya with a debt to repay; a blocked voucher; a fiscal receipt that failed (to retry)
+        $this->own($o, 'POST', "/pos/customer-accounts/{$w['account']->uuid}/adjustments", ['amount' => $this->n('3000'), 'note' => $p . 'Qarz']);
+        $blocked = $this->own($c, 'POST', '/pos/vouchers/sell', ['face_value' => $this->n('20000'), 'tender' => 'cash'])->json('data');
+        $w['blocked_voucher'] = Voucher::where('uuid', $blocked['voucher']['uuid'] ?? $blocked['uuid'])->firstOrFail();
+        $this->own($o, 'POST', "/owner/pos/vouchers/{$w['blocked_voucher']->uuid}/block", ['reason' => $p . 'Yo\'qoldi']);
+        $w['failed_receipt'] = FiscalReceipt::where('store_id', $w['store']->id)->where('type', 'advance')->orderBy('id')->firstOrFail();
+        $w['failed_receipt']->forceFill(['status' => 'failed', 'error' => 'tenancy: provider down'])->save();
+
+        // Banquets: one confirmed (its deposit paid), one under way today, one frozen
+        $event = fn (string $date) => BanquetEvent::where('uuid', $this->own($o, 'POST', '/pos/banquets', [
+            'branch_id' => $w['branch']->id, 'event_date' => $date, 'slot' => 'evening', 'hall_ids' => [$w['banquet_hall']->id],
+            'event_type' => 'toy', 'customer_name' => $p . 'Mijoz ' . $date, 'guests_guaranteed' => 50, 'banquet_package_id' => $w['banquet_package']->id,
+        ])->json('data.uuid'))->firstOrFail();
+        $confirm = function (BanquetEvent $banquet) use ($c) {
+            $row = BanquetPayment::where('banquet_event_id', $banquet->id)->orderBy('sort_order')->orderBy('id')->firstOrFail();
+            $this->own($c, 'POST', "/pos/banquets/{$banquet->uuid}/payments/{$row->uuid}/pay", ['tender' => 'cash']);
+        };
+        $w['banquet_live'] = $event('2026-06-10');
+        $confirm($w['banquet_live']);
+        $this->own($o, 'POST', "/pos/banquets/{$w['banquet_live']->uuid}/start", ['version' => (int) $w['banquet_live']->fresh()->version]);
+        $w['banquet_conf'] = $event('2026-06-11');
+        $confirm($w['banquet_conf']);
+        $w['banquet_frozen'] = $event('2026-06-12');
+        $this->own($o, 'POST', "/pos/banquets/{$w['banquet_frozen']->uuid}/freeze", ['version' => (int) $w['banquet_frozen']->fresh()->version]);
+
+        // The banquet's fiscal lines have their codes (settling issues the final receipt)
+        $this->own($o, 'PUT', '/owner/pos/banquets/ops-settings', ['reserve_percent' => 5, 'osh' => ['persons_per_kg' => 8, 'ingredients' => [['name' => 'Guruch', 'unit' => 'kg', 'per_kg' => 1]], 'kazans' => [50], 'product_ids' => [$w['plov_product']->id]],
+            'package_mxik' => '10305001001000000', 'hall_mxik' => '10305001001000000', 'extras_mxik' => '10305001001000000']);
+        // A kitchen station nothing was sent to (one in use cannot be deleted); the cashier clocked in
+        $this->own($o, 'POST', '/owner/kitchen-stations', ['branch_id' => $w['branch']->id, 'name' => $p . 'Salat', 'kind' => 'salad_bar']);
+        $w['station2'] = $latest(\App\Models\KitchenStation::class);
+        $this->own($c, 'POST', '/pos/clock/in');
+
+        // A delivery on its way with the store's courier (the courier completes it)
+        $w['courier_order'] = Order::create([
+            'store_id' => $w['store']->id, 'branch_id' => $w['branch']->id, 'user_id' => $this->customer->id, 'status' => OrderStatus::READY,
+            'order_type' => 'delivery', 'payment_method' => 'cash', 'total_price' => $this->n('18000'), 'commission_amount' => 0,
+            'shipping_address' => ['address' => $p . 'Manzil 2', 'latitude' => 41.311081, 'longitude' => 69.240562],
+        ]);
+        $this->own($o, 'POST', "/orders/{$w['courier_order']->uuid}/assign-courier", ['courier_id' => $w['courier']->id]);
+        $this->own($w['courier_token'], 'POST', "/orders/{$w['courier_order']->uuid}/status", ['status' => 'on_the_way']);
+
+        // A closed staff-pay statement (reopen, pay a line); the store's wallet has money for a payout
+        $this->own($o, 'POST', '/owner/staff-pay/rules', ['branch_id' => $w['branch']->id, 'user_id' => $w['hostess']->id, 'effective_from' => '2026-05-01', 'components' => [['type' => 'shift_rate', 'amount' => $this->n('80000')]]]);
+        $this->own($o, 'POST', '/owner/staff-pay/work-sessions', ['branch_id' => $w['branch']->id, 'user_id' => $w['hostess']->id, 'clock_in_at' => '2026-05-20T09:00:00+05:00', 'clock_out_at' => '2026-05-20T18:00:00+05:00', 'reason' => $p . 'Unutdi']);
+        $this->own($o, 'POST', '/owner/staff-pay/statements', ['branch_id' => $w['branch']->id, 'date' => '2026-05-20']);
+        $w['closed_statement'] = $latest(\App\Models\StaffPayStatement::class);
+        $this->own($o, 'POST', "/owner/staff-pay/statements/{$w['closed_statement']->uuid}/close");
+        $w['closed_line'] = \App\Models\StaffPayStatementLine::where('statement_id', $w['closed_statement']->id)->orderBy('id')->firstOrFail();
+        DB::table('stores')->where('id', $w['store']->id)->update(['wallet_balance' => $this->n('500000')]);
+    }
+
+    /**
+     * Tables the flows above leave empty, with what a row needs that the generic filler cannot guess.
+     *
+     * @return array<string, callable(array<string, mixed>, string): array<string, mixed>>
+     */
+    private function seedOverrides(): array
+    {
+        // The generic rows of a banquet's cancellation and settlement go to a second banquet: on the first they would
+        // close it for the routes that need it open
+        $second = fn (array $w, string $p) => ['banquet_event_id' => $w['banquet2']->id];
+
+        return [
+            'banquet_cancellations' => $second,
+            'banquet_settlements' => $second,
+        ];
+    }
+
+    /**
+     * Every tenant table gets a row of each store: what the flows did not create is filled generically (each NOT NULL
+     * column without a default: a foreign key points at this side's row of the parent, a checked enum takes its first
+     * value, the rest a plain value of its type; texts carry the side's marker).
+     *
+     * @param  array<string, mixed>  $w
+     */
+    private function seedEmptyTables(array &$w, string $p): void
+    {
+        [$from, $to] = $this->building === 'A' ? [self::A_IDS, self::B_IDS[0] - 1] : self::B_IDS;
+        $tables = collect(DB::select("SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND NOT c.relispartition ORDER BY c.relname"))->pluck('relname')->all();
+        $columns = [];
+        foreach (DB::select('SELECT table_name, column_name, data_type, is_nullable, column_default, character_maximum_length AS length, numeric_precision AS precision, numeric_scale AS scale
+            FROM information_schema.columns WHERE table_schema = current_schema() ORDER BY ordinal_position') as $row) {
+            $columns[$row->table_name][$row->column_name] = $row;
+        }
+        $foreign = [];
+        foreach (DB::select("SELECT tc.relname AS child, a.attname AS col, pc.relname AS parent FROM pg_constraint c
+            JOIN pg_class tc ON tc.oid = c.conrelid JOIN pg_class pc ON pc.oid = c.confrelid
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+            WHERE c.contype = 'f' AND array_length(c.conkey, 1) = 1 AND NOT tc.relispartition") as $row) {
+            $foreign[$row->child][$row->col] = $row->parent;
+        }
+        $enums = [];
+        foreach (DB::select("SELECT conrelid::regclass::text AS t, pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE contype = 'c' AND connamespace = current_schema()::regnamespace") as $row) {
+            if (preg_match("/\\(\\(?(\\w+)\\)?::text = ANY \\(\\(ARRAY\\['([^']+)'/", $row->def, $m)) {
+                $enums[$row->t][$m[1]] = $m[2];
+            }
+        }
+        // A string column an Eloquent model casts to an enum takes the enum's first value
+        foreach (glob(app_path('Models') . '/*.php') as $file) {
+            $class = 'App\\Models\\' . basename($file, '.php');
+            if (!is_subclass_of($class, \Illuminate\Database\Eloquent\Model::class) || (new \ReflectionClass($class))->isAbstract()) {
+                continue;
+            }
+            $model = new $class();
+            foreach ($model->getCasts() as $column => $cast) {
+                $cast = explode(':', (string) $cast)[0];
+                if (enum_exists($cast) && !isset($enums[$model->getTable()][$column])) {
+                    $case = $cast::cases()[0];
+                    $enums[$model->getTable()][$column] = $case instanceof \BackedEnum ? $case->value : $case->name;
+                }
+            }
+        }
+        $overrides = $this->seedOverrides();
+        $parentRow = function (string $parent) use ($from, $to, $columns, $w): ?int {
+            if ($parent === 'users') {
+                return (int) $w['owner']->id;
+            }
+            if (!isset($columns[$parent]['id'])) {
+                return null;
+            }
+            $id = DB::table($parent)->whereBetween('id', [$from, $to])->orderBy('id')->value('id') ?? DB::table($parent)->orderBy('id')->value('id');
+
+            return $id !== null ? (int) $id : null;
+        };
+
+        $pending = $tables;
+        for ($pass = 0; $pass < 3 && $pending !== []; $pass++) {
+            $failed = [];
+            foreach ($pending as $table) {
+                if (!$this->seedTable($table, $columns[$table], $foreign[$table] ?? [], $enums[$table] ?? [], $overrides, $parentRow, $w, $p, [$from, $to])) {
+                    $failed[] = $table;
+                }
+            }
+            $pending = $failed;
+        }
+    }
+
+    /**
+     * @param  array<string, object>  $columns
+     * @param  array<string, string>  $foreign
+     * @param  array<string, string>  $enums
+     * @param  array<string, mixed>  $w
+     * @param  array{0: int, 1: int}  $range
+     * @return bool false: the insert failed (a parent is seeded in a later pass)
+     */
+    private function seedTable(string $table, array $columns, array $foreign, array $enums, array $overrides, callable $parentRow, array $w, string $p, array $range): bool
+    {
+        [$from, $to] = $range;
+        $mine = isset($columns['id'])
+            ? DB::table($table)->whereBetween('id', [$from, $to])
+            : (isset($columns['store_id']) ? DB::table($table)->where('store_id', $w['store']->id) : null);
+        if (isset(self::GLOBAL_TABLES[$table]) || $mine === null || $mine->exists()) {
+            return true;
+        }
+        $row = isset($overrides[$table]) ? ($overrides[$table])($w, $p) : [];
+        foreach ($columns as $column => $info) {
+            if (array_key_exists($column, $row) || $column === 'id' || $info->column_default !== null) {
+                continue;
+            }
+            $required = $info->is_nullable === 'NO';
+            if (isset($foreign[$column])) {
+                $id = $parentRow($foreign[$column]);
+                if ($id !== null) {
+                    $row[$column] = $id;
+                }
+
+                continue;
+            }
+            if (in_array($column, ['store_id', 'branch_id'], true)) {
+                $row[$column] = $column === 'store_id' ? $w['store']->id : $w['branch']->id;
+
+                continue;
+            }
+            if (!$required) {
+                continue;
+            }
+            $row[$column] = $enums[$column] ?? match ($info->data_type) {
+                'bigint', 'integer', 'smallint' => 1,
+                'numeric' => ($info->precision !== null && $info->precision - $info->scale < 6) ? '1' : $this->n('1000'),
+                'boolean' => false,
+                'date' => '2026-06-10',
+                'timestamp without time zone', 'timestamp with time zone' => now(),
+                'time without time zone' => '12:00:00',
+                'json', 'jsonb' => '[]',
+                'uuid' => (string) Str::uuid(),
+                default => substr($p . $column, 0, $info->length ?? 40),
+            };
+        }
+        try {
+            DB::transaction(fn () => DB::table($table)->insert($row));
+        } catch (\Illuminate\Database\QueryException $e) {
+            $this->seedErrors[$table] = "{$table}: " . Str::limit($e->getMessage(), 220);
+
+            return false;
+        }
+        unset($this->seedErrors[$table]);
+
+        return true;
+    }
+
+    /**
      * Bookings, banquets, nasiya and corporate accounts, gift vouchers, the waitlist, a QR payment and a bill print
      * request: each as the till or the owner creates it.
      *
@@ -411,6 +680,10 @@ trait TenancyWorld
             'banquet_package_id' => $w['banquet_package']->id,
         ])->json('data.uuid');
         $w['banquet'] = BanquetEvent::where('uuid', $banquet)->firstOrFail();
+        $w['banquet2'] = BanquetEvent::where('uuid', $this->own($o, 'POST', '/pos/banquets', [
+            'branch_id' => $w['branch']->id, 'event_date' => '2026-09-20', 'slot' => 'evening', 'hall_ids' => [$w['banquet_hall']->id],
+            'event_type' => 'osh', 'customer_name' => $p . 'Ikkinchi', 'guests_guaranteed' => 60, 'banquet_package_id' => $w['banquet_package']->id,
+        ])->json('data.uuid'))->firstOrFail();
         $rows = $this->own($o, 'PUT', "/pos/banquets/{$banquet}/payments", ['rows' => [
             ['kind' => 'deposit', 'due_date' => '2026-06-15', 'amount' => $this->n('5000000')],
             ['kind' => 'final', 'due_date' => '2026-08-19', 'amount' => bcsub((string) $w['banquet']->fresh()->total, $this->n('5000000'), 2)],
@@ -436,7 +709,7 @@ trait TenancyWorld
         $entry = $this->own($w['manager_token'], 'POST', '/pos/waitlist', ['guest_name' => $p . 'Navbatchi', 'party_size' => 3, 'guest_phone' => '+998901234502'])->json('data.uuid');
         $w['waitlist'] = PosWaitlistEntry::where('uuid', $entry)->firstOrFail();
 
-        config(['qr_payments.sandbox' => false, 'qr_payments.simulate' => true, 'qr_payments.simulate_drivers' => ['click']]);
+        config(['qr_payments.sandbox' => true, 'qr_payments.simulate' => true, 'qr_payments.simulate_drivers' => ['click']]);
         $w['store']->forceFill([
             'payment_account_type' => 'own_account',
             'payment_settings' => [
@@ -477,6 +750,9 @@ trait TenancyWorld
     private array $bIds = [0, -1];
 
     private int $bLastId = 0;
+
+    /** @var array<string, string> table => why its generic row could not be inserted */
+    public array $seedErrors = [];
 
     /**
      * Tables that hold no store's data (no store_id or branch_id, no foreign key into a table that has one): platform,
@@ -538,6 +814,9 @@ trait TenancyWorld
     private array $sideEffects = [];
 
     private bool $listening = false;
+
+    /** @var (\Closure(): mixed)|null run inside each call before it is undone (another protected scope's snapshot) */
+    protected ?\Closure $observeAlso = null;
 
     /**
      * Moves every sequence of the schema to $to (non-transactional; through the owner connection when the tests run
@@ -602,6 +881,16 @@ trait TenancyWorld
             $columns[$row->table_name][$row->column_name] = $row->data_type;
         }
         $this->assertTablesClassified($tables, $columns);
+        $empty = [];
+        foreach ($tables as $table) {
+            $own = isset(self::GLOBAL_TABLES[$table]) ? null : $this->ownRows($table, $columns[$table]);
+            if ($own !== null && !DB::table($table)->whereRaw(str_replace(['BETWEEN 41000000 AND 41099999'], ["BETWEEN {$from} AND {$to}"], $own))->exists()) {
+                $empty[] = $table;
+            }
+        }
+        if ($empty !== [] || $this->seedErrors !== []) {
+            throw new RuntimeException('World: tenant tables without a row of B: ' . implode(', ', $empty) . ' ' . implode('; ', $this->seedErrors));
+        }
 
         $uuids = [];
         foreach ($tables as $table) {
@@ -855,9 +1144,15 @@ trait TenancyWorld
                     return $found;
                 }
             } elseif ((is_int($value) || is_float($value) || (is_string($value) && is_numeric($value)))
-                && preg_match('/(^|\.)(total|count|sum|revenue|total_\w+|\w+_total|orders_count)$/i', $at)
-                && isset($this->abTotals[$this->money((string) $value)])) {
-                return "{$at} = {$value} is an A+B total (" . implode(', ', $this->abTotals[$this->money((string) $value)]) . ')';
+                && preg_match('/(^|\.)(total|count|sum|revenue|total_\w+|\w+_total|\w+_count)$/i', $at, $m)) {
+                // A bare total/count (a list's meta) is compared with every A+B total, a named one with its own
+                // table's only ("orders_count" with orders)
+                $last = strtolower($m[2]);
+                $kinds = array_filter($this->abTotals[$this->money((string) $value)] ?? [], fn (string $kind) => in_array($last, ['total', 'count', 'sum', 'revenue'], true)
+                    || str_contains($last, rtrim(explode('_', explode(' ', $kind)[0])[0], 's')));
+                if ($kinds !== []) {
+                    return "{$at} = {$value} is an A+B total (" . implode(', ', $kinds) . ')';
+                }
             }
         }
 
@@ -988,6 +1283,7 @@ trait TenancyWorld
             };
             $headers = collect($base->headers->all())->except(['date', 'set-cookie', 'x-request-id'])->map(fn ($values, $name) => $name . ': ' . implode(', ', $values))->implode("\n");
             $this->runAfterCommitCallbacks($level);
+            $also = $this->observeAlso !== null ? ($this->observeAlso)() : null;
             $touched = array_keys(array_diff_assoc($this->writeCounters(), $writes));
             $after = array_merge($this->bBaseline, $this->snapshotB($touched));
             ksort($after);
@@ -1024,6 +1320,7 @@ trait TenancyWorld
             'json' => json_decode($content, true),
             'after' => $after,
             'side' => $side,
+            'also' => $also,
         ];
     }
 

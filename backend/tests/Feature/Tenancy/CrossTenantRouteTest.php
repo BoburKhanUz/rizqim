@@ -62,8 +62,8 @@ class CrossTenantRouteTest extends TestCase
     {
         $routes = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
-            if (self::isTenantUri($route->uri())) {
-                foreach (array_diff($route->methods(), ['HEAD']) as $method) {
+            foreach (array_diff($route->methods(), ['HEAD']) as $method) {
+                if (self::isTenantKey("{$method} {$route->uri()}")) {
                     $routes["{$method} {$route->uri()}"] = $route;
                 }
             }
@@ -71,6 +71,14 @@ class CrossTenantRouteTest extends TestCase
         ksort($routes);
 
         return $routes;
+    }
+
+    /** Store-scoped staff routes outside the tenant prefixes (the customer's methods on the same URIs are not). */
+    public const TENANT_EXTRA = ['GET api/v1/complaints', 'POST api/v1/complaints/{id}/reply', 'POST api/v1/orders/{uuid}/cancel'];
+
+    public static function isTenantKey(string $key): bool
+    {
+        return in_array($key, self::TENANT_EXTRA, true) || self::isTenantUri(explode(' ', $key, 2)[1]);
     }
 
     public static function isTenantUri(string $uri): bool
@@ -94,7 +102,7 @@ class CrossTenantRouteTest extends TestCase
         foreach ($all as $key => $route) {
             $inManifest = isset($manifest['routes'][$key]);
             $notTenant = self::notTenantReason($key, $route);
-            if (self::isTenantUri($route->uri()) && !$inManifest && $notTenant === null) {
+            if (self::isTenantKey($key) && !$inManifest && $notTenant === null) {
                 $problems[] = "{$key}: tenant route missing from tests/Feature/Tenancy/routes.php: classify this route";
             } elseif (!$inManifest && $notTenant === null) {
                 $problems[] = "{$key}: neither in the manifest nor in NOT_TENANT: classify this route";
@@ -105,6 +113,13 @@ class CrossTenantRouteTest extends TestCase
         foreach (array_keys($manifest['routes']) as $key) {
             if (!isset($all[$key])) {
                 $problems[] = "{$key}: in the manifest but no such route";
+            } elseif (!self::isTenantKey($key)) {
+                $problems[] = "{$key}: in the manifest but not a tenant route (CrossTenantRouteTest::isTenantKey): the passes would skip it";
+            }
+        }
+        foreach (array_keys($manifest['uncovered']) as $key) {
+            if (!isset($manifest['routes'][$key])) {
+                $problems[] = "{$key}: an uncovered route must be a manifest route";
             }
         }
         foreach (array_keys($manifest['not_tenant']) as $key) {
@@ -191,6 +206,12 @@ class CrossTenantRouteTest extends TestCase
                 $found = $this->routeFailures($key, $routes[$key], $entry);
             } catch (\Throwable $e) {
                 $found = ["{$key}: the manifest entry fails: " . get_class($e) . ': ' . Str::limit($e->getMessage(), 300)];
+            }
+            $uncovered = $manifest['uncovered'][$key] ?? null;
+            if ($found === [] && $this->coveredActors === [] && $uncovered === null) {
+                $found[] = "{$key}: no actor's call proves the isolation (A's own call is refused for every actor): build the state it needs, or list it in `uncovered` with the reason";
+            } elseif ($this->coveredActors !== [] && $uncovered !== null) {
+                $found[] = "{$key}: covered now (" . implode(', ', $this->coveredActors) . '): remove it from `uncovered`';
             }
             foreach ($found as $failure) {
                 $failures[] = (isset($manifest['known'][$key]) ? "[known: {$manifest['known'][$key]}] " : '') . $failure;

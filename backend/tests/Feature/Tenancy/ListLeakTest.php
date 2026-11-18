@@ -21,7 +21,7 @@ class ListLeakTest extends TestCase
     use TenancyWorld;
 
     /** Lists outside the tenant prefixes that a staff token also reads. */
-    public const EXTRA_LISTS = ['GET api/v1/orders', 'GET api/v1/orders?scope=active', 'GET api/v1/notifications', 'GET api/v1/complaints'];
+    public const EXTRA_LISTS = ['GET api/v1/orders', 'GET api/v1/orders?scope=active', 'GET api/v1/notifications'];
 
     protected function setUp(): void
     {
@@ -44,7 +44,7 @@ class ListLeakTest extends TestCase
             if ($method !== 'GET' || str_contains($uri, '{') || !isset($routes[$key])) {
                 continue;
             }
-            $actors = in_array('auth:device', $routes[$key]->gatherMiddleware(), true) ? ['device'] : CrossTenantRouteTest::SANCTUM_ACTORS;
+            $actors = in_array('auth:device', $routes[$key]->gatherMiddleware(), true) ? ['device'] : [...CrossTenantRouteTest::SANCTUM_ACTORS, ...CrossTenantRouteTest::EXTRA_STAFF];
             $query = isset($entry['body']) ? ($entry['body'])($this->world['A']) : [];
             foreach ($actors as $actor) {
                 $calls[] = [$key, $uri, $actor, $entry['device'] ?? 'till', []];
@@ -57,7 +57,7 @@ class ListLeakTest extends TestCase
             [, $target] = explode(' ', $key, 2);
             [$uri, $query] = array_pad(explode('?', $target, 2), 2, '');
             parse_str($query, $params);
-            foreach (CrossTenantRouteTest::SANCTUM_ACTORS as $actor) {
+            foreach ([...CrossTenantRouteTest::SANCTUM_ACTORS, ...CrossTenantRouteTest::EXTRA_STAFF] as $actor) {
                 $calls[] = [$key, $uri, $actor, 'till', $params];
             }
         }
@@ -71,7 +71,7 @@ class ListLeakTest extends TestCase
             if ($call['status'] >= 500) {
                 $failures[] = "{$label}: {$call['status']}: " . Str::limit($call['content'], 300);
             }
-            if ($call['status'] < 300) {
+            if ($call['status'] < 300 && !in_array($actor, CrossTenantRouteTest::EXTRA_STAFF, true)) {
                 $answered++;
             }
             if ($leak = $this->bLeakIn($call['content'], $call['request'])) {
@@ -79,8 +79,9 @@ class ListLeakTest extends TestCase
             }
         }
 
-        // The scan reads real lists: most calls must be answered, else the world or the tokens are wrong
-        $this->assertGreaterThan(count($calls) / 2, $answered, "only {$answered} of " . count($calls) . ' list calls were answered');
+        // The scan reads real lists: most of the main actors' calls must be answered, else the world or the tokens are wrong
+        $main = count(array_filter($calls, fn ($call) => !in_array($call[2], CrossTenantRouteTest::EXTRA_STAFF, true)));
+        $this->assertGreaterThan($main / 2, $answered, "only {$answered} of {$main} owner, manager, cashier and terminal list calls were answered");
         $this->assertSame([], $failures, count($failures) . ' failure(s) in ' . count($calls) . " list calls:\n" . implode("\n", $failures));
     }
 }
