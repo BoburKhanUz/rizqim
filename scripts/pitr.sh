@@ -230,7 +230,8 @@ pitr_backup_label() { # pitr_backup_label <restore-log>
 #   newest run), LAST_TO_TIME (epoch the newest segment was archived), GAP=0|1, GAP_AFTER/GAP_BEFORE (segments around
 #   the newest hole), GAP_AFTER_TIME/GAP_BEFORE_TIME (epochs), BACKUP_IN_LAST_RUN (label of the oldest backup whose WAL
 #   starts in the newest run, empty = none: nothing after the hole is restorable yet), WINDOW_FROM (stop epoch of that
-#   backup) and WINDOWS (all restorable windows "from_epoch-to_epoch,...", oldest first)
+#   backup), WINDOWS (all restorable windows "from_epoch-to_epoch,...", oldest first) and one HOLE line per hole, oldest
+#   first: "HOLE <after-seg> <after-time> <before-seg> <before-time> <backup-after-label|-> <its-stop|->"
 # The segment size comes from the live server (wal_segment_size, bytes); 16 MB when unknown.
 pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal] [wal_segment_size bytes]
     _wr_json=$(pgbr repo-ls --repo="$1" --recurse --output=json "archive/$PGBACKREST_STANZA" 2>/dev/null) || return 1
@@ -262,20 +263,28 @@ pitr_wal_report() { # pitr_wal_report <repo> [timeline-decimal] [wal_segment_siz
             }
             printf "RANGES=%d\n", runs
             if (runs == 0) { print "GAP=0"; exit }
-            printf "LAST_FROM=%s\nLAST_TO=%s\nLAST_TO_TIME=%s\n", rf[runs], rl[runs], rlt[runs]
-            if (runs > 1) printf "GAP=1\nGAP_AFTER=%s\nGAP_AFTER_TIME=%s\nGAP_BEFORE=%s\nGAP_BEFORE_TIME=%s\n", rl[runs-1], rlt[runs-1], rf[runs], rft[runs]
-            else print "GAP=0"
-            w = ""
+            # the oldest backup whose WAL starts in each run (a window opens there)
             for (r = 1; r <= runs; r++) {
-                lab = ""; from = -1
+                lab[r] = ""; from[r] = -1
                 for (i = 1; i <= nb; i++) {
                     if (hex(substr(bs[i], 1, 8)) != tli) continue
                     x = idx(bs[i])
-                    if (x >= rfi[r] && x <= rli[r] && (from < 0 || bt[i] < from)) { from = bt[i]; lab = bl[i] }
+                    if (x >= rfi[r] && x <= rli[r] && (from[r] < 0 || bt[i] < from[r])) { from[r] = bt[i]; lab[r] = bl[i] }
                 }
-                if (from >= 0) w = w (w == "" ? "" : ",") from "-" rlt[r]
-                if (r == runs) printf "BACKUP_IN_LAST_RUN=%s\nWINDOW_FROM=%s\n", lab, (from >= 0 ? from : "")
             }
+            printf "LAST_FROM=%s\nLAST_TO=%s\nLAST_TO_TIME=%s\n", rf[runs], rl[runs], rlt[runs]
+            if (runs > 1) printf "GAP=1\nGAP_AFTER=%s\nGAP_AFTER_TIME=%s\nGAP_BEFORE=%s\nGAP_BEFORE_TIME=%s\n", rl[runs-1], rlt[runs-1], rf[runs], rft[runs]
+            else print "GAP=0"
+            # every hole: HOLE <after-seg> <after-time> <before-seg> <before-time> <first backup after it: label stop|- ->
+            # (no backup after a hole = nothing after it is restorable yet: an open gap)
+            for (r = 2; r <= runs; r++) {
+                al = "-"; at = "-"
+                for (q = r; q <= runs; q++) if (from[q] >= 0) { al = lab[q]; at = from[q]; break }
+                printf "HOLE %s %s %s %s %s %s\n", rl[r-1], rlt[r-1], rf[r], rft[r], al, at
+            }
+            w = ""
+            for (r = 1; r <= runs; r++) if (from[r] >= 0) w = w (w == "" ? "" : ",") from[r] "-" rlt[r]
+            printf "BACKUP_IN_LAST_RUN=%s\nWINDOW_FROM=%s\n", lab[runs], (from[runs] >= 0 ? from[runs] : "")
             printf "WINDOWS=%s\n", w
         }'
 }

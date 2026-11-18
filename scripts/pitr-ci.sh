@@ -359,6 +359,32 @@ if [ "$MODE" = "local" ]; then
     sleep 2
     second_newest() { find "$1/archive" -type f -name '0000000[0-9A-F]*-*' | sort | tail -n 2 | head -n 1; }
     marker() { live_sql "SELECT meta->>'$1' FROM monitoring_markers WHERE key = 'pitr'"; }
+    # a younger hole never hides or clears an older open gap (the real check_gaps, pgBackRest stubbed)
+    log "gap check: two holes, the newer one inside the grace time"
+    mkdir -p "$W/gapstub"
+    cat >"$W/gapstub/case.sh" <<'CASE'
+set -eu
+. "$1/scripts/pitr.sh"
+log() { :; }
+PITR_STATE_DIR=$2; PITR_REPO2=off; PGBACKREST_STANZA=main; PITR_GAP_GRACE=600
+eval "$(sed -n '/^need_set() {/,/^}/p;/^need_get() {/,/^}/p;/^need_clear() {/,/^}/p;/^check_gaps() {/,/^}/p;/^rv() {/p' "$1/scripts/backup.sh")"
+pitr_val() { case "$1" in *timeline*) echo 1;; *wal_segment*) echo 16777216;; *) echo 0;; esac; }
+NOW=$(date -u +%s)
+seg() { printf '"16-1/0000000100000000/0000000100000000000000%s-abc.gz":{"type":"file","size":1,"time":%s},' "$1" "$2"; }
+B='{"archive":{"start":"000000010000000000000001","stop":"000000010000000000000001"},"label":"F1","timestamp":{"start":1,"stop":'$((NOW - 9000))'}}'
+LIST="$(seg 01 $((NOW - 9000)); seg 02 $((NOW - 8900)); seg 03 $((NOW - 8800)); seg 05 $((NOW - 7200)); seg 06 $((NOW - 7100)))"
+pgbr() { case "$1" in repo-ls) printf '{%s"x":{"type":"path"}}' "$LIST" ;; info) printf '[{"backup":[%s]}]' "$B" ;; esac; }
+check_gaps; r1="$GAP_OPEN:$(need_get 1):$GAP_AFTER"
+LIST="$LIST$(seg 07 $((NOW - 200)); seg 09 $((NOW - 120)))"
+check_gaps; r2="$GAP_OPEN:$(need_get 1):$GAP_AFTER"
+B="$B"',{"archive":{"start":"000000010000000000000009","stop":"000000010000000000000009"},"label":"F2","timestamp":{"start":1,"stop":'$((NOW - 100))'}}'
+check_gaps; r3="$GAP_OPEN:$(need_get 1):$GAP_BACKUP"
+echo "$r1|$r2|$r3"
+CASE
+    rm -rf "$W/gapstub/state"; mkdir -p "$W/gapstub/state"
+    got=$(sh "$W/gapstub/case.sh" "$ROOT_DIR" "$W/gapstub/state")
+    [ "$got" = "1:gap:000000010000000000000003|1:gap:000000010000000000000003|0::F2" ] || die "gap check: a younger hole changed the verdict on an older open gap ($got)"
+    summary "gap check: an old open gap stays open (and needed) while a younger hole is inside the grace time; a full after both closes it"
     # RR2-5: a hole younger than the grace time is not a gap; a need it caused is cleared when it closes
     log "RR2-5: a segment missing for one check (out-of-order arrival) is not a gap"
     f=$(second_newest "$W/repo"); mv "$f" "$f.away"
@@ -554,6 +580,14 @@ $BACKUP_SH --markers || die "backup.sh --markers"
 [ "$(live_sql "SELECT meta->>'status' = 'ok' AND (meta->'gap'->>'detected') IS NULL AND meta->>'heal' IS NULL FROM monitoring_markers WHERE key = 'pitr'")" = "t" ] \
     || { live_sql "SELECT meta FROM monitoring_markers WHERE key = 'pitr'" >&2; die "after two switches the pitr marker is not clean"; }
 summary "switch 2: copy0 at P0 < P1 live (timeline $tlb > $tla), drill ok, gap check clean"
+# --recover after a switch that had completed (kill -9 between "complete" and removing the state): nothing is rolled back
+st_before=$(live_started)
+cur=$(counts)
+{ echo "AT=2026-01-01 00:00:00"; echo "PREVIOUS=/nonexistent-previous"; echo "TARGET=/nonexistent-target"; echo "PHASE=stopping"; echo "PHASE=complete"; } >"$(state_file)"
+$SWITCH --recover || die "--recover after a completed switch failed"
+[ ! -f "$(state_file)" ] || die "--recover left the stale state of a completed switch"
+{ [ "$(live_started)" = "$st_before" ] && [ "$(counts)" = "$cur" ]; } || die "--recover rolled back a completed switch"
+summary "--recover after a completed switch: state removed, nothing rolled back"
 # the previous live database: kept, listed, never started again, dropped only on purpose
 $PITR_RESTORE_SH --list | grep -q "^copy1: avvalgi baza" || { $PITR_RESTORE_SH --list >&2; die "copy1 (the previous live database) is not listed as such"; }
 if $PITR_RESTORE_SH --start copy1 2>/dev/null; then die "the previous live database was started"; fi

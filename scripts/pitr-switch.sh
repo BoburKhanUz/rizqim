@@ -221,6 +221,13 @@ on_exit() {
 # --- --recover: an interrupted switch (killed, power loss): the state file says where to go back to ------------------
 if [ "$recover" = "1" ]; then
     [ -f "$STATE" ] || die "to'xtab qolgan almashtirish yo'q ($STATE): hech narsa qilinmadi"
+    if [ "$(state_get PHASE)" = "complete" ]; then
+        # the new full backup exists: the switch had finished, only the state file was left behind
+        done_info="$(state_get AT): $(state_get PREVIOUS) -> $(state_get TARGET)"
+        rm -f "$STATE"
+        log "almashtirish ($done_info) tugagan edi (yangi to'liq nusxa olingan); qolib ketgan holat fayli o'chirildi. Hech narsa qaytarilmadi"
+        exit 0
+    fi
     previous=$(state_get PREVIOUS)
     [ -n "$previous" ] || die "$STATE da PREVIOUS yo'q"
     log "to'xtab qolgan almashtirish ($(state_get AT): $previous -> $(state_get TARGET), bosqich $(state_get PHASE)) qaytarilmoqda"
@@ -262,8 +269,10 @@ previous=$(current_data)
 previous_src=$(data_source)
 env_copy "$stamp"
 # everything the revert needs, BEFORE the first destructive step (a later kill -9 is undone by --recover)
-{ echo "AT=$switched_at"; echo "PREVIOUS=$previous"; echo "TARGET=$target"; echo "PHASE=stopping"; } >"$STATE"
-phase() { echo "PHASE=$1" >>"$STATE"; }
+# state writes are atomic (temp file + rename): a kill -9 never leaves half a line behind
+{ echo "AT=$switched_at"; echo "PREVIOUS=$previous"; echo "TARGET=$target"; echo "PHASE=stopping"; } >"$STATE.tmp"
+mv "$STATE.tmp" "$STATE"
+phase() { { grep -v '^PHASE=' "$STATE"; echo "PHASE=$1"; } >"$STATE.tmp" && mv "$STATE.tmp" "$STATE"; }
 stage=switching
 trap on_exit EXIT
 trap 'exit 130' INT TERM HUP

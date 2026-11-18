@@ -433,7 +433,11 @@ write_markers() {
                     'before_at', to_char(to_timestamp(nullif(:'gapbeforet', '')::bigint) AT TIME ZONE 'UTC', $iso),
                     'backup_after', nullif(:'gapbackup', ''),
                     'restorable_from', to_char(to_timestamp(nullif(:'gapfrom', '')::bigint) AT TIME ZONE 'UTC', $iso),
-                    'message', :'gapnote') END,
+                    'message', :'gapnote',
+                    'restorable_windows', (SELECT json_agg(json_build_object(
+                          'from', to_char(to_timestamp(split_part(w, '-', 1)::bigint) AT TIME ZONE 'UTC', $iso),
+                          'to', to_char(to_timestamp(split_part(w, '-', 2)::bigint) AT TIME ZONE 'UTC', $iso)))
+                        FROM unnest(string_to_array(nullif(:'gapwindows', ''), ',')) w)) END,
               'heal', CASE WHEN :'needed' = '' THEN NULL ELSE json_build_object(
                     'needed', to_json(string_to_array(:'needed', ' ')),
                     'last_attempt_at', to_char(to_timestamp(nullif(:'heallast', '')::bigint) AT TIME ZONE 'UTC', $iso),
@@ -467,7 +471,7 @@ write_markers() {
             -v "lasterr=$lasterr" -v "outage=$outage" -v "gap=$GAP" -v "gapopen=$GAP_OPEN" -v "gaprepo=${GAP_REPO:-0}" \
             -v "gaptli=${GAP_TLI:-0}" -v "gapafter=$GAP_AFTER" -v "gapaftert=$GAP_AFTER_TIME" -v "gapbefore=$GAP_BEFORE" \
             -v "gapbeforet=$GAP_BEFORE_TIME" -v "gapbackup=$GAP_BACKUP" -v "gapfrom=$GAP_FROM" -v "gapmsg=$GAP_MSG" \
-            -v "gapnote=$GAP_NOTE" -v "needed=$needed" -v "healmsg=$heal_msg" -v "heallast=$heal_last" \
+            -v "gapnote=$GAP_NOTE" -v "gapwindows=$GAP_WINDOWS" -v "needed=$needed" -v "healmsg=$heal_msg" -v "heallast=$heal_last" \
             -v "healint=${PITR_HEAL_INTERVAL:-21600}" || true
         track_outage
     else
@@ -500,7 +504,7 @@ write_markers() {
 # cleared. repo2 (S3) is listed at most every PITR_GAP_S3_INTERVAL (3600 s; the result is cached), repo1 every run.
 check_gaps() {
     GAP=0; GAP_OPEN=0; GAP_REPO=; GAP_TLI=; GAP_AFTER=; GAP_AFTER_TIME=; GAP_BEFORE=; GAP_BEFORE_TIME=; GAP_BACKUP=
-    GAP_FROM=; GAP_MSG=; GAP_NOTE=
+    GAP_FROM=; GAP_MSG=; GAP_NOTE=; GAP_WINDOWS=
     live_tli=$(pitr_val "SELECT timeline_id FROM pg_control_checkpoint()")
     seg_size=$(pitr_val "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'")
     now=$(date -u +%s)
@@ -514,22 +518,40 @@ check_gaps() {
             report=$(pitr_wal_report "$repo" "$live_tli" "$seg_size") || continue
             { echo "AT=$now"; printf '%s\n' "$report"; } >"$cache"
         fi
-        sev=0
-        if [ "$(rv GAP)" = "1" ] && [ $((now - $(rv GAP_BEFORE_TIME))) -ge "${PITR_GAP_GRACE:-600}" ]; then
-            if [ -z "$(rv BACKUP_IN_LAST_RUN)" ]; then sev=2; else sev=1; fi
-        fi
+        # every hole on its own: one counts once the segment after it arrived PITR_GAP_GRACE ago. The oldest counted
+        # hole with no backup after it = an open gap (nothing after it is restorable); a young hole never changes the
+        # verdict about an older one. Otherwise the newest counted hole with a backup after it = healed.
+        sev=0; h_after=; h_after_t=; h_before=; h_before_t=; h_lab=; h_stop=
+        holes=$(printf '%s\n' "$report" | sed -n 's/^HOLE //p')
+        old_ifs=$IFS
+        IFS='
+'
+        for h in $holes; do
+            IFS=$old_ifs
+            # shellcheck disable=SC2086
+            set -- $h
+            IFS='
+'
+            [ $((now - $4)) -ge "${PITR_GAP_GRACE:-600}" ] || continue
+            if [ "$5" = "-" ]; then
+                sev=2; h_after=$1; h_after_t=$2; h_before=$3; h_before_t=$4; h_lab=; h_stop=
+                break
+            fi
+            sev=1; h_after=$1; h_after_t=$2; h_before=$3; h_before_t=$4; h_lab=$5; h_stop=$6
+        done
+        IFS=$old_ifs
         if [ "$sev" = "2" ]; then
             need_set "$repo" gap
         elif [ "$(need_get "$repo")" = "gap" ]; then
             need_clear "$repo"
-            log "PITR: repo$repo dagi uzilish yopildi yoki undan keyin to'liq nusxa bor: yangi to'liq nusxa endi kerak emas"
+            log "PITR: repo$repo: uzilishdan keyin to'liq nusxa bor (yoki uzilish yopildi): yangi to'liq nusxa endi kerak emas"
         fi
         [ "$sev" -gt "$worst" ] || continue
         worst=$sev
         GAP=1; GAP_REPO=$repo; GAP_TLI=$(rv TLI)
-        GAP_AFTER=$(rv GAP_AFTER); GAP_AFTER_TIME=$(rv GAP_AFTER_TIME)
-        GAP_BEFORE=$(rv GAP_BEFORE); GAP_BEFORE_TIME=$(rv GAP_BEFORE_TIME)
-        GAP_BACKUP=$(rv BACKUP_IN_LAST_RUN); GAP_FROM=$(rv WINDOW_FROM)
+        GAP_AFTER=$h_after; GAP_AFTER_TIME=$h_after_t
+        GAP_BEFORE=$h_before; GAP_BEFORE_TIME=$h_before_t
+        GAP_BACKUP=$h_lab; GAP_FROM=$h_stop; GAP_WINDOWS=$(rv WINDOWS)
         after_h=$(pitr_epoch_utc "$GAP_AFTER_TIME")
         if [ "$sev" = "2" ]; then
             GAP_OPEN=1
