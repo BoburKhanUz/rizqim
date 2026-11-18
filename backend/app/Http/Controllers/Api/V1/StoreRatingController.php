@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderChannel;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -13,6 +14,7 @@ use App\Traits\ApiResponse;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\StoreRating;
+use App\Services\Catalog\StockLocks;
 use Illuminate\Support\Facades\DB;
 
 #[Group('Stores')]
@@ -51,6 +53,8 @@ class StoreRatingController extends Controller
             ->whereKey((int) $request->integer('order_id'))
             ->where('user_id', $user->id)
             ->where('store_id', $store->id)
+            // A POS or aggregator order names the acting staff member as user_id: only a customer's own order is rated
+            ->whereIn('channel', OrderChannel::customerValues())
             ->first();
         if (!$order) {
             return $this->error('Buyurtma topilmadi.', [], 404);
@@ -63,9 +67,11 @@ class StoreRatingController extends Controller
             $saved = DB::transaction(function () use ($user, $store, $order, $request) {
                 // The order first, then the store (the ledger's order of locks): KEY SHARE is what the rating's foreign
                 // key takes anyway. The store's row lock serializes the ratings of one store, so each recomputation
-                // below sees every committed rating (two at once never lose one).
+                // below sees every committed rating (two at once never lose one). FOR NO KEY UPDATE (StockLocks::mode):
+                // it still excludes another rating and the ledger's FOR UPDATE, but not the KEY SHARE of an insert that
+                // references the store (an order, a ledger row); only non-key columns are written.
                 Order::query()->whereKey($order->id)->lock('for key share')->first();
-                $locked = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
+                $locked = Store::query()->whereKey($store->id)->lock(StockLocks::mode())->firstOrFail();
 
                 if (StoreRating::where('order_id', $order->id)->exists()) {
                     return null;

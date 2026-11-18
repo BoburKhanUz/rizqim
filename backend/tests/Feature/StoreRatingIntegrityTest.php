@@ -106,6 +106,51 @@ class StoreRatingIntegrityTest extends TestCase
         $this->assertEquals(4.5, (float) $store->rating);
     }
 
+    public function test_a_pos_order_is_not_rateable(): void
+    {
+        // A POS order carries the acting staff member as user_id: once that account is no longer staff it still rates nothing
+        foreach (['pos_hall', 'pos_takeaway', 'aggregator'] as $channel) {
+            $order = $this->makeOrder(OrderStatus::DELIVERED, ['channel' => $channel]);
+            $this->rate($this->customer, $this->store, $order->id)->assertNotFound();
+        }
+        $this->assertNothingRated();
+
+        $mobile = $this->makeOrder(OrderStatus::DELIVERED, ['channel' => 'mobile']);
+        $this->rate($this->customer, $this->store, $mobile->id)->assertOk();
+    }
+
+    public function test_the_migration_unlinks_legacy_ratings_that_cite_someone_elses_order(): void
+    {
+        $migration = require database_path('migrations/2026_11_26_100000_unique_order_on_store_ratings.php');
+        $migration->down();
+
+        $order = $this->makeOrder(OrderStatus::DELIVERED);
+        $kept = $this->makeOrder(OrderStatus::DELIVERED);
+        $stranger = $this->makeCustomer();
+        $row = fn (User $user, Store $store, Order $order, int $stars) => DB::table('store_ratings')->insertGetId([
+            'user_id' => $user->id, 'store_id' => $store->id, 'order_id' => $order->id, 'rating' => $stars,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        // The old endpoint let anyone cite any order: earlier bogus rows (another user; the right user, another store)
+        $bogusUser = $row($stranger, $this->store, $order, 1);
+        $bogusStore = $row($this->customer, $this->otherStore, $order, 1);
+        // A genuine legacy rating and a later duplicate of it
+        $genuine = $row($this->customer, $this->store, $kept, 5);
+        $duplicate = $row($this->customer, $this->store, $kept, 4);
+
+        $migration->up();
+
+        $this->assertSame([null, null, $kept->id, null], array_map(
+            fn (int $id) => DB::table('store_ratings')->where('id', $id)->value('order_id'),
+            [$bogusUser, $bogusStore, $genuine, $duplicate],
+        ));
+        $this->assertSame(4, StoreRating::count(), 'no rating is deleted');
+
+        // The real customer of the cited order can rate it; the genuinely rated one stays rated
+        $this->rate($this->customer, $this->store, $order->id, 5)->assertOk();
+        $this->rate($this->customer, $this->store, $kept->id, 5)->assertStatus(400);
+    }
+
     public function test_the_database_keeps_one_rating_per_order(): void
     {
         $order = $this->makeOrder(OrderStatus::DELIVERED);
