@@ -10,8 +10,8 @@ V1StoresStoreIdRateRequestBody _$V1StoresStoreIdRateRequestBodyFromJson(
   Map<String, dynamic> json,
 ) => V1StoresStoreIdRateRequestBody(
   rating: (json['rating'] as num).toInt(),
+  orderId: (json['order_id'] as num).toInt(),
   comment: json['comment'] as String?,
-  orderId: (json['order_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$V1StoresStoreIdRateRequestBodyToJson(

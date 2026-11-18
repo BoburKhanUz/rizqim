@@ -52,7 +52,10 @@ abstract class StoresApi {
 
   /// Rate a store.
   ///
-  /// One rating per order (400 when this order was already rated); returns the store's new average and count.
+  /// Only the customer who placed the order, for a delivered order of this store, once per order (400 when this order.
+  /// was already rated; a rating is not edited). Staff accounts of any store are refused (403). A missing order and.
+  /// somebody else's order (or an order of another store) answer the same 404; 422 while the order is not delivered.
+  /// Returns the store's new average and count, recomputed from the stored ratings.
   @POST('/v1/stores/{storeId}/rate')
   Future<PostV1StoresStoreIdRateResponse> storeRatingRate({
     @Path('storeId') required int storeId,

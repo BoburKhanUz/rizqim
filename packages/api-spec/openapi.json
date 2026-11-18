@@ -37334,7 +37334,8 @@
                                 "type": "object",
                                 "properties": {
                                     "order_id": {
-                                        "type": "integer"
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
                                     "type": {
                                         "type": "string",
@@ -37388,7 +37389,7 @@
                             }
                         }
                     },
-                    "403": {
+                    "404": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -168488,7 +168489,7 @@
         "/v1/stores/{storeId}/rate": {
             "post": {
                 "operationId": "storeRating.rate",
-                "description": "One rating per order (400 when this order was already rated); returns the store's new average and count.",
+                "description": "Only the customer who placed the order, for a delivered order of this store, once per order (400 when this order\nwas already rated; a rating is not edited). Staff accounts of any store are refused (403). A missing order and\nsomebody else's order (or an order of another store) answer the same 404; 422 while the order is not delivered.\nReturns the store's new average and count, recomputed from the stored ratings.",
                 "summary": "Rate a store",
                 "tags": [
                     "Stores"
@@ -168523,14 +168524,13 @@
                                         "maxLength": 500
                                     },
                                     "order_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
+                                        "type": "integer",
+                                        "minimum": 1
                                     }
                                 },
                                 "required": [
-                                    "rating"
+                                    "rating",
+                                    "order_id"
                                 ]
                             }
                         }
@@ -168587,6 +168587,26 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
