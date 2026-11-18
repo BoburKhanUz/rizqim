@@ -28,9 +28,13 @@ class CheckProductionDatabaseRoleTest extends TestCase
     }
 
     /**
-     * The command's default connection becomes a separate connection logged in as the table owner.
+     * The command's default connection becomes a separate connection logged in as the table owner. Returns its name
+     * and what the command calls it: a superuser (the normal CI job, a Docker install on one role) is named as such,
+     * a plain owner (local development) as "jadvallar egasi".
+     *
+     * @return array{0: string, 1: string}
      */
-    private function connectAsOwner(): string
+    private function connectAsOwner(): array
     {
         $base = config('database.connections.pgsql');
         $owner = OwnerConnection::prepare()
@@ -39,7 +43,9 @@ class CheckProductionDatabaseRoleTest extends TestCase
         config(['database.connections.m4_owner_probe' => array_merge($base, $owner, ['host' => config('database.connections.pgsql_owner.host'), 'port' => config('database.connections.pgsql_owner.port')])]);
         DB::setDefaultConnection('m4_owner_probe');
 
-        return (string) DB::selectOne('SELECT current_user AS u')->u;
+        $row = DB::selectOne('SELECT current_user AS u, rolsuper AS s FROM pg_roles WHERE rolname = current_user');
+
+        return [(string) $row->u, $row->s ? 'superuser' : 'jadvallar egasi'];
     }
 
     protected function tearDown(): void
@@ -50,22 +56,22 @@ class CheckProductionDatabaseRoleTest extends TestCase
 
     public function test_an_application_role_that_owns_the_tables_is_refused_once_the_roles_are_split(): void
     {
-        $owner = $this->connectAsOwner();
+        [$owner, $what] = $this->connectAsOwner();
 
-        $this->withEnv(['DB_OWNER_USERNAME' => OwnerConnection::username() ?? $owner], function () use ($owner) {
+        $this->withEnv(['DB_OWNER_USERNAME' => OwnerConnection::username() ?? $owner], function () use ($owner, $what) {
             $this->artisan('app:check-production')
-                ->expectsOutputToContain("Ilova bazaga {$owner} roli bilan ulanmoqda (jadvallar egasi)")
+                ->expectsOutputToContain("Ilova bazaga {$owner} roli bilan ulanmoqda ({$what})")
                 ->assertFailed();
         });
     }
 
     public function test_an_install_still_on_one_role_only_gets_a_warning(): void
     {
-        $owner = $this->connectAsOwner();
+        [$owner, $what] = $this->connectAsOwner();
 
-        $this->withEnv(['DB_OWNER_USERNAME' => null, 'DB_OWNER_PASSWORD' => null], function () use ($owner) {
+        $this->withEnv(['DB_OWNER_USERNAME' => null, 'DB_OWNER_PASSWORD' => null], function () use ($owner, $what) {
             $this->artisan('app:check-production')
-                ->expectsOutputToContain("OGOHLANTIRISH: ilova bazaga {$owner} roli bilan ulanmoqda (jadvallar egasi)")
+                ->expectsOutputToContain("OGOHLANTIRISH: ilova bazaga {$owner} roli bilan ulanmoqda ({$what})")
                 ->assertSuccessful();
         });
     }

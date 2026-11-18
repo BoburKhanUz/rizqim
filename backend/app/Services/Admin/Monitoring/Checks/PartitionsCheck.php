@@ -120,7 +120,7 @@ class PartitionsCheck implements AlertCheck
         try {
             return OwnerConnection::run(function (): ?string {
                 try {
-                    DB::connection()->getPdo();
+                    DB::connection()->select('SELECT 1');
                 } catch (Throwable $e) {
                     return "egasi roli bilan bazaga ulanib bo'lmadi (" . mb_substr(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '', 0, 160) . ')';
                 }

@@ -119,6 +119,8 @@ class StoreRatingIntegrityTest extends TestCase
         $this->rate($this->customer, $this->store, $mobile->id)->assertOk();
     }
 
+    // M4: runs the migration's down() and up() itself (DDL): as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_unlinks_legacy_ratings_that_cite_someone_elses_order(): void
     {
         $migration = require database_path('migrations/2026_11_26_100000_unique_order_on_store_ratings.php');
