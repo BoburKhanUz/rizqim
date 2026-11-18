@@ -9,7 +9,7 @@
 #   pitr-drill.sh cleanup                                (qolib ketgan mashq serverini to'xtatib, papkani o'chiradi)
 #
 # Qadamlar: (1) tekshiruv: PITR yoqiq, `pgbackrest check`, bo'sh joy >= 1.2 x baza hajmi; (2) ish bazasiga
-# monitoring_markers 'drill_probe' belgisi (token1), T = uning vaqti + 1 s, T dan keyin token2 yoziladi va uning WAL'i
+# monitoring_markers 'drill_probe' belgisi (token1), T = uning vaqti + 2 s (soniyaga yaxlitlangan), T dan keyin token2 yoziladi va uning WAL'i
 # arxivga yetguncha kutiladi (shu kutish = ma'lumot yo'qotish oynasi); (3) pgBackRest T ga tiklaydi (yangi papka
 # $PITR_RESTORE_ROOT/drill), ikkinchi Postgres $PITR_RESTORE_PORT portida ochiladi, promote bo'lguncha vaqt = tiklash
 # vaqti; (4) tekshiruvlar: token1 bor, token2 yo'q, asosiy jadvallar soni (T - 5 daq gacha) bir xil, migratsiyalar bir
@@ -192,7 +192,9 @@ run() {
     fi
 
     # (2) markers and T
-    probe_sql() { pitr_val "INSERT INTO monitoring_markers (key, recorded_at, meta) VALUES ('drill_probe', now() AT TIME ZONE 'UTC', json_build_object('token', '$1', 'phase', '$2')) ON CONFLICT (key) DO UPDATE SET recorded_at = EXCLUDED.recorded_at, meta = EXCLUDED.meta RETURNING to_char(date_trunc('second', now() + interval '1 second') AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')"; }
+    # T is at least one full second after the statement starts: with + 1 s a token1 written in the last milliseconds
+    # of a second could commit after T, and recovery to T would then stop before it (a false "token1 missing").
+    probe_sql() { pitr_val "INSERT INTO monitoring_markers (key, recorded_at, meta) VALUES ('drill_probe', now() AT TIME ZONE 'UTC', json_build_object('token', '$1', 'phase', '$2')) ON CONFLICT (key) DO UPDATE SET recorded_at = EXCLUDED.recorded_at, meta = EXCLUDED.meta RETURNING to_char(date_trunc('second', now() + interval '2 seconds') AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')"; }
     if [ -z "$target" ]; then
         token1=$(pitr_uuid)
         t=$(probe_sql "$token1" before)
