@@ -20,8 +20,8 @@ use Tests\TestCase;
  * payments.store_id migration runs while tills write. Rows written before the column are backfilled while one till
  * holds an old payment locked (a refund in progress) and another keeps inserting payments (old code without the
  * column, new code with it) and updating old ones, through the backfill, the constraint steps and VALIDATE. No till
- * write fails, a backfill batch never waits for the till's lock, and every row ends with its order's store. The
- * fixtures are committed (the children must see them) and removed in tearDown.
+ * write fails, the backfill batches finish while the till still holds its row (they never wait for it), and every row
+ * ends with its order's store. The fixtures are committed (the children must see them) and removed in tearDown.
  */
 class PaymentStoreIdConcurrencyTest extends TestCase
 {
@@ -94,14 +94,18 @@ class PaymentStoreIdConcurrencyTest extends TestCase
 
         $pids = [];
         $pids[] = $this->fork(0, function () use ($locked) {
-            // A refund in progress on an old payment: its row stays locked for 2 s, then it is written
+            // A refund in progress on an old payment: its row stays locked until the migration has gone through
+            // every backfill batch (or 15 s, if a batch waits for it), then it is written
             DB::transaction(function () use ($locked) {
                 DB::table('payments')->where('id', $locked)->lockForUpdate()->first();
                 file_put_contents("{$this->dir}/locked", '1');
-                usleep(2_000_000);
+                $deadline = microtime(true) + 15;
+                while (!file_exists("{$this->dir}/batches-done") && microtime(true) < $deadline) {
+                    usleep(20_000);
+                }
+                file_put_contents("{$this->dir}/released", file_exists("{$this->dir}/batches-done") ? 'after the batches' : 'timeout');
                 DB::table('payments')->where('id', $locked)->update(['status' => 'refunded', 'updated_at' => now()]);
             });
-            file_put_contents("{$this->dir}/released", (string) microtime(true));
         });
         $pids[] = $this->fork(1, function () use ($mine, $theirs, $old) {
             // Tills taking payments (code from before M4 without the column, and the new code with it) and updating
@@ -125,10 +129,10 @@ class PaymentStoreIdConcurrencyTest extends TestCase
         });
 
         $this->waitFor(['locked', 'started']);
-        $rangeDone = null;
-        DB::listen(function ($query) use (&$rangeDone) {
-            if (str_contains($query->sql, 'FOR UPDATE SKIP LOCKED')) {
-                $rangeDone = microtime(true);
+        // The first statement after the batches (the rows they skipped): every batch has finished by then
+        DB::listen(function ($query) {
+            if (str_contains($query->sql, 'IS NOT NULL ORDER BY id')) {
+                touch("{$this->dir}/batches-done");
             }
         });
         (require database_path(self::MIGRATION))->up();
@@ -139,8 +143,7 @@ class PaymentStoreIdConcurrencyTest extends TestCase
 
         $this->assertSame(['ok', 'ok'], [@file_get_contents("{$this->dir}/status-0"), @file_get_contents("{$this->dir}/status-1")], (string) @file_get_contents("{$this->dir}/error-0") . @file_get_contents("{$this->dir}/error-1"));
         $this->assertGreaterThan(0, (int) file_get_contents("{$this->dir}/written"));
-        $this->assertNotNull($rangeDone);
-        $this->assertLessThan((float) file_get_contents("{$this->dir}/released"), $rangeDone, 'a backfill batch waited for the row a till held locked');
+        $this->assertSame('after the batches', file_get_contents("{$this->dir}/released"), 'a backfill batch waited for the row a till held locked');
 
         $this->assertFalse((bool) DB::selectOne("SELECT NOT attnotnull AS n FROM pg_attribute WHERE attrelid = 'payments'::regclass AND attname = 'store_id'")->n, 'payments.store_id is NOT NULL');
         $this->assertTrue((bool) DB::selectOne("SELECT convalidated AS v FROM pg_constraint WHERE conrelid = 'payments'::regclass AND conname = 'payments_store_id_foreign'")->v);
