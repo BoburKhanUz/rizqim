@@ -480,6 +480,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # M4: its start-up pg_dump (BACKUP_RUN_ON_START) must not hold every table while db-roles moves their owners
+      db-roles:
+        condition: service_completed_successfully
     environment:
       <<: *pitr-environment
       # M3 PITR: pgBackRest zaxirani shu konteynerdan oladi: ma'lumotlar papkasini faqat o'qiydi (:ro, yo'li serverniki

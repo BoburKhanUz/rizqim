@@ -62,7 +62,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | ildiz `.env` | `PITR_S3_REGION`, `PITR_S3_PREFIX`, `PITR_S3_URI_STYLE`, `PITR_S3_VERIFY_TLS` | `us-east-1` (yoki `BACKUP_S3_REGION`), bo'sh, `path`, `y` | ixtiyoriy S3 tafsilotlari |
 | ildiz `.env` | `PITR_REPO1_RETENTION_FULL`, `PITR_S3_RETENTION_FULL` | `2`, `4` | saqlanadigan to'liq (haftalik) nusxalar: shu serverda ~14 kun, S3 da ~28 kun |
 | ildiz `.env` | `PITR_ARCHIVE_QUEUE_MAX` | `4GiB` | S3 ishlamasa WAL shu hajmgacha kutadi; oshsa tashlanadi (disk to'lmaydi, PITR zanjiri uziladi) |
-| ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC. `0` = faqat qo'lda |
+| ildiz `.env` | `PITR_DRILL_MONTHLY`, `PITR_DRILL_TIME` | `1`, `23:00` | tiklash mashqi: har oyning birinchi yakshanbasi, UTC (23:00 UTC = Toshkentda dushanba 04:00). `0` = faqat qo'lda |
 | ildiz `.env` | `ARCHIVE_S3_ENDPOINT`, `ARCHIVE_S3_BUCKET`, `ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`, `ARCHIVE_S3_REGION`, `ARCHIVE_S3_PREFIX` | bo'sh = `BACKUP_S3_*` | jurnallar arxivi uchun S3 (`<prefiks>/archive`). Arxiv hech qachon o'chmasligi kerak: o'chirish huquqi **yo'q** kalit, imkon bo'lsa Object Lock'li alohida bucket |
 | ildiz `.env` | `PITR_PING_URL` | bo'sh | healthchecks.io manzili: har muvaffaqiyatli PITR nusxasidan keyin so'rov yuboriladi |
 | ildiz `.env` | `HEALTHCHECKS_PING_URL` | bo'sh | healthchecks.io manzili: scheduler har daqiqalik tekshiruvdan keyin so'rov yuboradi (server jim bo'lsa tashqi xizmat xabar beradi) |

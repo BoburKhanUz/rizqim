@@ -93,11 +93,13 @@ fi
 # indexes follow their table; objects of an extension are left alone.
 list=$(mktemp)
 trap 'rm -f "$list"' EXIT
-q -v owner="$OWNER" > "$list" <<'SQL'
+tab=$(printf '\t')
+# One line per object: its name, a tab, the statement that moves it
+q -F "$tab" -v owner="$OWNER" > "$list" <<'SQL'
 WITH o AS (SELECT oid FROM pg_roles WHERE rolname = :'owner'),
 ext AS (SELECT classid, objid FROM pg_depend WHERE deptype = 'e')
-SELECT stmt FROM (
-    SELECT 1 AS k, c.relispartition::int AS p, c.relname::text AS name,
+SELECT name, stmt FROM (
+    SELECT 1 AS k, c.relispartition::int AS p, format('%I.%I', n.nspname, c.relname) AS name,
            format('ALTER %s %I.%I OWNER TO %I',
                   CASE c.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' WHEN 'S' THEN 'SEQUENCE' WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END,
                   n.nspname, c.relname, :'owner') AS stmt
@@ -107,13 +109,13 @@ SELECT stmt FROM (
        AND (c.relkind <> 'S' OR NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i')))
        AND NOT EXISTS (SELECT 1 FROM ext WHERE ext.classid = 'pg_class'::regclass AND ext.objid = c.oid)
     UNION ALL
-    SELECT 2, 0, p.proname::text,
+    SELECT 2, 0, p.oid::regprocedure::text,
            format('ALTER %s %s OWNER TO %I', CASE p.prokind WHEN 'p' THEN 'PROCEDURE' WHEN 'a' THEN 'AGGREGATE' ELSE 'FUNCTION' END, p.oid::regprocedure, :'owner')
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public' AND p.proowner <> (SELECT oid FROM o)
        AND NOT EXISTS (SELECT 1 FROM ext WHERE ext.classid = 'pg_proc'::regclass AND ext.objid = p.oid)
     UNION ALL
-    SELECT 3, 0, t.typname::text, format('ALTER TYPE %I.%I OWNER TO %I', n.nspname, t.typname, :'owner')
+    SELECT 3, 0, format('%I.%I', n.nspname, t.typname), format('ALTER TYPE %I.%I OWNER TO %I', n.nspname, t.typname, :'owner')
       FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
      WHERE n.nspname = 'public' AND t.typtype IN ('e', 'd', 'r', 'm') AND t.typowner <> (SELECT oid FROM o)
        AND NOT EXISTS (SELECT 1 FROM ext WHERE ext.classid = 'pg_type'::regclass AND ext.objid = t.oid)
@@ -122,11 +124,12 @@ ORDER BY k, p, name
 SQL
 
 moved=0
-# One short transaction per object: ALTER ... OWNER takes ACCESS EXCLUSIVE on it for an instant, so a till's write
-# queues behind it for at most lock_timeout (2 s). An object whose lock cannot be had (usually the nightly pg_dump,
-# which holds a read lock on every table for its whole run) is tried again in later passes, 5 s apart, until
-# MOVE_DEADLINE seconds after the first pass: 300 s outlasts a pilot-sized pg_dump [E] and still lets a deploy go on
-# (the stack waits for this service). Whatever is left is named at the end.
+# One short transaction per object: ALTER ... OWNER takes ACCESS EXCLUSIVE on it for an instant, so a till's read or
+# write queues behind it for at most lock_timeout (2 s). An object whose lock cannot be had (usually the nightly
+# pg_dump, which holds a read lock on every table for its whole run) is tried again in later passes, 5 s apart. No
+# object is tried once MOVE_DEADLINE seconds have passed since the start (checked before each one): 300 s outlasts a
+# pilot-sized pg_dump [E] and still lets a deploy go on (the stack waits for this service), so the whole step ends
+# within about 300 s + one lock_timeout. Whatever is left is named at the end. An object dropped meanwhile counts as done.
 MOVE_DEADLINE=300
 pending=$(mktemp)
 retry=$(mktemp)
@@ -135,14 +138,20 @@ cp "$list" "$pending"
 start=$(date +%s)
 while :; do
     : > "$retry"
-    while IFS= read -r stmt; do
+    while IFS="$tab" read -r name stmt; do
         [ -n "$stmt" ] || continue
+        if [ $(($(date +%s) - start)) -ge "$MOVE_DEADLINE" ]; then
+            printf '%s\t%s\n' "$name" "$stmt" >> "$retry"
+            continue
+        fi
         if err=$(q -c "SET lock_timeout = '2s'; $stmt" 2>&1); then
             say "ko'chirildi: ${stmt#ALTER }"
             moved=$((moved + 1))
         else
-            printf '%s\n' "$stmt" >> "$retry"
-            last_err=$err
+            case "$err" in
+                *'does not exist'*) say "o'chirilgan, o'tkazib yuborildi: $name" ;;
+                *) printf '%s\t%s\n' "$name" "$stmt" >> "$retry"; last_err=$err ;;
+            esac
         fi
     done < "$pending"
     [ -s "$retry" ] || break
@@ -174,7 +183,7 @@ fi
 if [ "$failed" -gt 0 ]; then
     # The stack still starts (the app's rights do not depend on who owns a table), but a migration that changes one of
     # these objects fails with "must be owner" and stops the backend from starting: run this again first
-    names=$(sed -e 's/^ALTER [A-Z ]* \([^ ]*\) OWNER TO .*/\1/' "$retry" | paste -sd ' ' -)
+    names=$(cut -f1 "$retry" | paste -sd ',' - | sed 's/,/, /g')
     printf "db-roles: XATO: %s ta obyekt %s s ichida ko'chirilmadi (band: %s): %s. Ularni o'zgartiradigan migratsiya backend'ni to'xtatadi. Uzun tranzaksiya yo'qligini tekshirib qayta ishga tushiring: docker compose run --rm db-roles (docs/OPERATIONS.md, 22-bo'lim)\n" "$failed" "$MOVE_DEADLINE" "${last_err:-}" "$names" >&2
 fi
 say "tayyor: huquqlar va standart huquqlar qo'yildi."

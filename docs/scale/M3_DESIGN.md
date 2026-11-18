@@ -335,7 +335,7 @@ time). It runs `docker compose exec -T backup sh /usr/local/bin/pitr-drill.sh` a
 1. Preflight: free space on the data filesystem ≥ 1.2 x `pg_database_size`, else stop with a clear message (and the
    `--from-s3` option for a separate machine). Stanza `check` passes.
 2. Marker: upsert `monitoring_markers ('drill_probe', now(), {"token": <uuid>})` in live; wait until its WAL segment is
-   archived (`pg_stat_archiver.last_archived_wal` ≥ `pg_walfile_name(lsn)`, timeout 3 min); T = marker time + 1 s; then
+   archived (`pg_stat_archiver.last_archived_wal` ≥ `pg_walfile_name(lsn)`, timeout 3 min); T = marker time + 2 s (a full second for the marker's commit); then
    upsert a second token (must be ABSENT after restore). Manifest from live: `count(*)` of orders, order_items, payments,
    fiscal_receipts, audit_logs, notification_logs, users, stores `WHERE created_at <= T - 5 min`, and `max(migration)`,
    `count(*)` of `migrations`.

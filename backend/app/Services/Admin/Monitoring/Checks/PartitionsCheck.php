@@ -73,8 +73,8 @@ class PartitionsCheck implements AlertCheck
      * environment, with a wrong owner password, or with the journal tables not owned by that role, every 00:40 and
      * 22:40 run fails and future_months_low would only say so weeks later: critical at once. With the owner configured
      * the question is asked as the owner (one short connection per evaluation, connect timeout of pgsql_owner); a
-     * failure to connect is the finding. Objects of the schema the owner does not own (db-roles could not move them)
-     * are a warning: the app works, but a migration changing one of them would stop the next deploy. Never throws.
+     * failure to connect is the finding. Objects of the schema the owner does not own (db-roles could not move them;
+     * objects of an extension are left out, as db-roles leaves them) are a warning: the app works, but a migration changing one of them would stop the next deploy. Never throws.
      *
      * @return list<AlertFinding>
      */
@@ -98,6 +98,7 @@ class PartitionsCheck implements AlertCheck
         $foreign = $owner === null ? null : PostgresStats::bounded(fn () => DB::select(
             "SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
               WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND pg_get_userbyid(c.relowner) <> ?
+                AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
               ORDER BY c.relname",
             [$owner],
         ), 'partitions_owner');

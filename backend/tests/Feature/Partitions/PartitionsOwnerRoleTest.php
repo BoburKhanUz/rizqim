@@ -160,4 +160,36 @@ class PartitionsOwnerRoleTest extends TestCase
         });
         $this->assertSame('pgsql', DB::getDefaultConnection());
     }
+
+    /**
+     * Objects of an extension are not moved by db-roles and so are no owner_mismatch either. Needs a superuser (the
+     * normal CI job): CREATE EXTENSION, and handing a table to another role. All inside a transaction that is rolled back.
+     */
+    public function test_extension_objects_are_not_reported_as_unmoved_tables(): void
+    {
+        $row = DB::selectOne("SELECT current_user AS u, rolsuper AS s, (SELECT count(*) FROM pg_available_extensions WHERE name = 'pg_stat_statements') AS a FROM pg_roles WHERE rolname = current_user");
+        if (!$row->s || (int) $row->a === 0) {
+            $this->markTestSkipped('Needs a superuser and pg_stat_statements: CREATE EXTENSION (the normal CI job runs as one).');
+        }
+
+        DB::beginTransaction();
+        try {
+            DB::statement('CREATE EXTENSION IF NOT EXISTS pg_stat_statements');
+            DB::statement('CREATE TABLE m4_unmoved_probe (id int)');
+            // Both belong to a role that is not the configured owner: the extension's view and a plain table
+            DB::statement('ALTER VIEW pg_stat_statements OWNER TO pg_monitor');
+            DB::statement('ALTER TABLE m4_unmoved_probe OWNER TO pg_monitor');
+
+            $this->withEnv(['DB_OWNER_USERNAME' => (string) $row->u, 'DB_OWNER_PASSWORD' => (string) config('database.connections.pgsql.password')], function () {
+                $findings = $this->partitionFindings();
+                $this->assertTrue($findings->has('owner_mismatch'));
+                $tables = $findings['owner_mismatch']->details['tables'];
+                $this->assertContains('m4_unmoved_probe', $tables);
+                $this->assertNotContains('pg_stat_statements', $tables);
+                $this->assertNotContains('pg_stat_statements_info', $tables);
+            });
+        } finally {
+            DB::rollBack();
+        }
+    }
 }
