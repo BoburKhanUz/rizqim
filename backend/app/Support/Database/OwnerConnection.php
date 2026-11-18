@@ -84,7 +84,9 @@ final class OwnerConnection
     /**
      * Registered once (App\Providers\PartitionsServiceProvider): `php artisan migrate` (and the rest of COMMANDS) run on
      * the owner connection, from the entrypoint or by hand. Laravel dispatches these events for a real console run
-     * only, not for $this->artisan() in tests: tests/TestCase.php passes --database itself.
+     * only, and not at all under APP_ENV=testing (Foundation\Console\Kernel reroutes them only when not
+     * runningUnitTests()): a `php artisan migrate` with APP_ENV=testing runs as DB_USERNAME (CI runs it with
+     * APP_ENV=production); tests/TestCase.php passes --database itself.
      */
     public static function listen(): void
     {

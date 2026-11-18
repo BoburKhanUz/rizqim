@@ -30,6 +30,11 @@ class PartitionsOwnerRoleTest extends TestCase
     private function requireSplitRoles(): void
     {
         if (!OwnerConnection::configured() || app(PartitionManager::class)->maintenanceRoleProblem() === null) {
+            // In CI with DB_OWNER_USERNAME set (tests-app-role) the split is the point of the job: a default connection
+            // that can do the DDL means the job runs as the owner and must not stay green
+            if (OwnerConnection::configured() && getenv('CI') !== false && getenv('CI') !== '') {
+                $this->fail('DB_OWNER_USERNAME is set but DB_USERNAME can do the DDL: tests-app-role does not run as the application role.');
+            }
             $this->markTestSkipped('Needs DB_USERNAME = a DML-only role and DB_OWNER_USERNAME = the owner (CI job tests-app-role).');
         }
     }
@@ -103,9 +108,45 @@ class PartitionsOwnerRoleTest extends TestCase
         });
         $this->assertSame($before, $this->partitionNames(), 'nothing was attached or detached');
 
-        // With the owner configured the check stays quiet (the scheduler has the credentials)
-        $findings = collect(app(PartitionsCheck::class)->findings((new AlertRule)->forceFill(['kind' => 'partitions', 'threshold' => 2])))->keyBy('subjectKey');
+        // With the right owner credentials (the scheduler's) and every table owned by the owner the check is quiet
+        $findings = $this->partitionFindings();
         $this->assertFalse($findings->has('maintenance_role'));
+        $this->assertFalse($findings->has('owner_mismatch'));
+    }
+
+    /** @return \Illuminate\Support\Collection<string, \App\Services\Admin\Monitoring\AlertFinding> */
+    private function partitionFindings(): \Illuminate\Support\Collection
+    {
+        return collect(app(PartitionsCheck::class)->findings((new AlertRule)->forceFill(['kind' => 'partitions', 'threshold' => 2])))->keyBy('subjectKey');
+    }
+
+    public function test_the_check_logs_in_as_the_owner_and_a_wrong_password_is_the_finding(): void
+    {
+        $this->requireSplitRoles();
+
+        $this->withEnv(['DB_OWNER_PASSWORD' => 'not-the-owner-password'], function () {
+            $findings = $this->partitionFindings();
+            $this->assertTrue($findings->has('maintenance_role'));
+            $this->assertSame('critical', $findings['maintenance_role']->severity);
+            $this->assertStringContainsString("egasi roli bilan bazaga ulanib bo'lmadi", $findings['maintenance_role']->title);
+        });
+        $this->assertSame('pgsql', DB::getDefaultConnection(), 'the check gives the default connection back');
+    }
+
+    /**
+     * Runs with one role too: an owner name that owns nothing (the tables were never moved to it, or it is misspelt)
+     * is reported twice, as the role that cannot do the DDL and as the tables it does not own.
+     */
+    public function test_tables_the_configured_owner_does_not_own_are_reported(): void
+    {
+        $this->withEnv(['DB_OWNER_USERNAME' => 'm4_nobody_owns_this', 'DB_OWNER_PASSWORD' => 'x'], function () {
+            $findings = $this->partitionFindings();
+            $this->assertTrue($findings->has('maintenance_role'));
+            $this->assertTrue($findings->has('owner_mismatch'));
+            $this->assertSame('warning', $findings['owner_mismatch']->severity);
+            $this->assertStringContainsString('m4_nobody_owns_this niki emas', $findings['owner_mismatch']->title);
+            $this->assertStringContainsString('db-roles', $findings['owner_mismatch']->title);
+        });
     }
 
     public function test_a_wrong_owner_password_is_refused_with_the_reason(): void

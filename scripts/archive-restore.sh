@@ -79,6 +79,12 @@ WHERE c.tgrelid = :'part'::regclass AND NOT c.tgisinternal
 -- bootstrap superuser's), so db:partitions:archive can detach and drop it again later
 SELECT format('ALTER TABLE %s OWNER TO %I', :'part', pg_get_userbyid(relowner)) FROM pg_class WHERE oid = :'parent'::regclass
 \gexec
+-- and gets the parent's grants (pg_restore --no-privileges gave it none): the app role's DML, as on every month
+-- db:partitions:ensure creates (scripts/db-roles.sh default privileges)
+SELECT format('GRANT %s ON %s TO %I', a.privilege_type, :'part', pg_get_userbyid(a.grantee))
+  FROM pg_class c, aclexplode(c.relacl) a
+ WHERE c.oid = :'parent'::regclass AND a.grantee <> c.relowner AND a.grantee <> 0
+\gexec
 ALTER TABLE public.$table ATTACH PARTITION public.$part FOR VALUES FROM ('$rfrom') TO ('$rto');
 DO \$check\$
 DECLARE got text; want text; loose int;

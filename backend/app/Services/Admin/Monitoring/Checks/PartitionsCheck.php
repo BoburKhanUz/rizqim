@@ -9,6 +9,8 @@ use App\Services\Admin\Monitoring\BackupState;
 use App\Services\Admin\Monitoring\PostgresStats;
 use App\Support\Database\OwnerConnection;
 use App\Support\Partitions\PartitionManager;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * M3: the journals' monthly partitions (PartitionManager::status, the same report as `db:partitions:status`). Fewer
@@ -67,24 +69,68 @@ class PartitionsCheck implements AlertCheck
     }
 
     /**
-     * M4: with split roles the partition commands need the owner's credentials in this (the scheduler's) environment;
-     * without them every 00:40 run fails and future_months_low would only say so weeks later. Critical at once.
+     * M4: can the partition commands do their DDL? Without the owner's credentials in this (the scheduler's)
+     * environment, with a wrong owner password, or with the journal tables not owned by that role, every 00:40 and
+     * 22:40 run fails and future_months_low would only say so weeks later: critical at once. With the owner configured
+     * the question is asked as the owner (one short connection per evaluation, connect timeout of pgsql_owner); a
+     * failure to connect is the finding. Objects of the schema the owner does not own (db-roles could not move them)
+     * are a warning: the app works, but a migration changing one of them would stop the next deploy. Never throws.
      *
      * @return list<AlertFinding>
      */
     private function maintenanceRole(): array
     {
+        $findings = [];
         if (OwnerConnection::configured()) {
-            return [];
+            $problem = $this->asOwner();
+            $how = 'DB_OWNER_USERNAME/DB_OWNER_PASSWORD ni tekshiring yoki `docker compose run --rm db-roles` bajaring';
+        } else {
+            $problem = PostgresStats::bounded(fn () => $this->partitions->maintenanceRoleProblem(), 'partitions_role');
+            $how = 'Scheduler konteyneriga DB_OWNER_USERNAME va DB_OWNER_PASSWORD bering';
         }
-        $problem = PostgresStats::bounded(fn () => $this->partitions->maintenanceRoleProblem(), 'partitions_role');
-        if (!is_string($problem)) {
-            return [];
+        if (is_string($problem)) {
+            $findings[] = new AlertFinding('maintenance_role', "Jurnallarning oylik bo'limlarini yaratib bo'lmaydi: {$problem}. {$how} (docs/OPERATIONS.md, «Baza rollari»)", [
+                'problem' => mb_substr($problem, 0, 200),
+            ], null, 'critical');
         }
 
-        return [new AlertFinding('maintenance_role', "Jurnallarning oylik bo'limlarini yaratib bo'lmaydi: {$problem}. Scheduler konteyneriga DB_OWNER_USERNAME va DB_OWNER_PASSWORD bering (docs/OPERATIONS.md, «Baza rollari»)", [
-            'problem' => mb_substr($problem, 0, 200),
-        ], null, 'critical')];
+        $owner = OwnerConnection::username();
+        $foreign = $owner === null ? null : PostgresStats::bounded(fn () => DB::select(
+            "SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND pg_get_userbyid(c.relowner) <> ?
+              ORDER BY c.relname",
+            [$owner],
+        ), 'partitions_owner');
+        if (is_array($foreign) && $foreign !== []) {
+            $names = array_map(fn (object $row) => (string) $row->name, $foreign);
+            $findings[] = new AlertFinding('owner_mismatch', count($names) . " ta jadval {$owner} niki emas (" . implode(', ', array_slice($names, 0, 5)) . (count($names) > 5 ? ', ...' : '') . "): ularni o'zgartiradigan migratsiya keyingi deploy'ni to'xtatadi. Tinch paytda `docker compose run --rm db-roles` bajaring (docs/OPERATIONS.md, «Baza rollari»)", [
+                'count' => count($names),
+                'tables' => array_slice($names, 0, 20),
+            ], null, 'warning');
+        }
+
+        return $findings;
+    }
+
+    /**
+     * maintenanceRoleProblem() on the owner connection; a connection or query failure is returned as the problem.
+     */
+    private function asOwner(): ?string
+    {
+        try {
+            return OwnerConnection::run(function (): ?string {
+                try {
+                    DB::connection()->getPdo();
+                } catch (Throwable $e) {
+                    return "egasi roli bilan bazaga ulanib bo'lmadi (" . mb_substr(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '', 0, 160) . ')';
+                }
+                $problem = PostgresStats::bounded(fn () => $this->partitions->maintenanceRoleProblem() ?? '', 'partitions_role_owner');
+
+                return $problem === null ? "egasi roli bilan tekshirib bo'lmadi" : ($problem === '' ? null : $problem);
+            });
+        } catch (Throwable $e) {
+            return "egasi roli bilan tekshirib bo'lmadi (" . mb_substr($e->getMessage(), 0, 160) . ')';
+        }
     }
 
     /**

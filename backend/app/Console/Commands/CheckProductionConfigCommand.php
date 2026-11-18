@@ -147,10 +147,19 @@ class CheckProductionConfigCommand extends Command
     {
         $problems = [];
         $ownerPassword = (string) Env::get('DB_OWNER_PASSWORD', '');
-        // The file php-fpm loads, whether or not this process loaded it
+        // The file php-fpm loads, whether or not this process loaded it: the owner's password as a database password
+        // there (pgsql_owner filled in, or the application connecting with it), not any config value that happens to
+        // be equal
         if (is_file(app()->getCachedConfigPath())) {
-            $cached = @file_get_contents(app()->getCachedConfigPath());
-            if ($ownerPassword !== '' && is_string($cached) && str_contains($cached, var_export($ownerPassword, true))) {
+            try {
+                $cached = require app()->getCachedConfigPath();
+            } catch (\Throwable) {
+                $cached = null;
+            }
+            $connections = is_array($cached) ? (array) ($cached['database']['connections'] ?? []) : [];
+            $leaked = filled($connections[OwnerConnection::NAME]['password'] ?? null)
+                || ($ownerPassword !== '' && in_array($ownerPassword, array_map(fn ($c) => is_array($c) ? ($c['password'] ?? null) : null, $connections), true));
+            if ($leaked) {
                 $problems[] = "Jadvallar egasining paroli (DB_OWNER_PASSWORD) bootstrap/cache/config.php ga tushgan: uni har php-fpm ishchisi o'qiydi. DB_PASSWORD egasining parolidan boshqa bo'lsin, so'ng php artisan config:clear va config:cache";
             }
         }
@@ -158,18 +167,20 @@ class CheckProductionConfigCommand extends Command
         try {
             $row = DB::selectOne(
                 "SELECT r.rolname AS role, r.rolsuper AS super,
-                        EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relowner = r.oid) AS owns
-                   FROM pg_roles r WHERE r.rolname = current_user"
+                        EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relowner = r.oid) AS owns,
+                        CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ?) THEN pg_has_role(current_user, ?, 'MEMBER') ELSE false END AS member
+                   FROM pg_roles r WHERE r.rolname = current_user",
+                [(string) OwnerConnection::username(), (string) OwnerConnection::username()],
             );
         } catch (\Throwable $e) {
             $this->warn("OGOHLANTIRISH: ilovaning baza rolini tekshirib bo'lmadi: " . mb_substr($e->getMessage(), 0, 200));
 
             return $problems;
         }
-        if ($row === null || !($row->super || $row->owns)) {
+        if ($row === null || !($row->super || $row->owns || $row->member)) {
             return $problems;
         }
-        $what = $row->super ? 'superuser' : 'jadvallar egasi';
+        $what = $row->super ? 'superuser' : ($row->owns ? 'jadvallar egasi' : OwnerConnection::username() . ' roliga SET ROLE qila oladi');
         if (OwnerConnection::configured()) {
             $problems[] = "Ilova bazaga {$row->role} roli bilan ulanmoqda ({$what}): DB_USERNAME faqat ma'lumot o'qib-yozadigan rol bo'lsin (rizqim_app), jadvallar egasi esa faqat DB_OWNER_USERNAME (rizqim_owner). docs/OPERATIONS.md, «Baza rollari»";
         } else {

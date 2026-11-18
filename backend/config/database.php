@@ -134,6 +134,9 @@ return [
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'pooler' => 'direct',
+            // pdo_pgsql passes ATTR_TIMEOUT as libpq connect_timeout: the monitoring check that logs in as the owner
+            // every minute (PartitionsCheck) never waits long for a server that does not answer
+            'options' => extension_loaded('pdo_pgsql') ? [PDO::ATTR_TIMEOUT => 5] : [],
         ],
 
         'sqlsrv' => [

@@ -343,7 +343,8 @@ Tranzaksiya rejimida server ulanishi so'rovga faqat bitta tranzaksiya davomida b
   vaqtinchalik jadvallar, `WITH HOLD` kursorlar, `PDO::ATTR_PERSISTENT`. Tekshiruv (2026-11-15): kodda yo'q; Laravel'ning
   ulanishdagi `set search_path to public` hamma mijozda bir xil, shuning uchun zararsiz. `tests/Unit/TransactionPoolingSafetyTest.php`
   yangi shunday kod qo'shilsa yiqiladi. Sessiya holati kerak bo'lgan ish (masalan uzoq ma'lumot tuzatish) `queue`
-  konteynerida bajariladi: `docker compose exec -u www-data queue php artisan ...`.
+  konteynerida bajariladi: `docker compose exec -u www-data queue php artisan ...`; migratsiya va `db:partitions:*` esa
+  `scheduler` da (jadvallar egasining kalitlari faqat unda va `backend` da; 22-bo'lim).
 
 **O'lchamlar (env, ildiz `.env`).** `PGBOUNCER_POOL_SIZE` (20) — Postgres'ga doimiy ulanishlar; `PGBOUNCER_RESERVE_POOL_SIZE`
 (5) — navbat 3 s dan uzoq kutsa qo'shimcha; `PGBOUNCER_MAX_DB_CONNECTIONS` (30) — Postgres'ga qat'iy yuqori chegara;
@@ -847,18 +848,28 @@ konteynerlariga beriladi, `bootstrap/cache/config.php` ga hech qachon yozilmaydi
 **`db-roles` xizmati** (`scripts/db-roles.sh`, bir martalik) har `docker compose up` da backend, queue, scheduler, reverb va
 pgbouncer'dan oldin ishlaydi: yo'q rollarni yaratadi, parollarni `.env` dan qo'yadi, huquqlarni beradi (egasi keyin yaratadigan
 jadval va oylar uchun ham) va egasi `rizqim_owner` bo'lmagan har obyektni unga o'tkazadi. Har obyekt alohida, 2 soniyalik
-kutish chegarasi bilan (kassa yozuvi 2 soniyadan ortiq kutmaydi), band bo'lsa 3 marta urinadi; band qolganini ogohlantirib
-aytadi (ilova baribir ishlaydi, faqat o'sha obyektdagi migratsiya xato beradi: tinch paytda qayta ishga tushiring). Qayta
-ishga tushirish xavfsiz: ikkinchi marta «ko'chiriladigan obyekt yo'q» deydi. Qo'lda: `docker compose run --rm db-roles`.
+kutish chegarasi bilan (kassa yozuvi 2 soniyadan ortiq kutmaydi); band obyektlarni 5 soniyada bir qayta urinadi, jami 300
+soniyagacha (odatda ularni kechki `pg_dump` ushlab turadi). Shundan keyin ham band qolganlarini oxirida bitta «XATO: N ta
+obyekt ... ko'chirilmadi» qatorida nomlari bilan aytadi, lekin xizmat 0 bilan tugaydi va stek ishga tushadi: ilovaning
+huquqlari egalikka bog'liq emas. Biroq o'sha obyektni o'zgartiradigan keyingi migratsiya «must be owner» bilan yiqiladi va
+`backend` qayta-qayta ishga tushib, veb va kassa API'si ishlamay qoladi: bunday qator ko'rinsa, deploy'dan oldin uzun
+tranzaksiya yo'qligini tekshirib (pastda) `docker compose run --rm db-roles` ni qayta bajaring. Monitoring buni ham
+ko'rsatadi (21-bo'lim: «N ta jadval rizqim_owner niki emas»). Qayta ishga tushirish xavfsiz: ikkinchi marta «ko'chiriladigan
+obyekt yo'q» deydi.
 
-**Mavjud o'rnatishda birinchi marta** (tinch soatda, masalan 03:00-05:00 Toshkent; jadvallar soniga qarab bir necha soniya):
+**Mavjud o'rnatishda birinchi marta** (jadvallar soniga qarab bir necha soniya). Vaqti: 04:45-05:30 Toshkent. Kechki ishlar
+(Toshkent vaqti): 02:30 dan zaxira zanjiri (pgBackRest, so'ng `pg_dump` hamma jadvalni o'qish qulfida ushlaydi, so'ng
+jurnallar arxivi), 03:40 `db:partitions:archive`, oyning birinchi yakshanbasi 04:00 tiklash mashqi, 05:40
+`db:partitions:ensure`. Shuning uchun 02:30-04:30 oralig'ida va oyning birinchi yakshanbasida qilmang. Boshlashdan oldin uzun
+tranzaksiya (ishlab turgan zaxira) yo'qligini tekshiring: quyidagi buyruq hech narsa chiqarmasligi kerak.
 ```bash
-docker compose exec backup sh /usr/local/bin/backup.sh        # avval zaxira
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT pid, application_name, state FROM pg_stat_activity WHERE extract(epoch FROM now() - xact_start) > 5"'
+docker compose exec backup sh /usr/local/bin/backup.sh        # avval zaxira (tugashini kuting)
 # ildizdagi .env: eski DB_USERNAME/DB_PASSWORD -> POSTGRES_USER/POSTGRES_PASSWORD (o'zgarmaydi, superuser bo'lib qoladi);
 #   DB_USERNAME=rizqim_app, DB_PASSWORD=<yangi parol>; DB_OWNER_USERNAME=rizqim_owner, DB_OWNER_PASSWORD=<yangi parol>
 #   (uchala parol har xil: openssl rand -hex 24)
 git pull && docker compose up -d --build                      # db-roles -> pgbouncer -> backend (migrate egasi bilan) -> ...
-docker compose logs db-roles                                  # nima ko'chirilgani
+docker compose logs db-roles                                  # nima ko'chirilgani; «XATO: ... ko'chirilmadi» bo'lmasin
 docker compose exec -u www-data backend php artisan app:check-production
 docker compose exec -u www-data scheduler php artisan db:partitions:ensure   # egasi bilan ishlashini tekshirish
 ```
@@ -868,10 +879,17 @@ yozadi (`pos_sync`). Qaytarish: `.env` da `DB_USERNAME/DB_PASSWORD` ni yana boot
 
 **Parolni almashtirish:** ildizdagi `.env` da `DB_PASSWORD` yoki `DB_OWNER_PASSWORD` ni o'zgartiring va
 `docker compose up -d db-roles pgbouncer backend queue queue-reports scheduler reverb` (db-roles yangi parolni qo'yadi, qolganlari
-yangi parol bilan qayta ulanadi). Bootstrap parolini (`POSTGRES_PASSWORD`) almashtirish: `docker compose exec postgres psql -U
-"$POSTGRES_USER" -c '\password'`, so'ng `.env` va `docker compose up -d backup db-roles`.
+yangi parol bilan qayta ulanadi). Bootstrap parolini (`POSTGRES_PASSWORD`) almashtirish:
+`docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\password"'` (yangi parolni so'raydi),
+so'ng ildizdagi `.env` da `POSTGRES_PASSWORD` va `docker compose up -d backup db-roles`.
+
+**Qo'lda migratsiya va `db:partitions:*`:** `docker compose exec -u www-data scheduler php artisan ...` (yoki `backend`).
+`docker compose exec` konteynerning compose'dagi muhitini oladi, shuning uchun bu ikkisida `DB_OWNER_*` bor (entrypoint ularni
+faqat php-fpm jarayonlaridan olib tashlaydi). `queue`, `queue-reports`, `reverb` da ular yo'q: u yerda migratsiya «must be
+owner» bilan, `db:partitions:*` esa «bo'limlarga tegilmadi» bilan rad etiladi.
 
 **Rad etishlar:** `db:partitions:*` egasi rolisiz ishga tushsa «XATO: bo'limlarga tegilmadi ... DB_OWNER_USERNAME va
 DB_OWNER_PASSWORD bering» deydi va 1 bilan chiqadi (hech narsa o'zgarmaydi); Monitoring darhol KRITIK ogohlantiradi (21-bo'lim).
-`app:check-production` rollar ajratilgandan keyin superuser yoki jadvallar egasi bo'lgan `DB_USERNAME` bilan konteynerni ishga
-tushirmaydi.
+`app:check-production` rollar ajratilgandan keyin superuser, jadvallar egasi yoki `rizqim_owner` ga `SET ROLE` qila oladigan
+`DB_USERNAME` bilan konteynerni ishga tushirmaydi. Monitoring egasi roli bilan har daqiqa ulanib tekshiradi: parol xato yoki
+jadvallar unga tegishli bo'lmasa KRITIK; boshqa rolniki bo'lib qolgan jadvallar DIQQAT.

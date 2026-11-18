@@ -41,6 +41,10 @@ export PGDATABASE
 
 q() { psql -X -v ON_ERROR_STOP=1 -Atq "$@"; }
 
+# The passwords are read inside psql with \getenv (psql 15+), never put on a command line (`ps` shows arguments)
+psql_major=$(psql --version | sed -n 's/^psql (PostgreSQL) \([0-9][0-9]*\).*/\1/p')
+[ "${psql_major:-0}" -ge 15 ] || fail "psql ${psql_major:-?} juda eski: 15 yoki yangisi kerak (postgres:17-alpine obrazidagi psql)."
+
 me=$(q -c "SELECT current_user || '|' || rolsuper::text FROM pg_roles WHERE rolname = current_user") \
     || fail "bazaga ulanib bo'lmadi (PGHOST=${PGHOST:-soket} PGUSER=${PGUSER:-?} baza $PGDATABASE)."
 bootstrap=${me%|*}
@@ -52,13 +56,16 @@ if [ "$bootstrap" = "$OWNER" ] || [ "$bootstrap" = "$APP" ]; then
     fail "bootstrap superuser ($bootstrap) DB_USERNAME yoki DB_OWNER_USERNAME bilan bir xil: ularga boshqa nom bering (rizqim_owner, rizqim_app), POSTGRES_USER o'zgarmaydi."
 fi
 
-# 1. Roles, passwords (= rotation), connect and schema rights. Passwords travel as psql variables, never in the text.
+# 1. Roles, passwords (= rotation), connect and schema rights. Passwords travel as psql variables read from the
+# environment (\getenv), quoted by psql (:'var'), never in the SQL text or on a command line.
 for role in "$OWNER" "$APP"; do
     if [ "$(printf '%s\n' "SELECT count(*) FROM pg_roles WHERE rolname = :'r'" | q -v r="$role")" = "0" ]; then
         say "rol yaratiladi: $role"
     fi
 done
-q -v owner="$OWNER" -v app="$APP" -v owner_pw="$DB_OWNER_PASSWORD" -v app_pw="$DB_PASSWORD" -v db="$PGDATABASE" <<'SQL'
+q -v owner="$OWNER" -v app="$APP" -v db="$PGDATABASE" <<'SQL'
+\getenv owner_pw DB_OWNER_PASSWORD
+\getenv app_pw DB_PASSWORD
 SET client_min_messages = warning;
 SELECT format('CREATE ROLE %I', :'owner') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner') \gexec
 SELECT format('CREATE ROLE %I', :'app') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app') \gexec
@@ -70,10 +77,16 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO :"owner";
 GRANT USAGE ON SCHEMA public TO :"app";
 REVOKE CREATE ON SCHEMA public FROM :"app";
+-- The app must not be able to SET ROLE to the owner: a membership granted by hand is taken back
+SELECT format('REVOKE %I FROM %I', :'owner', :'app') FROM pg_auth_members m
+ WHERE m.roleid = (SELECT oid FROM pg_roles WHERE rolname = :'owner') AND m.member = (SELECT oid FROM pg_roles WHERE rolname = :'app') \gexec
 -- pg_ls_archive_statusdir() and other sessions' pg_stat_activity rows (Monitoring, PostgresStats)
 GRANT pg_monitor TO :"app";
 SQL
 say "rollar va parollar: $OWNER (egasi), $APP (ilova, pg_monitor)"
+if [ "$(printf '%s\n' "SELECT pg_has_role(:'app', :'owner', 'MEMBER')" | q -v app="$APP" -v owner="$OWNER")" = "t" ]; then
+    printf "db-roles: OGOHLANTIRISH: %s boshqa rol orqali %s ning a'zosi (SET ROLE qila oladi): o'sha rol a'zoligini qo'lda olib tashlang. app:check-production ilovani ishga tushirmaydi.\n" "$APP" "$OWNER" >&2
+fi
 
 # 2. Ownership: every object of the schema that rizqim_owner does not own. ALTER TABLE on a partitioned parent does not
 # reach its partitions: each partition (and each detached month) is its own row here. Sequences owned by a column and
@@ -109,27 +122,38 @@ ORDER BY k, p, name
 SQL
 
 moved=0
-failed=0
-while IFS= read -r stmt; do
-    [ -n "$stmt" ] || continue
-    attempt=1
-    while :; do
-        # One short transaction per object: ALTER ... OWNER takes ACCESS EXCLUSIVE on it for an instant; a till's
-        # write queues behind it for at most lock_timeout, then this object is tried again
+# One short transaction per object: ALTER ... OWNER takes ACCESS EXCLUSIVE on it for an instant, so a till's write
+# queues behind it for at most lock_timeout (2 s). An object whose lock cannot be had (usually the nightly pg_dump,
+# which holds a read lock on every table for its whole run) is tried again in later passes, 5 s apart, until
+# MOVE_DEADLINE seconds after the first pass: 300 s outlasts a pilot-sized pg_dump [E] and still lets a deploy go on
+# (the stack waits for this service). Whatever is left is named at the end.
+MOVE_DEADLINE=300
+pending=$(mktemp)
+retry=$(mktemp)
+trap 'rm -f "$list" "$pending" "$retry"' EXIT
+cp "$list" "$pending"
+start=$(date +%s)
+while :; do
+    : > "$retry"
+    while IFS= read -r stmt; do
+        [ -n "$stmt" ] || continue
         if err=$(q -c "SET lock_timeout = '2s'; $stmt" 2>&1); then
             say "ko'chirildi: ${stmt#ALTER }"
             moved=$((moved + 1))
-            break
+        else
+            printf '%s\n' "$stmt" >> "$retry"
+            last_err=$err
         fi
-        if [ "$attempt" -ge 3 ]; then
-            printf 'db-roles: OGOHLANTIRISH: ko'"'"'chirilmadi (%s): %s\n' "$err" "$stmt" >&2
-            failed=$((failed + 1))
-            break
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-done < "$list"
+    done < "$pending"
+    [ -s "$retry" ] || break
+    if [ $(($(date +%s) - start)) -ge "$MOVE_DEADLINE" ]; then
+        break
+    fi
+    say "$(wc -l < "$retry" | tr -d ' ') ta obyekt band (${last_err:-}), 5 s dan keyin qayta urinadi"
+    sleep 5
+    cp "$retry" "$pending"
+done
+failed=$(wc -l < "$retry" | tr -d ' ')
 
 # 3. Rights on what exists now, and on what the owner creates later (migrations, new monthly partitions)
 q -v owner="$OWNER" -v app="$APP" <<'SQL'
@@ -144,12 +168,13 @@ SQL
 
 if [ "$moved" -eq 0 ] && [ "$failed" -eq 0 ]; then
     say "ko'chiriladigan obyekt yo'q: hammasi $OWNER niki."
-else
+elif [ "$moved" -gt 0 ]; then
     say "egasi $OWNER ga o'tkazildi: $moved ta obyekt."
 fi
 if [ "$failed" -gt 0 ]; then
-    # The application works meanwhile (its rights do not depend on who owns a table); only a migration or a partition
-    # step on such an object would fail, loudly. Not a failure of the service: the backend must still start.
-    printf "db-roles: OGOHLANTIRISH: %s ta obyekt band edi va ko'chirilmadi. Tinch paytda qayta ishga tushiring: docker compose run --rm db-roles\n" "$failed" >&2
+    # The stack still starts (the app's rights do not depend on who owns a table), but a migration that changes one of
+    # these objects fails with "must be owner" and stops the backend from starting: run this again first
+    names=$(sed -e 's/^ALTER [A-Z ]* \([^ ]*\) OWNER TO .*/\1/' "$retry" | paste -sd ' ' -)
+    printf "db-roles: XATO: %s ta obyekt %s s ichida ko'chirilmadi (band: %s): %s. Ularni o'zgartiradigan migratsiya backend'ni to'xtatadi. Uzun tranzaksiya yo'qligini tekshirib qayta ishga tushiring: docker compose run --rm db-roles (docs/OPERATIONS.md, 22-bo'lim)\n" "$failed" "$MOVE_DEADLINE" "${last_err:-}" "$names" >&2
 fi
 say "tayyor: huquqlar va standart huquqlar qo'yildi."

@@ -80,6 +80,12 @@ class CheckProductionDatabaseRoleTest extends TestCase
                 $this->artisan('app:check-production')->expectsOutputToContain('bootstrap/cache/config.php ga tushgan')->assertFailed();
             });
 
+            // The same string as some other config value is not a leak of the owner's password
+            file_put_contents($cache, '<?php return ' . var_export(['app' => ['name' => $password], 'database' => ['connections' => ['pgsql' => ['password' => 'other']]]], true) . ';');
+            $this->withEnv(['APP_CONFIG_CACHE' => $cache, 'DB_OWNER_PASSWORD' => $password], function () {
+                $this->artisan('app:check-production')->doesntExpectOutputToContain('bootstrap/cache/config.php ga tushgan');
+            });
+
             // A cache without it passes that line
             file_put_contents($cache, '<?php return [];');
             $this->withEnv(['APP_CONFIG_CACHE' => $cache, 'DB_OWNER_PASSWORD' => $password], function () {
@@ -88,5 +94,22 @@ class CheckProductionDatabaseRoleTest extends TestCase
         } finally {
             @unlink($cache);
         }
+    }
+
+    /**
+     * A role the application is a member of can be taken with SET ROLE. With split roles the app is a member of
+     * pg_monitor (scripts/db-roles.sh): naming that as the "owner" is the membership case without creating a role.
+     */
+    public function test_an_application_role_that_can_set_role_to_the_owner_is_refused(): void
+    {
+        $member = (bool) DB::selectOne("SELECT pg_has_role(current_user, 'pg_monitor', 'MEMBER') AS m")->m;
+        $owns = (bool) DB::selectOne('SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)) AS o')->o;
+        if (!$member || $owns || (bool) DB::selectOne('SELECT rolsuper AS s FROM pg_roles WHERE rolname = current_user')->s) {
+            $this->markTestSkipped('Needs the DML-only application role (CI job tests-app-role).');
+        }
+
+        $this->withEnv(['DB_OWNER_USERNAME' => 'pg_monitor'], function () {
+            $this->artisan('app:check-production')->expectsOutputToContain('pg_monitor roliga SET ROLE qila oladi')->assertFailed();
+        });
     }
 }

@@ -87,7 +87,7 @@ beradi (Docker'siz o'rnatishda `DB_POOLER` bo'sh = to'g'ridan-to'g'ri). O'lchaml
 (backend ishga tushganda tekshiradi; aks holda bozor yuki kassalarning bazaga ulanishini olib qo'yardi). Pul bilan
 `DB_SSLMODE=require`/`verify-*` ishlamaydi (PgBouncer'da php-fpm tomonga TLS yo'q): backend darhol xato beradi. Postgres yoki
 PgBouncer `STARTUP_WAIT_SECONDS` (120) ichida javob bermasa, konteyner xato bilan to'xtaydi (osilib qolmaydi). Sessiya holati kerak bo'lgan qo'lda `artisan` ishini
-(`migrate:rollback` ham) `queue` konteynerida bajaring: `docker compose exec -u www-data queue php artisan ...` (u to'g'ridan-to'g'ri ulanadi).
+(`migrate:rollback` ham) `scheduler` konteynerida bajaring: `docker compose exec -u www-data scheduler php artisan ...` (u to'g'ridan-to'g'ri ulanadi va M4 rollari ajratilganda jadvallar egasining `DB_OWNER_*` kalitlari ham unda bor; `queue` da ular yo'q, u yerda migratsiya «must be owner» bilan yiqiladi). `docker compose exec` konteynerning compose'dagi muhitini oladi: `backend` da ham `DB_OWNER_*` bor (entrypoint ularni faqat php-fpm uchun o'chiradi), lekin u pul orqali ulanadi, shuning uchun sessiya kerak bo'lgan ish uchun `scheduler`.
 
 **So'rov va baza gigiyenasi (M1, ixtiyoriy, `backend/.env`).** Standartlari qavsda; sozlamasangiz shular ishlaydi:
 `SANCTUM_LAST_USED_AT_THROTTLE_MINUTES` (5; token `last_used_at` ko'pi bilan shuncha daqiqada bir yoziladi, `0` = har so'rovda),

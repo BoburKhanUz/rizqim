@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\Database\OwnerConnection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -10,17 +11,29 @@ use Illuminate\Support\Facades\DB;
  */
 trait AuditLogCleanup
 {
-    // M4: switching the trigger off is DDL: a test using this runs as the schema owner when the roles are split
-    use \Tests\Concerns\UsesOwnerConnection;
-
     protected function withoutAuditLogGuard(callable $callback): void
     {
-        DB::unprepared('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
+        $this->asSchemaOwner('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
 
         try {
             $callback();
         } finally {
-            DB::unprepared('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
+            $this->asSchemaOwner('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
         }
+    }
+
+    /**
+     * M4: one DDL statement of these committed-fixture tests (no wrapping transaction), on the owner's own session when
+     * the roles are split, so the test itself and its forked children keep running as the application role.
+     */
+    protected function asSchemaOwner(string $sql): void
+    {
+        if (OwnerConnection::prepare() && DB::getDefaultConnection() !== OwnerConnection::NAME) {
+            DB::connection(OwnerConnection::NAME)->unprepared($sql);
+            DB::disconnect(OwnerConnection::NAME);
+
+            return;
+        }
+        DB::unprepared($sql);
     }
 }
