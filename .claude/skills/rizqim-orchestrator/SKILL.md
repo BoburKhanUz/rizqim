@@ -14,9 +14,9 @@ Specialises the generic orchestrator skill: supervisor never implements, plan fi
 - Plan first (short task list: deliverable, difficulty, model). Verify results against the definition of done; on failure send a precise correction note instead of fixing it yourself. Two failed rounds on one task: escalate the model or ask the owner.
 
 ## 2. Model routing
-- Fable (`model: "fable"`): money, fiscal, payments, security, sync/offline, concurrency, architecture, reviews, review fixes. Owner's instruction of 18.11.2026 ("asosan Fable'da ishla"), given when the weekly Opus limit ran out mid-wave; wherever this file says Opus below, read Fable. Opus only if the owner asks for it again.
-- Sonnet: mechanical work, UI polish, docs/guides, i18n, fixtures, screenshots, skill/docs files.
-- Never Fable for easy work (it draws on the same limit as the supervising session: if it runs out, everything stops). Set `model` explicitly on every Agent call.
+- **Every agent runs on Fable (`model: "fable"`).** Owner's instruction of 18.11.2026 ("Barcha ishlar Fable"), repeated when a mechanical task was still given to Sonnet: no Opus, no Sonnet, no Haiku, for hard and for mechanical work alike (builds, reviews, fixes, reading CI logs, docs). Wherever this file says Opus or Sonnet below, read Fable.
+- Set `model: "fable"` explicitly on every Agent call.
+- Fable agents draw on the same limit as the supervising session: keep briefs narrow, do small lookups yourself instead of spawning an agent, and never run two agents on the same question.
 
 ## 3. Wave pipeline (one PR per wave)
 a. Read docs/PHASE*_PLAN.md, the relevant docs/POS_SPEC.md sections and the existing code map. Record owner decisions in the plan doc with a date.
