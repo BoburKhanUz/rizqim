@@ -347,6 +347,10 @@ jobs:
         run: php artisan key:generate --ansi
 
       - name: Migrate as the owner
+        # As the entrypoint does it in production. Under APP_ENV=testing Laravel does not dispatch console command
+        # events, so the switch to the owner connection would not happen (the tests pass --database themselves).
+        env:
+          APP_ENV: production
         run: php artisan migrate --force --no-interaction
 
       - name: The roles are split
