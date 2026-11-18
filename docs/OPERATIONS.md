@@ -907,7 +907,7 @@ Migratsiya `2026_11_27_100000_add_store_id_to_payments_table` har to'lovga do'ko
 to'ldirish so'rovidagi do'kon) yozadi. Do'koni topilmagan to'lov bo'lsa (amalda: buyurtmasiz Payme to'ldirish to'lovi, uning
 so'rovi do'kon qo'lda butunlay o'chirilganda yo'qolgan), migratsiya ularni taxmin qilmaydi: ustun NULL ga ruxsat bilan qoladi,
 deploy davom etadi, Monitoringda `partitions` tekshiruvi «payments.store_id hali NULL bo'lishi mumkin» DIQQAT ogohlantirishini
-sonini ko'rsatib chiqaradi (21-bo'lim). Bunday to'lovni do'konga bog'langan kassa ko'rmaydi.
+sonini ko'rsatib chiqaradi (21-bo'lim; jadval katta bo'lib sanash vaqtida tugamasa, son o'rniga «sanab bo'lmadi» deb yozadi, ogohlantirish yopilmaydi). Bunday to'lovni do'konga bog'langan kassa ko'rmaydi.
 
 Egasi roli bilan (`rizqim_owner`, rollar ajratilmagan bo'lsa `DB_USERNAME`) tekshiring:
 

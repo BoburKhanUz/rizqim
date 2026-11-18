@@ -219,7 +219,7 @@ written by hand; nothing enumerates routes, so a new route without its isolation
   `response()->stream`) is written after it, so a tenant route that streams binds the store again inside its callback
   (`ReportController::export`); work after the response (`terminating`, `dispatchAfterResponse`) runs unbound. Queued
   jobs and queued listeners run unbound also on the sync queue (`QueuedJobsRunUnbound`: forgotten from `JobProcessing`,
-  put back when the job is done), so tests see what the worker sees; a job that is not ShouldQueue run by
+  put back on `JobAttempted`, after the job's `failed()` method), so tests see what the worker sees; a job that is not ShouldQueue run by
   `dispatchSync`, inline listeners and `DB::afterCommit` callbacks are part of the request and stay bound.
 - Known limits: `BindTenant` binds a courier to `users.store_id`; couriers serve only their own store's orders today
   (`OrderStatusService.php:262-264`). A platform fleet courier (`CourierType` FLEET) acting across stores would get 404

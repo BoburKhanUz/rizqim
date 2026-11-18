@@ -168,30 +168,40 @@ class PartitionsCheck implements AlertCheck
 
     /**
      * M4 stage 2: payments.store_id is still nullable (migration 2026_11_27_100000 found payments without a parent
-     * store and left the NOT NULL step undone; such rows are invisible to a till bound to its store). A warning with
-     * the count of rows without a store until docs/OPERATIONS.md section 23 is done. Read with plain selects as the
-     * application role; the rows are counted only while the column is nullable (no index on store_id: NOT NULL is the
-     * normal state and costs one catalog read).
+     * store and left the NOT NULL step undone; such rows are invisible to a till bound to its store). A warning until
+     * docs/OPERATIONS.md section 23 is done, with the count of rows without a store when it can be taken. Two bounded
+     * reads as the application role: the catalog (NOT NULL is the normal state and costs only this), then, only while
+     * the column is nullable, the count. The count scans payments and may exceed the statement timeout on a large
+     * table: the finding is then emitted without the number, never dropped (a dropped finding closes the alert).
      *
      * @return list<AlertFinding>
      */
     private function paymentsStore(): array
     {
-        $state = PostgresStats::bounded(function (): ?array {
-            $nullable = DB::selectOne("SELECT NOT a.attnotnull AS nullable FROM pg_attribute a WHERE a.attrelid = to_regclass('payments') AND a.attname = 'store_id' AND NOT a.attisdropped");
-            if ($nullable === null || !$nullable->nullable) {
-                return null;
-            }
-
-            return ['missing' => (int) DB::selectOne('SELECT count(*) AS n FROM payments WHERE store_id IS NULL')->n];
-        }, 'payments_store');
-        if (!is_array($state)) {
+        $nullable = PostgresStats::bounded(
+            fn () => (bool) (DB::selectOne("SELECT NOT a.attnotnull AS nullable FROM pg_attribute a WHERE a.attrelid = to_regclass('payments') AND a.attname = 'store_id' AND NOT a.attisdropped")->nullable ?? false),
+            'payments_store',
+        );
+        if ($nullable !== true) {
             return [];
         }
 
-        return [new AlertFinding('payments_store_nullable', "payments.store_id hali NULL bo'lishi mumkin: {$state['missing']} ta to'lovning do'koni yo'q (kassa ularni ko'rmaydi). Tekshirib, NOT NULL qadamini yakunlang (docs/OPERATIONS.md, 23-bo'lim)", [
-            'missing' => $state['missing'],
+        $missing = PostgresStats::bounded(fn () => $this->paymentsWithoutStore(), 'payments_store_count');
+        $what = is_int($missing)
+            ? "{$missing} ta to'lovning do'koni yo'q (kassa ularni ko'rmaydi)"
+            : "do'koni yo'q to'lovlarni sanab bo'lmadi (so'rov vaqtida tugamadi yoki xato berdi; kassa ularni ko'rmaydi)";
+
+        return [new AlertFinding('payments_store_nullable', "payments.store_id hali NULL bo'lishi mumkin: {$what}. Tekshirib, NOT NULL qadamini yakunlang (docs/OPERATIONS.md, 23-bo'lim)", [
+            'missing' => is_int($missing) ? $missing : null,
         ], null, 'warning')];
+    }
+
+    /**
+     * Payments without a store: a scan of the table (no index on store_id), so it can exceed the statement timeout.
+     */
+    protected function paymentsWithoutStore(): int
+    {
+        return (int) DB::selectOne('SELECT count(*) AS n FROM payments WHERE store_id IS NULL')->n;
     }
 
     /**

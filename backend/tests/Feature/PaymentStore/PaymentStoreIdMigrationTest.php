@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\StoreTopupRequest;
 use App\Services\Admin\Monitoring\AlertFinding;
 use App\Services\Admin\Monitoring\Checks\PartitionsCheck;
+use App\Support\Partitions\PartitionManager;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +22,8 @@ use Tests\TestCase;
 
 /**
  * M4 stage 2: payments.store_id (migration 2026_11_27_100000). Rows written before it are backfilled, a row written by
- * code that does not know the column gets its store from the database, the column always equals the parent's store,
- * and the migration can run again and be rolled back.
+ * code that does not know the column gets its store from the database, the column equals the parent's store on every
+ * insert and (the column being NOT NULL) on every update of it, and the migration can run again and be rolled back.
  */
 class PaymentStoreIdMigrationTest extends TestCase
 {
@@ -105,6 +106,24 @@ class PaymentStoreIdMigrationTest extends TestCase
         $this->assertNotNull($finding);
         $this->assertSame(['warning', ['missing' => 1]], [$finding->severity, $finding->details]);
         $this->assertStringContainsString("23-bo'lim", $finding->title);
+
+        // The count is a scan of payments: when it exceeds the statement timeout the warning stays, without a number
+        // (dropping the finding would close the alert)
+        $this->app->bind(PartitionsCheck::class, fn () => new class(app(PartitionManager::class)) extends PartitionsCheck
+        {
+            protected function paymentsWithoutStore(): int
+            {
+                DB::statement("SET LOCAL statement_timeout = '50ms'");
+
+                return (int) DB::selectOne('SELECT count(*) AS n FROM payments, pg_sleep(1) WHERE store_id IS NULL')->n;
+            }
+        });
+        $uncounted = $this->storeFinding();
+        $this->assertNotNull($uncounted, 'the finding is dropped when the count times out');
+        $this->assertSame(['warning', ['missing' => null]], [$uncounted->severity, $uncounted->details]);
+        $this->assertStringContainsString("sanab bo'lmadi", $uncounted->title);
+        $this->assertStringContainsString("23-bo'lim", $uncounted->title);
+        $this->assertSame('ok', DB::selectOne("SELECT 'ok' AS v")->v, 'the timed-out count leaves the connection usable');
     }
 
     public function test_a_temporary_table_named_orders_cannot_plant_another_store(): void

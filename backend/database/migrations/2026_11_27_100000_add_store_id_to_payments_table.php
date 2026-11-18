@@ -27,8 +27,13 @@ return new class extends Migration
      *   re-read, and a writer never depends on the trigger alone);
      * - BEFORE INSERT and BEFORE UPDATE OF order_id/store_id triggers set it from the parent for every other writer
      *   (old code during a deploy, raw SQL, the load-test kit) and overwrite a value that differs from the parent's
-     *   (with a WARNING in the server log): no payment insert fails because of this column, and the column always
-     *   equals the parent's store. No code path changes orders.store_id or re-parents a payment.
+     *   (with a WARNING in the server log): no payment insert fails because of this column. What this guarantees,
+     *   exactly (wherever the parent can be found): every INSERT stores the parent's store; an UPDATE that changes
+     *   order_id does too; an UPDATE of store_id does once the column is NOT NULL, i.e. after this migration
+     *   completed. While the column is still nullable, an UPDATE that sets a wrong store on a row whose store is NULL
+     *   is not corrected: the update trigger skips rows whose old store is NULL (so the backfill does not look the
+     *   parent up a second time), and the backfill fills NULLs only. No application code updates payments.store_id
+     *   or payments.order_id, and no code path changes orders.store_id or re-parents a payment.
      *
      * Steps (each one short; re-running the migration resumes where it stopped):
      * 1. nullable column (metadata only, brief ACCESS EXCLUSIVE), functions (no lock), triggers (brief SHARE ROW

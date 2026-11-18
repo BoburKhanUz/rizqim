@@ -107,11 +107,12 @@ trait TenancySuite
             $expected = $extra ? [$positive['status']] : (array) $ok[$actor];
             $label = "{$key} as {$actor}";
             // M4 stage 2: a route with the `tenant` middleware (TenantMiddlewareCoverageTest: every tenant route but
-            // NOT_BOUND) ran bound to A's store only (again for a streamed body); a staff route refuses a terminal's
-            // token before that
-            $tenant = $actor !== 'terminal' && in_array('tenant', $middleware, true) ? [(int) $this->world['A']['store']->id] : [];
-            if (array_values(array_unique($positive['tenant'])) !== $tenant) {
-                $failures[] = "{$label}: bound to store(s) [" . implode(', ', $positive['tenant']) . '], expected [' . implode(', ', $tenant) . ']';
+            // NOT_BOUND) runs bound to A's store and to no other, from the middleware to the end of the controller and
+            // again while a streamed body is written; any other route binds nothing, and a staff route refuses a
+            // terminal's token before the middleware
+            $tenant = $actor !== 'terminal' && in_array('tenant', $middleware, true) ? (int) $this->world['A']['store']->id : null;
+            foreach (self::tenantFailures($positive, $tenant) as $problem) {
+                $failures[] = "{$label}: {$problem}";
             }
             if ($actor === 'terminal' && $positive['status'] < 400) {
                 $failures[] = "{$label}: a terminal's own token passes a staff route ({$positive['status']})";
@@ -178,6 +179,51 @@ trait TenancySuite
         }
 
         return $failures;
+    }
+
+    /**
+     * M4 stage 2: a call's record of the bound store (isolatedCall: `tenant`, `tenant_body`) against the store it must
+     * run for (null: none). Never another store, whoever binds it. A route that must be bound is bound by the
+     * middleware and is not unbound while a runAs is open (in the middle of the controller); its streamed body binds the
+     * store again and runs no query unbound. A queued job is unbound by QueuedJobsRunUnbound and bound again after it:
+     * that stretch is the job's, not the route's.
+     *
+     * @param  array{tenant: list<array{0: string, 1: int|null, 2: string|null}>, tenant_body: list<array{0: string, 1: int|null, 2: string|null}>|null}  $call
+     * @return list<string>
+     */
+    private static function tenantFailures(array $call, ?int $expected): array
+    {
+        $failures = [];
+        $for = $expected === null ? 'no store is expected' : "store {$expected} is expected";
+        foreach (['tenant' => 'the request', 'tenant_body' => 'the streamed body'] as $part => $what) {
+            if ($call[$part] === null) {
+                continue;
+            }
+            $jobs = 0;
+            $open = 0;
+            $bound = false;
+            foreach ($call[$part] as [$change, $store, $by]) {
+                if ($store !== null && $store !== $expected) {
+                    $failures[] = "{$what} is bound to store {$store} ({$change}), {$for}";
+                }
+                if ($by !== null) {
+                    $jobs = max(0, $jobs + ($by === 'started' ? 1 : -1));
+                } elseif ($jobs === 0 && $expected !== null) {
+                    $open += ['runAs' => 1, 'restore' => -1][$change] ?? 0;
+                    $bound = $bound || $store === $expected;
+                    if ($store === null && $change === 'query') {
+                        $failures[] = "{$what} runs a query unbound, {$for}";
+                    } elseif ($store === null && $open > 0) {
+                        $failures[] = "{$what} is unbound in the middle ({$change}), {$for}";
+                    }
+                }
+            }
+            if ($expected !== null && !$bound) {
+                $failures[] = "{$what} never runs bound, {$for}";
+            }
+        }
+
+        return array_values(array_unique($failures));
     }
 
     /**

@@ -18,8 +18,8 @@ use Tests\TestCase;
 
 /**
  * M4 stage 2: a queued job (or queued listener) runs without a tenant, as in production's worker, also when the tests'
- * sync queue runs it inside a tenant request; the request is bound again afterwards, also when the job throws. A job
- * that is not queued (dispatchSync of a plain job) is part of the request and stays bound.
+ * sync queue runs it inside a tenant request, its failed() method included; the request is bound again afterwards, also
+ * when the job throws. A job that is not queued (dispatchSync of a plain job) is part of the request and stays bound.
  */
 class QueuedJobsUnboundTest extends TestCase
 {
@@ -62,7 +62,8 @@ class QueuedJobsUnboundTest extends TestCase
         $bound = var_export($store->id, true);
         $this->assertSame([
             'queued=NULL', 'nested=NULL', "after-queued={$bound}",
-            'throws=NULL', "after-throw={$bound}",
+            // failed() too: the sync queue calls it while handling the exception, the worker after the job
+            'throws=NULL', 'failed:throws=NULL', "after-throw={$bound}",
             'queued-sync=NULL', 'chain-1=NULL', 'chain-2=NULL',
             "plain-sync={$bound}",
             'listener=NULL',
@@ -89,6 +90,11 @@ class QueuedTenantProbe implements ShouldQueue
         if ($this->throws) {
             throw new RuntimeException('job failed');
         }
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        QueuedJobsUnboundTest::note('failed:' . $this->name);
     }
 }
 

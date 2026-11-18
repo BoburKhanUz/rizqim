@@ -38,6 +38,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ServiceFeeSetting;
 use App\Models\User;
+use App\Support\Tenancy\QueuedJobsRunUnbound;
+use App\Support\Tenancy\TenantContext;
 use App\Models\Voucher;
 use App\Services\Auth\DevicePairingService;
 use Illuminate\Support\Carbon;
@@ -823,6 +825,18 @@ trait TenancyWorld
 
     private bool $listening = false;
 
+    /**
+     * M4 stage 2: every change of the bound store during the current call, in order, as [what, the store bound after
+     * it, by]: `runAs` and `restore` (its way back), `bind`, `forget`; `by` is QueuedJobsRunUnbound's `started` or
+     * `finished` when it made the change for a queued job. While a streamed body is written also `query`: the store
+     * bound when the body ran a query.
+     *
+     * @var list<array{0: string, 1: int|null, 2: string|null}>
+     */
+    private array $tenantLog = [];
+
+    private bool $tenantBody = false;
+
     /** @var (\Closure(): mixed)|null run inside each call before it is undone (another protected scope's snapshot) */
     protected ?\Closure $observeAlso = null;
 
@@ -1196,6 +1210,8 @@ trait TenancyWorld
         DB::listen(function (\Illuminate\Database\Events\QueryExecuted $query) {
             if ($query->connectionName !== DB::getDefaultConnection()) {
                 $this->sideEffects[] = "runs SQL on the {$query->connectionName} connection (not undone): " . Str::limit($query->sql, 120);
+            } elseif ($this->tenantBody) {
+                $this->tenantLog[] = ['query', app(TenantContext::class)->storeId(), null];
             }
         });
     }
@@ -1254,10 +1270,12 @@ trait TenancyWorld
     /**
      * One request, undone afterwards: the database to a savepoint (after-commit callbacks run first), the array cache
      * to what it held (a key naming B written or removed is reported), the clock to NOW. B's snapshot is taken before
-     * the undo; `side` lists what the call did outside the response and the rows.
+     * the undo; `side` lists what the call did outside the response and the rows; `tenant` and `tenant_body` are the
+     * record of the bound store ($tenantLog) during the request and while a streamed body was written (null: not
+     * streamed).
      *
      * @param  array<string, mixed>  $body  the JSON body, or the query string of a GET
-     * @return array{status: int, request: string, content: string, json: mixed, after: array<string, string>, side: list<string>}
+     * @return array{status: int, request: string, content: string, json: mixed, after: array<string, string>, side: list<string>, also: mixed, tenant: list<array{0: string, 1: int|null, 2: string|null}>, tenant_body: list<array{0: string, 1: int|null, 2: string|null}>|null}
      */
     protected function isolatedCall(string $method, string $uri, ?string $token, array $body, bool $observe = true): array
     {
@@ -1270,18 +1288,43 @@ trait TenancyWorld
         $writes = $this->writeCounters();
         $this->sideEffects = [];
         $http = count(Http::recorded());
-        // M4 stage 2: every store the `tenant` middleware binds during the call (the scoped instance is fresh per call)
-        $bound = [];
-        $this->app->scoped(\App\Support\Tenancy\TenantContext::class, function () use (&$bound) {
-            return new class ($bound) extends \App\Support\Tenancy\TenantContext {
-                /** @param  list<int>  $bound */
-                public function __construct(private array &$bound) {}
+        // M4 stage 2: every change of the bound store during the call, whoever makes it (the scoped instance is fresh
+        // per call). The state changes through these three methods only, so the record is the whole history
+        $this->tenantLog = [];
+        $this->app->scoped(TenantContext::class, function () {
+            return new class ($this->tenantLog) extends TenantContext {
+                /** @param  list<array{0: string, 1: int|null, 2: string|null}>  $log */
+                public function __construct(private array &$log) {}
 
                 public function runAs(int $storeId, callable $callback): mixed
                 {
-                    $this->bound[] = $storeId;
+                    $previous = $this->storeId();
+                    $this->log[] = ['runAs', $storeId, null];
+                    try {
+                        return parent::runAs($storeId, $callback);
+                    } finally {
+                        $this->log[] = ['restore', $previous, null];
+                    }
+                }
 
-                    return parent::runAs($storeId, $callback);
+                public function bind(int $storeId): void
+                {
+                    parent::bind($storeId);
+                    $this->log[] = ['bind', $storeId, self::queuedJob()];
+                }
+
+                public function forget(): void
+                {
+                    parent::forget();
+                    $this->log[] = ['forget', null, self::queuedJob()];
+                }
+
+                /** `started` or `finished` when QueuedJobsRunUnbound is the caller of bind() or forget(). */
+                private static function queuedJob(): ?string
+                {
+                    $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)[2] ?? [];
+
+                    return ($caller['class'] ?? null) === QueuedJobsRunUnbound::class ? $caller['function'] : null;
                 }
             };
         });
@@ -1301,11 +1344,17 @@ trait TenancyWorld
                 $response = $this->json($method, $url, $body);
             }
             $base = $response->baseResponse;
+            // A streamed body is written here, after the request (and the `tenant` middleware's binding) is over
+            $streamed = $base instanceof \Symfony\Component\HttpFoundation\StreamedResponse;
+            $bodyFrom = count($this->tenantLog);
+            $this->tenantBody = $streamed;
             $content = match (true) {
-                $base instanceof \Symfony\Component\HttpFoundation\StreamedResponse => (string) $response->streamedContent(),
+                $streamed => (string) $response->streamedContent(),
                 $base instanceof \Symfony\Component\HttpFoundation\BinaryFileResponse => (string) file_get_contents($base->getFile()->getPathname()),
                 default => (string) $response->getContent(),
             };
+            $this->tenantBody = false;
+            $bodyTo = count($this->tenantLog);
             $headers = collect($base->headers->all())->except(['date', 'set-cookie', 'x-request-id'])->map(fn ($values, $name) => $name . ': ' . implode(', ', $values))->implode("\n");
             $this->runAfterCommitCallbacks($level);
             $also = $this->observeAlso !== null ? ($this->observeAlso)() : null;
@@ -1313,6 +1362,7 @@ trait TenancyWorld
             $after = array_merge($this->bBaseline, $this->snapshotB($touched));
             ksort($after);
         } finally {
+            $this->tenantBody = false;
             DB::rollBack($level);
             $cache = (fn () => $this->storage)->call($store);
             (function () use ($saved) {
@@ -1346,7 +1396,9 @@ trait TenancyWorld
             'after' => $after,
             'side' => $side,
             'also' => $also,
-            'tenant' => $bound,
+            // The request (with what ran after the body: after-commit callbacks), and the streamed body alone
+            'tenant' => [...array_slice($this->tenantLog, 0, $bodyFrom), ...array_slice($this->tenantLog, $bodyTo)],
+            'tenant_body' => $streamed ? array_slice($this->tenantLog, $bodyFrom, $bodyTo - $bodyFrom) : null,
         ];
     }
 
