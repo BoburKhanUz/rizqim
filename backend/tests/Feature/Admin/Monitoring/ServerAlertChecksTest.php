@@ -558,6 +558,8 @@ class ServerAlertChecksTest extends TestCase
 
     // --- partitions -------------------------------------------------------------------------------------------------
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_partitions_fire_when_the_months_ahead_run_out_and_resolve_after_ensure(): void
     {
         $this->onlyRule(AlertKind::PARTITIONS);

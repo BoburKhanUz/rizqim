@@ -381,6 +381,8 @@ class PosTerminalFlowTest extends TestCase
         $second->forceFill(['smart_kassa' => true, 'fiscal_kassa_id' => $foreign->fiscal_kassa_id])->save();
     }
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_keeps_the_oldest_of_duplicate_kassa_ids(): void
     {
         $migration = require database_path('migrations/2026_11_11_200100_add_unique_fiscal_kassa_id_to_devices_table.php');

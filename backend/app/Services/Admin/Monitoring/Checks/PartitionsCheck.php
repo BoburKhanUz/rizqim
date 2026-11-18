@@ -7,6 +7,7 @@ use App\Models\MonitoringMarker;
 use App\Services\Admin\Monitoring\AlertFinding;
 use App\Services\Admin\Monitoring\BackupState;
 use App\Services\Admin\Monitoring\PostgresStats;
+use App\Support\Database\OwnerConnection;
 use App\Support\Partitions\PartitionManager;
 
 /**
@@ -62,7 +63,28 @@ class PartitionsCheck implements AlertCheck
             ], null, (self::CRITICAL_CODES[$problem['code']] ?? false) ? 'critical' : 'warning');
         }
 
-        return array_merge($findings, $this->archiveStorage($status));
+        return array_merge($findings, $this->maintenanceRole(), $this->archiveStorage($status));
+    }
+
+    /**
+     * M4: with split roles the partition commands need the owner's credentials in this (the scheduler's) environment;
+     * without them every 00:40 run fails and future_months_low would only say so weeks later. Critical at once.
+     *
+     * @return list<AlertFinding>
+     */
+    private function maintenanceRole(): array
+    {
+        if (OwnerConnection::configured()) {
+            return [];
+        }
+        $problem = PostgresStats::bounded(fn () => $this->partitions->maintenanceRoleProblem(), 'partitions_role');
+        if (!is_string($problem)) {
+            return [];
+        }
+
+        return [new AlertFinding('maintenance_role', "Jurnallarning oylik bo'limlarini yaratib bo'lmaydi: {$problem}. Scheduler konteyneriga DB_OWNER_USERNAME va DB_OWNER_PASSWORD bering (docs/OPERATIONS.md, «Baza rollari»)", [
+            'problem' => mb_substr($problem, 0, 200),
+        ], null, 'critical')];
     }
 
     /**

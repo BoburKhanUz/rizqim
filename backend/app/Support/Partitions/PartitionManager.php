@@ -583,6 +583,34 @@ final class PartitionManager
     }
 
     /**
+     * M4: why the current connection cannot do the partitions' DDL (CREATE TABLE ... PARTITION OF, ATTACH/DETACH, DROP,
+     * triggers), or null when it can: its role owns every journal table (or is a member of the owner role, or a
+     * superuser) and may create tables in the schema. With split roles the DML-only application role cannot: the
+     * commands then need the owner connection (App\Support\Database\OwnerConnection). Checked before any step, so a
+     * wrong setup fails every run at once, not only on the day a month is due.
+     */
+    public function maintenanceRoleProblem(): ?string
+    {
+        try {
+            $row = DB::selectOne(
+                "SELECT current_user AS role, has_schema_privilege(current_schema(), 'CREATE') AS can_create,
+                        coalesce(string_agg(c.relname, ', ' ORDER BY c.relname) FILTER (WHERE NOT pg_has_role(c.relowner, 'USAGE')), '') AS not_owned
+                   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = current_schema() AND c.relname = ANY (?::text[])",
+                ['{' . implode(',', array_keys(self::tables())) . '}'],
+            );
+        } catch (\Throwable $e) {
+            return "bazaga ulanib bo'lmadi (" . mb_substr(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '', 0, 200) . ')';
+        }
+        if ($row->not_owned === '' && (bool) $row->can_create) {
+            return null;
+        }
+        $what = $row->not_owned !== '' ? "jadvallar egasi emas ({$row->not_owned})" : "sxemada jadval yarata olmaydi";
+
+        return "{$row->role} roli {$what}";
+    }
+
+    /**
      * What `db:partitions:status --json` prints (the monitoring check reads the same array).
      *
      * @return array{generated_at: string, ok: bool, problems: list<array{table: string|null, code: string, message: string}>, tables: list<array<string, mixed>>, archives: array<string, mixed>}

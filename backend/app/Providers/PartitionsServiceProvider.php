@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Integrations\IntegrationEvent;
+use App\Support\Database\OwnerConnection;
 use App\Support\Partitions\PartitionArchiver;
 use App\Support\Partitions\PartitionConverter;
 use App\Support\Partitions\PartitionManager;
@@ -14,6 +15,7 @@ use Illuminate\Support\ServiceProvider;
  * - db:partitions:ensure 00:40 (05:40 Tashkent, before trade): the next months, DEFAULT emptied;
  * - db:partitions:archive 22:40 (03:40 Tashkent, the quietest hour): old months detached / verified copies dropped;
  * - integration_events pruning (its model lives outside app/Models, which the plain `model:prune` scans).
+ * M4: `php artisan migrate` (and the other migration commands) run as the schema owner when DB_OWNER_USERNAME is set.
  */
 class PartitionsServiceProvider extends ServiceProvider
 {
@@ -26,6 +28,9 @@ class PartitionsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($this->app->runningInConsole()) {
+            OwnerConnection::listen();
+        }
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
             $schedule->command('db:partitions:ensure')->dailyAt('00:40')->timezone('UTC')->withoutOverlapping(30)->name('partitions-ensure');
             $schedule->command('db:partitions:archive')->dailyAt('22:40')->timezone('UTC')->withoutOverlapping(120)->name('partitions-archive');

@@ -14,6 +14,8 @@ use Tests\TestCase;
  */
 class ConcurrentPartitionedIndexTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     use RefreshDatabase;
 
     // No wrapping transaction: CONCURRENTLY refuses to run inside one

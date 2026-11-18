@@ -91,6 +91,8 @@ x-queue-worker: &queue-worker
   depends_on:
     postgres:
       condition: service_healthy
+    db-roles:
+      condition: service_completed_successfully
     redis:
       condition: service_healthy
     backend:
@@ -128,8 +130,10 @@ services:
       - max_wal_size=2GB
     environment:
       POSTGRES_DB: ${DB_DATABASE:-rizqimbot}
-      POSTGRES_USER: ${DB_USERNAME:-rizqimbot}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      # M4: bootstrap superuser (faqat postgres, backup, db-roles). POSTGRES_USER bo'sh = DB_USERNAME (bitta rol, avvalgidek).
+      # Rollar ajratilganda (DB_OWNER_USERNAME bor): POSTGRES_USER = eski DB_USERNAME, DB_USERNAME = rizqim_app. docs/OPERATIONS.md, «Baza rollari»
+      POSTGRES_USER: ${POSTGRES_USER:-${DB_USERNAME:-rizqimbot}}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-secret}}
       # Set = the data is a host path (pitr-switch.sh): infra/postgres/entrypoint.sh then refuses to create an empty database
       RIZQIM_DATA_SOURCE: ${POSTGRES_DATA_VOLUME:-}
       <<: *pitr-environment
@@ -142,7 +146,7 @@ services:
       # Unix soket `backup` bilan umumiy: pgBackRest zaxira olganda Postgres'ga shu soket orqali ulanadi
       - pg_run:/var/run/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rizqimbot} -d ${DB_DATABASE:-rizqimbot}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-${DB_USERNAME:-rizqimbot}} -d ${DB_DATABASE:-rizqimbot}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -171,6 +175,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # M4: ilova rolining paroli (DB_USERNAME/DB_PASSWORD, userlist) db-roles qo'ygandan keyin
+      db-roles:
+        condition: service_completed_successfully
     # Pul orqali haqiqiy so'rov (auth + Postgres'gacha yo'l)
     healthcheck:
       test: ["CMD-SHELL", "PGPASSWORD=\"$$DB_PASSWORD\" psql -h 127.0.0.1 -p 6432 -U \"$$DB_USERNAME\" -d \"$$DB_DATABASE\" -Atqc 'select 1' >/dev/null || exit 1"]
@@ -178,6 +185,31 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
+
+  # M4: baza rollari (scripts/db-roles.sh, bir martalik): rizqim_owner (jadvallar egasi: migratsiyalar, db:partitions:*),
+  # rizqim_app (DB_USERNAME: faqat ma'lumot, pg_monitor; php-fpm, queue, scheduler, reverb, PgBouncer). Har `up` da
+  # ishlaydi va qayta ishga tushirish xavfsiz: yo'q rollarni yaratadi, parollarni env'dan qo'yadi (almashtirish), huquqlar,
+  # egasi rizqim_owner bo'lmagan obyektlarni ko'chiradi (lock_timeout 2s, har biri alohida). DB_OWNER_USERNAME bo'sh =
+  # rollar ajratilmagan: hech narsa qilmaydi. Bootstrap superuser bilan ulanadi. docs/OPERATIONS.md, «Baza rollari»
+  db-roles:
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-${DB_USERNAME:-rizqimbot}}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-secret}}
+      DB_DATABASE: ${DB_DATABASE:-rizqimbot}
+      DB_USERNAME: ${DB_USERNAME:-rizqimbot}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DB_OWNER_USERNAME: ${DB_OWNER_USERNAME:-}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:-}
+    volumes:
+      - ./scripts/db-roles.sh:/usr/local/bin/db-roles.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/db-roles.sh"]
 
   # Kesh, navbat (queue), sessiya va rate-limit shu yerda. Tashqariga port ochilmagan (faqat compose tarmog'i).
   # --appendonly: navbatdagi joblar Redis qayta ishga tushganda yo'qolmasin.
@@ -213,6 +245,10 @@ services:
       # yig'indisi) shu puldan oshmasligini tekshiradi, aks holda bozor puli kassalarning bazaga ulanishini olib qo'yadi
       # (backend/docker/pools.sh; docs/OPERATIONS.md, «Bazaga ulanishlar puli»)
       PGBOUNCER_POOL_SIZE: ${PGBOUNCER_POOL_SIZE:-20}
+      # M4: migratsiyalar jadvallar egasi roli bilan (entrypoint). php-fpm bu qiymatlarni olmaydi (entrypoint ularni
+      # supervisord'dan oldin o'chiradi), config:cache ham yozmaydi. Bo'sh = bitta rol (DB_USERNAME), avvalgidek
+      DB_OWNER_USERNAME: ${DB_OWNER_USERNAME:-}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:-}
     # Faqat 127.0.0.1 da (partner-web va platform-admin kabi): /up (va API) ni shu xostdagi tashqi proksi oladi. Backend xususiy tarmoqdan kelgan X-Forwarded-For ga ishonadi (bootstrap/app.php trustProxies): port
     # internetga ochiq bo'lsa, Docker userland proksisi orqali kelgan so'rov (masalan IPv6) ichki manzildan kelgandek
     # ko'rinib, soxta IP bilan kirish limitlarini aylanib o'tardi. Proksi boshqa xostda bo'lsa BACKEND_BIND (va firewall).
@@ -224,6 +260,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # M4: rollar va egalik tayyor (DB_OWNER_USERNAME bo'sh bo'lsa db-roles darhol 0 bilan tugaydi)
+      db-roles:
+        condition: service_completed_successfully
       # service_started (healthy emas): DB_POOLER=direct bilan PgBouncer nosoz bo'lsa ham backend ishga tushsin.
       # Pul orqali ishlaganda entrypoint uning portini kutadi, /health esa bazaga pul orqali ulanib tekshiradi
       pgbouncer:
@@ -258,9 +297,14 @@ services:
     environment:
       <<: *backend-environment
       RUN_MIGRATIONS: "false"
+      # M4: db:partitions:ensure (00:40) va :archive (22:40) jadvallar egasi roli bilan; boshqa hamma narsa DB_USERNAME
+      DB_OWNER_USERNAME: ${DB_OWNER_USERNAME:-}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
+      db-roles:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       backend:
@@ -287,6 +331,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-roles:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       backend:
@@ -464,8 +510,9 @@ services:
       ARCHIVE_S3_PREFIX: ${ARCHIVE_S3_PREFIX:-}
       PGHOST: postgres
       PGPORT: 5432
-      PGUSER: ${DB_USERNAME:-rizqimbot}
-      PGPASSWORD: ${DB_PASSWORD:-secret}
+      # M4: zaxira, PITR, tiklash mashqi va jurnallar arxivi bootstrap superuser bilan (hamma qatorni o'qiydi, DETACH/ATTACH)
+      PGUSER: ${POSTGRES_USER:-${DB_USERNAME:-rizqimbot}}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-${DB_PASSWORD:-secret}}
       PGDATABASE: ${DB_DATABASE:-rizqimbot}
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}

@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
  */
 trait AuditLogCleanup
 {
+    // M4: switching the trigger off is DDL: a test using this runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
+
     protected function withoutAuditLogGuard(callable $callback): void
     {
         DB::unprepared('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');

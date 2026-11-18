@@ -17,6 +17,8 @@ use Tests\TestCase;
  */
 class PartitionsEnsureTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     use RefreshDatabase;
 
     public function test_the_migration_partitions_the_three_journals_with_months_ahead_and_a_default(): void

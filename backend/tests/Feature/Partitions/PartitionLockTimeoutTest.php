@@ -15,6 +15,8 @@ use Tests\TestCase;
  */
 class PartitionLockTimeoutTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     use RefreshDatabase;
 
     protected $connectionsToTransact = [];
@@ -41,7 +43,8 @@ class PartitionLockTimeoutTest extends TestCase
             }
             proc_close($process);
         }
-        DB::statement("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name LIKE 'm3_%' AND pid <> pg_backend_pid()");
+        // The holders log in as the application role (config pgsql): only that role may end them (M4: the test itself runs as the owner)
+        DB::connection('pgsql')->statement("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name LIKE 'm3_%' AND pid <> pg_backend_pid()");
         // Months a test detached come back empty (committed: no transaction rolls them back)
         foreach ($this->before as $names) {
             foreach ($names as $name) {
@@ -95,7 +98,7 @@ class PartitionLockTimeoutTest extends TestCase
             // ensure gave up (lock_timeout x retries) while the lock was still held: it did not queue behind it
             $this->assertTrue($held(), 'ensure returned while the till-like transaction still held its lock');
         } finally {
-            DB::statement("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'm3_lock_holder'");
+            DB::connection('pgsql')->statement("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'm3_lock_holder'");
             stream_get_contents($pipes[1]);
             stream_get_contents($pipes[2]);
             proc_close($holder);

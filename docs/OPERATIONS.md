@@ -806,6 +806,7 @@ Muammo hal bo'lganda ham xabar keladi. Yuborish qoidalari:
 | Jurnallarning oylik bo'limlari: himoya triggeri yo'q | `fiscal_receipt_keys_insert` yoki audit triggeri yo'qolgan: fiskal cheklar takrorlanishdan himoyasiz | trigger yo'q | KRITIK | `php artisan db:partitions:ensure` bajaring (triggerni tiklaydi); ogohlantirish yopilmasa texnik yordamga murojaat qiling. |
 | Jurnallarning oylik bo'limlari: arxiv kaliti o'chira oladi | Jurnallar arxivi yoziladigan S3 kaliti fayllarni o'chira oladi: arxiv himoyasiz | kalit o'chira oladi | DIQQAT | O'chirish huquqi yo'q alohida kalit bering (`ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`; 20-bo'lim). |
 | Jurnallarning oylik bo'limlari: arxiv faqat shu serverda | S3 yo'q: eski oylar faqat shu serverdagi faylga arxivlangan, bazadan o'chirilmaydi va disk buzilsa yo'qoladi | 1 ta oy | DIQQAT | S3 kalitlarini yozing (20-bo'lim). |
+| Jurnallarning oylik bo'limlari: egasi roli yo'q | Rollar ajratilgan, lekin scheduler'da `DB_OWNER_USERNAME`/`DB_OWNER_PASSWORD` yo'q: har kechagi `db:partitions:ensure`/`:archive` rad etiladi, keyingi oylar tayyorlanmaydi | darhol | KRITIK | Ildizdagi `.env` ga egasi rolini yozing va `docker compose up -d scheduler` (22-bo'lim). |
 
 Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose exec -u www-data backend ...` ichida bajariladi. PITR, tiklash mashqi va disk qoidalari uzluksiz zaxira **yoqilmagan** (`PITR_ENABLED` bo'sh) bo'lsa jim turadi: markazda «O'chiq» ko'rinadi.
 
@@ -826,3 +827,51 @@ Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose ex
 4. Ikkinchi tekshiruv: `rizqim-pitr`, **Period 1 day**, **Grace Time 2 hours** (26 soatdan keyin ogohlantiradi). Uning manzilini `.env` ga `PITR_PING_URL=...` deb yozing va `docker compose up -d backup`. `backup` xizmati har muvaffaqiyatli uzluksiz zaxiradan keyin shunga so'rov yuboradi (birinchisi to'liq nusxa tugagach).
 5. **Integrations** bo'limida egasining Telegram'i yoki e-pochtasini ulang va ikkala tekshiruvga bog'lang.
 6. Tekshirish: 1–2 daqiqadan keyin `rizqim-scheduler` yashil («Up») bo'ladi. `.env` da manzil bo'sh bo'lsa hech narsa yuborilmaydi.
+
+## 22. Baza rollari (M4)
+
+Ilova bazaga jadvallar egasi yoki superuser sifatida ulanmaydi: ilovadagi xato (yoki buzg'unchi) jadvalni o'chira, trigger va
+himoyalarni o'chira olmaydi. Uchta rol:
+
+| Rol | Kim ishlatadi | Huquqi |
+|---|---|---|
+| bootstrap superuser (`POSTGRES_USER`, mavjud o'rnatishda eski `DB_USERNAME`) | `postgres` konteyneri, `backup` (pg_dump, pgBackRest, tiklash mashqi, jurnallar arxivi), `db-roles` | hammasi |
+| `rizqim_owner` (`DB_OWNER_USERNAME`) | migratsiyalar (`backend` konteyneri ishga tushganda, `php artisan migrate`), `db:partitions:ensure` (00:40 UTC) va `db:partitions:archive` (22:40 UTC, `scheduler`) | sxemadagi hamma obyektning egasi |
+| `rizqim_app` (`DB_USERNAME`) | php-fpm (PgBouncer orqali), queue, queue-reports, scheduler, reverb | faqat SELECT/INSERT/UPDATE/DELETE, ketma-ketliklar, `pg_monitor` (Monitoring uchun) |
+
+`DB_OWNER_USERNAME` bo'sh bo'lsa hammasi avvalgidek bitta rol bilan ishlaydi (`app:check-production` faqat ogohlantiradi).
+Egasining paroli faqat `backend` (migratsiya uchun; php-fpm ishga tushishidan oldin muhitdan o'chiriladi) va `scheduler`
+konteynerlariga beriladi, `bootstrap/cache/config.php` ga hech qachon yozilmaydi (`app:check-production` tekshiradi). Uni
+`backend/.env` ga yozmang: u fayl hamma konteynerga tushadi.
+
+**`db-roles` xizmati** (`scripts/db-roles.sh`, bir martalik) har `docker compose up` da backend, queue, scheduler, reverb va
+pgbouncer'dan oldin ishlaydi: yo'q rollarni yaratadi, parollarni `.env` dan qo'yadi, huquqlarni beradi (egasi keyin yaratadigan
+jadval va oylar uchun ham) va egasi `rizqim_owner` bo'lmagan har obyektni unga o'tkazadi. Har obyekt alohida, 2 soniyalik
+kutish chegarasi bilan (kassa yozuvi 2 soniyadan ortiq kutmaydi), band bo'lsa 3 marta urinadi; band qolganini ogohlantirib
+aytadi (ilova baribir ishlaydi, faqat o'sha obyektdagi migratsiya xato beradi: tinch paytda qayta ishga tushiring). Qayta
+ishga tushirish xavfsiz: ikkinchi marta «ko'chiriladigan obyekt yo'q» deydi. Qo'lda: `docker compose run --rm db-roles`.
+
+**Mavjud o'rnatishda birinchi marta** (tinch soatda, masalan 03:00-05:00 Toshkent; jadvallar soniga qarab bir necha soniya):
+```bash
+docker compose exec backup sh /usr/local/bin/backup.sh        # avval zaxira
+# ildizdagi .env: eski DB_USERNAME/DB_PASSWORD -> POSTGRES_USER/POSTGRES_PASSWORD (o'zgarmaydi, superuser bo'lib qoladi);
+#   DB_USERNAME=rizqim_app, DB_PASSWORD=<yangi parol>; DB_OWNER_USERNAME=rizqim_owner, DB_OWNER_PASSWORD=<yangi parol>
+#   (uchala parol har xil: openssl rand -hex 24)
+git pull && docker compose up -d --build                      # db-roles -> pgbouncer -> backend (migrate egasi bilan) -> ...
+docker compose logs db-roles                                  # nima ko'chirilgani
+docker compose exec -u www-data backend php artisan app:check-production
+docker compose exec -u www-data scheduler php artisan db:partitions:ensure   # egasi bilan ishlashini tekshirish
+```
+PgBouncer yangi foydalanuvchi bilan qayta ishga tushadi: shu soniyalarda kelgan so'rovlar xato oladi, kassalar oflayn navbatga
+yozadi (`pos_sync`). Qaytarish: `.env` da `DB_USERNAME/DB_PASSWORD` ni yana bootstrap qiymatiga qaytaring,
+`DB_OWNER_USERNAME` ni bo'sh qiling, `docker compose up -d` (egalik `rizqim_owner` da qoladi, superuser hammasini qila oladi).
+
+**Parolni almashtirish:** ildizdagi `.env` da `DB_PASSWORD` yoki `DB_OWNER_PASSWORD` ni o'zgartiring va
+`docker compose up -d db-roles pgbouncer backend queue queue-reports scheduler reverb` (db-roles yangi parolni qo'yadi, qolganlari
+yangi parol bilan qayta ulanadi). Bootstrap parolini (`POSTGRES_PASSWORD`) almashtirish: `docker compose exec postgres psql -U
+"$POSTGRES_USER" -c '\password'`, so'ng `.env` va `docker compose up -d backup db-roles`.
+
+**Rad etishlar:** `db:partitions:*` egasi rolisiz ishga tushsa «XATO: bo'limlarga tegilmadi ... DB_OWNER_USERNAME va
+DB_OWNER_PASSWORD bering» deydi va 1 bilan chiqadi (hech narsa o'zgarmaydi); Monitoring darhol KRITIK ogohlantiradi (21-bo'lim).
+`app:check-production` rollar ajratilgandan keyin superuser yoki jadvallar egasi bo'lgan `DB_USERNAME` bilan konteynerni ishga
+tushirmaydi.

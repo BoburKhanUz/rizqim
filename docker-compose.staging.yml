@@ -61,6 +61,11 @@ services:
     mem_limit: 64m
     cpus: 0.25
 
+  # M4: bir martalik baza rollari (docker-compose.yml, scripts/db-roles.sh)
+  db-roles:
+    mem_limit: 64m
+    cpus: 0.25
+
   redis:
     mem_limit: 256m
     cpus: 0.5

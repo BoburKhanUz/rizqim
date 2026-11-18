@@ -91,6 +91,10 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     # state (SET lock_timeout, CREATE INDEX CONCURRENTLY outside a transaction) that must not leak into a pooled
     # server connection. config:clear first: a restarted container still has the previous start's config cache, which
     # would ignore the override. The cache is rebuilt (with the pooled settings) right after.
+    # M4: with DB_OWNER_USERNAME/DB_OWNER_PASSWORD set (docker-compose.yml, backend and scheduler only) `migrate` runs
+    # as the schema owner (rizqim_owner) and everything else as DB_USERNAME (rizqim_app). The owner's credentials stay
+    # in the environment of this command only: config/database.php never reads them, so config:cache below cannot
+    # write them into bootstrap/cache/config.php (php-fpm reads it), and they are removed before supervisord starts.
     as_app php artisan config:clear
     as_app env DB_POOLER=direct php artisan migrate --force
     as_app php artisan storage:link || true
@@ -106,6 +110,12 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     # still run old code finish their current job and exit, and Docker starts them again with the new code
     as_app php artisan queue:restart \
         || echo "OGOHLANTIRISH: queue:restart bajarilmadi — Redis/kesh ulanishini tekshiring, so'ng 'docker compose restart queue queue-reports' ni ishga tushiring." >&2
+fi
+
+# M4: php-fpm keeps the container's environment (clear_env = no): the owner's credentials, needed above for the
+# migrations only, must not reach a request. The scheduler keeps them (its partition commands run as the owner).
+if [ "$(basename "${1:-}")" = "supervisord" ]; then
+    unset DB_OWNER_USERNAME DB_OWNER_PASSWORD
 fi
 
 # The web container's command (supervisord) stays root: its nginx and php-fpm masters bind port 80 and drop their workers

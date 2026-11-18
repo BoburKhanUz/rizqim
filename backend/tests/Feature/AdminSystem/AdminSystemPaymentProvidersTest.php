@@ -74,6 +74,8 @@ class AdminSystemPaymentProvidersTest extends TestCase
      * switches did nothing. Now both route live payments, so the migration starts every row in production and on (the
      * team reviews Tizim → To'lov tizimlari after migrating, docs/DEPLOY.md) and only logs where test_mode was set.
      */
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_starts_every_provider_in_production_and_on(): void
     {
         PaymentProvider::where('slug', 'uzum')->sole()->forceFill(['is_active' => false])->save();
@@ -92,6 +94,8 @@ class AdminSystemPaymentProvidersTest extends TestCase
         $this->assertSame(self::SECRET, PaymentProvider::where('slug', 'payme')->sole()->credentials['secret_key']);
     }
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_after_the_migration_a_live_payme_checkout_opens_production(): void
     {
         $migration = require database_path('migrations/2026_11_06_300200_add_mode_to_payment_providers_table.php');

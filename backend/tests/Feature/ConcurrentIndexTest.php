@@ -14,6 +14,8 @@ use Tests\TestCase;
  */
 class ConcurrentIndexTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     private const TABLE = 'concurrent_index_probe';
 
     private const INDEX = 'concurrent_index_probe_v_index';

@@ -144,6 +144,8 @@ class DailyMenuBranchRotationTest extends TestCase
         $this->assertTrue($panel($this->otherBranch)[$this->mastava->id]['daily_rotation']);
     }
 
+    // M4: runs the migration's DDL itself: as the schema owner when the roles are split
+    #[\Tests\Concerns\AsSchemaOwner]
     public function test_the_migration_moves_the_store_wide_flags_to_every_branch_of_the_store(): void
     {
         $migration = require database_path('migrations/2026_11_11_300100_create_branch_product_rotation_table.php');

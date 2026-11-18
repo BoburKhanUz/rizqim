@@ -25,6 +25,8 @@ use Tests\TestCase;
  */
 class WriteOffSaleLockTest extends TestCase
 {
+    // M4: does DDL itself (tests/Concerns/UsesOwnerConnection.php): runs as the schema owner when the roles are split
+    use \Tests\Concerns\UsesOwnerConnection;
     use MenuFixtures;
     use PosBillingFixtures;
 

@@ -4,7 +4,10 @@ namespace App\Console\Commands;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Support\Database\OwnerConnection;
 use Illuminate\Console\Command;
+use Illuminate\Support\Env;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class CheckProductionConfigCommand extends Command
@@ -85,7 +88,7 @@ class CheckProductionConfigCommand extends Command
             $this->warn("OGOHLANTIRISH: HEALTHCHECKS_PING_URL bo'sh: server yoki scheduler to'xtasa hech kim xabar bermaydi. healthchecks.io da bepul tekshiruv ochib, manzilini ildizdagi .env ga yozing (docs/OPERATIONS.md, 21-bo'lim).");
         }
 
-        $problems = array_merge($problems, $this->reverbProblems(), $this->accountProblems());
+        $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->accountProblems());
         $this->warnPaymentProviders();
 
         if ($problems !== []) {
@@ -127,6 +130,50 @@ class CheckProductionConfigCommand extends Command
         if (in_array('*', (array) config('reverb.apps.apps.0.allowed_origins', []), true)) {
             // P2-33: every screen that opens the socket (docs/DEPLOY.md §9)
             $this->warn('OGOHLANTIRISH: REVERB_ALLOWED_ORIGINS=* — WebSocket istalgan saytdan ochiladi. Vergul bilan WebSocket ochadigan hamma hostlarni yozing: Mini App hosti (<domen>), hamkor paneli (panel.<domen>) va oshxona ekrani (KDS) uchun API hosti (RIZQIM_API_URL xosti, Mini App hosti bilan bir xil bo\'lsa shart emas), masalan: example.uz,panel.example.uz (docs/DEPLOY.md, 9-bo\'lim).');
+        }
+
+        return $problems;
+    }
+
+    /**
+     * M4 (docs/scale/M4_DESIGN.md section 5): the application must not connect as a superuser or as the owner of the
+     * tables, and the owner's password must not sit in the config cache that php-fpm reads. Refused once the roles are
+     * split (DB_OWNER_USERNAME set: the backend and scheduler containers, which share DB_USERNAME with the others); an
+     * install still on one role (as before M4) only gets a warning, so it keeps starting.
+     *
+     * @return list<string>
+     */
+    private function databaseRoleProblems(): array
+    {
+        $problems = [];
+        $ownerPassword = (string) Env::get('DB_OWNER_PASSWORD', '');
+        // The file php-fpm loads, whether or not this process loaded it
+        if (is_file(app()->getCachedConfigPath())) {
+            $cached = @file_get_contents(app()->getCachedConfigPath());
+            if ($ownerPassword !== '' && is_string($cached) && str_contains($cached, var_export($ownerPassword, true))) {
+                $problems[] = "Jadvallar egasining paroli (DB_OWNER_PASSWORD) bootstrap/cache/config.php ga tushgan: uni har php-fpm ishchisi o'qiydi. DB_PASSWORD egasining parolidan boshqa bo'lsin, so'ng php artisan config:clear va config:cache";
+            }
+        }
+
+        try {
+            $row = DB::selectOne(
+                "SELECT r.rolname AS role, r.rolsuper AS super,
+                        EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relowner = r.oid) AS owns
+                   FROM pg_roles r WHERE r.rolname = current_user"
+            );
+        } catch (\Throwable $e) {
+            $this->warn("OGOHLANTIRISH: ilovaning baza rolini tekshirib bo'lmadi: " . mb_substr($e->getMessage(), 0, 200));
+
+            return $problems;
+        }
+        if ($row === null || !($row->super || $row->owns)) {
+            return $problems;
+        }
+        $what = $row->super ? 'superuser' : 'jadvallar egasi';
+        if (OwnerConnection::configured()) {
+            $problems[] = "Ilova bazaga {$row->role} roli bilan ulanmoqda ({$what}): DB_USERNAME faqat ma'lumot o'qib-yozadigan rol bo'lsin (rizqim_app), jadvallar egasi esa faqat DB_OWNER_USERNAME (rizqim_owner). docs/OPERATIONS.md, «Baza rollari»";
+        } else {
+            $this->warn("OGOHLANTIRISH: ilova bazaga {$row->role} roli bilan ulanmoqda ({$what}): ilovadagi xato butun bazani o'zgartira oladi. Rollarni ajrating: rizqim_owner va rizqim_app (docs/OPERATIONS.md, «Baza rollari»).");
         }
 
         return $problems;
