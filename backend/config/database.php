@@ -173,6 +173,20 @@ return [
     ],
 
     /*
+    | M4 stage 3 (docs/scale/M4_DESIGN.md 4.3, docs/OPERATIONS.md section 24): row-level security for tenant requests.
+    | TENANT_RLS=1: every transaction of a tenant-bound request runs as the role DB_TENANT_ROLE (rizqim_tenant, created
+    | by scripts/db-roles.sh) with the request's store in the setting app.store_id, so PostgreSQL itself refuses rows of
+    | another store on the tables of App\Support\Tenancy\TenantRls::TABLES. Unset or 0 = no role switch: the
+    | application guard and the store scope alone, exactly as before stage 3 (the policies bind only that role).
+    | Needs the split roles (DB_OWNER_USERNAME): `php artisan app:check-production` refuses a setup that cannot switch.
+    */
+
+    'tenant_rls' => [
+        'enabled' => (bool) env('TENANT_RLS', false),
+        'role' => env('DB_TENANT_ROLE', 'rizqim_tenant'),
+    ],
+
+    /*
     |--------------------------------------------------------------------------
     | Redis Databases
     |--------------------------------------------------------------------------

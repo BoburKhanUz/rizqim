@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Domain\Realtime\RevisionPostgresConnection;
 use App\Support\Database\OwnerConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -20,6 +21,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function setUpTraits()
     {
+        self::reportTenantTransactions();
         $uses = $this->traitsUsedByTest ?? array_flip(class_uses_recursive(static::class));
         if (OwnerConnection::prepare()) {
             if (isset($uses[RefreshDatabase::class]) && !RefreshDatabaseState::$migrated && method_exists($this, 'migrateFreshUsing')) {
@@ -34,5 +36,22 @@ abstract class TestCase extends BaseTestCase
         }
 
         return parent::setUpTraits();
+    }
+
+    private static bool $reportsTenantTransactions = false;
+
+    /**
+     * M4 stage 3 (CI job tests-app-role, which runs the suite with TENANT_RLS=1): when the process ends, the number of
+     * transactions that took the tenant role is written to TENANT_RLS_COUNT_FILE, and the job fails unless the suite
+     * really ran under row-level security (a run that silently never switched would be green and prove nothing).
+     */
+    private static function reportTenantTransactions(): void
+    {
+        $file = (string) getenv('TENANT_RLS_COUNT_FILE');
+        if ($file === '' || self::$reportsTenantTransactions) {
+            return;
+        }
+        self::$reportsTenantTransactions = true;
+        register_shutdown_function(static fn () => file_put_contents($file, RevisionPostgresConnection::$tenantTransactions . "\n"));
     }
 }

@@ -2,7 +2,11 @@
 # RIZQIM: baza rollari (M4, docs/scale/M4_DESIGN.md 5-bo'lim; docs/OPERATIONS.md, «Baza rollari»).
 #   rizqim_owner (DB_OWNER_USERNAME): sxemadagi hamma obyektlarning egasi; migratsiyalar va db:partitions:* shu rol bilan.
 #   rizqim_app   (DB_USERNAME): faqat ma'lumot o'qish-yozish (SELECT/INSERT/UPDATE/DELETE) + pg_monitor; php-fpm
-#                (PgBouncer orqali), queue, scheduler, reverb shu rol bilan ishlaydi.
+#                (PgBouncer orqali), queue, scheduler, reverb shu rol bilan ishlaydi. M4 3-bosqich: BYPASSRLS (qator
+#                darajasidagi himoya unga tegmaydi) va rizqim_tenant ga NOINHERIT a'zolik (SET LOCAL ROLE qila oladi).
+#   rizqim_tenant (DB_TENANT_ROLE, standart rizqim_tenant): NOLOGIN, NOBYPASSRLS, xuddi shu o'qish-yozish huquqlari.
+#                Do'kon so'rovi tranzaksiyasi ichida ilova shu rolga o'tadi (TENANT_RLS=1): Postgres faqat o'sha
+#                do'kon qatorlarini ko'rsatadi va yozdiradi (docs/OPERATIONS.md, 24-bo'lim).
 # Bootstrap superuser (POSTGRES_USER) o'zgarmaydi: postgres konteyneri, backup, tiklash mashqi va shu skript.
 #
 # `db-roles` compose xizmati (bir martalik) har `docker compose up` da ishga tushiradi; qo'lda:
@@ -22,6 +26,7 @@ fail() { printf 'db-roles: XATO: %s\n' "$*" >&2; exit 1; }
 
 OWNER=${DB_OWNER_USERNAME:-}
 APP=${DB_USERNAME:-}
+TENANT=${DB_TENANT_ROLE:-rizqim_tenant}
 if [ -z "$OWNER" ]; then
     say "DB_OWNER_USERNAME bo'sh: rollar ajratilmagan (bitta rol, avvalgidek). Hech narsa qilinmadi."
     exit 0
@@ -29,12 +34,15 @@ fi
 [ -n "$APP" ] || fail "DB_USERNAME bo'sh: ilova roli (rizqim_app) nomini bering."
 [ -n "${DB_OWNER_PASSWORD:-}" ] || fail "DB_OWNER_PASSWORD bo'sh: jadvallar egasi roli uchun parol bering."
 [ -n "${DB_PASSWORD:-}" ] || fail "DB_PASSWORD bo'sh: ilova roli uchun parol bering."
-for name in "$OWNER" "$APP"; do
+for name in "$OWNER" "$APP" "$TENANT"; do
     case "$name" in
         *[!a-z0-9_]* | [0-9]*) fail "rol nomi '$name' faqat kichik lotin harf, raqam va '_' dan iborat bo'lsin (raqam bilan boshlanmasin)." ;;
     esac
 done
 [ "$OWNER" != "$APP" ] || fail "DB_USERNAME va DB_OWNER_USERNAME bir xil ($APP): ilova jadvallar egasi bo'lmasligi kerak."
+if [ "$TENANT" = "$APP" ] || [ "$TENANT" = "$OWNER" ]; then
+    fail "DB_TENANT_ROLE ($TENANT) DB_USERNAME yoki DB_OWNER_USERNAME bilan bir xil: unga boshqa nom bering (rizqim_tenant)."
+fi
 PGDATABASE=${DB_DATABASE:-${PGDATABASE:-}}
 [ -n "$PGDATABASE" ] || fail "DB_DATABASE bo'sh."
 export PGDATABASE
@@ -52,38 +60,51 @@ case "$me" in
     *'|true') ;;
     *) fail "$bootstrap superuser emas: rollar va egalikni faqat bootstrap superuser (POSTGRES_USER/POSTGRES_PASSWORD) o'zgartira oladi. Hech narsa o'zgartirilmadi." ;;
 esac
-if [ "$bootstrap" = "$OWNER" ] || [ "$bootstrap" = "$APP" ]; then
-    fail "bootstrap superuser ($bootstrap) DB_USERNAME yoki DB_OWNER_USERNAME bilan bir xil: ularga boshqa nom bering (rizqim_owner, rizqim_app), POSTGRES_USER o'zgarmaydi."
+if [ "$bootstrap" = "$OWNER" ] || [ "$bootstrap" = "$APP" ] || [ "$bootstrap" = "$TENANT" ]; then
+    fail "bootstrap superuser ($bootstrap) DB_USERNAME, DB_OWNER_USERNAME yoki DB_TENANT_ROLE bilan bir xil: ularga boshqa nom bering (rizqim_owner, rizqim_app, rizqim_tenant), POSTGRES_USER o'zgarmaydi."
 fi
 
 # 1. Roles, passwords (= rotation), connect and schema rights. Passwords travel as psql variables read from the
 # environment (\getenv), quoted by psql (:'var'), never in the SQL text or on a command line.
-for role in "$OWNER" "$APP"; do
+for role in "$OWNER" "$APP" "$TENANT"; do
     if [ "$(printf '%s\n' "SELECT count(*) FROM pg_roles WHERE rolname = :'r'" | q -v r="$role")" = "0" ]; then
         say "rol yaratiladi: $role"
     fi
 done
-q -v owner="$OWNER" -v app="$APP" -v db="$PGDATABASE" <<'SQL'
+q -v owner="$OWNER" -v app="$APP" -v tenant="$TENANT" -v db="$PGDATABASE" <<'SQL'
 \getenv owner_pw DB_OWNER_PASSWORD
 \getenv app_pw DB_PASSWORD
 SET client_min_messages = warning;
 SELECT format('CREATE ROLE %I', :'owner') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner') \gexec
 SELECT format('CREATE ROLE %I', :'app') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app') \gexec
-ALTER ROLE :"owner" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'owner_pw';
-ALTER ROLE :"app" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'app_pw';
+SELECT format('CREATE ROLE %I', :'tenant') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'tenant') \gexec
+ALTER ROLE :"owner" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'owner_pw';
+-- M4 stage 3: the app bypasses row-level security (webhooks, queue, scheduler, admin and every read outside a tenant
+-- transaction see all stores, as before); only the role it switches to inside a tenant transaction is subject to it
+ALTER ROLE :"app" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS PASSWORD :'app_pw';
+-- Nobody logs in as the tenant role and it has no password: it is reached only by SET LOCAL ROLE from the app
+ALTER ROLE :"tenant" WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD NULL;
 GRANT CONNECT ON DATABASE :"db" TO :"owner", :"app";
 -- Nobody but the owner creates objects in the schema (PostgreSQL before 15 gave PUBLIC CREATE on public)
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO :"owner";
-GRANT USAGE ON SCHEMA public TO :"app";
-REVOKE CREATE ON SCHEMA public FROM :"app";
+GRANT USAGE ON SCHEMA public TO :"app", :"tenant";
+REVOKE CREATE ON SCHEMA public FROM :"app", :"tenant";
 -- The app must not be able to SET ROLE to the owner: a membership granted by hand is taken back
 SELECT format('REVOKE %I FROM %I', :'owner', :'app') FROM pg_auth_members m
  WHERE m.roleid = (SELECT oid FROM pg_roles WHERE rolname = :'owner') AND m.member = (SELECT oid FROM pg_roles WHERE rolname = :'app') \gexec
 -- pg_ls_archive_statusdir() and other sessions' pg_stat_activity rows (Monitoring, PostgresStats)
 GRANT pg_monitor TO :"app";
+-- The tenant role is a member of nothing: a member of the owner would count as the tables' owner, whom row-level
+-- security does not bind (a membership given by hand is taken back)
+SELECT format('REVOKE %I FROM %I', g.rolname, :'tenant') FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid
+ WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :'tenant') \gexec
+-- The app may SET ROLE to the tenant role and inherits nothing from it (PostgreSQL 16+ keeps both per membership;
+-- before 16 there is no such option and the membership alone allows SET ROLE). Repeating the GRANT updates the options
+SELECT format('GRANT %I TO %I%s', :'tenant', :'app',
+              CASE WHEN current_setting('server_version_num')::int >= 160000 THEN ' WITH INHERIT FALSE, SET TRUE' ELSE '' END) \gexec
 SQL
-say "rollar va parollar: $OWNER (egasi), $APP (ilova, pg_monitor)"
+say "rollar va parollar: $OWNER (egasi), $APP (ilova, pg_monitor, BYPASSRLS), $TENANT (do'kon tranzaksiyasi roli, NOLOGIN)"
 if [ "$(printf '%s\n' "SELECT pg_has_role(:'app', :'owner', 'MEMBER')" | q -v app="$APP" -v owner="$OWNER")" = "t" ]; then
     printf "db-roles: OGOHLANTIRISH: %s boshqa rol orqali %s ning a'zosi (SET ROLE qila oladi): o'sha rol a'zoligini qo'lda olib tashlang. app:check-production ilovani ishga tushirmaydi.\n" "$APP" "$OWNER" >&2
 fi
@@ -165,14 +186,15 @@ done
 failed=$(wc -l < "$retry" | tr -d ' ')
 
 # 3. Rights on what exists now, and on what the owner creates later (migrations, new monthly partitions)
-q -v owner="$OWNER" -v app="$APP" <<'SQL'
+# The tenant role gets exactly the app's rights: a statement that works as the app works inside a tenant transaction
+q -v owner="$OWNER" -v app="$APP" -v tenant="$TENANT" <<'SQL'
 SET client_min_messages = warning;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"app";
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app";
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO :"app";
-ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app";
-ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"app";
-ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO :"app";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"app", :"tenant";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app", :"tenant";
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO :"app", :"tenant";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app", :"tenant";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO :"app", :"tenant";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO :"app", :"tenant";
 SQL
 
 if [ "$moved" -eq 0 ] && [ "$failed" -eq 0 ]; then

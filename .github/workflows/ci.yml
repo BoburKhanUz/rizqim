@@ -360,9 +360,32 @@ jobs:
           got=$(psql -X -h 127.0.0.1 -U rizqim_app -d testing -Atc "select current_user, (select rolsuper from pg_roles where rolname = current_user), (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and pg_get_userbyid(c.relowner) <> 'rizqim_owner'), (select pg_get_userbyid(relowner) from pg_class where oid = 'migrations'::regclass)")
           echo "$got"
           [ "$got" = "rizqim_app|f|0|rizqim_owner" ] || { echo "::error::migrations must run as rizqim_owner and the app must connect as rizqim_app (not a superuser)"; exit 1; }
+          # M4 stage 3: the app bypasses row-level security and may take the tenant role, which is bound by the
+          # policies (no login, no BYPASSRLS, not a member of the owner); the migration put the policy on 20 tables
+          got=$(psql -X -h 127.0.0.1 -U rizqim_app -d testing -Atc "select (select rolbypassrls from pg_roles where rolname = current_user), pg_has_role(current_user, 'rizqim_tenant', 'SET'), (select rolcanlogin or rolbypassrls or rolsuper from pg_roles where rolname = 'rizqim_tenant'), pg_has_role('rizqim_tenant', 'rizqim_owner', 'MEMBER'), (select count(*) from pg_class c join pg_policy p on p.polrelid = c.oid and p.polname = 'tenant' where c.relrowsecurity and not c.relforcerowsecurity)")
+          echo "$got"
+          [ "$got" = "t|t|f|f|20" ] || { echo "::error::rizqim_app must have BYPASSRLS and SET ROLE to rizqim_tenant (NOLOGIN, NOBYPASSRLS, not a member of the owner), and 20 tables must carry the policy"; exit 1; }
 
-      - name: Run tests as rizqim_app
+      # M4 stage 3: the whole suite with row-level security ON: every transaction of a tenant request runs as
+      # rizqim_tenant, so a legitimate write that PostgreSQL would refuse fails a test here. The normal `backend-tests` job (one
+      # role, the tables' owner) is the proof that the same policies change nothing where the roles are not split.
+      - name: Run tests as rizqim_app with row-level security on
+        env:
+          TENANT_RLS: '1'
+          TENANT_RLS_COUNT_FILE: ${{ runner.temp }}/tenant-rls-count
         run: php artisan test
+
+      - name: Row-level security was really exercised
+        # A run that never switched roles (TENANT_RLS not reaching the tests, a missing role answered by the switch's
+        # fail-open path) would be green and prove nothing: the suite reports how many transactions took the tenant
+        # role (tests/TestCase.php), and the tests of the switch and of the policies must have run, not been skipped
+        env:
+          TENANT_RLS: '1'
+        run: |
+          count=$(cat "$RUNNER_TEMP/tenant-rls-count" 2>/dev/null || echo 0)
+          echo "transactions as rizqim_tenant: $count"
+          [ "$count" -ge 5000 ] || { echo "::error::the suite ran only $count transactions as rizqim_tenant: row-level security was not exercised"; exit 1; }
+          php artisan test --fail-on-skipped tests/Feature/Tenancy/TenantRoleSwitchTest.php tests/Feature/Tenancy/TenantRlsPolicyTest.php tests/Feature/Tenancy/TenantRlsInventoryTest.php
 
   backend-static-analysis:
     name: Backend static analysis (PHPStan)
