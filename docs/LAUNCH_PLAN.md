@@ -60,6 +60,22 @@ qarab.
 | Do'konlar internetsiz butun kun ishlashi shartmi | M5 hajmi | M5 tor doirada qilinadi |
 | Har do'konning o'rtacha kunlik buyurtmasi (POS va market alohida) | M3 sig'im hisobi | Taxmin bilan hisoblanadi: 150 POS + 20 market buyurtma |
 
+## Domenlar
+
+Egasi qarori (19.11.2026): asosiy domen **rizqim.uz** (rizqim.com va rizq.im ham olingan, asosiyga yo'naltiriladi).
+
+| Domen | Vazifasi | Holat |
+|---|---|---|
+| rizqim.uz | Asosiy landing sahifa | Landing hali yo'q, P to'lqinida yoziladi |
+| app.rizqim.uz | Telegram Mini App (mijozlar) | Hozir Mini App API bilan bitta manzilda ishlaydi; alohida domenga ko'chirish P to'lqinida |
+| api.rizqim.uz | Backend API; jonli aloqa (WebSocket) ham shu yerda | Tayyor, sozlama kerak |
+| business.rizqim.uz | Hamkor paneli (restoran egasi va xodimlari) | Tayyor (hujjatlarda `panel.<domen>`) |
+| pos.rizqim.uz | POS ilovalarini yuklab olish va yangilanish manzili (ilovalar Android va Windows uchun, brauzerda ishlamaydi) | M5 (yangilanish xabari) bilan birga |
+| admin.rizqim.uz | Boshqaruv markazi (RIZQIM jamoasi) | Tayyor |
+| links.rizqim.uz | Havolalar (deep links) | Band qilinadi; mobil ilova chiqqanda ishlatiladi |
+
+Sinov serveri uchun xuddi shu to'plam `stg.rizqim.uz` ostida. O'rnatish GitHub orqali (kalit GitHub Secrets'da).
+
 ## Maqsadli hajm
 
 Egasi qarori (15.11.2026): POS taxminan **1 000 ta oshxonaga** o'rnatiladi va ularning hammasi marketda ham ishlaydi.
