@@ -14,9 +14,19 @@ Specialises the generic orchestrator skill: supervisor never implements, plan fi
 - Plan first (short task list: deliverable, difficulty, model). Verify results against the definition of done; on failure send a precise correction note instead of fixing it yourself. Two failed rounds on one task: escalate the model or ask the owner.
 
 ## 2. Model routing
-- **Every agent runs on Fable (`model: "fable"`).** Owner's instruction of 18.11.2026 ("Barcha ishlar Fable"), repeated when a mechanical task was still given to Sonnet: no Opus, no Sonnet, no Haiku, for hard and for mechanical work alike (builds, reviews, fixes, reading CI logs, docs). Wherever this file says Opus or Sonnet below, read Fable.
-- Set `model: "fable"` explicitly on every Agent call.
-- Fable agents draw on the same limit as the supervising session: keep briefs narrow, do small lookups yourself instead of spawning an agent, and never run two agents on the same question.
+Owner's decision of 19.11.2026 (replaces "everything on Fable" of 18.11.2026; the reason is the usage limit, which stopped work four times that day). Set `model` explicitly on every Agent call.
+- **Fable (`model: "fable"`)**: design, code that touches money, security, tenancy, fiscal or data migrations, the independent reviews of such work, and any fix whose cause is not yet understood.
+- **Sonnet (`model: "sonnet"`)**: simple work with a clear, narrow brief: mechanical code by a written spec, docs, running tests and measurements and reporting the numbers, reading CI logs, the landing page, deploy scripts, client regeneration. The supervisor checks the result itself (read the diff, run the focused tests) before committing; a Sonnet agent that meets something unclear stops and reports instead of deciding.
+- No Opus unless the owner asks. Wherever this file says Opus below, read Fable.
+
+Spending rules (the limit is shared by the session and its agents):
+- One agent at a time. Reviewers by risk: two for money and security work, one for the rest.
+- A fresh, narrow agent per piece of work; do not keep one agent alive for a whole stage (its context grows and every step costs more). Split the stage into briefs of an hour or two.
+- Agents write changes to disk at once; the supervisor commits and pushes often, without waiting for a report, so a stop loses minutes.
+- Long runs (the full backend suite, e2e stands) run in CI, not locally: locally only the focused tests of the touched folders. A local full run only when CI cannot show the thing (for example a database role setup CI does not have).
+- Measure once: no repeated runs of what is already measured.
+- Do small lookups yourself; never two agents on the same question.
+- Suggest a new conversation to the owner at the start of each wave: this file and `docs/LAUNCH_PLAN.md` carry everything needed to continue.
 
 ## 3. Wave pipeline (one PR per wave)
 a. Read docs/PHASE*_PLAN.md, the relevant docs/POS_SPEC.md sections and the existing code map. Record owner decisions in the plan doc with a date.
