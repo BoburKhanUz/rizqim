@@ -109,6 +109,30 @@ class AdminPosDevicesTest extends TestCase
         $this->assertSame(1, AuditLog::where('action', 'admin.pos.device_revoked')->count());
     }
 
+    public function test_revoking_a_till_with_unsent_operations_needs_a_second_confirmation(): void
+    {
+        // Wave M5 S1 (bug 2): the till last reported operations it has not sent yet
+        $device = $this->device();
+        $device->forceFill(['sync_pending_ops' => 4, 'sync_oldest_op_at' => now()->subHour(), 'sync_reported_at' => now()->subMinutes(5)])->save();
+        $sales = $this->makeMember(PlatformRole::SALES);
+        $token = $this->confirmedSession($sales);
+
+        $refused = $this->adminJson('POST', "/pos/devices/{$device->uuid}/revoke", $token, ['reason' => "Kassa o'g'irlangan"])->assertStatus(409)
+            ->assertJsonPath('code', 'pending_ops')->assertJsonPath('data.reason', 'pending_ops')->assertJsonPath('data.pending_ops', 4);
+        $this->assertStringContainsString('4 ta amal', (string) $refused->json('message'));
+        $this->assertNull($device->refresh()->revoked_at);
+        $this->assertSame(0, AuditLog::whereIn('action', ['admin.pos.device_revoked', 'device.revoked'])->count());
+
+        $this->adminJson('POST', "/pos/devices/{$device->uuid}/revoke", $token, ['reason' => "Kassa o'g'irlangan", 'confirm_pending' => true])->assertOk()
+            ->assertJsonPath('data.state', 'revoked');
+        $this->assertTrue($device->refresh()->isRevoked());
+        $this->assertSame(4, AuditLog::where('action', 'admin.pos.device_revoked')->sole()->payload_json['pending_ops']);
+        $this->assertSame([4, true], [($audit = AuditLog::where('action', 'device.revoked')->sole())->payload_json['pending_ops'], $audit->payload_json['pending_confirmed']]);
+
+        // Already revoked: nothing to confirm
+        $this->adminJson('POST', "/pos/devices/{$device->uuid}/revoke", $token, ['reason' => 'Yana'])->assertOk();
+    }
+
     public function test_a_revoked_terminal_token_stops_working(): void
     {
         $paired = $this->pairTerminal($this->owner, $this->branch);

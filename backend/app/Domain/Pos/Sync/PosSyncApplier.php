@@ -65,7 +65,9 @@ use Throwable;
  *    flagged instead, the guests were served);
  *  - money: recorded whatever happened; on a cancelled order the order is flagged `refund_needed`, on a bill it can
  *    no longer go to `payment_unallocated`; a bill paid less or more than the server's total is a conflict
- *    (`underpaid`, `overpaid`).
+ *    (`underpaid`, `overpaid`). Wave M5 S1: a payment whose staff check fails (PIN session older than 36 h, the
+ *    permission gone, an unknown staff id) is recorded the same way and flagged `staff_unverified`; any other
+ *    operation failing that check is rejected.
  *
  * P6 local bridge (docs/POS_SPEC.md §5.5): an operation the branch's hub relayed for another terminal of the branch
  * (`origin_device`: a waiter's phone, a KDS) is applied as that terminal's (the staff member signed in there, the
@@ -136,7 +138,16 @@ final class PosSyncApplier
             // P6: a relayed operation is the origin terminal's (who signed in there, the order's device)
             $acting = $this->origin($device, $origin, $type, $happenedAt);
             $base['origin_device_id'] = (int) $acting->id !== (int) $device->id ? (int) $acting->id : null;
-            $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
+            try {
+                $staff = $this->staff($acting, $base['staff_id'], $type, $happenedAt);
+            } catch (PosSyncException $e) {
+                if (!$type->isMoney()) {
+                    throw $e;
+                }
+
+                // Wave M5 S1: money taken is never rejected, whoever took it: recorded, flagged `staff_unverified`
+                return $this->staffUnverified($acting, $payload, $happenedAt, $base, $e);
+            }
         } catch (PosSyncException $e) {
             // Wave M4 T-1: the row links only a user of this store (the error list shows the linked user's name); an id
             // of anybody else stays only in what the till sent
@@ -144,8 +155,8 @@ final class PosSyncApplier
                 $base['staff_id'] = null;
             }
 
-            // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied,
-            // money included
+            // Nobody to attribute it to (or an unknown type, or a relay the server does not take): never applied
+            // (a payment whose staff check failed was recorded above: staffUnverified())
             return $this->rejected($base, $e->reason, $e->getMessage(), $origin !== null ? ['origin_device' => $origin] : null);
         }
 
@@ -204,10 +215,10 @@ final class PosSyncApplier
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base
      */
-    private function unallocatedOrRejected(Device $device, User $staff, array $payload, ?Carbon $happenedAt, array $base, string $reason, string $message): PosSyncOperation
+    private function unallocatedOrRejected(Device $device, ?User $staff, array $payload, ?Carbon $happenedAt, array $base, string $reason, string $message, bool $staffUnverified = false): PosSyncOperation
     {
         try {
-            return $this->unallocated($device, $staff, $payload, $happenedAt, $base, $reason, $message);
+            return $this->unallocated($device, $staff, $payload, $happenedAt, $base, $reason, $message, $staffUnverified);
         } catch (Throwable $e) {
             if (TransientDatabaseError::is($e)) {
                 throw $e;
@@ -221,6 +232,24 @@ final class PosSyncApplier
                 'result' => ['tenders' => $payload['tenders'] ?? []],
             ]);
         }
+    }
+
+    /**
+     * Wave M5 S1 (docs/scale/M5_DESIGN.md §2): a payment whose staff check failed (the PIN session started more than
+     * 36 h before it, the permission was taken away meanwhile, the staff id is nobody of this till) is money in the
+     * drawer all the same. It is recorded through the unallocated path, attributed to the named person when they are
+     * a user of this store (else to nobody), flagged `staff_unverified` for the manager and audited.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $base
+     */
+    private function staffUnverified(Device $device, array $payload, ?Carbon $happenedAt, array $base, PosSyncException $e): PosSyncOperation
+    {
+        $named = $base['staff_id'] !== null ? User::where('store_id', $device->store_id)->find($base['staff_id']) : null;
+        // The row links only a user of this store (wave M4 T-1); the id as sent stays out of it
+        $base['staff_id'] = $named?->id;
+
+        return $this->unallocatedOrRejected($device, $named, $payload, $happenedAt, $base, $e->reason, $e->getMessage(), staffUnverified: true);
     }
 
     /**
@@ -787,10 +816,13 @@ final class PosSyncApplier
      * flagged for the manager (`refund_needed` on a cancelled order, else `payment_unallocated`). Rejected only when
      * there is no order to put it on.
      *
+     * Wave M5 S1: `$staffUnverified` — the staff check failed (staffUnverified()): the flag is `staff_unverified`
+     * (with `refund_needed` beside it on a cancelled order), `$staff` is the named user of the store or nobody.
+     *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $base
      */
-    private function unallocated(Device $device, User $staff, array $payload, ?Carbon $occurredAt, array $base, string $reason, string $message): PosSyncOperation
+    private function unallocated(Device $device, ?User $staff, array $payload, ?Carbon $occurredAt, array $base, string $reason, string $message, bool $staffUnverified = false): PosSyncOperation
     {
         try {
             $order = $this->posOrder($device, $payload);
@@ -804,7 +836,7 @@ final class PosSyncApplier
             ]);
         }
 
-        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message) {
+        return DB::transaction(function () use ($device, $staff, $order, $tenders, $occurredAt, $base, $reason, $message, $staffUnverified) {
             // The shift's row first, as payments and the Z take it (review P3-35): a shift closed meanwhile takes none
             $shift = $this->openShiftOf($device, $base['payload']['shift_uuid'] ?? null);
             $shift = $shift !== null ? PosShift::lockForMoney((int) $shift->id) : null;
@@ -824,7 +856,7 @@ final class PosSyncApplier
                     'bill_id' => null,
                     'shift_id' => $shift?->id,
                     'device_id' => $device->id,
-                    'received_by' => $staff->id,
+                    'received_by' => $staff?->id,
                     'provider' => $tender['tender'],
                     'amount' => Money::of($tender['amount'])->toString(),
                     'status' => 'paid',
@@ -838,17 +870,25 @@ final class PosSyncApplier
                     'synced_at' => now(),
                 ]);
                 if ($shift !== null && $tender['tender'] === PosTender::CASH->value) {
-                    $this->shifts->recordSale($shift, $payment, $staff, $device);
+                    // The drawer's count needs a person: nobody named (staff_unverified) leaves the shift's opener
+                    $drawerUser = $staff ?? User::find($shift->opened_by);
+                    if ($drawerUser !== null) {
+                        $this->shifts->recordSale($shift, $payment, $drawerUser, $device);
+                    }
                 }
                 $created[] = $payment;
             }
 
-            $flag = $order->status === OrderStatus::CANCELED ? 'refund_needed' : 'payment_unallocated';
+            $canceled = $order->status === OrderStatus::CANCELED;
+            $flag = $staffUnverified ? 'staff_unverified' : ($canceled ? 'refund_needed' : 'payment_unallocated');
             $amount = Money::sum(...array_map(fn (Payment $payment) => Money::of($payment->amount), $created));
             $flags = [['flag' => $flag, 'amount' => $amount->toString(), 'reason' => $reason, 'message' => $message]];
+            if ($staffUnverified && $canceled) {
+                $flags[] = ['flag' => 'refund_needed', 'amount' => $amount->toString(), 'reason' => 'order_closed', 'message' => 'Buyurtma serverda bekor qilingan.'];
+            }
             $this->flag($order, $flags, (string) $base['op_id']);
 
-            $this->audit->record('pos.offline_payment_unallocated', $order, [], [], [
+            $this->audit->record($staffUnverified ? 'pos.offline_payment_staff_unverified' : 'pos.offline_payment_unallocated', $order, [], [], [
                 'amount' => $amount->toString(),
                 'reason' => $reason,
                 'payments' => array_map(fn (Payment $payment) => $payment->uuid, $created),
@@ -857,9 +897,12 @@ final class PosSyncApplier
             return $this->record($base, [
                 'status' => PosSyncStatus::CONFLICT,
                 'reason' => $flag,
-                'error' => $flag === 'refund_needed'
-                    ? "Buyurtma bekor qilingan, lekin offlayn {$amount->toString()} so'm olingan: pul yozildi, mijozga qaytarish kerak."
-                    : "To'lov ({$amount->toString()} so'm) schyotga tushmadi: {$message} Pul yozildi, menejer tekshirsin.",
+                'error' => match (true) {
+                    $staffUnverified => "To'lov ({$amount->toString()} so'm) xodim tekshiruvidan o'tmadi: {$message} Pul yozildi, schyotga tushmadi: menejer tekshirsin."
+                        . ($canceled ? ' Buyurtma bekor qilingan: mijozga qaytarish kerak.' : ''),
+                    $canceled => "Buyurtma bekor qilingan, lekin offlayn {$amount->toString()} so'm olingan: pul yozildi, mijozga qaytarish kerak.",
+                    default => "To'lov ({$amount->toString()} so'm) schyotga tushmadi: {$message} Pul yozildi, menejer tekshirsin.",
+                },
                 'result' => $this->refs($order) + ['payments' => array_map(fn (Payment $payment) => $payment->uuid, $created), 'flags' => $flags],
                 'order' => $order,
             ]);

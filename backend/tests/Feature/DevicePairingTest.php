@@ -244,6 +244,33 @@ class DevicePairingTest extends TestCase
         $this->assertSame(0, PersonalAccessToken::where('device_id', $ours->id)->count());
     }
 
+    public function test_revoking_a_till_with_unsent_operations_warns_and_needs_a_second_confirmation(): void
+    {
+        // Wave M5 S1 (bug 2): the till last reported 5 operations it has not sent yet
+        ['device' => $till, 'token' => $token] = $this->pairTerminal($this->owner, $this->branch);
+        $till->forceFill(['sync_pending_ops' => 5, 'sync_oldest_op_at' => now()->subHours(3), 'sync_reported_at' => now()->subHour()])->save();
+
+        $refused = $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$till->uuid}/revoke")->assertStatus(409)
+            ->assertJsonPath('data.reason', 'pending_ops')->assertJsonPath('data.pending_ops', 5);
+        $this->assertStringContainsString('5 ta amal', (string) $refused->json('message'));
+        $this->assertSame($till->fresh()->sync_oldest_op_at->toJSON(), $refused->json('data.oldest_op_at'));
+        $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$till->uuid}/revoke", ['confirm_pending' => false])->assertStatus(409);
+        $this->assertNull($till->fresh()->revoked_at);
+        $this->bearerJson('GET', '/api/v1/terminal', $token)->assertOk();
+        $this->assertSame(0, \App\Models\AuditLog::where('action', 'device.revoked')->count());
+
+        // Confirmed: revoked, and the audit row says how many operations were left on the till
+        $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$till->uuid}/revoke", ['confirm_pending' => true])->assertOk();
+        $this->assertNotNull($till->fresh()->revoked_at);
+        $audit = \App\Models\AuditLog::where('action', 'device.revoked')->sole();
+        $this->assertSame([$this->owner->id, 5, true], [$audit->user_id, $audit->payload_json['pending_ops'], $audit->payload_json['pending_confirmed']]);
+
+        // A till with an empty queue needs no confirmation and its audit row says nothing about one
+        ['device' => $empty] = $this->pairTerminal($this->owner, $this->branch);
+        $this->actingAs($this->owner, 'sanctum')->postJson("/api/v1/owner/devices/{$empty->uuid}/revoke")->assertOk();
+        $this->assertArrayNotHasKey('pending_ops', \App\Models\AuditLog::where('action', 'device.revoked')->where('model_id', $empty->id)->sole()->payload_json);
+    }
+
     public function test_the_removed_devices_are_listed_with_include_revoked_as_1_or_0(): void
     {
         // The web clients send booleans in a query string as 1/0 (Laravel's `boolean` rule does not take "true"/"false")

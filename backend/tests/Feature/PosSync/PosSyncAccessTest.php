@@ -91,8 +91,14 @@ class PosSyncAccessTest extends TestCase
             $this->op('bill.pay', ['order' => $order, 'bill' => $bill, 'tenders' => [['tender' => 'cash', 'amount' => '5000']]], $this->waiter),
         ])->assertOk()
             ->assertJsonPath('data.results.0.status', 'applied')
-            ->assertJsonPath('data.results.1.status', 'rejected')
-            ->assertJsonPath('data.results.1.reason', 'permission_denied');
+            // Wave M5 S1: money is never rejected: recorded and flagged (PosSyncStaffUnverifiedTest)
+            ->assertJsonPath('data.results.1.status', 'conflict')
+            ->assertJsonPath('data.results.1.reason', 'staff_unverified')
+            ->assertJsonPath('data.results.1.refs.flags.0.reason', 'permission_denied');
+        // What is not money stays rejected
+        $this->sync([$this->op('order.close', ['order' => $order], $this->waiter)])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'rejected')
+            ->assertJsonPath('data.results.0.reason', 'permission_denied');
     }
 
     public function test_an_operation_id_of_another_till_is_never_applied_or_shown(): void

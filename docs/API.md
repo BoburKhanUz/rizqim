@@ -1917,6 +1917,14 @@ shu orada oshxonaga ketgan), `bill_not_found`, `bill_paid`, `bill_void`, `items_
   yoziladi va buyurtma `refund_needed` (bekor qilingan) yoki `payment_unallocated` deb belgilanadi (audit
   `pos.offline_payment_unallocated`). Server hisobidan kam to'langan — `underpaid`, ko'p — `overpaid` (naqd ortig'i
   schyotga sig'diriladi). `bill.create` dagi `expected_total` farqi — `amount_mismatch` (ma'lumot uchun).
+- **To'lov va xodim tekshiruvi** (M5 S1) — `bill.pay` ning xodimi tekshiruvdan o'tmasa (PIN bilan kirgani to'lovdan
+  36 soatdan oldin — `staff_not_signed_in`; ruxsati olib qo'yilgan — `permission_denied`; `staff_id` shu kassa xodimi
+  emas — `staff_invalid`) to'lov **rad etilmaydi**: pul buyurtmaga schyotsiz yoziladi (kassa smenasiga, naqd — kassa
+  hisobiga), natija `conflict`, `reason: staff_unverified`, `refs.flags[0]` = `{flag: "staff_unverified", amount,
+  reason, message}` (`reason` — yuqoridagi uchtadan biri), audit `pos.offline_payment_staff_unverified`. To'lov
+  ko'rsatilgan xodimga yoziladi, agar u shu do'kon foydalanuvchisi bo'lsa; aks holda `received_by` bo'sh. Bekor
+  qilingan buyurtmada yoniga `refund_needed` belgisi ham qo'yiladi. Schyot to'lanmagan qoladi — menejer
+  "Sinxronlash xatolari"da ko'rib, qo'lda hal qiladi. Pul bo'lmagan amallar (`order.close` ham) avvalgidek `rejected`.
 - `local_number` band bo'lsa — `local_number_taken` (ma'lumot uchun), buyurtma raqamsiz ochiladi.
 
 Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offline` blokida ko'rinadi:
@@ -1931,7 +1939,18 @@ Belgilar buyurtmaning `sync_flags` ida ham saqlanadi va buyurtma JSON'ida `offli
 
 Aloqa tekshiruvi (kassa oflaynda har 15–60 soniyada chaqiradi). `queue_size`, `oldest_at` query parametrlari —
 navbat hisoboti. Javob: `server_time`, `device` (yuqoridagi kabi), `errors` (shu kassaning ko'rib chiqilmagan
-`conflict`/`rejected` amallari, 100 tagacha) va `errors_count`.
+`conflict`/`rejected` amallari, 100 tagacha) va `errors_count`. `device.last_seq` — server shu kassadan qabul qilgan
+eng katta `seq` (M5 S1: yarmida 409 bilan to'xtagan paketning qo'llangan amallari ham hisobda); kassa hozircha uni
+o'qimaydi. `device.pending_ops` — kassa oxirgi marta aytgan navbat hajmi.
+
+**Navbati bo'sh bo'lmagan kassani uzish** (M5 S1). `POST /owner/devices/{uuid}/revoke` va
+`POST /admin/pos/devices/{uuid}/revoke`: kassa oxirgi hisobotida yuborilmagan amallar bo'lsa (`pending_ops > 0`),
+javob **409** `{"reason": "pending_ops", "pending_ops": 5, "oldest_op_at": "..."}` va ogohlantirish matni ("Bu kassada
+serverga yuborilmagan 5 ta amal bor..."); admin javobida `code: "pending_ops"` ham. Baribir uzish uchun so'rov
+`confirm_pending: true` bilan qayta yuboriladi. Uzilgandan keyin amallar kassada qoladi, lekin serverga o'zi kelmaydi.
+Audit: `device.revoked` da `pending_ops` va `pending_confirmed: true`; admin jurnalida (`admin.pos.device_revoked`)
+`pending_ops`. Kassa o'zini uzganda (`DELETE /terminal`) tasdiq so'ralmaydi, `pending_ops` auditga yoziladi. Uzoq vaqt
+aloqasiz kassada haqiqiy navbat serverdagi sondan katta bo'lishi mumkin.
 
 ### GET /pos/sync/errors va resolve
 
@@ -3212,7 +3231,7 @@ sana (`business_date`, `due_date`) — `Y-m-d`.
 | `POST /admin/pos/invoices/{uuid}/void` | shu | Bekor qilish (`SubscriptionService::voidInvoice`): summasi qarzdan ayriladi (ledger'da teskari yozuv). Faqat to'lanmagan: `paid` yoki qisman to'langan hisob-fakturaga 422 `invoice_paid` (pul Moliya → Qo'lda tuzatish bilan qaytariladi). 1 000 000 so'm (`finance.four_eyes_threshold`) va undan kattasini ikki xil xodim: birinchi chaqiruv — so'rov (hisob-faktura `issued` qoladi, ledger o'zgarmaydi, `invoice.void_request {by, at, reason}`, jurnalda `admin.pos.invoice_void_requested`), o'sha xodim takrorlasa — o'sha javob, boshqa xodimning chaqiruvi bekor qiladi (`voided_by`). Kartada `void_needs_second_approval` |
 | `GET /admin/pos/devices?state=&type=&terminal=&store_id=&outdated=&q=` | `devices.view` | Do'konga tegishli hamma qurilmalar. `state`: `online` (oxirgi 10 daqiqada aloqa), `offline`, `never`, `revoked`, `all`; bo'sh bo'lsa o'chirilmaganlar. Eng uzoq aloqasizlar birinchi. `outdated=1` — shu turdagi faol qurilmalardagi eng yangi versiyadan eskilar (versiyalar reyestri yo'q, «eng yangi» — ko'rilgan eng katta versiya; `latest_versions`). Qatorda kassaning oflayn navbati (`sync`) |
 | `GET /admin/pos/devices/{uuid}` | shu | Qurilma (Bugun'dagi `/pos?device=` havolasi) |
-| `POST /admin/pos/devices/{uuid}/revoke` | `stores.manage` + step-up + `reason` | Qurilmani o'chirish (`DeviceService::revoke`): tokenlar va sessiyalar darhol to'xtaydi |
+| `POST /admin/pos/devices/{uuid}/revoke` | `stores.manage` + step-up + `reason` | Qurilmani o'chirish (`DeviceService::revoke`): tokenlar va sessiyalar darhol to'xtaydi. Kassada yuborilmagan oflayn amallar bo'lsa 409 `pending_ops` (`data.pending_ops`); `confirm_pending: true` bilan tasdiqlanadi (M5 S1) |
 | `GET /admin/pos/shifts?kind=&store_id=&from=&to=` | `devices.view` | Smenalar (faqat o'qish). `kind`: `difference` (yopilgan va kassa farqi bor; farq = sanalgan − hisobdagi, manfiy — pul yetishmaydi), `force_closed`, `open` |
 | `GET /admin/pos/shifts/{uuid}` | shu | Smena: Z-hisobot (`summary`), sanalgan pullar, kim majburan yopgani, kassaga qo'lda kirim-chiqim |
 | `GET /admin/pos/fiscal-receipts?status=&driver=&store_id=&from=&to=&q=` | `devices.view` | Fiskal cheklar. `status`: `open` (yiqilgan va kutilayotgan, odatda; eskilari ham), `failed`, `pending`, `issued`, `all`. `driver` — so'ralgan fiskal provayder. `summary.by_driver` — provayder bo'yicha xatolar va oxirgi xato. `retryable=false`: Payme/Click o'zi ro'yxatdan o'tkazgan chek (`driver=external`) |
