@@ -40,6 +40,109 @@ class PosOfflineSale {
   };
 }
 
+/// M5 S1: kassa serverdan uzilganda (terminal tokeniga 401 yoki "Terminalni uzish") serverga yetmagan amallar. Ular
+/// o'chirilmaydi: navbatdan olinib, shu kassaning diskida alohida saqlanadi ([PosOffline.orphans]) va boshqa
+/// ulanishning tokeni bilan yuborilmaydi. Faylga chiqarish va serverga yuklash — keyingi bosqichda (S4).
+class PosOrphanQueue {
+  const PosOrphanQueue({
+    required this.key,
+    required this.setAsideAt,
+    required this.operations,
+    this.reason,
+    this.deviceUuid,
+    this.storeId,
+    this.damagedLines = 0,
+  });
+
+  /// [key] — diskdagi hujjat kaliti; [value] — [toJson] shakli. O'qib bo'lmasa — `null`.
+  static PosOrphanQueue? tryParse(String key, Object? value) {
+    if (value is! Map) return null;
+    final Map<String, Object?> j = value.cast<String, Object?>();
+    final DateTime? at = DateTime.tryParse('${j['set_aside_at']}');
+    if (at == null) return null;
+    final List<SyncOperation> ops = <SyncOperation>[];
+    for (final Object? o
+        in (j['operations'] as List<Object?>?) ?? const <Object?>[]) {
+      if (o is! Map) continue;
+      try {
+        ops.add(SyncOperation.fromJson(o.cast<String, Object?>()));
+      } on Object {
+        // An unreadable entry stays in the file as it is; it is only not counted here
+      }
+    }
+    return PosOrphanQueue(
+      key: key,
+      setAsideAt: at,
+      operations: ops,
+      reason: j['reason'] as String?,
+      deviceUuid: j['device_uuid'] as String?,
+      storeId: (j['store_id'] as num?)?.toInt(),
+      damagedLines:
+          ((j['damaged'] as List<Object?>?) ?? const <Object?>[]).length,
+    );
+  }
+
+  /// Diskdagi hujjat kaliti (`orphan_...`).
+  final String key;
+  final DateTime setAsideAt;
+
+  /// `terminal_revoked` (server tokenni rad etdi), `terminal_forgotten` (kassada uzildi), `paired_again`.
+  final String? reason;
+
+  /// Amallar qaysi qurilma (ulanish) va do'konniki edi (ma'lum bo'lsa).
+  final String? deviceUuid;
+  final int? storeId;
+
+  /// Serverga yetmagan amallar, `seq` tartibida.
+  final List<SyncOperation> operations;
+
+  /// Jurnalning o'qib bo'lmagan qatorlari soni (ular ham saqlangan).
+  final int damagedLines;
+
+  int get count => operations.length;
+
+  /// Shulardan to'lovlar (`bill.pay`).
+  int get payments => operations
+      .where((SyncOperation o) => o.type == SyncOpType.billPay)
+      .length;
+
+  PosOrphanQueue withKey(String next) => PosOrphanQueue(
+    key: next,
+    setAsideAt: setAsideAt,
+    operations: operations,
+    reason: reason,
+    deviceUuid: deviceUuid,
+    storeId: storeId,
+    damagedLines: damagedLines,
+  );
+}
+
+/// M5 S1: lentada ko'rsatiladigan, menejer hali ko'rmagan ogohlantirishlar ([PosOffline.warnings]).
+class PosOfflineWarnings {
+  const PosOfflineWarnings({
+    this.damagedLines = 0,
+    this.orphans = const <PosOrphanQueue>[],
+    this.held = false,
+  });
+
+  /// Kassa jurnalining o'qib bo'lmagan qatorlari: har birida tasdiqlangan amal (sotuv) bo'lgan bo'lishi mumkin.
+  final int damagedLines;
+
+  /// Uzilgan ulanishlardan qolgan, serverga yuborilmagan amallar.
+  final List<PosOrphanQueue> orphans;
+
+  /// Uzilgan kassaning navbati hali jurnalda (chetga olib bo'lmadi): yuborilmaydi.
+  final bool held;
+
+  int get orphanOperations =>
+      orphans.fold(0, (int n, PosOrphanQueue o) => n + o.count);
+
+  int get orphanPayments =>
+      orphans.fold(0, (int n, PosOrphanQueue o) => n + o.payments);
+
+  bool get isEmpty => damagedLines == 0 && orphans.isEmpty && !held;
+}
+
 /// "Sinxronlash xatolari": serverda rad etilgan yoki farq bilan qo'llangan oflayn amal (`GET /pos/sync/errors`,
 /// `GET /pos/sync/status`).
 class PosSyncError {
@@ -160,7 +263,13 @@ abstract final class PosSyncReasons {
   /// P3-35: qurilma soati 5 daqiqadan ko'p farq qilgani uchun amal vaqti tuzatildi (faqat ma'lumot uchun).
   static const String deviceTimeClamped = 'device_time_clamped';
 
+  /// M5 S1: to'lov xodim tekshiruvidan o'tmadi (PIN sessiyasi 36 soatdan eski, ruxsat olib qo'yilgan yoki xodim
+  /// topilmadi) — pul baribir yozildi, schyotga tushmadi (`conflict`): menejer ko'rib chiqadi.
+  static const String staffUnverified = 'staff_unverified';
+
   static const Map<String, String> _messages = <String, String>{
+    staffUnverified: "To'lov xodim tekshiruvidan o'tmadi (PIN bilan kirganiga 36 soatdan oshgan yoki ruxsati o'zgargan). Pul yozildi, lekin schyotga tushmadi: menejer tekshirsin.",
+    'staff_not_signed_in': "Xodim bu kassada uzilishdan oldingi 36 soat ichida PIN bilan kirmagan: amal qo'llanmadi.",
     invalidPayload: "Amal ma'lumotlari serverda saqlanmadi (noto'g'ri yoki juda katta qiymat). Menejer qo'lda tekshirsin.",
     modifierNotFound: "Qo'shimcha menyuda topilmadi (o'chirilgan yoki boshqa do'konniki): amal qo'llanmadi. Menejer tekshirsin.",
     offlinePriceMismatch: "Offlayn sotilgan narx menyuda bo'lmagan: server narxi qo'yildi. Buyurtma jami o'zgargan bo'lishi mumkin.",

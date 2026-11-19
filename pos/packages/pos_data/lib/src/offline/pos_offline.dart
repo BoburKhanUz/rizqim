@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:pos_core/pos_core.dart';
@@ -55,7 +56,8 @@ class PosSyncTransport implements SyncTransport {
 /// * **Ruxsat etilgan amallar (5.1):** buyurtma ochish (olib ketish yoki zal, xona), bosqich, oshxonaga yuborish,
 ///   yuborilmagan qatorni o'chirish, "berildi", bitta schyot, schyotni chop etish (pre-check), naqd yoki karta
 ///   to'lovi, yopish. Qolgani [PosOfflineUnavailable] (sababi bilan).
-/// * **Chegaralar (5.4):** so'nggi 24 soatda aloqa va 24 soatdan yangi menyu bo'lmasa — sotuv yo'q; navbatda 500
+/// * **Chegaralar (5.4):** so'nggi 24 soatda aloqa va 24 soatdan yangi menyu bo'lmasa — YANGI buyurtma ochilmaydi
+///   (M5 S1: ochiq buyurtmaga bosqich, schyot, naqd/karta to'lov va yopish hech qachon to'xtamaydi); navbatda 500
 ///   buyurtma — yangisi yo'q; smena va Z — navbat bo'shaguncha yo'q.
 /// * **Narx:** menyu nusxasidan, oddiy qoidalar ([OfflinePricing]).
 /// * **Sinxronlash:** [SyncSender] navbatni tartib bilan yuboradi; aloqa yo'q paytda har 15–60 soniyada server
@@ -85,6 +87,7 @@ class PosOffline {
       ..add(sender.changes.listen((_) => _emit()));
     final Map<String, Object?>? boot = store.doc(_bootstrapKey)?.map;
     if (boot != null) settings = PosOfflineSettings.of(boot);
+    _loadOrphans();
     // Answers from before this start were emitted then (and their receipts are in the store's own list)
     _emitted.addAll(store.answered.map((SyncOperation o) => o.opId));
     sender.start();
@@ -125,6 +128,9 @@ class PosOffline {
 
   static const String _bootstrapKey = 'bootstrap';
   static const String _salesKey = '_sale_receipts';
+
+  /// [PosOfflineUnavailable.reason] of a NEW order refused by the age limits ([OfflineStatus.canOpenOrders]).
+  static const String limitReason = 'offline_limit';
 
   /// Shuncha chop etilgan chek `op_id` si eslab qolinadi (qayta chiqmasin).
   static const int keepPrintedSales = 500;
@@ -275,15 +281,13 @@ class PosOffline {
   Future<void> captureOpenOrders(Object? raw) =>
       _put(OfflineOrderBook.openOrdersKey, raw);
 
-  /// Oxirgi bootstrap nusxasi (ilova internetsiz qayta ochilganda), 24 soatdan eski bo'lmasa.
+  /// Oxirgi bootstrap nusxasi (ilova internetsiz qayta ochilganda). M5 S1: yoshi cheklanmaydi — ochiq buyurtmaning
+  /// zali, haqlari va smenasi 24 soatdan keyin ham kerak (schyot va to'lov to'xtamaydi); yangi buyurtma ochishni
+  /// [OfflineStatus.canOpenOrders] to'xtatadi.
   PosBootstrap? storedBootstrap() {
     final SyncDoc? d = store.doc(_bootstrapKey);
     final Map<String, Object?>? m = d?.map;
-    if (d == null ||
-        m == null ||
-        d.age(_clock()) > settings.limits.contactMaxAge) {
-      return null;
-    }
+    if (d == null || m == null) return null;
     try {
       return PosBootstrap.fromJson(PosJson(m), receivedAt: d.takenAt);
     } on FormatException {
@@ -368,7 +372,7 @@ class PosOffline {
     int? waiterId,
     String? waiterName,
   }) async {
-    _guard('orders.manage');
+    _guard('orders.manage', opening: true);
     if (status.newOrdersBlocked) {
       throw const PosOfflineUnavailable(
         "Navbatda 500 ta oflayn buyurtma bor: yangi buyurtma internet tiklangach ochiladi.",
@@ -836,17 +840,230 @@ class PosOffline {
       PosOpenOrder.fromJson(PosJson(o)),
   ];
 
-  /// Terminal uzildi yoki server uni bekor qildi: navbat, nusxalar va chek ro'yxati o'chiriladi (yangi ulanish eski
-  /// amallarni yangi token bilan yubormasin). Uzishdan oldin navbat bo'sh bo'lishi kerak ([store.hasPending]).
-  Future<void> forget() async {
+  // --- M5 S1: uzilgan kassaning yuborilmagan amallari --------------------------------------------------------------
+
+  /// Diskdagi hujjat kaliti old qo'shimchasi ([PosOrphanQueue.key]).
+  static const String orphanPrefix = 'orphan_';
+  static const String _deviceKey = '_device';
+  static const String _ackKey = '_warnings_seen';
+
+  final List<PosOrphanQueue> _orphans = <PosOrphanQueue>[];
+  int _orphanSeq = 0;
+  bool _held = false;
+  bool _disposed = false;
+  Future<void>? _stopping;
+  Future<void>? _forgetting;
+
+  /// Avvalgi ulanishlardan qolgan, serverga yetmagan amallar (eng eskisi birinchi). Hech qachon o'z-o'zidan
+  /// o'chirilmaydi va yuborilmaydi.
+  List<PosOrphanQueue> get orphans =>
+      List<PosOrphanQueue>.unmodifiable(_orphans);
+
+  /// Kassa uzilgan, lekin navbatni chetga olib bo'lmadi (disk xatosi): jurnal joyida turibdi, hech narsa
+  /// yuborilmaydi; keyingi [forget] yoki [bindDevice] yana urinadi.
+  bool get held => _held;
+
+  /// Navbat qaysi qurilma (ulanish) nomidan yig'ilyapti (noma'lum — `null`).
+  String? get boundDevice => store.doc(_deviceKey)?.map?['uuid'] as String?;
+
+  /// Kassa ulandi yoki xodim kirdi: navbat shu qurilmaniki. Navbatda BOSHQA ulanishdan qolgan amal bo'lsa (uzilish
+  /// paytida chetga olib bo'lmagan), u avval chetga olinadi: eski amallar yangi token bilan yuborilmaydi.
+  Future<void> bindDevice(String uuid, {bool paired = false}) async {
+    final String? bound = boundDevice;
+    if (bound == uuid) {
+      // The same device is back (its queue was kept in place): it goes on
+      if (_held) {
+        _held = false;
+        _resumeSender();
+        _emit();
+      }
+      return;
+    }
+    if (paired && (store.hasPending || _held)) {
+      await forget(reason: 'paired_again');
+    }
+    try {
+      await store.putDoc(_deviceKey, <String, Object?>{'uuid': uuid});
+    } on Object {
+      // Not saved: the next sign-in writes it
+    }
+  }
+
+  /// Terminal uzildi yoki server uni bekor qildi (401). M5 S1: serverga yetmagan amallar O'CHIRILMAYDI — navbatdan
+  /// olinib, diskda alohida saqlanadi ([orphans]); shundan keyingina navbat, nusxalar va chek ro'yxati tozalanadi
+  /// (yangi ulanish eski amallarni yangi token bilan yubormasin). Saqlab bo'lmasa — hech narsa o'chirilmaydi va
+  /// yuborilmaydi ([held]).
+  Future<void> forget({String reason = 'terminal_forgotten'}) {
+    final Future<void> before = _forgetting ?? Future<void>.value();
+    final Future<void> run = before.then((_) => _forget(reason));
+    _forgetting = run;
+    return run.whenComplete(() {
+      if (identical(_forgetting, run)) _forgetting = null;
+    });
+  }
+
+  Future<void> _forget(String reason) async {
     _printed.clear();
     _emitted.clear();
-    settings = const PosOfflineSettings();
-    sender.limits = settings.limits;
+    // Nothing of this pairing may be sent with credentials that are gone (or with another pairing's)
+    if (store.hasPending || _held) _stopSender();
+    var unsent = false;
     try {
+      // An operation accepted just before the till was cut off may still be on its way to the disk ([_guard] takes
+      // no new one from here on): wait for it, so that it is set aside with the rest
+      await store.removeDoc('_');
+      unsent = store.hasPending || store.damaged.isNotEmpty;
+      await _carryOrphans();
+      if (unsent) await _setAside(reason);
       await store.clear();
     } on Object {
-      // The disk failed: what is left is cleared on the next forget
+      // The disk failed: nothing is deleted, the journal stays where it is and is not sent
+      _stopSender();
+      _held = true;
+      _emit();
+      return;
+    }
+    settings = const PosOfflineSettings();
+    sender.limits = settings.limits;
+    _held = false;
+    _resumeSender();
+    _emit();
+  }
+
+  /// Stops the sender at once (nothing more leaves from this call on); the stop itself ends a little later.
+  void _stopSender() => _stopping ??= sender.stop();
+
+  /// Starts the sender again once a stop asked for earlier has ended (never before: the two would cross).
+  void _resumeSender() {
+    final Future<void>? stopping = _stopping;
+    if (stopping == null) return;
+    _stopping = null;
+    unawaited(
+      stopping.then((_) {
+        if (!_held && !_disposed && _stopping == null) sender.start();
+      }),
+    );
+  }
+
+  String _orphanKey() {
+    final String stamp = _clock().toUtc().toIso8601String().replaceAll(
+      RegExp('[^0-9]'),
+      '',
+    );
+    return '$orphanPrefix${stamp}_${++_orphanSeq}_${newUuid().substring(0, 8)}';
+  }
+
+  /// Writes the unsent operations (and the unreadable journal lines) to their own document, straight through the
+  /// storage: the store does not know the key, so its `clear` leaves the file alone. Read back before anything is
+  /// cleared.
+  Future<void> _setAside(String reason) async {
+    final DateTime now = _clock();
+    final Map<String, Object?>? boot = store.doc(_bootstrapKey)?.map;
+    final Map<String, Object?> value = <String, Object?>{
+      'version': 1,
+      'set_aside_at': now.toUtc().toIso8601String(),
+      'reason': reason,
+      'device_uuid': boundDevice,
+      'store_id': (boot?['store'] as Map?)?['id'],
+      'branch_id': (boot?['branch'] as Map?)?['id'],
+      'last_seq': store.lastSeq,
+      'operations': <Object?>[
+        for (final SyncOperation o in store.pending) o.toJson(),
+      ],
+      'damaged': <Object?>[
+        for (final JournalDamage d in store.damaged)
+          <String, Object?>{
+            'line': d.line,
+            'text': d.text,
+            'found_at': d.foundAt.toUtc().toIso8601String(),
+          },
+      ],
+    };
+    final String key = _orphanKey();
+    await store.storage.writeDoc(key, _envelope(value, now));
+    final PosOrphanQueue? written = _readOrphan(
+      key,
+      await store.storage.readDoc(key),
+    );
+    if (written == null || written.count != store.pendingCount) {
+      throw StateError('The unsent operations were not saved');
+    }
+    _orphans.add(written);
+  }
+
+  /// Orphans the store has loaded (an earlier start) would be deleted by its `clear`: each gets a copy under a key
+  /// the store does not know, written before the old one goes.
+  Future<void> _carryOrphans() async {
+    for (final String key in store.docKeys(prefix: orphanPrefix).toList()) {
+      final String? text = await store.storage.readDoc(key);
+      if (text == null) continue;
+      final String next = _orphanKey();
+      await store.storage.writeDoc(next, text);
+      final int i = _orphans.indexWhere((PosOrphanQueue o) => o.key == key);
+      if (i >= 0) _orphans[i] = _orphans[i].withKey(next);
+    }
+  }
+
+  /// The store's own document shape ([SyncStore.putDoc]), so that the next start loads it.
+  String _envelope(Map<String, Object?> value, DateTime at) =>
+      jsonEncode(<String, Object?>{
+        'taken_at': at.toUtc().toIso8601String(),
+        'seq': store.lastSeq,
+        'value': value,
+      });
+
+  static PosOrphanQueue? _readOrphan(String key, String? text) {
+    if (text == null) return null;
+    try {
+      final Object? j = jsonDecode(text);
+      return j is Map ? PosOrphanQueue.tryParse(key, j['value']) : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _loadOrphans() {
+    for (final String key in store.docKeys(prefix: orphanPrefix)) {
+      final PosOrphanQueue? o = PosOrphanQueue.tryParse(
+        key,
+        store.doc(key)?.value,
+      );
+      if (o != null) _orphans.add(o);
+    }
+    _orphans.sort(
+      (PosOrphanQueue a, PosOrphanQueue b) =>
+          a.setAsideAt.compareTo(b.setAsideAt),
+    );
+  }
+
+  /// Menejer ko'rishi kerak bo'lgan, hali "Tushunarli" bosilmagan ogohlantirishlar: jurnalning o'qilmagan qatorlari
+  /// ([SyncStore.damaged]: tasdiqlangan sotuv serverda yo'q bo'lishi mumkin) va [orphans].
+  PosOfflineWarnings get warnings {
+    final DateTime? seen = DateTime.tryParse(
+      '${store.doc(_ackKey)?.map?['until']}',
+    );
+    bool fresh(DateTime at) => seen == null || at.isAfter(seen);
+    return PosOfflineWarnings(
+      damagedLines: store.damaged
+          .where((JournalDamage d) => fresh(d.foundAt))
+          .length,
+      orphans: <PosOrphanQueue>[
+        for (final PosOrphanQueue o in _orphans)
+          if (fresh(o.setAsideAt)) o,
+      ],
+      held: _held,
+    );
+  }
+
+  /// Menejer ogohlantirishlarni ko'rdi ("Tushunarli"): shu paytgacha bo'lganlari lentada qayta chiqmaydi (ma'lumot
+  /// o'chirilmaydi).
+  Future<void> acknowledgeWarnings() async {
+    try {
+      await store.putDoc(_ackKey, <String, Object?>{
+        'until': _clock().toUtc().toIso8601String(),
+      });
+    } on Object {
+      // Not saved: the warning stays
     }
     _emit();
   }
@@ -881,10 +1098,24 @@ class PosOffline {
 
   // --- ichki ------------------------------------------------------------------------------------------------------
 
-  void _guard(String? permission) {
-    final OfflineStatus s = status;
-    if (!s.canSell) {
-      throw PosOfflineUnavailable(s.blockReason ?? 'Internet kerak.');
+  /// Who may act offline. M5 S1 (owner rule: payment is never blocked): the age limits (24 h without contact, a menu
+  /// copy older than 24 h) are asked only when a NEW order is opened ([opening]). A round on an open order, the bill,
+  /// the payment and the close never consult them.
+  void _guard(String? permission, {bool opening = false}) {
+    if (_forgetting != null) {
+      // The till is being cut off right now: the queue is being set aside, nothing may join it
+      throw const PosOfflineUnavailable(
+        'Kassa serverdan uzildi: amal saqlanmadi. Kassani qayta ulang.',
+      );
+    }
+    if (opening) {
+      final OfflineStatus s = status;
+      if (!s.canOpenOrders) {
+        throw PosOfflineUnavailable(
+          s.blockReason ?? 'Internet kerak: yangi buyurtma ochilmaydi.',
+          reason: limitReason,
+        );
+      }
     }
     if (_actor == null && staffId() == null) {
       throw const PosOfflineUnavailable('Xodim kirmagan.');
@@ -1250,6 +1481,7 @@ class PosOffline {
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     _probe?.cancel();
     _tick?.cancel();
     for (final StreamSubscription<Object?> s in _subs) {

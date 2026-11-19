@@ -12,7 +12,8 @@ class PosBootstrapRepository {
   final PosHttp _http;
   final DateTime Function() _clock;
 
-  /// P3-31: onlayn javob nusxa sifatida saqlanadi; aloqa yo'q bo'lsa — oxirgi nusxa (24 soatdan yangi bo'lsa).
+  /// P3-31: onlayn javob nusxa sifatida saqlanadi; aloqa yo'q bo'lsa — oxirgi nusxa (M5 S1: yoshidan
+  /// qat'i nazar — ochiq buyurtmalar va to'lov uchun; yangi buyurtmani `OfflineStatus.canOpenOrders` to'xtatadi).
   PosOffline? offline;
 
   PosBootstrap? _current;

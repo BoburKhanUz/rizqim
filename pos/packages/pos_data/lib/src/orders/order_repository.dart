@@ -90,10 +90,15 @@ class PosOrderRepository {
       if (o != null) await o.captureOrder(order.raw);
       return order;
     } on PosNetworkException catch (e) {
-      if (o != null && o.status.canSell) {
-        return local(e.idempotencyKey ?? idempotencyKey);
+      if (o == null) rethrow;
+      // M5 S1: no age limit here: a round on an open order always goes on through the queue. Only a NEW order is
+      // refused after 24 h, by the local path itself; the caller then sees the network error, as before
+      try {
+        return await local(e.idempotencyKey ?? idempotencyKey);
+      } on PosOfflineUnavailable catch (refused) {
+        if (refused.reason == PosOffline.limitReason) throw e;
+        rethrow;
       }
-      rethrow;
     }
   }
 

@@ -1,3 +1,5 @@
+import 'package:pos_core/pos_core.dart';
+
 import '../offline/sync_models.dart';
 import 'fake_pos_state.dart';
 
@@ -48,6 +50,18 @@ class FakeSyncBackend {
     'local_number_taken',
     PosSyncReasons.deviceTimeClamped,
   };
+
+  /// M5 S1: xodim shu kassada PIN bilan qachon kirgan (xodim id → vaqt). Yozuv bo'lsa, amal undan
+  /// [sessionWindow] dan keyin qilingan bo'lsa xodim tekshiruvi o'tmaydi (`staff_not_signed_in`); yozuv yo'q xodim
+  /// tekshirilmaydi (eski testlar).
+  final Map<int, DateTime> sessionStartedAt = <int, DateTime>{};
+
+  /// Serverdagi `PosSyncApplier::SESSION_WINDOW_HOURS`.
+  static const Duration sessionWindow = Duration(hours: 36);
+
+  /// M5 S1: xodim tekshiruvidan o'tmagan to'lovlar — pul yozilgan, schyotga tushmagan (`staff_unverified`):
+  /// `{op_id, order_uuid, amount, reason, staff_id}`.
+  final List<Map<String, Object?>> unallocated = <Map<String, Object?>>[];
 
   /// Server kassaning navbati haqida bilgani.
   int pendingReported = 0;
@@ -189,6 +203,45 @@ class FakeSyncBackend {
 
     final String? ref = p['order'] as String?;
     final String? orderUuid = ref == null ? null : (uuids[ref] ?? ref);
+    // M5 S1 (as PosSyncApplier): a failed staff check rejects the operation, except money, which is recorded
+    // unallocated and flagged `staff_unverified`
+    final (String, String)? unverified = _staffCheck(type, staff, op);
+    if (unverified != null) {
+      final (String why, String text) = unverified;
+      if (type != 'bill.pay') {
+        return _result(op, 'rejected', why, text, const <String, Object?>{});
+      }
+      final String amount = PosMoney.sum(<PosMoney>[
+        for (final Object? t
+            in (p['tenders'] as List<Object?>?) ?? const <Object?>[])
+          if (t is Map) PosMoney.parse(t['amount']),
+      ]).toApiString();
+      unallocated.add(<String, Object?>{
+        'op_id': op['op_id'],
+        'order_uuid': orderUuid,
+        'amount': amount,
+        'reason': why,
+        'staff_id': staff,
+      });
+      return _result(
+        op,
+        'conflict',
+        PosSyncReasons.staffUnverified,
+        "To'lov ($amount so'm) xodim tekshiruvidan o'tmadi: $text Pul yozildi, schyotga tushmadi: menejer "
+            'tekshirsin.',
+        <String, Object?>{
+          'order_uuid': orderUuid,
+          'flags': <Object?>[
+            <String, Object?>{
+              'flag': PosSyncReasons.staffUnverified,
+              'amount': amount,
+              'reason': why,
+              'message': text,
+            },
+          ],
+        },
+      );
+    }
     FakeResponse res;
     final Map<String, Object?> refs = <String, Object?>{};
     switch (type) {
@@ -353,6 +406,41 @@ class FakeSyncBackend {
             refs,
           )
         : _result(op, 'rejected', reason, message, refs);
+  }
+
+  /// The server's staff check (`PosSyncApplier::staff`): `(reason, message)` when it fails. Only the rules a test can
+  /// set up: an unknown staff id, a PIN login on this till older than [sessionWindow] before the operation (when
+  /// [sessionStartedAt] names the staff member), a payment without `pos.take_payment`.
+  (String, String)? _staffCheck(
+    String type,
+    int staff,
+    Map<String, Object?> op,
+  ) {
+    Map<String, Object?>? member;
+    for (final Map<String, Object?> s in state.staff) {
+      if (s['id'] == staff) member = s;
+    }
+    if (member == null) {
+      return ('staff_invalid', 'Xodim topilmadi yoki bu kassada ishlamaydi.');
+    }
+    final DateTime? started = sessionStartedAt[staff];
+    final DateTime? at = DateTime.tryParse('${op['occurred_at']}');
+    if (started != null &&
+        at != null &&
+        (at.isBefore(started) || at.difference(started) > sessionWindow)) {
+      return (
+        'staff_not_signed_in',
+        '${member['name']} bu kassada uzilishdan oldin PIN bilan kirmagan.',
+      );
+    }
+    if (type == 'bill.pay' &&
+        !state.permissionsOf(member).contains('pos.take_payment')) {
+      return (
+        'permission_denied',
+        "${member['name']} uchun bu amalga ruxsat yo'q.",
+      );
+    }
+    return null;
   }
 
   Map<String, Object?> _result(

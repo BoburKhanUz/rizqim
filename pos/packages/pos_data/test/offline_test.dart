@@ -113,7 +113,7 @@ void main() {
     final PosOrder roomBefore = await h.pos.orders.get(room);
     await h.goOffline();
     expect(h.offline.active, isTrue);
-    expect(h.offline.status.canSell, isTrue);
+    expect(h.offline.status.canOpenOrders, isTrue);
 
     // Walk-in takeaway: 2 tea and sent
     final PosOrder walkIn = await h.pos.orders.open(
@@ -651,11 +651,11 @@ void main() {
     );
   });
 
-  test('no selling offline with a menu older than a day', () async {
+  test('no NEW order offline with a menu older than a day', () async {
     await h.warmUp();
     h.clock.now = h.clock.now.add(const Duration(hours: 25));
     await h.goOffline();
-    expect(h.offline.status.canSell, isFalse);
+    expect(h.offline.status.canOpenOrders, isFalse);
     await expectLater(
       h.pos.orders.open(
         channel: PosChannel.takeaway,

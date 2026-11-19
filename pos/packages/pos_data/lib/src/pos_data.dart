@@ -106,11 +106,27 @@ class PosData {
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
-      // The journal and copies belong to this pairing: a re-paired till must not send them with its new token
+      // The journal and copies belong to this pairing: a re-paired till must not send them with its new token.
+      // M5 S1: what the server has not received is never deleted on the way (a 401 on the terminal token, an
+      // unpairing): PosOffline.forget sets it aside on the disk first (PosOffline.orphans)
       _authSub = client.auth.events.listen((AuthEvent e) {
-        if (e.kind == AuthEventKind.terminalRevoked ||
-            e.kind == AuthEventKind.terminalForgotten) {
-          unawaited(o.forget());
+        switch (e.kind) {
+          case AuthEventKind.terminalRevoked:
+            unawaited(o.forget(reason: 'terminal_revoked'));
+          case AuthEventKind.terminalForgotten:
+            unawaited(o.forget());
+          case AuthEventKind.terminalPaired || AuthEventKind.staffSignedIn:
+            final String? device = client.auth.terminal?.device.uuid;
+            if (device != null) {
+              unawaited(
+                o.bindDevice(
+                  device,
+                  paired: e.kind == AuthEventKind.terminalPaired,
+                ),
+              );
+            }
+          default:
+            break;
         }
       });
     }
