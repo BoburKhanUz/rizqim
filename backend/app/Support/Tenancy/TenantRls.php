@@ -18,6 +18,17 @@ use Throwable;
  * returns nothing, an update or delete of it changes 0 rows, an insert for it fails (SQLSTATE 42501). Everything else
  * (console, queue workers, scheduler, webhooks, admin, marketplace, reads outside a transaction) runs as the login
  * role, which bypasses the policies.
+ *
+ * What the policy does NOT cover, by PostgreSQL's design:
+ * - foreign-key actions. ON DELETE CASCADE / SET NULL run as the table's owner: deleting a row of a table that is not
+ *   under the policy (a users row, a branch) deletes or changes the rows of these tables that reference it, in
+ *   whichever store they are. The application must not hard-delete such a parent (OwnerEmployeeController::destroy);
+ * - foreign-key checks. A row of the tenant's own store may reference another store's parent
+ *   (order_bills.order_id, pos_refunds.payment_id, cash_movements.shift_id): the policy looks at store_id only. The
+ *   row cannot be used to read the parent. payments is the exception: its trigger takes the store from the order
+ *   (payments_parent_store, SECURITY DEFINER), so "my store, your order" is refused;
+ * - the children without a store_id of their own (order_items, order_bill_items, staff_pay_statement_lines,
+ *   pos_tip_distribution_lines, ...): reached only through their parents, guarded by the application.
  */
 final class TenantRls
 {
@@ -32,6 +43,9 @@ final class TenantRls
         'booking_payments', 'banquet_payments', 'banquet_payment_entries', 'staff_pay_statements', 'store_transactions',
         'store_wallet_transactions', 'audit_logs',
     ];
+
+    /** The policy's expression, as the migration writes it (setupProblems() compares what the catalog holds with it) */
+    public const POLICY = "store_id = nullif(current_setting('app.store_id', true), '')::bigint";
 
     public static function enabled(): bool
     {
@@ -51,9 +65,11 @@ final class TenantRls
 
     public const REFUSED_TTL = 3600;
 
+    private static ?int $unavailableLoggedAt = null;
+
     /**
      * What is wrong with the database roles for row-level security right now, as this connection's login role sees it:
-     * `login_bound` (whatever TENANT_RLS says) and, with TENANT_RLS on, `unavailable`. Empty = nothing.
+     * `login_bound` (whatever TENANT_RLS says) and, with TENANT_RLS on, `unavailable` and `unprotected`. Empty = nothing.
      *
      * Asked at start-up (`app:check-production` refuses to start: a wrong DB_TENANT_ROLE or a missing grant is met
      * there, not at the first sale) and every minute by the monitoring check `partitions`, which keeps a critical alert
@@ -66,6 +82,8 @@ final class TenantRls
      *   policies (superuser, BYPASSRLS, the tables' owner or its member), cannot be taken by the login role, or lacks
      *   a privilege the login role has (a statement that works as the application would fail with "permission
      *   denied" inside a tenant transaction).
+     * - unprotected: a table of TABLES whose row-level security is off or whose policy is not the agreed one
+     *   (unprotectedTables()).
      *
      * @return array<string, string> Uzbek texts for the operator
      *
@@ -118,7 +136,40 @@ final class TenantRls
                 . "): do'kon so'rovlari «permission denied» xatosi bilan yiqiladi. {$fix}";
         }
 
+        if (($open = self::unprotectedTables()) !== []) {
+            $problems['unprotected'] = 'TENANT_RLS=1, lekin ' . count($open) . ' ta jadval himoyasiz (' . self::names($open) . "): unda qator darajasidagi himoya o'chirilgan yoki `tenant` siyosati "
+                . "kelishilgan ko'rinishda emas (yo'q, o'zgartirilgan yoki yonida boshqa siyosat bor). Do'kon tranzaksiyasi bu jadvalda boshqa do'konlarning qatorlarini ko'radi va o'zgartira oladi. "
+                . "Siyosatni tiklang (3-bosqich migratsiyasi hali yurmagan bo'lsa: avval TENANT_RLS'siz ishga tushiring) yoki himoyani o'chiring: TENANT_RLS=0 (docs/OPERATIONS.md, 24-bo'lim)";
+        }
+
         return $problems;
+    }
+
+    /**
+     * Tables of TABLES that exist and are not protected as agreed: row-level security off, or anything but exactly one
+     * policy: `tenant`, permissive, for every command and every role, no separate check, with the expression of
+     * POLICY. The roles can be right and the protection gone all the same: a second permissive policy `USING (true)`,
+     * or the policy rewritten, opens the table to every tenant transaction without any error anywhere. The expression
+     * is compared without blanks, parentheses and `::text` casts, which is all that differs between what was written
+     * and what PostgreSQL 16 and 17 print. Partitions are not asked: a statement through the parent is bound by the
+     * parent's policy alone, and nothing names a partition (TenantRlsStatementShapesTest).
+     *
+     * @return list<object{name: string}>
+     */
+    private static function unprotectedTables(): array
+    {
+        $plain = "regexp_replace(lower(%s), '\\s|\\(|\\)|::text', '', 'g')";
+
+        return DB::select(
+            "SELECT t.name FROM unnest(?::text[]) AS t(name)
+               JOIN pg_class c ON c.oid = to_regclass(format('%I.%I', current_schema(), t.name))
+              WHERE NOT c.relrowsecurity
+                 OR (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) <> 1
+                 OR NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid AND p.polname = 'tenant' AND p.polpermissive AND p.polcmd = '*'
+                        AND p.polroles = '{0}' AND p.polwithcheck IS NULL AND " . sprintf($plain, 'pg_get_expr(p.polqual, p.polrelid)') . ' = ' . sprintf($plain, '?::text') . ')
+              ORDER BY t.name',
+            ['{' . implode(',', self::TABLES) . '}', self::POLICY],
+        );
     }
 
     /**
@@ -193,11 +244,20 @@ final class TenantRls
 
     /**
      * TENANT_RLS is on but the tenant role could not be taken: the request went on as the login role, WITHOUT
-     * row-level security. Said in the log by the request that met it; the alert does not depend on this line: the
-     * monitoring check asks the database itself every minute (setupProblems()). Never throws.
+     * row-level security. Said in the log by a request that met it (at most once a minute per process); the alert
+     * does not depend on this line: the monitoring check asks the database itself every minute (setupProblems()).
+     * Never throws.
      */
     public static function unavailable(Throwable $e, int $storeId): void
     {
+        // One line a minute per process, not one per request (a role lost at lunch would write thousands). No cache:
+        // nothing here may fail the request. A clock set back (tests) counts as a minute gone
+        $now = now()->getTimestamp();
+        if (self::$unavailableLoggedAt !== null && $now >= self::$unavailableLoggedAt && $now - self::$unavailableLoggedAt < 60) {
+            return;
+        }
+        self::$unavailableLoggedAt = $now;
+
         try {
             Log::critical('tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security (run db-roles, then app:check-production)', [
                 'role' => (string) config('database.tenant_rls.role'),

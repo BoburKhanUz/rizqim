@@ -809,6 +809,8 @@ Muammo hal bo'lganda ham xabar keladi. Yuborish qoidalari:
 | Jurnallarning oylik bo'limlari: arxiv faqat shu serverda | S3 yo'q: eski oylar faqat shu serverdagi faylga arxivlangan, bazadan o'chirilmaydi va disk buzilsa yo'qoladi | 1 ta oy | DIQQAT | S3 kalitlarini yozing (20-bo'lim). |
 | Jurnallarning oylik bo'limlari: RLS yozuvni rad etdi (M4) | Do'kon so'rovining yozuvini PostgreSQL qator himoyasi bilan rad etdi (kassa yoki panel server xatosi oldi): yo birov boshqa do'kon nomidan yozmoqchi bo'lgan, yo qonuniy amal adashib rad etilgan. Matnda jadval, yo'l, do'kon va necha marta; oxirgisidan bir soat o'tgach o'zi yopiladi | 1 ta | KRITIK | Qonuniy amal bo'lsa darhol o'chiring: ildizdagi `.env` da `TENANT_RLS=0`, `docker compose up -d`; log qatorini dasturchiga yuboring (24-bo'lim). |
 | Jurnallarning oylik bo'limlari: RLS yoqilgan, lekin ishlamayapti (M4) | `TENANT_RLS=1`, ammo `rizqim_tenant` roli yo'q, unga o'tib bo'lmaydi, u himoyani chetlab o'tadi yoki unda huquq yetishmaydi: so'rovlar himoyasiz bajariladi (huquq yetishmasa xato beradi). Har daqiqada bazaning o'zidan so'raladi, holat tuzalmaguncha ochiq turadi. Ilova rolining o'zi siyosatga tushib qolgan bo'lsa ham shu yerda chiqadi | darhol | KRITIK | `docker compose run --rm db-roles`, so'ng `app:check-production` (24-bo'lim). |
+| Jurnallarning oylik bo'limlari: RLS jadvali himoyasiz (M4) | `TENANT_RLS=1`, ammo 20 ta jadvaldan birida himoya o'chirilgan yoki `tenant` siyosati kelishilgan ko'rinishda emas: do'kon tranzaksiyasi o'sha jadvalda boshqa do'konlarni ko'radi. Matnda jadval nomlari; tuzalmaguncha ochiq turadi | 1 ta jadval | KRITIK | Siyosatni tiklang (24-bo'limdagi SQL) yoki `TENANT_RLS=0`. |
+| Jurnallarning oylik bo'limlari: RLS holatini tekshirib bo'lmadi (M4) | `TENANT_RLS=1`, lekin tekshiruv so'rovi ishlamadi: himoya ishlayotgani tasdiqlanmagan | 1 marta | DIQQAT | Takrorlansa `php artisan app:check-production` ni ishga tushirib xatoni o'qing (24-bo'lim). |
 | Jurnallarning oylik bo'limlari: egasi roli yo'q | Rollar ajratilgan, lekin scheduler'da `DB_OWNER_USERNAME`/`DB_OWNER_PASSWORD` yo'q: har kechagi `db:partitions:ensure`/`:archive` rad etiladi, keyingi oylar tayyorlanmaydi | darhol | KRITIK | Ildizdagi `.env` ga egasi rolini yozing va `docker compose up -d scheduler` (22-bo'lim). |
 
 Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose exec -u www-data backend ...` ichida bajariladi. PITR, tiklash mashqi va disk qoidalari uzluksiz zaxira **yoqilmagan** (`PITR_ENABLED` bo'sh) bo'lsa jim turadi: markazda «O'chiq» ko'rinadi.
@@ -945,8 +947,13 @@ qatorlarini ko'rsatib yoki o'zgartirtirib qo'ymasin: endi buni PostgreSQL'ning o
 `store_wallet_transactions`, `audit_logs`. Siyosat faqat `rizqim_tenant` roliga ta'sir qiladi. Do'kon so'rovi (kassa,
 hamkor paneli, xodim ilovasi) tranzaksiya ochganda ilova shu rolga o'tadi va do'kon raqamini `app.store_id` ga yozadi
 (ikkalasi tranzaksiya bilan birga tugaydi, PgBouncer'da keyingi mijozga o'tmaydi). Shu tranzaksiya ichida boshqa
-do'konning qatori o'qilmaydi, uni o'zgartirish yoki o'chirish 0 qatorga ta'sir qiladi, boshqa do'kon nomidan yozish xato
-beradi. Qolgan hammasi (navbat ishchilari, scheduler, vebhuklar, boshqaruv markazi, market, tranzaksiyadan tashqaridagi
+do'konning qatori o'qilmaydi, uni to'g'ridan-to'g'ri o'zgartirish yoki o'chirish 0 qatorga ta'sir qiladi, boshqa do'kon
+nomidan yozish xato beradi. Siyosat **qamramaydigan** narsalar (PostgreSQL shunday ishlaydi): tashqi kalit amallari
+(`ON DELETE CASCADE` / `SET NULL` jadval egasi nomidan bajariladi: siyosat ostida bo'lmagan ota qator, masalan foydalanuvchi
+yoki filial o'chirilsa, unga bog'langan pul qatorlari qaysi do'konda bo'lmasin birga o'chadi yoki o'zgaradi; shuning uchun
+ilova bunday ota qatorlarni o'chirmaydi), o'z do'koni nomidan yozilgan qatorning boshqa do'kon buyurtmasiga ishora qilishi
+(`payments` dan tashqari: unda trigger do'konni buyurtmadan oladi) va o'zida `store_id` bo'lmagan bola jadvallar
+(`order_items` va h.k.): bularni avvalgidek ilovaning o'zi qo'riqlaydi. Qolgan hammasi (navbat ishchilari, scheduler, vebhuklar, boshqaruv markazi, market, tranzaksiyadan tashqaridagi
 o'qishlar) avvalgidek `rizqim_app` roli bilan ishlaydi: unda `BYPASSRLS` bor, siyosat unga tegmaydi. Jadvallar egasi
 (`rizqim_owner`: migratsiyalar, `db:partitions:*`) va bootstrap superuser (zaxira, tiklash mashqi) ham chetlab o'tadi.
 Bitta rolli o'rnatishda (22-bo'lim bajarilmagan) siyosatlar bor, lekin hech narsani o'zgartirmaydi: ilova jadvallar egasi.
@@ -955,8 +962,10 @@ Filial darajasidagi ajratish avvalgidek ilovada.
 **Yoqish (rollar ajratilgan bo'lishi shart, 22-bo'lim).** Ikki qadam, orasida kamida bir kun kuzating:
 ```bash
 # 1-qadam: kod. db-roles rizqim_tenant rolini yaratadi va rizqim_app ga BYPASSRLS beradi, migratsiya siyosatlarni qo'yadi
-#   (20 ta jadval, har biri soniyaning ulushi; band jadvalni 0,5 s dan ortiq kutmaydi: «lock timeout» bilan to'xtasa,
-#   backend qayta ishga tushganda qolgan jadvallardan davom etadi). Bu qadamda hech narsa o'zgarmaydi: TENANT_RLS hali yo'q.
+#   (20 ta jadval, har biri soniyaning ulushi; band jadvalni har urinishda 0,5 s dan ortiq kutmaydi va bir daqiqagacha
+#   qayta urinadi; shundan keyin ham band bo'lsa «lock timeout» (55P03) bilan to'xtaydi va backend qayta ishga tushganda
+#   qolgan jadvallardan davom etadi: qayta ishga tushirish xavfsiz. Jadvallarni uzoq ushlab turadigan yagona narsa
+#   kechki zaxira (pg_dump, 21:30 UTC dan) va BACKUP_RUN_ON_START: bu relizni zaxira ketayotgan paytda joylamang). Bu qadamda hech narsa o'zgarmaydi: TENANT_RLS hali yo'q.
 git pull && docker compose up -d --build
 docker compose logs db-roles | tail -5                # «... rizqim_tenant (do'kon tranzaksiyasi roli, NOLOGIN)»
 docker compose exec -u www-data backend php artisan app:check-production
@@ -991,7 +1000,7 @@ adashib rad etilgan (xato: kassa ishlamay qoldi). Ikkinchisida **darhol o'chirin
 yo'lni dasturchiga yuboring. O'qish, o'zgartirish va o'chirishda xato chiqmaydi: begona qator shunchaki ko'rinmaydi
 (0 qator), shuning uchun bunday holat logda ham, ogohlantirishda ham bo'lmaydi.
 
-**Himoya jimgina o'chib qolmaydi.** Ishlab turgan paytda rol yo'qolsa yoki a'zolik olib tashlansa (`TENANT_RLS=1`, ammo
+**Himoya holati har daqiqada tekshiriladi.** Ishlab turgan paytda rol yo'qolsa yoki a'zolik olib tashlansa (`TENANT_RLS=1`, ammo
 ilova rolga o'ta olmaydi), so'rovlar to'xtamaydi: ular himoyasiz, `TENANT_RLS=0` dagidek bajariladi (kassa to'xtab qolgandan
 ko'ra shunisi ma'qul). Buni ikki joy aytadi: o'sha so'rovning o'zi `laravel.log` ga (va Sentry'ga) darhol KRITIK qator yozadi
 (`tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security`), Monitoring esa har daqiqada
@@ -1001,6 +1010,20 @@ rol yo'q, rolga o'tib bo'lmaydi, rol himoyani chetlab o'tadi yoki rolda ilova ro
 so'rovlari «permission denied» bilan yiqiladi). Hammasiga davo bitta: `docker compose run --rm db-roles`. Xuddi shu
 tekshiruv konteyner ishga tushganda ham o'tadi (`app:check-production`): noto'g'ri `DB_TENANT_ROLE` yoki yetishmagan huquq
 birinchi savdoda emas, ishga tushishda ushlanadi.
+
+Shu tekshiruv jadvallarning o'zini ham ko'radi: 20 ta jadvalning har birida himoya yoqilganmi va unda aynan bitta, kelishilgan
+`tenant` siyosati turibdimi. Kimdir jadvalda himoyani o'chirsa, siyosatni o'zgartirsa yoki yoniga hammasiga ruxsat beradigan
+boshqa siyosat qo'shsa, hech qanday xato chiqmaydi, lekin do'kon tranzaksiyasi o'sha jadvalda boshqa do'konlarni ko'ra
+boshlaydi: Monitoring «... N ta jadval himoyasiz (jadval nomlari)» deb KRITIK ogohlantiradi, `app:check-production` esa
+konteynerni ishga tushirmaydi. Tiklash (egasi roli bilan, har bir nomlangan jadval uchun):
+```sql
+DROP POLICY IF EXISTS tenant ON <jadval>;   -- va ortiqcha siyosatlarni ham: SELECT polname FROM pg_policy WHERE polrelid = '<jadval>'::regclass;
+CREATE POLICY tenant ON <jadval> USING (store_id = nullif(current_setting('app.store_id', true), '')::bigint);
+ALTER TABLE <jadval> ENABLE ROW LEVEL SECURITY;
+```
+Tekshiruvning o'zi ishlamasa (baza javob bermadi, so'rov vaqtida tugamadi), bu «hammasi joyida» degani emas:
+`TENANT_RLS=1` bo'lsa Monitoring «holatini tekshirib bo'lmadi» DIQQAT ogohlantirishini beradi, ishga tushishda esa konteyner
+ishga tushmaydi. Tekshirilmaydigan yagona narsa: yuqorida aytilgan tashqi kalit amallari va `store_id` siz bola jadvallar.
 
 Harakatlar jurnali (`audit_logs`): do'kon so'rovi o'z do'koni nomidan yozadi; do'konsiz (platforma darajasidagi) yozuv
 o'tkaziladi; boshqa do'kon nomidan yozuv esa rad etiladi (yuqoridagi rad etish kabi ko'rinadi).

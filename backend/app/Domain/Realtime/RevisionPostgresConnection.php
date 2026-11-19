@@ -88,12 +88,23 @@ class RevisionPostgresConnection extends PostgresConnection
 
     public function rollBack($toLevel = null)
     {
+        $before = $this->transactions;
+
         try {
             parent::rollBack($toLevel);
         } finally {
             if ($this->tenantLevel !== null && $this->transactions < $this->tenantLevel) {
                 $this->tenantLevel = null; // undone by the rollback with everything else of that level
             }
+        }
+
+        // A rollback to a savepoint inside the tenant transaction puts back the role the session had when that
+        // savepoint was taken, which need not be the one this class believes in: a transaction opened inside an
+        // asApp() section (or by an inline queued job) and rolled back after it would leave the session as the login
+        // role, unprotected; one opened before a section and rolled back inside it, the reverse. Said again, so the
+        // session's role is always the bookkeeping's
+        if ($this->transactions < $before && $this->inTenantRole() && ($role = TenantRls::role()) !== null) {
+            $this->getPdo()->exec('SET LOCAL ROLE ' . ($this->appRoleDepth > 0 ? 'NONE' : "\"{$role}\""));
         }
     }
 

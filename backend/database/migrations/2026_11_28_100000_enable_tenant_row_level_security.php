@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
@@ -21,6 +22,10 @@ return new class extends Migration
         'store_wallet_transactions', 'audit_logs',
     ];
 
+    private const LOCK_RETRY_SECONDS = 60;
+
+    private ?float $retryUntil = null;
+
     /** nullif: the setting reads '' (not NULL) on a pooled connection once any earlier transaction has set it */
     private const POLICY = "store_id = nullif(current_setting('app.store_id', true), '')::bigint";
 
@@ -34,8 +39,8 @@ return new class extends Migration
      *
      * Metadata only. Per table one transaction: CREATE POLICY takes ACCESS EXCLUSIVE with its first statement (so no
      * lock is upgraded) and waits for it at most min(500 ms, deadlock_timeout / 2): a till transaction holding the
-     * table makes the migration give up, never the till. A lock timeout fails the migration; run again, it goes on
-     * with the tables not done yet.
+     * table makes the migration give up, never the till. A lock timeout is tried again for up to a minute in all
+     * (locked()); after that it fails the migration; run again, it goes on with the tables not done yet.
      *
      * Refused before anything is changed when the application's role would itself be bound by the policies (roles
      * split, but scripts/db-roles.sh of this stage has not given it BYPASSRLS yet): it would see no row of these
@@ -59,6 +64,14 @@ return new class extends Migration
                 DB::statement("ALTER TABLE {$table} ENABLE ROW LEVEL SECURITY");
             });
         }
+
+        // payments_store_id (BEFORE INSERT/UPDATE, stage 2) takes a payment's store from its order through
+        // payments_parent_store(). As the invoker, the tenant role could not see another store's order there, so a row
+        // "my store, your order" kept the store as sent and passed the policy. As the function's owner (the tables'
+        // owner, whom the policies do not bind) it sees every order: the trigger sets the order's real store and the
+        // policy refuses the row. Its relations are schema-qualified; the fixed search_path leaves nothing to shadow.
+        // Every time (no lock; the stage 2 migration's up() recreates the function as it was)
+        $this->parentStoreFunction('SECURITY DEFINER SET search_path = pg_catalog, pg_temp');
     }
 
     public function down(): void
@@ -72,6 +85,14 @@ return new class extends Migration
                 DB::statement("DROP POLICY IF EXISTS tenant ON {$table}");
                 DB::statement("ALTER TABLE {$table} DISABLE ROW LEVEL SECURITY");
             });
+        }
+        $this->parentStoreFunction('SECURITY INVOKER RESET search_path');
+    }
+
+    private function parentStoreFunction(string $how): void
+    {
+        if (DB::selectOne("SELECT to_regprocedure('payments_parent_store(bigint, jsonb)') IS NOT NULL AS e")->e) {
+            DB::statement("ALTER FUNCTION payments_parent_store(bigint, jsonb) {$how}");
         }
     }
 
@@ -101,14 +122,31 @@ return new class extends Migration
         )->done;
     }
 
-    /** $step in a transaction of its own, waiting at most half of deadlock_timeout (at most 500 ms) for its lock */
+    /**
+     * $step in a transaction of its own, waiting at most half of deadlock_timeout (at most 500 ms) for its lock. A
+     * lock timeout (55P03: usually a reader that holds every table for minutes, the nightly pg_dump) is tried again
+     * after a pause, for LOCK_RETRY_SECONDS from the migration's first timeout in all; then it fails as before (the
+     * container restarts and the migration goes on with the tables not done yet).
+     */
     private function locked(callable $step): void
     {
         $deadlock = (int) DB::selectOne("SELECT setting::int AS ms FROM pg_settings WHERE name = 'deadlock_timeout'")->ms;
         $timeout = max(10, min(500, intdiv($deadlock, 2))) . 'ms';
-        DB::transaction(function () use ($step, $timeout) {
-            DB::statement("SET LOCAL lock_timeout = '{$timeout}'");
-            $step();
-        });
+        while (true) {
+            try {
+                DB::transaction(function () use ($step, $timeout) {
+                    DB::statement("SET LOCAL lock_timeout = '{$timeout}'");
+                    $step();
+                });
+
+                return;
+            } catch (QueryException $e) {
+                $this->retryUntil ??= microtime(true) + self::LOCK_RETRY_SECONDS;
+                if ($e->getCode() !== '55P03' || microtime(true) >= $this->retryUntil) {
+                    throw $e;
+                }
+                usleep(500_000);
+            }
+        }
     }
 };

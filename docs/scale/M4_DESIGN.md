@@ -360,13 +360,43 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   (tested through the parent). A journal REBUILT as a new table (`PartitionConverter`, the M3 migration's up/down) lost
   its policy: the converter now carries row-level security over the swap like the triggers.
 
+- What the policy does not cover (security review of stage 3; PostgreSQL's design, not a gap of the migration):
+  **foreign-key actions** (ON DELETE CASCADE / SET NULL run as the table's owner; deleting a parent that is not under
+  the policy deletes or changes rows of the 20 tables in whichever store they are. Parents that cascade into them:
+  `users` (through `orders.user_id`), `branches`, `bookings`, `banquet_events`, `customer_accounts`, `vouchers`,
+  `orders`, `order_bills`, `payments`, `pos_shifts`, `stores`. Found exploitable and fixed: `DELETE
+  /owner/employees/{id}` hard-deleted an employee who had bought at another store, and that store's orders and
+  payments with them; such a person is now taken out of the store instead. A DELETE-only policy on the parents was
+  proposed in review and not built); **foreign-key checks** (fact 5: a row of the tenant's own store may point at
+  another store's parent: `order_bills.order_id`, `pos_refunds.payment_id`, `cash_movements.shift_id`; accepted, the
+  row gives no read of the parent. `payments` is closed: `payments_parent_store()` is SECURITY DEFINER with a fixed
+  search_path since the stage 3 migration, so its trigger sees the order's real store and the policy refuses "my
+  store, your order"); **children without `store_id`** (`order_items`, `order_bill_items`,
+  `staff_pay_statement_lines`, `pos_tip_distribution_lines`, ...: reached only through their parents, application
+  guard, decision A).
+- The catalog is part of the check: `setupProblems()` also asks that each of the 20 tables has row-level security on
+  and exactly the agreed policy (a second permissive policy, a rewritten one or a disabled table opens it without any
+  error); a check that cannot run is an error at start-up and a warning in monitoring while TENANT_RLS is on.
+- The migration retries a lock timeout (55P03) for up to a minute in all before failing (the nightly `pg_dump` holds
+  ACCESS SHARE on every table for its whole run; a failed migration restarts the web container, the tables done stay
+  done).
+- Transaction pooling (PgBouncer, transaction mode) cannot run in CI; it was verified by hand in the correctness review
+  (pool size 1: a second client on the same server process saw the login role and an empty setting after a commit, a
+  rollback, a wrapped single write, three retries, an asApp section and a refused write). The repository keeps
+  `TenantRlsProductionShapeTest`: a tenant request on real transactions (no wrapping transaction), with retries after
+  a server-raised 40P01.
+- Known framework behaviour, not changed (open question for a later stage): a serialization failure (40001) raised
+  inside a NESTED `DB::transaction` reaches the outer `DB::transaction(..., 3)` as Laravel's DeadlockException with
+  code 0, whose message is not in Laravel's list, so the outer one does not retry it; 40P01 is retried.
 - Measured (stage 3, PG 17.12, 1 000 stores, 1 000 000 orders with 3 items, a bill and a payment each, largest store
   52 416 orders, median 498; DB only, pgbench 2 clients, simple protocol, the statements a till sends, rolled back; run
   to run ±10 %): the switch alone (`BEGIN; SET LOCAL ROLE ...; SET LOCAL app.store_id; ROLLBACK` against `BEGIN;
   ROLLBACK`) +0.05 ms; every statement on a table under the policy plans about 0.03-0.05 ms longer (the extra
   `store_id` qual; execution unchanged: the same index scan under a One-Time Filter); so per transaction: open order
   1.83 -> 2.01 ms, add item 1.84 -> 2.17 ms, pay 3.09 -> 3.49 ms, close 1.80 -> 2.18 ms (+0.2 to +0.4 ms, +10 to
-  +21 % of the transaction's database time). The POS e2e (114 scenarios, split roles, RLS on): 10 982 tenant
+  +21 % of the transaction's database time). A single write to a table under the policy outside a transaction costs
+  three more round trips than before (BEGIN, the two SETs in one message, COMMIT); the load run measures what that
+  is through Docker and PgBouncer. The POS e2e (114 scenarios, split roles, RLS on): 10 982 tenant
   transactions, 6.4 statements each, 1.7 of them on a table under the policy, 326 single writes wrapped.
 - Plans: none of the write-path statements changed (all by primary key or with `store_id`). Statements with
   `branch_id` and no `store_id` on a table under the policy do: the estimate collapses (store and branch are

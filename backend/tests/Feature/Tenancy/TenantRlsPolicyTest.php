@@ -128,6 +128,45 @@ class TenantRlsPolicyTest extends TestCase
     }
 
     /**
+     * Security review L3: a payment row that names the tenant's own store but another store's order. The BEFORE trigger
+     * payments_store_id takes the store from the order; as the invoker it could not see another store's order and left
+     * the row as sent, which the policy then accepted. payments_parent_store() is SECURITY DEFINER now (the tables'
+     * owner, whom the policies do not bind): the trigger sets the order's real store and the policy refuses the row.
+     */
+    public function test_a_payment_naming_its_own_store_for_another_stores_order_is_refused(): void
+    {
+        $role = self::tenantRole();
+        if ($role === null) {
+            $this->markTestSkipped('Needs the tenant role (split roles, scripts/db-roles.sh): runs in the CI job tests-app-role.');
+        }
+        $this->setUpLifecycleStore();
+        $own = $this->makeOrder(\App\Enums\OrderStatus::NEW);
+        $other = $this->makeStore('Boshqa');
+        $foreign = $this->makeOrder(\App\Enums\OrderStatus::NEW, ['store_id' => $other->id, 'branch_id' => $this->makeBranch($other, 'B filial')->id]);
+        $row = fn (int $orderId) => ['uuid' => (string) Str::uuid(), 'order_id' => $orderId, 'store_id' => $this->store->id, 'provider' => 'cash', 'amount' => '1000.00', 'status' => 'paid', 'created_at' => now(), 'updated_at' => now()];
+
+        DB::beginTransaction();
+        try {
+            DB::unprepared("SET LOCAL ROLE \"{$role}\"; SELECT set_config('app.store_id', '{$this->store->id}', true)");
+            DB::table('payments')->insert($row($own->id)); // the legitimate row still goes in
+            $this->assertSame(1, DB::table('payments')->where('order_id', $own->id)->count());
+
+            DB::beginTransaction();
+            try {
+                DB::table('payments')->insert($row($foreign->id));
+                $this->fail("a payment for another store's order was accepted under the tenant's own store");
+            } catch (QueryException $e) {
+                $this->assertSame('42501', $e->getCode());
+            } finally {
+                DB::rollBack();
+            }
+        } finally {
+            DB::rollBack();
+        }
+        $this->assertSame(0, DB::table('payments')->where('order_id', $foreign->id)->count());
+    }
+
+    /**
      * A month created or attached after the policy was put on the parent (db:partitions:ensure every night,
      * scripts/archive-restore.sh for an archived month) needs nothing of its own: the parent's policy binds every
      * statement that goes through the parent, whichever partition the rows are in, and the application never names a

@@ -206,11 +206,17 @@ class CheckProductionConfigCommand extends Command
         try {
             $problems = TenantRls::setupProblems();
         } catch (\Throwable $e) {
-            $this->warn("OGOHLANTIRISH: qator darajasidagi himoyani (RLS) tekshirib bo'lmadi: " . mb_substr($e->getMessage(), 0, 200));
+            $what = "qator darajasidagi himoyani (RLS) tekshirib bo'lmadi: " . mb_substr((string) preg_replace('/\s+/', ' ', $e->getMessage()), 0, 200);
+            // A check that could not run is not a check that passed: with the protection switched on, not starting is
+            // the safe answer. Off (and on an install with one role) nothing depends on it: a warning, as before
+            if (TenantRls::enabled()) {
+                return ["TENANT_RLS=1, lekin {$what}. Himoya ishlayotgani tasdiqlanmadi: bazaga ulanishni tekshirib qayta ishga tushiring (yoki TENANT_RLS=0)"];
+            }
+            $this->warn("OGOHLANTIRISH: {$what}");
 
             return [];
         }
-        if (TenantRls::enabled() && !isset($problems['unavailable'])) {
+        if (TenantRls::enabled() && $problems === []) {
             $this->info("Qator himoyasi (RLS): yoqilgan, do'kon so'rovlarining tranzaksiyalari " . TenantRls::role() . ' roli bilan ishlaydi.');
         }
 

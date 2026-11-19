@@ -386,7 +386,7 @@ jobs:
           echo "transactions as rizqim_tenant: $count"
           # About 10 000 in a full run; a run without the switch has only the few dozen of TenantRoleSwitchTest itself
           [ "$count" -ge 3000 ] || { echo "::error::the suite ran only $count transactions as rizqim_tenant: row-level security was not exercised"; exit 1; }
-          php artisan test --fail-on-skipped tests/Feature/Tenancy/TenantRoleSwitchTest.php tests/Feature/Tenancy/TenantRlsPolicyTest.php tests/Feature/Tenancy/TenantRlsInventoryTest.php tests/Feature/CheckProductionTenantRlsTest.php
+          php artisan test --fail-on-skipped tests/Feature/Tenancy/TenantRoleSwitchTest.php tests/Feature/Tenancy/TenantRlsPolicyTest.php tests/Feature/Tenancy/TenantRlsInventoryTest.php tests/Feature/Tenancy/TenantRlsMigrationTest.php tests/Feature/Tenancy/TenantRlsProductionShapeTest.php tests/Feature/CheckProductionTenantRlsTest.php
 
   backend-static-analysis:
     name: Backend static analysis (PHPStan)

@@ -195,32 +195,72 @@ class TenantRlsInventoryTest extends TestCase
     }
 
     /**
-     * TenantRls::asApp() takes a statement of a tenant transaction out of the policy on purpose. Every use is listed
-     * here: a new one fails this test until somebody has decided that the statement really needs another store's or a
-     * platform row (and has said so in a comment next to it).
+     * Everything in app/ and routes/ that can take a statement of a tenant request out of the policy, by file. A new
+     * one fails this test until somebody has decided that it is right (and has said why in a comment next to it).
+     * Counted outside comments, in every spelling: a call, `?->`, a callable (`[TenantRls::class, 'asApp']`,
+     * `TenantRls::asApp(...)`), a role statement written by hand, the schema owner's connection.
      */
-    public function test_every_statement_taken_out_of_the_policy_is_listed(): void
+    public function test_every_way_around_the_policy_is_listed(): void
     {
         $expected = [
-            // "has this employee a customer's orders at any store": they must survive the employee's removal
-            'Http/Controllers/Api/V1/Store/OwnerEmployeeController.php' => 1,
-            'Models/AuditLog.php' => 1, // an audit line for no store (store_id NULL), never one for another store
-            'Services/Finance/LedgerService.php' => 1, // the referral: the customer's first delivery at any store
+            // TenantRls::asApp(): a statement that must reach another store's or a platform row
+            'asApp' => [
+                // "has this employee a customer's orders at any store": they must survive the employee's removal
+                'app/Http/Controllers/Api/V1/Store/OwnerEmployeeController.php' => 1,
+                'app/Models/AuditLog.php' => 1, // an audit line for no store (store_id NULL), never one for another store
+                'app/Services/Finance/LedgerService.php' => 1, // the referral: the customer's first delivery at any store
+            ],
+            // suspend/resumeTenantRole(): what asApp() is made of
+            'suspend/resume' => [
+                'app/Support/Tenancy/QueuedJobsRunUnbound.php' => 2, // an inline queued job runs as the login role, as a worker runs it
+                'app/Support/Tenancy/TenantRls.php' => 2, // asApp() itself
+            ],
+            // SET [LOCAL|SESSION] ROLE in a string
+            'role statement' => [
+                'app/Console/Commands/CheckProductionConfigCommand.php' => 1, // a message ("... SET ROLE qila oladi"), no statement
+                'app/Domain/Realtime/RevisionPostgresConnection.php' => 5, // the switch itself
+                'app/Support/Tenancy/TenantRls.php' => 2, // setupProblems(): the probe that the role can be taken, and a message
+            ],
+            // The schema owner's connection (bound by no policy): console and maintenance code only, never a request
+            'owner connection' => [
+                'app/Console/Commands/CheckProductionConfigCommand.php' => true,
+                'app/Console/Commands/PartitionsArchiveCommand.php' => true,
+                'app/Console/Commands/PartitionsEnsureCommand.php' => true,
+                'app/Domain/Realtime/RevisionPostgresConnection.php' => true, // only to never switch on it
+                'app/Providers/PartitionsServiceProvider.php' => true, // migrate and db:partitions:* run on it
+                'app/Services/Admin/Monitoring/Checks/PartitionsCheck.php' => true, // the scheduler's check that the owner can log in
+                'app/Support/Database/OwnerConnection.php' => true,
+                'app/Support/Tenancy/TenantRls.php' => true, // only to not ask the role question of it
+            ],
         ];
-        $found = [];
-        foreach ((new Finder())->files()->in(app_path())->name('*.php')->notPath('Support/Tenancy/TenantRls.php') as $file) {
+        $patterns = [
+            'asApp' => '/\basApp\b/',
+            'suspend/resume' => '/\b(?:suspend|resume)TenantRole\b/',
+            'role statement' => '/\bSET\s+(?:LOCAL\s+|SESSION\s+)?ROLE\b/i',
+            'owner connection' => '/\bOwnerConnection\b|pgsql_owner/',
+        ];
+        // Where each thing is defined
+        $defined = ['asApp' => ['app/Support/Tenancy/TenantRls.php'], 'suspend/resume' => ['app/Domain/Realtime/RevisionPostgresConnection.php']];
+
+        $found = array_fill_keys(array_keys($patterns), []);
+        foreach ((new Finder())->files()->in([app_path(), base_path('routes')])->name('*.php') as $file) {
+            $relative = substr($file->getPathname(), strlen(base_path()) + 1);
             $code = '';
             foreach (\PhpToken::tokenize($file->getContents()) as $token) {
                 $code .= $token->is([T_COMMENT, T_DOC_COMMENT]) ? '' : $token->text;
             }
-            $calls = preg_match_all('/TenantRls::asApp\s*\(|->(suspend|resume)TenantRole\s*\(/', $code);
-            if ($calls > 0) {
-                $found[$file->getRelativePathname()] = $calls;
+            foreach ($patterns as $what => $pattern) {
+                $count = in_array($relative, $defined[$what] ?? [], true) ? 0 : preg_match_all($pattern, $code);
+                if ($count > 0) {
+                    $found[$what][$relative] = $what === 'owner connection' ? true : $count;
+                }
             }
         }
-        ksort($found);
-        // QueuedJobsRunUnbound: inline queued jobs run as the login role, as a worker runs them (suspend + resume)
-        $this->assertSame($expected + ['Support/Tenancy/QueuedJobsRunUnbound.php' => 2], $found);
+        foreach ($found as &$files) {
+            ksort($files);
+        }
+
+        $this->assertSame($expected, $found);
     }
 
     private function assertPolicies(): void

@@ -421,6 +421,80 @@ class TenantRoleSwitchTest extends TestCase
     }
 
     /**
+     * Security review L4: the role this class believes in and the role of the session must not part. A savepoint
+     * remembers the role it was taken under, and a rollback to it puts that role back: a transaction opened inside an
+     * asApp() section and rolled back after it would leave the session as the login role (unprotected) while the
+     * bookkeeping says tenant; one opened before the section and rolled back inside it does the opposite. After every
+     * rollback to a savepoint the role is set again to what the bookkeeping says.
+     */
+    public function test_a_rollback_to_a_savepoint_never_leaves_the_session_in_another_role_than_the_bookkeeping(): void
+    {
+        $foreign = $this->makeOrder(OrderStatus::NEW, ['store_id' => $this->storeB->id, 'branch_id' => $this->makeBranch($this->storeB, 'B filial')->id]);
+        $uri = $this->tenantRoute('drift', function () use ($foreign) {
+            DB::transaction(function () use ($foreign) {
+                // Opened inside the section, rolled back after it
+                TenantRls::asApp(fn () => DB::beginTransaction());
+                self::note('after-section');
+                DB::rollBack();
+                self::note('after-late-rollback');
+                self::$seen[] = 'foreign rows updated: ' . DB::table('orders')->where('id', $foreign->id)->update(['notes' => 'reached']);
+
+                // Opened before the section, rolled back inside it: the section is still the login role
+                DB::beginTransaction();
+                TenantRls::asApp(function () {
+                    DB::rollBack();
+                    self::note('in-section-after-rollback');
+                });
+                self::note('after-second-section');
+
+                // An inline queued job that leaves a transaction open behind it
+                RoleProbeJob::dispatch('leaky', false, true);
+                DB::rollBack();
+                self::note('after-leaky-job');
+            });
+            self::note('end');
+        });
+
+        $this->asOwner($uri);
+
+        $a = "{$this->tenant}|{$this->store->id}";
+        $app = "{$this->login}|{$this->store->id}";
+        $this->assertSame([
+            "after-section={$a}", "after-late-rollback={$a}", 'foreign rows updated: 0',
+            "in-section-after-rollback={$app}", "after-second-section={$a}",
+            "leaky={$app}", "leaky-transaction={$app}", 'leaky-bound=NULL', "after-leaky-job={$a}",
+            "end={$this->login}|",
+        ], self::$seen);
+        $this->assertNull($foreign->fresh()->notes);
+    }
+
+    /**
+     * Security review L7: the fail-open path logs, but not once per request: a role lost at lunch would write
+     * thousands of critical lines. One per minute per process; the standing alert comes from the monitoring check.
+     */
+    public function test_the_log_line_of_a_role_that_cannot_be_taken_is_written_once_a_minute(): void
+    {
+        config(['database.tenant_rls.role' => 'rls_test_no_such_role', 'database.connections.rls_level0' => config('database.connections.pgsql')]);
+        Log::spy();
+        // A request is a new connection each time (the connection itself stops trying after its first failure)
+        $request = function (): void {
+            DB::purge('rls_level0');
+            $connection = DB::connection('rls_level0');
+            $this->assertSame("{$this->login}|", app(TenantContext::class)->runAs($this->store->id, fn () => $connection->transaction(fn () => self::probe($connection))));
+        };
+
+        $this->travelTo(now()->addMinutes(5)); // past whatever an earlier test of this process logged
+        $request();
+        $request();
+        $request();
+        Log::shouldHaveReceived('critical')->once();
+
+        $this->travel(61)->seconds();
+        $request();
+        Log::shouldHaveReceived('critical')->twice();
+    }
+
+    /**
      * The audit journal through its model, inside a tenant transaction: the store's own line passes the policy; a line
      * for no store (a platform-level one) is written as the login role, so the action it records does not fail; a line
      * for ANOTHER store is what the policy is there to stop, whoever asks: refused.
@@ -539,13 +613,16 @@ class RoleProbeJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public function __construct(public string $name, public bool $throws = false) {}
+    public function __construct(public string $name, public bool $throws = false, public bool $leavesTransactionOpen = false) {}
 
     public function handle(): void
     {
         TenantRoleSwitchTest::note($this->name);
         DB::transaction(fn () => TenantRoleSwitchTest::note("{$this->name}-transaction"));
         TenantRoleSwitchTest::$seen[] = "{$this->name}-bound=" . var_export(app(TenantContext::class)->storeId(), true);
+        if ($this->leavesTransactionOpen) {
+            DB::beginTransaction();
+        }
         if ($this->throws) {
             throw new RuntimeException('job failed');
         }

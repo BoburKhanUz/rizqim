@@ -27,7 +27,9 @@ class TransactionPoolingSafetyTest extends TestCase
         'advisory unlock (session lock)' => '/\bpg_advisory_unlock/i',
         'LISTEN/UNLISTEN' => '/^\s*(UN)?LISTEN\s/i',
         'NOTIFY' => '/(^\s*NOTIFY\s|\bpg_notify\s*\()/i',
-        'session SET' => '/^\s*SET\s+(?!LOCAL\s)(SESSION\s+)?[a-z_.]+\s*(=|TO\s)/i',
+        // Also the forms without `=` / `TO`: SET ROLE x, SET SESSION AUTHORIZATION x, SET SESSION CHARACTERISTICS ...,
+        // SET TIME ZONE x (M4 stage 3: the role of a tenant transaction is SET LOCAL ROLE, never the session's)
+        'session SET' => '/^\s*SET\s+(?!LOCAL\s)(SESSION\s+\S|ROLE\s|TIME\s+ZONE\s|[a-z_.]+\s*(=|TO\s))/i',
         'set_config' => '/\bset_config\s*\(/i',
         'RESET / DISCARD' => '/^\s*(RESET|DISCARD)\s/i',
         'temp table' => '/\bCREATE\s+(GLOBAL\s+|LOCAL\s+)?(TEMP|TEMPORARY|UNLOGGED\s+TEMP)\s+TABLE/i',
@@ -82,10 +84,15 @@ class TransactionPoolingSafetyTest extends TestCase
             DB::statement('DECLARE c CURSOR WITH HOLD FOR select 1');
             DB::select('select pg_notify(?, ?)', ['a', 'b']);
             $pdo = new PDO($dsn, $u, $p, [PDO::ATTR_PERSISTENT => true]);
+            DB::statement('SET LOCAL ROLE rizqim_tenant');
+            DB::statement('SET ROLE rizqim_tenant');
+            DB::statement("SET SESSION AUTHORIZATION 'rizqim_app'");
+            DB::statement('set time zone \'UTC\'');
+            DB::update('update orders set role = ? where id = ?', ['x', 1]);
             PHP;
 
         $this->assertSame(
-            [[7, 'session advisory lock'], [8, 'LISTEN/UNLISTEN'], [9, 'session SET'], [10, 'session SET'], [11, 'set_config'], [12, 'temp table'], [13, 'cursor'], [14, 'NOTIFY'], [15, 'persistent PDO connection']],
+            [[7, 'session advisory lock'], [8, 'LISTEN/UNLISTEN'], [9, 'session SET'], [10, 'session SET'], [11, 'set_config'], [12, 'temp table'], [13, 'cursor'], [14, 'NOTIFY'], [15, 'persistent PDO connection'], [17, 'session SET'], [18, 'session SET'], [19, 'session SET']],
             $this->findings($code),
         );
     }

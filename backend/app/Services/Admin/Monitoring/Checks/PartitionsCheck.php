@@ -202,22 +202,27 @@ class PartitionsCheck implements AlertCheck
      * M4 stage 3 (docs/OPERATIONS.md section 24), both critical:
      * - the state of the roles, asked from the database on every evaluation (TenantRls::setupProblems(), as this
      *   process's login role, which is php-fpm's): TENANT_RLS on while the tenant role cannot be used (tenant requests
-     *   run unprotected, or fail for a missing grant), or the login role itself bound by the policies. Open for as long
-     *   as the state lasts, whether or not a request met it;
+     *   run unprotected, or fail for a missing grant), a table whose policy is off or not the agreed one, or the login
+     *   role itself bound by the policies. Open for as long as the state lasts, whether or not a request met it. A
+     *   state that could not be read is a warning of its own while TENANT_RLS is on, never silence;
      * - a write PostgreSQL refused under row-level security (TenantRls::refused() keeps the last one in the cache for
      *   TenantRls::REFUSED_TTL): the till got a server error, and either a forged row was stopped or a legitimate
      *   write is being refused, which the operator ends with TENANT_RLS=0. Closes an hour after the last one.
-     * Never throws; a state that cannot be read gives no finding.
+     * Never throws.
      *
      * @return list<AlertFinding>
      */
     private function tenantRls(): array
     {
         $findings = [];
-        $setup = PostgresStats::bounded(fn () => TenantRls::setupProblems(), 'tenant_rls');
-        foreach (is_array($setup) ? $setup : [] as $code => $problem) {
-            $title = $code === 'unavailable' ? "Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: {$problem}" : $problem;
+        $setup = $this->tenantRlsSetup();
+        foreach ($setup ?? [] as $code => $problem) {
+            $title = $code === 'login_bound' ? $problem : "Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: {$problem}";
             $findings[] = new AlertFinding("tenant_rls_{$code}", $title, ['code' => $code], null, 'critical');
+        }
+        // A check that could not run is not a check that passed (only where the protection is switched on)
+        if ($setup === null && TenantRls::enabled()) {
+            $findings[] = new AlertFinding('tenant_rls_unverified', "Qator himoyasi (RLS) holatini tekshirib bo'lmadi (so'rov vaqtida tugamadi yoki xato berdi): himoya ishlayotgani tasdiqlanmagan. Takrorlansa `php artisan app:check-production` ni ishga tushirib ko'ring (docs/OPERATIONS.md, 24-bo'lim)", [], null, 'warning');
         }
 
         try {
@@ -242,6 +247,16 @@ class PartitionsCheck implements AlertCheck
         }
 
         return $findings;
+    }
+
+    /**
+     * TenantRls::setupProblems() under the statement timeout; null = could not be read.
+     *
+     * @return array<string, string>|null
+     */
+    protected function tenantRlsSetup(): ?array
+    {
+        return PostgresStats::bounded(fn () => TenantRls::setupProblems(), 'tenant_rls');
     }
 
     /**
