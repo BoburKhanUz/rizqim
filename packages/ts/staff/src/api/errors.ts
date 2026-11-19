@@ -9,6 +9,8 @@ export class StaffApiError extends Error {
   readonly body: unknown;
   readonly errors: Record<string, string[] | string | undefined> | undefined;
   readonly reason: string | undefined;
+  // `data.pending_ops` of a 409 `pending_ops` (a till with unsent offline operations), else undefined
+  readonly pendingOps: number | undefined;
 
   constructor(status: number, body: unknown) {
     super(messageOf(body) ?? `HTTP ${status}`);
@@ -19,6 +21,7 @@ export class StaffApiError extends Error {
     this.errors = isRecord(record.errors) ? (record.errors as Record<string, string[] | string | undefined>) : undefined;
     const data = record.data;
     this.reason = isRecord(data) && typeof data.reason === 'string' ? data.reason : undefined;
+    this.pendingOps = isRecord(data) && typeof data.pending_ops === 'number' ? data.pending_ops : undefined;
   }
 
   // The server said something in `message` (not just a status line)
@@ -57,6 +60,11 @@ export function getApiErrorMessage(err: unknown): string | undefined {
 // First validation message for a field, if there is one.
 export function getApiFieldError(err: unknown, field: string): string | undefined {
   return isStaffApiError(err) ? err.fieldError(field) : undefined;
+}
+
+// The number of unsent operations when a device revoke was refused with 409 `pending_ops`; undefined for any other error.
+export function getPendingOps(err: unknown): number | undefined {
+  return isStaffApiError(err) && err.status === 409 && err.reason === 'pending_ops' ? (err.pendingOps ?? 0) : undefined;
 }
 
 export const getApiErrorStatus = (err: unknown): number | undefined => (isStaffApiError(err) ? err.status : undefined);

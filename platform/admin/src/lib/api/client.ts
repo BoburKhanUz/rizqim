@@ -15,6 +15,8 @@ export class ApiError extends Error {
     readonly fields: Record<string, string[]> = {},
     // Seconds, from Retry-After (429 lockouts)
     readonly retryAfter: number | null = null,
+    // `data.pending_ops` of a 409 `pending_ops` (a till with unsent offline operations)
+    readonly pendingOps: number | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -47,7 +49,8 @@ export function errorFrom(status: number, body: unknown, retryAfter: string | nu
   const message = typeof record.message === 'string' ? record.message : '';
   // The lockout says how long in the header and in data.retry_after
   const seconds = retryAfter ? Number(retryAfter) : typeof data.retry_after === 'number' ? data.retry_after : NaN;
-  return new ApiError(message, status, code, toFields(record.errors ?? data.errors), Number.isFinite(seconds) ? seconds : null);
+  const pendingOps = typeof data.pending_ops === 'number' ? data.pending_ops : null;
+  return new ApiError(message, status, code, toFields(record.errors ?? data.errors), Number.isFinite(seconds) ? seconds : null, pendingOps);
 }
 
 // --- Last call and "session over" signals --------------------------------------------------------------------------------

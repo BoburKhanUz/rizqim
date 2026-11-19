@@ -498,7 +498,9 @@ export const voidInvoice = (uuid: string, reason: string) => data<InvoiceCard>(c
 
 export const listDevices = (filters: DeviceFilters, signal?: AbortSignal) => data<DevicePage>(call('GET', '/pos/devices', { query: { ...compact(filters), per_page: 30 }, signal }));
 export const getDevice = (uuid: string, signal?: AbortSignal) => data<DeviceRow>(call('GET', `/pos/devices/${encodeURIComponent(uuid)}`, { signal }));
-export const revokeDevice = (uuid: string, reason: string) => data<DeviceRow>(call('POST', `/pos/devices/${encodeURIComponent(uuid)}/revoke`, { body: { reason } }));
+// A till with unsent offline operations answers 409 `pending_ops`; `confirmPending` revokes it all the same.
+export const revokeDevice = (uuid: string, reason: string, confirmPending = false) =>
+  data<DeviceRow>(call('POST', `/pos/devices/${encodeURIComponent(uuid)}/revoke`, { body: confirmPending ? { reason, confirm_pending: true } : { reason } }));
 
 export const listShifts = (filters: ShiftFilters, signal?: AbortSignal) => data<ShiftPage>(call('GET', '/pos/shifts', { query: { ...compact(filters), per_page: 30 }, signal }));
 export const getShift = (uuid: string, signal?: AbortSignal) => data<ShiftCard>(call('GET', `/pos/shifts/${encodeURIComponent(uuid)}`, { signal }));
@@ -594,6 +596,6 @@ export const useSetCommission = (storeId: number) => usePosWrite((input: Commiss
 export const useUpdatePlan = () => usePosWrite(({ code, ...change }: PlanChange & { code: string; reason: string }) => updatePlan(code, change));
 export const useMarkInvoicePaid = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => markInvoicePaid(uuid, reason));
 export const useVoidInvoice = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => voidInvoice(uuid, reason));
-export const useRevokeDevice = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => revokeDevice(uuid, reason));
+export const useRevokeDevice = () => usePosWrite(({ uuid, reason, confirmPending }: { uuid: string; reason: string; confirmPending?: boolean }) => revokeDevice(uuid, reason, confirmPending));
 export const useRetryFiscal = () => usePosWrite(({ uuid, reason }: { uuid: string; reason: string }) => retryFiscal(uuid, reason));
 export const useResolveSync = () => usePosWrite(({ opId, resolution, reason }: { opId: string; resolution: 'resolved' | 'dismissed'; reason: string }) => resolveSyncError(opId, { resolution, reason }));

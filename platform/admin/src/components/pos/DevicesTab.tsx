@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronRight, MonitorSmartphone, Search } from 'lucide-react';
 import { Card, CardSkeletons, cx, Field, fieldClass, InlineError, Notice, Pill, Button } from '@rizqim/ui';
+import { ApiError } from '@/lib/api/client';
 import { DEFAULT_DEVICE_FILTERS, DEVICE_STATES, useDevice, useDevices, useRevokeDevice, type DeviceFilters, type DeviceRow } from '@/lib/api/pos';
 import { errorText, fieldError } from '@/lib/errors';
 import { when } from '@/lib/format';
@@ -148,6 +149,8 @@ function DeviceCardView({ uuid, onBack }: { uuid: string; onBack: () => void }) 
   const [revoking, setRevoking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const revoke = useRevokeDevice();
+  // Set when the server refused with 409 pending_ops: the till has unsent offline operations, so a second confirmation follows
+  const [pendingOps, setPendingOps] = useState<number | null>(null);
 
   if (card.isError) return <InlineError title={t('pos_loadError')} message={errorText(card.error, t)} retryLabel={t('retry')} retrying={card.isFetching} onRetry={() => void card.refetch()} />;
   if (!card.data) return <CardSkeletons count={2} lines={4} label={t('loading')} />;
@@ -198,20 +201,27 @@ function DeviceCardView({ uuid, onBack }: { uuid: string; onBack: () => void }) 
       {revoking && (
         <ReasonDialog
           title={t('pos_dev_revokeTitle')}
-          text={t('pos_dev_revokeText', { name: device.name })}
-          submitLabel={t('pos_dev_revokeConfirm')}
+          text={pendingOps === null ? t('pos_dev_revokeText', { name: device.name }) : t('pos_dev_revokePendingText', { count: pendingOps })}
+          submitLabel={pendingOps === null ? t('pos_dev_revokeConfirm') : t('pos_dev_revokeAnyway')}
           tone="danger"
           busy={revoke.isPending}
           error={revoke.error ? errorText(revoke.error, t) : null}
           reasonError={fieldError(revoke.error, 'reason')}
-          onClose={() => setRevoking(false)}
+          onClose={() => {
+            setRevoking(false);
+            setPendingOps(null);
+          }}
           onSubmit={(reason) =>
             revoke.mutate(
-              { uuid: device.uuid, reason },
+              { uuid: device.uuid, reason, confirmPending: pendingOps !== null },
               {
                 onSuccess: () => {
                   setRevoking(false);
+                  setPendingOps(null);
                   setNotice(t('pos_dev_revokeDone'));
+                },
+                onError: (err) => {
+                  if (err instanceof ApiError && err.status === 409 && err.code === 'pending_ops') setPendingOps(err.pendingOps ?? 0);
                 },
               },
             )

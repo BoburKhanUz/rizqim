@@ -192,9 +192,10 @@ export async function renameStoreDevice(api: StaffApi, uuid: string, name: strin
   return body.data as StoreDevice;
 }
 
-// The device loses its token at once.
-export async function revokeStoreDevice(api: StaffApi, uuid: string): Promise<StoreDevice> {
-  const body = unwrap(await api.client.POST('/v1/owner/devices/{uuid}/revoke', { params: { path: { uuid } } }));
+// The device loses its token at once. A till with unsent offline operations answers 409 `pending_ops` (see getPendingOps);
+// `confirmPending` revokes it all the same (the operations stay on the till).
+export async function revokeStoreDevice(api: StaffApi, uuid: string, confirmPending = false): Promise<StoreDevice> {
+  const body = unwrap(await api.client.POST('/v1/owner/devices/{uuid}/revoke', { params: { path: { uuid } }, ...(confirmPending ? { body: { confirm_pending: true } } : {}) }));
   return body.data as StoreDevice;
 }
 
