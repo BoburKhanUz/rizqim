@@ -23,13 +23,33 @@ class SyncDoc {
   Duration age(DateTime now) => now.difference(takenAt);
 }
 
+/// Jurnalning o'qib bo'lmagan qatori (nazorat yig'indisi to'g'ri kelmadi): o'tkazib yuborilgan, undan keyingi qatorlar
+/// o'qilgan. Bu qatorda tasdiqlangan amal bo'lgan bo'lishi mumkin — menejer ko'rishi kerak.
+class JournalDamage {
+  const JournalDamage({
+    required this.line,
+    required this.text,
+    required this.foundAt,
+  });
+
+  /// Topilgan paytdagi qator raqami (1 dan).
+  final int line;
+
+  /// Qatorning diskdagi matni (buzilgan holida).
+  final String text;
+  final DateTime foundAt;
+}
+
 /// Kassaning internetsiz rejimdagi xotirasi (docs/POS_SPEC.md 5.2): diskdagi amallar navbati va serverdan olingan
 /// oxirgi nusxalar.
 ///
 /// * [enqueue] amalni jurnalga yozadi va diskka tasdiqlatadi (`fsync`), shundan keyingina qaytadi: kassir "Saqlandi"ni
 ///   ko'rgan amal elektr o'chsa ham yo'qolmaydi. Har amalga yangi `op_id` (UUID) va keyingi `seq` beriladi.
 /// * Qayta ochilganda ([open]) jurnal o'qiladi: nazorat yig'indisi to'g'ri kelmagan (chala yozilgan) oxirgi qator
-///   kesib tashlanadi, navbat, `seq`, lokal raqamlar va server id'lari qayta tiklanadi.
+///   kesib tashlanadi, navbat, `seq`, lokal raqamlar va server id'lari qayta tiklanadi. O'rtadagi buzilgan qator
+///   o'tkazib yuboriladi va [damaged] da ko'rsatiladi: undan keyingi qatorlar yo'qolmaydi.
+/// * Yozuv xato bersa (disk to'la, kiritish-chiqarish xatosi) amal navbatga tushmaydi; ilova ishlashda davom etsa,
+///   keyingi yozuv yangi qatordan boshlanadi va xato bergan yozuvning qoldig'i bekor deb belgilanadi.
 /// * Server javobi ([applyResults]) amalni navbatdan oladi; rad etilgan yoki farq bilan qo'llanganlari [errors] da
 ///   qoladi, oflayn ochilgan buyurtma va schyotning server uuid'i [aliases] ga yoziladi.
 /// * Nusxalar ([putDoc], [doc]) — alohida fayllar, har biri bir butun yoziladi; yoshi [SyncDoc.takenAt] dan.
@@ -44,6 +64,7 @@ class SyncStore {
   final List<SyncOperation> _answered = <SyncOperation>[];
   final Map<String, String> _aliases = <String, String>{};
   final Map<String, SyncDoc> _docs = <String, SyncDoc>{};
+  final List<JournalDamage> _damaged = <JournalDamage>[];
   final StreamController<void> _changes = StreamController<void>.broadcast();
 
   int _lastSeq = 0;
@@ -56,6 +77,10 @@ class SyncStore {
   DateTime? _lastContactAt;
   DateTime? _contactWrittenAt;
 
+  // M5 bug 3: the journal line whose append failed while the app went on. Some, all or none of it may be in the file;
+  // the next append fences it off first (see [_append]).
+  String? _failedLine;
+
   // Every mutation (journal append, compaction, copy write) runs one at a time, in call order: the sender's acks,
   // the cashier's payment and a copy refresh can all be in flight at once.
   Future<void>? _tail;
@@ -66,6 +91,9 @@ class SyncStore {
   /// Javob olgan amallardan oxirgi shunchasi saqlanadi (xatolar ro'yxati va qayta ochilganda ko'rinish uchun); nusxalarda
   /// hali yo'q amallar ([markReloaded] dan keyingilari) esa hammasi.
   static const int keepAnswered = 200;
+
+  /// Buzilgan qatorlardan oxirgi shunchasi saqlanadi.
+  static const int keepDamaged = 100;
 
   /// Jurnal va nusxalarni o'qib ochadi.
   static Future<SyncStore> open(
@@ -130,6 +158,11 @@ class SyncStore {
 
   /// Server uuid'i ma'lum bo'lsa — o'sha, aks holda [id] ning o'zi.
   String resolve(String id) => _aliases[id] ?? id;
+
+  /// Jurnalning o'qib bo'lmagan qatorlari (eng eskisi birinchi): o'tkazib yuborilgan, lekin unutilmagan — siqishdan
+  /// keyin ham saqlanadi, faqat [clear] o'chiradi. Elektr o'chganda chala qolgan oxirgi qator va xato bergan yozuvning
+  /// qoldig'i bu yerga kirmaydi (ular hech qachon tasdiqlanmagan).
+  List<JournalDamage> get damaged => List<JournalDamage>.unmodifiable(_damaged);
 
   /// Server bilan oxirgi aloqa (javob kelgan) payti.
   DateTime? get lastContactAt => _lastContactAt;
@@ -325,6 +358,7 @@ class SyncStore {
     _pending.clear();
     _answered.clear();
     _aliases.clear();
+    _damaged.clear();
     for (final String k in _docs.keys.toList()) {
       await storage.deleteDoc(k);
     }
@@ -359,7 +393,27 @@ class SyncStore {
   }
 
   Future<void> _append(Map<String, Object?> record) async {
-    await storage.appendLine(_encode(record));
+    final String? failed = _failedLine;
+    if (failed != null) {
+      // M5 bug 3: the last append failed and the app went on. An empty line ends whatever part of that line is in the
+      // file, so this record starts on a fresh line; the `void` record names the failed line by its checksum, so the
+      // reader drops it even if it landed whole (written but not confirmed: the cashier saw an error, and the next
+      // operation reuses its `seq`).
+      await storage.appendLine('');
+      _journalLines++;
+      await storage.appendLine(
+        _encode(<String, Object?>{'k': 'void', 'sum': failed.substring(0, 8)}),
+      );
+      _journalLines++;
+      _failedLine = null;
+    }
+    final String line = _encode(record);
+    try {
+      await storage.appendLine(line);
+    } catch (_) {
+      _failedLine = line;
+      rethrow;
+    }
     _journalLines++;
   }
 
@@ -383,12 +437,56 @@ class SyncStore {
 
   Future<void> _load() async {
     final List<String> lines = await storage.readLines();
-    var valid = 0;
+    final List<Map<String, Object?>?> records = <Map<String, Object?>?>[
+      for (final String line in lines) _decode(line),
+    ];
+    // A torn tail: the last line is unreadable (a power cut in the middle of a write; it was never confirmed). Cut
+    // it, with the empty lines after it. Only the LAST line: an unreadable line with good lines after it is damage
+    // (below), and the good lines are kept (M5 bug 3).
+    var count = lines.length;
+    while (count > 0 && lines[count - 1].isEmpty) {
+      count--;
+    }
+    if (count > 0 && records[count - 1] == null) {
+      count--;
+    } else {
+      count = lines.length;
+    }
+    // Lines whose append failed while the app kept running: the `void` record written before the next append names
+    // the failed line by its checksum (the first 8 characters). Whatever part of that line is right before the
+    // record is not an operation and not damage.
+    final Set<int> voided = <int>{};
+    for (var i = 0; i < count; i++) {
+      final Object? sum = records[i]?['k'] == 'void'
+          ? records[i]!['sum']
+          : null;
+      if (sum is! String || sum.isEmpty) continue;
+      for (var j = i - 1; j >= 0; j--) {
+        final String before = lines[j];
+        if (before.isEmpty) continue;
+        final bool whole = before.startsWith('$sum ');
+        // (a `void` record that tore itself and was written again is skipped the same way)
+        if (!whole &&
+            !before.startsWith(sum) &&
+            !sum.startsWith(before) &&
+            !lines[i].startsWith(before)) {
+          break;
+        }
+        voided.add(j);
+        // It landed whole: nothing before it belongs to it
+        if (whole && records[j] != null) break;
+      }
+    }
+    final DateTime now = _clock();
     final Map<String, SyncOperation> byId = <String, SyncOperation>{};
-    for (final String line in lines) {
-      final Map<String, Object?>? r = _decode(line);
-      if (r == null) break; // a torn tail: everything after it is not trusted
-      valid++;
+    for (var i = 0; i < count; i++) {
+      if (lines[i].isEmpty || voided.contains(i)) continue;
+      final Map<String, Object?>? r = records[i];
+      if (r == null) {
+        // Skipped and reported; the lines after it are read as usual
+        _damaged.add(JournalDamage(line: i + 1, text: lines[i], foundAt: now));
+        continue;
+      }
       switch (r['k']) {
         case 'meta':
           _lastSeq = max(_lastSeq, _int(r['last_seq']));
@@ -424,6 +522,15 @@ class SyncStore {
           if (r['date'] is String) {
             _noteQueue(r['date']! as String, _int(r['n']));
           }
+        case 'bad':
+          // Damage found at an earlier start, kept through a compaction
+          _damaged.add(
+            JournalDamage(
+              line: _int(r['line']),
+              text: r['text'] is String ? r['text']! as String : '',
+              foundAt: _dateOf(r['at']) ?? now,
+            ),
+          );
         case 'ack':
           final String id = r['op_id']! as String;
           final int i = _pending.indexWhere((SyncOperation o) => o.opId == id);
@@ -435,11 +542,11 @@ class SyncStore {
           );
       }
     }
-    _journalLines = valid;
+    _journalLines = count;
     _pending.sort((SyncOperation a, SyncOperation b) => a.seq.compareTo(b.seq));
-    if (valid < lines.length) {
+    if (count < lines.length) {
       // Cut the torn tail now, before anything is appended after it
-      await storage.replaceLines(lines.sublist(0, valid));
+      await storage.replaceLines(lines.sublist(0, count));
     }
 
     for (final String key in await storage.docKeys()) {
@@ -533,11 +640,22 @@ class SyncStore {
               },
         ],
       }),
+      for (final JournalDamage d in _damaged.skip(
+        max(0, _damaged.length - keepDamaged),
+      ))
+        _encode(<String, Object?>{
+          'k': 'bad',
+          'line': d.line,
+          'text': d.text,
+          'at': d.foundAt.toUtc().toIso8601String(),
+        }),
       for (final SyncOperation o in _pending)
         _encode(<String, Object?>{'k': 'op', 'op': o.toJson()}),
     ];
     await storage.replaceLines(lines);
     _journalLines = lines.length;
+    // The file is whole again: nothing of a failed append is left in it
+    _failedLine = null;
   }
 
   void _emit() {

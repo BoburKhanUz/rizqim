@@ -6,14 +6,17 @@ import 'dart:io';
 ///
 /// * **jurnal** — faqat oxiriga qo'shiladigan qatorlar ([appendLine]): har qator diskka yozilib, `fsync` bilan
 ///   tasdiqlangandan keyingina qaytadi. Elektr qator o'rtasida o'chsa, faqat o'sha oxirgi chala qator yo'qoladi
-///   ([SyncStore] uni nazorat yig'indisidan taniydi va kesib tashlaydi);
+///   ([SyncStore] uni nazorat yig'indisidan taniydi va kesib tashlaydi). Yozuv xato bersa-yu ilova ishlashda davom
+///   etsa, faylda chala bo'lak qolishi mumkin: [SyncStore] keyingi yozuvdan oldin bo'sh qator ([appendLine] `''`)
+///   bilan uni yopadi, shunda keyingi qatorlar unga yopishib qolmaydi;
 /// * **hujjatlar** — kalit bo'yicha butun fayl ([writeDoc]): avval vaqtinchalik faylga yozilib `fsync` qilinadi, keyin
 ///   eski fayl o'rniga qo'yiladi (rename). O'chib qolsa — yo eski, yo yangi nusxa qoladi, chalasi emas.
 abstract interface class SyncStorage {
   /// Jurnalning hamma qatorlari (oxirgi chala qator ham, agar bo'lsa).
   Future<List<String>> readLines();
 
-  /// Bitta qatorni jurnal oxiriga qo'shadi va diskka tasdiqlatadi.
+  /// Bitta qatorni jurnal oxiriga qo'shadi va diskka tasdiqlatadi. Bo'sh [line] faqat qator oxirini yozadi: oldingi
+  /// muvaffaqiyatsiz yozuvdan qolgan chala bo'lak shu bilan alohida qatorga aylanadi.
   Future<void> appendLine(String line);
 
   /// Jurnalni [lines] bilan almashtiradi (siqish): bir butun amal.
@@ -101,9 +104,16 @@ class FileSyncStorage implements SyncStorage {
       _journal = null; // try to open again next time
       rethrow;
     }
-    await f.writeString('$line\n');
-    // fsync: the line is on the disk before the caller goes on
-    await f.flush();
+    try {
+      await f.writeString('$line\n');
+      // fsync: the line is on the disk before the caller goes on
+      await f.flush();
+    } on FileSystemException {
+      // M5 bug 3: part of the line may be in the file. Drop the handle, so the next append opens the file again and
+      // writes at its real end (the store then fences the partial bytes off with an empty line).
+      await _closeJournal();
+      rethrow;
+    }
   });
 
   @override
@@ -169,7 +179,8 @@ class FileSyncStorage implements SyncStorage {
 }
 
 /// Xotiradagi saqlash (testlar uchun): elektr o'chishini ham ko'rsatadi — [tearNextAppend] keyingi qatorning faqat
-/// boshini yozadi va [SyncStorageCrash] tashlaydi (yozuv o'rtasida o'chdi), [failNextAppend] hech narsa yozmaydi.
+/// boshini yozadi va [SyncStorageCrash] tashlaydi (yozuv o'rtasida o'chdi), [failNextAppend] hech narsa yozmaydi,
+/// [landNextAppendThenFail] qatorni to'liq yozadi, lekin tasdiqlamaydi (`fsync` xato berdi).
 class MemorySyncStorage implements SyncStorage {
   final List<String> lines = <String>[];
 
@@ -179,6 +190,7 @@ class MemorySyncStorage implements SyncStorage {
 
   bool tearNextAppend = false;
   bool failNextAppend = false;
+  bool landNextAppendThenFail = false;
 
   @override
   Future<List<String>> readLines() async => <String>[...lines, ?tornTail];
@@ -198,9 +210,13 @@ class MemorySyncStorage implements SyncStorage {
       // A real file would have the torn bytes in front of the new line
       lines.add('$tornTail$line');
       tornTail = null;
-      return;
+    } else {
+      lines.add(line);
     }
-    lines.add(line);
+    if (landNextAppendThenFail) {
+      landNextAppendThenFail = false;
+      throw const SyncStorageCrash();
+    }
   }
 
   @override
