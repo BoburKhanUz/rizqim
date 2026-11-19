@@ -1,0 +1,49 @@
+== php-fpm access: requests by pool and status
+   6274 critical 200
+   4142 market 200
+   1720 market 304
+    645 critical 201
+    214 critical 304
+    198 default 200
+     19 default 201
+== nginx access: status counts
+  10614 200
+   1934 304
+    664 201
+      4 503
+
+== per endpoint (php-fpm wall/CPU ms means; nginx wire bytes incl. gzip)
+| endpoint | pool | n | 200 | 304 | other | 304 % | wall ms 200 / 304 | PHP CPU ms 200 / 304 | bytes/resp 200 / 304 | kB total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GET /notifications | market | 1744 | 264 | 1480 | 0 | 84.9 | 25.3 / 15.6 | 14.9 / 11.1 | 3609 / 0 | 931 |
+| GET /pos/floor | critical | 1616 | 1578 | 38 | 0 | 2.4 | 31.3 / 16.9 | 19.7 / 13.7 | 4545 / 0 | 7005 |
+| GET /staff/kitchen/tickets | critical | 1157 | 1031 | 126 | 0 | 10.9 | 38.9 / 16.5 | 23.9 / 12.7 | 5151 / 0 | 5186 |
+| GET /pos/orders/:id | critical | 1122 | 1101 | 21 | 0 | 1.9 | 39.1 / 17.8 | 24.0 / 14.8 | 4077 / 0 | 4383 |
+| GET /catalog/availability?store_id | market | 1107 | 1107 | 0 | 0 | 0.0 | 63.9 / - | 15.7 / - | 316 / - | 342 |
+| GET /catalog?store_id | market | 1043 | 991 | 52 | 0 | 5.0 | 135.5 / 15.9 | 22.6 / 11.7 | 58581 / 0 | 56693 |
+| GET /staff/orders/:id | critical | 987 | 976 | 11 | 0 | 1.1 | 29.2 / 16.5 | 19.5 / 12.7 | 3041 / 0 | 2898 |
+| GET /catalog?lat&limit&lng&view=cards | market | 711 | 711 | 0 | 0 | 0.0 | 38.9 / - | 23.9 / - | 43507 / - | 30208 |
+| GET /stores?lat&lng&page=1&per_page | market | 499 | 499 | 0 | 0 | 0.0 | 31.3 / - | 15.4 / - | 8500 / - | 4142 |
+| GET /orders?scope=active | market | 444 | 256 | 188 | 0 | 42.3 | 20.1 / 15.6 | 13.2 / 11.5 | 325 / 0 | 81 |
+| GET /pos/display/state | critical | 349 | 332 | 17 | 0 | 4.9 | 19.9 / 16.7 | 13.5 / 14.7 | 392 / 0 | 127 |
+| GET /stores?lat&lng&page=n&per_page | market | 314 | 314 | 0 | 0 | 0.0 | 21.9 / - | 15.1 / - | 8489 / - | 2603 |
+| POST /pos/orders | critical | 273 | 0 | 0 | 273 | 0.0 | - / - | - / - | - / - | 898 |
+| POST /pos/orders/:id/rounds | critical | 273 | 273 | 0 | 0 | 0.0 | 100.8 / - | 51.6 / - | 4284 / - | 1142 |
+| POST /pos/orders/:id/send | critical | 273 | 273 | 0 | 0 | 0.0 | 87.5 / - | 45.4 / - | 4386 / - | 1169 |
+| POST /pos/orders/:id/bills | critical | 273 | 0 | 0 | 273 | 0.0 | - / - | - / - | - / - | 537 |
+| POST /pos/bills/:id/payments | critical | 273 | 273 | 0 | 0 | 0.0 | 197.2 / - | 85.1 / - | 4134 / - | 1102 |
+| POST /pos/orders/:id/close | critical | 273 | 273 | 0 | 0 | 0.0 | 45.0 / - | 24.7 / - | 4158 / - | 1108 |
+| POST /api/broadcasting/auth | default | 198 | 198 | 0 | 0 | 0.0 | 19.9 / - | 11.6 / - | 95 / - | 18 |
+| GET /staff/orders?scope=active | critical | 165 | 164 | 1 | 0 | 0.6 | 28.8 / 14.6 | 20.3 / 20.0 | 4040 / 0 | 647 |
+| POST /pos/shifts | critical | 99 | 0 | 0 | 99 | 0.0 | - / - | - / - | - / - | 51 |
+| POST /orders | default | 19 | 0 | 0 | 19 | 0.0 | - / - | - / - | - / - | 4 |
+pool critical: 7133 req, 214 x 304 (3.0 %), PHP CPU from %C 196.5 s (27.6 ms/req; 304s 2.8 s)
+pool default: 217 req, 0 x 304 (0.0 %), PHP CPU from %C 3.0 s (14.0 ms/req; 304s 0.0 s)
+pool market: 5862 req, 1720 x 304 (29.3 %), PHP CPU from %C 95.7 s (16.3 ms/req; 304s 19.1 s)
+bytes: non-market 25.66 MB in 7331 req = 109.9 kB per POS store per minute (33 stores, 434.5 s); market 92.78 MB in 5885 req
+
+== nginx error log: limit hits by zone
+      4 zone "rizqim_market_all"
+== php-fpm log warnings (this run)
+      1 WARNING: [pool default] server reached max_children setting (4), consider raising it
+      1 WARNING: [pool market] server reached max_children setting (4), consider raising it

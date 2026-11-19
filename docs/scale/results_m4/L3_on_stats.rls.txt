@@ -1,0 +1,26 @@
+# L3_on_stats TENANT_RLS=1
+== pg_stat_statements by role: calls | exec ms | plan ms
+m4s3_app|175590|7207|16361
+m4s3_tenant|72878|3230|7285
+== total: calls | exec ms | plan ms
+248468|10437|23646
+== transactions that took the tenant role (SET LOCAL ROLE): calls | exec ms
+2929|31.9
+== BEGIN / COMMIT / ROLLBACK calls
+BEGIN|2949
+COMMIT|2949
+== tenant_rls lines in the php-fpm log (this run)
+0
+== top 12 statements by exec+plan time: total ms | calls | mean exec ms | mean plan ms | role | query
+2746|1587|1.481|0.250|m4s3_app|select * from "orders" where "branch_id" = $1 and "channel" in ($2, $3) and "status" not in ($4, $5, $6, $7) and "orders"."store_id" = $8 and "orders"
+1422|13025|0.024|0.086|m4s3_app|select * from "users" where "users"."id" = $1 limit $2
+1226|13507|0.022|0.069|m4s3_app|select * from "personal_access_tokens" where "personal_access_tokens"."id" = $1 limit $2
+934|5402|0.027|0.145|m4s3_app|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+812|1073|0.167|0.590|m4s3_app|select * from "orders" where "orders"."store_id" = $1 and "orders"."branch_id" in ($2) and ("orders"."status" in ($3, $4) or ("orders"."status" = $5 a
+655|3307|0.032|0.166|m4s3_app|select * from "orders" where "uuid" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+588|5919|0.015|0.084|m4s3_app|select exists(select * from "devices" where "devices"."id" = $1 and "revoked_at" is null) as "exists"
+562|566|0.056|0.936|m4s3_tenant|select exists(select * from "fiscal_receipts" where "subject_type" = $1 and "subject_id" = $2 and "type" = $3 and "fiscal_receipts"."store_id" = $4) a
+514|566|0.066|0.841|m4s3_app|select * from "fiscal_receipts" where "store_id" = $1 and "uuid" = $2 and "fiscal_receipts"."store_id" = $3 limit $4
+485|2264|0.041|0.173|m4s3_tenant|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3 for update
+482|2572|0.014|0.173|m4s3_tenant|select "products"."id" as "product_id", "products"."category_id" from "product_variants" inner join "products" on "products"."id" = "product_variants"
+459|1856|0.079|0.168|m4s3_app|select count(*) as aggregate from "orders" where "user_id" = $1 and "order_type" = $2 and "payment_method" = $3 and "status" = $4 and "cancel_reason" 

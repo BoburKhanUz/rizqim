@@ -366,8 +366,12 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   `users` (through `orders.user_id`), `branches`, `bookings`, `banquet_events`, `customer_accounts`, `vouchers`,
   `orders`, `order_bills`, `payments`, `pos_shifts`, `stores`. Found exploitable and fixed: `DELETE
   /owner/employees/{id}` hard-deleted an employee who had bought at another store, and that store's orders and
-  payments with them; such a person is now taken out of the store instead. A DELETE-only policy on the parents was
-  proposed in review and not built); **foreign-key checks** (fact 5: a row of the tenant's own store may point at
+  payments with them; such a person is now taken out of the store instead, and so is any staff account with activity
+  in the journals of its own store (waiter, shift, cash movement, payment, refund, tips, work sessions, audit lines);
+  a branch with shifts or money history is refused deletion ("make it inactive"). A DELETE-only policy on the parents
+  was proposed in review and not built. Open, a later migration: turn the ON DELETE CASCADE keys from parents outside
+  the policy into the 20 tables into RESTRICT / NO ACTION, first `orders.user_id`, so that the database refuses what
+  the controllers now avoid); **foreign-key checks** (fact 5: a row of the tenant's own store may point at
   another store's parent: `order_bills.order_id`, `pos_refunds.payment_id`, `cash_movements.shift_id`; accepted, the
   row gives no read of the parent. `payments` is closed: `payments_parent_store()` is SECURITY DEFINER with a fixed
   search_path since the stage 3 migration, so its trigger sees the order's real store and the policy refuses "my
@@ -395,8 +399,8 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   `store_id` qual; execution unchanged: the same index scan under a One-Time Filter); so per transaction: open order
   1.83 -> 2.01 ms, add item 1.84 -> 2.17 ms, pay 3.09 -> 3.49 ms, close 1.80 -> 2.18 ms (+0.2 to +0.4 ms, +10 to
   +21 % of the transaction's database time). A single write to a table under the policy outside a transaction costs
-  three more round trips than before (BEGIN, the two SETs in one message, COMMIT); the load run measures what that
-  is through Docker and PgBouncer. The POS e2e (114 scenarios, split roles, RLS on): 10 982 tenant
+  three more round trips than before (BEGIN, the two SETs in one message, COMMIT); under the lunch load through
+  PgBouncer that is 277 such writes in 300 s (below). The POS e2e (114 scenarios, split roles, RLS on): 10 982 tenant
   transactions, 6.4 statements each, 1.7 of them on a table under the policy, 326 single writes wrapped.
 - Plans: none of the write-path statements changed (all by primary key or with `store_id`). Statements with
   `branch_id` and no `store_id` on a table under the policy do: the estimate collapses (store and branch are
@@ -404,8 +408,15 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   store 2.6 -> 25.6 ms, a pay-statement join for a median store 1.4 -> 3.9 ms. `CREATE STATISTICS (dependencies) ON
   store_id, branch_id` on `orders` and `order_bills` brings both back (2.9 ms, 1.5 ms). Inside tenant transactions
   such statements are the report queries of the staff-pay, tips and X-report code only (39 of 18 447 statements in
-  the e2e); the floor read itself runs outside transactions. Not added in stage 3 (no write path is affected); needed
-  before reads mode, and worth adding with the load run if those reports show up.
+  the e2e); the floor read itself runs outside transactions. Not added in stage 3 (no write path is affected, and the
+  lunch load shows no difference with or without them); needed before reads mode.
+- Measured under load (`RESULTS_M4.md`: the M2 lunch load `m2b-L3` through nginx, php-fpm and PgBouncer with split
+  roles, three runs with `TENANT_RLS=1` against three with 0, the database restored to the same state before each):
+  Postgres CPU +3.2 % (within the +5 % criterion; the spread between equal runs is 2-4 %), PHP CPU +2.5 %, POS write
+  requests p50 +3 to +7 % (+1 to +10 ms), their p95 +2 to +9 % with a spread of 10-39 % between EQUAL runs, so p95 is
+  not resolvable to ±5 % on the 4-vCPU test box and shows no shift beyond that spread; 0 errors on POS and staff
+  routes, 0 refusals, 0 `tenant_rls` log lines, 2 900 tenant transactions per run. Reads mode (owner decision 4) was
+  not measured: it needs its own run.
 
 Rejected: wrap every request in one transaction (holds a pooled server connection and row locks through slow PHP and
 outbound HTTP, turns `DB::transaction(..., 3)` deadlock retries into savepoints that never retry, delays every

@@ -1,0 +1,31 @@
+# L3_on_2  2026-11-19T09:16:34Z  mode=fpm-pgb RT=1 SERVER=fpm DB_POOLER=pgbouncer  load before: 0.44 0.94 1.18
+# cfg {"lunch":{"gap_s":[40,80],"think_s":[8,20]},"poll":{"till_s":60,"kds_s":15,"display_s":30,"web_s":60},"client":{"cond":true,"unconditional_s":110,"rules":"paced","till":"alt","refresh":"ws"},"market":{"customers":250,"think_s":[3,8],"order_pct":2,"start_s":90,"end_s":210,"ramp_s":30,"mode":"m2","orders_s":60}}
+
+L3_on_2 wall=427.7s req=13036 rps=30.48 cpu php=282.69s pg=77.4s pgbouncer=22.54s nginx=4.16s redis=10.27s reverb=3.31s queue=5.96s scheduler=0.01s pg_rt=0s xacts=172790 conn_max=7 lockwaits=0 stmts/req=18.9
+by_group: {"pos":1692,"poll":5473,"mkt":5871} pgss_by_role: {"m4s3_app":{"calls":173583,"ms":6889},"m4s3_tenant":{"calls":72334,"ms":3148}}
+redis: {"commands":272019,"cmd_per_s":636.1,"net_in":57007391,"net_out":66336971,"top":{"get":92766,"eval":51997,"exists":26629,"select":16217,"mget":15988,"incrby":13049,"zrangebyscore":12040,"setex":10204,"lpop":8614,"rpush":5188,"incr":4314,"set":2985}}
+realtime: {"rules":"paced","till":"alt","event_names":{"order.created":1751,"order.items_changed":3502,"order.status_changed":3502,"order.bill_changed":5253,"fiscal.receipt_updated":1751},"setup":{"sockets":198,"subscribed":198,"auth_fail":0,"ws_errors":0,"ws_closed":0,"events":0,"heartbeats":0,"skipped_same":0,"event_reads":0,"heartbeat_reads":0,"poll_reads":0,"full_reads":0,"asked":0,"skipped_asked":0,"ignored":0,"dropped":0,"retries":0,"heartbeat_asks":0,"board_gap":0,"board_applied":0,"return_reads":0},"run":{"sockets":0,"subscribed":0,"auth_fail":0,"ws_errors":0,"ws_closed":198,"events":15759,"heartbeats":2772,"skipped_same":79,"event_reads":4315,"heartbeat_reads":106,"poll_reads":1052,"full_reads":262,"asked":5594,"skipped_asked":925,"ignored":13533,"dropped":5,"retries":0,"heartbeat_asks":645,"board_gap":0,"board_applied":0,"return_reads":0},"reads_by_kind":{"floor":{"poll":254,"event":1299,"due_nothing":30,"hb_missed":31,"hb_doubt":320,"heartbeat":5,"due_dropped":1},"display":{"poll":330,"hb_missed":28,"heartbeat":25,"due_nothing":2},"owner":{"list_poll":165,"order":1034},"order":{"event":1035,"hb_missed":47,"heartbeat":72,"hb_doubt":78,"poll":69,"due_dropped":1},"kds":{"event":947,"poll":234,"hb_missed":27,"due_nothing":5,"due_dropped":3,"hb_doubt":114,"heartbeat":4}},"screens":198}
+GET /catalog/availability            n= 1092 rps=  2.55 p50=34.8 p95=293.2 p99=347.8 err%=0.37 304%=0 inm=173 full=919 p50_200=34.8 p50_304=null kB=323 st={"200":1088,"503":4}
+GET /catalog?geo&view=cards          n=  690 rps=  1.61 p50=25.2 p95=126.1 p99=369.1 err%=0 304%=0 inm=440 full=250 p50_200=25.2 p50_304=null kB=29220 st={"200":690}
+GET /catalog?store_id                n= 1037 rps=  2.42 p50=71.7 p95=311 p99=353.8 err%=0.29 304%=3.3 inm=118 full=919 p50_200=76.8 p50_304=18.4 kB=57328 st={"200":1000,"304":34,"503":3}
+GET /notifications                   n= 1749 rps=  4.09 p50=17 p95=85.4 p99=129.6 err%=0 304%=84.7 inm=1499 full=250 p50_200=25.9 p50_304=15.4 kB=938 st={"200":267,"304":1482}
+GET /orders?scope=active             n=  436 rps=  1.02 p50=17.2 p95=94.5 p99=142.7 err%=0 304%=41.1 inm=186 full=250 p50_200=17.7 p50_304=15.2 kB=79 st={"200":257,"304":179}
+GET /pos/display/state               n=  355 rps=  0.83 p50=19.2 p95=41.4 p99=77.3 err%=0 304%=4.2 inm=256 full=99 p50_200=19.4 p50_304=15.4 kB=126 st={"200":340,"304":15}
+GET /pos/floor                       n= 1558 rps=  3.64 p50=28.7 p95=43.8 p99=64.7 err%=0 304%=2.2 inm=1276 full=282 p50_200=28.8 p50_304=16.3 kB=6695 st={"200":1523,"304":35}
+GET /pos/orders/:id                  n= 1176 rps=  2.75 p50=36.3 p95=71.4 p99=116.9 err%=0 304%=2 inm=894 full=282 p50_200=36.4 p50_304=15.8 kB=4631 st={"200":1152,"304":24}
+GET /staff/kitchen/tickets           n= 1185 rps=  2.77 p50=35.6 p95=62.1 p99=120 err%=0 304%=10.1 inm=1139 full=46 p50_200=37.1 p50_304=16.1 kB=5102 st={"200":1065,"304":120}
+GET /staff/orders/:id                n= 1034 rps=  2.42 p50=26.8 p95=42.9 p99=76 err%=0 304%=1.2 inm=754 full=280 p50_200=26.9 p50_304=15.3 kB=3060 st={"200":1022,"304":12}
+GET /staff/orders?scope=active       n=  165 rps=  0.39 p50=26.8 p95=41.1 p99=81.5 err%=0 304%=0 inm=132 full=33 p50_200=26.8 p50_304=null kB=677 st={"200":165}
+GET /stores?geo&page                 n=  846 rps=  1.98 p50=24.3 p95=110.5 p99=273.2 err%=0.12 304%=0 inm=294 full=552 p50_200=24.3 p50_304=null kB=6994 st={"200":845,"503":1}
+POST /orders                         n=   21 rps=  0.05 p50=78.1 p95=120.1 p99=138.3 err%=0 kB=4 st={"201":21}
+POST /pos/bills/:id/payments         n=  282 rps=  0.66 p50=185.4 p95=233.4 p99=258.1 err%=0 kB=1141 st={"200":282}
+POST /pos/orders                     n=  282 rps=  0.66 p50=109.4 p95=142 p99=176.9 err%=0 kB=936 st={"201":282}
+POST /pos/orders/:id/bills           n=  282 rps=  0.66 p50=66.1 p95=92 p99=118.8 err%=0 kB=554 st={"201":282}
+POST /pos/orders/:id/close           n=  282 rps=  0.66 p50=42.8 p95=56.6 p99=74.5 err%=0 kB=1148 st={"200":282}
+POST /pos/orders/:id/rounds          n=  282 rps=  0.66 p50=92.8 p95=120.8 p99=140.2 err%=0 kB=1185 st={"200":282}
+POST /pos/orders/:id/send            n=  282 rps=  0.66 p50=82.6 p95=116.2 p99=153.5 err%=0 kB=1214 st={"200":282}
+errors: {"GET /catalog?store_id 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":3,"GET /catalog/availability 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":4,"GET /stores?geo&page 503 Hozir so'rovlar juda ko'p. Bir necha soniyadan keyin qayta urinib ko'ring.":1}
+retry_after: {"mkt 503 Retry-After=2":8}
+sync: {}
+phases: {"before":{"secs":90,"rps":23.4,"till_n":2105,"till_p50":31.2,"till_p95":110.4,"till_p99":169.1,"mkt_status":{},"mkt_ok_p50":null,"mkt_ok_p95":null},"during":{"secs":120,"rps":71.9,"till_n":2758,"till_p50":34.6,"till_p95":131.2,"till_p99":213.8,"mkt_status":{"200":4147,"201":21,"304":1695,"503":8},"mkt_ok_p50":32.4,"mkt_ok_p95":290.5},"after":{"secs":218,"rps":10.6,"till_n":2302,"till_p50":35.3,"till_p95":164.2,"till_p99":201.8,"mkt_status":{},"mkt_ok_p50":null,"mkt_ok_p95":null}}
+load after: 0.34 1.08 1.23

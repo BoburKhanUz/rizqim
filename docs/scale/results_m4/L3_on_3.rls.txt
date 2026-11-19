@@ -1,0 +1,26 @@
+# L3_on_3 TENANT_RLS=1
+== pg_stat_statements by role: calls | exec ms | plan ms
+m4s3_app|174243|7030|16593
+m4s3_tenant|73414|3268|7413
+== total: calls | exec ms | plan ms
+247657|10298|24006
+== transactions that took the tenant role (SET LOCAL ROLE): calls | exec ms
+2959|33.5
+== BEGIN / COMMIT / ROLLBACK calls
+BEGIN|2974
+COMMIT|2974
+== tenant_rls lines in the php-fpm log (this run)
+0
+== top 12 statements by exec+plan time: total ms | calls | mean exec ms | mean plan ms | role | query
+2433|1455|1.428|0.244|m4s3_app|select * from "orders" where "branch_id" = $1 and "channel" in ($2, $3) and "status" not in ($4, $5, $6, $7) and "orders"."store_id" = $8 and "orders"
+1477|12921|0.025|0.090|m4s3_app|select * from "users" where "users"."id" = $1 limit $2
+1253|13397|0.023|0.071|m4s3_app|select * from "personal_access_tokens" where "personal_access_tokens"."id" = $1 limit $2
+932|5434|0.027|0.144|m4s3_app|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+841|1074|0.181|0.602|m4s3_app|select * from "orders" where "orders"."store_id" = $1 and "orders"."branch_id" in ($2) and ("orders"."status" in ($3, $4) or ("orders"."status" = $5 a
+645|3327|0.031|0.163|m4s3_app|select * from "orders" where "uuid" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+596|5811|0.017|0.086|m4s3_app|select exists(select * from "devices" where "devices"."id" = $1 and "revoked_at" is null) as "exists"
+570|572|0.058|0.937|m4s3_tenant|select exists(select * from "fiscal_receipts" where "subject_type" = $1 and "subject_id" = $2 and "type" = $3 and "fiscal_receipts"."store_id" = $4) a
+546|572|0.066|0.889|m4s3_app|select * from "fiscal_receipts" where "store_id" = $1 and "uuid" = $2 and "fiscal_receipts"."store_id" = $3 limit $4
+490|2288|0.043|0.171|m4s3_tenant|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3 for update
+482|2574|0.015|0.172|m4s3_tenant|select "products"."id" as "product_id", "products"."category_id" from "product_variants" inner join "products" on "products"."id" = "product_variants"
+478|572|0.069|0.767|m4s3_app|select * from "fiscal_receipts" where "id" = $1 limit $2
