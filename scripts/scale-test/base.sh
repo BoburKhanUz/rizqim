@@ -8,6 +8,12 @@ $PSQL -c "DROP DATABASE IF EXISTS \"$DB_DATABASE\"" -c "DROP DATABASE IF EXISTS 
 $PSQL -d "$DB_DATABASE" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"
 # the seeder's orders read the cache (CACHE_STORE=redis): the kit's own Redis must be up before seeding
 pgrep -f "redis-server 127.0.0.1:$REDIS_PORT( |\$)" >/dev/null || (cd "$SCALE_WORK/logs" && redis-server --port "$REDIS_PORT" --bind 127.0.0.1 --save '' --appendonly no --daemonize yes --logfile "$SCALE_WORK/logs/redis.log")
+# M4, split roles (env.sh): the roles and their grants first (scripts/db-roles.sh as the superuser); `migrate` then runs
+# as the owner (the app's own OwnerConnection) and the seeder as the application's role. Unset = one role, as before
+if [ -n "${DB_OWNER_USERNAME:-}" ]; then
+  sudo -n -u postgres env PGPORT="$DB_PORT" DB_DATABASE="$DB_DATABASE" DB_USERNAME="$DB_USERNAME" DB_PASSWORD="$DB_PASSWORD" DB_OWNER_USERNAME="$DB_OWNER_USERNAME" \
+    DB_OWNER_PASSWORD="$DB_OWNER_PASSWORD" DB_TENANT_ROLE="${DB_TENANT_ROLE:-rizqim_tenant}" sh "$SC/../db-roles.sh" | tail -1
+fi
 cd $BACKEND && php artisan migrate --force -q && php artisan db:seed --class=PosStackSeeder --force -q
 $SC/server.sh start 2
 V=$($PSQL -d "$DB_DATABASE" -Atc "select string_agg(v.uuid::text, ',') from product_variants v join products p on p.id=v.product_id left join product_modifier_groups g on g.product_id=p.id where p.store_id=1 and not p.batch_tracked and g.id is null and coalesce(v.unit,'')<>'kg' and p.weight_mode is null")

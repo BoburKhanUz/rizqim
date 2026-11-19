@@ -15,7 +15,7 @@ start)
   sudo -n mkdir -p "$PGB_DIR" && sudo -n chown postgres "$PGB_DIR" && sudo -n chmod 700 "$PGB_DIR"
   "$0" stop >/dev/null 2>&1
   # shellcheck disable=SC2024 # the log is written by this user, into logs/
-  sudo -n -u postgres env DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE="$DB_DATABASE" \
+  sudo -n -u postgres env DB_HOST=127.0.0.1 DB_PORT="$DB_PORT" DB_DATABASE="$DB_DATABASE" \
     DB_USERNAME="${DB_USERNAME:-$(db_env DB_USERNAME)}" DB_PASSWORD="${DB_PASSWORD:-$(db_env DB_PASSWORD)}" \
     PGBOUNCER_PORT="$DB_POOL_PORT" PGBOUNCER_LISTEN_ADDR=127.0.0.1 PGBOUNCER_RUN_DIR="$PGB_DIR" \
     PGBOUNCER_POOL_SIZE="${PGBOUNCER_POOL_SIZE:-20}" PGBOUNCER_RESERVE_POOL_SIZE="${PGBOUNCER_RESERVE_POOL_SIZE:-5}" \

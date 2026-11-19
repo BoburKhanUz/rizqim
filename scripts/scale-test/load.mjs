@@ -27,7 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const sh = (cmd) => new Promise((res) => exec(cmd, { maxBuffer: 1 << 24 }, (e, out) => res(e ? '' : out.trim())));
-const psql = (sql) => sh(`sudo -n -u postgres psql -X -At -d ${DB} -c "${sql.replace(/"/g, '\\"')}"`);
+const psql = (sql) => sh(`sudo -n -u postgres psql -p ${process.env.DB_PORT || 5432} -X -At -d ${DB} -c "${sql.replace(/"/g, '\\"')}"`);
 
 // ---------------------------------------------------------------- stats
 const samples = []; // [t_ms, label, ms, status, group, body_bytes, unconditional(0/1/2: 2 = conditional sent)]

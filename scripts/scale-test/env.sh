@@ -33,7 +33,14 @@ export TELEGRAM_BOT_TOKEN='' TELEGRAM_OPS_CHAT_ID='' TELEGRAM_SUPERADMIN_CHAT_ID
 export http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 HTTPS_PROXY=http://127.0.0.1:9 no_proxy='' NO_PROXY=''
 # RT=1: the app and the queue worker reach Reverb's HTTP API on 127.0.0.1 (everything else stays black-holed)
 if [ "${RT:-0}" = 1 ]; then export no_proxy=127.0.0.1,localhost NO_PROXY=127.0.0.1,localhost; fi
-export PSQL="sudo -n -u postgres psql -X -q -v ON_ERROR_STOP=1"
+# The Postgres cluster: DB_PORT (5432 when unset, as before) for the app, PgBouncer and the kit's own superuser psql
+export DB_PORT=${DB_PORT:-5432}
+export PSQL="sudo -n -u postgres psql -p $DB_PORT -X -q -v ON_ERROR_STOP=1"
+# M4, split database roles (optional; nothing below is set by the kit, a plain run is one role as before). Export
+# before base.sh / server.sh / m2.sh: DB_USERNAME + DB_PASSWORD = the application's login role, DB_OWNER_USERNAME +
+# DB_OWNER_PASSWORD = the schema owner (base.sh then runs scripts/db-roles.sh and `migrate` runs as the owner),
+# DB_TENANT_ROLE = the tenant role's name, TENANT_RLS=1|0 = row-level security for tenant requests on or off (it
+# reaches php-fpm through the config cache server.sh builds). docs/scale/RESULTS_M4.md has the exact commands.
 # Connection mode of the app (config/database.php): direct (default, as the first run) or pgbouncer = through
 # ./pgbouncer.sh on DB_POOL_PORT, transaction pooling, as php-fpm in docker-compose.yml
 export DB_POOLER=${DB_POOLER:-direct} DB_POOL_HOST=${DB_POOL_HOST:-127.0.0.1} DB_POOL_PORT=${DB_POOL_PORT:-16432}
