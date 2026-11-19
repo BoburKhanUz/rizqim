@@ -175,8 +175,9 @@ class OwnerEmployeeController extends Controller
         // CUSTOMER at any store: orders.user_id is ON DELETE CASCADE, and bills, payments, refunds and QR payments go
         // with the orders. Foreign-key actions run as the table owner, so no store guard and no row-level security
         // policy sees them. Such a person is taken out of the store instead (no role, store, PIN or session) and stays
-        // the customer they also are; only an account with nothing of a customer's is deleted
-        if ($this->hasCustomerHistory($employee)) {
+        // the customer they also are. The same for staff who did anything in the store: the delete's ON DELETE SET
+        // NULL actions would erase WHO from the store's own money journal. Only an account with no history is deleted
+        if ($this->hasHistory($employee)) {
             DB::transaction(function () use ($employee) {
                 $employee->forceFill([
                     'role' => UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
@@ -192,16 +193,32 @@ class OwnerEmployeeController extends Controller
     }
 
     /**
-     * Rows of ANY store that deleting the users row would delete with it (ON DELETE CASCADE on user_id): orders (and,
-     * from them, the money tables), complaints, ratings. Asked as the login role (TenantRls::asApp) and without the
-     * store scope: the owner's request is bound to their own store, and the rows that matter are the other stores'.
-     * Only "exists" comes back.
+     * What deleting the users row would take away. As a CUSTOMER at ANY store (ON DELETE CASCADE on user_id): orders
+     * (and, from them, the money tables), complaints, ratings. As STAFF (ON DELETE SET NULL, or CASCADE for work
+     * sessions): the name on what they did. The cheap, indexed questions first: the audit journal names the actor of
+     * nearly everything done at a till or in the panel (audit_logs.user_id), then deliveries (orders.courier_id), work
+     * sessions and tips; then the money columns that have no index of their own, within the person's store:
+     * orders.waiter_id, pos_shifts.opened_by / closed_by, cash_movements.user_id, payments.received_by,
+     * pos_refunds.user_id. Asked as the login role (TenantRls::asApp) and without the store scope: the owner's request
+     * is bound to their own store, and a customer's rows are the other stores'. Only "exists" comes back.
      */
-    private function hasCustomerHistory(User $employee): bool
+    private function hasHistory(User $employee): bool
     {
-        return TenantRls::asApp(fn () => DB::table('orders')->where('user_id', $employee->id)->exists()
-            || DB::table('complaints')->where('user_id', $employee->id)->exists()
-            || DB::table('store_ratings')->where('user_id', $employee->id)->exists());
+        $id = $employee->id;
+        $own = fn (string $table) => DB::table($table)->where('store_id', $employee->store_id);
+
+        return TenantRls::asApp(fn () => DB::table('orders')->where('user_id', $id)->exists()
+            || DB::table('complaints')->where('user_id', $id)->exists()
+            || DB::table('store_ratings')->where('user_id', $id)->exists()
+            || DB::table('audit_logs')->where('user_id', $id)->exists()
+            || DB::table('orders')->where('courier_id', $id)->exists()
+            || DB::table('staff_work_sessions')->where('user_id', $id)->exists()
+            || DB::table('pos_tips')->where('staff_id', $id)->exists()
+            || $own('orders')->where('waiter_id', $id)->exists()
+            || $own('pos_shifts')->where(fn ($q) => $q->where('opened_by', $id)->orWhere('closed_by', $id))->exists()
+            || $own('cash_movements')->where('user_id', $id)->exists()
+            || $own('payments')->where('received_by', $id)->exists()
+            || $own('pos_refunds')->where('user_id', $id)->exists());
     }
 
     private function isStoreOwner(User $user): bool

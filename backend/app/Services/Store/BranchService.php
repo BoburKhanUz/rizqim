@@ -13,6 +13,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -119,6 +120,14 @@ class BranchService
     {
         if (Order::withTrashed()->where('branch_id', $branch->id)->exists()) {
             return "Filialda buyurtmalar bor, uni o'chirib bo'lmaydi. O'rniga uni faol emas qiling.";
+        }
+        // M4 stage 3 audit: these tables are ON DELETE CASCADE from the branch. A branch without a single order may
+        // still have shifts, cash movements, booking deposits, banquet advances, tips, QR payments or pay statements:
+        // deleting it would delete that money history without a word
+        foreach (['pos_shifts', 'cash_movements', 'booking_payments', 'banquet_payments', 'banquet_payment_entries', 'pos_tips', 'pos_qr_payments', 'staff_pay_statements'] as $table) {
+            if (DB::table($table)->where('branch_id', $branch->id)->exists()) {
+                return "Filialda kassa smenalari yoki pul harakatlari tarixi bor, uni o'chirib bo'lmaydi. O'rniga uni faol emas qiling.";
+            }
         }
         if (!Branch::where('store_id', $branch->store_id)->whereKeyNot($branch->id)->exists()) {
             return "Do'konning yagona filialini o'chirib bo'lmaydi.";
