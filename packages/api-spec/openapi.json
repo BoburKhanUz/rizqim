@@ -22037,7 +22037,7 @@
         "/v1/admin/pos/devices/{uuid}/revoke": {
             "post": {
                 "operationId": "admin.pos.device_revoked",
-                "description": "`reason`. The device and everything signed in on it stops working at once; a terminal has to be paired again with\na new code by the owner. Revoking a revoked device changes nothing. Answers the device.",
+                "description": "`reason`. The device and everything signed in on it stops working at once; a terminal has to be paired again with\na new code by the owner. Revoking a revoked device changes nothing. Answers the device.\nWave M5 S1: a till that last reported unsent offline operations (`sync.pending_ops`) answers 409 `pending_ops`\nwith the count; `confirm_pending: true` revokes it all the same (the operations stay on the till and no longer\narrive by themselves). The audit rows keep the count.",
                 "summary": "Revoke a device",
                 "tags": [
                     "Admin"
@@ -22063,6 +22063,12 @@
                                         "type": "string",
                                         "minLength": 3,
                                         "maxLength": 500
+                                    },
+                                    "confirm_pending": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -22244,6 +22250,16 @@
                                         "message",
                                         "data"
                                     ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The till has unsent offline operations: confirm with confirm_pending (pending_ops)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -51038,6 +51054,8 @@
         "/v1/owner/devices/{uuid}/revoke": {
             "post": {
                 "operationId": "storeDevice.revoke",
+                "description": "The device, its token and every session on it stop working at once. Wave M5 S1: a till that last reported\noffline operations it has not sent yet (`sync.pending_ops`) is not revoked at once: 409 `pending_ops` with the\ncount and a warning; send `confirm_pending: true` to revoke it all the same (the operations stay on the till\nand no longer arrive by themselves). The audit row `device.revoked` keeps the count.",
+                "summary": "Revoke a device",
                 "tags": [
                     "Owner: devices"
                 ],
@@ -51051,6 +51069,23 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "confirm_pending": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -51170,6 +51205,16 @@
                             }
                         }
                     },
+                    "409": {
+                        "description": "The till has unsent offline operations: confirm with confirm_pending (pending_ops)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
                     "404": {
                         "description": "",
                         "content": {
@@ -51179,6 +51224,9 @@
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"

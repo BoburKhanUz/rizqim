@@ -12,6 +12,7 @@ import '../models/post_v1_owner_devices_pairing_codes_response.dart';
 import '../models/post_v1_owner_devices_uuid_revoke_response.dart';
 import '../models/v1_owner_devices_pairing_codes_request_body.dart';
 import '../models/v1_owner_devices_uuid_request_body.dart';
+import '../models/v1_owner_devices_uuid_revoke_request_body.dart';
 
 part 'owner_devices_api.g.dart';
 
@@ -42,8 +43,15 @@ abstract class OwnerDevicesApi {
     @Body() required V1OwnerDevicesUuidRequestBody body,
   });
 
+  /// Revoke a device.
+  ///
+  /// The device, its token and every session on it stop working at once. Wave M5 S1: a till that last reported.
+  /// offline operations it has not sent yet (`sync.pending_ops`) is not revoked at once: 409 `pending_ops` with the.
+  /// count and a warning; send `confirm_pending: true` to revoke it all the same (the operations stay on the till.
+  /// and no longer arrive by themselves). The audit row `device.revoked` keeps the count.
   @POST('/v1/owner/devices/{uuid}/revoke')
   Future<PostV1OwnerDevicesUuidRevokeResponse> storeDeviceRevoke({
     @Path('uuid') required String uuid,
+    @Body() V1OwnerDevicesUuidRevokeRequestBody? body,
   });
 }

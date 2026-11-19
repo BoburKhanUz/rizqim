@@ -2246,6 +2246,9 @@ export interface paths {
          * Revoke a device
          * @description `reason`. The device and everything signed in on it stops working at once; a terminal has to be paired again with
          *     a new code by the owner. Revoking a revoked device changes nothing. Answers the device.
+         *     Wave M5 S1: a till that last reported unsent offline operations (`sync.pending_ops`) answers 409 `pending_ops`
+         *     with the count; `confirm_pending: true` revokes it all the same (the operations stay on the till and no longer
+         *     arrive by themselves). The audit rows keep the count.
          */
         post: operations["admin.pos.device_revoked"];
         delete?: never;
@@ -5642,6 +5645,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Revoke a device
+         * @description The device, its token and every session on it stop working at once. Wave M5 S1: a till that last reported
+         *     offline operations it has not sent yet (`sync.pending_ops`) is not revoked at once: 409 `pending_ops` with the
+         *     count and a warning; send `confirm_pending: true` to revoke it all the same (the operations stay on the till
+         *     and no longer arrive by themselves). The audit row `device.revoked` keeps the count.
+         */
         post: operations["storeDevice.revoke"];
         delete?: never;
         options?: never;
@@ -20735,6 +20745,7 @@ export interface operations {
             content: {
                 "application/json": {
                     reason: string;
+                    confirm_pending?: boolean | null;
                 };
             };
         };
@@ -20782,6 +20793,15 @@ export interface operations {
             };
             401: components["responses"]["AuthenticationException"];
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The till has unsent offline operations: confirm with confirm_pending (pending_ops) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -30763,7 +30783,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    confirm_pending?: boolean | null;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -30803,6 +30829,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description The till has unsent offline operations: confirm with confirm_pending (pending_ops) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
         };
     };
     "diningTable.index": {

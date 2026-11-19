@@ -542,6 +542,7 @@ export 'models/v1_owner_devices_uuid_request_body.dart';
 export 'models/user13.dart';
 export 'models/data77.dart';
 export 'models/post_v1_owner_devices_uuid_revoke_response.dart';
+export 'models/v1_owner_devices_uuid_revoke_request_body.dart';
 export 'models/layout.dart';
 export 'models/data78.dart';
 export 'models/get_v1_owner_dining_tables_response.dart';
