@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantRls;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,6 +54,22 @@ class AuditLog extends Model
         static::deleting(function (): never {
             throw new \LogicException('Audit log entries cannot be deleted.');
         });
+    }
+
+    /**
+     * M4 stage 3: inside a tenant transaction the policy on audit_logs accepts only rows of the bound store. An entry
+     * for no store (store_id NULL: a platform-level line, which no store can read back) is still a legitimate entry of
+     * a tenant request, and a journal line must not fail the action it records: that one row is written as the login
+     * role (TenantRls::asApp). An entry for ANOTHER store is not let through: no tenant request has a reason to
+     * write one, so it is the mistake (or the forgery) the policy is there to stop, and it fails loudly.
+     */
+    protected function performInsert(Builder $query)
+    {
+        if ($this->getAttribute('store_id') === null && app(TenantContext::class)->storeId() !== null) {
+            return TenantRls::asApp(fn () => parent::performInsert($query));
+        }
+
+        return parent::performInsert($query);
     }
 
     /**

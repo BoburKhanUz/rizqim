@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\DeviceType;
 use App\Enums\UserRole;
+use App\Domain\Pos\Shifts\CashMovementType;
 use App\Models\Branch;
+use App\Models\CashMovement;
+use App\Models\PosShift;
 use App\Models\Device;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -62,6 +65,32 @@ class BranchDeletionReferencesTest extends TestCase
         $zone->forceFill(['branch_id' => $this->branch->id])->save();
         $this->deleteDoomed()->assertOk();
         $this->assertNull(Branch::find($this->doomed->id));
+    }
+
+    /**
+     * M4 stage 3 audit: the branch's foreign keys are ON DELETE CASCADE into the money tables. A branch that never had
+     * an order may still have shifts, cash movements, booking deposits, banquet advances, tips, QR payments or pay
+     * statements: deleting it would delete them without a word. Such a branch is made inactive instead.
+     */
+    public function test_a_branch_with_shift_or_money_history_and_no_order_is_not_deleted(): void
+    {
+        $terminal = $this->pairTerminal($this->owner, $this->doomed, DeviceType::POS);
+        $shift = PosShift::create([
+            'store_id' => $this->store->id, 'branch_id' => $this->doomed->id, 'device_id' => $terminal['device']->id, 'business_date' => now()->toDateString(),
+            'status' => 'closed', 'opened_by' => $this->owner->id, 'opened_at' => now()->subHours(3), 'opening_cash' => '100000.00', 'closed_by' => $this->owner->id, 'closed_at' => now(),
+        ]);
+        $movement = CashMovement::create([
+            'store_id' => $this->store->id, 'branch_id' => $this->doomed->id, 'shift_id' => $shift->id, 'type' => CashMovementType::OPENING, 'amount' => '100000.00', 'user_id' => $this->owner->id,
+        ]);
+        Device::whereKey($terminal['device']->id)->update(['revoked_at' => now()]); // nothing else is tied to the branch
+
+        $this->deleteDoomed()->assertStatus(422)
+            ->assertJsonPath('data.reason', 'branch_in_use')
+            ->assertJsonPath('message', "Filialda kassa smenalari yoki pul harakatlari tarixi bor, uni o'chirib bo'lmaydi. O'rniga uni faol emas qiling.");
+
+        $this->assertNotNull(Branch::find($this->doomed->id));
+        $this->assertNotNull(PosShift::find($shift->id));
+        $this->assertNotNull(CashMovement::find($movement->id));
     }
 
     public function test_the_older_reasons_still_come_first_and_carry_the_counts(): void

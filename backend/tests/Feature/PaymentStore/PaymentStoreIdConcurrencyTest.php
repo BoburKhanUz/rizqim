@@ -64,6 +64,7 @@ class PaymentStoreIdConcurrencyTest extends TestCase
         if (isset($this->store)) {
             // Whatever happened, the schema ends complete (the migration is re-runnable) and the fixtures are gone
             (require database_path(self::MIGRATION))->up();
+            $this->rowLevelSecurity()->up(); // the policies a test rolled back (it goes on where it stopped)
             DB::table('payments')->whereIn('order_id', collect($this->orders)->pluck('id'))->delete();
             $userIds = User::whereIn('store_id', [$this->store->id, $this->other->id])->pluck('id')->push($this->customer->id)->all();
             Order::withTrashed()->whereIn('store_id', [$this->store->id, $this->other->id])->forceDelete();
@@ -166,6 +167,7 @@ class PaymentStoreIdConcurrencyTest extends TestCase
     public function test_a_till_holding_a_payment_row_across_any_step_of_the_migration_is_never_the_one_that_fails(): void
     {
         [$mine, $theirs] = $this->orders;
+        $this->rowLevelSecurity()->down();
         $migration = require database_path(self::MIGRATION);
         $migration->down();
         $old = [];
@@ -211,6 +213,15 @@ class PaymentStoreIdConcurrencyTest extends TestCase
         $this->assertFalse((bool) DB::selectOne("SELECT NOT attnotnull AS n FROM pg_attribute WHERE attrelid = 'payments'::regclass AND attname = 'store_id'")->n, "payments.store_id is NOT NULL (after {$timeouts} lock timeouts)");
         $this->assertSame(0, DB::table('payments')->join('orders', 'orders.id', '=', 'payments.order_id')->whereIn('payments.order_id', [$mine->id, $theirs->id])
             ->whereColumn('payments.store_id', '!=', 'orders.store_id')->count());
+    }
+
+    /**
+     * M4 stage 3: the policy `tenant` on payments (migration 2026_11_28_100000) depends on store_id, so that migration
+     * is rolled back before this one, as `migrate:rollback` does it (in order).
+     */
+    private function rowLevelSecurity(): \Illuminate\Database\Migrations\Migration
+    {
+        return require database_path('migrations/2026_11_28_100000_enable_tenant_row_level_security.php');
     }
 
     /**

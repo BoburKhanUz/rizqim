@@ -1,0 +1,26 @@
+# L3_on_1 TENANT_RLS=1
+== pg_stat_statements by role: calls | exec ms | plan ms
+m4s3_app|170777|7394|16854
+m4s3_tenant|69838|3235|7358
+== total: calls | exec ms | plan ms
+240615|10629|24212
+== transactions that took the tenant role (SET LOCAL ROLE): calls | exec ms
+2829|33.3
+== BEGIN / COMMIT / ROLLBACK calls
+BEGIN|2848
+COMMIT|2848
+== tenant_rls lines in the php-fpm log (this run)
+0
+== top 12 statements by exec+plan time: total ms | calls | mean exec ms | mean plan ms | role | query
+2793|1578|1.511|0.259|m4s3_app|select * from "orders" where "branch_id" = $1 and "channel" in ($2, $3) and "status" not in ($4, $5, $6, $7) and "orders"."store_id" = $8 and "orders"
+1500|12830|0.025|0.092|m4s3_app|select * from "users" where "users"."id" = $1 limit $2
+1328|13311|0.025|0.075|m4s3_app|select * from "personal_access_tokens" where "personal_access_tokens"."id" = $1 limit $2
+934|5128|0.028|0.154|m4s3_app|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+831|1031|0.186|0.620|m4s3_app|select * from "orders" where "orders"."store_id" = $1 and "orders"."branch_id" in ($2) and ("orders"."status" in ($3, $4) or ("orders"."status" = $5 a
+652|3169|0.033|0.173|m4s3_app|select * from "orders" where "uuid" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+611|5764|0.016|0.090|m4s3_app|select exists(select * from "devices" where "devices"."id" = $1 and "revoked_at" is null) as "exists"
+574|546|0.062|0.989|m4s3_tenant|select exists(select * from "fiscal_receipts" where "subject_type" = $1 and "subject_id" = $2 and "type" = $3 and "fiscal_receipts"."store_id" = $4) a
+551|546|0.067|0.941|m4s3_app|select * from "fiscal_receipts" where "store_id" = $1 and "uuid" = $2 and "fiscal_receipts"."store_id" = $3 limit $4
+489|2184|0.045|0.179|m4s3_tenant|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3 for update
+481|546|0.060|0.820|m4s3_app|select * from "fiscal_receipts" where "id" = $1 limit $2
+479|4525|0.028|0.077|m4s3_app|select * from "stores" where "stores"."id" = $1 and "stores"."deleted_at" is null limit $2

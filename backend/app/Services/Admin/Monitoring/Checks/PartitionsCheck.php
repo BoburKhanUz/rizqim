@@ -9,6 +9,8 @@ use App\Services\Admin\Monitoring\BackupState;
 use App\Services\Admin\Monitoring\PostgresStats;
 use App\Support\Database\OwnerConnection;
 use App\Support\Partitions\PartitionManager;
+use App\Support\Tenancy\TenantRls;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -65,7 +67,7 @@ class PartitionsCheck implements AlertCheck
             ], null, (self::CRITICAL_CODES[$problem['code']] ?? false) ? 'critical' : 'warning');
         }
 
-        return array_merge($findings, $this->maintenanceRole(), $this->archiveStorage($status), $this->paymentsStore());
+        return array_merge($findings, $this->maintenanceRole(), $this->archiveStorage($status), $this->paymentsStore(), $this->tenantRls());
     }
 
     /**
@@ -194,6 +196,67 @@ class PartitionsCheck implements AlertCheck
         return [new AlertFinding('payments_store_nullable', "payments.store_id hali NULL bo'lishi mumkin: {$what}. Tekshirib, NOT NULL qadamini yakunlang (docs/OPERATIONS.md, 23-bo'lim)", [
             'missing' => is_int($missing) ? $missing : null,
         ], null, 'warning')];
+    }
+
+    /**
+     * M4 stage 3 (docs/OPERATIONS.md section 24), both critical:
+     * - the state of the roles, asked from the database on every evaluation (TenantRls::setupProblems(), as this
+     *   process's login role, which is php-fpm's): TENANT_RLS on while the tenant role cannot be used (tenant requests
+     *   run unprotected, or fail for a missing grant), a table whose policy is off or not the agreed one, or the login
+     *   role itself bound by the policies. Open for as long as the state lasts, whether or not a request met it. A
+     *   state that could not be read is a warning of its own while TENANT_RLS is on, never silence;
+     * - a write PostgreSQL refused under row-level security (TenantRls::refused() keeps the last one in the cache for
+     *   TenantRls::REFUSED_TTL): the till got a server error, and either a forged row was stopped or a legitimate
+     *   write is being refused, which the operator ends with TENANT_RLS=0. Closes an hour after the last one.
+     * Never throws.
+     *
+     * @return list<AlertFinding>
+     */
+    private function tenantRls(): array
+    {
+        $findings = [];
+        $setup = $this->tenantRlsSetup();
+        foreach ($setup ?? [] as $code => $problem) {
+            $title = $code === 'login_bound' ? $problem : "Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: {$problem}";
+            $findings[] = new AlertFinding("tenant_rls_{$code}", $title, ['code' => $code], null, 'critical');
+        }
+        // A check that could not run is not a check that passed (only where the protection is switched on)
+        if ($setup === null && TenantRls::enabled()) {
+            $findings[] = new AlertFinding('tenant_rls_unverified', "Qator himoyasi (RLS) holatini tekshirib bo'lmadi (so'rov vaqtida tugamadi yoki xato berdi): himoya ishlayotgani tasdiqlanmagan. Takrorlansa `php artisan app:check-production` ni ishga tushirib ko'ring (docs/OPERATIONS.md, 24-bo'lim)", [], null, 'warning');
+        }
+
+        try {
+            $refused = Cache::get(TenantRls::REFUSED);
+        } catch (Throwable) {
+            $refused = null;
+        }
+        if (is_array($refused)) {
+            $store = is_int($refused['store_id'] ?? null) ? $refused['store_id'] : null;
+            $where = implode(', ', array_filter([
+                filled($refused['table'] ?? null) ? "jadval {$refused['table']}" : null,
+                filled($refused['route'] ?? null) ? "yo'l {$refused['route']}" : null,
+                $store !== null ? "do'kon {$store}" : null,
+            ]));
+            $count = (int) ($refused['count'] ?? 1);
+            $findings[] = new AlertFinding('tenant_rls_refused', "Qator himoyasi (RLS) yozuvni rad etdi: {$count} marta" . ($where !== '' ? " (oxirgisi: {$where})" : '') . ". Kassa yoki panel server xatosi oldi. Qonuniy amal rad etilgan bo'lsa darhol o'chiring: ildizdagi .env da TENANT_RLS=0, so'ng docker compose up -d (docs/OPERATIONS.md, 24-bo'lim)", [
+                'count' => $count,
+                'table' => $refused['table'] ?? null,
+                'route' => $refused['route'] ?? null,
+                'last_at' => $refused['at'] ?? null,
+            ], $store, 'critical');
+        }
+
+        return $findings;
+    }
+
+    /**
+     * TenantRls::setupProblems() under the statement timeout; null = could not be read.
+     *
+     * @return array<string, string>|null
+     */
+    protected function tenantRlsSetup(): ?array
+    {
+        return PostgresStats::bounded(fn () => TenantRls::setupProblems(), 'tenant_rls');
     }
 
     /**

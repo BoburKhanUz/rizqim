@@ -340,15 +340,18 @@ class LedgerService
         $delivered = \App\Enums\OrderStatus::DELIVERED->value;
         $deliveredAs = \App\Models\OrderStatusHistory::where('order_id', $order->id)->where('status', $delivered)->min('id');
 
-        // M4: the customer's orders at every store (the platform's first delivery), also when a store's staff deliver
-        return !\App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('user_id', $order->user_id)
+        // M4: the customer's orders at every store (the platform's first delivery), also when a store's staff deliver.
+        // Stage 3: as the login role, because inside the delivery's tenant transaction row-level security hides the
+        // other stores' orders whatever the scope says (the reward would be paid again at every store). Only
+        // "exists" comes back, no row of another store
+        return !\App\Support\Tenancy\TenantRls::asApp(fn () => \App\Models\Order::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('user_id', $order->user_id)
             ->whereKeyNot($order->id)
             ->whereIn('status', [$delivered, \App\Enums\OrderStatus::REFUNDED->value])
             ->when($deliveredAs !== null, fn ($query) => $query->whereDoesntHave(
                 'statusHistories',
                 fn ($history) => $history->where('status', $delivered)->where('id', '>', $deliveredAs)
             ))
-            ->exists();
+            ->exists());
     }
 
     /**

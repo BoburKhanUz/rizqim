@@ -92,11 +92,16 @@ start_rt() {
   # Their own config cache: straight to Postgres (DB_POOLER=direct, as the compose queue/scheduler/reverb) as role
   # scale_rt (a member of the app role, new password per start), so pg_stat_statements and the backend CPU of the
   # broadcast jobs are told apart from the web requests'. Dropped by `server.sh drop-rt-role` (cleanup).
-  local app_user rtpw; app_user=$(grep "^DB_USERNAME=" "$BACKEND/.env" | cut -d= -f2- | tr -d '"'); rtpw=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
-  $PSQL -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scale_rt') THEN CREATE ROLE scale_rt LOGIN IN ROLE $app_user; END IF; END \$\$" \
+  # M4: the app role is DB_USERNAME when the caller exports one (split roles), else backend/.env's. BYPASSRLS is an
+  # attribute, not a privilege a member inherits: scale_rt gets what the app role has (the compose queue, scheduler
+  # and Reverb run as the app role itself and must see every store's rows), and is made a member of it either way
+  local app_user rtpw; app_user=${DB_USERNAME:-$(grep "^DB_USERNAME=" "$BACKEND/.env" | cut -d= -f2- | tr -d '"')}; rtpw=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+  $PSQL -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scale_rt') THEN CREATE ROLE scale_rt LOGIN; END IF;
+              EXECUTE format('GRANT %I TO scale_rt', '$app_user');
+              EXECUTE 'ALTER ROLE scale_rt ' || CASE WHEN (SELECT rolbypassrls FROM pg_roles WHERE rolname = '$app_user') THEN 'BYPASSRLS' ELSE 'NOBYPASSRLS' END; END \$\$" \
         -c "ALTER ROLE scale_rt PASSWORD '$rtpw'" >/dev/null
   export APP_CONFIG_CACHE=$SCALE_WORK/cache/config-rt.php
-  (cd "$BACKEND" && DB_POOLER=direct DB_HOST=127.0.0.1 DB_PORT=5432 DB_USERNAME=scale_rt DB_PASSWORD=$rtpw php artisan config:cache -q)
+  (cd "$BACKEND" && DB_POOLER=direct DB_HOST=127.0.0.1 DB_USERNAME=scale_rt DB_PASSWORD=$rtpw php artisan config:cache -q)
   bg reverb php artisan reverb:start --host=127.0.0.1 --port="$REVERB_PORT"
   bg queue php artisan queue:work redis --queue=default,broadcasts --tries=3 --sleep=1
   if [ "${RT_SCHEDULER:-heartbeat}" = full ]; then bg scheduler php artisan schedule:work

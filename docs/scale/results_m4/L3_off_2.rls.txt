@@ -1,0 +1,25 @@
+# L3_off_2 TENANT_RLS=0
+== pg_stat_statements by role: calls | exec ms | plan ms
+m4s3_app|240470|9927|22754
+== total: calls | exec ms | plan ms
+240470|9927|22754
+== transactions that took the tenant role (SET LOCAL ROLE): calls | exec ms
+0|0
+== BEGIN / COMMIT / ROLLBACK calls
+BEGIN|2663
+COMMIT|2663
+== tenant_rls lines in the php-fpm log (this run)
+0
+== top 12 statements by exec+plan time: total ms | calls | mean exec ms | mean plan ms | role | query
+2384|1444|1.409|0.242|m4s3_app|select * from "orders" where "branch_id" = $1 and "channel" in ($2, $3) and "status" not in ($4, $5, $6, $7) and "orders"."store_id" = $8 and "orders"
+1433|13180|0.023|0.086|m4s3_app|select * from "users" where "users"."id" = $1 limit $2
+1219|13393|0.023|0.068|m4s3_app|select * from "personal_access_tokens" where "personal_access_tokens"."id" = $1 limit $2
+1173|7037|0.027|0.140|m4s3_app|select * from "orders" where "orders"."id" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+798|1044|0.172|0.593|m4s3_app|select * from "orders" where "orders"."store_id" = $1 and "orders"."branch_id" in ($2) and ("orders"."status" in ($3, $4) or ("orders"."status" = $5 a
+639|3328|0.033|0.159|m4s3_app|select * from "orders" where "uuid" = $1 and "orders"."store_id" = $2 and "orders"."deleted_at" is null limit $3
+629|6269|0.028|0.072|m4s3_app|select * from "stores" where "stores"."id" = $1 and "stores"."deleted_at" is null limit $2
+586|566|0.067|0.969|m4s3_app|select * from "fiscal_receipts" where "store_id" = $1 and "uuid" = $2 and "fiscal_receipts"."store_id" = $3 limit $4
+569|5781|0.015|0.083|m4s3_app|select exists(select * from "devices" where "devices"."id" = $1 and "revoked_at" is null) as "exists"
+527|5451|0.029|0.068|m4s3_app|select * from "stores" where "stores"."id" in ($1) and "stores"."deleted_at" is null
+523|566|0.050|0.874|m4s3_app|select exists(select * from "fiscal_receipts" where "subject_type" = $1 and "subject_id" = $2 and "type" = $3 and "fiscal_receipts"."store_id" = $4) a
+500|566|0.061|0.821|m4s3_app|select * from "fiscal_receipts" where "id" = $1 limit $2

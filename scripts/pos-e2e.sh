@@ -24,6 +24,19 @@
 # Before wiping, the script asks Laravel itself which environment and database it is on (the stack keeps its own
 # config/route/event caches under e2e/pos/.run, so a developer's cached backend/bootstrap/cache/config.php is never
 # read) and refuses unless that is APP_ENV=e2e on exactly this database.
+#
+# M4, split database roles and row-level security (docs/OPERATIONS.md sections 22 and 24): nothing in this script changes.
+# The variables below are not set by the script, so the servers inherit them from the caller's environment: migrate:fresh
+# then runs as the owner and the servers as the DML-only role, every transaction of a till request as the tenant role.
+# Once, as a superuser: create the database and the roles (the application role cannot create a database):
+#   createdb rizqim_pos_e2e
+#   PGDATABASE=rizqim_pos_e2e DB_DATABASE=rizqim_pos_e2e DB_USERNAME=rizqim_app DB_PASSWORD=<app password> \
+#     DB_OWNER_USERNAME=rizqim_owner DB_OWNER_PASSWORD=<owner password> sh scripts/db-roles.sh
+# then:
+#   POS_E2E_DB_USERNAME=rizqim_app POS_E2E_DB_PASSWORD=<app password> \
+#     DB_OWNER_USERNAME=rizqim_owner DB_OWNER_PASSWORD=<owner password> TENANT_RLS=1 scripts/pos-e2e.sh
+# (DB_TENANT_ROLE too when the tenant role is not called rizqim_tenant.) To see that the role was really taken:
+# `ALTER DATABASE rizqim_pos_e2e SET log_statement = 'all'` before the run and count `SET LOCAL ROLE` in the server log.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

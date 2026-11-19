@@ -149,6 +149,9 @@ class RevisionMapCoverageTest extends TestCase
             // conversion: no row a screen shows changes (raw SQL on partition names is allowed only there)
             'Support/Partitions/PartitionManager.php',
             'Support/Partitions/PartitionConverter.php',
+            // M4 stage 3: the connection itself sends SET LOCAL ROLE / SET LOCAL app.store_id around a tenant
+            // transaction (straight to PDO, so no query event and no row is written)
+            'Domain/Realtime/RevisionPostgresConnection.php',
         ];
         $offenders = [];
         $root = app_path();

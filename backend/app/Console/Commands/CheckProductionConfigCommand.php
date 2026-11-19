@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\UserRole;
 use App\Models\User;
 use App\Support\Database\OwnerConnection;
+use App\Support\Tenancy\TenantRls;
 use Illuminate\Console\Command;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\DB;
@@ -88,7 +89,7 @@ class CheckProductionConfigCommand extends Command
             $this->warn("OGOHLANTIRISH: HEALTHCHECKS_PING_URL bo'sh: server yoki scheduler to'xtasa hech kim xabar bermaydi. healthchecks.io da bepul tekshiruv ochib, manzilini ildizdagi .env ga yozing (docs/OPERATIONS.md, 21-bo'lim).");
         }
 
-        $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->accountProblems());
+        $problems = array_merge($problems, $this->reverbProblems(), $this->databaseRoleProblems(), $this->tenantRlsProblems(), $this->accountProblems());
         $this->warnPaymentProviders();
 
         if ($problems !== []) {
@@ -188,6 +189,38 @@ class CheckProductionConfigCommand extends Command
         }
 
         return $problems;
+    }
+
+    /**
+     * M4 stage 3 (docs/scale/M4_DESIGN.md 4.3, docs/OPERATIONS.md section 24): row-level security
+     * (TenantRls::setupProblems()). Always refused: a login role the policies bind. With TENANT_RLS on: a tenant role
+     * that is misnamed, missing, not bound by the policies, cannot be taken, or lacks a privilege the login role has.
+     * Such a setup must not start: the tills would work, unprotected (the connection's fail-open path is for a role
+     * lost while running), or fail at the first sale (a missing grant). This runs before the migrations
+     * (backend/docker/entrypoint.sh): tables that do not carry the policy yet are not a problem.
+     *
+     * @return list<string>
+     */
+    private function tenantRlsProblems(): array
+    {
+        try {
+            $problems = TenantRls::setupProblems();
+        } catch (\Throwable $e) {
+            $what = "qator darajasidagi himoyani (RLS) tekshirib bo'lmadi: " . mb_substr((string) preg_replace('/\s+/', ' ', $e->getMessage()), 0, 200);
+            // A check that could not run is not a check that passed: with the protection switched on, not starting is
+            // the safe answer. Off (and on an install with one role) nothing depends on it: a warning, as before
+            if (TenantRls::enabled()) {
+                return ["TENANT_RLS=1, lekin {$what}. Himoya ishlayotgani tasdiqlanmadi: bazaga ulanishni tekshirib qayta ishga tushiring (yoki TENANT_RLS=0)"];
+            }
+            $this->warn("OGOHLANTIRISH: {$what}");
+
+            return [];
+        }
+        if (TenantRls::enabled() && $problems === []) {
+            $this->info("Qator himoyasi (RLS): yoqilgan, do'kon so'rovlarining tranzaksiyalari " . TenantRls::role() . ' roli bilan ishlaydi.');
+        }
+
+        return array_values($problems);
     }
 
     /**

@@ -420,6 +420,56 @@ final class PartitionManager
     }
 
     /**
+     * M4 stage 3: the row-level security of a table (enabled / forced, and every policy as a CREATE POLICY statement
+     * with {table} for its name), read before a swap so the table that replaces it gets the same (copyRowSecurity()):
+     * a rebuilt audit_logs or fiscal_receipts without its policy `tenant` would be open to every tenant transaction.
+     *
+     * @return array{enabled: bool, forced: bool, policies: array<string, string>}
+     */
+    public function rowSecurity(string $relation): array
+    {
+        $flags = DB::selectOne('SELECT relrowsecurity AS enabled, relforcerowsecurity AS forced FROM pg_class WHERE oid = ?::regclass', [$relation]);
+        $policies = [];
+        foreach (DB::select(
+            "SELECT p.polname AS name, format('CREATE POLICY %I ON {table} AS %s FOR %s TO %s%s%s', p.polname,
+                    CASE WHEN p.polpermissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END,
+                    CASE p.polcmd WHEN 'r' THEN 'SELECT' WHEN 'a' THEN 'INSERT' WHEN 'w' THEN 'UPDATE' WHEN 'd' THEN 'DELETE' ELSE 'ALL' END,
+                    CASE WHEN p.polroles = '{0}' THEN 'PUBLIC' ELSE (SELECT string_agg(quote_ident(r.rolname), ', ' ORDER BY r.rolname) FROM pg_roles r WHERE r.oid = ANY (p.polroles)) END,
+                    CASE WHEN p.polqual IS NOT NULL THEN ' USING (' || pg_get_expr(p.polqual, p.polrelid) || ')' ELSE '' END,
+                    CASE WHEN p.polwithcheck IS NOT NULL THEN ' WITH CHECK (' || pg_get_expr(p.polwithcheck, p.polrelid) || ')' ELSE '' END) AS definition
+               FROM pg_policy p WHERE p.polrelid = ?::regclass ORDER BY p.polname",
+            [$relation],
+        ) as $row) {
+            $policies[(string) $row->name] = (string) $row->definition;
+        }
+
+        return ['enabled' => (bool) $flags->enabled, 'forced' => (bool) $flags->forced, 'policies' => $policies];
+    }
+
+    /**
+     * Gives $target the row-level security read by rowSecurity() from the table it replaces, then checks it has exactly
+     * that: a table is never swapped in less protected than the one before it (the caller's transaction rolls back).
+     *
+     * @param  array{enabled: bool, forced: bool, policies: array<string, string>}  $security
+     */
+    public function copyRowSecurity(array $security, string $target): void
+    {
+        foreach ($security['policies'] as $name => $definition) {
+            DB::statement(sprintf('DROP POLICY IF EXISTS "%s" ON %s', str_replace('"', '""', $name), $target));
+            DB::statement(str_replace('{table}', $target, $definition));
+        }
+        if ($security['enabled']) {
+            DB::statement(sprintf('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', $target));
+        }
+        if ($security['forced']) {
+            DB::statement(sprintf('ALTER TABLE %s FORCE ROW LEVEL SECURITY', $target));
+        }
+        if ($this->rowSecurity($target) !== $security) {
+            throw new RuntimeException("{$target}: qator darajasidagi himoya (RLS) siyosatlarini yangi jadvalga ko'chirib bo'lmadi: almashtirish bekor qilindi, hech narsa o'zgarmadi.");
+        }
+    }
+
+    /**
      * @param  array<string, array{definition: string, enabled: string}>  $expected
      * @param  list<string>  $exclude
      */

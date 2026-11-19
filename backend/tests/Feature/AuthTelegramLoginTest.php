@@ -256,4 +256,30 @@ class AuthTelegramLoginTest extends TestCase
         // Documented behaviour: a staff seat in another store is released
         $this->assertNull($otherStoreCourier->fresh()->telegram_id);
     }
+
+    /**
+     * M4 stage 3: an employee removed by the owner who has a history keeps the users row as a customer account (same
+     * Telegram id, no store). Invited again, to this store or another, they accept as anybody with a customer account
+     * does: the invite row becomes their staff account, the customer account stays theirs.
+     */
+    public function test_an_employee_taken_out_of_the_store_can_be_invited_again(): void
+    {
+        $owner = User::create(['name' => 'Ega', 'telegram_id' => '5550001', 'store_id' => $this->store->id, 'role' => UserRole::OWNER]);
+        $former = User::create(['name' => 'Sobiq kassir', 'telegram_id' => '8080809', 'store_id' => $this->store->id, 'role' => UserRole::CASHIER]);
+        \App\Models\AuditLog::create(['store_id' => $this->store->id, 'user_id' => $former->id, 'action' => 'pos.shift_opened']);
+
+        $this->actingAs($owner, 'sanctum')->deleteJson("/api/v1/owner/employees/{$former->id}")->assertOk();
+        $this->assertSame([UserRole::CUSTOMER, null, '8080809'], [$former->fresh()->role, $former->fresh()->store_id, $former->fresh()->telegram_id]);
+
+        $invite = User::create(['name' => 'Yana kassir', 'telegram_id' => 'temp_' . uniqid(), 'store_id' => $this->store->id, 'role' => UserRole::CASHIER, 'telegram_invite_token' => 'emp_againtoken123']);
+        $this->app['auth']->forgetGuards();
+
+        $this->login($this->signedInitData(['id' => 8080809, 'first_name' => 'Sobiq']), 'invite_emp_againtoken123')
+            ->assertOk()
+            ->assertJsonPath('data.user.id', $invite->id)
+            ->assertJsonPath('data.user.role', UserRole::CASHIER->value);
+
+        $this->assertSame(['8080809', $this->store->id], [$invite->fresh()->telegram_id, (int) $invite->fresh()->store_id]);
+        $this->assertSame([UserRole::CUSTOMER, '8080809'], [$former->fresh()->role, $former->fresh()->telegram_id], 'the history stays with the customer account');
+    }
 }

@@ -60,6 +60,22 @@ qarab.
 | Do'konlar internetsiz butun kun ishlashi shartmi | M5 hajmi | M5 tor doirada qilinadi |
 | Har do'konning o'rtacha kunlik buyurtmasi (POS va market alohida) | M3 sig'im hisobi | Taxmin bilan hisoblanadi: 150 POS + 20 market buyurtma |
 
+## Domenlar
+
+Egasi qarori (19.11.2026): asosiy domen **rizqim.uz** (rizqim.com va rizq.im ham olingan, asosiyga yo'naltiriladi).
+
+| Domen | Vazifasi | Holat |
+|---|---|---|
+| rizqim.uz | Asosiy landing sahifa | Landing hali yo'q, P to'lqinida yoziladi |
+| app.rizqim.uz | Telegram Mini App (mijozlar) | Hozir Mini App API bilan bitta manzilda ishlaydi; alohida domenga ko'chirish P to'lqinida |
+| api.rizqim.uz | Backend API; jonli aloqa (WebSocket) ham shu yerda | Tayyor, sozlama kerak |
+| business.rizqim.uz | Hamkor paneli (restoran egasi va xodimlari) | Tayyor (hujjatlarda `panel.<domen>`) |
+| pos.rizqim.uz | POS ilovalarini yuklab olish va yangilanish manzili (ilovalar Android va Windows uchun, brauzerda ishlamaydi) | M5 (yangilanish xabari) bilan birga |
+| admin.rizqim.uz | Boshqaruv markazi (RIZQIM jamoasi) | Tayyor |
+| links.rizqim.uz | Havolalar (deep links) | Band qilinadi; mobil ilova chiqqanda ishlatiladi |
+
+Sinov serveri uchun xuddi shu to'plam `stg.rizqim.uz` ostida. O'rnatish GitHub orqali (kalit GitHub Secrets'da).
+
 ## Maqsadli hajm
 
 Egasi qarori (15.11.2026): POS taxminan **1 000 ta oshxonaga** o'rnatiladi va ularning hammasi marketda ham ishlaydi.
@@ -96,5 +112,5 @@ ikkinchi yil oxirida taxminan 1 TB ga yetadi, shuning uchun eski buyurtmalarni a
 | M1 Tez yutuqlar | **Tugadi** (PR #24, 15.11.2026). Natija: [scale/RESULTS_M1.md](scale/RESULTS_M1.md) |
 | M2 Jonli aloqa va kesh | **Tugadi** (PR #25, 17.11.2026). Natija: [scale/RESULTS_M2.md](scale/RESULTS_M2.md): market yuki 2-3 baravar kam, sokin vaqtda so'rovlar 73 % kam, tushlikda kassa tezligi M1 darajasida va ekranlar 2-5 soniyada yangilanadi |
 | M3 Ishonchlilik | **Tugadi** (PR #26, 18.11.2026). Audit, fiskal va bildirishnoma jurnallari oylar bo'yicha bo'lingan va arxivlanadi; uzluksiz zaxira (CI sinovida yo'qotish oynasi ~1 daqiqa), vaqtga qaytarib tiklash, tiklash mashqi; 20 dan ortiq ogohlantirish. Loyiha: [scale/M3_DESIGN.md](scale/M3_DESIGN.md), qo'llanma: [OPERATIONS.md](OPERATIONS.md) 17-21-bo'limlar. Haqiqiy serverda sinash staging bosqichida (P) |
-| M4 Do'konlar orasidagi himoya | 1-bosqich bajarildi (PR #27, 18.11.2026): himoya sinovi, teshiklar, baza rollari. 2-bosqich (avtomatik filtr) boshlandi; 3-bosqich (RLS) navbatda |
+| M4 Do'konlar orasidagi himoya | 1-bosqich bajarildi (PR #27, 18.11.2026): himoya sinovi, teshiklar, baza rollari. 2-bosqich bajarildi (PR #28, 18.11.2026): avtomatik do'kon filtri (88 model), to'lovlarda do'kon belgisi. 3-bosqich bajarildi (PR #29, 19.11.2026): baza darajasidagi himoya 20 ta pul va audit jadvalida, himoya o'chib qolsa tizim ishga tushmaydi va ogohlantirish keladi; yuk ostida baza yuklamasi +3,2 % ([scale/RESULTS_M4.md](scale/RESULTS_M4.md)). Loyiha: [scale/M4_DESIGN.md](scale/M4_DESIGN.md), qo'llanma: [OPERATIONS.md](OPERATIONS.md) 22-24-bo'limlar. Keyinga qoldirilgan: o'qishlarni ham himoya ostiga olish (alohida o'lchov kerak), jadvallar orasidagi "birga o'chirish" bog'lanishlarini "rad etish"ga almashtirish |
 | M5, P, L | Navbatda |

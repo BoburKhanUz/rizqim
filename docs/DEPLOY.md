@@ -35,6 +35,7 @@ Hammasining ma'nosi va standarti: [backend/README.md](../backend/README.md), [cu
 | `TELEGRAM_ALLOW_MOCK_AUTH`, `SMS_EXPOSE_CODE_IN_RESPONSE` | `false`, `false` |
 | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL (qiymatlarni ildizdagi `.env` beradi, `postgres` konteyneri bazani va foydalanuvchini shundan o'zi yaratadi) |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DB_OWNER_USERNAME`, `DB_OWNER_PASSWORD` (M4, faqat ildizdagi `.env`) | Baza rollari (OPERATIONS.md, 22-bo'lim). Bo'sh = bitta rol, avvalgidek. Ajratilganda: `POSTGRES_*` = bootstrap superuser (yangi o'rnatishda o'zingiz tanlaysiz, mavjudida eski `DB_USERNAME`/`DB_PASSWORD`; postgres, backup, db-roles), `DB_USERNAME`/`DB_PASSWORD` = `rizqim_app` (ilova, PgBouncer), `DB_OWNER_*` = `rizqim_owner` (migratsiyalar, `db:partitions:*`; faqat backend va scheduler oladi). Uchala parol har xil |
+| `TENANT_RLS`, `DB_TENANT_ROLE` (M4 3-bosqich, faqat ildizdagi `.env`) | Qator darajasidagi himoya (OPERATIONS.md, 24-bo'lim). `TENANT_RLS=1`: do'kon so'rovining har tranzaksiyasi `rizqim_tenant` roli bilan ishlaydi va PostgreSQL boshqa do'konning pul qatorlarini o'zi rad etadi. Bo'sh yoki `0` = o'chiq, hammasi avvalgidek (qaytarish ham shu: `TENANT_RLS=0`, `docker compose up -d`). Faqat rollar ajratilgan bo'lsa (`DB_OWNER_USERNAME`); aks holda `app:check-production` konteynerni ishga tushirmaydi. `DB_TENANT_ROLE` rol nomi (standart `rizqim_tenant`, o'zgartirish shart emas) |
 | `CACHE_STORE`, `QUEUE_CONNECTION`, `SESSION_DRIVER` | `redis` |
 | `REDIS_CLIENT`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | `phpredis`, Redis manzili (`redis`, `6379` va parolni compose o'zi beradi) |
 | `REDIS_DB`, `REDIS_CACHE_DB` | `0`, `1` (farqli bo'lsin; `REDIS_URL` ni o'rnatmang) |
@@ -317,6 +318,18 @@ Staging'da avval sinab ko'ring (10-bo'lim). Bu zanjir (`backup` xizmati umumiy s
 yaratadi va egalikni ko'chiradi, keyin PgBouncer, backend (migratsiya egasi bilan), queue, scheduler, reverb; (4)
 `docker compose logs db-roles` va `app:check-production`. Batafsil, parolni almashtirish va qaytarish: OPERATIONS.md, 22-bo'lim.
 Kalitlarsiz yangilash avvalgidek bitta rol bilan ishlaydi.
+
+**M4 3-bosqich: qator darajasidagi himoya (RLS), ikki qadamda.** (1) Kodni `TENANT_RLS`'siz joylang
+(`git pull && docker compose up -d --build`): `db-roles` `rizqim_tenant` rolini yaratadi va `rizqim_app` ga `BYPASSRLS` beradi,
+so'ng backend migratsiyasi (`2026_11_28_100000_enable_tenant_row_level_security`) 20 ta pul jadvaliga `tenant` siyosatini
+qo'yadi: faqat metama'lumot, har jadval soniyaning ulushi, band jadvalni 0,5 s dan ortiq kutmaydi («lock timeout» bilan
+to'xtasa backend qayta ishga tushib qolgan jadvallardan davom etadi). Tartib muhim: migratsiya `db-roles` dan keyin
+yuradi (compose shunday qiladi); ilova rolida `BYPASSRLS` bo'lmasa migratsiya hech narsani o'zgartirmay «Avval rollarni
+yangilang» deb to'xtaydi. Bu qadamdan keyin hech narsa o'zgarmaydi: siyosatlar faqat `rizqim_tenant` ga ta'sir qiladi, ilova
+esa hali unga o'tmaydi. Bitta rolli o'rnatishda ham shu migratsiya yuradi va hech narsani o'zgartirmaydi (ilova jadvallar
+egasi). (2) Kamida bir kun kuzatgach ildizdagi `.env` ga `TENANT_RLS=1` yozing va `docker compose up -d`; tekshirish,
+rad etish qanday ko'rinishi va o'chirish (`TENANT_RLS=0`, `docker compose up -d`, deploy'siz): OPERATIONS.md, 24-bo'lim.
+Eski kodga qaytish: siyosatlar eski kodga xalaqit bermaydi (u rolga o'tmaydi), `TENANT_RLS` ni olib tashlash kifoya.
 
 **M4: `payments.store_id` migratsiyasi (`2026_11_27_100000_add_store_id_to_payments_table`).** Har to'lovga do'konini yozadi:
 eski to'lovlarni 20 000 talik bo'laklarda to'ldiradi. Narxi: taxminan **30 soniya har 1 million to'lovga** (sinov serverida
