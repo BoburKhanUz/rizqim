@@ -104,6 +104,12 @@ class PosOffline {
   int? Function() staffId = () => null;
   String? Function() staffName = () => null;
   bool Function(String permission) can = (_) => true;
+
+  /// M5 S1-e: the signed-in staff member's PIN session has expired with no server contact
+  /// (`AuthSession.staffContinued`; PosData binds it). Such a staff member only finishes what is open: a round, the
+  /// bill, the payment and the close of an existing order; a NEW order is refused ([continuedReason]). What is queued
+  /// this way carries `staff_continued: true` in its payload, for the server's records.
+  bool Function() staffContinued = () => false;
   String? Function() shiftUuid = () => null;
   PosBootstrap? Function() bootstrap = () => null;
   PosCatalog? Function(PosChannel channel) catalog = (_) => null;
@@ -131,6 +137,26 @@ class PosOffline {
 
   /// [PosOfflineUnavailable.reason] of a NEW order refused by the age limits ([OfflineStatus.canOpenOrders]).
   static const String limitReason = 'offline_limit';
+
+  /// [PosOfflineUnavailable.reason] of a NEW order refused because the staff member goes on without a PIN
+  /// ([staffContinued]).
+  static const String continuedReason = 'staff_continued';
+
+  /// Payload key of an operation queued by a staff member who goes on without a PIN ([staffContinued]).
+  static const String continuedKey = 'staff_continued';
+
+  /// "PIN'siz davom etilmoqda" lentasi uchun: PIN sessiyasi aloqa yo'q paytda tugagan xodimning ismi (bo'lmasa
+  /// `null`). Ism noma'lum bo'lsa — "Xodim".
+  String? get continuedStaffName =>
+      staffContinued() ? (staffName() ?? 'Xodim') : null;
+
+  /// Lenta matni ([continuedStaffName] bo'lsa), aks holda `null`.
+  String? get continuedNotice {
+    final String? name = continuedStaffName;
+    return name == null
+        ? null
+        : "PIN'siz davom etilmoqda: $name. Faqat ochiq buyurtmalarni yakunlash va to'lov olish mumkin.";
+  }
 
   /// Shuncha chop etilgan chek `op_id` si eslab qolinadi (qayta chiqmasin).
   static const int keepPrintedSales = 500;
@@ -1120,6 +1146,14 @@ class PosOffline {
     if (_actor == null && staffId() == null) {
       throw const PosOfflineUnavailable('Xodim kirmagan.');
     }
+    // M5 S1-e: a staff member whose PIN session ran out during the outage finishes open orders, starts none
+    if (opening && _continued) {
+      throw const PosOfflineUnavailable(
+        "PIN'siz davom etilmoqda: yangi buyurtma ochilmaydi. Faqat ochiq buyurtmalarni yakunlash va to'lov olish "
+        'mumkin. Internet tiklangach PIN bilan kiring.',
+        reason: continuedReason,
+      );
+    }
     if (permission != null && !_can(permission)) {
       throw const PosOfflineUnavailable(
         "Bu amal uchun ruxsat yo'q (internetsiz menejer tasdig'i olinmaydi).",
@@ -1129,6 +1163,9 @@ class PosOffline {
   }
 
   int _staff() => _actor?.staffId ?? staffId()!;
+
+  /// The till's own staff member goes on without a PIN (a LAN actor has its own signed grant).
+  bool get _continued => _actor == null && staffContinued();
 
   String? _staffName() => _actor == null ? staffName() : _actor!.staffName;
 
@@ -1151,7 +1188,7 @@ class PosOffline {
     final PosOfflineActor? a = _actor;
     return store.enqueue(
       type,
-      payload,
+      _continued ? <String, Object?>{...payload, continuedKey: true} : payload,
       staffId: _staff(),
       opId: a?._takeOpId(),
       origin: a?.device,

@@ -50,11 +50,17 @@ class LimitedModeBanner extends StatelessWidget {
       final PosScope scope = PosScope.of(context);
       final PosOfflineWarnings warnings =
           scope.data.offline?.warnings ?? const PosOfflineWarnings();
-      if (!s.active && s.errorsCount == 0 && warnings.isEmpty) {
+      // M5 S1-e: the PIN session ran out during the outage, the staff member goes on without a PIN
+      final String? continued = scope.data.offline?.continuedNotice;
+      if (!s.active &&
+          s.errorsCount == 0 &&
+          warnings.isEmpty &&
+          continued == null) {
         return const SizedBox.shrink();
       }
       final DateTime now = scope.services.now();
       final List<String> lines = <String>[
+        ?continued,
         ...limitedModeLines(s, now),
         ...offlineWarningLines(warnings),
       ];
@@ -67,7 +73,8 @@ class LimitedModeBanner extends StatelessWidget {
                 !s.canOpenOrders
           ? StatusTone.danger
           : s.level == OfflineLevel.warning ||
-                s.fiscalLevel == FiscalQueueLevel.notice
+                s.fiscalLevel == FiscalQueueLevel.notice ||
+                continued != null
           ? StatusTone.warning
           : StatusTone.info;
       final (Color bg, Color fg) = toneColors(context.rz, tone);

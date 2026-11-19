@@ -85,6 +85,19 @@ class AuthSession {
 
   PairedTerminal? get terminal => _terminal;
   StaffSession? get staff => _staff;
+
+  /// M5 S1-e (kassa, internetsiz rejim): xodim tokenining muddati o'tganda sessiya qurilmada o'chirilmaydi, serverning
+  /// javobi hal qiladi. The till has no PIN login without the server, so dropping the staff member on a clock would
+  /// lock the till in the middle of an outage (owner rule: payment is never blocked). With this on, an expired staff
+  /// token is still sent: a server that answers refuses it (401 -> [handleStaffRejected], signed out as before), and
+  /// while no answer comes the staff member stays as "continued" ([staffContinued]). Off (default): unchanged.
+  bool holdExpiredStaff = false;
+
+  /// The staff token has expired and the staff member is kept only because the server has not been reached
+  /// ([holdExpiredStaff]). The app limits what such a staff member may do and asks for the PIN on first contact
+  /// ([endStaffContinuation]).
+  bool get staffContinued =>
+      holdExpiredStaff && (_staff?.isExpired(_clock()) ?? false);
   UserSession? get user => _user;
   DateTime now() => _clock();
 
@@ -190,6 +203,14 @@ class AuthSession {
     }
   }
 
+  /// The server answered while the staff member was only "continued" ([staffContinued]): the session ends like any
+  /// expired one (PIN keypad). No call to the server: the token is dead there already.
+  void endStaffContinuation() {
+    if (!staffContinued) return;
+    _staff = null;
+    _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'expired'));
+  }
+
   // --- Shaxsiy ilova: kirish va refresh -----------------------------------------------------------------------
 
   /// Kirish javobidan (`/auth/telegram`, `/auth/phone/verify` + `device`) olingan sessiyani saqlaydi.
@@ -261,11 +282,12 @@ class AuthSession {
 
   // --- Interceptor uchun ---------------------------------------------------------------------------------------
 
-  /// Xodim tokeni (muddati o'tmagan bo'lsa) yoki shaxsiy ilova tokeni.
+  /// Xodim tokeni (muddati o'tmagan bo'lsa) yoki shaxsiy ilova tokeni. [holdExpiredStaff] yoqilgan bo'lsa muddati
+  /// o'tgan xodim tokeni ham yuboriladi (server 401 bersa sessiya yopiladi).
   String? get currentToken {
     final StaffSession? staff = _staff;
     if (staff != null) {
-      if (!staff.isExpired(_clock())) return staff.token;
+      if (holdExpiredStaff || !staff.isExpired(_clock())) return staff.token;
       _staff = null;
       _emit(const AuthEvent(AuthEventKind.staffSignedOut, reason: 'expired'));
     }
@@ -276,10 +298,15 @@ class AuthSession {
 
   /// Xodim tokenini server rad etdi (401): sessiya tugagan.
   void handleStaffRejected(String sentToken) {
-    if (_staff?.token != sentToken) return;
+    final StaffSession? staff = _staff;
+    if (staff == null || staff.token != sentToken) return;
     _staff = null;
     _emit(
-      const AuthEvent(AuthEventKind.staffSignedOut, reason: 'unauthorized'),
+      AuthEvent(
+        AuthEventKind.staffSignedOut,
+        // A held token ([holdExpiredStaff]) that the server refuses is the plain expiry
+        reason: staff.isExpired(_clock()) ? 'expired' : 'unauthorized',
+      ),
     );
   }
 

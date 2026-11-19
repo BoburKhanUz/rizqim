@@ -103,9 +103,18 @@ class PosData {
         ..staffId = (() => session.staffId)
         ..staffName = (() => session.staffName)
         ..can = session.can
+        ..staffContinued = (() => session.staffContinued)
         ..shiftUuid = (() => session.shift?.uuid)
         ..bootstrap = (() => session.bootstrap ?? o.storedBootstrap())
         ..catalog = catalog.cached;
+      // M5 S1-e: a till with the offline mode has no PIN login without the server, so a staff token that expires
+      // during an outage must not sign the staff member out (owner rule: payment is never blocked). The expired token
+      // is kept and still sent; the first answer of the server ends it: a 401 on the token itself, or any other
+      // contact (below), and the PIN keypad follows as before
+      client.auth.holdExpiredStaff = true;
+      _contactSub = connectivity.changes.listen((PosConnectivityState s) {
+        if (s.online) client.auth.endStaffContinuation();
+      });
       // The journal and copies belong to this pairing: a re-paired till must not send them with its new token.
       // M5 S1: what the server has not received is never deleted on the way (a 401 on the terminal token, an
       // unpairing): PosOffline.forget sets it aside on the disk first (PosOffline.orphans)
@@ -133,6 +142,7 @@ class PosData {
   }
 
   StreamSubscription<AuthEvent>? _authSub;
+  StreamSubscription<PosConnectivityState>? _contactSub;
 
   PosLanRoute? _lan;
   StreamSubscription<PosEvent>? _lanSub;
@@ -215,6 +225,7 @@ class PosData {
 
   Future<void> dispose() async {
     await _authSub?.cancel();
+    await _contactSub?.cancel();
     await _lanSub?.cancel();
     await _lanEvents.close();
     await displayFeed.dispose();

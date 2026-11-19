@@ -658,6 +658,78 @@ void main() {
       },
     );
 
+    test('M5 S1-e: with holdExpiredStaff an expired staff token is kept while the server does not answer, and ends on '
+        'its first answer (401)', () async {
+      var offline = false;
+      adapter.handler = (RequestOptions o) {
+        if (offline) {
+          throw DioException.connectionError(
+            requestOptions: o,
+            reason: 'offline',
+          );
+        }
+        if (o.uri.path == '/api/v1/devices/pair') {
+          return ok(pairData(), status: 201);
+        }
+        if (o.uri.path.endsWith('staff-session')) {
+          return ok(staffData(expiresAt: now.add(const Duration(hours: 12))));
+        }
+        return refuse(401, 'Unauthenticated.');
+      };
+      client.auth.holdExpiredStaff = true;
+      await client.auth.pairTerminal('ABCD-EFGH');
+      await client.auth.signInStaff(userId: 5, pin: '4821');
+      expect(client.auth.staffContinued, isFalse);
+      final List<AuthEvent> events = <AuthEvent>[];
+      client.auth.events.listen(events.add);
+
+      offline = true;
+      now = now.add(const Duration(hours: 13));
+      await expectLater(
+        client.dio.get<Object?>('/v1/orders'),
+        throwsA(isA<DioException>()),
+      );
+      expect(client.auth.staff?.userId, 5);
+      expect(client.auth.staffContinued, isTrue);
+      expect(bearer(adapter.requests.last), 'Bearer staff-token');
+      await Future<void>.delayed(Duration.zero);
+      expect(events, isEmpty);
+
+      offline = false;
+      await expectLater(
+        client.dio.get<Object?>('/v1/orders'),
+        throwsA(isA<DioException>()),
+      );
+      expect(client.auth.staff, isNull);
+      expect(client.auth.staffContinued, isFalse);
+      await Future<void>.delayed(Duration.zero);
+      expect(events.single.kind, AuthEventKind.staffSignedOut);
+      expect(events.single.reason, 'expired');
+    });
+
+    test('M5 S1-e: endStaffContinuation drops only a staff member whose token has expired', () async {
+      adapter.handler = (RequestOptions o) {
+        if (o.uri.path == '/api/v1/devices/pair') {
+          return ok(pairData(), status: 201);
+        }
+        return ok(staffData(expiresAt: now.add(const Duration(hours: 12))));
+      };
+      client.auth.holdExpiredStaff = true;
+      await client.auth.pairTerminal('ABCD-EFGH');
+      await client.auth.signInStaff(userId: 5, pin: '4821');
+      final List<AuthEvent> events = <AuthEvent>[];
+      client.auth.events.listen(events.add);
+
+      client.auth.endStaffContinuation();
+      expect(client.auth.staff, isNotNull);
+
+      now = now.add(const Duration(hours: 13));
+      client.auth.endStaffContinuation();
+      expect(client.auth.staff, isNull);
+      await Future<void>.delayed(Duration.zero);
+      expect(events.single.reason, 'expired');
+    });
+
     test('signing the staff member out works offline', () async {
       var offline = false;
       adapter.handler = (RequestOptions o) {
