@@ -11,6 +11,9 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Enums\UserRole;
+use App\Services\Auth\TokenService;
+use App\Support\Tenancy\TenantRls;
+use Illuminate\Support\Facades\DB;
 
 #[Group('Owner: employees', "Xodimlar: taklif havolasi, filialga o'tkazish, o'chirish (ega).")]
 class OwnerEmployeeController extends Controller
@@ -168,9 +171,37 @@ class OwnerEmployeeController extends Controller
             return $this->error('Xodim topilmadi', [], 404);
         }
 
-        $employee->delete();
+        // M4 stage 3 (security review H1): a person is one users row, and deleting it deletes what they did as a
+        // CUSTOMER at any store: orders.user_id is ON DELETE CASCADE, and bills, payments, refunds and QR payments go
+        // with the orders. Foreign-key actions run as the table owner, so no store guard and no row-level security
+        // policy sees them. Such a person is taken out of the store instead (no role, store, PIN or session) and stays
+        // the customer they also are; only an account with nothing of a customer's is deleted
+        if ($this->hasCustomerHistory($employee)) {
+            DB::transaction(function () use ($employee) {
+                $employee->forceFill([
+                    'role' => UserRole::CUSTOMER, 'store_id' => null, 'branch_id' => null, 'staff_code' => null,
+                    'pin_hash' => null, 'pin_set_at' => null, 'telegram_invite_token' => null,
+                ])->save();
+                app(TokenService::class)->revokeAllForUser($employee);
+            });
+        } else {
+            $employee->delete();
+        }
 
         return $this->success(null, 'Xodim tizimdan o\'chirildi.');
+    }
+
+    /**
+     * Rows of ANY store that deleting the users row would delete with it (ON DELETE CASCADE on user_id): orders (and,
+     * from them, the money tables), complaints, ratings. Asked as the login role (TenantRls::asApp) and without the
+     * store scope: the owner's request is bound to their own store, and the rows that matter are the other stores'.
+     * Only "exists" comes back.
+     */
+    private function hasCustomerHistory(User $employee): bool
+    {
+        return TenantRls::asApp(fn () => DB::table('orders')->where('user_id', $employee->id)->exists()
+            || DB::table('complaints')->where('user_id', $employee->id)->exists()
+            || DB::table('store_ratings')->where('user_id', $employee->id)->exists());
     }
 
     private function isStoreOwner(User $user): bool

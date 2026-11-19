@@ -202,6 +202,8 @@ class TenantRlsInventoryTest extends TestCase
     public function test_every_statement_taken_out_of_the_policy_is_listed(): void
     {
         $expected = [
+            // "has this employee a customer's orders at any store": they must survive the employee's removal
+            'Http/Controllers/Api/V1/Store/OwnerEmployeeController.php' => 1,
             'Models/AuditLog.php' => 1, // an audit line for no store (store_id NULL), never one for another store
             'Services/Finance/LedgerService.php' => 1, // the referral: the customer's first delivery at any store
         ];
