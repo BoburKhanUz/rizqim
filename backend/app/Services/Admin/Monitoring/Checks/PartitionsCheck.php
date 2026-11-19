@@ -199,25 +199,32 @@ class PartitionsCheck implements AlertCheck
     }
 
     /**
-     * M4 stage 3 (docs/OPERATIONS.md section 24): what tenant requests reported in the last hour (TenantRls::refused()
-     * and ::unavailable() keep the last one of each kind in the cache for TenantRls::PROBLEM_TTL). A write PostgreSQL
-     * refused under row-level security: the till got a server error, and either a forged row was stopped or a
-     * legitimate write is being refused, which the operator ends with TENANT_RLS=0. And TENANT_RLS on while the tenant
-     * role cannot be taken: the requests go on, unprotected. Both critical; each closes an hour after its last
-     * occurrence. Never throws.
+     * M4 stage 3 (docs/OPERATIONS.md section 24), both critical:
+     * - the state of the roles, asked from the database on every evaluation (TenantRls::setupProblems(), as this
+     *   process's login role, which is php-fpm's): TENANT_RLS on while the tenant role cannot be used (tenant requests
+     *   run unprotected, or fail for a missing grant), or the login role itself bound by the policies. Open for as long
+     *   as the state lasts, whether or not a request met it;
+     * - a write PostgreSQL refused under row-level security (TenantRls::refused() keeps the last one in the cache for
+     *   TenantRls::REFUSED_TTL): the till got a server error, and either a forged row was stopped or a legitimate
+     *   write is being refused, which the operator ends with TENANT_RLS=0. Closes an hour after the last one.
+     * Never throws; a state that cannot be read gives no finding.
      *
      * @return list<AlertFinding>
      */
     private function tenantRls(): array
     {
-        try {
-            $refused = Cache::get(TenantRls::REFUSED);
-            $unavailable = Cache::get(TenantRls::UNAVAILABLE);
-        } catch (Throwable) {
-            return [];
+        $findings = [];
+        $setup = PostgresStats::bounded(fn () => TenantRls::setupProblems(), 'tenant_rls');
+        foreach (is_array($setup) ? $setup : [] as $code => $problem) {
+            $title = $code === 'unavailable' ? "Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: {$problem}" : $problem;
+            $findings[] = new AlertFinding("tenant_rls_{$code}", $title, ['code' => $code], null, 'critical');
         }
 
-        $findings = [];
+        try {
+            $refused = Cache::get(TenantRls::REFUSED);
+        } catch (Throwable) {
+            $refused = null;
+        }
         if (is_array($refused)) {
             $store = is_int($refused['store_id'] ?? null) ? $refused['store_id'] : null;
             $where = implode(', ', array_filter([
@@ -232,16 +239,6 @@ class PartitionsCheck implements AlertCheck
                 'route' => $refused['route'] ?? null,
                 'last_at' => $refused['at'] ?? null,
             ], $store, 'critical');
-        }
-        if (is_array($unavailable)) {
-            $role = (string) ($unavailable['role'] ?? '');
-            $count = (int) ($unavailable['count'] ?? 1);
-            $findings[] = new AlertFinding('tenant_rls_unavailable', "Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: ilova {$role} roliga o'ta olmadi ({$count} marta), do'kon so'rovlari himoyasiz bajarilmoqda. Rollarni tiklang: docker compose run --rm db-roles (docs/OPERATIONS.md, 24-bo'lim)", [
-                'count' => $count,
-                'role' => $role,
-                'error' => $unavailable['error'] ?? null,
-                'last_at' => $unavailable['at'] ?? null,
-            ], null, 'critical');
         }
 
         return $findings;

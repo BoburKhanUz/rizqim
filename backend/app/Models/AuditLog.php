@@ -58,14 +58,14 @@ class AuditLog extends Model
 
     /**
      * M4 stage 3: inside a tenant transaction the policy on audit_logs accepts only rows of the bound store. An entry
-     * for no store (a platform-level action: store_id NULL) or for another store than the bound one is still a
-     * legitimate entry of this request (the application decides the row's store, never the client), and a journal
-     * line must never fail the action it records: such a row is written as the login role (TenantRls::asApp).
+     * for no store (store_id NULL: a platform-level line, which no store can read back) is still a legitimate entry of
+     * a tenant request, and a journal line must not fail the action it records: that one row is written as the login
+     * role (TenantRls::asApp). An entry for ANOTHER store is not let through: no tenant request has a reason to
+     * write one, so it is the mistake (or the forgery) the policy is there to stop, and it fails loudly.
      */
     protected function performInsert(Builder $query)
     {
-        $bound = app(TenantContext::class)->storeId();
-        if ($bound !== null && (int) $this->getAttribute('store_id') !== $bound) {
+        if ($this->getAttribute('store_id') === null && app(TenantContext::class)->storeId() !== null) {
             return TenantRls::asApp(fn () => parent::performInsert($query));
         }
 

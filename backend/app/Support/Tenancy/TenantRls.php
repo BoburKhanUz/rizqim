@@ -3,6 +3,7 @@
 namespace App\Support\Tenancy;
 
 use App\Domain\Realtime\RevisionPostgresConnection;
+use App\Support\Database\OwnerConnection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -45,52 +46,145 @@ final class TenantRls
         return preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) === 1 ? $role : null;
     }
 
-    /** Cache keys of the last problem of each kind, kept for PROBLEM_TTL (read by the monitoring check `partitions`) */
+    /** Cache key of the last refusal, kept for REFUSED_TTL seconds (read by the monitoring check `partitions`) */
     public const REFUSED = 'tenant_rls:refused';
 
-    public const UNAVAILABLE = 'tenant_rls:unavailable';
+    public const REFUSED_TTL = 3600;
 
-    public const PROBLEM_TTL = 3600;
+    /**
+     * What is wrong with the database roles for row-level security right now, as this connection's login role sees it:
+     * `login_bound` (whatever TENANT_RLS says) and, with TENANT_RLS on, `unavailable`. Empty = nothing.
+     *
+     * Asked at start-up (`app:check-production` refuses to start: a wrong DB_TENANT_ROLE or a missing grant is met
+     * there, not at the first sale) and every minute by the monitoring check `partitions`, which keeps a critical alert
+     * open for as long as the state lasts. So the one way the protection is off while TENANT_RLS says on (the
+     * connection's fail-open path: the role was lost while the application runs) cannot stay unseen.
+     *
+     * - login_bound: the policies bind the login role itself (no BYPASSRLS, not the tables' owner): outside tenant
+     *   transactions every queue worker, webhook and report would see no row of the money tables.
+     * - unavailable: the tenant role's name is not a plain identifier, the role does not exist, is not bound by the
+     *   policies (superuser, BYPASSRLS, the tables' owner or its member), cannot be taken by the login role, or lacks
+     *   a privilege the login role has (a statement that works as the application would fail with "permission
+     *   denied" inside a tenant transaction).
+     *
+     * @return array<string, string> Uzbek texts for the operator
+     *
+     * @throws Throwable when the database cannot be asked
+     */
+    public static function setupProblems(): array
+    {
+        // The owner's connection never takes the tenant role (RevisionPostgresConnection) and owns the tables: nothing
+        // to ask of it. The question is about the application's login role
+        if (DB::connection()->getName() === OwnerConnection::NAME) {
+            return [];
+        }
+
+        $problems = [];
+        $bound = DB::select(
+            "SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relrowsecurity AND row_security_active(c.oid)
+              ORDER BY c.relname",
+        );
+        if ($bound !== []) {
+            $problems['login_bound'] = 'Ilova roli ' . DB::scalar('SELECT current_user') . " ga qator darajasidagi himoya (RLS) ta'sir qiladi (" . count($bound) . ' ta jadval: ' . self::names($bound)
+                . "): navbat, vebhuk va hisobotlar bu jadvallarda hech narsa ko'rmaydi. Rolga BYPASSRLS bering: docker compose run --rm db-roles (docs/OPERATIONS.md, 24-bo'lim)";
+        }
+        if (!self::enabled()) {
+            return $problems;
+        }
+
+        $fix = "Rollarni yangilang: docker compose run --rm db-roles, yoki himoyani o'chiring: TENANT_RLS=0 (docs/OPERATIONS.md, 24-bo'lim)";
+        $role = self::role();
+        if ($role === null) {
+            $problems['unavailable'] = "TENANT_RLS=1, lekin DB_TENANT_ROLE noto'g'ri: rol nomi faqat kichik lotin harf, raqam va '_' dan iborat bo'lsin (standart: rizqim_tenant)";
+
+            return $problems;
+        }
+        $row = DB::selectOne(
+            "SELECT pg_has_role(current_user, r.oid, 'MEMBER') AS member,
+                    r.rolsuper OR r.rolbypassrls OR COALESCE((SELECT bool_or(pg_has_role(r.oid, c.relowner, 'USAGE')) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                        WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p')), false) AS free
+               FROM pg_roles r WHERE r.rolname = ?",
+            [$role],
+        );
+        if ($row === null) {
+            $problems['unavailable'] = "TENANT_RLS=1, lekin bazada {$role} roli yo'q: do'kon tranzaksiyalari himoyasiz ishlaydi. {$fix}";
+        } elseif ($row->free) {
+            $problems['unavailable'] = "TENANT_RLS=1, lekin {$role} roli himoyani chetlab o'tadi (superuser, BYPASSRLS yoki jadvallar egasi / uning a'zosi): do'kon tranzaksiyalari himoyasiz ishlaydi. {$fix}";
+        } elseif (!$row->member || !self::canTake($role)) {
+            $problems['unavailable'] = "TENANT_RLS=1, lekin ilova {$role} roliga o'ta olmaydi (SET ROLE): do'kon tranzaksiyalari himoyasiz ishlaydi. {$fix}";
+        } elseif (($missing = self::missingGrants($role)) !== []) {
+            $problems['unavailable'] = "TENANT_RLS=1, lekin {$role} rolida ilova rolidagi huquqlar yetishmaydi (" . count($missing) . ' ta obyekt: ' . self::names($missing)
+                . "): do'kon so'rovlari «permission denied» xatosi bilan yiqiladi. {$fix}";
+        }
+
+        return $problems;
+    }
+
+    /**
+     * SET LOCAL ROLE in a transaction of its own, as a tenant request does it (PostgreSQL 16+: a membership may forbid
+     * SET while it exists).
+     */
+    private static function canTake(string $role): bool
+    {
+        DB::beginTransaction();
+        try {
+            DB::statement("SET LOCAL ROLE \"{$role}\"");
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Tables, views, sequences and functions of the schema (partitions left out: never named by a statement) that the
+     * login role may use and the tenant role may not, and the schema itself.
+     *
+     * @return list<object{name: string}>
+     */
+    private static function missingGrants(string $role): array
+    {
+        return DB::select(
+            "SELECT c.relname::text AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = current_schema() AND NOT c.relispartition AND (
+                    (c.relkind IN ('r', 'p', 'v', 'm') AND EXISTS (SELECT 1 FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) p
+                        WHERE has_table_privilege(current_user, c.oid, p) AND NOT has_table_privilege(?, c.oid, p)))
+                 OR (c.relkind = 'S' AND has_sequence_privilege(current_user, c.oid, 'USAGE') AND NOT has_sequence_privilege(?, c.oid, 'USAGE')))
+             UNION ALL
+             SELECT p.oid::regprocedure::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+              WHERE n.nspname = current_schema() AND has_function_privilege(current_user, p.oid, 'EXECUTE') AND NOT has_function_privilege(?, p.oid, 'EXECUTE')
+             UNION ALL
+             SELECT 'schema ' || current_schema() WHERE NOT has_schema_privilege(?, current_schema(), 'USAGE')
+             ORDER BY 1",
+            [$role, $role, $role, $role],
+        );
+    }
+
+    /**
+     * @param  list<object>  $rows
+     */
+    private static function names(array $rows): string
+    {
+        return implode(', ', array_slice(array_map(fn (object $row) => (string) $row->name, $rows), 0, 5)) . (count($rows) > 5 ? ', ...' : '');
+    }
 
     /**
      * PostgreSQL refused a statement of a tenant transaction (SQLSTATE 42501: a row of another store on a table under
      * the policy, or a table the tenant role may not write). The till gets the usual server error; here the refusal
      * becomes visible at once: a critical log line (table, route, store: no row data) and a marker the monitoring
-     * check turns into an alert. Never throws.
+     * check turns into an alert within its minute. Never throws.
      */
     public static function refused(Throwable $e, ?int $storeId): void
     {
-        preg_match('/for (?:table|relation|sequence|function|schema) "?([\w.]+)/', $e->getMessage(), $match);
-        self::report(self::REFUSED, 'tenant_rls: PostgreSQL refused a write (row-level security)', [
-            'table' => $match[1] ?? null,
-            'store_id' => $storeId,
-        ]);
-    }
-
-    /**
-     * TENANT_RLS is on but the tenant role could not be taken (no such role, the login role is not its member): the
-     * request went on as the login role, WITHOUT row-level security. Never throws.
-     */
-    public static function unavailable(Throwable $e, int $storeId): void
-    {
-        self::report(self::UNAVAILABLE, 'tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security (run db-roles, then app:check-production)', [
-            'role' => (string) config('database.tenant_rls.role'),
-            'store_id' => $storeId,
-            'error' => mb_substr((string) preg_replace('/\s+/', ' ', $e->getMessage()), 0, 200),
-        ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $context
-     */
-    private static function report(string $key, string $message, array $context): void
-    {
         try {
-            $route = request()->route();
-            $context['route'] = $route instanceof \Illuminate\Routing\Route ? request()->method() . ' ' . $route->uri() : null;
-            Log::critical($message, $context);
-            $count = (int) (Cache::get($key)['count'] ?? 0) + 1;
-            Cache::put($key, $context + ['count' => $count, 'at' => now()->toIso8601String()], self::PROBLEM_TTL);
+            preg_match('/for (?:table|relation|sequence|function|schema) "?([\w.]+)/', $e->getMessage(), $match);
+            $context = ['table' => $match[1] ?? null, 'store_id' => $storeId, 'route' => self::route()];
+            Log::critical('tenant_rls: PostgreSQL refused a write (row-level security)', $context);
+            $count = (int) (Cache::get(self::REFUSED)['count'] ?? 0) + 1;
+            Cache::put(self::REFUSED, $context + ['count' => $count, 'at' => now()->toIso8601String()], self::REFUSED_TTL);
         } catch (Throwable) {
             // Reporting must not turn one failure into another (a cache kept in the database cannot be written while
             // the failed statement's transaction is still open: the log line is then all there is)
@@ -98,13 +192,40 @@ final class TenantRls
     }
 
     /**
+     * TENANT_RLS is on but the tenant role could not be taken: the request went on as the login role, WITHOUT
+     * row-level security. Said in the log by the request that met it; the alert does not depend on this line: the
+     * monitoring check asks the database itself every minute (setupProblems()). Never throws.
+     */
+    public static function unavailable(Throwable $e, int $storeId): void
+    {
+        try {
+            Log::critical('tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security (run db-roles, then app:check-production)', [
+                'role' => (string) config('database.tenant_rls.role'),
+                'store_id' => $storeId,
+                'route' => self::route(),
+                'error' => mb_substr((string) preg_replace('/\s+/', ' ', $e->getMessage()), 0, 200),
+            ]);
+        } catch (Throwable) {
+            // as above
+        }
+    }
+
+    private static function route(): ?string
+    {
+        $route = request()->route();
+
+        return $route instanceof \Illuminate\Routing\Route ? request()->method() . ' ' . $route->uri() : null;
+    }
+
+    /**
      * Runs $callback as the application's login role, also inside a tenant transaction: the ONE way for a statement
-     * that must read or write a row of another store or of the platform on a table of TABLES (the referrer's ledger,
-     * "the customer's first delivery on the platform", an offline batch another store already sent). Under the tenant
-     * role such a read finds nothing and such a write does nothing or fails, whatever the Eloquent scope says.
+     * that must read or write a row of another store or of the platform on a table of TABLES. Under the tenant role
+     * such a read finds nothing and such a write does nothing or fails, whatever the Eloquent scope says.
      *
-     * Every use carries a comment saying which foreign rows it needs and why that is safe. Keep the callback to the
-     * statements that need it and load their results inside it (a lazy cursor read later runs as the tenant role
+     * The uses (TenantRlsInventoryTest lists them: a new one is a decision, not a habit): the referral's "is this the
+     * customer's first delivery at any store" (LedgerService::isFirstDelivery) and an audit line for no store
+     * (AuditLog::performInsert). Every use carries a comment saying which rows it needs and why that is safe. Keep the
+     * callback to the statements that need it and load their results inside it (a lazy cursor read later runs as the tenant role
      * again). Outside a tenant transaction, and with TENANT_RLS off, it only calls $callback. A transaction opened
      * inside it runs as the login role as a whole. Nested calls are fine.
      *

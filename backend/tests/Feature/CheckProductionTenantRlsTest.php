@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\AlertRule;
+use App\Services\Admin\Monitoring\Checks\PartitionsCheck;
+use App\Support\Database\OwnerConnection;
 use App\Support\Tenancy\TenantRls;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +94,38 @@ class CheckProductionTenantRlsTest extends TestCase
             ->expectsOutputToContain("Qator himoyasi (RLS): yoqilgan, do'kon so'rovlarining tranzaksiyalari {$role} roli bilan ishlaydi.")
             ->doesntExpectOutputToContain('TENANT_RLS=1, lekin');
         $this->assertSame(DB::scalar('SELECT session_user'), DB::scalar('SELECT current_user'), 'the probe transaction left no role behind');
+    }
+
+    /**
+     * A privilege the application has and the tenant role lacks (scripts/db-roles.sh not run after a table was made by
+     * hand, a REVOKE): every tenant transaction that uses it would fail with "permission denied" at the first sale.
+     * Met at start-up instead, and by the monitoring check while it lasts. The REVOKE is the owner's and committed
+     * (this session must see it); put back whatever happens.
+     */
+    public function test_tenant_rls_on_with_a_grant_missing_on_the_tenant_role_is_refused(): void
+    {
+        $role = $this->tenantRole();
+        if (!OwnerConnection::prepare()) {
+            $this->markTestSkipped('Needs the owner connection (DB_OWNER_USERNAME): runs in the CI job tests-app-role.');
+        }
+        config(['database.tenant_rls.enabled' => true]);
+        $owner = DB::connection(OwnerConnection::NAME);
+
+        try {
+            $owner->statement("REVOKE UPDATE ON vouchers FROM \"{$role}\"");
+            $this->artisan('app:check-production')
+                ->expectsOutputToContain("TENANT_RLS=1, lekin {$role} rolida ilova rolidagi huquqlar yetishmaydi (1 ta obyekt: vouchers)")
+                ->assertFailed();
+            $finding = collect(app(PartitionsCheck::class)->findings((new AlertRule)->forceFill(['kind' => 'partitions', 'threshold' => 2])))
+                ->keyBy('subjectKey')->get('tenant_rls_unavailable');
+            $this->assertSame('critical', $finding?->severity);
+            $this->assertStringContainsString('huquqlar yetishmaydi (1 ta obyekt: vouchers)', $finding->title);
+        } finally {
+            $owner->statement("GRANT UPDATE ON vouchers TO \"{$role}\"");
+            DB::disconnect(OwnerConnection::NAME);
+        }
+
+        $this->artisan('app:check-production')->doesntExpectOutputToContain('TENANT_RLS=1, lekin');
     }
 
     /**

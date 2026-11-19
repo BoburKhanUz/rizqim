@@ -808,7 +808,7 @@ Muammo hal bo'lganda ham xabar keladi. Yuborish qoidalari:
 | Jurnallarning oylik bo'limlari: arxiv kaliti o'chira oladi | Jurnallar arxivi yoziladigan S3 kaliti fayllarni o'chira oladi: arxiv himoyasiz | kalit o'chira oladi | DIQQAT | O'chirish huquqi yo'q alohida kalit bering (`ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`; 20-bo'lim). |
 | Jurnallarning oylik bo'limlari: arxiv faqat shu serverda | S3 yo'q: eski oylar faqat shu serverdagi faylga arxivlangan, bazadan o'chirilmaydi va disk buzilsa yo'qoladi | 1 ta oy | DIQQAT | S3 kalitlarini yozing (20-bo'lim). |
 | Jurnallarning oylik bo'limlari: RLS yozuvni rad etdi (M4) | Do'kon so'rovining yozuvini PostgreSQL qator himoyasi bilan rad etdi (kassa yoki panel server xatosi oldi): yo birov boshqa do'kon nomidan yozmoqchi bo'lgan, yo qonuniy amal adashib rad etilgan. Matnda jadval, yo'l, do'kon va necha marta; oxirgisidan bir soat o'tgach o'zi yopiladi | 1 ta | KRITIK | Qonuniy amal bo'lsa darhol o'chiring: ildizdagi `.env` da `TENANT_RLS=0`, `docker compose up -d`; log qatorini dasturchiga yuboring (24-bo'lim). |
-| Jurnallarning oylik bo'limlari: RLS yoqilgan, lekin ishlamayapti (M4) | `TENANT_RLS=1`, ammo ilova `rizqim_tenant` roliga o'ta olmadi (rol yoki a'zolik yo'qolgan): so'rovlar to'xtamaydi, lekin himoyasiz bajariladi | 1 ta | KRITIK | `docker compose run --rm db-roles`, so'ng `app:check-production` (24-bo'lim). |
+| Jurnallarning oylik bo'limlari: RLS yoqilgan, lekin ishlamayapti (M4) | `TENANT_RLS=1`, ammo `rizqim_tenant` roli yo'q, unga o'tib bo'lmaydi, u himoyani chetlab o'tadi yoki unda huquq yetishmaydi: so'rovlar himoyasiz bajariladi (huquq yetishmasa xato beradi). Har daqiqada bazaning o'zidan so'raladi, holat tuzalmaguncha ochiq turadi. Ilova rolining o'zi siyosatga tushib qolgan bo'lsa ham shu yerda chiqadi | darhol | KRITIK | `docker compose run --rm db-roles`, so'ng `app:check-production` (24-bo'lim). |
 | Jurnallarning oylik bo'limlari: egasi roli yo'q | Rollar ajratilgan, lekin scheduler'da `DB_OWNER_USERNAME`/`DB_OWNER_PASSWORD` yo'q: har kechagi `db:partitions:ensure`/`:archive` rad etiladi, keyingi oylar tayyorlanmaydi | darhol | KRITIK | Ildizdagi `.env` ga egasi rolini yozing va `docker compose up -d scheduler` (22-bo'lim). |
 
 Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose exec -u www-data backend ...` ichida bajariladi. PITR, tiklash mashqi va disk qoidalari uzluksiz zaxira **yoqilmagan** (`PITR_ENABLED` bo'sh) bo'lsa jim turadi: markazda «O'chiq» ko'rinadi.
@@ -963,8 +963,9 @@ docker compose exec -u www-data backend php artisan app:check-production
 # 2-qadam: yoqish. Ildizdagi .env ga TENANT_RLS=1 yozing
 docker compose up -d                                  # backend, queue, scheduler, reverb yangi sozlama bilan qayta yaratiladi (soniyalar)
 ```
-`app:check-production` `TENANT_RLS=1` bilan konteynerni ishga tushirmaydi, agar ilova `rizqim_tenant` roliga o'ta olmasa
-yoki o'sha rol himoyani chetlab o'tsa (superuser, `BYPASSRLS`, jadvallar egasining a'zosi): avval `docker compose run --rm db-roles`.
+`app:check-production` `TENANT_RLS=1` bilan konteynerni ishga tushirmaydi, agar rol nomi noto'g'ri bo'lsa, ilova
+`rizqim_tenant` roliga o'ta olmasa, o'sha rol himoyani chetlab o'tsa (superuser, `BYPASSRLS`, jadvallar egasining a'zosi)
+yoki unda ilova rolidagi biror huquq yetishmasa: avval `docker compose run --rm db-roles`.
 `TENANT_RLS` qanday bo'lmasin, ilova rolining o'zi siyosatga tushib qolgan bo'lsa (unda `BYPASSRLS` yo'q) ham ishga
 tushirmaydi: bunda navbat va vebhuklar bu jadvallarda hech narsa ko'rmay qolar edi; migratsiya ham shu holatda siyosatlarni
 qo'ymaydi va «Avval rollarni yangilang» deb to'xtaydi.
@@ -990,9 +991,19 @@ adashib rad etilgan (xato: kassa ishlamay qoldi). Ikkinchisida **darhol o'chirin
 yo'lni dasturchiga yuboring. O'qish, o'zgartirish va o'chirishda xato chiqmaydi: begona qator shunchaki ko'rinmaydi
 (0 qator), shuning uchun bunday holat logda ham, ogohlantirishda ham bo'lmaydi.
 
-Yana bir KRITIK ogohlantirish: «Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti». `TENANT_RLS=1`, ammo ilova rolga o'ta
-olmadi (rol o'chirilgan yoki a'zolik olib tashlangan). So'rovlar to'xtamaydi: ular himoyasiz, `TENANT_RLS=0` dagidek
-bajariladi. `docker compose run --rm db-roles` rolni tiklaydi.
+**Himoya jimgina o'chib qolmaydi.** Ishlab turgan paytda rol yo'qolsa yoki a'zolik olib tashlansa (`TENANT_RLS=1`, ammo
+ilova rolga o'ta olmaydi), so'rovlar to'xtamaydi: ular himoyasiz, `TENANT_RLS=0` dagidek bajariladi (kassa to'xtab qolgandan
+ko'ra shunisi ma'qul). Buni ikki joy aytadi: o'sha so'rovning o'zi `laravel.log` ga (va Sentry'ga) darhol KRITIK qator yozadi
+(`tenant_rls: cannot switch to the tenant role, this request runs WITHOUT row-level security`), Monitoring esa har daqiqada
+bazaning o'zidan so'raydi va KRITIK ogohlantirishni bir daqiqa ichida Telegram'ga yuboradi: «Qator himoyasi (RLS) yoqilgan,
+lekin ishlamayapti: ...». U holat tuzalmaguncha ochiq turadi (savdo bo'lmagan soatda ham), tuzalgach o'zi yopiladi. Sabablari:
+rol yo'q, rolga o'tib bo'lmaydi, rol himoyani chetlab o'tadi yoki rolda ilova rolidagi biror huquq yetishmaydi (bunda do'kon
+so'rovlari «permission denied» bilan yiqiladi). Hammasiga davo bitta: `docker compose run --rm db-roles`. Xuddi shu
+tekshiruv konteyner ishga tushganda ham o'tadi (`app:check-production`): noto'g'ri `DB_TENANT_ROLE` yoki yetishmagan huquq
+birinchi savdoda emas, ishga tushishda ushlanadi.
+
+Harakatlar jurnali (`audit_logs`): do'kon so'rovi o'z do'koni nomidan yozadi; do'konsiz (platforma darajasidagi) yozuv
+o'tkaziladi; boshqa do'kon nomidan yozuv esa rad etiladi (yuqoridagi rad etish kabi ko'rinadi).
 
 **O'chirish (qaytarish), deploy'siz.** Ildizdagi `.env` da `TENANT_RLS=0` (yoki qatorni o'chiring), so'ng:
 ```bash

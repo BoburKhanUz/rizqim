@@ -6,6 +6,7 @@ use App\Support\Partitions\PartitionManager;
 use App\Support\Tenancy\TenantRls;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\Finder\Finder;
 use Tests\TestCase;
 
 /**
@@ -191,6 +192,33 @@ class TenantRlsInventoryTest extends TestCase
         $keys->up();
         $this->assertTrue($manager->isPartitioned('audit_logs') && $manager->isPartitioned('fiscal_receipts'));
         $this->assertPolicies();
+    }
+
+    /**
+     * TenantRls::asApp() takes a statement of a tenant transaction out of the policy on purpose. Every use is listed
+     * here: a new one fails this test until somebody has decided that the statement really needs another store's or a
+     * platform row (and has said so in a comment next to it).
+     */
+    public function test_every_statement_taken_out_of_the_policy_is_listed(): void
+    {
+        $expected = [
+            'Models/AuditLog.php' => 1, // an audit line for no store (store_id NULL), never one for another store
+            'Services/Finance/LedgerService.php' => 1, // the referral: the customer's first delivery at any store
+        ];
+        $found = [];
+        foreach ((new Finder())->files()->in(app_path())->name('*.php')->notPath('Support/Tenancy/TenantRls.php') as $file) {
+            $code = '';
+            foreach (\PhpToken::tokenize($file->getContents()) as $token) {
+                $code .= $token->is([T_COMMENT, T_DOC_COMMENT]) ? '' : $token->text;
+            }
+            $calls = preg_match_all('/TenantRls::asApp\s*\(|->(suspend|resume)TenantRole\s*\(/', $code);
+            if ($calls > 0) {
+                $found[$file->getRelativePathname()] = $calls;
+            }
+        }
+        ksort($found);
+        // QueuedJobsRunUnbound: inline queued jobs run as the login role, as a worker runs them (suspend + resume)
+        $this->assertSame($expected + ['Support/Tenancy/QueuedJobsRunUnbound.php' => 2], $found);
     }
 
     private function assertPolicies(): void

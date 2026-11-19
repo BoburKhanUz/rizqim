@@ -1,7 +1,7 @@
 # M4 "Tenant isolation": design (cross-store tests, roles, automatic scope, RLS)
 
-Status: design only, at commit fd15d9a (2026-11-18). Nothing is implemented. Postgres behaviour below was checked on
-throw-away databases `m4_design` built by `php artisan migrate` from the real migrations on PG 16.15 (port 5432) and
+Status: design at commit fd15d9a (2026-11-18); stages 1-3 are built (stage 3: section 4.3 "As built"). Postgres
+behaviour below was checked on throw-away databases `m4_design` built by `php artisan migrate` from the real migrations on PG 16.15 (port 5432) and
 PG 17.12 (port 5433); the PG 17 copy was filled with 1 000 stores, 1 100 branches, 1 000 000 orders (Zipf-like skew,
 largest store 41 469 orders), 3 000 000 order_items, 1 000 000 order_status_histories and 1 000 000 payments. Test roles
 `m4_*`, both databases and a throw-away PgBouncer 1.x (transaction mode) were removed afterwards.
@@ -311,9 +311,9 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
 - **Tables (20):** `orders`, `order_bills`, `payments` (after stage 2), `fiscal_receipts` (partitioned), `pos_shifts`,
   `cash_movements`, `pos_refunds`, `pos_tips`, `pos_qr_payments`, `customer_accounts`, `customer_account_entries`,
   `vouchers`, `voucher_entries`, `booking_payments`, `banquet_payments`, `banquet_payment_entries`,
-  `staff_pay_statements`, `store_transactions`, `store_wallet_transactions`, `audit_logs` (partitioned; its policy also
-  allows `store_id IS NULL` rows for INSERT only via a separate `FOR INSERT WITH CHECK (store_id IS NULL OR ...)`: a staff
-  action may write a platform-level audit row [E: implementer checks AuditLogger callers]).
+  `staff_pay_statements`, `store_transactions`, `store_wallet_transactions`, `audit_logs` (partitioned; the same one
+  policy as the others, see "As built": the separate `FOR INSERT WITH CHECK (store_id IS NULL OR ...)` planned here does
+  not work with `INSERT ... RETURNING`).
 - **Not under RLS, and why acceptable:** marketplace-public rows read across stores by customers (`stores`, `branches`,
   `products`, `product_variants`, `modifier*`, `combos`, `daily_*`, `delivery_zones`, `categories`): public by nature, and a
   policy cannot hide columns (`Store::INTERNAL_ATTRIBUTES`, `app/Models/Store.php:53,232`, keeps balances out of bodies).
@@ -322,6 +322,61 @@ query; COMMIT` as a non-owner role; latency ms; run-to-run noise ≈ ±5 %)
   (fact 6). Partition leaves keep the default grants (fact 7): app code never names a leaf [F grep `_20[0-9][0-9]_` in
   `app/` outside `Support/Partitions`]; revoking per leaf would add a step to `PartitionManager::ensure` for no gain.
 - **Branch-level isolation stays app-level** (`actingBranchId`): one setting per store keeps one policy shape.
+**As built (stage 3; where this differs from the bullets above, this is what the code does):**
+- Roles [V 16.15, 17.12]: `GRANT rizqim_tenant TO rizqim_app WITH INHERIT FALSE, SET TRUE` (the per-membership form of
+  PG 16+; same statement on both, idempotent); the tenant role's name comes from `DB_TENANT_ROLE` (default
+  `rizqim_tenant`) in `scripts/db-roles.sh` and `config('database.tenant_rls.role')`. The policy is `TO PUBLIC`, so the
+  migration needs no role and runs on a one-role install, where it is inert (owner, no FORCE: tested).
+- The setting is written with `SET LOCAL app.store_id = '<int>'` (the same thing as `set_config(..., true)`; the
+  suite's pooling guard, `TransactionPoolingSafetyTest`, allows only the `SET LOCAL` form in `app/`).
+- Where the switch happens: on the first transaction opened while a store is bound and the role is not yet taken. In
+  production that is level 1 (right after BEGIN, every retry attempt again; COMMIT/ROLLBACK end it). Under the test
+  suite's wrapping transaction (`RefreshDatabase`), and wherever bound code starts inside a transaction opened by
+  unbound code, it is a savepoint: a rollback to it undoes role and setting, and when it is committed (Laravel never
+  releases a savepoint) both are put back by hand (`SET LOCAL ROLE NONE; SET LOCAL app.store_id = ''`) before
+  after-commit callbacks run. So the same code path runs in tests and in production, and the whole suite exercises the
+  policies. Transactions nested inside a tenant transaction change nothing.
+- Writes mode wraps only a single `insert/update/delete` whose target is one of the 20 tables (first keyword and table
+  name of the statement); other level-0 writes of a tenant request run as before (no extra round trips, no change).
+- `audit_logs`: with a policy `USING (store_id = ...)`, `INSERT ... RETURNING` (what Eloquent sends) applies the USING
+  expression to the new row too, so a NULL-store row is refused whatever a separate INSERT policy says [V 16, 17].
+  Hence one policy like every other table, and `AuditLog::performInsert` writes a NULL-store line of a tenant request
+  as the login role (`TenantRls::asApp`); a line for another store is refused. Callers read: `AuditLogger::record`
+  takes the store from the subject, the terminal or the actor, which in a bound request is never NULL; the one
+  NULL-store writer reachable from a tenant route is `OwnerEmployeeController::updateBranch` (`AuditLog::create`
+  without `store_id`).
+- Deliberate cross-store statements inside a tenant transaction go through `TenantRls::asApp()` (`SET LOCAL ROLE NONE`
+  and back, no savepoint). Uses: `LedgerService::isFirstDelivery` (the referral's "first delivery on the platform") and
+  the NULL-store audit line. Queued jobs the sync queue runs inline get the login role for their duration
+  (`QueuedJobsRunUnbound`), as a worker would give them.
+- Fail-open only for the role: when `SET LOCAL ROLE` itself fails (role dropped, membership revoked while running) the
+  transaction is started again as the login role with a critical log line; the monitoring check `partitions` asks the
+  database every minute (`TenantRls::setupProblems()`) and keeps a critical alert open while that lasts, and
+  `app:check-production` refuses to start in that state (also for a privilege the tenant role lacks). A refused write
+  (SQLSTATE 42501) is a server error for the client, a critical log line (table, route, store) and a critical alert.
+- The migration refuses, before changing anything, when the application's role would itself be bound by the policies
+  (roles split, `db-roles` of this stage not run): it would see no row of the 20 tables anywhere.
+- Fact 7 as built: a month created by `db:partitions:ensure` or attached by `scripts/archive-restore.sh` needs nothing
+  (tested through the parent). A journal REBUILT as a new table (`PartitionConverter`, the M3 migration's up/down) lost
+  its policy: the converter now carries row-level security over the swap like the triggers.
+
+- Measured (stage 3, PG 17.12, 1 000 stores, 1 000 000 orders with 3 items, a bill and a payment each, largest store
+  52 416 orders, median 498; DB only, pgbench 2 clients, simple protocol, the statements a till sends, rolled back; run
+  to run ±10 %): the switch alone (`BEGIN; SET LOCAL ROLE ...; SET LOCAL app.store_id; ROLLBACK` against `BEGIN;
+  ROLLBACK`) +0.05 ms; every statement on a table under the policy plans about 0.03-0.05 ms longer (the extra
+  `store_id` qual; execution unchanged: the same index scan under a One-Time Filter); so per transaction: open order
+  1.83 -> 2.01 ms, add item 1.84 -> 2.17 ms, pay 3.09 -> 3.49 ms, close 1.80 -> 2.18 ms (+0.2 to +0.4 ms, +10 to
+  +21 % of the transaction's database time). The POS e2e (114 scenarios, split roles, RLS on): 10 982 tenant
+  transactions, 6.4 statements each, 1.7 of them on a table under the policy, 326 single writes wrapped.
+- Plans: none of the write-path statements changed (all by primary key or with `store_id`). Statements with
+  `branch_id` and no `store_id` on a table under the policy do: the estimate collapses (store and branch are
+  correlated: 302 estimated for 8 782 rows) and the plan becomes BitmapAnd + sort: the floor shape for the largest
+  store 2.6 -> 25.6 ms, a pay-statement join for a median store 1.4 -> 3.9 ms. `CREATE STATISTICS (dependencies) ON
+  store_id, branch_id` on `orders` and `order_bills` brings both back (2.9 ms, 1.5 ms). Inside tenant transactions
+  such statements are the report queries of the staff-pay, tips and X-report code only (39 of 18 447 statements in
+  the e2e); the floor read itself runs outside transactions. Not added in stage 3 (no write path is affected); needed
+  before reads mode, and worth adding with the load run if those reports show up.
+
 Rejected: wrap every request in one transaction (holds a pooled server connection and row locks through slow PHP and
 outbound HTTP, turns `DB::transaction(..., 3)` deadlock retries into savepoints that never retry, delays every
 `afterCommit` revision touch and broadcast to the end of the request); a second PgBouncer pool in session mode (doubles

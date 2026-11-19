@@ -421,6 +421,36 @@ class TenantRoleSwitchTest extends TestCase
     }
 
     /**
+     * The audit journal through its model, inside a tenant transaction: the store's own line passes the policy; a line
+     * for no store (a platform-level one) is written as the login role, so the action it records does not fail; a line
+     * for ANOTHER store is what the policy is there to stop, whoever asks: refused.
+     */
+    public function test_an_audit_line_for_another_store_is_refused_and_one_for_no_store_is_written(): void
+    {
+        config(['app.debug' => false]);
+        $uri = $this->tenantRoute('audit', fn () => DB::transaction(function () {
+            AuditLog::create(['store_id' => $this->store->id, 'action' => 'rls.own']);
+            AuditLog::create(['action' => 'rls.platform']);
+            self::note('after-platform-line');
+        }));
+        $foreign = $this->tenantRoute('audit-foreign', fn () => DB::transaction(function () {
+            AuditLog::create(['store_id' => $this->store->id, 'action' => 'rls.own-before-foreign']);
+            AuditLog::create(['store_id' => $this->storeB->id, 'action' => 'rls.foreign']);
+        }));
+
+        $this->asOwner($uri);
+        $this->bearerJson('POST', $foreign, $this->owner->createToken('t')->plainTextToken)->assertStatus(500);
+        // The same one statement outside a transaction
+        $single = $this->tenantRoute('audit-foreign-single', fn () => AuditLog::create(['store_id' => $this->storeB->id, 'action' => 'rls.foreign']));
+        $this->bearerJson('POST', $single, $this->owner->createToken('t')->plainTextToken)->assertStatus(500);
+
+        $this->assertSame(["after-platform-line={$this->tenant}|{$this->store->id}"], self::$seen);
+        $this->assertSame(['rls.own' => $this->store->id, 'rls.platform' => null], AuditLog::where('action', 'like', 'rls.%')->orderBy('id')->pluck('store_id', 'action')->all());
+        $this->assertSame(2, Cache::get(TenantRls::REFUSED)['count']);
+        $this->assertSame('audit_logs', Cache::get(TenantRls::REFUSED)['table']);
+    }
+
+    /**
      * A write PostgreSQL refuses under the policy (here a forged row for another store, by raw SQL: the application
      * guard is out of the way): the client gets the usual server error and nothing else, the log and the monitoring
      * marker say which table, route and store, without any row data.
@@ -462,9 +492,18 @@ class TenantRoleSwitchTest extends TestCase
      * TENANT_RLS on, but the role cannot be taken (not created, or the login role is not its member): the request must
      * not fail. Its transactions run as the login role, as with TENANT_RLS off, and the log says so once.
      */
-    public function test_a_role_that_cannot_be_taken_never_fails_the_request(): void
+    public function test_a_role_that_cannot_be_taken_never_fails_the_request_and_never_goes_unseen(): void
     {
+        $this->assertNull($this->finding('tenant_rls_unavailable'), 'the roles of db-roles: nothing to report');
+
         config(['database.tenant_rls.role' => 'rls_test_no_such_role']);
+        // Before any request met it: the monitoring check (every minute, in the scheduler) asks the database itself,
+        // so the alert is open for as long as the state lasts, also in an hour without a single sale
+        $standing = $this->finding('tenant_rls_unavailable');
+        $this->assertSame('critical', $standing?->severity);
+        $this->assertStringContainsString("Qator himoyasi (RLS) yoqilgan, lekin ishlamayapti: TENANT_RLS=1, lekin bazada rls_test_no_such_role roli yo'q", $standing->title);
+        $this->assertSame("{$this->login}|", self::probe(), 'asking left no role behind');
+
         Log::spy();
         $slug = 'rls-' . Str::random(8);
         $uri = $this->tenantRoute('missing-role', function () use ($slug) {
@@ -479,12 +518,10 @@ class TenantRoleSwitchTest extends TestCase
 
         $this->assertSame(["first={$this->login}|", "second={$this->login}|"], self::$seen);
         $this->assertTrue(Category::where('slug', $slug)->exists(), 'the transaction was started again and its work is kept');
-        Log::shouldHaveReceived('critical')->once()->withArgs(fn (string $message) => str_contains($message, 'WITHOUT row-level security'));
-        $this->assertSame(['role' => 'rls_test_no_such_role', 'store_id' => $this->store->id, 'route' => 'POST api/test-rls/missing-role', 'count' => 1],
-            array_diff_key(Cache::get(TenantRls::UNAVAILABLE), ['error' => true, 'at' => true]));
-        $finding = $this->finding('tenant_rls_unavailable');
-        $this->assertSame('critical', $finding->severity);
-        $this->assertStringContainsString("ilova rls_test_no_such_role roliga o'ta olmadi (1 marta)", $finding->title);
+        // The request that met it says so at once (laravel.log, Sentry), once per connection
+        Log::shouldHaveReceived('critical')->once()->withArgs(fn (string $message, array $context) => str_contains($message, 'WITHOUT row-level security')
+            && array_diff_key($context, ['error' => true]) === ['role' => 'rls_test_no_such_role', 'store_id' => $this->store->id, 'route' => 'POST api/test-rls/missing-role']);
+        $this->assertNotNull($this->finding('tenant_rls_unavailable'), 'still open after the request');
         $this->assertNull($this->finding('tenant_rls_refused'), 'nothing was refused');
 
         // The same on a real transaction (ROLLBACK, BEGIN again)
