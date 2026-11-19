@@ -188,7 +188,7 @@ class RevisionPostgresConnection extends PostgresConnection
         $this->forgetLeftTenantLevel();
 
         if ($this->tenantLevel !== null || $this->appRoleDepth > 0 || $this->pretending
-            || !self::writesTenantTable((string) $query) || $this->storeToEnter() === null) {
+            || $this->storeToEnter() === null || !self::writesTenantTable((string) $query)) {
             return $write();
         }
 
