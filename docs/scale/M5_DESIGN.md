@@ -500,6 +500,25 @@ Scenarios, each as a `pos_data` test against the fake backend and, where marked 
 9. **Who publishes a new version.** Default: RIZQIM only, from the control centre, after the build passed on the
    pilot tills; stores cannot pin or skip versions.
 
+### 8.1 Owner answers (19.11.2026)
+
+All nine as recommended, with these additions:
+1. No separate ceiling. Every discount given without internet is marked separately in reports, and once the connection
+   is back the owner gets ONE summary message (how many, total amount, who gave them).
+2. Shared secret per till (HMAC-SHA256), no new library.
+3. Yes: continue as the last staff member, at most 12 h, only closing open tables and taking payment. Such operations
+   are marked "PIN'siz davom etilgan" in reports.
+4. Record and warn first; later refuse per store setting. Payments are never dropped.
+5. Warn + second confirmation; the data stays on the till and can be exported to a file.
+6. Create the real Android signing key NOW (no live store or installed till yet, so switching costs nothing today),
+   together with the owner: one copy in GitHub Secrets, one offline with the owner. Secret values never go in chat.
+7. Pilot unsigned on Windows (we explain the warning at install); certificate before open launch.
+8. 14 days, then the red notice and an owner message; the till is never stopped.
+9. RIZQIM team only, from the control centre.
+
+Order: S1 first, as its own small PR that is quick to review. Every bug gets a failing test first; the journal bug
+(found only by reading) is confirmed by a test before anything else. Remaining stages follow in plan order.
+
 ## 9. If the answer had been "a whole day without internet" (note only, not planned)
 
 Decided against on 19.11.2026. For the record, it would add, on top of everything above [E]:
