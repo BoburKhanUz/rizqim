@@ -807,6 +807,8 @@ Muammo hal bo'lganda ham xabar keladi. Yuborish qoidalari:
 | Jurnallarning oylik bo'limlari: himoya triggeri yo'q | `fiscal_receipt_keys_insert` yoki audit triggeri yo'qolgan: fiskal cheklar takrorlanishdan himoyasiz | trigger yo'q | KRITIK | `php artisan db:partitions:ensure` bajaring (triggerni tiklaydi); ogohlantirish yopilmasa texnik yordamga murojaat qiling. |
 | Jurnallarning oylik bo'limlari: arxiv kaliti o'chira oladi | Jurnallar arxivi yoziladigan S3 kaliti fayllarni o'chira oladi: arxiv himoyasiz | kalit o'chira oladi | DIQQAT | O'chirish huquqi yo'q alohida kalit bering (`ARCHIVE_S3_ACCESS_KEY`, `ARCHIVE_S3_SECRET`; 20-bo'lim). |
 | Jurnallarning oylik bo'limlari: arxiv faqat shu serverda | S3 yo'q: eski oylar faqat shu serverdagi faylga arxivlangan, bazadan o'chirilmaydi va disk buzilsa yo'qoladi | 1 ta oy | DIQQAT | S3 kalitlarini yozing (20-bo'lim). |
+| Jurnallarning oylik bo'limlari: RLS yozuvni rad etdi (M4) | Do'kon so'rovining yozuvini PostgreSQL qator himoyasi bilan rad etdi (kassa yoki panel server xatosi oldi): yo birov boshqa do'kon nomidan yozmoqchi bo'lgan, yo qonuniy amal adashib rad etilgan. Matnda jadval, yo'l, do'kon va necha marta; oxirgisidan bir soat o'tgach o'zi yopiladi | 1 ta | KRITIK | Qonuniy amal bo'lsa darhol o'chiring: ildizdagi `.env` da `TENANT_RLS=0`, `docker compose up -d`; log qatorini dasturchiga yuboring (24-bo'lim). |
+| Jurnallarning oylik bo'limlari: RLS yoqilgan, lekin ishlamayapti (M4) | `TENANT_RLS=1`, ammo ilova `rizqim_tenant` roliga o'ta olmadi (rol yoki a'zolik yo'qolgan): so'rovlar to'xtamaydi, lekin himoyasiz bajariladi | 1 ta | KRITIK | `docker compose run --rm db-roles`, so'ng `app:check-production` (24-bo'lim). |
 | Jurnallarning oylik bo'limlari: egasi roli yo'q | Rollar ajratilgan, lekin scheduler'da `DB_OWNER_USERNAME`/`DB_OWNER_PASSWORD` yo'q: har kechagi `db:partitions:ensure`/`:archive` rad etiladi, keyingi oylar tayyorlanmaydi | darhol | KRITIK | Ildizdagi `.env` ga egasi rolini yozing va `docker compose up -d scheduler` (22-bo'lim). |
 
 Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose exec -u www-data backend ...` ichida bajariladi. PITR, tiklash mashqi va disk qoidalari uzluksiz zaxira **yoqilmagan** (`PITR_ENABLED` bo'sh) bo'lsa jim turadi: markazda «O'chiq» ko'rinadi.
@@ -832,13 +834,14 @@ Eslatma: `db:partitions:ensure` kabi `php artisan` buyruqlari `docker compose ex
 ## 22. Baza rollari (M4)
 
 Ilova bazaga jadvallar egasi yoki superuser sifatida ulanmaydi: ilovadagi xato (yoki buzg'unchi) jadvalni o'chira, trigger va
-himoyalarni o'chira olmaydi. Uchta rol:
+himoyalarni o'chira olmaydi. Rollar:
 
 | Rol | Kim ishlatadi | Huquqi |
 |---|---|---|
 | bootstrap superuser (`POSTGRES_USER`, mavjud o'rnatishda eski `DB_USERNAME`) | `postgres` konteyneri, `backup` (pg_dump, pgBackRest, tiklash mashqi, jurnallar arxivi), `db-roles` | hammasi |
 | `rizqim_owner` (`DB_OWNER_USERNAME`) | migratsiyalar (`backend` konteyneri ishga tushganda, `php artisan migrate`), `db:partitions:ensure` (00:40 UTC) va `db:partitions:archive` (22:40 UTC, `scheduler`) | sxemadagi hamma obyektning egasi |
-| `rizqim_app` (`DB_USERNAME`) | php-fpm (PgBouncer orqali), queue, queue-reports, scheduler, reverb | faqat SELECT/INSERT/UPDATE/DELETE, ketma-ketliklar, `pg_monitor` (Monitoring uchun) |
+| `rizqim_app` (`DB_USERNAME`) | php-fpm (PgBouncer orqali), queue, queue-reports, scheduler, reverb | faqat SELECT/INSERT/UPDATE/DELETE, ketma-ketliklar, `pg_monitor` (Monitoring uchun); 3-bosqichdan `BYPASSRLS` va `rizqim_tenant` ga o'tish huquqi (24-bo'lim) |
+| `rizqim_tenant` (`DB_TENANT_ROLE`, 3-bosqich) | hech kim ulanmaydi (parolsiz, NOLOGIN): `TENANT_RLS=1` bo'lsa ilova do'kon so'rovining tranzaksiyasi ichida shu rolga o'tadi | `rizqim_app` niki bilan bir xil o'qish-yozish; qator himoyasi (RLS) faqat shu rolga ta'sir qiladi |
 
 `DB_OWNER_USERNAME` bo'sh bo'lsa hammasi avvalgidek bitta rol bilan ishlaydi (`app:check-production` faqat ogohlantiradi).
 Egasining paroli faqat `backend` (migratsiya uchun; php-fpm ishga tushishidan oldin muhitdan o'chiriladi) va `scheduler`
@@ -979,7 +982,8 @@ bo'lsa, PostgreSQL `new row violates row-level security policy for table "..."` 
 - `laravel.log` da (va Sentry'da) KRITIK qator: `tenant_rls: PostgreSQL refused a write (row-level security)` jadval,
   yo'l (masalan `POST api/v1/pos/bills/{uuid}/payments`) va do'kon raqami bilan; qatorda mijoz ma'lumoti yo'q;
 - Telegram'ga KRITIK ogohlantirish keladi («Jurnallarning oylik bo'limlari» qoidasi ostida: «Qator himoyasi (RLS) yozuvni
-  rad etdi: ...»); oxirgi rad etishdan bir soat o'tgach o'zi yopiladi.
+  rad etdi: 3 marta (oxirgisi: jadval payments, yo'l POST api/v1/pos/bills/{uuid}/payments, do'kon 12)»); oxirgi rad
+  etishdan bir soat o'tgach o'zi yopiladi. Ogohlantirish Redis keshi orqali ishlaydi (`CACHE_STORE=redis`).
 
 Bu ikki narsadan biri: kimdir boshqa do'kon nomidan yozishga uringan (himoya ishladi) yoki ilovadagi qonuniy yo'l
 adashib rad etilgan (xato: kassa ishlamay qoldi). Ikkinchisida **darhol o'chiring** (pastda) va log qatoridagi jadval bilan
