@@ -516,6 +516,10 @@ All nine as recommended, with these additions:
 8. 14 days, then the red notice and an owner message; the till is never stopped.
 9. RIZQIM team only, from the control centre.
 
+Owner decision (20.11.2026, after the S2 security review showed that a till token alone could give an
+unlimited discount in a manager's name): without internet EVERYONE, managers included, gives at most the branch's
+cashier discount limit; larger discounts wait for the connection. Answer 1 above is narrowed accordingly.
+
 Order: S1 first, as its own small PR that is quick to review. Every bug gets a failing test first; the journal bug
 (found only by reading) is confirmed by a test before anything else. Remaining stages follow in plan order.
 
