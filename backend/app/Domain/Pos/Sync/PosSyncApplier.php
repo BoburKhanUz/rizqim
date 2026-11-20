@@ -118,7 +118,7 @@ final class PosSyncApplier
     ) {}
 
     /**
-     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict}  $op  `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before)
+     * @param  array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, sig_status?: ?string, mac?: ?string, signature_verdict?: ?SignatureVerdict, invalid?: ?string}  $op  `signature_verdict` (wave M5 S3-d): what the store's signature mode does with it (SignaturePolicy; absent: applied as before). `invalid`: a signed line whose text does not hold a usable operation (PosSyncController): recorded rejected `invalid_payload` with this message, never applied
      */
     public function apply(Device $device, array $op, ?int $clockSkew): PosSyncOperation
     {
@@ -149,15 +149,21 @@ final class PosSyncApplier
         ];
 
         $origin = isset($op['origin_device']) ? strtolower($op['origin_device']) : null;
-        // Wave M5 S3-d (SignaturePolicy, the store enforces signatures): unsigned or badly signed
+        // Wave M5 S3-d (SignaturePolicy, the store enforces signatures): what is done with an unsigned or badly signed one
         $verdict = $op['signature_verdict'] ?? null;
         $sigStatus = SyncSignatureStatus::tryFrom((string) ($op['sig_status'] ?? '')) ?? SyncSignatureStatus::MISSING;
         try {
             if ($type === null) {
                 throw new PosSyncException('type_unknown', "Amal turi noma'lum: ilovani yangilang.");
             }
+            if (is_string($op['invalid'] ?? null)) {
+                // A signed journal line that no longer holds a whole operation: kept for the manager, never applied,
+                // and never a reason to refuse the batch it came in
+                throw new PosSyncException('invalid_payload', $op['invalid']);
+            }
             if ($verdict === SignatureVerdict::REJECT) {
-                // ...and not money: never applied, for the manager to look at
+                // ...a concession (SignaturePolicy::CONCESSIONS): never applied, for the manager to look at. What the
+                // sale is built of is applied below whatever its signature and flagged afterwards (PosSyncService)
                 throw new PosSyncException(SignaturePolicy::REASON_INVALID, SignaturePolicy::message($sigStatus) . ' Amal qo\'llanmadi.');
             }
             // P6: a relayed operation is the origin terminal's (who signed in there, the order's device)

@@ -95,7 +95,7 @@ class SyncSignatureVectorsTest extends TestCase
                 $seq = (int) ($signed ? json_decode((string) $operation['signed'], true)['seq'] : $operation['seq']);
                 $signature = $signed ? ['raw' => $operation['signed'], 'mac' => $operation['mac'], 'prev' => $operation['prev'], 'kid' => $operation['kid']] : null;
                 $status = $chain->check($signature, $seq);
-                $chain->recorded($signature, $seq);
+                $chain->recorded($signature, $seq, $status);
                 $statuses[] = $status->value;
             }
 

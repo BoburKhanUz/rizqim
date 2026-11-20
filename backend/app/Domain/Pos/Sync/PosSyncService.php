@@ -28,9 +28,15 @@ use Illuminate\Support\Facades\Cache;
  * journal was lost), the rest are `ok`.
  *
  * Wave M5 S3-d: what is done with that status is the store's mode (SignaturePolicy: observe, or enforce by the owner's
- * switch). In enforce an unsigned or badly signed operation is rejected `signature_invalid`, a payment recorded as
- * `payment_unverified`, an operation after a gap applied and marked a conflict; each is still one answered result of
- * a 200 batch. After the batch the owner hears about a `chain_gap` (SignaturePolicy::afterBatch()).
+ * switch). In enforce an unsigned or badly signed operation is applied and marked a conflict `signature_invalid` (a
+ * sale is never dropped), a concession (a discount, a void) refused, a payment recorded as `payment_unverified`, an
+ * operation after a gap applied and marked a conflict; each is still one answered result of a 200 batch. After the
+ * batch the owner hears about a `chain_gap` (SignaturePolicy::afterBatch()).
+ *
+ * A signed line whose text holds no usable operation (`invalid`, PosSyncController) never refuses the batch either:
+ * with an op_id and a free number it is recorded rejected `invalid_payload`, its signature checked like any other
+ * (the chain goes on after a line the till itself signed); otherwise it is answered in `unreadable` and no row is
+ * written (never `op_id_conflict` or `seq_reused` over text nobody can vouch for).
  */
 final class PosSyncService
 {
@@ -46,9 +52,9 @@ final class PosSyncService
     ) {}
 
     /**
-     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, signature?: array{raw: string, mac: mixed, prev: mixed, kid: mixed}|null}>  $operations  `signature`: what a signed operation came with (PosSyncController), absent for the old unsigned shape
+     * @param  list<array{op_id: string, seq: int, type: string, occurred_at?: ?string, staff_id?: ?int, payload?: array<string, mixed>, origin_device?: ?string, signature?: array{raw: string, mac: mixed, prev: mixed, kid: mixed}|null, invalid?: string, index?: int}>  $operations  `signature`: what a signed operation came with (PosSyncController), absent for the old unsigned shape; `invalid` (with `index`, its place in the batch): a signed line that holds no usable operation, and why
      * @param  array{size?: int|null, oldest_at?: string|null}|null  $queue
-     * @return array{results: list<PosSyncOperation>, duplicates: list<string>, stopped_at: int|null, clock_skew_seconds: int|null}
+     * @return array{results: list<PosSyncOperation>, duplicates: list<string>, stopped_at: int|null, clock_skew_seconds: int|null, unreadable: list<array{index: int, op_id: string|null, seq: int|null, reason: string, message: string}>}
      *
      * @throws PosSyncException 409 `sync_in_progress` while another batch of this till is being applied
      */
@@ -68,6 +74,10 @@ final class PosSyncService
             $stoppedAt = null;
             // Wave M5 S3-d: the operations this batch recorded itself (not the duplicates), for the owner's alert
             $recorded = [];
+            // ...the unsigned ones a till sent after it had signed under its current key (their numbers)
+            $unsigned = [];
+            // ...and the unusable signed lines no row could be written for
+            $unreadable = [];
             $enforce = $this->policy->enforced((int) $device->store_id);
             // Wave M5 S3: under the till's lock, so the chain is read and moved by one batch at a time
             $chain = SyncSignature::chainFor($device);
@@ -76,6 +86,15 @@ final class PosSyncService
                     $opId = strtolower((string) $op['op_id']);
                     // M4: op_id is unique across every store: another store's id must still answer op_id_conflict below
                     $existing = PosSyncOperation::query()->withoutGlobalScope(\App\Support\Tenancy\StoreScope::class)->where('op_id', $opId)->first();
+                    $invalid = is_string($op['invalid'] ?? null);
+                    $index = (int) ($op['index'] ?? 0);
+                    unset($op['index']);
+                    if ($invalid && (($existing !== null && (int) $existing->device_id !== (int) $device->id)
+                        || ($existing === null && PosSyncOperation::where('device_id', $device->id)->where('seq', (int) $op['seq'])->exists()))) {
+                        // Its id or number belongs to something else: text nobody can vouch for refuses nothing
+                        $unreadable[] = self::unreadable($index, $opId, (int) $op['seq'], (string) $op['invalid']);
+                        continue;
+                    }
                     if ($existing !== null) {
                         if ((int) $existing->device_id !== (int) $device->id) {
                             // Somebody else's operation id: never shown, never applied
@@ -90,8 +109,9 @@ final class PosSyncService
                     }
 
                     // Wave M5 S3: the signature's worth is recorded on the operation. Observe mode: applied as before
-                    // whatever it is. Enforce (S3-d, SignaturePolicy): the applier rejects it or records the payment
-                    // as unverified. Nothing here ever refuses the batch
+                    // whatever it is. Enforce (S3-d, SignaturePolicy): the applier refuses a concession and records
+                    // a payment as unverified; anything else is applied and marked a conflict below. Nothing here
+                    // ever refuses the batch
                     $signature = $op['signature'] ?? null;
                     unset($op['signature']);
                     $status = $chain->check($signature, (int) $op['seq']);
@@ -99,15 +119,16 @@ final class PosSyncService
                     $op['sig_status'] = $status->value;
                     $op['mac'] = SyncChain::storedMac($signature);
                     $op['signature_verdict'] = $verdict;
+                    if ($status === SyncSignatureStatus::MISSING && $chain->signsUnderCurrentKey()) {
+                        $unsigned[] = (int) $op['seq'];
+                    }
 
                     try {
                         $result = $this->applier->apply($device, $op, $skew);
-                        if ($verdict === SignatureVerdict::APPLY_AS_CONFLICT) {
-                            $result = $this->policy->markChainGap($result);
-                        }
+                        $result = $this->policy->mark($result, $verdict, $status);
                         $results[] = $result;
                         $recorded[] = $result;
-                        $chain->recorded($signature, (int) $op['seq']);
+                        $chain->recorded($signature, (int) $op['seq'], $status);
                     } catch (QueryException|\PDOException $e) {
                         // The database, not the operation (the applier answers the operation's own errors, review
                         // P3-35): it stays queued on the till and comes again
@@ -121,21 +142,32 @@ final class PosSyncService
                 // the device row's `last_seq` stays what the server really holds (the queue report is left as it was)
                 $this->report($device, $results, null, $skew, $chain);
                 app(OfflineDiscounts::class)->afterBatch($device);
-                $this->policy->afterBatch($device, $recorded);
+                $this->policy->afterBatch($device, $recorded, $unsigned);
 
                 throw $e;
             }
 
-            $this->report($device, $results, $queue, $skew, $chain);
+            // (a line answered as unreadable leaves the till's queue too)
+            $this->report($device, $results, $queue, $skew, $chain, count($unreadable));
             // Wave M5 S2: one message to the owner about the discounts this outage's queue carried (never fails the batch)
             app(OfflineDiscounts::class)->afterBatch($device);
             // Wave M5 S3-d: the owner hears about operations lost from the till's queue (never fails the batch)
-            $this->policy->afterBatch($device, $recorded);
+            $this->policy->afterBatch($device, $recorded, $unsigned);
 
-            return ['results' => $results, 'duplicates' => $duplicates, 'stopped_at' => $stoppedAt, 'clock_skew_seconds' => $skew];
+            return ['results' => $results, 'duplicates' => $duplicates, 'stopped_at' => $stoppedAt, 'clock_skew_seconds' => $skew, 'unreadable' => $unreadable];
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * A signed line of the batch that holds no usable operation and that no row was written for (`data.unreadable`).
+     *
+     * @return array{index: int, op_id: string|null, seq: int|null, reason: string, message: string}
+     */
+    public static function unreadable(int $index, ?string $opId, ?int $seq, string $message): array
+    {
+        return ['index' => $index, 'op_id' => $opId, 'seq' => $seq, 'reason' => 'invalid_payload', 'message' => $message];
     }
 
     /**
@@ -144,12 +176,12 @@ final class PosSyncService
      * @param  list<PosSyncOperation>  $results
      * @param  array{size?: int|null, oldest_at?: string|null}|null  $queue
      */
-    public function report(Device $device, array $results, ?array $queue, ?int $skew, ?SyncChain $chain = null): void
+    public function report(Device $device, array $results, ?array $queue, ?int $skew, ?SyncChain $chain = null, int $unreadable = 0): void
     {
         $lastSeq = max((int) $device->sync_last_seq, ...array_map(fn (PosSyncOperation $op) => (int) $op->seq, $results ?: [new PosSyncOperation(['seq' => 0])]));
         $attributes = ['sync_last_seq' => $lastSeq, 'sync_reported_at' => now()];
         if ($queue !== null && isset($queue['size'])) {
-            $left = max(0, (int) $queue['size'] - count($results));
+            $left = max(0, (int) $queue['size'] - count($results) - $unreadable);
             $attributes['sync_pending_ops'] = $left;
             $attributes['sync_oldest_op_at'] = $left > 0 && !empty($queue['oldest_at']) ? rescue(fn () => Carbon::parse((string) $queue['oldest_at']), null, false) : null;
         }

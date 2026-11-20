@@ -119,6 +119,32 @@ class SyncKeyTest extends TestCase
         $this->assertNowhereElse($second['key']);
     }
 
+    public function test_a_till_whose_queue_is_not_empty_does_not_get_a_new_key(): void
+    {
+        $paired = $this->pairOver('pos');
+        // What the till last said about its queue: operations are waiting, signed with the key it holds
+        DB::table('devices')->where('uuid', $paired['device']['uuid'])->update(['sync_pending_ops' => 3, 'sync_oldest_op_at' => now()->subHour()]);
+
+        $this->withBearer($paired['token'])->postJson('/api/v1/terminal/sync-key')->assertStatus(409)->assertJsonPath('data.reason', 'queue_not_empty')->assertJsonMissingPath('data.key');
+        $row = DB::table('devices')->where('uuid', $paired['device']['uuid'])->first();
+        $this->assertSame(1, (int) $row->sync_key_id);
+        $this->assertSame($paired['sync_key']['key'], Crypt::decryptString((string) $row->sync_key));
+        $this->assertSame(0, AuditLog::where('action', 'device.sync_key_rotated')->count());
+
+        // The till says its queue is empty (GET /pos/sync/status?queue_size=0): now it may rotate
+        $this->withBearer($paired['token'])->getJson('/api/v1/pos/sync/status?queue_size=0')->assertOk();
+        $this->withBearer($paired['token'])->postJson('/api/v1/terminal/sync-key')->assertOk()->assertJsonPath('data.kid', 2);
+    }
+
+    public function test_a_till_without_a_key_gets_its_first_one_whatever_its_queue_holds(): void
+    {
+        $paired = $this->pairOver('pos');
+        // Paired before signing existed, with unsigned operations waiting: nothing is signed with a key to lose
+        DB::table('devices')->where('uuid', $paired['device']['uuid'])->update(['sync_key' => null, 'sync_key_id' => 0, 'sync_pending_ops' => 3]);
+
+        $this->withBearer($paired['token'])->postJson('/api/v1/terminal/sync-key')->assertOk()->assertJsonPath('data.kid', 1);
+    }
+
     public function test_only_the_tills_own_token_gets_a_key(): void
     {
         $this->withBearer(null)->postJson('/api/v1/terminal/sync-key')->assertUnauthorized();

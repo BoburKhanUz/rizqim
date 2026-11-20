@@ -34,6 +34,9 @@ final class SyncSignature
     /** A disconnected device's key is kept this long (a rescue file exported from that till can still be checked). */
     public const KEEP_REVOKED_DAYS = 30;
 
+    /** chainFor() reads this many of a device's last operations (a batch holds at most PosSyncService::MAX_BATCH). */
+    public const CHAIN_LOOKBACK = 50;
+
     /**
      * @param  string  $key  the key's bytes
      * @return string 64 hex characters
@@ -78,11 +81,36 @@ final class SyncSignature
      */
     public static function issue(Device $device): array
     {
-        return DB::transaction(function () use ($device) {
+        return self::give($device, false) ?? throw new \LogicException('A key is always given when the queue is not asked about.');
+    }
+
+    /**
+     * issue() for a till that asks by itself (POST /terminal/sync-key). Only one previous key is kept, so a rotation
+     * is refused (null) while the queue the till last reported is not empty (`devices.sync_pending_ops`,
+     * `sync_oldest_op_at`): those operations are signed with the key the rotation after this one would push out. A
+     * first key is always given. This is all the server knows: a till that is offline cannot report what it queued
+     * since (the signature protects the journal on the till's disk, not against whoever holds the terminal's token).
+     *
+     * @return array{key: string, kid: int, rotated: bool}|null
+     */
+    public static function issueUnlessQueued(Device $device): ?array
+    {
+        return self::give($device, true);
+    }
+
+    /**
+     * @return array{key: string, kid: int, rotated: bool}|null
+     */
+    private static function give(Device $device, bool $unlessQueued): ?array
+    {
+        return DB::transaction(function () use ($device, $unlessQueued) {
             $row = Device::whereKey($device->getKey())->lockForUpdate()->firstOrFail();
             $current = self::stored($row, 'sync_key');
             $kid = (int) $row->getAttribute('sync_key_id');
             $rotated = $kid > 0;
+            if ($rotated && $unlessQueued && ((int) $row->getAttribute('sync_pending_ops') > 0 || $row->getAttribute('sync_oldest_op_at') !== null)) {
+                return null;
+            }
             $key = self::newKey();
 
             $attributes = ['sync_key' => $key, 'sync_key_id' => $kid + 1, 'sync_key_prev' => $rotated ? $current : null];
@@ -112,16 +140,30 @@ final class SyncSignature
             }
         }
 
-        // The last operation the server recorded: its number, and its mac when the device row's chain was not saved
-        // after it (a process killed between the two writes must not read as a removed line)
-        $last = PosSyncOperation::where('device_id', $device->getKey())->orderByDesc('seq')->first(['id', 'seq', 'mac']);
+        // The last operations the server recorded (one bounded read over the unique (device_id, seq) index), newest
+        // first: the number to follow, and what the device row may have missed when a process was killed between the
+        // operation's row and the device row (that must not read as a removed line)
+        $rows = PosSyncOperation::where('device_id', $device->getKey())->orderByDesc('seq')->limit(self::CHAIN_LOOKBACK)->get(['id', 'seq', 'mac', 'sig_status']);
+        $newest = $rows->first();
+        // ...the mac of the last operation whose own signature was right, past the unsigned ones after it
+        $verified = $rows->first(fn (PosSyncOperation $row) => $row->mac !== null && in_array($row->sig_status, [SyncSignatureStatus::OK->value, SyncSignatureStatus::CHAIN_GAP->value], true));
+        // ...and the mac a badly signed last line claims, when its number followed the one before it (SyncChain)
+        $signed = $rows->search(fn (PosSyncOperation $row) => $row->sig_status !== SyncSignatureStatus::MISSING->value && $row->sig_status !== null);
+        $claimed = null;
+        if ($signed !== false && $rows[$signed]->sig_status === SyncSignatureStatus::BAD->value && $rows[$signed]->mac !== null) {
+            $before = $rows[$signed + 1] ?? null;
+            $inPlace = $before !== null ? (int) $rows[$signed]->seq === (int) $before->seq + 1 : $rows->count() < self::CHAIN_LOOKBACK;
+            $claimed = $inPlace ? (string) $rows[$signed]->mac : null;
+        }
 
         return new SyncChain(
             (string) $device->uuid,
             $keys,
             is_string($device->getAttribute('sync_chain')) ? $device->getAttribute('sync_chain') : null,
-            max((int) $device->getAttribute('sync_last_seq'), (int) $last?->seq),
-            $last?->mac,
+            max((int) $device->getAttribute('sync_last_seq'), (int) $newest?->seq),
+            $verified?->mac,
+            $claimed,
+            $newest?->sig_status === SyncSignatureStatus::MISSING->value,
         );
     }
 

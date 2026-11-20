@@ -101,4 +101,51 @@ class PosSyncSignatureCheckTest extends TestCase
         app(AlertEvaluator::class)->run();
         $this->assertCount(1, $this->open());
     }
+
+    public function test_a_till_whose_key_was_rotated_more_than_once_in_a_day_opens_an_alert(): void
+    {
+        $this->onlyRule(AlertKind::POS_SYNC_SIGNATURE);
+        $till = $this->terminal($this->store, ['name' => 'Kassa 1']);
+        $calm = $this->terminal($this->store, ['name' => 'Kassa 2']);
+        $audit = app(\App\Services\Audit\AuditLogger::class);
+        $rotated = fn (Device $device, int $kid) => $audit->record('device.sync_key_rotated', $device, [], [], ['kid' => $kid, 'by' => 'terminal'], ['actor' => null, 'device' => $device]);
+        $audit->record('device.sync_key_issued', $till, [], [], ['kid' => 1, 'by' => 'terminal'], ['actor' => null, 'device' => $till]);
+        $rotated($till, 2);
+        $rotated($calm, 2);
+
+        app(AlertEvaluator::class)->run();
+        $this->assertCount(0, $this->open());
+
+        $rotated($till, 3);
+        app(AlertEvaluator::class)->run();
+        app(AlertEvaluator::class)->run();
+
+        $alert = $this->open()->sole();
+        $this->assertSame([$till->uuid, $this->store->id], [$alert->subject_key, $alert->store_id]);
+        $this->assertSame([2, 0, 0, 0], [$alert->details['key_rotations'], $alert->details['bad'], $alert->details['chain_gap'], $alert->details['stopped_signing']]);
+        $this->assertStringContainsString('kaliti 2 marta', $alert->title);
+
+        $this->travel(25)->hours();
+        app(AlertEvaluator::class)->run();
+        $this->assertCount(0, $this->open());
+    }
+
+    public function test_a_till_that_signed_and_then_sends_unsigned_operations_opens_an_alert(): void
+    {
+        $this->onlyRule(AlertKind::POS_SYNC_SIGNATURE, ['threshold' => 5]);
+        $till = $this->terminal($this->store, ['name' => 'Kassa 1']);
+        $this->op($till, 'ok');
+        $this->op($till, 'missing');
+        app(AlertEvaluator::class)->run();
+        $this->assertCount(0, $this->open());
+
+        // What a batch writes when a till that signed under its current key sends an unsigned operation (SignaturePolicy)
+        app(\App\Services\Audit\AuditLogger::class)->record('device.sync_signature_missing', $till, [], [], ['kid' => 1, 'operations' => 1], ['actor' => null, 'device' => $till]);
+        app(AlertEvaluator::class)->run();
+
+        $alert = $this->open()->sole();
+        $this->assertSame($till->uuid, $alert->subject_key);
+        $this->assertSame([1, 0], [$alert->details['stopped_signing'], $alert->details['key_rotations']]);
+        $this->assertStringContainsString('imzolashni to\'xtatdi', $alert->title);
+    }
 }

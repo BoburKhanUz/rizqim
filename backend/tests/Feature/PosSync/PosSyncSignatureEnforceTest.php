@@ -15,10 +15,11 @@ use Tests\TestCase;
 
 /**
  * Wave M5 S3-d (docs/scale/M5_DESIGN.md §4, the modes table; test plan 7.1-7): the store's "enforce" switch
- * (`stores.pos_sync_enforce_signatures`, SignaturePolicy). With it on, an operation that is not money and comes
- * unsigned or badly signed is rejected `signature_invalid`; a payment is never dropped: it is recorded and flagged
- * `payment_unverified`; a `chain_gap` is applied and becomes a conflict for the manager. The batch is still never
- * refused. The owner hears about a `chain_gap` in both modes.
+ * (`stores.pos_sync_enforce_signatures`, SignaturePolicy). With it on, an operation that comes unsigned or badly
+ * signed is still applied and becomes a conflict `signature_invalid` for the manager (a sale is never dropped; only a
+ * concession — a discount, a void — is refused); a payment is recorded and flagged `payment_unverified`; a `chain_gap`
+ * is applied and becomes a conflict. The batch is still never refused. The owner hears about a `chain_gap` in both
+ * modes. (The review after S3: PosSyncSignatureReviewTest.)
  */
 class PosSyncSignatureEnforceTest extends TestCase
 {
@@ -65,7 +66,7 @@ class PosSyncSignatureEnforceTest extends TestCase
         return $this->signed($operations, $this->key, $this->uuid);
     }
 
-    public function test_enforce_rejects_an_unsigned_operation_that_is_not_money_and_takes_the_signed_ones(): void
+    public function test_enforce_flags_an_unsigned_operation_that_is_not_money_and_takes_the_signed_ones(): void
     {
         $this->enforce();
         $first = $this->sync($this->sign($this->walkInSale()['ops']))->assertOk();
@@ -77,17 +78,19 @@ class PosSyncSignatureEnforceTest extends TestCase
         $open = $this->op('order.open', ['order' => $order, 'local_number' => 'K1-002', 'channel' => 'pos_takeaway', 'items' => [$this->line($this->tea, '1')], 'send' => true, 'menu_taken_at' => now()->subHour()->toJSON()]);
 
         $this->sync([$open])->assertOk()
-            ->assertJsonPath('data.results.0.status', 'rejected')
+            ->assertJsonPath('data.results.0.status', 'conflict')
             ->assertJsonPath('data.results.0.reason', 'signature_invalid')
             ->assertJsonPath('data.results.0.sig_status', 'missing');
 
-        $this->assertFalse(Order::where('external_id', $order)->exists());
+        // Applied: the sale is never dropped
+        $this->assertTrue(Order::where('external_id', $order)->exists());
         // The manager sees it in "Sinxronlash xatolari", with what the signature was worth
         $error = collect($this->tillAs('GET', '/pos/sync/errors')->assertOk()->json('data.errors'))->firstWhere('op_id', $open['op_id']);
-        $this->assertSame(['rejected', 'signature_invalid', 'missing'], [$error['status'], $error['reason'], $error['sig_status']]);
+        $this->assertSame(['conflict', 'signature_invalid', 'missing'], [$error['status'], $error['reason'], $error['sig_status']]);
+        $this->assertNotNull($error['applied_at']);
     }
 
-    public function test_enforce_rejects_a_line_edited_by_hand_that_is_not_money(): void
+    public function test_enforce_applies_and_flags_a_line_edited_by_hand_that_is_not_money(): void
     {
         $this->enforce();
         $sale = $this->walkInSale();
@@ -98,8 +101,10 @@ class PosSyncSignatureEnforceTest extends TestCase
 
         $response = $this->sync($envelopes)->assertOk()->assertJsonCount(4, 'data.results');
 
-        $response->assertJsonPath('data.results.0.status', 'rejected')->assertJsonPath('data.results.0.reason', 'signature_invalid')->assertJsonPath('data.results.0.sig_status', 'bad');
-        $this->assertFalse(Order::where('external_id', $sale['order'])->exists());
+        $response->assertJsonPath('data.results.0.status', 'conflict')->assertJsonPath('data.results.0.reason', 'signature_invalid')->assertJsonPath('data.results.0.sig_status', 'bad');
+        // Applied as it arrived (the edited number with it), for the manager to compare; the rest of the sale follows
+        $this->assertSame('K1-009', Order::where('external_id', $sale['order'])->firstOrFail()->local_number);
+        $response->assertJsonPath('data.results.2.status', 'applied')->assertJsonPath('data.results.3.status', 'applied');
     }
 
     public function test_in_enforce_an_unsigned_discount_is_refused_like_any_other_discount(): void
@@ -209,9 +214,11 @@ class PosSyncSignatureEnforceTest extends TestCase
         $response->assertJsonPath('data.results.0.reason', 'signature_invalid')
             ->assertJsonPath('data.results.1.reason', 'signature_invalid')
             ->assertJsonPath('data.results.3.reason', 'signature_invalid');
-        // The order was not opened, so there is nothing to put the money on: the operation is kept for the manager
-        // with the tenders as sent (as any offline payment of an order the server does not have)
-        $response->assertJsonPath('data.results.2.status', 'rejected')->assertJsonPath('data.results.2.refs.tenders.0.amount', '41000');
+        // Every one of them applied: the order is open, so the money lands on its bill (never `order_not_found`)
+        $response->assertJsonPath('data.results.0.status', 'conflict')
+            ->assertJsonPath('data.results.2.status', 'conflict')->assertJsonPath('data.results.2.reason', 'payment_unverified');
+        $this->assertNotNull(Payment::where('order_id', Order::where('external_id', $sale['order'])->firstOrFail()->id)->sole()->bill_id);
+        $this->assertSame(0, PosSyncOperation::where('status', 'rejected')->count());
         $this->assertSame(4, PosSyncOperation::where('device_id', $this->till['device']->id)->where('sig_status', 'missing')->count());
         $this->assertSame(4, (int) Device::findOrFail($this->till['device']->id)->sync_last_seq);
     }

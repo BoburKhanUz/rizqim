@@ -200,7 +200,8 @@ class PosDevices
         $counts = [];
         $rows = DB::table('pos_sync_operations')
             ->whereIn('device_id', $devices->pluck('id'))
-            ->whereNotNull('sig_status')
+            // (the statuses by name, not "is not null": an index probe per status instead of a scan of the till's week)
+            ->whereIn('sig_status', array_map(fn (SyncSignatureStatus $status) => $status->value, SyncSignatureStatus::cases()))
             ->where('received_at', '>=', $now->copy()->subDays(self::SIGNATURE_DAYS))
             ->selectRaw('device_id, sig_status, count(*) AS n')
             ->groupBy('device_id', 'sig_status')

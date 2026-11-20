@@ -35,7 +35,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * Wave M5 S2: `discount: true` tells the till this server takes the `order.discount` operation; a till offers the
  * offline discount only then (a till never queues what its server does not know: the whole batch would be refused).
  * Wave M5 S3: `signing: true` the same way for the signed queue (SyncSignature); `signing_kid` the number of the key
- * the server holds for this till.
+ * the server holds for this till. Both follow the kill switch `pos.sync_signing` (off: `false` and `null`).
  */
 final class OfflineBootstrapSection implements PosBootstrapContributor
 {
@@ -130,10 +130,11 @@ final class OfflineBootstrapSection implements PosBootstrapContributor
             'discount' => true,
             // Wave M5 S3 (risk 7.2-1): this server takes signed operations (`operations[].signed`): a till that holds a
             // queue signing key signs what it queues; one that holds none asks for it (POST /terminal/sync-key)
-            'signing' => true,
+            // (the kill switch `pos.sync_signing`: off, the till queues unsigned as before)
+            'signing' => SignaturePolicy::signingOn(),
             // Wave M5 S3-d: the number of the key the server holds for this till (null: none yet). A till whose own
             // key has a smaller number (or that has none) asks for the new one: POST /terminal/sync-key
-            'signing_kid' => $device !== null && (int) $device->getAttribute('sync_key_id') > 0 ? (int) $device->getAttribute('sync_key_id') : null,
+            'signing_kid' => SignaturePolicy::signingOn() && $device !== null && (int) $device->getAttribute('sync_key_id') > 0 ? (int) $device->getAttribute('sync_key_id') : null,
         ]];
     }
 

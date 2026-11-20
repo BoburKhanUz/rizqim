@@ -225,12 +225,16 @@ class TerminalController extends Controller
      * (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when
      * `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`
      * with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one
-     * previous key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is
+     * previous key only: a till must not rotate while its queue is not empty). The server refuses a rotation while
+     * the queue this till last reported is not empty (`POST /pos/sync` `queue`, `GET /pos/sync/status?queue_size=`):
+     * 409 `queue_not_empty` — send the queue, or report it empty, then ask again. A till that has no key yet gets its
+     * first one whatever its queue holds. `key` is base64 of 32 bytes and is
      * given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
      * No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by
      * calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{key: string, kid: int}}')]
+    #[ApiDocResponse(409, 'The queue this till last reported is not empty: no rotation (queue_not_empty)', type: 'array{success: false, message: string, data: array{reason: string, pending_ops: int}}')]
     public function syncKey(Request $request): JsonResponse
     {
         $device = $this->device($request);
@@ -238,7 +242,15 @@ class TerminalController extends Controller
             return $this->error("Faqat kassa terminali navbat kalitini oladi.", ['reason' => 'terminal_required'], 403);
         }
 
-        $issued = SyncSignature::issue($device);
+        $issued = SyncSignature::issueUnlessQueued($device);
+        if ($issued === null) {
+            // The server keeps one previous key: a second rotation over a waiting queue would leave its operations
+            // unverifiable. Only what the till itself reported is known here
+            return $this->error("Kassa navbatida yuborilmagan amallar bor: avval navbat yuborilsin, keyin kalit yangilanadi.", [
+                'reason' => 'queue_not_empty',
+                'pending_ops' => (int) $device->fresh()?->getAttribute('sync_pending_ops'),
+            ], 409);
+        }
         // The key itself is never part of an audit record
         app(AuditLogger::class)->record($issued['rotated'] ? 'device.sync_key_rotated' : 'device.sync_key_issued', $device, [], [], [
             'kid' => $issued['kid'],

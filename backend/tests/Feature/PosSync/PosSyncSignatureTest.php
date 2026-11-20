@@ -172,17 +172,24 @@ class PosSyncSignatureTest extends TestCase
         $this->assertSame(['missing', 'ok'], $this->statuses());
     }
 
-    public function test_signed_text_that_is_not_an_operation_is_refused_like_any_malformed_one(): void
+    public function test_signed_text_that_is_not_an_operation_never_refuses_the_batch(): void
     {
+        // (the review after S3: a 422 for one unusable line would stop the till's queue behind it for good)
         $envelopes = $this->signed([$this->op('order.served', ['order' => (string) Str::uuid()])], $this->key, $this->uuid);
         $envelopes[0]['signed'] = 'not json';
 
-        $this->sync($envelopes)->assertStatus(422);
+        $this->sync($envelopes)->assertOk()->assertJsonPath('data.results', [])->assertJsonPath('data.unreadable.0.index', 0)->assertJsonPath('data.unreadable.0.reason', 'invalid_payload');
+        $this->assertSame(0, PosSyncOperation::count());
 
+        // A type this server does not know names itself: recorded, rejected, its signature checked like any other
         $unknown = $this->op('order.served', ['order' => (string) Str::uuid()]);
         $unknown['type'] = 'order.teleport';
-        $this->sync($this->signed([$unknown], $this->key, $this->uuid))->assertStatus(422);
-        $this->assertSame(0, PosSyncOperation::count());
+        $this->chainPrev = null;
+        $this->sync($this->signed([$unknown], $this->key, $this->uuid))->assertOk()
+            ->assertJsonPath('data.results.0.status', 'rejected')
+            ->assertJsonPath('data.results.0.reason', 'type_unknown')
+            ->assertJsonPath('data.unreadable', []);
+        $this->assertSame(['ok'], $this->statuses());
     }
 
     public function test_after_a_rotation_the_old_keys_operations_still_verify_and_the_new_key_starts_its_own_chain(): void

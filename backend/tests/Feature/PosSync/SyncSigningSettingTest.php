@@ -5,6 +5,7 @@ namespace Tests\Feature\PosSync;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -36,8 +37,48 @@ class SyncSigningSettingTest extends TestCase
         return $this->actingAs($user, 'sanctum')->json($method, '/api/v1/owner/pos/sync-signing', $data);
     }
 
+    public function test_a_till_that_never_signed_under_its_key_is_not_counted_as_signing(): void
+    {
+        // A second till, paired now (the server holds a key for it) but running an app from before signing: the
+        // server has nothing from either till yet, so neither has shown that it signs
+        $old = $this->pairTerminal($this->owner, $this->branch);
+
+        $view = $this->as($this->owner, 'GET')->assertOk()->assertJsonPath('data.signing_tills', 0)->json('data.unsigned_tills');
+        $this->assertSame([(string) $this->till['device']->uuid, (string) $old['device']->uuid], array_column($view, 'uuid'));
+        $this->assertSame([[true, null], [true, null]], array_map(fn (array $till) => [$till['has_key'], $till['last_sig_status']], $view));
+        // ...and enforce is not turned on without the second yes
+        $this->as($this->owner, 'PUT', ['enforce' => true])->assertStatus(409)->assertJsonPath('data.reason', 'tills_not_signing');
+
+        // The first till sends a signed operation: it signs. The other still has not
+        $this->sync($this->signed([$this->op('order.served', ['order' => (string) Str::uuid()])], $this->till['sync_key'], (string) $this->till['device']->uuid))->assertOk();
+        $view = $this->as($this->owner, 'GET')->assertOk()->assertJsonPath('data.signing_tills', 1)->json('data.unsigned_tills');
+        $this->assertSame([(string) $old['device']->uuid], array_column($view, 'uuid'));
+
+        // A key the till has not signed anything under yet (a rotation) proves nothing either
+        $this->withBearer($this->till['token'])->postJson('/api/v1/terminal/sync-key')->assertOk();
+        $view = $this->as($this->owner, 'GET')->assertOk()->assertJsonPath('data.signing_tills', 0)->json('data.unsigned_tills');
+        $this->assertSame([[(string) $this->till['device']->uuid, 'ok'], [(string) $old['device']->uuid, null]], array_map(fn (array $till) => [$till['uuid'], $till['last_sig_status']], $view));
+    }
+
+    public function test_the_last_status_shown_is_the_last_operation_of_each_till(): void
+    {
+        $other = $this->pairTerminal($this->owner, $this->branch);
+        $uuid = (string) $this->till['device']->uuid;
+        $this->sync($this->signed([$this->op('order.served', ['order' => (string) Str::uuid()])], $this->till['sync_key'], $uuid))->assertOk();
+        $this->sync([$this->op('order.served', ['order' => (string) Str::uuid()])])->assertOk();
+        $this->seq = 0;
+        $this->sync([$this->op('order.served', ['order' => (string) Str::uuid()])], [], $other['token'])->assertOk();
+        $this->chainPrev = null;
+        $this->sync($this->signed([$this->op('order.served', ['order' => (string) Str::uuid()])], $other['sync_key'], (string) $other['device']->uuid), [], $other['token'])->assertOk();
+
+        $view = $this->as($this->owner, 'GET')->assertOk()->assertJsonPath('data.signing_tills', 1)->json('data.unsigned_tills');
+        $this->assertSame([[$uuid, 'missing']], array_map(fn (array $till) => [$till['uuid'], $till['last_sig_status']], $view));
+    }
+
     public function test_the_owner_sees_the_mode_and_turns_enforce_on_and_off_audited(): void
     {
+        // The till has shown that it signs
+        $this->sync($this->signed([$this->op('order.served', ['order' => (string) Str::uuid()])], $this->till['sync_key'], (string) $this->till['device']->uuid))->assertOk();
         $this->as($this->owner, 'GET')->assertOk()
             ->assertJsonPath('data.enforce', false)
             ->assertJsonPath('data.signing_tills', 1)
@@ -99,7 +140,7 @@ class SyncSigningSettingTest extends TestCase
         $this->tillAs('PUT', '/owner/pos/sync-signing', ['enforce' => true], $this->pinSession($this->till, $this->manager, self::MANAGER_PIN))->assertStatus(403);
         $this->assertFalse((bool) $this->store->fresh()->pos_sync_enforce_signatures);
 
-        $body = $this->as($this->owner, 'PUT', ['enforce' => true])->assertOk()->getContent();
+        $body = $this->as($this->owner, 'PUT', ['enforce' => true, 'confirm_unsigned' => true])->assertOk()->getContent();
         $this->assertStringNotContainsString($this->till['sync_key']['key'], $body);
         $this->assertStringNotContainsString('sync_key', $body);
         $this->assertStringNotContainsString($this->till['sync_key']['key'], (string) json_encode(AuditLog::where('action', 'settings.pos_sync_signatures_changed')->sole()->getAttributes()));

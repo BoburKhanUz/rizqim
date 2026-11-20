@@ -11,9 +11,9 @@ use Illuminate\Http\Request;
 /**
  * Wave M5 S3-d (docs/scale/M5_DESIGN.md §4, owner answer 4): the store's mode for the signatures of the tills' offline
  * queue, for the partner web panel (pos-setup). Observe (the default): what each signature was worth is only recorded.
- * Enforce: an unsigned or badly signed operation that is not money is rejected (`signature_invalid`), a payment is
- * still recorded and flagged (`payment_unverified`), an operation after a lost one is applied and shown to the
- * manager (`chain_gap`). settings.manage, store-wide, never from a terminal PIN session; audited
+ * Enforce: an unsigned or badly signed operation is still applied and shown to the manager (`signature_invalid`; a
+ * sale is never dropped), only a concession — a discount, a void — is refused; a payment is recorded and flagged
+ * (`payment_unverified`), an operation after a lost one is applied and shown to the manager (`chain_gap`). settings.manage, store-wide, never from a terminal PIN session; audited
  * (settings.pos_sync_signatures_changed). The tills' keys are never part of these answers, and there is no "renew the
  * key" action here: a till renews its own key (POST /terminal/sync-key) when its queue is empty.
  */
@@ -23,9 +23,11 @@ class SyncSigningController extends ManagementController
     /**
      * The signature mode of the offline queue
      *
-     * `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no
-     * key on the server, or the last operation received from them came unsigned: an old app) — in enforce what they
-     * queue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.
+     * `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that have not shown that
+     * they sign (no verified operation received from them under their current key — a key on the server alone proves
+     * nothing — or the last operation received from them came unsigned: an old app) — in enforce what they queue
+     * offline is applied but every operation is flagged for the manager, their discounts and voids refused;
+     * `signing_tills`: how many of the others there are.
      */
     #[ApiDocResponse(200, type: 'array{success: true, message: string, data: ' . SignaturePolicy::VIEW . '}')]
     public function show(Request $request): JsonResponse
@@ -58,7 +60,7 @@ class SyncSigningController extends ManagementController
             $names = implode(', ', array_map(fn (array $till) => $till['name'], array_slice($unsigned, 0, 5)));
 
             return $this->error(
-                "Hali imzolamaydigan kassa bor ({$names}): qat'iy rejimda ularning internetsiz amallari rad etiladi. Avval kassa ilovasini yangilang yoki baribir yoqishni tasdiqlang.",
+                "Hali imzolamaydigan kassa bor ({$names}): qat'iy rejimda ularning internetsiz amallari qo'llanadi, lekin har biri menejer tekshirishi uchun belgilanadi, chegirma va taomni o'chirish esa rad etiladi. Avval kassa ilovasini yangilang yoki baribir yoqishni tasdiqlang.",
                 ['reason' => 'tills_not_signing', 'unsigned_tills' => $unsigned],
                 409,
             );

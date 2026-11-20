@@ -24,6 +24,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -87,16 +88,26 @@ class PosSyncController extends Controller
      * server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
      * worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never
      * refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on
-     * (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected
-     * (`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an
-     * operation after a lost one (`chain_gap`) is applied and answered as a conflict.
+     * (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation is still applied and answered as a
+     * conflict `signature_invalid` (a sale is never dropped); only a concession is refused: `order.discount`
+     * (rejected `discount_not_allowed`, `refs.cause: signature_invalid`) and `order.void` (rejected
+     * `signature_invalid`). A payment is recorded and answered as a conflict `payment_unverified`, and an operation
+     * after a lost one (`chain_gap`) is applied and answered as a conflict.
+     * A signed element whose text does not hold a usable operation never refuses the batch (the till's queue would
+     * stop behind it): when its `op_id` and `seq` can be read it is recorded and answered in `results` as rejected
+     * `invalid_payload` (an unknown `type`: `type_unknown`); when they cannot, or they belong to another operation,
+     * nothing is recorded and it is answered in `unreadable` with its place in the batch (`index`, from 0): the till
+     * takes that line off its queue. `mac`, `prev` and `kid` of the wrong kind make an operation `bad`, nothing
+     * more; `kid` may be a number written as text. The signed shape needs a JSON body (`Content-Type:
+     * application/json`): in any other body the server no longer has the signed bytes and records the operation
+     * `bad`. An unsigned element that is malformed is still a 422 for the batch, as before.
      */
-    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{server_time: string, clock_skew_seconds: int|null, clock_warning: bool, stopped_at: int|null, results: list<' . PosSyncPresenter::RESULT . '>, device: ' . PosSyncPresenter::DEVICE . '}}')]
+    #[ApiDocResponse(200, type: 'array{success: true, message: string, data: array{server_time: string, clock_skew_seconds: int|null, clock_warning: bool, stopped_at: int|null, results: list<' . PosSyncPresenter::RESULT . '>, unreadable: list<array{index: int, op_id: string|null, seq: int|null, reason: string, message: string}>, device: ' . PosSyncPresenter::DEVICE . '}}')]
     #[HeaderParameter('Idempotency-Key', description: 'Optional: every operation is applied once by its op_id anyway; a key replays the whole answer.', type: 'string')]
     public function store(Request $request): JsonResponse
     {
         $device = $this->terminal($request);
-        $signatures = $this->openSigned($request);
+        $opened = $this->openSigned($request);
         $data = $request->validate([
             'sent_at' => 'nullable|date',
             'queue' => 'nullable|array',
@@ -125,7 +136,18 @@ class PosSyncController extends Controller
         foreach ($data['operations'] as $k => $operation) {
             // Signature fields beside an unsigned operation mean nothing
             unset($operation['signed'], $operation['mac'], $operation['prev'], $operation['kid']);
-            $operations[] = $operation + (isset($signatures[$k]) ? ['signature' => $signatures[$k]] : []);
+            $operations[] = $operation + (isset($opened['signatures'][$k]) ? ['signature' => $opened['signatures'][$k]] : []);
+        }
+        // The signed lines that hold no usable operation: recorded as such when they name themselves (the service),
+        // answered without a row when they do not. They are not part of what the rules above checked
+        // ...and neither are signed operations that repeat an id or a number of the batch (`repeated`: answered as if
+        // they had come in the next batch — a duplicate, or 409 `seq_reused` that the till recovers from — instead of
+        // a 422 that would stop its queue)
+        $operations = [...$operations, ...$opened['repeated'], ...$opened['invalid']];
+        $unreadable = $opened['unreadable'];
+        if (isset($data['queue']['size'])) {
+            // (the till takes those lines off its queue)
+            $data['queue']['size'] = max(0, (int) $data['queue']['size'] - count($unreadable));
         }
 
         try {
@@ -147,6 +169,8 @@ class PosSyncController extends Controller
             'clock_warning' => PosSyncService::clockWarning($outcome['clock_skew_seconds']),
             'stopped_at' => $outcome['stopped_at'],
             'results' => array_map(fn (PosSyncOperation $op) => PosSyncPresenter::result($op, isset($duplicates[$op->op_id])), $outcome['results']),
+            // Wave M5 S3: signed elements that hold no usable operation and were not recorded, by their place in the batch
+            'unreadable' => collect([...$unreadable, ...$outcome['unreadable']])->sortBy('index')->values()->all(),
             'device' => PosSyncPresenter::device($device->refresh()),
         ], 'Sinxronlandi.');
     }
@@ -252,43 +276,122 @@ class PosSyncController extends Controller
     }
 
     /**
+     * What store() requires of an unsigned element, for one operation read out of signed text (openSigned()): checked
+     * on its own, so that one unusable line is that line's answer and not the batch's.
+     *
+     * @return array<string, mixed>
+     */
+    private static function signedOperationRules(): array
+    {
+        return [
+            'op_id' => 'required|uuid',
+            'seq' => 'required|integer|min:1',
+            'type' => ['required', 'string', Rule::in(array_map(fn (PosSyncOperationType $type) => $type->value, PosSyncOperationType::cases()))],
+            'occurred_at' => 'nullable|date',
+            'staff_id' => 'required|integer|min:1',
+            'payload' => 'present|array',
+            'origin_device' => 'nullable|uuid',
+        ];
+    }
+
+    /**
      * Wave M5 S3 (docs/scale/M5_DESIGN.md §4): opens the signed operations of the batch. An element with `signed` (the
      * operation's JSON text as the till wrote it to its journal) is replaced in the request by the operation decoded
      * from that text, so the rules of store() check it like an unsigned one; what was written beside `signed` is dropped
-     * (nobody signed it). Returned: what each such operation came with, by its place in the batch, for the service to
-     * verify — the exact bytes received (`raw`), and `mac` / `prev` / `kid` as sent, whatever they hold: a signature
+     * (nobody signed it). `signatures`: what each such operation came with, by its place in the batch, for the service
+     * to verify — the exact bytes received (`raw`), and `mac` / `prev` / `kid` as sent, whatever they hold: a signature
      * field of the wrong kind makes that operation badly signed, never the batch invalid.
      *
-     * Text that is not a JSON object leaves an element without the operation's fields: 422, like any malformed
-     * operation (the server cannot record what has no op_id and seq).
+     * Review after S3: signed text that does not hold a usable operation (a journal line damaged or edited on the
+     * till's disk; a type from a newer app) never refuses the batch either — a 422 would stop the till's queue behind
+     * that one line for good. Such an element is taken out of the request before the rules of store() run and comes
+     * back as `invalid` (it names itself: a uuid `op_id` and a `seq`; the service records it rejected) or as
+     * `unreadable` (it does not: answered by its place in the batch, nothing recorded).
      *
-     * @return array<int, array{raw: string, mac: mixed, prev: mixed, kid: mixed}>
+     * The signed shape needs a JSON body: only there does the server have the bytes the till signed (the request
+     * middleware trims and empties the strings of every other body). Elsewhere the operation is read as sent and its
+     * signature is worth nothing (`bad`).
+     *
+     * A signed operation that repeats an `op_id` or a `seq` of the batch (a line whose number was edited) is taken out
+     * the same way (`repeated`): the service answers it as it would in the next batch.
+     *
+     * @return array{signatures: array<int, array{raw: string, mac: mixed, prev: mixed, kid: mixed}>, repeated: list<array<string, mixed>>, invalid: list<array<string, mixed>>, unreadable: list<array{index: int, op_id: string|null, seq: int|null, reason: string, message: string}>}
      */
     private function openSigned(Request $request): array
     {
+        $opened = ['signatures' => [], 'repeated' => [], 'invalid' => [], 'unreadable' => []];
         $sent = $request->input('operations');
-        if (!is_array($sent)) {
-            return [];
+        if (!is_array($sent) || count($sent) > PosSyncService::MAX_BATCH) {
+            // (too many: refused whole by the rules of store(), as before)
+            return $opened;
         }
         // The bytes as they arrived: the request middleware trims the strings of the parsed input
         $body = $request->isJson() ? json_decode($request->getContent(), true) : null;
 
-        $signatures = [];
+        // The ids and numbers the batch already uses: of its unsigned elements first (the rules of store() hold those to
+        // `distinct` as before), then of each signed operation as it is opened
+        $ids = [];
+        $numbers = [];
+        foreach ($sent as $element) {
+            if (is_array($element) && !is_string($element['signed'] ?? null)) {
+                $ids[strtolower((string) (is_scalar($element['op_id'] ?? null) ? $element['op_id'] : ''))] = true;
+                $numbers[(string) (is_scalar($element['seq'] ?? null) ? $element['seq'] : '')] = true;
+            }
+        }
+
+        $kept = [];
+        $place = 0;
         foreach ($sent as $k => $element) {
+            $index = $place++;
             if (!is_array($element) || !is_string($element['signed'] ?? null)) {
+                $kept[] = $element;
                 continue;
             }
-            $raw = is_string($body['operations'][$k]['signed'] ?? null) ? $body['operations'][$k]['signed'] : $element['signed'];
+            $exact = is_string($body['operations'][$k]['signed'] ?? null);
+            $raw = $exact ? $body['operations'][$k]['signed'] : $element['signed'];
+            $signature = ['raw' => $raw, 'mac' => $element['mac'] ?? null, 'prev' => $element['prev'] ?? null, 'kid' => $exact ? ($element['kid'] ?? null) : null];
             $decoded = json_decode($raw, true, 64);
             $operation = is_array($decoded) && !array_is_list($decoded) ? self::asRequestInput($decoded) : [];
+            $operation = array_intersect_key($operation, array_flip(['op_id', 'seq', 'type', 'occurred_at', 'staff_id', 'payload', 'origin_device']));
 
-            // Without `signed`: the rules of store() then require the operation's fields of it, as of an unsigned one
-            $sent[$k] = array_intersect_key($operation, array_flip(['op_id', 'seq', 'type', 'occurred_at', 'staff_id', 'payload', 'origin_device']));
-            $signatures[$k] = ['raw' => $raw, 'mac' => $element['mac'] ?? null, 'prev' => $element['prev'] ?? null, 'kid' => $element['kid'] ?? null];
+            $failed = Validator::make($operation, self::signedOperationRules());
+            if (!$failed->fails()) {
+                $id = strtolower((string) $operation['op_id']);
+                $number = (string) $operation['seq'];
+                if (isset($ids[$id]) || isset($numbers[$number])) {
+                    $opened['repeated'][] = $operation + ['signature' => $signature];
+                    continue;
+                }
+                $ids[$id] = true;
+                $numbers[$number] = true;
+                $opened['signatures'][count($kept)] = $signature;
+                $kept[] = $operation;
+                continue;
+            }
+
+            $message = "Navbatdagi yozuv buzilgan: amal ma'lumotlari to'liq emas yoki noto'g'ri (" . implode(', ', $failed->errors()->keys()) . "). Amal qo'llanmadi.";
+            $opId = is_string($operation['op_id'] ?? null) && Str::isUuid($operation['op_id']) ? strtolower($operation['op_id']) : null;
+            $seq = is_int($operation['seq'] ?? null) && $operation['seq'] >= 1 ? $operation['seq'] : null;
+            if ($opId === null || $seq === null) {
+                $opened['unreadable'][] = PosSyncService::unreadable($index, $opId, $seq, $message);
+                continue;
+            }
+            // What can be kept of it, for the manager: only fields a row can hold
+            $opened['invalid'][] = [
+                'op_id' => $opId,
+                'seq' => $seq,
+                'type' => is_string($operation['type'] ?? null) && $operation['type'] !== '' ? mb_substr($operation['type'], 0, 32) : 'unknown',
+                'occurred_at' => is_string($operation['occurred_at'] ?? null) ? $operation['occurred_at'] : null,
+                'staff_id' => is_int($operation['staff_id'] ?? null) && $operation['staff_id'] >= 1 ? $operation['staff_id'] : null,
+                'payload' => is_array($operation['payload'] ?? null) ? $operation['payload'] : [],
+                'signature' => $signature,
+                'invalid' => $message,
+                'index' => $index,
+            ];
         }
-        $request->merge(['operations' => $sent]);
+        $request->merge(['operations' => $kept]);
 
-        return $signatures;
+        return $opened;
     }
 
     /**
