@@ -11,7 +11,7 @@ _$GetV1PosBanquetsShoppingListResponseFromJson(Map<String, dynamic> json) =>
     GetV1PosBanquetsShoppingListResponse(
       success: json['success'] as bool,
       message: json['message'] as String,
-      data: Data223.fromJson(json['data'] as Map<String, dynamic>),
+      data: Data225.fromJson(json['data'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$GetV1PosBanquetsShoppingListResponseToJson(

@@ -7,27 +7,21 @@ part of 'data184.dart';
 // **************************************************************************
 
 Data184 _$Data184FromJson(Map<String, dynamic> json) => Data184(
-  id: (json['id'] as num).toInt(),
-  branchId: (json['branch_id'] as num).toInt(),
-  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
-  diningTableName: json['dining_table_name'] as String?,
-  hallId: (json['hall_id'] as num?)?.toInt(),
-  tableKind: json['table_kind'] as String?,
-  dayType: json['day_type'] as String,
-  price: json['price'] as String,
-  validFrom: json['valid_from'] as String?,
-  validTo: json['valid_to'] as String?,
+  period: Period3.fromJson(json['period'] as Map<String, dynamic>),
+  branchId: (json['branch_id'] as num?)?.toInt(),
+  sort: json['sort'] as String,
+  products: (json['products'] as List<dynamic>)
+      .map((e) => Products8.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  comboParts: (json['combo_parts'] as List<dynamic>)
+      .map((e) => ComboParts.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$Data184ToJson(Data184 instance) => <String, dynamic>{
-  'id': instance.id,
+  'period': instance.period,
   'branch_id': instance.branchId,
-  'dining_table_id': instance.diningTableId,
-  'dining_table_name': instance.diningTableName,
-  'hall_id': instance.hallId,
-  'table_kind': instance.tableKind,
-  'day_type': instance.dayType,
-  'price': instance.price,
-  'valid_from': instance.validFrom,
-  'valid_to': instance.validTo,
+  'sort': instance.sort,
+  'products': instance.products,
+  'combo_parts': instance.comboParts,
 };

@@ -6,8 +6,11 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/get_v1_owner_branches_id_pos_settings_response.dart';
+import '../models/get_v1_owner_pos_sync_signing_response.dart';
 import '../models/put_v1_owner_branches_id_pos_settings_response.dart';
+import '../models/put_v1_owner_pos_sync_signing_response.dart';
 import '../models/v1_owner_branches_id_pos_settings_request_body.dart';
+import '../models/v1_owner_pos_sync_signing_request_body.dart';
 
 part 'owner_pos_settings_api.g.dart';
 
@@ -49,5 +52,23 @@ abstract class OwnerPosSettingsApi {
   Future<PutV1OwnerBranchesIdPosSettingsResponse> branchPosSettingsUpdate({
     @Path('id') required int id,
     @Body() V1OwnerBranchesIdPosSettingsRequestBody? body,
+  });
+
+  /// The signature mode of the offline queue.
+  ///
+  /// `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no.
+  /// key on the server, or the last operation received from them came unsigned: an old app) — in enforce what they.
+  /// queue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.
+  @GET('/v1/owner/pos/sync-signing')
+  Future<GetV1OwnerPosSyncSigningResponse> syncSigningShow();
+
+  /// Change the signature mode of the offline queue.
+  ///
+  /// `enforce` true or false. Turning it on while a connected till does not sign yet answers 409 `tills_not_signing`.
+  /// with those tills; `confirm_unsigned: true` turns it on all the same. Store-wide: a caller bound to one branch is.
+  /// refused (403 `store_wide_only`). Audited (settings.pos_sync_signatures_changed). Repeating it changes nothing.
+  @PUT('/v1/owner/pos/sync-signing')
+  Future<PutV1OwnerPosSyncSigningResponse> syncSigningUpdate({
+    @Body() required V1OwnerPosSyncSigningRequestBody body,
   });
 }

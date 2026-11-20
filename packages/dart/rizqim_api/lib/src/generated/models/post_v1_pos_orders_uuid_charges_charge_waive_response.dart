@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data305.dart';
+import 'data307.dart';
 
 part 'post_v1_pos_orders_uuid_charges_charge_waive_response.g.dart';
 
@@ -22,7 +22,7 @@ class PostV1PosOrdersUuidChargesChargeWaiveResponse {
 
   final bool success;
   final String message;
-  final Data305 data;
+  final Data307 data;
 
   Map<String, Object?> toJson() =>
       _$PostV1PosOrdersUuidChargesChargeWaiveResponseToJson(this);

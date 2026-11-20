@@ -11,7 +11,7 @@ PostV1TerminalSyncKeyResponse _$PostV1TerminalSyncKeyResponseFromJson(
 ) => PostV1TerminalSyncKeyResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data374.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data376.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1TerminalSyncKeyResponseToJson(

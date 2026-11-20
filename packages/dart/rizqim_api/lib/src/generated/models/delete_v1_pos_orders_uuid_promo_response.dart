@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'data321.dart';
+import 'data323.dart';
 
 part 'delete_v1_pos_orders_uuid_promo_response.g.dart';
 
@@ -22,7 +22,7 @@ class DeleteV1PosOrdersUuidPromoResponse {
 
   final bool success;
   final String message;
-  final Data321 data;
+  final Data323 data;
 
   Map<String, Object?> toJson() =>
       _$DeleteV1PosOrdersUuidPromoResponseToJson(this);

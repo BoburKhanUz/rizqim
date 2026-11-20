@@ -6,10 +6,22 @@ part of 'data374.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data374 _$Data374FromJson(Map<String, dynamic> json) =>
-    Data374(key: json['key'] as String, kid: (json['kid'] as num).toInt());
+Data374 _$Data374FromJson(Map<String, dynamic> json) => Data374(
+  device: Device25.fromJson(json['device'] as Map<String, dynamic>),
+  store: json['store'] == null
+      ? null
+      : Store4.fromJson(json['store'] as Map<String, dynamic>),
+  branch: json['branch'] == null
+      ? null
+      : Branch22.fromJson(json['branch'] as Map<String, dynamic>),
+  branches: (json['branches'] as List<dynamic>)
+      .map((e) => Branches4.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
 
 Map<String, dynamic> _$Data374ToJson(Data374 instance) => <String, dynamic>{
-  'key': instance.key,
-  'kid': instance.kid,
+  'device': instance.device,
+  'store': instance.store,
+  'branch': instance.branch,
+  'branches': instance.branches,
 };

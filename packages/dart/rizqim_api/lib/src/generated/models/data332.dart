@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'qr6.dart';
+import 'qr4.dart';
 
 part 'data332.g.dart';
 
@@ -15,7 +15,7 @@ class Data332 {
   factory Data332.fromJson(Map<String, Object?> json) =>
       _$Data332FromJson(json);
 
-  final Qr6 qr;
+  final Qr4 qr;
 
   Map<String, Object?> toJson() => _$Data332ToJson(this);
 }

@@ -6,9 +6,14 @@ part of 'data190.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-Data190 _$Data190FromJson(Map<String, dynamic> json) =>
-    Data190(hallId: (json['hall_id'] as num).toInt());
+Data190 _$Data190FromJson(Map<String, dynamic> json) => Data190(
+  channels: json['channels'] as List<dynamic>,
+  settings: (json['settings'] as List<dynamic>)
+      .map((e) => Settings5.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
 
 Map<String, dynamic> _$Data190ToJson(Data190 instance) => <String, dynamic>{
-  'hall_id': instance.hallId,
+  'channels': instance.channels,
+  'settings': instance.settings,
 };

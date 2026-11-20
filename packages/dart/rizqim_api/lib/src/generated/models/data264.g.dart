@@ -7,13 +7,19 @@ part of 'data264.dart';
 // **************************************************************************
 
 Data264 _$Data264FromJson(Map<String, dynamic> json) => Data264(
-  booking: Booking2.fromJson(json['booking'] as Map<String, dynamic>),
-  payment: Payment.fromJson(json['payment'] as Map<String, dynamic>),
-  fiscal: Fiscal29.fromJson(json['fiscal'] as Map<String, dynamic>),
+  text: json['text'] as String,
+  lines: (json['lines'] as List<dynamic>)
+      .map((e) => Lines32.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  roomFee: json['room_fee'] == null
+      ? null
+      : RoomFee4.fromJson(json['room_fee'] as Map<String, dynamic>),
+  channels: Channels4.fromJson(json['channels'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data264ToJson(Data264 instance) => <String, dynamic>{
-  'booking': instance.booking,
-  'payment': instance.payment,
-  'fiscal': instance.fiscal,
+  'text': instance.text,
+  'lines': instance.lines,
+  'room_fee': instance.roomFee,
+  'channels': instance.channels,
 };

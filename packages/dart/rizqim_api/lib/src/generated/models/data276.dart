@@ -4,20 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'accounts.dart';
-import 'meta2.dart';
+import 'session3.dart';
 
 part 'data276.g.dart';
 
 @JsonSerializable()
 class Data276 {
-  const Data276({required this.accounts, required this.meta});
+  const Data276({
+    required this.session,
+    required this.todayMinutes,
+    required this.businessDate,
+  });
 
   factory Data276.fromJson(Map<String, Object?> json) =>
       _$Data276FromJson(json);
 
-  final List<Accounts> accounts;
-  final Meta2 meta;
+  final Session3? session;
+  @JsonKey(name: 'today_minutes')
+  final int todayMinutes;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
 
   Map<String, Object?> toJson() => _$Data276ToJson(this);
 }

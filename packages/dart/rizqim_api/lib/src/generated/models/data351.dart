@@ -4,64 +4,32 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch20.dart';
-import 'sale5.dart';
-import 'buyer5.dart';
-import 'fiscal40.dart';
-import 'blocked6.dart';
-import 'print5.dart';
+import 'summary13.dart';
+import 'tips16.dart';
 
 part 'data351.g.dart';
 
 @JsonSerializable()
 class Data351 {
   const Data351({
-    required this.uuid,
-    required this.code,
-    required this.kind,
-    required this.faceValue,
-    required this.balance,
-    required this.currency,
-    required this.validFrom,
-    required this.validUntil,
-    required this.status,
-    required this.statusLabel,
-    required this.branch,
-    required this.sale,
-    required this.buyer,
-    required this.note,
-    required this.fiscal,
-    required this.blocked,
-    required this.print,
-    required this.createdAt,
+    required this.shiftUuid,
+    required this.businessDate,
+    required this.ownOnly,
+    required this.summary,
+    required this.tips,
   });
 
   factory Data351.fromJson(Map<String, Object?> json) =>
       _$Data351FromJson(json);
 
-  final String uuid;
-  final String code;
-  final String kind;
-  @JsonKey(name: 'face_value')
-  final String faceValue;
-  final String balance;
-  final String currency;
-  @JsonKey(name: 'valid_from')
-  final String validFrom;
-  @JsonKey(name: 'valid_until')
-  final String? validUntil;
-  final String status;
-  @JsonKey(name: 'status_label')
-  final String statusLabel;
-  final Branch20? branch;
-  final Sale5 sale;
-  final Buyer5 buyer;
-  final String? note;
-  final Fiscal40 fiscal;
-  final Blocked6? blocked;
-  final Print5? print;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  @JsonKey(name: 'shift_uuid')
+  final String? shiftUuid;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'own_only')
+  final bool ownOnly;
+  final Summary13 summary;
+  final List<Tips16> tips;
 
   Map<String, Object?> toJson() => _$Data351ToJson(this);
 }

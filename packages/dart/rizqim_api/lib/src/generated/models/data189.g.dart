@@ -7,31 +7,27 @@ part of 'data189.dart';
 // **************************************************************************
 
 Data189 _$Data189FromJson(Map<String, dynamic> json) => Data189(
-  branchId: (json['branch_id'] as num?)?.toInt(),
+  id: (json['id'] as num).toInt(),
+  branchId: (json['branch_id'] as num).toInt(),
+  diningTableId: (json['dining_table_id'] as num?)?.toInt(),
+  diningTableName: json['dining_table_name'] as String?,
   hallId: (json['hall_id'] as num?)?.toInt(),
-  serviceChargePercent: json['service_charge_percent'] as String,
-  serviceChargeChannels: (json['service_charge_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  placeFeeAmount: json['place_fee_amount'] as String,
-  placeFeeMode: json['place_fee_mode'] as String,
-  placeFeeChannels: (json['place_fee_channels'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  serviceChargeRules: ServiceChargeRules2.fromJson(
-    json['service_charge_rules'] as Map<String, dynamic>,
-  ),
-  serviceChargeNotice: json['service_charge_notice'] as String?,
+  tableKind: json['table_kind'] as String?,
+  dayType: json['day_type'] as String,
+  price: json['price'] as String,
+  validFrom: json['valid_from'] as String?,
+  validTo: json['valid_to'] as String?,
 );
 
 Map<String, dynamic> _$Data189ToJson(Data189 instance) => <String, dynamic>{
+  'id': instance.id,
   'branch_id': instance.branchId,
+  'dining_table_id': instance.diningTableId,
+  'dining_table_name': instance.diningTableName,
   'hall_id': instance.hallId,
-  'service_charge_percent': instance.serviceChargePercent,
-  'service_charge_channels': instance.serviceChargeChannels,
-  'place_fee_amount': instance.placeFeeAmount,
-  'place_fee_mode': instance.placeFeeMode,
-  'place_fee_channels': instance.placeFeeChannels,
-  'service_charge_rules': instance.serviceChargeRules,
-  'service_charge_notice': instance.serviceChargeNotice,
+  'table_kind': instance.tableKind,
+  'day_type': instance.dayType,
+  'price': instance.price,
+  'valid_from': instance.validFrom,
+  'valid_to': instance.validTo,
 };

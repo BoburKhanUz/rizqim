@@ -12,7 +12,7 @@ _$GetV1PosCustomerAccountsMembersLookupResponseFromJson(
 ) => GetV1PosCustomerAccountsMembersLookupResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data279.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data281.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosCustomerAccountsMembersLookupResponseToJson(

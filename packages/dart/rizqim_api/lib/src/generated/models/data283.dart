@@ -4,52 +4,81 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'account4.dart';
-import 'rows16.dart';
-import 'day_totals.dart';
+import 'customer_account_kind.dart';
+import 'talon_mode.dart';
 
 part 'data283.g.dart';
 
 @JsonSerializable()
 class Data283 {
   const Data283({
-    required this.account,
-    required this.month,
-    required this.from,
-    required this.to,
-    required this.days,
-    required this.rows,
-    required this.dayTotals,
-    required this.total,
-    required this.meals,
-    required this.repaidTotal,
-    required this.monthlyLimit,
-    required this.balance,
+    required this.uuid,
+    required this.name,
+    required this.phone,
+    required this.groupName,
     required this.branchId,
-    required this.masked,
+    required this.creditLimit,
+    required this.balance,
+    required this.availableCredit,
+    required this.isBlocked,
+    required this.note,
+    required this.kind,
+    required this.kindLabel,
+    required this.companyName,
+    required this.inn,
+    required this.contactName,
+    required this.contactPhone,
+    required this.invoiceEmail,
+    required this.monthlyLimit,
+    required this.chargeApproval,
+    required this.talonMode,
+    required this.membersCount,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory Data283.fromJson(Map<String, Object?> json) =>
       _$Data283FromJson(json);
 
-  final Account4 account;
-  final String month;
-  final String from;
-  final String to;
-  final List<String> days;
-  final List<Rows16> rows;
-  @JsonKey(name: 'day_totals')
-  final List<DayTotals> dayTotals;
-  final String total;
-  final int meals;
-  @JsonKey(name: 'repaid_total')
-  final String repaidTotal;
-  @JsonKey(name: 'monthly_limit')
-  final String? monthlyLimit;
-  final String balance;
+  final String uuid;
+  final String name;
+  final String? phone;
+  @JsonKey(name: 'group_name')
+  final String? groupName;
   @JsonKey(name: 'branch_id')
   final int? branchId;
-  final bool masked;
+  @JsonKey(name: 'credit_limit')
+  final String? creditLimit;
+  final String balance;
+  @JsonKey(name: 'available_credit')
+  final String? availableCredit;
+  @JsonKey(name: 'is_blocked')
+  final bool isBlocked;
+  final String? note;
+  final CustomerAccountKind kind;
+  @JsonKey(name: 'kind_label')
+  final String kindLabel;
+  @JsonKey(name: 'company_name')
+  final String? companyName;
+  final String? inn;
+  @JsonKey(name: 'contact_name')
+  final String? contactName;
+  @JsonKey(name: 'contact_phone')
+  final String? contactPhone;
+  @JsonKey(name: 'invoice_email')
+  final String? invoiceEmail;
+  @JsonKey(name: 'monthly_limit')
+  final String? monthlyLimit;
+  @JsonKey(name: 'charge_approval')
+  final bool chargeApproval;
+  @JsonKey(name: 'talon_mode')
+  final TalonMode talonMode;
+  @JsonKey(name: 'members_count')
+  final int membersCount;
+  @JsonKey(name: 'created_at')
+  final String? createdAt;
+  @JsonKey(name: 'updated_at')
+  final String? updatedAt;
 
   Map<String, Object?> toJson() => _$Data283ToJson(this);
 }

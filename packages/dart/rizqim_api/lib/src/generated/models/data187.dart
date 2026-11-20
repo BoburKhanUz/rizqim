@@ -9,39 +9,19 @@ part 'data187.g.dart';
 @JsonSerializable()
 class Data187 {
   const Data187({
-    required this.id,
     required this.branchId,
-    required this.diningTableId,
-    required this.diningTableName,
-    required this.hallId,
-    required this.tableKind,
-    required this.dayType,
-    required this.price,
-    required this.validFrom,
-    required this.validTo,
+    required this.weekendDays,
+    required this.holidays,
   });
 
   factory Data187.fromJson(Map<String, Object?> json) =>
       _$Data187FromJson(json);
 
-  final int id;
   @JsonKey(name: 'branch_id')
   final int branchId;
-  @JsonKey(name: 'dining_table_id')
-  final int? diningTableId;
-  @JsonKey(name: 'dining_table_name')
-  final String? diningTableName;
-  @JsonKey(name: 'hall_id')
-  final int? hallId;
-  @JsonKey(name: 'table_kind')
-  final String? tableKind;
-  @JsonKey(name: 'day_type')
-  final String dayType;
-  final String price;
-  @JsonKey(name: 'valid_from')
-  final String? validFrom;
-  @JsonKey(name: 'valid_to')
-  final String? validTo;
+  @JsonKey(name: 'weekend_days')
+  final List<int> weekendDays;
+  final List<String> holidays;
 
   Map<String, Object?> toJson() => _$Data187ToJson(this);
 }

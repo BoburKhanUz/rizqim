@@ -4,36 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'blocks2.dart';
+import 'qr6.dart';
 
 part 'data334.g.dart';
 
 @JsonSerializable()
 class Data334 {
-  const Data334({
-    required this.numbers,
-    required this.calling,
-    required this.businessDate,
-    required this.blockSize,
-    required this.lowWater,
-    required this.blocks,
-    required this.nextNumber,
-  });
+  const Data334({required this.qr});
 
   factory Data334.fromJson(Map<String, Object?> json) =>
       _$Data334FromJson(json);
 
-  final bool numbers;
-  final bool calling;
-  @JsonKey(name: 'business_date')
-  final String businessDate;
-  @JsonKey(name: 'block_size')
-  final int blockSize;
-  @JsonKey(name: 'low_water')
-  final int lowWater;
-  final List<Blocks2> blocks;
-  @JsonKey(name: 'next_number')
-  final int? nextNumber;
+  final Qr6 qr;
 
   Map<String, Object?> toJson() => _$Data334ToJson(this);
 }

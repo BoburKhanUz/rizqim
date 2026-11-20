@@ -17375,6 +17375,7 @@
                                 "table_bloat",
                                 "partitions",
                                 "tls_expiry",
+                                "pos_sync_signature",
                                 null
                             ]
                         }
@@ -19540,7 +19541,7 @@
         "/v1/admin/monitoring/rules": {
             "get": {
                 "operationId": "admin.monitoring.rules",
-                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
+                "description": "One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,\nbackup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,\npitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,\npartitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some\nkinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null\nfor a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops\n(or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.",
                 "summary": "Alert rules",
                 "tags": [
                     "Admin"
@@ -21697,6 +21698,44 @@
                                                                     },
                                                                     "clock_warning": {
                                                                         "type": "boolean"
+                                                                    },
+                                                                    "signatures": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "days": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "ok": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "missing": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "bad": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "chain_gap": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "key_id": {
+                                                                                "type": [
+                                                                                    "integer",
+                                                                                    "null"
+                                                                                ]
+                                                                            },
+                                                                            "enforce": {
+                                                                                "type": "boolean"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "days",
+                                                                            "ok",
+                                                                            "missing",
+                                                                            "bad",
+                                                                            "chain_gap",
+                                                                            "key_id",
+                                                                            "enforce"
+                                                                        ]
                                                                     }
                                                                 },
                                                                 "required": [
@@ -21704,7 +21743,8 @@
                                                                     "oldest_op_at",
                                                                     "reported_at",
                                                                     "clock_skew_seconds",
-                                                                    "clock_warning"
+                                                                    "clock_warning",
+                                                                    "signatures"
                                                                 ]
                                                             }
                                                         },
@@ -21983,6 +22023,44 @@
                                                         },
                                                         "clock_warning": {
                                                             "type": "boolean"
+                                                        },
+                                                        "signatures": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "days": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "ok": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "missing": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "bad": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "chain_gap": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "key_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "enforce": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "days",
+                                                                "ok",
+                                                                "missing",
+                                                                "bad",
+                                                                "chain_gap",
+                                                                "key_id",
+                                                                "enforce"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -21990,7 +22068,8 @@
                                                         "oldest_op_at",
                                                         "reported_at",
                                                         "clock_skew_seconds",
-                                                        "clock_warning"
+                                                        "clock_warning",
+                                                        "signatures"
                                                     ]
                                                 }
                                             },
@@ -22214,6 +22293,44 @@
                                                         },
                                                         "clock_warning": {
                                                             "type": "boolean"
+                                                        },
+                                                        "signatures": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "days": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "ok": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "missing": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "bad": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "chain_gap": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "key_id": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "enforce": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "days",
+                                                                "ok",
+                                                                "missing",
+                                                                "bad",
+                                                                "chain_gap",
+                                                                "key_id",
+                                                                "enforce"
+                                                            ]
                                                         }
                                                     },
                                                     "required": [
@@ -22221,7 +22338,8 @@
                                                         "oldest_op_at",
                                                         "reported_at",
                                                         "clock_skew_seconds",
-                                                        "clock_warning"
+                                                        "clock_warning",
+                                                        "signatures"
                                                     ]
                                                 }
                                             },
@@ -67204,6 +67322,221 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/owner/pos/sync-signing": {
+            "get": {
+                "operationId": "syncSigning.show",
+                "description": "`enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no\nkey on the server, or the last operation received from them came unsigned: an old app) — in enforce what they\nqueue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.",
+                "summary": "The signature mode of the offline queue",
+                "tags": [
+                    "Owner: POS settings"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enforce": {
+                                                    "type": "boolean"
+                                                },
+                                                "signing_tills": {
+                                                    "type": "integer"
+                                                },
+                                                "unsigned_tills": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "branch_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "has_key": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "last_sig_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "branch_id",
+                                                            "has_key",
+                                                            "last_sig_status"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "enforce",
+                                                "signing_tills",
+                                                "unsigned_tills"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "syncSigning.update",
+                "description": "`enforce` true or false. Turning it on while a connected till does not sign yet answers 409 `tills_not_signing`\nwith those tills; `confirm_unsigned: true` turns it on all the same. Store-wide: a caller bound to one branch is\nrefused (403 `store_wide_only`). Audited (settings.pos_sync_signatures_changed). Repeating it changes nothing.",
+                "summary": "Change the signature mode of the offline queue",
+                "tags": [
+                    "Owner: POS settings"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "enforce": {
+                                        "type": "boolean"
+                                    },
+                                    "confirm_unsigned": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "enforce"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enforce": {
+                                                    "type": "boolean"
+                                                },
+                                                "signing_tills": {
+                                                    "type": "integer"
+                                                },
+                                                "unsigned_tills": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "uuid": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "branch_id": {
+                                                                "type": [
+                                                                    "integer",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "has_key": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "last_sig_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "uuid",
+                                                            "name",
+                                                            "branch_id",
+                                                            "has_key",
+                                                            "last_sig_status"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "enforce",
+                                                "signing_tills",
+                                                "unsigned_tills"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "A connected till does not sign yet: confirm with confirm_unsigned (tills_not_signing)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -159816,7 +160149,7 @@
         "/v1/pos/sync": {
             "post": {
                 "operationId": "posSync.store",
-                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).\nWave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue\nsigning key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,\nmac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;\n`mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the\nfirst one under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + the device uuid)); `kid` the key's number. The\nserver verifies the bytes, then reads the operation from them. The answer is the same; what the signature was\nworth is kept with the operation (ok, missing, bad, chain_gap). A signature never refuses the batch, and the\nunsigned shape is still taken.",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).\nWave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue\nsigning key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,\nmac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;\n`mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the\nfirst one under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + the device uuid)); `kid` the key's number. The\nserver verifies the bytes, then reads the operation from them. The answer is the same; what the signature was\nworth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never\nrefuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on\n(`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected\n(`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an\noperation after a lost one (`chain_gap`) is applied and answered as a conflict.",
                 "summary": "Send the offline queue",
                 "tags": [
                     "POS: sync"
@@ -160031,6 +160364,12 @@
                                                             "duplicate": {
                                                                 "type": "boolean"
                                                             },
+                                                            "sig_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "refs": {
                                                                 "type": "object",
                                                                 "additionalProperties": {}
@@ -160044,6 +160383,7 @@
                                                             "reason",
                                                             "message",
                                                             "duplicate",
+                                                            "sig_status",
                                                             "refs"
                                                         ]
                                                     }
@@ -160235,6 +160575,12 @@
                                                                     "null"
                                                                 ]
                                                             },
+                                                            "sig_status": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
                                                             "staff": {
                                                                 "type": [
                                                                     "object",
@@ -160417,6 +160763,7 @@
                                                             "status",
                                                             "reason",
                                                             "message",
+                                                            "sig_status",
                                                             "staff",
                                                             "device",
                                                             "origin_device",
@@ -160586,6 +160933,12 @@
                                                     ]
                                                 },
                                                 "message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sig_status": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -160773,6 +161126,7 @@
                                                 "status",
                                                 "reason",
                                                 "message",
+                                                "sig_status",
                                                 "staff",
                                                 "device",
                                                 "origin_device",
@@ -160949,6 +161303,12 @@
                                                                 ]
                                                             },
                                                             "message": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "sig_status": {
                                                                 "type": [
                                                                     "string",
                                                                     "null"
@@ -161136,6 +161496,7 @@
                                                             "status",
                                                             "reason",
                                                             "message",
+                                                            "sig_status",
                                                             "staff",
                                                             "device",
                                                             "origin_device",

@@ -4,32 +4,50 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'period3.dart';
-import 'products8.dart';
-import 'combo_parts.dart';
+import 'summary2.dart';
+import 'orders.dart';
+import 'stations8.dart';
+import 'products7.dart';
+import 'hours.dart';
+import 'expo.dart';
 
 part 'data182.g.dart';
 
 @JsonSerializable()
 class Data182 {
   const Data182({
-    required this.period,
     required this.branchId,
-    required this.sort,
+    required this.from,
+    required this.to,
+    required this.timezone,
+    required this.dayStartsAt,
+    required this.stationId,
+    required this.summary,
+    required this.orders,
+    required this.stations,
     required this.products,
-    required this.comboParts,
+    required this.hours,
+    required this.expo,
   });
 
   factory Data182.fromJson(Map<String, Object?> json) =>
       _$Data182FromJson(json);
 
-  final Period3 period;
   @JsonKey(name: 'branch_id')
-  final int? branchId;
-  final String sort;
-  final List<Products8> products;
-  @JsonKey(name: 'combo_parts')
-  final List<ComboParts> comboParts;
+  final int branchId;
+  final String from;
+  final String to;
+  final String timezone;
+  @JsonKey(name: 'day_starts_at')
+  final String dayStartsAt;
+  @JsonKey(name: 'station_id')
+  final int? stationId;
+  final Summary2 summary;
+  final Orders orders;
+  final List<Stations8> stations;
+  final List<Products7> products;
+  final List<Hours> hours;
+  final Expo? expo;
 
   Map<String, Object?> toJson() => _$Data182ToJson(this);
 }

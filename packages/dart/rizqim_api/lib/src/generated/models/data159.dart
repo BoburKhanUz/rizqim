@@ -4,40 +4,26 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'totals.dart';
-import 'by_day.dart';
-import 'by_staff2.dart';
-import 'staff.dart';
+import 'unsigned_tills.dart';
 
 part 'data159.g.dart';
 
 @JsonSerializable()
 class Data159 {
   const Data159({
-    required this.branchId,
-    required this.from,
-    required this.to,
-    required this.totals,
-    required this.byDay,
-    required this.byStaff,
-    required this.undistributed,
-    required this.staff,
+    required this.enforce,
+    required this.signingTills,
+    required this.unsignedTills,
   });
 
   factory Data159.fromJson(Map<String, Object?> json) =>
       _$Data159FromJson(json);
 
-  @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String from;
-  final String to;
-  final Totals totals;
-  @JsonKey(name: 'by_day')
-  final List<ByDay> byDay;
-  @JsonKey(name: 'by_staff')
-  final List<ByStaff2> byStaff;
-  final String undistributed;
-  final List<Staff> staff;
+  final bool enforce;
+  @JsonKey(name: 'signing_tills')
+  final int signingTills;
+  @JsonKey(name: 'unsigned_tills')
+  final List<UnsignedTills> unsignedTills;
 
   Map<String, Object?> toJson() => _$Data159ToJson(this);
 }

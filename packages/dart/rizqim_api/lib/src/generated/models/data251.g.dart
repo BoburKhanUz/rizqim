@@ -7,13 +7,11 @@ part of 'data251.dart';
 // **************************************************************************
 
 Data251 _$Data251FromJson(Map<String, dynamic> json) => Data251(
-  requestId: json['request_id'] as String,
-  printerId: (json['printer_id'] as num?)?.toInt(),
-  targetDevice: json['target_device'] as String?,
+  bill: Bill4.fromJson(json['bill'] as Map<String, dynamic>),
+  order: Order7.fromJson(json['order'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$Data251ToJson(Data251 instance) => <String, dynamic>{
-  'request_id': instance.requestId,
-  'printer_id': instance.printerId,
-  'target_device': instance.targetDevice,
+  'bill': instance.bill,
+  'order': instance.order,
 };

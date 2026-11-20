@@ -12,7 +12,7 @@ _$GetV1PosCustomerAccountsUuidMembersResponseFromJson(
 ) => GetV1PosCustomerAccountsUuidMembersResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data284.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data286.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$GetV1PosCustomerAccountsUuidMembersResponseToJson(

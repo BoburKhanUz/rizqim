@@ -34,7 +34,7 @@ Data269 _$Data269FromJson(Map<String, dynamic> json) => Data269(
   cancelReason: json['cancel_reason'] as String?,
   version: (json['version'] as num).toInt(),
   payments: (json['payments'] as List<dynamic>)
-      .map((e) => Payments35.fromJson(e as Map<String, dynamic>))
+      .map((e) => Payments33.fromJson(e as Map<String, dynamic>))
       .toList(),
   confirmedAt: json['confirmed_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,
@@ -47,7 +47,7 @@ Data269 _$Data269FromJson(Map<String, dynamic> json) => Data269(
   depositRequired: json['deposit_required'] as String,
   depositMissing: json['deposit_missing'] as String,
   items: (json['items'] as List<dynamic>)
-      .map((e) => Items27.fromJson(e as Map<String, dynamic>))
+      .map((e) => Items25.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdBy: (json['created_by'] as num?)?.toInt(),
 );

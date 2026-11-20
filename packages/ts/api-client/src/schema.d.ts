@@ -1959,7 +1959,7 @@ export interface paths {
          * @description One rule per kind (failed_jobs_spike, queue_backlog, pos_device_offline, fiscal_failures, settlement_failures,
          *     backup_stale, scheduler_stale; M3: db_connections, db_long_transaction, db_lock_waits, wal_archive,
          *     pitr_backup_stale, restore_drill_stale, disk_usage, redis_memory, queue_worker_stale, realtime_down, table_bloat,
-         *     partitions, tls_expiry). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
+         *     partitions, tls_expiry; M5: pos_sync_signature). `action`: what to do when it fires, one sentence. `severity` is the kind's highest (some
          *     kinds' alerts start as a warning and become critical). `fields` says what each threshold means (label, unit, allowed range) and is null
          *     for a threshold the kind does not use; `defaults` are the built-in values. `telegram_configured`: whether an ops
          *     (or superadmin) chat is set, i.e. whether `telegram: true` reaches anyone.
@@ -7076,6 +7076,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/pos/sync-signing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signature mode of the offline queue
+         * @description `enforce`: false observe, true enforce. `unsigned_tills`: the store's connected tills that do not sign yet (no
+         *     key on the server, or the last operation received from them came unsigned: an old app) — in enforce what they
+         *     queue offline is rejected, their payments flagged; `signing_tills`: how many of the others there are.
+         */
+        get: operations["syncSigning.show"];
+        /**
+         * Change the signature mode of the offline queue
+         * @description `enforce` true or false. Turning it on while a connected till does not sign yet answers 409 `tills_not_signing`
+         *     with those tills; `confirm_unsigned: true` turns it on all the same. Store-wide: a caller bound to one branch is
+         *     refused (403 `store_wide_only`). Audited (settings.pos_sync_signatures_changed). Repeating it changes nothing.
+         */
+        put: operations["syncSigning.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/pos/tips": {
         parameters: {
             query?: never;
@@ -11301,8 +11329,11 @@ export interface paths {
          *     `mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the
          *     first one under a key: HMAC-SHA256(key, "rizqim-sync/v1/" + the device uuid)); `kid` the key's number. The
          *     server verifies the bytes, then reads the operation from them. The answer is the same; what the signature was
-         *     worth is kept with the operation (ok, missing, bad, chain_gap). A signature never refuses the batch, and the
-         *     unsigned shape is still taken.
+         *     worth is kept with the operation and answered as `sig_status` (ok, missing, bad, chain_gap). A signature never
+         *     refuses the batch, and the unsigned shape is still taken. In a store whose owner turned enforce on
+         *     (`PUT /owner/pos/sync-signing`) an unsigned or badly signed operation that is not money is rejected
+         *     (`signature_invalid`), a payment is still recorded and answered as a conflict `payment_unverified`, and an
+         *     operation after a lost one (`chain_gap`) is applied and answered as a conflict.
          */
         post: operations["posSync.store"];
         delete?: never;
@@ -19328,7 +19359,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "active" | "all" | "open" | "acknowledged" | "resolved" | null;
-                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | null;
+                kind?: "failed_jobs_spike" | "queue_backlog" | "pos_device_offline" | "fiscal_failures" | "settlement_failures" | "backup_stale" | "scheduler_stale" | "db_connections" | "db_long_transaction" | "db_lock_waits" | "wal_archive" | "pitr_backup_stale" | "restore_drill_stale" | "disk_usage" | "redis_memory" | "queue_worker_stale" | "realtime_down" | "table_bloat" | "partitions" | "tls_expiry" | "pos_sync_signature" | null;
                 severity?: "critical" | "warning" | "info" | null;
                 store_id?: number | null;
                 per_page?: number | null;
@@ -20680,6 +20711,15 @@ export interface operations {
                                     reported_at: string | null;
                                     clock_skew_seconds: number | null;
                                     clock_warning: boolean;
+                                    signatures: {
+                                        days: number;
+                                        ok: number;
+                                        missing: number;
+                                        bad: number;
+                                        chain_gap: number;
+                                        key_id: number | null;
+                                        enforce: boolean;
+                                    };
                                 };
                             }[];
                             current_page: number;
@@ -20755,6 +20795,15 @@ export interface operations {
                                 reported_at: string | null;
                                 clock_skew_seconds: number | null;
                                 clock_warning: boolean;
+                                signatures: {
+                                    days: number;
+                                    ok: number;
+                                    missing: number;
+                                    bad: number;
+                                    chain_gap: number;
+                                    key_id: number | null;
+                                    enforce: boolean;
+                                };
                             };
                         };
                     };
@@ -20826,6 +20875,15 @@ export interface operations {
                                 reported_at: string | null;
                                 clock_skew_seconds: number | null;
                                 clock_warning: boolean;
+                                signatures: {
+                                    days: number;
+                                    ok: number;
+                                    missing: number;
+                                    bad: number;
+                                    chain_gap: number;
+                                    key_id: number | null;
+                                    enforce: boolean;
+                                };
                             };
                         };
                     };
@@ -35846,6 +35904,91 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+        };
+    };
+    "syncSigning.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enforce: boolean;
+                            signing_tills: number;
+                            unsigned_tills: {
+                                uuid: string;
+                                name: string;
+                                branch_id: number | null;
+                                has_key: boolean;
+                                last_sig_status: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "syncSigning.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enforce: boolean;
+                    confirm_unsigned?: boolean | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            enforce: boolean;
+                            signing_tills: number;
+                            unsigned_tills: {
+                                uuid: string;
+                                name: string;
+                                branch_id: number | null;
+                                has_key: boolean;
+                                last_sig_status: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description A connected till does not sign yet: confirm with confirm_unsigned (tills_not_signing) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
         };
     };
     "tips.report": {
@@ -58210,6 +58353,7 @@ export interface operations {
                                 reason: string | null;
                                 message: string | null;
                                 duplicate: boolean;
+                                sig_status: string | null;
                                 refs: {
                                     [key: string]: unknown;
                                 };
@@ -58274,6 +58418,7 @@ export interface operations {
                                 status: string;
                                 reason: string | null;
                                 message: string | null;
+                                sig_status: string | null;
                                 staff: {
                                     id: number;
                                     name: string | null;
@@ -58371,6 +58516,7 @@ export interface operations {
                             status: string;
                             reason: string | null;
                             message: string | null;
+                            sig_status: string | null;
                             staff: {
                                 id: number;
                                 name: string | null;
@@ -58466,6 +58612,7 @@ export interface operations {
                                 status: string;
                                 reason: string | null;
                                 message: string | null;
+                                sig_status: string | null;
                                 staff: {
                                     id: number;
                                     name: string | null;

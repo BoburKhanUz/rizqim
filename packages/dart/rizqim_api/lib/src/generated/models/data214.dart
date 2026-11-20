@@ -4,46 +4,27 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'user_role.dart';
+
 part 'data214.g.dart';
 
 @JsonSerializable()
 class Data214 {
   const Data214({
     required this.id,
-    required this.branchId,
-    required this.type,
-    required this.subjectId,
-    required this.subjectUuid,
     required this.name,
-    required this.reason,
-    required this.until,
-    required this.createdBy,
-    required this.createdByName,
-    required this.createdAt,
+    required this.role,
+    required this.branchId,
   });
 
   factory Data214.fromJson(Map<String, Object?> json) =>
       _$Data214FromJson(json);
 
   final int id;
+  final String name;
+  final UserRole role;
   @JsonKey(name: 'branch_id')
-  final int branchId;
-  final String type;
-  @JsonKey(name: 'subject_id')
-  final int subjectId;
-  @JsonKey(name: 'subject_uuid')
-  final dynamic subjectUuid;
-  final dynamic name;
-  final String? reason;
-  final String? until;
-  @JsonKey(name: 'created_by')
-  final int? createdBy;
-
-  /// The store's own staff only (a super admin's entry shows no name)
-  @JsonKey(name: 'created_by_name')
-  final String? createdByName;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final int? branchId;
 
   Map<String, Object?> toJson() => _$Data214ToJson(this);
 }

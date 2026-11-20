@@ -7,13 +7,15 @@ part of 'data160.dart';
 // **************************************************************************
 
 Data160 _$Data160FromJson(Map<String, dynamic> json) => Data160(
-  poolPeriod: json['pool_period'] as String,
-  distributions: (json['distributions'] as List<dynamic>)
-      .map((e) => Distributions2.fromJson(e as Map<String, dynamic>))
+  enforce: json['enforce'] as bool,
+  signingTills: (json['signing_tills'] as num).toInt(),
+  unsignedTills: (json['unsigned_tills'] as List<dynamic>)
+      .map((e) => UnsignedTills2.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 
 Map<String, dynamic> _$Data160ToJson(Data160 instance) => <String, dynamic>{
-  'pool_period': instance.poolPeriod,
-  'distributions': instance.distributions,
+  'enforce': instance.enforce,
+  'signing_tills': instance.signingTills,
+  'unsigned_tills': instance.unsignedTills,
 };

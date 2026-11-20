@@ -12,7 +12,7 @@ _$PostV1PosBillPrintRequestsRequestIdPrintedResponseFromJson(
 ) => PostV1PosBillPrintRequestsRequestIdPrintedResponse(
   success: json['success'] as bool,
   message: json['message'] as String,
-  data: Data247.fromJson(json['data'] as Map<String, dynamic>),
+  data: Data249.fromJson(json['data'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostV1PosBillPrintRequestsRequestIdPrintedResponseToJson(

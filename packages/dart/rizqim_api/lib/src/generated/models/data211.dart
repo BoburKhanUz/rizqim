@@ -9,20 +9,41 @@ part 'data211.g.dart';
 @JsonSerializable()
 class Data211 {
   const Data211({
+    required this.uuid,
+    required this.branchId,
     required this.userId,
-    required this.staffCode,
-    required this.pinSetAt,
+    required this.userName,
+    required this.businessDate,
+    required this.clockInAt,
+    required this.clockOutAt,
+    required this.abandoned,
+    required this.open,
+    required this.minutes,
+    required this.source,
+    required this.note,
   });
 
   factory Data211.fromJson(Map<String, Object?> json) =>
       _$Data211FromJson(json);
 
+  final String uuid;
+  @JsonKey(name: 'branch_id')
+  final int branchId;
   @JsonKey(name: 'user_id')
   final int userId;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'pin_set_at')
-  final String? pinSetAt;
+  @JsonKey(name: 'user_name')
+  final String? userName;
+  @JsonKey(name: 'business_date')
+  final String businessDate;
+  @JsonKey(name: 'clock_in_at')
+  final String clockInAt;
+  @JsonKey(name: 'clock_out_at')
+  final String? clockOutAt;
+  final bool abandoned;
+  final bool open;
+  final int minutes;
+  final String source;
+  final String? note;
 
   Map<String, Object?> toJson() => _$Data211ToJson(this);
 }

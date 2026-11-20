@@ -4,8 +4,12 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'branch13.dart';
-import 'login_phone_proof.dart';
+import 'payment_settings.dart';
+import 'payment_account_type.dart';
+import 'store_status.dart';
+import 'tax_regime.dart';
+import 'telegram.dart';
+import 'fiscal_settings4.dart';
 
 part 'data193.g.dart';
 
@@ -14,19 +18,26 @@ class Data193 {
   const Data193({
     required this.id,
     required this.name,
-    required this.role,
-    required this.roleLabel,
-    required this.branch,
-    required this.courierType,
+    required this.timezone,
+    required this.logo,
+    required this.logoUrl,
+    required this.banner,
+    required this.bannerUrl,
+    required this.description,
     required this.phone,
-    required this.loginPhoneEnabled,
-    required this.loginPhoneProof,
-    required this.hasPin,
-    required this.staffCode,
-    required this.telegramLinked,
-    required this.invitePending,
-    required this.canEdit,
-    required this.createdAt,
+    required this.address,
+    required this.locationUrl,
+    required this.isOpen,
+    required this.minOrderAmount,
+    required this.paymentSettings,
+    required this.paymentAccountType,
+    required this.status,
+    required this.isOrderLocked,
+    required this.allowedMethods,
+    required this.tin,
+    required this.taxRegime,
+    required this.telegram,
+    required this.fiscalSettings,
   });
 
   factory Data193.fromJson(Map<String, Object?> json) =>
@@ -34,29 +45,37 @@ class Data193 {
 
   final int id;
   final String name;
-  final String role;
-  @JsonKey(name: 'role_label')
-  final String roleLabel;
-  final Branch13? branch;
-  @JsonKey(name: 'courier_type')
-  final String? courierType;
+  final String timezone;
+  final String? logo;
+  @JsonKey(name: 'logo_url')
+  final String? logoUrl;
+  final String? banner;
+  @JsonKey(name: 'banner_url')
+  final String? bannerUrl;
+  final String? description;
   final String? phone;
-  @JsonKey(name: 'login_phone_enabled')
-  final bool loginPhoneEnabled;
-  @JsonKey(name: 'login_phone_proof')
-  final LoginPhoneProof? loginPhoneProof;
-  @JsonKey(name: 'has_pin')
-  final bool hasPin;
-  @JsonKey(name: 'staff_code')
-  final String? staffCode;
-  @JsonKey(name: 'telegram_linked')
-  final bool telegramLinked;
-  @JsonKey(name: 'invite_pending')
-  final bool invitePending;
-  @JsonKey(name: 'can_edit')
-  final bool canEdit;
-  @JsonKey(name: 'created_at')
-  final String? createdAt;
+  final String? address;
+  @JsonKey(name: 'location_url')
+  final String? locationUrl;
+  @JsonKey(name: 'is_open')
+  final bool isOpen;
+  @JsonKey(name: 'min_order_amount')
+  final num minOrderAmount;
+  @JsonKey(name: 'payment_settings')
+  final PaymentSettings paymentSettings;
+  @JsonKey(name: 'payment_account_type')
+  final PaymentAccountType paymentAccountType;
+  final StoreStatus status;
+  @JsonKey(name: 'is_order_locked')
+  final bool isOrderLocked;
+  @JsonKey(name: 'allowed_methods')
+  final List<String> allowedMethods;
+  final String? tin;
+  @JsonKey(name: 'tax_regime')
+  final TaxRegime? taxRegime;
+  final Telegram telegram;
+  @JsonKey(name: 'fiscal_settings')
+  final FiscalSettings4 fiscalSettings;
 
   Map<String, Object?> toJson() => _$Data193ToJson(this);
 }
