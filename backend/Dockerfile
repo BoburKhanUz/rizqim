@@ -1,4 +1,8 @@
-FROM composer:2 AS vendor
+# composer:2 follows the newest PHP (8.6 on 20.11.2026, no mbstring), so the vendor stage runs the same PHP as the
+# runtime image and only borrows the composer binary.
+FROM php:8.3-cli-alpine AS vendor
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN apk add --no-cache git unzip
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install \
