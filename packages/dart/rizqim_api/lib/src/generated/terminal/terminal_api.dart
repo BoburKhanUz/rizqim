@@ -11,6 +11,7 @@ import '../models/get_v1_terminal_response.dart';
 import '../models/get_v1_terminal_staff_response.dart';
 import '../models/post_v1_devices_device_uuid_staff_session_response.dart';
 import '../models/post_v1_devices_pair_response.dart';
+import '../models/post_v1_terminal_sync_key_response.dart';
 import '../models/v1_devices_device_uuid_staff_session_request_body.dart';
 import '../models/v1_devices_pair_request_body.dart';
 
@@ -25,6 +26,10 @@ abstract class TerminalApi {
   /// `code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`.
   /// (P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the.
   /// code's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).
+  ///
+  /// Wave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it.
+  /// signs its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the.
+  /// token, never log it. `null` for a kitchen display or a customer display.
   @POST('/v1/devices/pair')
   Future<PostV1DevicesPairResponse> terminalPair({
     @Body() required V1DevicesPairRequestBody body,
@@ -69,4 +74,17 @@ abstract class TerminalApi {
   Future<GetV1TerminalStaffResponse> terminalStaff({
     @Query('role') String? role,
   });
+
+  /// A new queue signing key for this till.
+  ///
+  /// Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with.
+  /// (`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when.
+  /// `GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`.
+  /// with `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one.
+  /// previous key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is.
+  /// given in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.
+  /// No Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by.
+  /// calling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.
+  @POST('/v1/terminal/sync-key')
+  Future<PostV1TerminalSyncKeyResponse> terminalSyncKey();
 }

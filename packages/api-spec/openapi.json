@@ -38231,7 +38231,7 @@
         "/v1/devices/pair": {
             "post": {
                 "operationId": "terminal.pair",
-                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).",
+                "description": "`code` is the 8-character pairing code shown as ABCD-EFGH; the dash is optional and case does not matter. `app`\n(P6 stage B): which POS app pairs (`cashier`, `waiter`, `kds`, `customer_display`); kept when it runs on the\ncode's terminal type (the branch's default LAN hub is a cashier till, never a waiter's phone).\n\nWave M5 S3: a POS terminal also gets `sync_key` (`key`: base64 of 32 bytes, `kid`: its number), the secret it\nsigns its offline queue with. It is given in this answer only: keep it in the device's secure storage beside the\ntoken, never log it. `null` for a kitchen display or a customer display.",
                 "summary": "POST /devices/pair {code, name?, platform?, app_version?, app?} (no auth, rate limited)",
                 "tags": [
                     "Terminal"
@@ -38305,6 +38305,24 @@
                                             "properties": {
                                                 "token": {
                                                     "type": "string"
+                                                },
+                                                "sync_key": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "key": {
+                                                            "type": "string"
+                                                        },
+                                                        "kid": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "key",
+                                                        "kid"
+                                                    ]
                                                 },
                                                 "device": {
                                                     "type": "object",
@@ -38440,6 +38458,7 @@
                                             },
                                             "required": [
                                                 "token",
+                                                "sync_key",
                                                 "device",
                                                 "store",
                                                 "branch"
@@ -159797,7 +159816,7 @@
         "/v1/pos/sync": {
             "post": {
                 "operationId": "posSync.store",
-                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).",
+                "description": "Up to 50 operations of this till in its `seq` order, each with a new `op_id` (UUID; the same one when sent again:\nit is applied once), `type` (order.open, order.round, order.send, order.void, order.served, bill.create, bill.pay,\norder.close), `occurred_at` (the device's clock), `staff_id` (who did it: signed in on this till before the\noutage, with the permission) and `payload`. Each result: `status` applied | conflict (applied, but a manager\nshould look: oversold, payment on a cancelled order, amount mismatch, stale menu, a taken room, a device price the\ndish never had — `offline_price_mismatch`, the server's price applied) | rejected (not applied: \"Sinxronlash\n     * xatolari\"; `invalid_payload` for content the server cannot store), `reason`, `message` and `refs` (the server's\norder uuid and version, local number, line ids, bill and payment uuids, flags). `sent_at` (the device's clock now)\ngives the clock skew: more than 5 minutes is `clock_warning` (and corrects the operations' times, kept within the\nlast 48 hours). `stopped_at`: a temporary database failure only. `queue` (size, oldest_at) is what is still in the device's queue including\nthis batch: the shift does not close while it is not empty. Only a POS terminal's own token.\nP6 local bridge (docs/POS_SPEC.md §5.5): the branch's hub also sends what it took over the LAN from the waiters'\nphones and the KDS, each with `origin_device` (that terminal's uuid; the staff member signed in there); types\nkitchen.bump, kitchen.recall, kitchen.assembled and bill.request too. A relay from a till that is not the hub, an\norigin outside the branch or a money operation is rejected (relay_not_hub, origin_unknown, origin_wrong_branch,\norigin_revoked, relay_not_allowed).\nWave M5 S3 (signed queue): when `GET /pos/bootstrap` says `offline.signing: true`, a till that holds a queue\nsigning key (the pairing answer's `sync_key`, or `POST /terminal/sync-key`) sends each operation as `{signed,\nmac, prev, kid}` instead: `signed` is the operation above as JSON text, exactly the bytes written to the journal;\n`mac` = HMAC-SHA256(key, prev || signed) and `prev` the mac of the operation before it (64 hex characters; the\nfirst one under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + the device uuid)); `kid` the key's number. The\nserver verifies the bytes, then reads the operation from them. The answer is the same; what the signature was\nworth is kept with the operation (ok, missing, bad, chain_gap). A signature never refuses the batch, and the\nunsigned shape is still taken.",
                 "summary": "Send the offline queue",
                 "tags": [
                     "POS: sync"
@@ -159853,7 +159872,8 @@
                                             "properties": {
                                                 "op_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "description": "The operation's own fields: required in the unsigned shape; in the signed shape they are read from `signed`"
                                                 },
                                                 "seq": {
                                                     "type": "integer",
@@ -159902,15 +159922,36 @@
                                                         "null"
                                                     ],
                                                     "format": "uuid"
+                                                },
+                                                "signed": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The signed shape (wave M5 S3): the whole operation (op_id, seq, type, occurred_at, staff_id, payload, origin_device) as JSON text, exactly the bytes the till wrote to its journal. Fields beside it are ignored."
+                                                },
+                                                "mac": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "HMAC-SHA256(key, prev || signed), 64 hex characters."
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "The mac of the operation before it (the first under a key: HMAC-SHA256(key, \"rizqim-sync/v1/\" + device uuid)), 64 hex characters."
+                                                },
+                                                "kid": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "The number of the key it was signed with."
                                                 }
-                                            },
-                                            "required": [
-                                                "op_id",
-                                                "seq",
-                                                "type",
-                                                "staff_id",
-                                                "payload"
-                                            ]
+                                            }
                                         },
                                         "maxItems": 50,
                                         "uniqueItems": true
@@ -169615,6 +169656,70 @@
                 "security": []
             }
         },
+        "/v1/terminal/sync-key": {
+            "post": {
+                "operationId": "terminal.syncKey",
+                "description": "Wave M5 S3 (signed offline queue): the secret a POS terminal signs its queued operations with\n(`POST /pos/sync`, `operations[].signed`). A till paired before signing existed calls this once when\n`GET /pos/bootstrap` says `offline.signing: true` and it holds no key. Calling it again rotates: a new `key`\nwith `kid + 1`; the server keeps the previous key so operations already queued under it still verify (one\nprevious key only: a till must not rotate while its queue is not empty). `key` is base64 of 32 bytes and is\ngiven in this answer only (it cannot be read again, only replaced): keep it in secure storage, never log it.\nNo Idempotency-Key here on purpose: an answer kept for replay would keep the key. A lost answer is repaired by\ncalling again. Only a POS terminal's own token (403 `terminal_required` otherwise); at most 6 a minute.",
+                "summary": "A new queue signing key for this till",
+                "tags": [
+                    "Terminal"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string"
+                                                },
+                                                "kid": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "key",
+                                                "kid"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/user": {
             "get": {
                 "responses": {
@@ -171826,6 +171931,9 @@
                             }
                         ]
                     },
+                    "sync_key_id": {
+                        "type": "integer"
+                    },
                     "user": {
                         "anyOf": [
                             {
@@ -171887,7 +171995,8 @@
                     "smart_kassa",
                     "fiscal_kassa_id",
                     "display_for_device_id",
-                    "app"
+                    "app",
+                    "sync_key_id"
                 ],
                 "title": "Device"
             },
