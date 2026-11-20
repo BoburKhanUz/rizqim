@@ -120,7 +120,7 @@ class Order extends Model
                 // that far apart collided on the unique index; draw at random and skip codes already taken (any store)
                 do {
                     $code = 'A' . strtoupper(bin2hex(random_bytes(2)));
-                } while (static::withoutGlobalScopes()->withTrashed()->where('short_code', $code)->exists());
+                } while (static::withoutGlobalScopes()->withTrashed()->where('short_code', $code)->exists()); // the unique index spans every store
                 $order->short_code = $code;
             }
         });
